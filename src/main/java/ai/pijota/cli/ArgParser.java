@@ -62,7 +62,7 @@ public final class ArgParser {
                 case "--append-system-prompt" -> appendSystemPrompts.add(nextArg(rawArgs, i++));
                 case "--thinking" -> thinkingLevel = nextArg(rawArgs, i++);
                 case "--mode" -> outputMode = parseMode(nextArg(rawArgs, i++));
-                case "--session", "-s" -> sessionPath = nextArg(rawArgs, i++);
+                case "--session", "-s", "--session-path" -> sessionPath = nextArg(rawArgs, i++);
                 case "--fork" -> forkPath = nextArg(rawArgs, i++);
                 case "--export" -> exportPath = nextArg(rawArgs, i++);
                 case "--tools", "-t" -> enabledTools.addAll(parseList(nextArg(rawArgs, i++)));

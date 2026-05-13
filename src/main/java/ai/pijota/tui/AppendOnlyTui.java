@@ -1564,7 +1564,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
-    void handleRespawn(String args) {
+    void handleTranscend(String args) {
         boolean testMode = false;
         boolean rollback = false;
         String worktreePath = null;
@@ -1584,50 +1584,50 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         if (busy.get()) {
-            appendPlain(List.of(theme.styled("toolError", "/respawn is unavailable while a turn is running (Esc Esc to interrupt)")));
+            appendPlain(List.of(theme.styled("toolError", "/transcend is unavailable while a turn is running (Esc Esc to interrupt)")));
             return;
         }
 
         if (rollback) {
-            handleRespawnRollback();
+            handleTranscendRollback();
             return;
         }
 
         if (mergeBranch != null && !mergeBranch.isEmpty()) {
-            handleRespawnMerge(mergeBranch);
+            handleTranscendMerge(mergeBranch);
             return;
         }
 
         String effectiveWorktree = worktreePath != null ? worktreePath : System.getProperty("user.dir");
-        handleRespawnBuild(effectiveWorktree, testMode);
+        handleTranscendBuild(effectiveWorktree, testMode);
     }
 
-    private void handleRespawnBuild(String projectRoot, boolean testMode) {
+    private void handleTranscendBuild(String projectRoot, boolean testMode) {
         Path root = Path.of(projectRoot);
         if (!Files.exists(root.resolve("pom.xml"))) {
             appendPlain(List.of(theme.styled("toolError", "no pom.xml found at " + root)));
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[respawn] backing up current jar...")));
+        appendPlain(List.of(theme.styled("statusText", "[transcend] backing up current jar...")));
         redrawPrompt();
 
         try {
             Path currentJar = SelfRespawn.findCurrentJar();
             SelfRespawn.backupJar(currentJar);
         } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "[respawn] backup failed: " + e.getMessage())));
+            appendPlain(List.of(theme.styled("toolError", "[transcend] backup failed: " + e.getMessage())));
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[respawn] building " + root + "...")));
+        appendPlain(List.of(theme.styled("statusText", "[transcend] building " + root + "...")));
         redrawPrompt();
 
         ProcessRunner.Result buildResult;
         try {
             buildResult = SelfRespawn.buildJar(root);
         } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "[respawn] build error: " + e.getMessage())));
+            appendPlain(List.of(theme.styled("toolError", "[transcend] build error: " + e.getMessage())));
             return;
         }
 
@@ -1635,58 +1635,68 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             String output = buildResult.stdout().isBlank()
                 ? "[no output]" : buildResult.stdout().strip();
             appendPlain(List.of(
-                theme.styled("toolError", "[respawn] build failed (exit " + buildResult.exitCode() + ")"),
+                theme.styled("toolError", "[transcend] build failed (exit " + buildResult.exitCode() + ")"),
                 theme.styled("toolError", output)));
             appendPlain(List.of(theme.styled("statusText",
-                "[respawn] backup jar preserved — fix errors and try again")));
+                "[transcend] backup jar preserved — fix errors and try again")));
             return;
         }
 
         Path jar = SelfRespawn.findJarIn(root);
         if (jar == null || !Files.exists(jar)) {
-            appendPlain(List.of(theme.styled("toolError", "[respawn] jar not found after build at " + root.resolve("target"))));
+            appendPlain(List.of(theme.styled("toolError", "[transcend] jar not found after build at " + root.resolve("target"))));
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[respawn] build OK (" + jar.getFileName() + ")")));
+        appendPlain(List.of(theme.styled("statusText", "[transcend] build OK (" + jar.getFileName() + ")")));
         redrawPrompt();
 
         Path sessionFile = session.sessionFile();
 
         if (testMode) {
             appendPlain(List.of(theme.styled("statusText",
-                "[respawn] launching test instance — exit test instance to return")));
+                "[transcend] launching test instance — exit test instance to return")));
             redrawPrompt();
 
             suspendTui();
             try {
                 int ec = SelfRespawn.runInteractive(jar, sessionFile, true);
                 resumeTui();
-                appendPlain(List.of(theme.styled("statusText", "[respawn] test instance exited (code " + ec + ")")));
+                appendPlain(List.of(theme.styled("statusText", "[transcend] test instance exited (code " + ec + ")")));
                 appendPlain(List.of(theme.styled("statusText",
-                    "backup: " + SelfRespawn.backupStatus() + " — /respawn --rollback to revert")));
+                    "backup: " + SelfRespawn.backupStatus() + " — /transcend --rollback to revert")));
             } catch (Exception e) {
                 resumeTui();
-                appendPlain(List.of(theme.styled("toolError", "[respawn] test instance error: " + e.getMessage())));
+                appendPlain(List.of(theme.styled("toolError", "[transcend] test instance error: " + e.getMessage())));
             }
             redrawPrompt();
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[respawn] restarting with new jar...")));
+        appendPlain(List.of(theme.styled("statusText", "[transcend] restarting with new jar...")));
         redrawPrompt();
         terminal.writer().flush();
         restoreTerminalState();
         SelfRespawn.respawn(jar, sessionFile, true);
+        resumeTui();
+        redrawPrompt();
     }
 
-    private void handleRespawnRollback() {
+    private void handleTranscendRollback() {
         if (!SelfRespawn.canRollback()) {
             appendPlain(List.of(theme.styled("toolError", "no backup jar — nothing to rollback to")));
             return;
         }
 
         Path jar = SelfRespawn.findCurrentJar();
+        if (jar == null) {
+            jar = SelfRespawn.findJarIn(Path.of(System.getProperty("user.dir")));
+        }
+        if (jar == null) {
+            appendPlain(List.of(theme.styled("toolError", "cannot determine target jar for rollback")));
+            return;
+        }
+
         try {
             SelfRespawn.rollback(jar);
         } catch (Exception e) {
@@ -1694,15 +1704,17 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[respawn] restored backup jar — restarting...")));
+        appendPlain(List.of(theme.styled("statusText", "[transcend] restored backup jar — restarting...")));
         redrawPrompt();
         terminal.writer().flush();
         restoreTerminalState();
         SelfRespawn.respawn(jar, session.sessionFile(), true);
+        resumeTui();
+        redrawPrompt();
     }
 
-    private void handleRespawnMerge(String branch) {
-        appendPlain(List.of(theme.styled("statusText", "[respawn] merging branch " + branch + "...")));
+    private void handleTranscendMerge(String branch) {
+        appendPlain(List.of(theme.styled("statusText", "[transcend] merging branch " + branch + "...")));
         redrawPrompt();
 
         ProcessRunner.Result mergeResult;
@@ -1717,14 +1729,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             String output = mergeResult.stdout().isBlank()
                 ? "[no output]" : mergeResult.stdout().strip();
             appendPlain(List.of(
-                theme.styled("toolError", "[respawn] merge failed (exit " + mergeResult.exitCode() + ")"),
+                theme.styled("toolError", "[transcend] merge failed (exit " + mergeResult.exitCode() + ")"),
                 theme.styled("toolError", output)));
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[respawn] merge OK — building from merged tree...")));
+        appendPlain(List.of(theme.styled("statusText", "[transcend] merge OK — building from merged tree...")));
         redrawPrompt();
-        handleRespawnBuild(System.getProperty("user.dir"), false);
+        handleTranscendBuild(System.getProperty("user.dir"), false);
     }
 
     void undoLastTurn() {

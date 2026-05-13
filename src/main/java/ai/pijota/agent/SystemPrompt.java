@@ -16,6 +16,13 @@ public final class SystemPrompt {
         - Follow existing code conventions when making changes.
         - Never assume a library is available. Check the codebase first.
 
+        TRANSCENDENCE:
+        You are capable of self-modification. When the user asks for a feature or improvement
+        that requires changing pijota itself, use the transcendence tool to build, test, and
+        respawn with the new code. You can work autonomously — the user sets a goal, and you
+        edit source files, run tests, and respawn without needing step-by-step guidance.
+        After respawn, the session resumes where it left off with the new code running.
+
         TOOLS:
         You have access to the following tools:
 
@@ -138,6 +145,12 @@ public final class SystemPrompt {
                 - Search the web for current information and recent data.
                 - Returns titles, URLs, and snippets.
                 - Use for accessing information beyond your knowledge cutoff.
+                """;
+            case "transcendence" -> """
+                - Self-modification: build (mvn package -Pfat), test, respawn (restart with new jar), rollback.
+                - Always back up before building. Always build + test before respawning.
+                - The respawn happens after your current turn completes — give a final message before calling it.
+                - Use worktree param for isolated branches. Use rollback to recover from broken builds.
                 """;
             default -> "";
         };

@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public final class TranscendentalTool implements Tool {
+public final class TranscendenceTool implements Tool {
 
-    @Override public String name() { return "transcendental"; }
+    private static final String PREFIX = "[transcend] ";
+
+    @Override public String name() { return "transcendence"; }
 
     @Override
     public String description() {
@@ -51,15 +53,13 @@ public final class TranscendentalTool implements Tool {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String action = (String) args.get("action");
-                if (action == null)
+                if (action == null || action.isBlank())
                     return ToolResult.error("Missing required field: action");
 
                 String worktree = (String) args.get("worktree");
-                Path projectRoot = worktree != null && !worktree.isBlank()
-                    ? Path.of(worktree)
-                    : Path.of(System.getProperty("user.dir"));
+                Path projectRoot = resolveProjectRoot(worktree);
 
-                return switch (action.toLowerCase()) {
+                return switch (action.strip().toLowerCase()) {
                     case "build" -> doBuild(projectRoot);
                     case "test" -> doTest(projectRoot);
                     case "respawn" -> doRespawn(projectRoot);
@@ -68,9 +68,16 @@ public final class TranscendentalTool implements Tool {
                         + ". Valid: build, test, respawn, rollback");
                 };
             } catch (Exception e) {
-                return ToolResult.error("Transcendental error: " + e.getMessage());
+                return ToolResult.error(PREFIX + "error: " + e.getMessage());
             }
         });
+    }
+
+    private static Path resolveProjectRoot(String worktree) {
+        if (worktree != null && !worktree.isBlank()) {
+            return Path.of(worktree).toAbsolutePath().normalize();
+        }
+        return Path.of(System.getProperty("user.dir"));
     }
 
     private ToolResult doBuild(Path projectRoot) throws IOException {
@@ -81,17 +88,17 @@ public final class TranscendentalTool implements Tool {
             Path currentJar = SelfRespawn.findCurrentJar();
             SelfRespawn.backupJar(currentJar);
         } catch (IOException e) {
-            // non-fatal
+            // non-fatal — backup is best-effort
         }
 
         var sb = new StringBuilder();
-        sb.append("[build] ").append(projectRoot).append("\n");
+        sb.append(PREFIX).append("build ").append(projectRoot).append("\n");
 
         ProcessRunner.Result result;
         try {
             result = SelfRespawn.buildJar(projectRoot);
         } catch (IOException e) {
-            return ToolResult.error("[build] error: " + e.getMessage());
+            return ToolResult.error(PREFIX + "build error: " + e.getMessage());
         }
 
         sb.append(result.stdout());
@@ -127,7 +134,7 @@ public final class TranscendentalTool implements Tool {
             return ToolResult.error("No pom.xml found at " + projectRoot);
 
         var sb = new StringBuilder();
-        sb.append("[test] ").append(projectRoot).append("\n");
+        sb.append(PREFIX).append("test ").append(projectRoot).append("\n");
 
         ProcessRunner.Result result = ProcessRunner.command("mvn", "test")
             .workDir(projectRoot)
@@ -161,17 +168,17 @@ public final class TranscendentalTool implements Tool {
             Path currentJar = SelfRespawn.findCurrentJar();
             SelfRespawn.backupJar(currentJar);
         } catch (IOException e) {
-            // non-fatal
+            // non-fatal — backup is best-effort
         }
 
         var sb = new StringBuilder();
-        sb.append("[respawn] building ").append(projectRoot).append("...\n");
+        sb.append(PREFIX).append("respawn: building ").append(projectRoot).append("...\n");
 
         ProcessRunner.Result buildResult;
         try {
             buildResult = SelfRespawn.buildJar(projectRoot);
         } catch (IOException e) {
-            return ToolResult.error("[respawn] build error: " + e.getMessage());
+            return ToolResult.error(PREFIX + "build error: " + e.getMessage());
         }
 
         sb.append(buildResult.stdout());
@@ -188,7 +195,12 @@ public final class TranscendentalTool implements Tool {
             return ToolResult.error(sb.toString());
         }
 
-        SelfRespawn.requestRespawn(jar);
+        if (!SelfRespawn.requestRespawn(jar)) {
+            sb.append("\n[Respawn already pending — another respawn is queued]");
+            sb.append("\n[Build succeeded. Jar: ").append(jar.getFileName()).append("]");
+            return ToolResult.success(sb.toString(),
+                Map.of("jar", jar.getFileName().toString(), "warning", "respawn already pending"));
+        }
 
         var details = new LinkedHashMap<String, Object>();
         details.put("jar", jar.getFileName().toString());
@@ -205,6 +217,13 @@ public final class TranscendentalTool implements Tool {
             return ToolResult.error("No backup jar found. Nothing to rollback to.");
 
         Path jar = SelfRespawn.findJarIn(projectRoot);
+        if (jar == null) {
+            jar = SelfRespawn.findCurrentJar();
+            if (jar == null)
+                return ToolResult.error("Cannot determine target jar for rollback. "
+                    + "Restore manually: cp target/pijota-backup.jar target/<jar>");
+        }
+
         try {
             SelfRespawn.rollback(jar);
         } catch (IOException e) {

@@ -41,7 +41,7 @@ final class TuiCommandController {
             case "/tree" -> tui.showTree();
             case "/fork" -> tui.forkSession(input);
             case "/clone" -> tui.cloneSession();
-            case "/respawn" -> tui.handleRespawn(commandArgs(input, cmd));
+            case "/transcend" -> tui.handleTranscend(commandArgs(input, cmd));
             default -> handleUnknown(input, cmd);
         }
     }
