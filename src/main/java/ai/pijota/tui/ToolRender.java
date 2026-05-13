@@ -1,0 +1,137 @@
+package ai.pijota.tui;
+
+import ai.pijota.util.Util;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
+final class ToolRender {
+
+    private ToolRender() {}
+
+    static String trace(String toolName, Supplier<String> args, String cwd) {
+        Map<String, Object> a = parse(args);
+        if (a.isEmpty()) return "→ " + toolName;
+        return switch (toolName) {
+            case "read" -> "→ Read " + displayPath(pathArg(a), cwd) + options(a, "offset", "limit");
+            case "write" -> "→ Write " + displayPath(pathArg(a), cwd);
+            case "edit" -> "→ Edit " + displayPath(pathArg(a), cwd);
+            case "grep" -> "✱ Grep " + quote(a.get("pattern")) + " in "
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + options(a, "glob", "context", "limit");
+            case "glob" -> "✱ Glob " + quote(a.get("pattern")) + " in "
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + options(a, "limit");
+            case "ls" -> "→ Ls " + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + options(a, "limit");
+            case "bash" -> "→ Bash " + quote(shorten(a.getOrDefault("command", "").toString(), 80));
+            case "question" -> "→ Question " + shorten(questionText(a), 80);
+            case "task" -> "→ Task " + taskLabel(a);
+            case "webfetch" -> "→ WebFetch " + shorten(a.getOrDefault("url", "").toString(), 80);
+            case "websearch" -> "→ WebSearch " + quote(shorten(a.getOrDefault("query", "").toString(), 80));
+            case "todowrite" -> "→ TodoWrite " + todoCount(a);
+            default -> "→ " + toolName;
+        };
+    }
+
+    static String detail(String toolName, Supplier<String> args) {
+        Map<String, Object> a = parse(args);
+        if (a.isEmpty()) return "";
+        return switch (toolName) {
+            case "read", "write", "edit" -> fileName(pathArg(a));
+            case "bash" -> shorten(a.getOrDefault("command", "").toString(), 60);
+            case "question" -> shorten(questionText(a), 60);
+            case "ls" -> fileName(a.getOrDefault("path", ".").toString());
+            case "glob", "grep" -> shorten(a.getOrDefault("pattern", "").toString(), 40);
+            case "task" -> taskDetail(a);
+            default -> "";
+        };
+    }
+
+    static String pathArg(Map<String, Object> args) {
+        Object path = args.get("path");
+        if (path == null) path = args.get("filePath");
+        if (path == null) path = args.get("file_path");
+        return path == null ? "" : path.toString();
+    }
+
+    private static Map<String, Object> parse(Supplier<String> args) {
+        if (args == null) return Map.of();
+        return Util.parseJsonArgs(args.get());
+    }
+
+    private static String displayPath(String path, String cwd) {
+        if (path == null || path.isBlank()) return ".";
+        try {
+            Path base = Path.of(cwd.replaceAll("\\(.*\\)", "").strip()).toAbsolutePath().normalize();
+            Path resolved = Path.of(path);
+            if (!resolved.isAbsolute()) resolved = base.resolve(resolved);
+            resolved = resolved.toAbsolutePath().normalize();
+            if (resolved.startsWith(base)) return base.relativize(resolved).toString();
+        } catch (Exception ignored) {}
+        String home = System.getProperty("user.home");
+        return home != null && path.startsWith(home) ? "~" + path.substring(home.length()) : path;
+    }
+
+    private static String fileName(String path) {
+        if (path == null || path.isBlank()) return "";
+        Path p = Path.of(path);
+        return p.getFileName() != null ? p.getFileName().toString() : path;
+    }
+
+    private static String options(Map<String, Object> args, String... keys) {
+        var parts = new ArrayList<String>();
+        for (String key : keys) {
+            Object value = args.get(key);
+            if (value != null && (!(value instanceof String s) || !s.isBlank())) parts.add(key + "=" + value);
+        }
+        return parts.isEmpty() ? "" : " [" + String.join(", ", parts) + "]";
+    }
+
+    private static String quote(Object value) {
+        return "\"" + oneLine(value == null ? "" : value.toString()) + "\"";
+    }
+
+    private static String oneLine(String value) {
+        return Util.stripSystemReminders(value).replaceAll("\\R+", " ").strip();
+    }
+
+    private static String questionText(Map<String, Object> args) {
+        Object q = args.get("question") != null ? args.get("question") : args.get("text");
+        return q != null ? q.toString() : String.valueOf(args.getOrDefault("questions", ""));
+    }
+
+    private static String taskLabel(Map<String, Object> args) {
+        if (args.containsKey("chain") && args.get("chain") instanceof List<?> c)
+            return "chain (" + c.size() + " steps)";
+        if (args.containsKey("tasks") && args.get("tasks") instanceof List<?> t)
+            return "parallel (" + t.size() + " tasks)";
+        return shorten(args.getOrDefault("agent", "").toString(), 40);
+    }
+
+    private static String taskDetail(Map<String, Object> args) {
+        if (args.containsKey("chain") && args.get("chain") instanceof List<?> c)
+            return c.size() + " steps";
+        if (args.containsKey("tasks") && args.get("tasks") instanceof List<?> t)
+            return t.size() + " tasks";
+        return shorten(args.getOrDefault("agent", "").toString(), 30);
+    }
+
+    private static String todoCount(Map<String, Object> args) {
+        Object todos = args.get("todos");
+        if (todos instanceof List<?> list) {
+            long done = list.stream().filter(i -> i instanceof Map<?,?> m
+                && "completed".equals(m.get("status"))).count();
+            return "(" + list.size() + " items, " + done + " done)";
+        }
+        return "";
+    }
+
+    private static String shorten(String s, int max) {
+        if (s == null || s.isBlank()) return "";
+        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
+    }
+}

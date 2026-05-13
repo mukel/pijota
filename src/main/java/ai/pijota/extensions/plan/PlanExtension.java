@@ -1,0 +1,87 @@
+package ai.pijota.extensions.plan;
+
+import ai.pijota.extensions.Extension;
+import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionKeybinding;
+import ai.pijota.extensions.ExtensionResult;
+import ai.pijota.extensions.KeyChord;
+import ai.pijota.modes.SlashCommand;
+import ai.pijota.util.Util;
+
+import java.util.List;
+import java.util.Map;
+
+public final class PlanExtension implements Extension {
+    private static final List<String> PLAN_TOOLS = List.of("read", "bash", "grep", "glob", "ls", "question");
+    private static final List<String> NORMAL_TOOLS = List.of("read", "bash", "edit", "write", "grep", "glob", "ls");
+
+    private boolean planEnabled;
+
+    @Override public String name() { return "plan"; }
+    @Override public String description() { return "Read-only plan mode for safe code exploration"; }
+
+    @Override
+    public void init(ExtensionAPI api) throws Exception {
+        var runtime = api.runtime();
+
+        api.registerSlashCommand(new SlashCommand("plan",
+            "Toggle plan mode (read-only exploration)",
+            List.of(), _args -> toggle(api)));
+
+        api.registerKeybinding(new ExtensionKeybinding(
+            new KeyChord(KeyChord.Key.P, KeyChord.Modifier.CTRL, KeyChord.Modifier.ALT),
+            "Toggle plan mode", () -> toggle(api)));
+
+        api.registerStatusLines(() -> planEnabled ? List.of("\u23f8 plan") : List.of());
+
+        api.onToolCall((tc, _ctx) -> {
+            if (!planEnabled) return new ExtensionResult.Allow();
+            if (!"bash".equals(tc.toolName())) return new ExtensionResult.Allow();
+            String command = parseCommand(tc.arguments());
+            if (command != null && !PlanUtils.isSafeCommand(command)) {
+                return new ExtensionResult.Block("Plan mode: destructive command blocked. /plan to exit.");
+            }
+            return new ExtensionResult.Allow();
+        });
+
+        api.onBeforeAgentStart((bas, _ctx) -> {
+            if (!planEnabled) return;
+            bas.systemPrompt().append("""
+
+                [PLAN MODE ACTIVE]
+                You are in plan mode — read-only exploration. Available tools: read, bash (safe commands only), grep, glob, ls, question. Edit/write are disabled.
+                Create a numbered plan under a "Plan:" header:
+                Plan:
+                1. First step description
+                2. Second step description
+                ...
+                Do NOT attempt to make changes — just describe what you would do.""");
+        });
+
+        api.onSessionStart((_event, _ctx) -> {
+            if (runtime.getFlag("plan", false)) {
+                planEnabled = true;
+                runtime.setActiveTools(PLAN_TOOLS);
+            }
+        });
+    }
+
+    private void toggle(ExtensionAPI api) {
+        planEnabled = !planEnabled;
+        if (planEnabled) {
+            api.runtime().setActiveTools(PLAN_TOOLS);
+        } else {
+            api.runtime().setActiveTools(NORMAL_TOOLS);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String parseCommand(String argsJson) {
+        try {
+            Map<String, Object> args = Util.MAPPER.readValue(argsJson, Map.class);
+            return (String) args.get("command");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}

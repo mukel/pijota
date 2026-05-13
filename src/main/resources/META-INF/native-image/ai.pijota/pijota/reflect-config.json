@@ -1,0 +1,98 @@
+[
+  {
+    "name": "ai.pijota.config.AppConfig",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.config.AppConfig$CompactionConfig",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.llm.ProviderCatalog$Catalog",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.llm.ProviderCatalog$Provider",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.llm.ProviderCatalog$OAuth",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.llm.ModelInfo",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.llm.ModelRegistry$ModelCatalog",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.config.OAuthTokenStore$Entry",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.theme.AnsiTheme",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.agent.HeadlessAgentRunner$LogEvent",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.agent.HeadlessAgentRunner$ToolStartEvent",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.agent.HeadlessAgentRunner$ToolResultEvent",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.agent.HeadlessAgentRunner$ToolEndEvent",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.agent.HeadlessAgentRunner$StreamEvent",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.agent.HeadlessAgentRunner$StreamLinesEvent",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  },
+  {
+    "name": "ai.pijota.agent.HeadlessAgentRunner$DoneEvent",
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true,
+    "allPublicConstructors": true
+  }
+]

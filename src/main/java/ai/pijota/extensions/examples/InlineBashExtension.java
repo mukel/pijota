@@ -1,0 +1,66 @@
+package ai.pijota.extensions.examples;
+
+import ai.pijota.extensions.Extension;
+import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionResult;
+import ai.pijota.extensions.ExtensionRuntime.ExecResult;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public final class InlineBashExtension implements Extension {
+
+    private static final Pattern INLINE_BASH = Pattern.compile("!\\{([^}]+)\\}");
+
+    @Override public String name() { return "inline-bash"; }
+    @Override public String description() { return "Expands !{command} patterns in user prompts"; }
+
+    @Override
+    public void init(ExtensionAPI api) {
+        var runtime = api.runtime();
+
+        api.onInput((text, ctx) -> {
+            String trimmed = text.stripLeading();
+
+            if (trimmed.startsWith("!") && !trimmed.startsWith("!{")) {
+                return new ExtensionResult.Continue(text);
+            }
+
+            Matcher m = INLINE_BASH.matcher(text);
+            var replacements = new ArrayList<Replacement>();
+            while (m.find()) {
+                replacements.add(new Replacement(m.group(0), m.group(1).strip()));
+            }
+            if (replacements.isEmpty()) {
+                return new ExtensionResult.Continue(text);
+            }
+
+            var result = new StringBuilder();
+            int lastEnd = 0;
+            for (var r : replacements) {
+                int idx = text.indexOf(r.original, lastEnd);
+                if (idx < 0) continue;
+                result.append(text, lastEnd, idx);
+                try {
+                    ExecResult exec = runtime.exec(List.of("bash", "-c", r.command));
+                    String out = exec.success() ? exec.stdout().strip() : exec.stderr().strip();
+                    result.append(out.isBlank() ? "" : out);
+                } catch (Exception e) {
+                    result.append("[error: ").append(e.getMessage()).append("]");
+                }
+                lastEnd = idx + r.original.length();
+            }
+            result.append(text, lastEnd, text.length());
+
+            if (ctx.hasUI()) {
+                runtime.setStatus("inline-bash", "Expanded " + replacements.size() + " inline command(s)");
+            }
+
+            return new ExtensionResult.Continue(result.toString());
+        });
+    }
+
+    private record Replacement(String original, String command) {}
+}

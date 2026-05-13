@@ -1,0 +1,206 @@
+package ai.pijota.agent;
+
+import ai.pijota.extensions.ExtensionRegistry;
+import ai.pijota.extensions.HeadlessToolContext;
+import ai.pijota.llm.LlmService;
+import ai.pijota.messages.Message;
+import ai.pijota.tools.Tool;
+import ai.pijota.tools.ToolRegistry;
+import ai.pijota.util.Util;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public final class HeadlessAgentRunner {
+
+    private HeadlessAgentRunner() {}
+
+    public static int run(LlmService llm, ExtensionRegistry extensions) {
+        var writerRef = new BufferedWriter[]{null};
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> input = Util.MAPPER.readValue(System.in, Map.class);
+
+            String description = (String) input.getOrDefault("description",
+                input.getOrDefault("task", ""));
+            String systemPrompt = (String) input.get("systemPrompt");
+            @SuppressWarnings("unchecked")
+            List<String> toolNames = (List<String>) input.getOrDefault("tools", List.of());
+            String cwd = (String) input.getOrDefault("cwd", System.getProperty("user.dir"));
+            int depth = input.get("subagentDepth") instanceof Number n ? n.intValue() : 0;
+            String taskProvider = (String) input.get("provider");
+            String taskModel = (String) input.get("model");
+            String taskApiKey = (String) input.get("apiKey");
+            if (taskProvider != null && taskModel != null) {
+                String key = taskApiKey != null ? taskApiKey : llm.apiKey();
+                llm.setProviderAndModel(taskProvider, taskModel, key);
+            }
+
+            var registry = buildRegistry(toolNames, depth, llm, systemPrompt, cwd, extensions);
+            var agentLoop = AgentLoop.builder(llm, registry, cwd).build();
+            if (systemPrompt != null && !systemPrompt.isBlank()) {
+                agentLoop.addSystemPrompt(systemPrompt);
+            }
+
+            Path logFile = null;
+            String logPath = (String) input.get("logFile");
+            if (logPath != null && !logPath.isBlank()) {
+                logFile = Path.of(logPath);
+                Files.createDirectories(logFile.getParent());
+                writerRef[0] = Files.newBufferedWriter(logFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                emit(new LogEvent(logFile.toString()));
+            }
+
+            var toolCount = new AtomicInteger(0);
+            var lastLineCount = new AtomicInteger(0);
+
+            agentLoop.addEventListener(event -> {
+                switch (event) {
+                    case AgentEvent.ToolStart ts -> {
+                        toolCount.incrementAndGet();
+                        emit(new ToolStartEvent(ts.toolName(), ts.argumentsSupplier().get()));
+                        if (writerRef[0] != null) {
+                            try { writerRef[0].write("-> " + ts.toolName() + " " + ts.argumentsSupplier().get() + "\n"); writerRef[0].flush(); }
+                            catch (IOException ignored) {}
+                        }
+                    }
+                    case AgentEvent.ToolResult(Message.ToolResult msg) -> {
+                        emit(new ToolResultEvent(msg.toolName(), msg.isError(), msg.details()));
+                        emit(new ToolEndEvent(msg.toolName()));
+                    }
+                    case AgentEvent.MessageStreamDelta d -> {
+                        String delta = d.delta();
+                        emit(new StreamEvent(delta));
+                        if (writerRef[0] != null) {
+                            try { writerRef[0].write(delta); writerRef[0].flush(); }
+                            catch (IOException ignored) {}
+                        }
+                        int current = Util.countNewlines(delta);
+                        int added = current - lastLineCount.getAndSet(current);
+                        if (added > 0) emit(new StreamLinesEvent(added));
+                    }
+                    case AgentEvent.MessageStreamEnd _ -> {
+                        // emitted after each LLM response completes
+                    }
+                    default -> {}
+                }
+            });
+
+            List<Message> messages = agentLoop.prompt(description).get(5, TimeUnit.MINUTES);
+
+            int turns = 0;
+            String finalOutput = "";
+            for (var msg : messages) {
+                if (msg instanceof Message.Assistant a) {
+                    if (a.content() != null && !a.content().isBlank()) finalOutput = a.content();
+                    turns++;
+                }
+            }
+
+            if (writerRef[0] != null) {
+                try { writerRef[0].write("\n--- done (" + turns + " turns) ---\n"); }
+                catch (IOException ignored) {}
+            }
+
+            if (logFile != null) {
+                try {
+                    String prefix = logFile.getFileName().toString().replace(".log", "");
+                    Path dir = logFile.getParent();
+                    Files.writeString(dir.resolve(prefix + "_input.md"), description);
+                    Files.writeString(dir.resolve(prefix + "_output.md"), finalOutput);
+                } catch (IOException ignored) {}
+            }
+
+            emit(new DoneEvent(finalOutput, 0, turns, toolCount.get(), null));
+
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            if (msg == null || msg.isBlank()) msg = e.getClass().getSimpleName();
+            var sw = new StringWriter();
+            e.printStackTrace(new PrintWriter(sw));
+            String fullError = msg + "\n" + sw;
+            System.err.println("--- PJ ERROR ---");
+            System.err.println(fullError);
+            System.err.flush();
+            if (writerRef[0] != null) {
+                try { writerRef[0].write("\n--- ERROR ---\n" + fullError + "\n"); writerRef[0].flush(); }
+                catch (IOException ignored) {}
+            }
+            try {
+                emit(new DoneEvent("", 1, 0, 0, fullError));
+            } catch (Exception emitEx) {
+                if (writerRef[0] != null) {
+                    try { writerRef[0].write("\n--- EMIT FAILED ---\n" + emitEx + "\n"); writerRef[0].flush(); }
+                    catch (IOException ignored) {}
+                }
+            }
+            return 1;
+        } finally {
+            if (writerRef[0] != null) {
+                try { writerRef[0].close(); } catch (IOException ignored) {}
+            }
+        }
+        return 0;
+    }
+
+    private static ToolRegistry buildRegistry(List<String> names, int depth,
+            LlmService llm, String systemPrompt, String cwd, ExtensionRegistry extensions) {
+        var defaults = ToolRegistry.createDefault();
+        var registry = new ToolRegistry();
+        for (String name : names) {
+            defaults.get(name).ifPresent(registry::register);
+        }
+        if (extensions != null) {
+            extensions.contributeHeadlessTools(new HeadlessToolContext(
+                names, depth, llm, registry, systemPrompt, Path.of(cwd)));
+        }
+        return registry;
+    }
+
+    private static void emit(Object event) {
+        try { System.out.println(Util.MAPPER.writeValueAsString(event)); }
+        catch (Exception ignored) {}
+    }
+
+    // --- JSON event records ---
+
+    record LogEvent(String type, String path) {
+        LogEvent(String path) { this("log", path); }
+    }
+
+    record ToolStartEvent(String type, String tool, String args) {
+        ToolStartEvent(String tool, String args) { this("tool_start", tool, args); }
+    }
+
+    record ToolResultEvent(String type, String tool, boolean error, Map<String, Object> details) {
+        ToolResultEvent(String tool, boolean error, Map<String, Object> details) {
+            this("tool_result", tool, error, details == null ? Map.of() : details);
+        }
+    }
+
+    record ToolEndEvent(String type, String tool) {
+        ToolEndEvent(String tool) { this("tool_end", tool); }
+    }
+
+    record StreamEvent(String type, String delta) {
+        StreamEvent(String delta) { this("stream", delta); }
+    }
+
+    record StreamLinesEvent(String type, int count) {
+        StreamLinesEvent(int count) { this("stream_lines", count); }
+    }
+
+    record DoneEvent(String type, String output, int exitCode, int turns, int toolCount, String error) {
+        DoneEvent(String output, int exitCode, int turns, int toolCount, String error) {
+            this("done", output, exitCode, turns, toolCount, error);
+        }
+    }
+}

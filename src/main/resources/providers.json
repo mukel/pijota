@@ -1,0 +1,134 @@
+{
+  "providers": [
+    {
+      "id": "deepseek",
+      "displayName": "DeepSeek",
+      "apiType": "openai",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "env": ["DEEPSEEK_API_KEY"],
+      "defaultModel": "deepseek-chat"
+    },
+    {
+      "id": "groq",
+      "displayName": "Groq",
+      "apiType": "openai",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "env": ["GROQ_API_KEY"],
+      "defaultModel": "llama-3.3-70b-versatile"
+    },
+    {
+      "id": "xai",
+      "displayName": "xAI",
+      "apiType": "openai",
+      "baseUrl": "https://api.x.ai/v1",
+      "env": ["XAI_API_KEY"],
+      "defaultModel": "grok-2"
+    },
+    {
+      "id": "mistral",
+      "displayName": "Mistral",
+      "apiType": "openai",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "env": ["MISTRAL_API_KEY"],
+      "defaultModel": "mistral-large-latest"
+    },
+    {
+      "id": "together",
+      "displayName": "Together AI",
+      "apiType": "openai",
+      "baseUrl": "https://api.together.xyz/v1",
+      "env": ["TOGETHER_API_KEY"],
+      "defaultModel": "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+    },
+    {
+      "id": "openrouter",
+      "displayName": "OpenRouter",
+      "apiType": "openai",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "env": ["OPENROUTER_API_KEY"],
+      "defaultModel": "openai/gpt-4.1"
+    },
+    {
+      "id": "cerebras",
+      "displayName": "Cerebras",
+      "apiType": "openai",
+      "baseUrl": "https://api.cerebras.ai/v1",
+      "env": ["CEREBRAS_API_KEY"],
+      "defaultModel": "llama3.3-70b"
+    },
+    {
+      "id": "fireworks",
+      "displayName": "Fireworks AI",
+      "apiType": "openai",
+      "baseUrl": "https://api.fireworks.ai/inference/v1",
+      "env": ["FIREWORKS_API_KEY"],
+      "defaultModel": "accounts/fireworks/models/llama-v3p3-70b-instruct"
+    },
+    {
+      "id": "openai-codex",
+      "displayName": "OpenAI Codex",
+      "apiType": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "env": ["OPENAI_API_KEY"],
+      "defaultModel": "gpt-5",
+      "oauth": {
+        "deviceEndpoint": "https://auth.openai.com/api/accounts/deviceauth/usercode",
+        "tokenEndpoint": "https://auth.openai.com/api/accounts/deviceauth/token",
+        "oauthTokenEndpoint": "https://auth.openai.com/oauth/token",
+        "clientId": "app_EMoamEEZ73f0CkXaXp7hrann",
+        "scope": "openid profile email offline_access"
+      }
+    },
+    {
+      "id": "kimi-coding",
+      "displayName": "Kimi For Coding",
+      "apiType": "anthropic",
+      "baseUrl": "https://api.kimi.com/coding/v1",
+      "env": ["KIMI_API_KEY"],
+      "defaultModel": "kimi-k2.6",
+      "headers": {
+        "User-Agent": "KimiCLI/1.5"
+      }
+    },
+    {
+      "id": "moonshotai",
+      "displayName": "Moonshot AI",
+      "apiType": "openai",
+      "baseUrl": "https://api.moonshot.ai/v1",
+      "env": ["MOONSHOT_API_KEY"],
+      "defaultModel": "kimi-k2-thinking"
+    },
+    {
+      "id": "moonshotai-cn",
+      "displayName": "Moonshot AI China",
+      "apiType": "openai",
+      "baseUrl": "https://api.moonshot.cn/v1",
+      "env": ["MOONSHOT_API_KEY"],
+      "defaultModel": "kimi-k2-thinking"
+    },
+    {
+      "id": "xiaomi-token-plan-cn",
+      "displayName": "Xiaomi MiMo Token Plan China",
+      "apiType": "openai",
+      "baseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
+      "env": ["XIAOMI_TOKEN_PLAN_CN_API_KEY"],
+      "defaultModel": "mimo-v2.5-pro"
+    },
+    {
+      "id": "xiaomi-token-plan-ams",
+      "displayName": "Xiaomi MiMo Token Plan Amsterdam",
+      "apiType": "openai",
+      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
+      "env": ["XIAOMI_TOKEN_PLAN_AMS_API_KEY"],
+      "defaultModel": "mimo-v2.5-pro"
+    },
+    {
+      "id": "xiaomi-token-plan-sgp",
+      "displayName": "Xiaomi MiMo Token Plan Singapore",
+      "apiType": "openai",
+      "baseUrl": "https://token-plan-sgp.xiaomimimo.com/v1",
+      "env": ["XIAOMI_TOKEN_PLAN_SGP_API_KEY"],
+      "defaultModel": "mimo-v2.5-pro"
+    }
+  ]
+}
