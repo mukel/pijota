@@ -23,7 +23,8 @@ public final class TranscendenceTool implements Tool {
             + "Actions: 'build' (mvn package), 'test' (mvn test), "
             + "'respawn' (build + restart with new jar), 'rollback' (restore backup jar + restart). "
             + "Use 'worktree' param to operate on a git worktree path. "
-            + "Always build and test before respawning. If respawn fails, use rollback to revert.";
+            + "Always build and test before respawning. After build/test pass, respawn is mandatory; do not stop "
+            + "because a manual verification command was inconclusive or used the wrong executable. If respawn fails, use rollback to revert.";
     }
 
     @Override
@@ -38,6 +39,10 @@ public final class TranscendenceTool implements Tool {
                 "worktree", Map.of(
                     "type", "string",
                     "description", "Optional path to git worktree. If set, operates on that worktree instead of current directory."
+                ),
+                "mergeBranch", Map.of(
+                    "type", "string",
+                    "description", "Optional branch to merge into the original checkout after successful respawn. Use with action='respawn'."
                 )
             ),
             "required", List.of("action"),
@@ -57,12 +62,13 @@ public final class TranscendenceTool implements Tool {
                     return ToolResult.error("Missing required field: action");
 
                 String worktree = (String) args.get("worktree");
+                String mergeBranch = (String) args.get("mergeBranch");
                 Path projectRoot = resolveProjectRoot(worktree);
 
                 return switch (action.strip().toLowerCase()) {
                     case "build" -> doBuild(projectRoot);
                     case "test" -> doTest(projectRoot);
-                    case "respawn" -> doRespawn(projectRoot);
+                    case "respawn" -> doRespawn(projectRoot, mergeBranch);
                     case "rollback" -> doRollback(projectRoot);
                     default -> ToolResult.error("Unknown action: " + action
                         + ". Valid: build, test, respawn, rollback");
@@ -157,10 +163,11 @@ public final class TranscendenceTool implements Tool {
         }
 
         sb.append("\n[All tests passed]");
+        sb.append("\n[Next required action: call transcendence action=\"respawn\" with the same worktree.]");
         return ToolResult.success(sb.toString(), details);
     }
 
-    private ToolResult doRespawn(Path projectRoot) throws IOException {
+    private ToolResult doRespawn(Path projectRoot, String mergeBranch) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
             return ToolResult.error("No pom.xml found at " + projectRoot);
 
@@ -195,7 +202,7 @@ public final class TranscendenceTool implements Tool {
             return ToolResult.error(sb.toString());
         }
 
-        if (!SelfRespawn.requestRespawn(jar)) {
+        if (!SelfRespawn.requestRespawn(jar, mergeBranch, projectRoot)) {
             sb.append("\n[Respawn already pending — another respawn is queued]");
             sb.append("\n[Build succeeded. Jar: ").append(jar.getFileName()).append("]");
             return ToolResult.success(sb.toString(),
@@ -204,11 +211,12 @@ public final class TranscendenceTool implements Tool {
 
         var details = new LinkedHashMap<String, Object>();
         details.put("jar", jar.getFileName().toString());
+        if (mergeBranch != null && !mergeBranch.isBlank()) details.put("mergeBranch", mergeBranch.strip());
 
         sb.append("\n[Build OK — ").append(jar.getFileName()).append("]");
         sb.append("\n[Respawn queued. Process will restart after this turn completes.]");
-        sb.append("\n[If the new version is broken, you can recover by running:]");
-        sb.append("\n  java -jar target/pijota-backup.jar --continue");
+        sb.append("\n[If the new version is broken, recover with:]");
+        sb.append("\n  java -jar target/pijota-backup.jar --recover");
         return ToolResult.success(sb.toString(), details);
     }
 

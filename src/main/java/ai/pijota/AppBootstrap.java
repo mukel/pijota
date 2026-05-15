@@ -13,8 +13,12 @@ import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ModelRegistry;
 import ai.pijota.tools.BashTool;
 import ai.pijota.tools.ToolRegistry;
+import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 
+import ai.pijota.util.SelfRespawn;
+
+import java.io.IOException;
 import java.nio.file.Path;
 
 final class AppBootstrap {
@@ -110,14 +114,50 @@ final class AppBootstrap {
 
         var session = new PijotaSession(llm, tools, sessions, ext,
             systemPrompt, cwd, parsedArgs.noSession(), contextWindow, settings.config().compaction());
-        if (parsedArgs.sessionPath() != null) {
-            session.load(parsedArgs.sessionPath());
-        } else if (parsedArgs.continueSession()) {
-            session.continueLastSession();
+        try {
+            if (parsedArgs.sessionPath() != null) {
+                session.load(parsedArgs.sessionPath());
+            } else if (parsedArgs.recoverSession()) {
+                Path recovery = SelfRespawn.readRecoverySession();
+                if (recovery != null) {
+                    session.load(recovery);
+                    SelfRespawn.clearRecoveryFile();
+                } else {
+                    System.err.println("No recovery session found — starting fresh.");
+                }
+            } else if (parsedArgs.continueSession()) {
+                session.continueLastSession();
+            }
+        } catch (IOException e) {
+            System.err.println("[transcend] failed to load session: " + e.getMessage() + " — starting fresh.");
         }
         ext.setAgentLoop(session.agentLoop());
         ext.fire(new ai.pijota.extensions.ExtensionEvent.SessionStart(session.sessionFile()));
+        mergeTranscendWorktree(parsedArgs);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
+    }
+
+    private static void mergeTranscendWorktree(Args args) {
+        String branch = args.extensionFlags().get("transcend-merge-branch");
+        if (branch == null || branch.isBlank()) return;
+
+        try {
+            var merge = SelfRespawn.mergeBranch(branch.strip());
+            if (merge.exitCode() != 0) {
+                System.err.println("[transcend] automatic merge failed:");
+                System.err.println(merge.stdout().strip());
+                return;
+            }
+
+            String worktree = args.extensionFlags().get("transcend-worktree");
+            if (worktree != null && !worktree.isBlank()) {
+                ProcessRunner.command("git", "worktree", "remove", worktree.strip())
+                    .redirectErrorStream(true)
+                    .run();
+            }
+        } catch (Exception e) {
+            System.err.println("[transcend] automatic merge failed: " + e.getMessage());
+        }
     }
 }

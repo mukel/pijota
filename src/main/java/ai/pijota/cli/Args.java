@@ -25,6 +25,7 @@ public record Args(
     boolean print,
     boolean resume,
     boolean continueSession,
+    boolean recoverSession,
     String forkPath,
     String exportPath,
     boolean listModels,
@@ -33,6 +34,7 @@ public record Args(
     boolean version,
     boolean verbose,
     boolean agent,
+    boolean worker,
     List<String> fileArgs,
     List<String> promptArgs,
     Map<String, String> extensionFlags

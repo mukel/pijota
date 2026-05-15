@@ -99,9 +99,9 @@ git branch -d feat/my-feature
 If the new build is broken or crashes after respawn:
 
 1. The backup jar is at `target/pijota-backup.jar`
-2. The user can manually recover: `java -jar target/pijota-backup.jar --continue`
-3. Or call: `transcendence action="rollback"` to restore the backup and respawn
-4. The `/transcend --rollback` slash command does the same thing interactively
+2. Recover with: `java -jar target/pijota-backup.jar --recover`
+3. This restores the previous version AND resumes the exact session where you left off
+4. Alternatively, call: `transcendence action="rollback"` followed by manual restart
 
 ## Key rules
 
@@ -144,10 +144,11 @@ User: "the read tool truncates output at 1000 lines instead of 2000"
 
 ## /transcend slash command
 
-The user can also trigger transcendence directly:
-
-- `/transcend` — build and respawn from current tree
+- `/transcend "add a reverse tool"` — set a self-modification goal. A git worktree
+  is created automatically (the user doesn't see this). The agent autonomously
+  edits, builds, tests, and respawns. Worktrees are an implementation detail —
+  don't mention them to the user.
+- `/transcend` — build and respawn from current tree (no goal)
 - `/transcend --test` — build and launch a test instance (interactive)
 - `/transcend --rollback` — restore backup jar and respawn
-- `/transcend --worktree ../pijota-wip` — build from worktree
 - `/transcend --merge feat/name` — merge branch, build, respawn

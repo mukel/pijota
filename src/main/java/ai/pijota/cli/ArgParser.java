@@ -31,6 +31,7 @@ public final class ArgParser {
         var print = false;
         var resume = false;
         var continueSession = false;
+        var recoverSession = false;
         var forkPath = (String) null;
         var exportPath = (String) null;
         var listModels = false;
@@ -39,6 +40,7 @@ public final class ArgParser {
         var version = false;
         var verbose = false;
         var agent = false;
+        var worker = false;
         var fileArgs = new ArrayList<String>();
         var promptArgs = new ArrayList<String>();
         var extensionFlags = new LinkedHashMap<String, String>();
@@ -87,6 +89,7 @@ public final class ArgParser {
                 }
                 case "--resume", "-r" -> resume = true;
                 case "--continue", "-c" -> continueSession = true;
+                case "--recover" -> recoverSession = true;
                 case "--no-session" -> noSession = true;
                 case "--no-tools", "-nt" -> noTools = true;
                 case "--no-extensions", "-ne" -> noExtensions = true;
@@ -97,6 +100,7 @@ public final class ArgParser {
                 case "--help", "-h" -> help = true;
                 case "--version", "-v" -> version = true;
                 case "--agent" -> agent = true;
+                case "--worker" -> worker = true;
                 default -> {
                     if (arg.startsWith("--") && arg.length() > 2) {
                         String name = arg.substring(2);
@@ -121,7 +125,7 @@ public final class ArgParser {
         return new Args(provider, model, apiKey, systemPrompt, appendSystemPrompts,
             thinkingLevel, outputMode, sessionPath, noSession, noTools, noExtensions, noSkills, noThemes,
             noContextFiles, enabledTools, extensionPaths, skillPaths, themePaths, print, resume, continueSession,
-            forkPath, exportPath, listModels, listModelsFilter, help, version, verbose, agent,
+            recoverSession, forkPath, exportPath, listModels, listModelsFilter, help, version, verbose, agent, worker,
             fileArgs, promptArgs, Map.copyOf(extensionFlags));
     }
 
@@ -142,6 +146,7 @@ public final class ArgParser {
               --print, -p [prompt]      Non-interactive single-shot mode
               --session, -s <id>        Session file path or partial UUID
               --continue, -c            Continue last session
+              --recover               Recover from failed transcendence
               --resume, -r              Interactive session picker
               --fork <id>               Fork a session
               --no-session              Don't save session

@@ -103,6 +103,8 @@ public final class PijotaSession implements AutoCloseable {
             .thenApply(messages -> {
                 extensionRegistry.fireAfterAgentEnd();
                 SelfRespawn.maybeRespawn();
+                String err = SelfRespawn.lastRespawnError();
+                if (err != null) rememberSessionWarning("transcend", new IOException(err));
                 return messages;
             });
     }

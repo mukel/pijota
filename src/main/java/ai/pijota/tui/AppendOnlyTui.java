@@ -294,6 +294,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (shellCommandThread != null) shellCommandThread.interrupt();
         agentExecutor.shutdownNow();
         animator.shutdownNow();
+        if (SelfRespawn.isRespawnInProgress()) return;
         try { terminalUi.close(); } catch (Exception ignored) {}
         restoreTerminalState();
         SlashCommandTool.setQuestionHandler(null);
@@ -316,6 +317,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void readInputLoop() {
         while (running.get()) {
+            if (SelfRespawn.isRespawnInProgress()) {
+                try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                continue;
+            }
             try {
                 var key = InputDecoder.readKey(terminal);
                 try {
@@ -411,6 +416,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 }
                 result.submitted().ifPresent(this::handleSubmit);
                 } catch (Exception inner) {
+                    if (SelfRespawn.isRespawnInProgress()) continue;
                     statusOverride = null;
                     redrawPrompt();
                 }
@@ -1569,6 +1575,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         boolean rollback = false;
         String worktreePath = null;
         String mergeBranch = null;
+        var goalParts = new ArrayList<String>();
 
         var tokens = args.split("\\s+");
         int i = 0;
@@ -1579,12 +1586,20 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 case "--rollback" -> rollback = true;
                 case "--worktree" -> { if (i + 1 < tokens.length) worktreePath = tokens[++i]; }
                 case "--merge" -> { if (i + 1 < tokens.length) mergeBranch = tokens[++i]; }
+                default -> goalParts.add(tokens[i]);
             }
             i++;
         }
 
+        String goal = goalParts.isEmpty() ? null : stripWrappingQuotes(String.join(" ", goalParts));
+
         if (busy.get()) {
             appendPlain(List.of(theme.styled("toolError", "/transcend is unavailable while a turn is running (Esc Esc to interrupt)")));
+            return;
+        }
+
+        if (goal != null) {
+            submitTranscendGoal(goal, worktreePath);
             return;
         }
 
@@ -1676,10 +1691,168 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(List.of(theme.styled("statusText", "[transcend] restarting with new jar...")));
         redrawPrompt();
         terminal.writer().flush();
-        restoreTerminalState();
         SelfRespawn.respawn(jar, sessionFile, true);
         resumeTui();
+        String err = SelfRespawn.lastRespawnError();
+        if (err != null) appendPlain(List.of(theme.styled("toolError", "[transcend] " + err)));
         redrawPrompt();
+    }
+
+    private void submitTranscendGoal(String goal, String worktreePath) {
+        String resolvedWorktree = worktreePath;
+        String branchName = null;
+
+        if (resolvedWorktree == null) {
+            branchName = generateTranscendBranch(goal);
+            resolvedWorktree = "../pijota-" + branchName.replace('/', '-');
+        }
+
+        appendPlain(promptEcho("/transcend " + goal));
+        long gen = beginBusy("transcending");
+        redrawPrompt();
+
+        String finalWorktree = resolvedWorktree;
+        String finalBranch = branchName;
+        agentExecutor.submit(() -> {
+            boolean promptCompleted = false;
+            try {
+                if (finalBranch != null) {
+                    try {
+                        ProcessRunner.Result wtResult = ProcessRunner.command(
+                            "git", "worktree", "add", "-b", finalBranch, finalWorktree)
+                            .redirectErrorStream(true)
+                            .run();
+                        if (wtResult.exitCode() != 0) {
+                            appendPlain(List.of(
+                                theme.styled("toolError", "worktree creation failed:"),
+                                theme.styled("toolError", wtResult.stdout().strip())));
+                            endBusy(gen);
+                            redrawPrompt();
+                            return;
+                        }
+                    } catch (IOException e) {
+                        appendPlain(List.of(
+                            theme.styled("toolError", "worktree creation error: " + e.getMessage())));
+                        endBusy(gen);
+                        redrawPrompt();
+                        return;
+                    }
+                }
+
+                resetStreamState();
+                var fullPrompt = "TRANSCENDENCE GOAL: " + goal + "\n\n"
+                    + "Implement this goal by modifying pijota's source code. "
+                    + "A git worktree has been prepared at " + finalWorktree
+                    + (finalBranch != null ? " on branch " + finalBranch : "")
+                    + ". Use worktree=\"" + finalWorktree + "\" for ALL transcendence actions "
+                    + "(build, test, respawn).\n\n"
+                    + "Workflow:\n"
+                    + "1. Edit source files under " + finalWorktree + "/src/main/java/ai/pijota/\n"
+                    + "2. transcendence action=\"build\" worktree=\"" + finalWorktree + "\"\n"
+                    + "3. transcendence action=\"test\" worktree=\"" + finalWorktree + "\"\n"
+                    + "4. Verify only with the worktree jar, never with a bare `pijota` command. "
+                    + "Use `java -jar " + finalWorktree + "/target/<built-jar> ...` for smoke checks. "
+                    + "If the feature is TUI-only and cannot be automated, inspect the command dispatch code and continue.\n"
+                    + "5. Respawn is mandatory after build/test pass. Do not end the turn before calling: "
+                    + "transcendence action=\"respawn\" worktree=\"" + finalWorktree + "\""
+                    + (finalBranch != null ? " mergeBranch=\"" + finalBranch + "\"" : "") + "\n"
+                    + "6. Do not ask the user to merge; the replacement process will merge automatically.\n"
+                    + "7. Ignore inconclusive verification from the wrong executable; fix real failures only.\n\n"
+                    + "Work autonomously — do not ask for permission at each step.";
+                session.prompt(fullPrompt).join();
+                promptCompleted = true;
+                finalizeTranscendGoal(finalWorktree, finalBranch);
+            } catch (CompletionException e) {
+                statusOverride = "Error: " + ErrorUtil.message(e.getCause());
+            } finally {
+                if (!SelfRespawn.isRespawnInProgress()) {
+                    if (!promptCompleted) showSessionWarning();
+                    endBusy(gen);
+                    redrawPrompt();
+                }
+            }
+        });
+    }
+
+    private void finalizeTranscendGoal(String worktree, String branch) {
+        if (SelfRespawn.isPending() || SelfRespawn.isRespawnInProgress()) return;
+
+        Path root = Path.of(worktree);
+        appendPlain(List.of(theme.styled("statusText", "[transcend] finalizing worktree restart...")));
+        redrawPrompt();
+
+        ProcessRunner.Result buildResult;
+        try {
+            buildResult = SelfRespawn.buildJar(root);
+        } catch (Exception e) {
+            appendPlain(List.of(theme.styled("toolError", "[transcend] final build error: " + e.getMessage())));
+            return;
+        }
+        if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
+            appendPlain(List.of(
+                theme.styled("toolError", "[transcend] final build failed (exit " + buildResult.exitCode() + ")"),
+                theme.styled("toolError", buildResult.stdout().isBlank() ? "[no output]" : buildResult.stdout().strip())));
+            return;
+        }
+
+        ProcessRunner.Result testResult;
+        try {
+            testResult = ProcessRunner.command("mvn", "test")
+                .workDir(root)
+                .redirectErrorStream(true)
+                .run();
+        } catch (Exception e) {
+            appendPlain(List.of(theme.styled("toolError", "[transcend] final test error: " + e.getMessage())));
+            return;
+        }
+        if (testResult.exitCode() != 0 || testResult.timedOut()) {
+            appendPlain(List.of(
+                theme.styled("toolError", "[transcend] final tests failed (exit " + testResult.exitCode() + ")"),
+                theme.styled("toolError", testResult.stdout().isBlank() ? "[no output]" : testResult.stdout().strip())));
+            return;
+        }
+
+        Path jar = SelfRespawn.findJarIn(root);
+        if (jar == null || !Files.exists(jar)) {
+            appendPlain(List.of(theme.styled("toolError", "[transcend] final jar not found at " + root.resolve("target"))));
+            return;
+        }
+
+        try {
+            SelfRespawn.backupJar(SelfRespawn.findCurrentJar());
+        } catch (Exception ignored) {}
+
+        if (!SelfRespawn.requestRespawn(jar, branch, root)) {
+            appendPlain(List.of(theme.styled("toolError", "[transcend] respawn request was already pending")));
+            return;
+        }
+
+        appendPlain(List.of(theme.styled("statusText", "[transcend] restarting with worktree jar...")));
+        redrawPrompt();
+        terminal.writer().flush();
+        SelfRespawn.maybeRespawn();
+    }
+
+    private static String generateTranscendBranch(String goal) {
+        String slug = goal.toLowerCase()
+            .replaceAll("[^a-z0-9\\s-]", "")
+            .replaceAll("\\s+", "-")
+            .replaceAll("-{2,}", "-")
+            .replaceAll("^-|-$", "");
+        if (slug.length() > 30) slug = slug.substring(0, 30).replaceAll("-$", "");
+        if (slug.isBlank()) slug = "update";
+        String ts = String.format("%tH%<tM%<tS", System.currentTimeMillis());
+        return "feat/" + slug + "-" + ts;
+    }
+
+    private static String stripWrappingQuotes(String value) {
+        if (value == null || value.length() < 2) return value;
+        char first = value.charAt(0);
+        char last = value.charAt(value.length() - 1);
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
     }
 
     private void handleTranscendRollback() {
@@ -1707,9 +1880,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(List.of(theme.styled("statusText", "[transcend] restored backup jar — restarting...")));
         redrawPrompt();
         terminal.writer().flush();
-        restoreTerminalState();
         SelfRespawn.respawn(jar, session.sessionFile(), true);
         resumeTui();
+        String err = SelfRespawn.lastRespawnError();
+        if (err != null) appendPlain(List.of(theme.styled("toolError", "[transcend] " + err)));
         redrawPrompt();
     }
 
@@ -2008,12 +2182,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void tickWorkingAnimation() {
-        if (!running.get() || !busy.get()) return;
+        if (!running.get() || !busy.get() || SelfRespawn.isRespawnInProgress()) return;
         workingFrame.incrementAndGet();
         redrawPrompt();
     }
 
     private void redrawPrompt() {
+        if (SelfRespawn.isRespawnInProgress()) return;
         terminalUi.redrawPrompt(decorate(promptEditor.snapshot()));
     }
 

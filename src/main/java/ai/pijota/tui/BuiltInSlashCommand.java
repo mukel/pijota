@@ -22,7 +22,7 @@ enum BuiltInSlashCommand {
     TREE("/tree", "Show conversation tree"),
     FORK("/fork", "Fork a new session from a previous message"),
     CLONE("/clone", "Clone current branch to a new session"),
-    TRANSCEND("/transcend", "Rebuild and restart pijota"),
+    TRANSCEND("/transcend", "Rebuild and restart pijota, or set a self-modification goal"),
     QUIT("/quit", "Exit pijota");
 
     final String name;

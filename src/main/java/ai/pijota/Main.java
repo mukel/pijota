@@ -19,6 +19,14 @@ import java.io.Console;
 public final class Main {
     private static final String VERSION = "0.4.0";
 
+    static {
+        try {
+            sun.misc.Signal.handle(new sun.misc.Signal("HUP"), sun.misc.SignalHandler.SIG_IGN);
+        } catch (Throwable e) {
+            System.err.println("[pijota] SIGHUP ignore failed: " + e);
+        }
+    }
+
     public static void main(String[] args) {
         try {
             SelfRespawn.storeArgs(args);
@@ -28,6 +36,9 @@ public final class Main {
             if (parsedArgs.help()) { ArgParser.printHelp(); return; }
             if (parsedArgs.version()) { System.out.println("pijota v" + VERSION); return; }
             if (parsedArgs.listModels()) { listModels(parsedArgs.listModelsFilter()); return; }
+            if (!parsedArgs.worker() && shouldSupervise(parsedArgs)) {
+                System.exit(Supervisor.run(args));
+            }
             run(parsedArgs);
         } catch (Throwable e) {
             e.printStackTrace(System.err);
@@ -142,6 +153,14 @@ public final class Main {
 
     private static boolean stdinRedirected() {
         return System.console() == null;
+    }
+
+    private static boolean shouldSupervise(Args args) {
+        return !args.agent()
+            && !args.print()
+            && args.promptArgs().isEmpty()
+            && args.outputMode() != Args.OutputMode.RPC
+            && !stdinRedirected();
     }
 
     private static String readStdin() {
