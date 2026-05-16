@@ -15,6 +15,7 @@ enum BuiltInSlashCommand {
     UNDO("/undo", "Edit previous message"),
     COPY("/copy", "Copy last assistant response"),
     SESSION("/session", "Show session info"),
+    WHOAMI("/whoami", "Show current model info"),
     NEW("/new", "Start a new session"),
     HOTKEYS("/hotkeys", "Show keyboard shortcuts"),
     LOGIN("/login", "Log in to a provider via OAuth"),

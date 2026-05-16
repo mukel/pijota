@@ -1184,6 +1184,22 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             appendPlain(List.of(theme.styled("statusText", "name     " + sessionName)));
     }
 
+    void showWhoami() {
+        var info = ModelRegistry.KNOWN_MODELS.stream()
+            .filter(m -> m.id().equalsIgnoreCase(model))
+            .findFirst()
+            .orElse(null);
+        var lines = new ArrayList<String>();
+        lines.add(theme.styled("toolLabel", "model"));
+        lines.add(theme.styled("statusText", "id       " + model));
+        lines.add(theme.styled("statusText", "provider " + provider));
+        if (info != null) {
+            lines.add(theme.styled("statusText", "name     " + info.displayName()));
+            lines.add(theme.styled("statusText", "context  " + fmtCount((int) info.contextWindow()) + " tokens"));
+        }
+        appendPlain(lines);
+    }
+
     private void refreshSessionName() {
         try {
             sessionName = session.sessionName();
