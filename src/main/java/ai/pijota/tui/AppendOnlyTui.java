@@ -17,6 +17,7 @@ import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.theme.AnsiTheme;
 import ai.pijota.tools.SlashCommandTool;
+import ai.pijota.tools.WhoamiTool;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.SelfRespawn;
@@ -246,6 +247,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
         this.commandController = new TuiCommandController(this, commands);
         SlashCommandTool.setQuestionHandler(this::askQuestions);
+        updateWhoamiTool();
         session.addEventListener(this::onEvent);
     }
 
@@ -1071,8 +1073,16 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         contextWindow = chosen.contextWindow();
         contextTokens.set(0);
         session.switchModel(chosen.provider(), chosen.id(), key, contextWindow);
+        updateWhoamiTool();
         appendPlain(List.of(theme.styled("statusText",
             provider + "/" + chosen.id() + "  " + (int)(chosen.contextWindow() / 1024) + "K")));
+    }
+
+    private void updateWhoamiTool() {
+        var tool = session.agentLoop().toolRegistry().get("whoami").orElse(null);
+        if (tool instanceof WhoamiTool wt) {
+            wt.setModelInfo(provider, model);
+        }
     }
 
     void triggerCompaction(String instructions) {

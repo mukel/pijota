@@ -95,6 +95,7 @@ public final class AgentLoop implements AgentContext {
     public void addEventListener(Consumer<AgentEvent> l) { listeners.add(l); }
     public void removeEventListener(Consumer<AgentEvent> l) { listeners.remove(l); }
     public LlmService llm() { return llm; }
+    public ToolRegistry toolRegistry() { return toolRegistry; }
 
     public void addSystemPrompt(String s) { history.addSystemPrompt(s); }
     public void replaceSystemPrompt(String content) { history.replaceSystemPrompt(content); }

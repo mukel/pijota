@@ -119,6 +119,7 @@ public final class ToolRegistry {
         registry.register(new WebsearchTool());
         registry.register(new TodowriteTool());
         registry.register(new TranscendenceTool());
+        registry.register(new WhoamiTool());
         return registry;
     }
 }
