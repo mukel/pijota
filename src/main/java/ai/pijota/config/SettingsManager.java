@@ -79,6 +79,12 @@ public final class SettingsManager {
         config.save(SETTINGS_FILE);
     }
 
+    /** Set the default provider/model without storing an API key (for OAuth). */
+    public void setDefaultModelForProvider(String provider, String model) throws java.io.IOException {
+        config = config.withDefaultProviderModel(provider, model);
+        config.save(SETTINGS_FILE);
+    }
+
     public String detectProviderFromEnv() {
         for (var provider : ProviderCatalog.providers().stream().map(ProviderCatalog.Provider::id).toList()) {
             if (resolveApiKey(provider) != null) return provider;
@@ -94,8 +100,14 @@ public final class SettingsManager {
         String oauthToken = oauthStore.getAccessToken(provider);
         if (oauthToken != null && !oauthToken.isBlank()) return oauthToken;
 
-        String key = config.apiKeys().get(provider);
-        if (key != null) return key;
+        // For OAuth-capable providers, skip settings.json apiKeys — the token
+        // there is a stale copy from before the OAuthTokenStore auto-refresh era.
+        boolean isOAuthProvider = ProviderCatalog.oauth(provider).isPresent();
+
+        if (!isOAuthProvider) {
+            String key = config.apiKeys().get(provider);
+            if (key != null) return key;
+        }
         for (String name : apiKeyEnvNames(provider)) {
             String value = System.getenv(name);
             if (value != null && !value.isBlank()) return value;

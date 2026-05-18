@@ -189,6 +189,35 @@ public final class OAuthLogin {
         return buildTokenResult(node);
     }
 
+    /**
+     * Refreshes an expired access token. Works for both standard OAuth
+     * (tokenEndpoint) and OpenAI OAuth (oauthTokenEndpoint) — just pass
+     * the appropriate URL as tokenUrl.
+     */
+    public static TokenResult refreshToken(String tokenUrl, String clientId,
+                                            String refreshToken) throws Exception {
+        var client = HttpClient.newHttpClient();
+        String body = "grant_type=refresh_token"
+            + "&client_id=" + urlEncode(clientId)
+            + "&refresh_token=" + urlEncode(refreshToken);
+        var request = HttpRequest.newBuilder()
+            .uri(URI.create(tokenUrl))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .timeout(Duration.ofSeconds(30))
+            .build();
+        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new IOException("Token refresh failed: HTTP " + response.statusCode()
+                + " - " + response.body());
+        }
+        var node = Util.MAPPER.readTree(response.body());
+        if (!node.has("access_token")) {
+            throw new IOException("Token refresh missing access_token: " + response.body());
+        }
+        return buildTokenResult(node);
+    }
+
     private static TokenResult buildTokenResult(com.fasterxml.jackson.databind.JsonNode node) {
         String accessToken = node.get("access_token").asText();
         String refreshToken = node.has("refresh_token") ? node.get("refresh_token").asText() : null;
