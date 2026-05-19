@@ -118,6 +118,10 @@ public final class AgentLoop implements AgentContext {
         runManualCompaction(instructions);
     }
 
+    public CompactionManager.CompactionResult compactWithResult(String instructions) {
+        return runManualCompaction(instructions);
+    }
+
     public void setAutoCompactionEnabled(boolean enabled) {
         compaction.setEnabled(enabled);
     }
@@ -128,31 +132,35 @@ public final class AgentLoop implements AgentContext {
         }
     }
 
-    private void runManualCompaction(String instructions) {
-        runCompaction(instructions, (msgs, cb) -> compaction.compactNow(msgs, instructions, cb));
+    private CompactionManager.CompactionResult runManualCompaction(String instructions) {
+        return runCompaction(instructions, (msgs, cb, partial) -> compaction.compactNow(msgs, instructions, cb, partial));
     }
 
     private void runAutoCompaction(String reason) {
-        runCompaction(reason, (msgs, cb) -> compaction.checkAndCompact(msgs, cb));
+        runCompaction(reason, (msgs, cb, partial) -> compaction.checkAndCompact(msgs, cb));
     }
 
     @FunctionalInterface
     private interface CompactionStrategy {
-        void apply(List<Message> messages, java.util.function.Consumer<List<Message>> callback);
+        CompactionManager.CompactionResult apply(List<Message> messages,
+                                                 java.util.function.Consumer<List<Message>> callback,
+                                                 java.util.function.BiConsumer<String, String> partialCallback);
     }
 
-    private void runCompaction(String reason, CompactionStrategy strategy) {
+    private CompactionManager.CompactionResult runCompaction(String reason, CompactionStrategy strategy) {
         if (extensionRegistry != null)
             extensionRegistry.fireSessionBeforeCompact(false, reason);
         var messages = history.mutableList();
         int sizeBefore = messages.size();
         int totalChars = CompactionManager.estimateChars(messages);
-        strategy.apply(messages, compacted -> {
+        var result = strategy.apply(messages, compacted -> {
+            fireEvent(AgentEvent.compactionStreamEnd());
             fireEvent(AgentEvent.compaction(compacted, sizeBefore, totalChars,
                 compactionSummary(compacted), reason));
-        });
+        }, (content, thinking) -> fireEvent(AgentEvent.compactionStream(content, thinking)));
         if (extensionRegistry != null)
             extensionRegistry.fireSessionCompact();
+        return result;
     }
 
     private static String compactionSummary(List<Message> compacted) {

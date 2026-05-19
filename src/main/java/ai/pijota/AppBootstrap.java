@@ -117,16 +117,19 @@ final class AppBootstrap {
         try {
             if (parsedArgs.sessionPath() != null) {
                 session.load(parsedArgs.sessionPath());
+                restoreSessionModel(session, settings);
             } else if (parsedArgs.recoverSession()) {
                 Path recovery = SelfRespawn.readRecoverySession();
                 if (recovery != null) {
                     session.load(recovery);
+                    restoreSessionModel(session, settings);
                     SelfRespawn.clearRecoveryFile();
                 } else {
                     System.err.println("No recovery session found — starting fresh.");
                 }
             } else if (parsedArgs.continueSession()) {
                 session.continueLastSession();
+                restoreSessionModel(session, settings);
             }
         } catch (IOException e) {
             System.err.println("[transcend] failed to load session: " + e.getMessage() + " — starting fresh.");
@@ -140,24 +143,73 @@ final class AppBootstrap {
 
     private static void mergeTranscendWorktree(Args args) {
         String branch = args.extensionFlags().get("transcend-merge-branch");
-        if (branch == null || branch.isBlank()) return;
+        String worktree = args.extensionFlags().get("transcend-worktree");
+        if ((branch == null || branch.isBlank()) && (worktree == null || worktree.isBlank())) return;
 
         try {
-            var merge = SelfRespawn.mergeBranch(branch.strip());
-            if (merge.exitCode() != 0) {
-                System.err.println("[transcend] automatic merge failed:");
-                System.err.println(merge.stdout().strip());
-                return;
+            if (branch != null && !branch.isBlank()) {
+                var merge = SelfRespawn.mergeBranch(branch.strip());
+                if (merge.exitCode() != 0) {
+                    System.err.println("[transcend] automatic merge failed:");
+                    System.err.println(merge.stdout().strip());
+                    return;
+                }
             }
 
-            String worktree = args.extensionFlags().get("transcend-worktree");
             if (worktree != null && !worktree.isBlank()) {
-                ProcessRunner.command("git", "worktree", "remove", worktree.strip())
+                if (!applyWorktreeDiff(Path.of(worktree.strip()))) return;
+
+                ProcessRunner.command("git", "worktree", "remove", "--force", worktree.strip())
                     .redirectErrorStream(true)
                     .run();
             }
         } catch (Exception e) {
             System.err.println("[transcend] automatic merge failed: " + e.getMessage());
         }
+    }
+
+    private static void restoreSessionModel(PijotaSession session, SettingsManager settings) throws IOException {
+        var selection = session.latestModelSelection();
+        if (selection == null) return;
+        String key = settings.resolveApiKey(selection.provider());
+        if (key == null || key.isBlank()) {
+            System.err.println("[session] cannot restore model " + selection.provider() + "/" + selection.model()
+                + " — missing API key");
+            return;
+        }
+        long contextWindow = selection.contextWindow() > 0 ? selection.contextWindow()
+            : ModelRegistry.KNOWN_MODELS.stream()
+                .filter(m -> m.provider().equalsIgnoreCase(selection.provider())
+                    && m.id().equalsIgnoreCase(selection.model()))
+                .mapToLong(m -> m.contextWindow())
+                .findFirst()
+                .orElse(128_000L);
+        session.restoreModel(selection.provider(), selection.model(), key, contextWindow);
+    }
+
+    private static boolean applyWorktreeDiff(Path worktree) throws IOException {
+        var diff = ProcessRunner.command("git", "diff", "--binary", "HEAD")
+            .workDir(worktree)
+            .redirectErrorStream(true)
+            .maxOutputBytes(10 * 1024 * 1024)
+            .run();
+        if (diff.exitCode() != 0) {
+            System.err.println("[transcend] failed to collect worktree diff:");
+            System.err.println(diff.stdout().strip());
+            return false;
+        }
+        if (diff.stdout().isBlank()) return true;
+
+        var apply = ProcessRunner.command("git", "apply", "--3way", "--whitespace=nowarn")
+            .feedStdin(diff.stdout())
+            .redirectErrorStream(true)
+            .maxOutputBytes(10 * 1024 * 1024)
+            .run();
+        if (apply.exitCode() != 0) {
+            System.err.println("[transcend] failed to apply worktree changes:");
+            System.err.println(apply.stdout().strip());
+            return false;
+        }
+        return true;
     }
 }

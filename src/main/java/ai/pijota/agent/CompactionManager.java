@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 public final class CompactionManager {
     private static final int DEFAULT_CONTEXT_WINDOW = 128_000;
@@ -65,7 +66,7 @@ public final class CompactionManager {
             return new CompactionResult(false, totalChars, 0);
         }
 
-        int compactedCount = compact(messages, null, onCompact);
+        int compactedCount = compact(messages, null, onCompact, null);
         return new CompactionResult(true, totalChars, compactedCount);
     }
 
@@ -73,14 +74,23 @@ public final class CompactionManager {
             List<Message> messages,
             String instructions,
             java.util.function.Consumer<List<Message>> onCompact) {
+        return compactNow(messages, instructions, onCompact, null);
+    }
+
+    public CompactionResult compactNow(
+            List<Message> messages,
+            String instructions,
+            java.util.function.Consumer<List<Message>> onCompact,
+            BiConsumer<String, String> onPartial) {
         int totalChars = estimateChars(messages);
-        int compactedCount = compact(messages, instructions, onCompact);
+        int compactedCount = compact(messages, instructions, onCompact, onPartial);
         return new CompactionResult(compactedCount > 0, totalChars, compactedCount);
     }
 
     private int compact(List<Message> messages,
                          String instructions,
-                         java.util.function.Consumer<List<Message>> onCompact) {
+                         java.util.function.Consumer<List<Message>> onCompact,
+                         BiConsumer<String, String> onPartial) {
         int keepFrom = messages.size();
         int recentTokens = 0;
 
@@ -94,11 +104,11 @@ public final class CompactionManager {
 
         if (keepFrom <= 2) return 0;
 
-        List<Message> toSummarize = messages.subList(1, keepFrom);
+        List<Message> toSummarize = sanitizedCopy(messages.subList(1, keepFrom));
         String summary;
         if (summaryGenerator != null) {
             try {
-                summary = summaryGenerator.generate(toSummarize, instructions, previousSummary);
+                summary = summaryGenerator.generate(toSummarize, instructions, previousSummary, onPartial);
             } catch (Exception e) {
                 summary = null;
             }
@@ -109,6 +119,7 @@ public final class CompactionManager {
             summary = "[degraded — LLM summarizer unavailable] "
                 + summarize(toSummarize);
         }
+        summary = ai.pijota.util.Util.stripSystemReminders(summary).strip();
         previousSummary = summary;
 
         var compactedList = new ArrayList<Message>();
@@ -166,6 +177,29 @@ public final class CompactionManager {
             + toolResults + " tool result(s)";
     }
 
+    private static List<Message> sanitizedCopy(List<Message> messages) {
+        var out = new ArrayList<Message>();
+        for (var msg : messages) {
+            out.add(sanitize(msg));
+        }
+        return out;
+    }
+
+    private static Message sanitize(Message msg) {
+        return switch (msg) {
+            case Message.User u -> new Message.User(u.id(), u.timestamp(), strip(u.content()));
+            case Message.Assistant a -> new Message.Assistant(a.id(), a.timestamp(), strip(a.content()), a.toolCalls(), strip(a.thinking()));
+            case Message.ToolResult tr -> new Message.ToolResult(tr.id(), tr.timestamp(), tr.toolCallId(), tr.toolName(), strip(tr.content()), tr.isError(), tr.details());
+            case Message.System s -> new Message.System(s.id(), s.timestamp(), strip(s.content()));
+            case Message.CompactionSummary cs -> new Message.CompactionSummary(cs.id(), cs.timestamp(), strip(cs.summary()));
+            case Message.BranchSummary bs -> new Message.BranchSummary(bs.id(), bs.timestamp(), strip(bs.summary()));
+        };
+    }
+
+    private static String strip(String value) {
+        return value == null ? null : ai.pijota.util.Util.stripSystemReminders(value);
+    }
+
     public static int estimateChars(List<Message> messages) {
         int total = 0;
         for (var msg : messages) total += estimateChars(msg);
@@ -191,7 +225,8 @@ public final class CompactionManager {
 
     @FunctionalInterface
     public interface SummaryGenerator {
-        String generate(List<Message> toSummarize, String instructions, String previousSummary);
+        String generate(List<Message> toSummarize, String instructions, String previousSummary,
+                        BiConsumer<String, String> onPartial);
     }
 
     @FunctionalInterface

@@ -17,6 +17,7 @@ public final class SelfRespawn {
     static final Path BACKUP_JAR = Path.of("target", "pijota-backup.jar");
     static final Path RECOVERY_FILE = Path.of("target", ".transcend-session");
     static final Path RESTART_FILE = Path.of("target", ".transcend-restart");
+    static final Path STAGED_JAR = Path.of("target", "pijota-transcend.jar");
     static final String LOCK_PREFIX = "[transcend] ";
 
     private static volatile Path activeSessionFile;
@@ -47,7 +48,14 @@ public final class SelfRespawn {
             System.err.println(LOCK_PREFIX + "respawn already pending — skipping duplicate request");
             return false;
         }
-        pendingJar.set(jar);
+        Path launchJar;
+        try {
+            launchJar = stageLaunchJar(jar, mergeWorktree);
+        } catch (IOException e) {
+            System.err.println(LOCK_PREFIX + "failed to stage respawn jar: " + e.getMessage());
+            return false;
+        }
+        pendingJar.set(launchJar);
         pendingMergeBranch.set(blankToNull(mergeBranch));
         pendingMergeWorktree.set(mergeWorktree);
         pending.set(true);
@@ -57,6 +65,19 @@ public final class SelfRespawn {
 
     public static boolean canRecover() {
         return Files.exists(RECOVERY_FILE) && size(RECOVERY_FILE) > 0;
+    }
+
+    private static Path stageLaunchJar(Path jar, Path mergeWorktree) throws IOException {
+        Path normalizedJar = jar.toAbsolutePath().normalize();
+        if (mergeWorktree == null) return normalizedJar;
+
+        Path worktree = mergeWorktree.toAbsolutePath().normalize();
+        if (!normalizedJar.startsWith(worktree)) return normalizedJar;
+
+        Path parent = STAGED_JAR.getParent();
+        if (parent != null) Files.createDirectories(parent);
+        Files.copy(normalizedJar, STAGED_JAR, StandardCopyOption.REPLACE_EXISTING);
+        return STAGED_JAR.toAbsolutePath().normalize();
     }
 
     public static Path readRecoverySession() {

@@ -172,6 +172,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final Terminal.SignalHandler originalWinchHandler;
     private String lastContent = "";
     private String lastThinking = "";
+    private boolean compactionStreamRendered;
     private boolean contentStarted;
     private final LineAccumulator contentLines = new LineAccumulator();
     private final LineAccumulator thinkingLines = new LineAccumulator();
@@ -183,7 +184,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private boolean loginIsLogout;
     private volatile boolean showSessionPickerOnStart;
     private final AtomicInteger workingFrame = new AtomicInteger();
-    private final AtomicLong contextTokens = new AtomicLong();
     private final List<String> pendingFollowUps = new ArrayList<>();
     private final MessageBrowser messageBrowser;
     private PendingEditManager pendingEdit;
@@ -877,12 +877,16 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
                 resumeTui();
 
+                var oauthCfg = oauth.get();
+                String tokenUrl = oauthCfg.oauthTokenEndpoint() != null && !oauthCfg.oauthTokenEndpoint().isBlank()
+                    ? oauthCfg.oauthTokenEndpoint()
+                    : oauthCfg.tokenEndpoint();
                 var store = new OAuthTokenStore();
                 store.save(chosen.id(), result.accessToken(), result.refreshToken(),
-                    result.expiresAt(), result.accountId());
+                    result.expiresAt(), result.accountId(), tokenUrl, oauthCfg.clientId());
                 String defaultModel = ModelRegistry.defaultModelForProvider(chosen.id());
                 if (defaultModel != null) {
-                    settings.saveApiKey(chosen.id(), result.accessToken(), defaultModel);
+                    settings.setDefaultModelForProvider(chosen.id(), defaultModel);
                 }
                 appendPlain(List.of(theme.styled("statusText",
                     System.lineSeparator() + "Logged in to " + chosen.titleText() + "  model: " + (defaultModel != null ? defaultModel : ""))));
@@ -981,6 +985,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showModelSelector() {
+        if (busy.get()) {
+            appendPlain(List.of(theme.styled("toolError", "/model is unavailable while a turn is running")));
+            redrawPrompt();
+            return;
+        }
         var models = ModelRegistry.KNOWN_MODELS.stream()
             .filter(m -> settings == null || settings.resolveApiKey(m.provider()) != null)
             .toList();
@@ -988,6 +997,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showModelSelector(List<ModelInfo> models) {
+        if (busy.get()) {
+            appendPlain(List.of(theme.styled("toolError", "/model is unavailable while a turn is running")));
+            redrawPrompt();
+            return;
+        }
         if (models.isEmpty()) {
             appendPlain(List.of(theme.styled("toolError", "no models found")));
             return;
@@ -1027,6 +1041,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         promptEditor.setText("");
         try {
             session.load(chosen.path());
+            restoreModelFromSession();
             refreshSessionName();
             appendPlain(List.of(theme.styled("statusText", "loaded session " + chosen.name())));
         } catch (IOException e) {
@@ -1046,6 +1061,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void cycleModel() {
+        if (busy.get()) {
+            statusOverride = "Model switch unavailable while busy";
+            redrawPrompt();
+            return;
+        }
         var models = availableModels();
         if (models.size() <= 1) return;
         var chosen = nextModel(models, 1);
@@ -1053,6 +1073,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void cycleModelBackward() {
+        if (busy.get()) {
+            statusOverride = "Model switch unavailable while busy";
+            redrawPrompt();
+            return;
+        }
         var models = availableModels();
         if (models.size() <= 1) return;
         var chosen = nextModel(models, -1);
@@ -1066,16 +1091,40 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void switchToModel(ModelInfo chosen) {
-        model = chosen.id();
-        provider = chosen.provider();
         String key = settings != null ? settings.resolveApiKey(chosen.provider()) : null;
-        if (key == null) return;
-        contextWindow = chosen.contextWindow();
-        contextTokens.set(0);
-        session.switchModel(chosen.provider(), chosen.id(), key, contextWindow);
-        updateWhoamiTool();
+        if (key == null || key.isBlank()) {
+            appendPlain(List.of(theme.styled("toolError", "no API key for " + chosen.provider())));
+            return;
+        }
+        applyModel(chosen.provider(), chosen.id(), key, chosen.contextWindow(), true);
         appendPlain(List.of(theme.styled("statusText",
             provider + "/" + chosen.id() + "  " + (int)(chosen.contextWindow() / 1024) + "K")));
+    }
+
+    private void applyModel(String newProvider, String newModel, String key, long newContextWindow, boolean persist) {
+        provider = newProvider;
+        model = newModel;
+        contextWindow = newContextWindow > 0 ? newContextWindow : resolveContextWindow(newProvider, newModel);
+        if (persist) session.switchModel(newProvider, newModel, key, contextWindow);
+        else session.restoreModel(newProvider, newModel, key, contextWindow);
+        updateWhoamiTool();
+    }
+
+    private void restoreModelFromSession() {
+        if (settings == null) return;
+        try {
+            var selection = session.latestModelSelection();
+            if (selection == null) return;
+            String key = settings.resolveApiKey(selection.provider());
+            if (key == null || key.isBlank()) {
+                appendPlain(List.of(theme.styled("toolError", "session model unavailable: missing API key for " + selection.provider())));
+                return;
+            }
+            applyModel(selection.provider(), selection.model(), key, selection.contextWindow(), false);
+            appendPlain(List.of(theme.styled("statusText", "restored model " + provider + "/" + model)));
+        } catch (IOException e) {
+            appendPlain(List.of(theme.styled("toolError", "model restore failed: " + e.getMessage())));
+        }
     }
 
     private void updateWhoamiTool() {
@@ -1092,7 +1141,24 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
         appendPlain(List.of(theme.styled("toolLabel", "/compact"
             + (instructions.isBlank() ? "" : ": " + instructions))));
-        session.compact(instructions);
+        long gen = beginBusy("compacting");
+        resetStreamState();
+        compactionStreamRendered = false;
+        redrawPrompt();
+        agentExecutor.submit(() -> {
+            try {
+                var result = session.compact(instructions);
+                if (result == null || !result.compacted()) {
+                    appendPlain(List.of(theme.styled("statusText", "nothing to compact yet")));
+                }
+            } catch (Exception e) {
+                appendPlain(List.of(theme.styled("toolError", "compact failed: " + e.getMessage())));
+            } finally {
+                flushStreamLines();
+                endBusy(gen);
+                redrawPrompt();
+            }
+        });
     }
 
     void copyLastResponse() {
@@ -2030,20 +2096,23 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 pendingEdit.clear();
             }
             case AgentEvent.Compaction c -> {
-                contextTokens.set(0);
-                int compactedMsgs = c.oldCount() - c.compactedMessages().size();
+                int remaining = c.compactedMessages().size();
+                int compactedMsgs = c.oldCount() - remaining;
                 int estTokens = c.totalChars() / 4;
-                var lines = new ArrayList<String>();
                 String reason = c.reason() != null && !c.reason().isBlank() ? " (" + c.reason() + ")" : "";
-                lines.add(theme.styled("statusText",
-                    "[compacted " + compactedMsgs + " messages → "
-                    + c.compactedMessages().size() + " msgs, ~" + fmtCount(estTokens) + " est tokens]" + reason));
-                if (c.summary() != null && !c.summary().isBlank()) {
-                    for (String line : c.summary().lines().toList()) {
-                        lines.add(theme.styled("statusText", "  " + line));
-                    }
+                if (!compactionStreamRendered && c.summary() != null && !c.summary().isBlank()) {
+                    renderFinalCompactionSummary(c.summary());
                 }
-                appendPlain(lines);
+                appendPlain(List.of(theme.styled("statusText",
+                    "[compacted " + c.oldCount() + " -> " + remaining
+                    + " messages, removed " + compactedMsgs + ", ~" + fmtCount(estTokens)
+                    + " est tokens before]" + reason)));
+                compactionStreamRendered = false;
+            }
+            case AgentEvent.CompactionStream stream -> renderCompactionStream(stream.content(), stream.thinking());
+            case AgentEvent.CompactionStreamEnd _ -> {
+                flushStreamLines();
+                resetStreamState();
             }
             case AgentEvent.Error(Throwable t) -> appendPlain(List.of(theme.styled("toolError", "error: " + ErrorUtil.message(t))));
             default -> {}
@@ -2057,6 +2126,23 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             rendered = renderContent(lines);
         }
         terminalUi.appendLines(rendered);
+    }
+
+    private void renderCompactionStream(String content, String thinking) {
+        String text = content == null ? "" : Util.stripSystemReminders(content);
+        String delta = deltaPrefix(text, lastContent);
+        if (!delta.isEmpty()) {
+            appendContent(contentLines.accept(delta, softLineLimit()));
+            lastContent = text;
+            compactionStreamRendered = true;
+        }
+    }
+
+    private void renderFinalCompactionSummary(String summary) {
+        resetStreamState();
+        appendContent(contentLines.accept(summary, softLineLimit()));
+        flushStreamLines();
+        resetStreamState();
     }
 
     private List<StyledLine> renderContent(List<String> lines) {
@@ -2168,7 +2254,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         snapshot = snapshot.withCwd(this.cwd).withContextPct(tokenPct())
             .withPendingMessages(List.copyOf(pendingFollowUps))
             .withExtensionLines(mergedExtensionLines());
-        if (!busy.get()) return snapshot.withStatus(modelStr).withWarning(status);
+        if (!busy.get()) {
+            String bar = tokens + modelStr;
+            if (AnsiWidth.visibleWidth(bar) > terminal.getWidth()) bar = tokens + "\n" + modelStr;
+            return snapshot.withStatus(bar).withWarning(status);
+        }
         String frame = WORKING_FRAMES[Math.floorMod(workingFrame.get(), WORKING_FRAMES.length)];
         int queued = queuedFollowUps.get();
         String line = tokens + "  " + frame;
@@ -2219,12 +2309,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void addUsage(dev.langchain4j.model.output.TokenUsage usage) {
-        if (usage.inputTokenCount() != null) contextTokens.set(usage.inputTokenCount());
     }
 
     private String tokenStatus() {
-        long tokens = contextTokens.get();
-        if (tokens <= 0) tokens = session.estimatedContextTokens();
+        long tokens = session.estimatedContextTokens();
         if (tokens <= 0) return "?/" + fmtCount((int) contextWindow);
         int pct = (int) Math.min(99, (tokens * 100) / Math.max(1, contextWindow));
         String pctStr = theme.styled(
@@ -2233,7 +2321,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private int tokenPct() {
-        return (int) Math.min(99, (contextTokens.get() * 100) / Math.max(1, contextWindow));
+        return (int) Math.min(99, (session.estimatedContextTokens() * 100) / Math.max(1, contextWindow));
     }
 
     private static String gitBranch(String cwd) {

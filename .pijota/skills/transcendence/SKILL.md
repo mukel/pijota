@@ -5,11 +5,19 @@ description: Autonomous self-modification — edit pijota's source, build, test,
 
 ## What transcendence is
 
-You are running inside pijota and can modify pijota itself. When the user asks for a
-feature, fix, or improvement that requires changing pijota's source code, you edit the
-source, build a new jar, run tests, and restart the process with the new code — all
-without the user leaving the conversation. After respawn, the session resumes exactly
-where it left off, now running the new code.
+You are running inside pijota and can modify pijota itself. There are two distinct modes:
+
+- Source-only edits: change pijota source code, then compile/test only. Do **not** build
+  a fat jar and do **not** respawn unless the user explicitly asks for transcendence.
+- Transcendence: integrate source changes by building a new jar, running tests, and
+  restarting with the new code. After respawn, the session resumes exactly where it left
+  off, now running the new code.
+
+Important: `mvn package`, `mvnd package`, `mvn package -Pfat`, and the
+`transcendence action="build"`/`respawn` actions may overwrite or replace jar artifacts
+that the current process was launched from. Never package casually while the current
+agent is still running. Use `/transcend` as the boundary where packaging and restart are
+allowed.
 
 ## The `transcendence` tool
 
@@ -26,6 +34,29 @@ All actions accept an optional `worktree` parameter to operate on a git worktree
 instead of the current directory.
 
 ## Full workflow
+
+### Source-only workflow: user asks for code changes, not live integration
+
+If the user asks you to modify pijota source code but does not ask to make the changes
+live, do this:
+
+```bash
+mvn compile
+mvn test
+```
+
+If `mvnd` is available and already used by the project, `mvnd compile` and `mvnd test`
+are fine. Do **not** run `mvn package`, `mvnd package`, `mvn package -Pfat`, or
+`transcendence action="build"`. Those produce jar artifacts and may disturb the running
+agent. Tell the user the source changes are ready and that `/transcend` will integrate
+them when they want the new version to go live.
+
+### Integration workflow: user invokes `/transcend`
+
+When the user invokes `/transcend` with no goal, assume the current source changes are
+the changes to integrate. The command is responsible for compile/test/package/respawn.
+If everything passes, it should restart into the new version and preserve the current
+session.
 
 ### Step 1: Create a git worktree (optional but recommended)
 
@@ -46,15 +77,15 @@ tree if no worktree). Source files live under `src/main/java/ai/pijota/`.
 Follow existing code conventions. Never add comments unless asked. Prefer `edit` for
 targeted changes, `write` only for new files or complete rewrites.
 
-### Step 3: Build
+### Step 3: Build/package only when integrating
 
 ```
 transcendence action="build" [worktree="../pijota-wip"]
 ```
 
-This creates `target/pijota-backup.jar` (your safety net) and builds a fat jar.
-Check the output — if the build fails, fix the errors and rebuild. Do not proceed
-until the build succeeds.
+This creates `target/pijota-backup.jar` (your safety net) and builds a fat jar. Only do
+this as part of a `/transcend` integration flow. For ordinary source-only edits, use
+`mvn compile`/`mvn test` instead and leave packaging to `/transcend`.
 
 ### Step 4: Test
 
@@ -105,6 +136,11 @@ If the new build is broken or crashes after respawn:
 
 ## Key rules
 
+- If the user asks for source changes only, compile/test only. Do not package.
+- Never run `mvn package`, `mvnd package`, or `mvn package -Pfat` casually while the
+  current agent is running.
+- `/transcend` is the explicit integration boundary: it may compile, test, package, and
+  respawn with the current changes.
 - ALWAYS build before respawning. The respawn action builds internally but
   explicitly building first catches errors earlier.
 - ALWAYS test before respawning. Don't respawn with a broken test suite.
@@ -148,7 +184,8 @@ User: "the read tool truncates output at 1000 lines instead of 2000"
   is created automatically (the user doesn't see this). The agent autonomously
   edits, builds, tests, and respawns. Worktrees are an implementation detail —
   don't mention them to the user.
-- `/transcend` — build and respawn from current tree (no goal)
+- `/transcend` — integrate current source changes: compile/test/package and respawn from
+  the current tree (no goal)
 - `/transcend --test` — build and launch a test instance (interactive)
 - `/transcend --rollback` — restore backup jar and respawn
 - `/transcend --merge feat/name` — merge branch, build, respawn

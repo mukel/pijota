@@ -129,6 +129,36 @@ public final class SessionManager {
             StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 
+    public void appendModelChange(Path sessionFile, String provider, String model, long contextWindow) throws IOException {
+        String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
+        var entry = new LinkedHashMap<String, Object>();
+        entry.put("id", UUID.randomUUID().toString());
+        entry.put("parentId", parentId);
+        entry.put("timestamp", Instant.now().toString());
+        entry.put("type", "model_change");
+        entry.put("provider", provider == null ? "" : provider);
+        entry.put("model", model == null ? "" : model);
+        entry.put("contextWindow", contextWindow);
+        Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
+            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+    }
+
+    public ModelSelection latestModelSelection(Path sessionFile) throws IOException {
+        if (sessionFile == null || !Files.exists(sessionFile)) return null;
+        ModelSelection selection = null;
+        for (var entry : readAllEntries(sessionFile).values()) {
+            if ("model_change".equals(entry.get("type"))) {
+                String provider = (String) entry.getOrDefault("provider", "");
+                String model = (String) entry.getOrDefault("model", "");
+                long contextWindow = asLong(entry.get("contextWindow"));
+                if (!provider.isBlank() && !model.isBlank()) {
+                    selection = new ModelSelection(provider, model, contextWindow);
+                }
+            }
+        }
+        return selection;
+    }
+
     public String sessionName(Path sessionFile) throws IOException {
         String name = null;
         for (var entry : readAllEntries(sessionFile).values()) {
@@ -427,6 +457,16 @@ public final class SessionManager {
             default -> {}
         }
     }
+
+    private static long asLong(Object value) {
+        if (value instanceof Number n) return n.longValue();
+        if (value instanceof String s) {
+            try { return Long.parseLong(s); } catch (NumberFormatException ignored) {}
+        }
+        return 0;
+    }
+
+    public record ModelSelection(String provider, String model, long contextWindow) {}
 
     @SuppressWarnings("unchecked")
     private static Message deserializeEntry(Map<String, Object> entry) {

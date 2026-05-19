@@ -149,6 +149,11 @@ public final class LlmService implements AutoCloseable {
     }
 
     public String summarize(List<Message> toSummarize, String instructions, String previousSummary) {
+        return summarize(toSummarize, instructions, previousSummary, (_, _) -> {});
+    }
+
+    public String summarize(List<Message> toSummarize, String instructions, String previousSummary,
+                            BiConsumer<String, String> onPartial) {
         String prompt = Summarizer.buildSummaryPrompt(toSummarize, instructions, previousSummary);
         try {
             var model = lc4jModel();
@@ -157,7 +162,7 @@ public final class LlmService implements AutoCloseable {
                 "You are a context summarization assistant. Read the conversation and output only the structured summary requested.");
             var userMsg = new ai.pijota.messages.Message.User(prompt);
             var messages = List.<ai.pijota.messages.Message>of(sysMsg, userMsg);
-            var result = streamLangChain4j(messages, List.of(), (content, thinking) -> {})
+            var result = streamLangChain4j(messages, List.of(), onPartial != null ? onPartial : (_, _) -> {})
                 .get(120, java.util.concurrent.TimeUnit.SECONDS);
             return result.content() != null ? result.content().strip() : null;
         } catch (java.util.concurrent.TimeoutException e) {

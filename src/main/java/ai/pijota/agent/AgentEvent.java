@@ -19,6 +19,8 @@ public sealed interface AgentEvent {
     record MessageStreamStart(String messageType) implements AgentEvent {}
     record MessageStreamDelta(String delta) implements AgentEvent {}
     record MessageStreamEnd(String messageType) implements AgentEvent {}
+    record CompactionStream(String content, String thinking) implements AgentEvent {}
+    record CompactionStreamEnd() implements AgentEvent {}
 
     record Compaction(List<Message> compactedMessages, int oldCount, int totalChars, String summary, String reason) implements AgentEvent {}
     record Error(Throwable throwable) implements AgentEvent {}
@@ -35,6 +37,8 @@ public sealed interface AgentEvent {
     static AgentEvent messageStreamStart(String type) { return new MessageStreamStart(type); }
     static AgentEvent messageStreamDelta(String delta) { return new MessageStreamDelta(delta); }
     static AgentEvent messageStreamEnd(String type) { return new MessageStreamEnd(type); }
+    static AgentEvent compactionStream(String content, String thinking) { return new CompactionStream(content, thinking); }
+    static AgentEvent compactionStreamEnd() { return new CompactionStreamEnd(); }
     static AgentEvent compaction(List<Message> compacted, int oldCount, int totalChars, String summary, String reason) {
         return new Compaction(compacted, oldCount, totalChars, summary, reason);
     }

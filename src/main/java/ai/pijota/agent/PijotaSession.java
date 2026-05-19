@@ -124,14 +124,31 @@ public final class PijotaSession implements AutoCloseable {
     public void fireUserBash(String command, boolean excludeFromContext) {
         extensionRegistry.fireUserBash(command, excludeFromContext);
     }
-    public void compact(String instructions) { agentLoop.compact(instructions); }
+    public CompactionManager.CompactionResult compact(String instructions) { return agentLoop.compactWithResult(instructions); }
     public void setAutoCompactionEnabled(boolean enabled) { agentLoop.setAutoCompactionEnabled(enabled); }
     public void setContextWindow(long contextWindow) { agentLoop.setContextWindow(contextWindow); }
     public void setThinkingLevel(ThinkingLevel level) { agentLoop.llm().setThinkingLevel(level); }
 
     public void switchModel(String provider, String model, String apiKey, long contextWindow) {
+        switchModel(provider, model, apiKey, contextWindow, true);
+    }
+
+    public void restoreModel(String provider, String model, String apiKey, long contextWindow) {
+        switchModel(provider, model, apiKey, contextWindow, false);
+    }
+
+    private void switchModel(String provider, String model, String apiKey, long contextWindow, boolean persist) {
         agentLoop.llm().setProviderAndModel(provider, model, apiKey);
         setContextWindow(contextWindow);
+        Path file = this.sessionFile;
+        if (persist && !disableSession && file != null) {
+            try { sessionManager.appendModelChange(file, provider, model, contextWindow); }
+            catch (IOException e) { rememberSessionWarning("model change save", e); }
+        }
+    }
+
+    public SessionManager.ModelSelection latestModelSelection() throws IOException {
+        return sessionManager.latestModelSelection(sessionFile);
     }
 
     public void addEventListener(Consumer<AgentEvent> listener) {

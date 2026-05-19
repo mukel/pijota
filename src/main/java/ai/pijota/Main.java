@@ -105,9 +105,12 @@ public final class Main {
             } else {
                 result = OAuthLogin.login(o.deviceEndpoint(), o.tokenEndpoint(), o.clientId(), o.scope());
             }
+            String tokenUrl = o.oauthTokenEndpoint() != null && !o.oauthTokenEndpoint().isBlank()
+                ? o.oauthTokenEndpoint()
+                : o.tokenEndpoint();
             var store = new OAuthTokenStore();
-            store.save(provider, result.accessToken(), result.refreshToken(), result.expiresAt(), result.accountId());
-            settings.saveApiKey(provider, result.accessToken(), model);
+            store.save(provider, result.accessToken(), result.refreshToken(), result.expiresAt(), result.accountId(), tokenUrl, o.clientId());
+            settings.setDefaultModelForProvider(provider, model);
             System.out.println("Logged in to " + provider + " using default model " + model + ".");
             return;
         }
