@@ -1,7 +1,7 @@
 package ai.pijota.util;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 
 public final class DiffAlgorithm {
@@ -15,15 +15,14 @@ public final class DiffAlgorithm {
     public static List<Row> diff(String oldText, String newText) {
         String[] a = oldText != null && !oldText.isEmpty() ? oldText.split("\\R", -1) : new String[0];
         String[] b = newText != null && !newText.isEmpty() ? newText.split("\\R", -1) : new String[0];
-        var items = new ArrayList<KindLine>();
-        appendRange(a, 0, a.length, b, 0, b.length, items);
+        var edits = myersDiff(a, b);
         var out = new ArrayList<Row>();
         int oldLine = 1, newLine = 1;
-        for (var item : items) {
-            switch (item.kind) {
-                case CONTEXT -> out.add(new Row(Kind.CONTEXT, oldLine++, newLine++, item.text));
-                case DELETE -> out.add(new Row(Kind.DELETE, oldLine++, 0, item.text));
-                case ADD -> out.add(new Row(Kind.ADD, 0, newLine++, item.text));
+        for (var edit : edits) {
+            switch (edit.kind) {
+                case 0 -> { for (int i = 0; i < edit.len; i++) out.add(new Row(Kind.CONTEXT, oldLine++, newLine++, a[edit.oldStart + i])); }
+                case -1 -> { for (int i = 0; i < edit.len; i++) out.add(new Row(Kind.DELETE, oldLine++, 0, a[edit.oldStart + i])); }
+                case 1 -> { for (int i = 0; i < edit.len; i++) out.add(new Row(Kind.ADD, 0, newLine++, b[edit.newStart + i])); }
             }
         }
         return out;
@@ -61,94 +60,144 @@ public final class DiffAlgorithm {
     public static long countOld(List<Row> rows) { return rows.stream().filter(r -> r.oldLine() > 0).count(); }
     public static long countNew(List<Row> rows) { return rows.stream().filter(r -> r.newLine() > 0).count(); }
 
-    private record KindLine(Kind kind, String text) {}
-    private record Anchor(int oldIndex, int newIndex) {}
-    private record Occurrence(int count, int index) {}
+    private record Edit(int kind, int oldStart, int newStart, int len) {}
 
-    private static void appendRange(String[] a, int aStart, int aEnd,
-                                    String[] b, int bStart, int bEnd,
-                                    List<KindLine> out) {
-        while (aStart < aEnd && bStart < bEnd && a[aStart].equals(b[bStart])) {
-            out.add(new KindLine(Kind.CONTEXT, a[aStart]));
-            aStart++; bStart++;
-        }
-        var suffix = new ArrayList<String>();
-        while (aStart < aEnd && bStart < bEnd && a[aEnd - 1].equals(b[bEnd - 1])) {
-            suffix.add(a[aEnd - 1]);
-            aEnd--; bEnd--;
-        }
-        if (aStart == aEnd || bStart == bEnd) {
-            for (int i = aStart; i < aEnd; i++) out.add(new KindLine(Kind.DELETE, a[i]));
-            for (int i = bStart; i < bEnd; i++) out.add(new KindLine(Kind.ADD, b[i]));
-            for (int i = suffix.size() - 1; i >= 0; i--) out.add(new KindLine(Kind.CONTEXT, suffix.get(i)));
-            return;
-        }
-        var anchors = uniqueAnchors(a, aStart, aEnd, b, bStart, bEnd);
-        if (anchors.isEmpty()) {
-            for (int i = aStart; i < aEnd; i++) out.add(new KindLine(Kind.DELETE, a[i]));
-            for (int i = bStart; i < bEnd; i++) out.add(new KindLine(Kind.ADD, b[i]));
-            for (int i = suffix.size() - 1; i >= 0; i--) out.add(new KindLine(Kind.CONTEXT, suffix.get(i)));
-            return;
-        }
-        int lastA = aStart, lastB = bStart;
-        for (var anchor : anchors) {
-            appendRange(a, lastA, anchor.oldIndex(), b, lastB, anchor.newIndex(), out);
-            out.add(new KindLine(Kind.CONTEXT, a[anchor.oldIndex()]));
-            lastA = anchor.oldIndex() + 1;
-            lastB = anchor.newIndex() + 1;
-        }
-        appendRange(a, lastA, aEnd, b, lastB, bEnd, out);
-        for (int i = suffix.size() - 1; i >= 0; i--) out.add(new KindLine(Kind.CONTEXT, suffix.get(i)));
-    }
+    private static List<Edit> myersDiff(String[] a, String[] b) {
+        int n = a.length, m = b.length;
+        if (n == 0 && m == 0) return List.of();
+        if (n == 0) return List.of(new Edit(1, 0, 0, m));
+        if (m == 0) return List.of(new Edit(-1, 0, 0, n));
 
-    private static List<Anchor> uniqueAnchors(String[] a, int aStart, int aEnd,
-                                               String[] b, int bStart, int bEnd) {
-        var oldInfo = new HashMap<String, Occurrence>();
-        var newInfo = new HashMap<String, Occurrence>();
-        for (int i = aStart; i < aEnd; i++) {
-            int idx = i;
-            oldInfo.compute(a[i], (_, v) -> v == null
-                ? new Occurrence(1, idx) : new Occurrence(v.count + 1, v.index));
+        int prefix = 0;
+        while (prefix < n && prefix < m && a[prefix].equals(b[prefix])) prefix++;
+
+        int suffix = 0;
+        while (prefix + suffix < n
+            && prefix + suffix < m
+            && a[n - 1 - suffix].equals(b[m - 1 - suffix])) {
+            suffix++;
         }
-        for (int i = bStart; i < bEnd; i++) {
-            int idx = i;
-            newInfo.compute(b[i], (_, v) -> v == null
-                ? new Occurrence(1, idx) : new Occurrence(v.count + 1, v.index));
-        }
-        var candidates = new ArrayList<Anchor>();
-        for (var entry : oldInfo.entrySet()) {
-            var old = entry.getValue();
-            var next = newInfo.get(entry.getKey());
-            if (old.count == 1 && next != null && next.count == 1) {
-                candidates.add(new Anchor(old.index, next.index));
+
+        var edits = new ArrayList<Edit>();
+        if (prefix > 0) edits.add(new Edit(0, 0, 0, prefix));
+
+        int middleN = n - prefix - suffix;
+        int middleM = m - prefix - suffix;
+        if (middleN == 0 && middleM == 0) {
+            // No middle edit; only the shared prefix/suffix exists.
+        } else if (middleN == 0) {
+            edits.add(new Edit(1, prefix, prefix, middleM));
+        } else if (middleM == 0) {
+            edits.add(new Edit(-1, prefix, prefix, middleN));
+        } else {
+            var middleA = Arrays.copyOfRange(a, prefix, prefix + middleN);
+            var middleB = Arrays.copyOfRange(b, prefix, prefix + middleM);
+            for (var edit : myersMiddleDiff(middleA, middleB)) {
+                edits.add(new Edit(edit.kind, edit.oldStart + prefix, edit.newStart + prefix, edit.len));
             }
         }
-        candidates.sort(java.util.Comparator.comparingInt(Anchor::oldIndex));
-        return lisByNewIndex(candidates);
+
+        if (suffix > 0) edits.add(new Edit(0, n - suffix, m - suffix, suffix));
+        return edits;
     }
 
-    private static List<Anchor> lisByNewIndex(List<Anchor> anchors) {
-        if (anchors.isEmpty()) return List.of();
-        int n = anchors.size();
-        int[] tails = new int[n];
-        int[] prev = new int[n];
-        java.util.Arrays.fill(prev, -1);
-        int size = 0;
-        for (int i = 0; i < n; i++) {
-            int value = anchors.get(i).newIndex();
-            int lo = 0, hi = size;
-            while (lo < hi) {
-                int mid = (lo + hi) >>> 1;
-                if (anchors.get(tails[mid]).newIndex() < value) lo = mid + 1;
-                else hi = mid;
+    private static List<Edit> myersMiddleDiff(String[] a, String[] b) {
+        int n = a.length, m = b.length;
+
+        int max = n + m;
+        int offset = max;
+        int[] v = new int[2 * max + 1];
+        var trace = new ArrayList<int[]>();
+        int solutionD = -1, solutionK = 0;
+
+        for (int d = 0; d <= max; d++) {
+            for (int k = -d; k <= d; k += 2) {
+                int idx = k + offset;
+                int x;
+                if (k == -d || (k != d && v[idx - 1] < v[idx + 1])) {
+                    x = v[idx + 1];
+                } else {
+                    x = v[idx - 1] + 1;
+                }
+                int y = x - k;
+                while (x < n && y < m && a[x].equals(b[y])) {
+                    x++; y++;
+                }
+                v[idx] = x;
+                if (x >= n && y >= m) {
+                    solutionD = d;
+                    solutionK = k;
+                    trace.add(activeDiagonals(v, offset, d));
+                    return backtrack(trace, solutionD, solutionK, a, b, n, m);
+                }
             }
-            if (lo > 0) prev[i] = tails[lo - 1];
-            tails[lo] = i;
-            if (lo == size) size++;
+            trace.add(activeDiagonals(v, offset, d));
         }
-        var out = new ArrayList<Anchor>();
-        for (int i = tails[size - 1]; i >= 0; i = prev[i]) out.add(anchors.get(i));
-        java.util.Collections.reverse(out);
-        return out;
+        return List.of();
+    }
+
+    private static int[] activeDiagonals(int[] v, int offset, int d) {
+        return Arrays.copyOfRange(v, offset - d, offset + d + 1);
+    }
+
+    private static int diagonal(int[] compactV, int d, int k) {
+        return compactV[k + d];
+    }
+
+    private static List<Edit> backtrack(List<int[]> trace, int d, int k,
+                                         String[] a, String[] b, int n, int m) {
+        var edits = new ArrayList<Edit>();
+        int x = n, y = m;
+
+        for (int di = d; di > 0; di--) {
+            int[] vPrev = trace.get(di - 1);
+
+            boolean right;
+            int startX;
+            if (k == -di) {
+                right = true;
+                startX = diagonal(vPrev, di - 1, k + 1);
+            } else if (k == di) {
+                right = false;
+                startX = diagonal(vPrev, di - 1, k - 1);
+            } else if (diagonal(vPrev, di - 1, k - 1) < diagonal(vPrev, di - 1, k + 1)) {
+                right = true;
+                startX = diagonal(vPrev, di - 1, k + 1);
+            } else {
+                right = false;
+                startX = diagonal(vPrev, di - 1, k - 1);
+            }
+
+            int oldK = right ? k + 1 : k - 1;
+            int startY = startX - oldK;
+            int preSnakeX = right ? startX : startX + 1;
+            int preSnakeY = right ? startY + 1 : startY;
+            int snakeLen = x - preSnakeX;
+
+            if (snakeLen > 0)
+                edits.addFirst(new Edit(0, preSnakeX, preSnakeY, snakeLen));
+
+            if (right) {
+                edits.addFirst(new Edit(1, startX, startY, 1));
+            } else {
+                edits.addFirst(new Edit(-1, startX, startY, 1));
+            }
+
+            x = startX;
+            y = startY;
+            k = oldK;
+        }
+
+        if (x > 0 && y > 0) {
+            int commonLen = Math.min(x, y);
+            boolean allMatch = true;
+            for (int i = 0; i < commonLen; i++) {
+                if (!a[i].equals(b[i])) { allMatch = false; break; }
+            }
+            if (allMatch)
+                edits.addFirst(new Edit(0, 0, 0, commonLen));
+        }
+
+        return edits;
     }
 }
