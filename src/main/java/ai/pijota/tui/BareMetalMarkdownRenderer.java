@@ -388,13 +388,17 @@ final class BareMetalMarkdownRenderer {
             if (widths[idx] <= 5) break;
             widths[idx]--;
         }
+        while (sum(widths) < available) {
+            for (int i = 0; i < widths.length && sum(widths) < available; i++)
+                widths[i]++;
+        }
     }
 
     private static int preferredWidth(String text) {
         int max = 0;
         for (String word : text.split("\\s+"))
             max = Math.max(max, AnsiWidth.visibleWidth(word));
-        return Math.max(max, Math.min(24, AnsiWidth.visibleWidth(text)));
+        return Math.max(max, AnsiWidth.visibleWidth(text));
     }
 
     private static int sum(int[] widths) {
