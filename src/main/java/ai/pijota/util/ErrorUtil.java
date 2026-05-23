@@ -1,10 +1,23 @@
 package ai.pijota.util;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
 public final class ErrorUtil {
     private ErrorUtil() {}
+
+    private static final List<DateTimeFormatter> HTTP_DATE_FORMATS = List.of(
+        DateTimeFormatter.RFC_1123_DATE_TIME,
+        DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z"),
+        DateTimeFormatter.ofPattern("EEE, dd-MMM-yy HH:mm:ss z"),
+        DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy")
+    );
 
     public static Throwable unwrap(Throwable t) {
         Throwable current = t;
@@ -63,5 +76,80 @@ public final class ErrorUtil {
             || msg.contains("internal error")
             || unwrapped instanceof java.io.IOException
             || unwrapped instanceof java.util.concurrent.TimeoutException;
+    }
+
+    public static long retryAfterDelayMs(Throwable ex, long defaultDelayMs) {
+        if (ex == null) return defaultDelayMs;
+        String retryAfter = extractRetryAfterHeader(ex);
+        if (retryAfter == null) return defaultDelayMs;
+
+        try {
+            long seconds = Long.parseLong(retryAfter.trim());
+            return seconds * 1000;
+        } catch (NumberFormatException e1) {
+            try {
+                var instant = parseHttpDate(retryAfter.trim());
+                long delay = Duration.between(Instant.now(), instant).toMillis();
+                return Math.max(delay, 1000);
+            } catch (DateTimeParseException e2) {
+                return defaultDelayMs;
+            }
+        }
+    }
+
+    private static String extractRetryAfterHeader(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String header = tryGetRetryAfter(current);
+            if (header != null) return header;
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private static String tryGetRetryAfter(Object obj) {
+        if (obj == null) return null;
+
+        try {
+            var responseObj = invokeMethod(obj, "response");
+            if (responseObj != null) {
+                var headersObj = invokeMethod(responseObj, "headers");
+                if (headersObj != null) {
+                    String header = (String) invokeMethodWithArg(headersObj, "get", "Retry-After");
+                    if (header != null && !header.isBlank()) return header;
+                    header = (String) invokeMethodWithArg(headersObj, "get", "retry-after");
+                    if (header != null && !header.isBlank()) return header;
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return null;
+    }
+
+    private static Object invokeMethod(Object obj, String methodName) {
+        try {
+            var method = obj.getClass().getMethod(methodName);
+            return method.invoke(obj);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Object invokeMethodWithArg(Object obj, String methodName, String arg) {
+        try {
+            var method = obj.getClass().getMethod(methodName, String.class);
+            return method.invoke(obj, arg);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Instant parseHttpDate(String value) {
+        for (var fmt : HTTP_DATE_FORMATS) {
+            try {
+                return Instant.from(fmt.parse(value));
+            } catch (DateTimeParseException ignored) {}
+        }
+        throw new DateTimeParseException("Unparseable HTTP date: " + value, value, 0);
     }
 }

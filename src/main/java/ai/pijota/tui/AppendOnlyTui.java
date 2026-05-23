@@ -17,6 +17,7 @@ import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.theme.AnsiTheme;
 import ai.pijota.tools.SlashCommandTool;
+import ai.pijota.tools.Tool;
 import ai.pijota.tools.WhoamiTool;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.ProcessRunner;
@@ -194,6 +195,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     public void requestSessionPicker() { showSessionPickerOnStart = true; }
     private static final long INTERRUPT_WINDOW_MS = 1200;
     private static final long EXIT_WINDOW_MS = 800;
+    private static final long TOKEN_STATUS_CACHE_MS = 1000;
+    private volatile long cachedContextTokens = -1;
+    private volatile long cachedContextTokensAt;
+    private volatile int cachedContextMessageCount = -1;
 
     public AppendOnlyTui(PijotaSession session, AnsiTheme theme, String provider, String model,
                            List<SlashCommand> extensionCommands,
@@ -2066,8 +2071,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 flushStreamLines();
                 pendingEdit.onToolStart(name, args);
                 busyPhase = "tool " + name;
-                String trace = ToolRender.trace(name, args, cwd);
-                if (!trace.isBlank()) appendPlain(List.of(theme.styled("statusText", trace)));
                 if (pendingEdit.hasPath() && pendingEdit.oldText() != null
                     && "edit".equals(name) && pendingEdit.newText() != null
                     && !pendingEdit.oldText().equals(pendingEdit.newText())) {
@@ -2084,15 +2087,37 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 var parts = new ArrayList<String>();
                 parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", "●"));
                 parts.add(theme.styled("statusText", msg.toolName()));
-                String detail = ToolRender.detail(msg.toolName(), pendingEdit.toolArgs());
+                String detail = ToolRender.detail(msg.toolName(), pendingEdit.toolArgs(), cwd);
                 if (!detail.isBlank()) parts.add(theme.styled("statusText", detail));
-                String summary = toolResultSummary(msg);
+                Tool.ToolResultView rendered = renderToolResultView(msg);
+                String summary = rendered != null ? rendered.summary() : toolResultSummary(msg);
                 if (!summary.isBlank()) parts.add(theme.styled(slot, summary));
+                if ("bash".equals(msg.toolName())) {
+                    Map<String, Object> details = msg.details() == null ? Map.of() : msg.details();
+                    if (details.get("exitCode") instanceof Number ec) {
+                        parts.add(theme.styled(ec.intValue() == 0 ? "statusText" : "toolError", "exit " + ec.intValue()));
+                    }
+                }
                 if (isEditWrite(msg) && pendingEdit.hasEditResult() && !pendingEdit.previewShown()) {
                     appendPlain(new DiffRenderer(theme).render(
                         msg.toolName(), pendingEdit.filePath(), pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
                 }
-                appendPlain(List.of(String.join("  ", parts)));
+                var lines = new ArrayList<String>();
+                lines.add(String.join("  ", parts));
+                if (rendered != null && !rendered.body().isEmpty()) {
+                    for (String line : rendered.body()) {
+                        if (line.startsWith("╰→")) {
+                            lines.add(theme.styled("statusText", "╰→")
+                                + theme.styled("commandMeta", line.substring(2)));
+                        } else if (line.equals("┴") || line.equals("┬")) {
+                            lines.add(theme.styled("statusText", line));
+                        } else {
+                            String bodySlot = line.startsWith("⋯") ? "commandMeta" : "statusText";
+                            lines.add(theme.styled(bodySlot, line));
+                        }
+                    }
+                }
+                appendPlain(lines);
                 pendingEdit.clear();
             }
             case AgentEvent.Compaction c -> {
@@ -2173,6 +2198,18 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 + " ok" : firstLine(msg.content());
             default -> firstLine(msg.content());
         };
+    }
+
+    private Tool.ToolResultView renderToolResultView(Message.ToolResult msg) {
+        if (!"bash".equals(msg.toolName())) return null;
+        var args = pendingEdit.toolArgs() != null
+            ? Util.parseJsonArgs(pendingEdit.toolArgs().get())
+            : Map.<String, Object>of();
+        return session.agentLoop().toolRegistry().get(msg.toolName())
+            .map(tool -> tool.renderResult(args,
+                new Tool.ToolResult(msg.content(), msg.isError(),
+                    msg.details() == null ? Map.of() : msg.details()), cwd))
+            .orElse(null);
     }
 
     private int softLineLimit() {
@@ -2312,7 +2349,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private String tokenStatus() {
-        long tokens = session.estimatedContextTokens();
+        long tokens = cachedContextTokens();
         if (tokens <= 0) return "?/" + fmtCount((int) contextWindow);
         int pct = (int) Math.min(99, (tokens * 100) / Math.max(1, contextWindow));
         String pctStr = theme.styled(
@@ -2321,7 +2358,23 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private int tokenPct() {
-        return (int) Math.min(99, (session.estimatedContextTokens() * 100) / Math.max(1, contextWindow));
+        return (int) Math.min(99, (cachedContextTokens() * 100) / Math.max(1, contextWindow));
+    }
+
+    private long cachedContextTokens() {
+        long now = System.currentTimeMillis();
+        int messageCount = session.messages().size();
+        long tokens = cachedContextTokens;
+        if (tokens >= 0
+            && cachedContextMessageCount == messageCount
+            && now - cachedContextTokensAt < TOKEN_STATUS_CACHE_MS) {
+            return tokens;
+        }
+        tokens = session.estimatedContextTokens();
+        cachedContextTokens = tokens;
+        cachedContextTokensAt = now;
+        cachedContextMessageCount = messageCount;
+        return tokens;
     }
 
     private static String gitBranch(String cwd) {

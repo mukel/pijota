@@ -9,45 +9,87 @@ import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class MessageConverter {
     private MessageConverter() {}
 
     public static List<ChatMessage> toLangChain4j(List<Message> messages) {
         var chatMessages = new ArrayList<ChatMessage>();
-        for (Message msg : messages) {
+        Set<String> pendingToolResultIds = new LinkedHashSet<>();
+        for (int i = 0; i < messages.size(); i++) {
+            Message msg = messages.get(i);
             switch (msg) {
-                case Message.System s -> chatMessages.add(new SystemMessage(s.content()));
-                case Message.User u -> chatMessages.add(new UserMessage(u.content()));
+                case Message.System s -> {
+                    pendingToolResultIds = new LinkedHashSet<>();
+                    chatMessages.add(new SystemMessage(s.content()));
+                }
+                case Message.User u -> {
+                    pendingToolResultIds = new LinkedHashSet<>();
+                    chatMessages.add(new UserMessage(u.content()));
+                }
                 case Message.Assistant a -> {
                     if (a.toolCalls() != null && !a.toolCalls().isEmpty()) {
-                        var tcList = a.toolCalls().stream()
-                            .map(tc -> ToolExecutionRequest.builder()
-                                .id(tc.id()).name(tc.name()).arguments(tc.arguments()).build())
-                            .toList();
-                        String text = a.content() != null && !a.content().isBlank() ? a.content() : null;
-                        chatMessages.add(AiMessage.builder()
-                            .text(text)
-                            .toolExecutionRequests(tcList)
-                            .build());
+                        if (hasCompleteImmediateToolResults(messages, i)) {
+                            var tcList = a.toolCalls().stream()
+                                .map(tc -> ToolExecutionRequest.builder()
+                                    .id(tc.id()).name(tc.name()).arguments(tc.arguments()).build())
+                                .toList();
+                            String text = a.content() != null && !a.content().isBlank() ? a.content() : null;
+                            chatMessages.add(AiMessage.builder()
+                                .text(text)
+                                .toolExecutionRequests(tcList)
+                                .build());
+                            pendingToolResultIds = a.toolCalls().stream()
+                                .map(tc -> tc.id())
+                                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+                        } else {
+                            pendingToolResultIds = new LinkedHashSet<>();
+                            if (a.content() != null && !a.content().isBlank()) {
+                                chatMessages.add(AiMessage.from(a.content()));
+                            }
+                        }
                     } else {
+                        pendingToolResultIds = new LinkedHashSet<>();
                         chatMessages.add(AiMessage.from(
                             a.content() != null ? a.content() : ""));
                     }
                 }
-                case Message.ToolResult tr -> chatMessages.add(ToolExecutionResultMessage.builder()
-                    .id(tr.toolCallId())
-                    .toolName(tr.toolName())
-                    .text(tr.content())
-                    .isError(tr.isError() ? true : null)
-                    .build());
-                case Message.CompactionSummary cs -> chatMessages.add(
-                    new UserMessage("[Previous conversation summary]\n" + cs.summary()));
-                case Message.BranchSummary bs -> chatMessages.add(
-                    new UserMessage("[Branch context]\n" + bs.summary()));
+                case Message.ToolResult tr -> {
+                    if (pendingToolResultIds.remove(tr.toolCallId())) {
+                        chatMessages.add(ToolExecutionResultMessage.builder()
+                            .id(tr.toolCallId())
+                            .toolName(tr.toolName())
+                            .text(tr.content())
+                            .isError(tr.isError() ? true : null)
+                            .build());
+                    }
+                }
+                case Message.CompactionSummary cs -> {
+                    pendingToolResultIds = new LinkedHashSet<>();
+                    chatMessages.add(new UserMessage("[Previous conversation summary]\n" + cs.summary()));
+                }
+                case Message.BranchSummary bs -> {
+                    pendingToolResultIds = new LinkedHashSet<>();
+                    chatMessages.add(new UserMessage("[Branch context]\n" + bs.summary()));
+                }
             }
         }
         return chatMessages;
+    }
+
+    private static boolean hasCompleteImmediateToolResults(List<Message> messages, int assistantIndex) {
+        var assistant = (Message.Assistant) messages.get(assistantIndex);
+        var ids = assistant.toolCalls().stream()
+            .map(tc -> tc.id())
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        for (int i = assistantIndex + 1; i < messages.size(); i++) {
+            if (!(messages.get(i) instanceof Message.ToolResult tr)) break;
+            ids.remove(tr.toolCallId());
+            if (ids.isEmpty()) return true;
+        }
+        return false;
     }
 }

@@ -201,26 +201,41 @@ public final class CompactionManager {
     }
 
     public static int estimateChars(List<Message> messages) {
-        int total = 0;
-        for (var msg : messages) total += estimateChars(msg);
-        return total;
+        return estimateTokens(messages);
     }
 
     public static int estimateTokens(List<Message> messages) {
-        return Math.max(1, estimateChars(messages) / 4);
-    }
-
-    public static int estimateTokens(Message msg) {
-        return Math.max(1, estimateChars(msg) / 4);
+        int total = 0;
+        for (var msg : messages) total += estimateTokens(msg);
+        return Math.max(1, total);
     }
 
     public static int estimateChars(Message msg) {
-        if (msg instanceof Message.User u) return u.content().length();
-        if (msg instanceof Message.Assistant a)
-            return (a.content() != null ? a.content().length() : 0) + 200;
-        if (msg instanceof Message.ToolResult tr) return tr.content().length();
-        if (msg instanceof Message.System s) return s.content().length();
+        return estimateTokens(msg);
+    }
+
+    public static int estimateTokens(Message msg) {
+        return Math.max(1, tokenCount(msg));
+    }
+
+    private static int tokenCount(Message msg) {
+        if (msg instanceof Message.User u) return estimateTextTokens(u.content());
+        if (msg instanceof Message.Assistant a) {
+            int tokens = estimateTextTokens(a.content());
+            if (a.thinking() != null) tokens += estimateTextTokens(a.thinking());
+            if (a.toolCalls() != null) tokens += a.toolCalls().size() * 200;
+            return tokens;
+        }
+        if (msg instanceof Message.ToolResult tr) return estimateTextTokens(tr.content());
+        if (msg instanceof Message.System s) return estimateTextTokens(s.content());
+        if (msg instanceof Message.CompactionSummary cs) return estimateTextTokens(cs.summary());
+        if (msg instanceof Message.BranchSummary bs) return estimateTextTokens(bs.summary());
         return 100;
+    }
+
+    static int estimateTextTokens(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        return (int) Math.ceil(text.length() / 4.0);
     }
 
     @FunctionalInterface

@@ -88,7 +88,7 @@ public final class LlmService implements AutoCloseable {
             private final StringBuilder thinkingBuf = new StringBuilder();
 
             @Override public void onPartialResponse(String t) {
-                result.appendContent(t);
+                applyPartialContent(result, t);
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
             @Override public void onPartialResponse(PartialResponse pr, PartialResponseContext ctx) {
@@ -96,7 +96,7 @@ public final class LlmService implements AutoCloseable {
                     activeHandle.set(ctx.streamingHandle());
                 String t = pr.text();
                 if (t != null) {
-                    result.appendContent(t);
+                    applyPartialContent(result, t);
                     onPartial.accept(result.content(), thinkingBuf.toString());
                 }
             }
@@ -129,6 +129,16 @@ public final class LlmService implements AutoCloseable {
         });
 
         return future;
+    }
+
+    private static void applyPartialContent(StreamResult result, String text) {
+        if (text == null || text.isEmpty()) return;
+        String current = result.content();
+        if (text.startsWith(current)) {
+            result.setContent(text);
+        } else {
+            result.appendContent(text);
+        }
     }
 
     private StreamingChatModel lc4jModel() {

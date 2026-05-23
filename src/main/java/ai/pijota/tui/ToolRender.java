@@ -37,16 +37,25 @@ final class ToolRender {
         };
     }
 
-    static String detail(String toolName, Supplier<String> args) {
+    static String detail(String toolName, Supplier<String> args, String cwd) {
         Map<String, Object> a = parse(args);
         if (a.isEmpty()) return "";
         return switch (toolName) {
-            case "read", "write", "edit" -> fileName(pathArg(a));
-            case "bash" -> shorten(a.getOrDefault("command", "").toString(), 60);
+            case "read" -> displayPath(pathArg(a), cwd) + options(a, "offset", "limit");
+            case "write", "edit" -> displayPath(pathArg(a), cwd);
+            case "bash" -> quote(shorten(a.getOrDefault("command", "").toString(), 60));
             case "question" -> shorten(questionText(a), 60);
-            case "ls" -> fileName(a.getOrDefault("path", ".").toString());
-            case "glob", "grep" -> shorten(a.getOrDefault("pattern", "").toString(), 40);
+            case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + options(a, "limit");
+            case "grep" -> quote(a.get("pattern")) + " in "
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + options(a, "glob", "context", "limit");
+            case "glob" -> quote(a.get("pattern")) + " in "
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + options(a, "limit");
             case "task" -> taskDetail(a);
+            case "webfetch" -> shorten(a.getOrDefault("url", "").toString(), 60);
+            case "websearch" -> quote(shorten(a.getOrDefault("query", "").toString(), 60));
             default -> "";
         };
     }

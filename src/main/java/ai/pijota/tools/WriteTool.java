@@ -63,4 +63,19 @@ public final class WriteTool implements Tool {
             }
         });
     }
+
+    @Override
+    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+        if (result.isError()) return ToolResultView.of(result.content());
+        String summary = result.content();
+        String content = (String) args.get("content");
+        if (content == null || content.isBlank()) return ToolResultView.of(summary);
+        var body = new java.util.ArrayList<String>();
+        var lines = content.lines().limit(6).toList();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i >= 5) { body.add("… " + (content.lines().count() - 5) + " more lines"); break; }
+            body.add(lines.get(i));
+        }
+        return ToolResultView.of(summary, body);
+    }
 }

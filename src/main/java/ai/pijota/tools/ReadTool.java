@@ -94,4 +94,20 @@ public final class ReadTool implements Tool {
             }
         });
     }
+
+    @Override
+    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+        if (result.isError()) return ToolResultView.of(result.content());
+        Map<String, Object> details = result.details();
+        Object total = details.get("totalLines");
+        if (total instanceof Number n) {
+            StringBuilder sb = new StringBuilder(n.intValue() + " line(s)");
+            Object off = details.get("offset");
+            Object lim = details.get("limit");
+            if (off instanceof Number o && o.intValue() > 1) sb.append(" [offset=").append(o.intValue()).append("]");
+            if (lim instanceof Number l && l.intValue() < MAX_LINES) sb.append(" [limit=").append(l.intValue()).append("]");
+            return ToolResultView.of(sb.toString());
+        }
+        return ToolResultView.of(result.content());
+    }
 }

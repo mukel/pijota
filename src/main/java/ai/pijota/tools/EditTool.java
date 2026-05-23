@@ -279,6 +279,21 @@ public final class EditTool implements Tool {
         return "\n".equals(le) ? s : s.replace("\n", le);
     }
 
+    @Override
+    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+        if (result.isError()) return ToolResultView.of(result.content());
+        String summary = result.content();
+        Object diffObj = result.details().get("diff");
+        if (!(diffObj instanceof String diff) || diff.isBlank()) return ToolResultView.of(summary);
+        var body = new java.util.ArrayList<String>();
+        int count = 0;
+        for (String line : diff.split("\n")) {
+            if (count++ >= 20) { body.add("… " + (diff.split("\n").length - 20) + " more changed lines"); break; }
+            body.add(line);
+        }
+        return ToolResultView.of(summary, body);
+    }
+
     private static String normalizeForFuzzyMatch(String s) {
         s = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC);
         s = s.replaceAll("(?m)[ \\t]+$", "");

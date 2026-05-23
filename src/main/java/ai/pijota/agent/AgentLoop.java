@@ -365,7 +365,8 @@ public final class AgentLoop implements AgentContext {
             .exceptionallyCompose(ex -> {
                 if (attempt >= 2 || !ErrorUtil.isRetryable(ex))
                     return CompletableFuture.failedFuture(ex);
-                long delay = (long) (2000 * Math.pow(2.0, attempt));
+                long defaultDelay = (long) (2000 * Math.pow(2.0, attempt));
+                long delay = ErrorUtil.retryAfterDelayMs(ex, defaultDelay);
                 log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}",
                     attempt + 1, 3, delay, ErrorUtil.message(ex));
                 var delayed = new CompletableFuture<T>();

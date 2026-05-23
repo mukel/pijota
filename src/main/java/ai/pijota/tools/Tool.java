@@ -69,4 +69,32 @@ public interface Tool {
     }
 
     record ToolInfo(String name, String description) {}
+
+    /**
+     * Rendered view of a tool result for TUI display.
+     * @param summary single-line summary shown after the tool name + args
+     * @param body    additional lines rendered below the summary (diff, output preview, etc.)
+     */
+    record ToolResultView(String summary, java.util.List<String> body) {
+        public static ToolResultView of(String summary) {
+            return new ToolResultView(summary, java.util.List.of());
+        }
+        public static ToolResultView of(String summary, java.util.List<String> body) {
+            return new ToolResultView(summary, body);
+        }
+    }
+
+    /**
+     * Produce a display-oriented rendering of this tool's result.
+     * Each tool can override to provide richer output (diffs, previews, etc.).
+     */
+    default ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+        String text = result.content();
+        if (result.isError()) {
+            return ToolResultView.of(text != null ? text : "");
+        }
+        if (text == null || text.isBlank()) return ToolResultView.of("");
+        String first = text.lines().findFirst().orElse(text);
+        return ToolResultView.of(first);
+    }
 }

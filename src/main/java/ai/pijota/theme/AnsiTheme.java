@@ -47,6 +47,7 @@ public class AnsiTheme {
     public String toolLabel    = "#F29111";
     public String toolResult   = "dim";
     public String toolError    = "red";
+    public String commandMeta  = "dim;#7AA6B8";
     public String statusText   = "dim";
     public String statusBar    = "bright_black";
     public String statusWarn   = "dim;yellow";
@@ -284,6 +285,7 @@ public class AnsiTheme {
             case "toolLabel"     -> toolLabel;
             case "toolResult"    -> toolResult;
             case "toolError"     -> toolError;
+            case "commandMeta"   -> commandMeta;
             case "statusText"    -> statusText;
             case "statusBar"     -> statusBar;
             case "statusWarn"    -> statusWarn;

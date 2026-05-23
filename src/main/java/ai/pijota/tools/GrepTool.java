@@ -228,6 +228,15 @@ public final class GrepTool implements Tool {
         return new TruncatedLine(line.substring(0, MAX_LINE_LENGTH - 1) + "…", true);
     }
 
+    @Override
+    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+        if (result.isError()) return ToolResultView.of(result.content());
+        Map<String, Object> details = result.details();
+        Object mc = details.get("matchCount");
+        if (mc instanceof Number n) return ToolResultView.of(n.intValue() + " match(es)");
+        return ToolResultView.of(result.content());
+    }
+
     private record Match(Path path, int line, String text) {}
     private record ContextBlock(List<String> lines, boolean truncated) {}
     private record TruncatedLine(String text, boolean truncated) {}
