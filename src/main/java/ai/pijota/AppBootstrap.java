@@ -7,7 +7,6 @@ import ai.pijota.cli.Args;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.extensions.plan.PlanExtension;
-import ai.pijota.extensions.system.SystemPromptExtension;
 import ai.pijota.extensions.task.TaskExtension;
 import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ModelRegistry;
@@ -88,7 +87,6 @@ final class AppBootstrap {
         }
         ext.register(new TaskExtension());
         ext.register(new PlanExtension());
-        ext.register(new SystemPromptExtension());
         ext.register(new ai.pijota.extensions.examples.InlineBashExtension());
         ext.setExtensionFlags(parsedArgs.extensionFlags());
         if (!parsedArgs.noSkills())

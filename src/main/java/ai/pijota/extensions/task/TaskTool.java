@@ -69,7 +69,7 @@ public final class TaskTool implements Tool {
                 "description", Map.of("type", "string",
                     "description", "Detailed task description for the sub-agent (single mode)"),
                 "subagent_type", Map.of("type", "string",
-                    "description", "Type of subagent to use. Use explore for fast codebase searches, file discovery, grep/read-based research, and codebase-structure questions. Include desired thoroughness: quick, medium, or very thorough. Use general for complex multi-step work."),
+                    "description", "Type of subagent: explore or general (single mode). Explore is fast for codebase searches, general for complex tasks."),
                 "tasks", Map.of("type", "array",
                     "description", "Array of {agent, description} for parallel execution",
                     "items", Map.of("type", "object",
