@@ -9,7 +9,7 @@ import java.util.Locale;
 
 final class StreamingMarkdownFormatter {
     private final MarkdownStreamBuffer buffer = new MarkdownStreamBuffer();
-    private final BareMetalMarkdownRenderer renderer;
+    private final TerminalMarkdownRenderer renderer;
     private AnsiTheme theme;
     private boolean inFence;
     private SyntaxHighlighter highlighter;
@@ -20,7 +20,7 @@ final class StreamingMarkdownFormatter {
 
     public StreamingMarkdownFormatter(AnsiTheme theme, String plainSlot) {
         this.theme = theme;
-        this.renderer = new BareMetalMarkdownRenderer(theme, plainSlot);
+        this.renderer = new TerminalMarkdownRenderer(theme, plainSlot);
     }
 
     public void setWidth(int width) {

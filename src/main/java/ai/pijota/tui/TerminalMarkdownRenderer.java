@@ -26,7 +26,7 @@ import org.commonmark.parser.Parser;
 import java.util.ArrayList;
 import java.util.List;
 
-final class BareMetalMarkdownRenderer {
+final class TerminalMarkdownRenderer {
     private static final List<Extension> EXTENSIONS = List.of(
         TablesExtension.create(),
         StrikethroughExtension.create()
@@ -39,7 +39,7 @@ final class BareMetalMarkdownRenderer {
     private final Parser parser = Parser.builder().extensions(EXTENSIONS).build();
     private int width = 80;
 
-    BareMetalMarkdownRenderer(AnsiTheme theme, String plainSlot) {
+    TerminalMarkdownRenderer(AnsiTheme theme, String plainSlot) {
         this.theme = theme;
         this.plainSlot = plainSlot;
     }
