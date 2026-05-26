@@ -43,16 +43,32 @@ public interface Tool {
         CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd);
     }
 
+    @FunctionalInterface
+    interface ResultRenderer {
+        ToolResultView render(Map<String, Object> args, ToolResult result, String cwd);
+    }
+
     record ToolDefinition(
         String name,
         String description,
         Map<String, Object> schema,
         Execute execute,
-        boolean defaultEnabled
+        boolean defaultEnabled,
+        ResultRenderer resultRenderer
     ) {
         public ToolDefinition(String name, String description, Map<String, Object> schema,
-                              Execute execute) {
-            this(name, description, schema, execute, true);
+                               Execute execute) {
+            this(name, description, schema, execute, true, null);
+        }
+
+        public ToolDefinition(String name, String description, Map<String, Object> schema,
+                               Execute execute, ResultRenderer resultRenderer) {
+            this(name, description, schema, execute, true, resultRenderer);
+        }
+
+        public ToolDefinition(String name, String description, Map<String, Object> schema,
+                               Execute execute, boolean defaultEnabled) {
+            this(name, description, schema, execute, defaultEnabled, null);
         }
 
         public Tool toTool() {
@@ -63,6 +79,10 @@ public interface Tool {
                 @Override public boolean defaultEnabled() { return defaultEnabled; }
                 @Override public CompletableFuture<ToolResult> execute(String id, Map<String, Object> args, String cwd) {
                     return ToolDefinition.this.execute.execute(id, args, cwd);
+                }
+                @Override public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+                    return resultRenderer != null ? resultRenderer.render(args, result, cwd)
+                                                  : Tool.super.renderResult(args, result, cwd);
                 }
             };
         }

@@ -133,7 +133,8 @@ public final class TaskTool implements Tool {
 
         SubAgentResult result = runAgent(agent.get(), description);
         if (result.error != null) {
-            return CompletableFuture.completedFuture(ToolResult.error(result.formattedOutput()));
+            return CompletableFuture.completedFuture(new ToolResult(
+                result.formattedOutput(), true, detailsForResults("single", List.of(result))));
         }
 
         return CompletableFuture.completedFuture(
@@ -259,8 +260,9 @@ public final class TaskTool implements Tool {
             results.add(result);
             if (result.exitCode != 0) {
                 return CompletableFuture.completedFuture(
-                    ToolResult.error("Chain stopped at step " + (i + 1) + " ("
-                    + result.agent + "):\n" + result.formattedOutput()));
+                    new ToolResult("Chain stopped at step " + (i + 1) + " ("
+                    + result.agent + "):\n" + result.formattedOutput(), true,
+                    detailsForResults("chain", results)));
             }
             previousOutput = result.output;
         }
@@ -462,6 +464,26 @@ public final class TaskTool implements Tool {
         if (finishedHandler != null) finishedHandler.accept(agent, success);
     }
 
+    @Override
+    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+        String text = result.content();
+        String summary = text == null || text.isBlank() ? "" : text.lines().findFirst().orElse("");
+        var body = new ArrayList<String>();
+        Object logs = result.details().get("logFiles");
+        if (logs instanceof List<?> list) {
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> log)) continue;
+                Object path = log.get("path");
+                if (!(path instanceof String p) || p.isBlank()) continue;
+                Object agent = log.get("agent");
+                String label = agent instanceof String a && !a.isBlank() && list.size() > 1
+                    ? " (" + a + ")" : "";
+                body.add("╰→ full output" + label + ": " + p);
+            }
+        }
+        return ToolResultView.of(summary, body);
+    }
+
     private String resolveClasspath() {
         // Use parent's classpath (works for Maven exec and fat JAR)
         String cp = System.getProperty("java.class.path");
@@ -652,10 +674,18 @@ public final class TaskTool implements Tool {
         out.put("mode", mode);
         out.put("resultCount", results.size());
         out.put("succeeded", results.stream().filter(r -> r.exitCode == 0).count());
+        var logs = new ArrayList<Map<String, Object>>();
+        for (var r : results) {
+            if (r.logFile != null && !r.logFile.isBlank()) {
+                logs.add(Map.of("agent", r.agent, "path", r.logFile));
+            }
+        }
+        if (!logs.isEmpty()) out.put("logFiles", logs);
         return out;
     }
 
     Tool.ToolDefinition toDefinition() {
-        return new Tool.ToolDefinition(name(), description(), schema(), (id, args, cwd) -> execute(id, args, cwd));
+        return new Tool.ToolDefinition(name(), description(), schema(),
+            (id, args, cwd) -> execute(id, args, cwd), this::renderResult);
     }
 }

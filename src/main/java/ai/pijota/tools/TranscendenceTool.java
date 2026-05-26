@@ -4,6 +4,7 @@ import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.SelfRespawn;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -12,8 +13,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public final class TranscendenceTool implements Tool {
-
-    private static final String PREFIX = "[transcend] ";
 
     @Override public String name() { return "transcendence"; }
 
@@ -74,7 +73,7 @@ public final class TranscendenceTool implements Tool {
                         + ". Valid: build, test, respawn, rollback");
                 };
             } catch (Exception e) {
-                return ToolResult.error(PREFIX + "error: " + e.getMessage());
+                return ToolResult.error("✕ Transcend failed\n\n" + e.getMessage());
             }
         });
     }
@@ -97,74 +96,63 @@ public final class TranscendenceTool implements Tool {
             // non-fatal — backup is best-effort
         }
 
-        var sb = new StringBuilder();
-        sb.append(PREFIX).append("build ").append(projectRoot).append("\n");
-
         ProcessRunner.Result result;
         try {
             result = SelfRespawn.buildJar(projectRoot);
         } catch (IOException e) {
-            return ToolResult.error(PREFIX + "build error: " + e.getMessage());
+            return ToolResult.error("✕ Transcend failed\n\nBuild error: " + e.getMessage());
         }
-
-        sb.append(result.stdout());
+        Path log = writeTranscendLog("build", result.stdout());
 
         if (result.timedOut()) {
-            sb.append("\n[Build timed out]");
-            return ToolResult.error(sb.toString());
+            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
+                "Build timed out.", log));
         }
 
         var details = new LinkedHashMap<String, Object>();
         details.put("exitCode", result.exitCode());
+        if (log != null) details.put("log", log.toString());
 
         if (result.exitCode() != 0) {
-            sb.append("\n[Build FAILED — exit ").append(result.exitCode()).append("]");
-            sb.append("\n[Backup jar preserved. Fix errors and rebuild.]");
-            return ToolResult.error(sb.toString());
+            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
+                "Build exited " + result.exitCode() + ".", log));
         }
 
         Path jar = SelfRespawn.findJarIn(projectRoot);
         if (jar != null && Files.exists(jar)) {
-            sb.append("\n[Build OK — ").append(jar.getFileName()).append("]");
             details.put("jar", jar.getFileName().toString());
         } else {
-            sb.append("\n[Build completed but jar not found in target/]");
-            return ToolResult.error(sb.toString());
+            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
+                "Build finished, but no jar was found in target/.", log));
         }
 
-        return ToolResult.success(sb.toString(), details);
+        return ToolResult.success("→ Transcend\n  ✓ preserved current build\n  ✓ compiled new build  "
+            + jar.getFileName(), details);
     }
 
     private ToolResult doTest(Path projectRoot) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
             return ToolResult.error("No pom.xml found at " + projectRoot);
 
-        var sb = new StringBuilder();
-        sb.append(PREFIX).append("test ").append(projectRoot).append("\n");
-
         ProcessRunner.Result result = ProcessRunner.command("mvn", "test")
             .workDir(projectRoot)
             .redirectErrorStream(true)
             .run();
-
-        sb.append(result.stdout());
+        Path log = writeTranscendLog("test", result.stdout());
 
         if (result.timedOut()) {
-            sb.append("\n[Tests timed out]");
-            return ToolResult.error(sb.toString());
+            return ToolResult.error(failure("✕ tests failed", null, "Tests timed out.", log));
         }
 
         var details = new LinkedHashMap<String, Object>();
         details.put("exitCode", result.exitCode());
+        if (log != null) details.put("log", log.toString());
 
         if (result.exitCode() != 0) {
-            sb.append("\n[Tests FAILED — exit ").append(result.exitCode()).append("]");
-            return ToolResult.error(sb.toString());
+            return ToolResult.error(failure("✕ tests failed", null, "Tests exited " + result.exitCode() + ".", log));
         }
 
-        sb.append("\n[All tests passed]");
-        sb.append("\n[Next required action: call transcendence action=\"respawn\" with the same worktree.]");
-        return ToolResult.success(sb.toString(), details);
+        return ToolResult.success("→ Transcend\n  ✓ tests passed\n\nNext: transcendence action=\"respawn\" with the same worktree.", details);
     }
 
     private ToolResult doRespawn(Path projectRoot, String mergeBranch) throws IOException {
@@ -178,46 +166,38 @@ public final class TranscendenceTool implements Tool {
             // non-fatal — backup is best-effort
         }
 
-        var sb = new StringBuilder();
-        sb.append(PREFIX).append("respawn: building ").append(projectRoot).append("...\n");
-
         ProcessRunner.Result buildResult;
         try {
             buildResult = SelfRespawn.buildJar(projectRoot);
         } catch (IOException e) {
-            return ToolResult.error(PREFIX + "build error: " + e.getMessage());
+            return ToolResult.error("✕ Transcend failed\n\nBuild error: " + e.getMessage());
         }
-
-        sb.append(buildResult.stdout());
+        Path log = writeTranscendLog("build", buildResult.stdout());
 
         if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
-            sb.append("\n[Build FAILED — respawn aborted]");
-            sb.append("\n[Backup jar preserved. Fix errors and try again.]");
-            return ToolResult.error(sb.toString());
+            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
+                buildResult.timedOut() ? "Build timed out." : "Build exited " + buildResult.exitCode() + ".", log));
         }
 
         Path jar = SelfRespawn.findJarIn(projectRoot);
         if (jar == null || !Files.exists(jar)) {
-            sb.append("\n[Jar not found after build — respawn aborted]");
-            return ToolResult.error(sb.toString());
+            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
+                "Build finished, but no jar was found in target/.", log));
         }
 
         if (!SelfRespawn.requestRespawn(jar, mergeBranch, projectRoot)) {
-            sb.append("\n[Respawn already pending — another respawn is queued]");
-            sb.append("\n[Build succeeded. Jar: ").append(jar.getFileName()).append("]");
-            return ToolResult.success(sb.toString(),
+            return ToolResult.success("→ Transcend\n  ✓ preserved current build\n  ✓ compiled new build  "
+                + jar.getFileName() + "\n  … restart already pending",
                 Map.of("jar", jar.getFileName().toString(), "warning", "respawn already pending"));
         }
 
         var details = new LinkedHashMap<String, Object>();
         details.put("jar", jar.getFileName().toString());
+        if (log != null) details.put("log", log.toString());
         if (mergeBranch != null && !mergeBranch.isBlank()) details.put("mergeBranch", mergeBranch.strip());
 
-        sb.append("\n[Build OK — ").append(jar.getFileName()).append("]");
-        sb.append("\n[Respawn queued. Process will restart after this turn completes.]");
-        sb.append("\n[If the new version is broken, recover with:]");
-        sb.append("\n  java -jar target/pijota-backup.jar --recover");
-        return ToolResult.success(sb.toString(), details);
+        return ToolResult.success("→ Transcend\n  ✓ preserved current build\n  ✓ compiled new build  "
+            + jar.getFileName() + "\n  ✓ restart queued\n\n✓ Pijota will restart into the new build after this turn.", details);
     }
 
     private ToolResult doRollback(Path projectRoot) {
@@ -239,6 +219,28 @@ public final class TranscendenceTool implements Tool {
         }
 
         SelfRespawn.requestRespawn(jar);
-        return ToolResult.success("Rolled back to backup jar. Respawn queued — restarting after this turn.");
+        return ToolResult.success("→ Transcend\n  ✓ restored previous build\n  ✓ restart queued");
+    }
+
+    private static String failure(String step1, String step2, String message, Path log) {
+        var sb = new StringBuilder("→ Transcend\n");
+        if (step1 != null) sb.append("  ").append(step1).append('\n');
+        if (step2 != null) sb.append("  ").append(step2).append('\n');
+        sb.append("\nStill running previous build.\n").append(message);
+        if (log != null) sb.append("\nlog: ").append(log);
+        return sb.toString();
+    }
+
+    private static Path writeTranscendLog(String label, String output) {
+        if (output == null || output.isBlank()) return null;
+        try {
+            Path dir = Path.of(System.getProperty("java.io.tmpdir"), "pijota");
+            Files.createDirectories(dir);
+            Path file = Files.createTempFile(dir, "transcend-" + label + "-", ".log");
+            Files.writeString(file, output, StandardCharsets.UTF_8);
+            return file;
+        } catch (IOException ignored) {
+            return null;
+        }
     }
 }

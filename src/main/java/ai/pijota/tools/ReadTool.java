@@ -12,15 +12,17 @@ import java.util.concurrent.CompletableFuture;
 
 public final class ReadTool implements Tool {
 
-    private static final int MAX_LINES = 2000;
+    private static final int DEFAULT_READ_LIMIT = 2000;
+    private static final int MAX_LINE_LENGTH = 2000;
+    private static final int MAX_BYTES = 50 * 1024;
+    private static final String MAX_LINE_SUFFIX = "... (line truncated to " + MAX_LINE_LENGTH + " chars)";
 
     @Override public String name() { return "read"; }
 
     @Override
     public String description() {
-        return "Read the contents of a file. For text files, output is truncated to 2000 lines or 100KB "
-            + "(whichever is hit first). Use offset/limit for large files. "
-            + "When you need the full file, continue with offset until complete.";
+        return "Read the contents of a file. Output defaults to 2000 lines and is capped at 50KB. "
+            + "Lines longer than 2000 chars are truncated. Use offset/limit to read specific ranges.";
     }
 
     @Override
@@ -56,7 +58,7 @@ public final class ReadTool implements Tool {
                 var lines = Files.readAllLines(path);
                 int totalLines = lines.size();
                 int offset = Util.getInt(args, "offset", 1);
-                int limit = Util.getInt(args, "limit", MAX_LINES);
+                int limit = Util.getInt(args, "limit", DEFAULT_READ_LIMIT);
 
                 if (totalLines == 0) return ToolResult.success("", Map.of("totalLines", 0));
 
@@ -74,16 +76,23 @@ public final class ReadTool implements Tool {
                 details.put("totalLines", totalLines);
 
                 for (int i = startIdx; i < endIdx; i++) {
-                    sb.append(lines.get(i)).append('\n');
+                    String line = truncateLine(lines.get(i));
+                    int bytes = line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                        + (sb.isEmpty() ? 0 : 1);
+                    if (sb.length() > 0 && sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + bytes > MAX_BYTES) {
+                        details.put("truncated", true);
+                        details.put("truncatedBy", "bytes");
+                        break;
+                    }
+                    sb.append(line).append('\n');
                 }
 
-                int shown = endIdx - startIdx;
-                if (endIdx < totalLines) {
+                int shown = (int) sb.toString().lines().count();
+                if (Boolean.TRUE.equals(details.get("truncated")) || startIdx + shown < totalLines) {
                     int nextOffset = offset + shown;
                     sb.append("[Showing lines ").append(offset).append("-")
                         .append(offset + shown - 1).append(" of ").append(totalLines)
-                        .append(". Use offset=").append(nextOffset)
-                        .append(" to continue.]\n");
+                        .append(". Use offset=").append(nextOffset).append(" to continue.]\n");
                     details.put("truncated", true);
                     details.put("nextOffset", nextOffset);
                 }
@@ -105,9 +114,14 @@ public final class ReadTool implements Tool {
             Object off = details.get("offset");
             Object lim = details.get("limit");
             if (off instanceof Number o && o.intValue() > 1) sb.append(" [offset=").append(o.intValue()).append("]");
-            if (lim instanceof Number l && l.intValue() < MAX_LINES) sb.append(" [limit=").append(l.intValue()).append("]");
+            if (lim instanceof Number l && l.intValue() != DEFAULT_READ_LIMIT) sb.append(" [limit=").append(l.intValue()).append("]");
             return ToolResultView.of(sb.toString());
         }
         return ToolResultView.of(result.content());
+    }
+
+    private static String truncateLine(String line) {
+        if (line == null || line.length() <= MAX_LINE_LENGTH) return line;
+        return line.substring(0, MAX_LINE_LENGTH) + MAX_LINE_SUFFIX;
     }
 }

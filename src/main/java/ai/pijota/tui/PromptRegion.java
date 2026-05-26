@@ -15,7 +15,7 @@ public sealed interface PromptRegion
     record CursorPos(int visualRow, int visualCol) {}
 
     record Editor() implements PromptRegion {
-        private record VisLine(String prefix, String text, int logicalRow, int startCol, int endCol) {}
+        private record VisLine(String prefix, String prefixSlot, String text, int logicalRow, int startCol, int endCol) {}
 
         @Override
         public int height(int width, PromptSnapshot ctx) {
@@ -25,15 +25,13 @@ public sealed interface PromptRegion
         @Override
         public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
             var lines = visualLines(ctx, width);
-            boolean bash = !ctx.lines().isEmpty() && ctx.lines().get(0).startsWith("!");
-            String prefixSlot = bash ? "bashMode" : "prompt";
             int cursorVisualRow = -1;
             int cursorVisualCol = -1;
             for (int i = 0; i < lines.size(); i++) {
                 var line = lines.get(i);
                 out.print('\r');
                 out.print("\033[K");
-                out.print(theme.styled(prefixSlot, line.prefix()));
+                out.print(theme.styled(line.prefixSlot(), line.prefix()));
                 out.print(line.text());
                 if (line.logicalRow() == ctx.cursorRow()
                         && ctx.cursorCol() >= line.startCol()
@@ -51,9 +49,10 @@ public sealed interface PromptRegion
             int bodyWidth = Math.max(1, width - 2);
             for (int row = 0; row < ctx.lines().size(); row++) {
                 String text = ctx.lines().get(row);
-                String firstPrefix = row == 0 ? "> " : "| ";
+                String firstPrefix = row == 0 ? promptPrefix(ctx) : "| ";
+                String firstPrefixSlot = row == 0 ? promptPrefixSlot(ctx, text) : "statusText";
                 if (text.isEmpty()) {
-                    out.add(new VisLine(firstPrefix, "", row, 0, 0));
+                    out.add(new VisLine(firstPrefix, firstPrefixSlot, "", row, 0, 0));
                     continue;
                 }
                 int start = 0;
@@ -61,13 +60,30 @@ public sealed interface PromptRegion
                 while (start < text.length()) {
                     int end = Math.min(text.length(), start + bodyWidth);
                     String prefix = first ? firstPrefix : "  ";
-                    out.add(new VisLine(prefix, text.substring(start, end), row, start, end));
+                    String slot = first ? firstPrefixSlot : "statusText";
+                    out.add(new VisLine(prefix, slot, text.substring(start, end), row, start, end));
                     start = end;
                     first = false;
                 }
             }
-            if (out.isEmpty()) out.add(new VisLine("> ", "", 0, 0, 0));
+            if (out.isEmpty()) out.add(new VisLine(promptPrefix(ctx), promptPrefixSlot(ctx, ""), "", 0, 0, 0));
             return out;
+        }
+
+        private static String promptPrefix(PromptSnapshot ctx) {
+            return switch (ctx.promptState()) {
+                case BUSY -> "~ ";
+                case ERROR -> "! ";
+                case CONTINUATION -> "| ";
+                case IDLE -> "> ";
+            };
+        }
+
+        private static String promptPrefixSlot(PromptSnapshot ctx, String firstLine) {
+            if (ctx.promptState() == PromptSnapshot.PromptState.BUSY) return "statusText";
+            if (ctx.promptState() == PromptSnapshot.PromptState.ERROR) return "toolError";
+            if (ctx.promptState() == PromptSnapshot.PromptState.CONTINUATION) return "statusText";
+            return firstLine.startsWith("!") ? "bashMode" : "prompt";
         }
     }
 

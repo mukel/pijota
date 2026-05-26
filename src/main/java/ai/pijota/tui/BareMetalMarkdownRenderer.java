@@ -10,9 +10,17 @@ import org.commonmark.ext.gfm.tables.TableBlock;
 import org.commonmark.ext.gfm.tables.TableCell;
 import org.commonmark.ext.gfm.tables.TableRow;
 import org.commonmark.ext.gfm.tables.TablesExtension;
-import org.commonmark.ext.task.list.items.TaskListItemMarker;
-import org.commonmark.ext.task.list.items.TaskListItemsExtension;
-import org.commonmark.node.*;
+import org.commonmark.node.Code;
+import org.commonmark.node.Document;
+import org.commonmark.node.Emphasis;
+import org.commonmark.node.HardLineBreak;
+import org.commonmark.node.HtmlInline;
+import org.commonmark.node.Image;
+import org.commonmark.node.Link;
+import org.commonmark.node.Node;
+import org.commonmark.node.SoftLineBreak;
+import org.commonmark.node.StrongEmphasis;
+import org.commonmark.node.Text;
 import org.commonmark.parser.Parser;
 
 import java.util.ArrayList;
@@ -21,7 +29,6 @@ import java.util.List;
 final class BareMetalMarkdownRenderer {
     private static final List<Extension> EXTENSIONS = List.of(
         TablesExtension.create(),
-        TaskListItemsExtension.create(),
         StrikethroughExtension.create()
     );
 
@@ -45,10 +52,12 @@ final class BareMetalMarkdownRenderer {
     List<StyledLine> render(String markdown) {
         if (markdown == null || markdown.isEmpty()) return List.of();
         var document = (Document) parser.parse(markdown);
-        var out = new ArrayList<StyledLine>();
-        for (Node child = document.getFirstChild(); child != null; child = child.getNext())
-            renderBlock(child, out, 0);
-        return out;
+        if (isTableDocument(document)) return renderTable((TableBlock) document.getFirstChild());
+        return renderSource(markdown);
+    }
+
+    private static boolean isTableDocument(Document document) {
+        return document.getFirstChild() instanceof TableBlock && document.getFirstChild().getNext() == null;
     }
 
     StyledLine renderFenceOpen(String info) {
@@ -67,152 +76,72 @@ final class BareMetalMarkdownRenderer {
         return AnsiWidth.wrapPreservingAnsi(highlighted, codeWidth).stream().map(StyledLine::of).toList();
     }
 
-    // ---- block dispatch ---------------------------------------
-
-    private void renderBlock(Node node, List<StyledLine> out, int listLevel) {
-        if (node instanceof Heading heading)      renderHeading(heading, out);
-        else if (node instanceof Paragraph p)      renderParagraph(p, out);
-        else if (node instanceof BlockQuote quote) renderQuote(quote, out, listLevel);
-        else if (node instanceof ThematicBreak)    renderRule(out);
-        else if (node instanceof FencedCodeBlock f)  renderCodeBlock(f.getInfo(), f.getLiteral(), out);
-        else if (node instanceof IndentedCodeBlock c) renderIndentedCode(c.getLiteral(), out);
-        else if (node instanceof HtmlBlock html)   renderHtmlBlock(html, out);
-        else if (node instanceof ListBlock list)   renderList(list, out, listLevel);
-        else if (node instanceof TableBlock table) out.addAll(renderTable(table));
-        else renderChildren(node, out, listLevel);
+    private List<StyledLine> renderSource(String markdown) {
+        var out = new ArrayList<StyledLine>();
+        for (String line : markdown.split("\\R", -1)) out.add(StyledLine.of(highlightSourceLine(line)));
+        return out;
     }
 
-    private void renderChildren(Node node, List<StyledLine> out, int listLevel) {
-        for (Node child = node.getFirstChild(); child != null; child = child.getNext())
-            renderBlock(child, out, listLevel);
+    private String highlightSourceLine(String line) {
+        if (line.isEmpty()) return line;
+        int prefixEnd = markdownPrefixEnd(line);
+        String prefix = prefixEnd == 0 ? "" : highlightPrefix(line.substring(0, prefixEnd));
+        String body = line.substring(prefixEnd);
+        String highlightedBody = highlightInlineSource(body);
+        if (plainSlot != null && prefixEnd == 0 && highlightedBody.equals(body)) return slotStyled(plainSlot, line);
+        return prefix + highlightedBody;
     }
 
-    // ---- block renderers (bare-metal) ------------------------
-
-    private void renderHeading(Heading heading, List<StyledLine> out) {
-        String hashes = "#".repeat(heading.getLevel());
-        String text = renderInlineChildren(heading);
-        out.add(StyledLine.of(""));
-        if (heading.getLevel() <= 1) {
-            emitWrapped(slotStyled("heading", hashes + " " + text), "", width, out);
-            out.add(styledLine("hr", "━".repeat(Math.max(3, Math.min(width - 1,
-                AnsiWidth.visibleWidth(hashes + " " + text))))));
-        } else {
-            emitWrapped(slotStyled("dim", hashes + " ") + slotStyled("heading", text), "", width, out);
+    private int markdownPrefixEnd(String line) {
+        int i = 0;
+        while (i < line.length() && Character.isWhitespace(line.charAt(i))) i++;
+        String rest = line.substring(i);
+        if (rest.startsWith("#")) {
+            int n = 0;
+            while (n < rest.length() && rest.charAt(n) == '#') n++;
+            if (n < rest.length() && Character.isWhitespace(rest.charAt(n))) return i + n;
         }
+        if (rest.startsWith(">")) return i + 1;
+        if (rest.startsWith("- ") || rest.startsWith("* ") || rest.startsWith("+ ")) return i + 1;
+        int markerEnd = orderedMarkerEnd(rest);
+        return markerEnd > 0 ? i + markerEnd : 0;
     }
 
-    private void renderParagraph(Paragraph paragraph, List<StyledLine> out) {
-        String text = renderInlineChildren(paragraph);
-        if (plainSlot != null && !text.isBlank()) text = slotStyled(plainSlot, text);
-        if (text.isBlank()) return;
-        if (!out.isEmpty() && !out.getLast().text().isEmpty()) out.add(StyledLine.of(""));
-        emitWrapped(text, "", width, out);
+    private String highlightPrefix(String prefix) {
+        int i = 0;
+        while (i < prefix.length() && Character.isWhitespace(prefix.charAt(i))) i++;
+        String slot = prefix.startsWith("#", i) ? "heading" : "dim";
+        return prefix.substring(0, i) + slotStyled(slot, prefix.substring(i));
     }
 
-    private void renderQuote(BlockQuote quote, List<StyledLine> out, int listLevel) {
-        var inner = new ArrayList<StyledLine>();
-        int oldWidth = width;
-        try {
-            width = Math.max(8, width - 2);
-            renderChildren(quote, inner, listLevel);
-        } finally {
-            width = oldWidth;
+    private String highlightInlineSource(String line) {
+        var out = new StringBuilder();
+        for (int i = 0; i < line.length();) {
+            int next = appendDelimited(line, i, "`", "inlineCode", out);
+            if (next < 0) next = appendDelimited(line, i, "**", "bold", out);
+            if (next < 0) next = appendDelimited(line, i, "~~", "strikethrough", out);
+            if (next >= 0) { i = next; continue; }
+            out.append(line.charAt(i++));
         }
-        String rail = slotStyled("dim", "│ ");
-        for (var line : inner) out.add(StyledLine.of(rail + line.text()));
+        return out.toString();
     }
 
-    private void renderRule(List<StyledLine> out) {
-        out.add(StyledLine.of(""));
-        out.add(styledLine("dim", "---"));
+    private int appendDelimited(String line, int start, String delimiter, String slot, StringBuilder out) {
+        if (!line.startsWith(delimiter, start)) return -1;
+        int end = line.indexOf(delimiter, start + delimiter.length());
+        if (end < 0) return -1;
+        out.append(slotStyled("dim", delimiter));
+        out.append(slotStyled(slot, line.substring(start + delimiter.length(), end)));
+        out.append(slotStyled("dim", delimiter));
+        return end + delimiter.length();
     }
 
-    private void renderHtmlBlock(HtmlBlock html, List<StyledLine> out) {
-        for (String line : html.getLiteral().split("\\R", -1))
-            if (!line.isEmpty()) out.add(styledLine("dim", line));
-    }
-
-    private void renderIndentedCode(String literal, List<StyledLine> out) {
-        for (String line : literal.split("\\R", -1)) {
-            if (line.isEmpty()) out.add(StyledLine.of(""));
-            else out.add(styledLine("dim", line));
-        }
-    }
-
-    private void renderList(ListBlock list, List<StyledLine> out, int level) {
-        boolean ordered = list instanceof OrderedList;
-        int index = ordered ? ((OrderedList) list).getMarkerStartNumber() : 1;
-        int markerWidth = computeMarkerWidth(list, level, ordered, index);
-        for (Node child = list.getFirstChild(); child != null; child = child.getNext()) {
-            if (child instanceof ListItem item)
-                renderListItem(item, out, level, ordered, index++, markerWidth);
-        }
-    }
-
-    private int computeMarkerWidth(ListBlock list, int level, boolean ordered, int start) {
-        boolean hasTask = false;
-        int count = 0;
-        for (Node child = list.getFirstChild(); child != null; child = child.getNext()) {
-            if (child instanceof ListItem item) {
-                count++;
-                if (item.getFirstChild() instanceof TaskListItemMarker) hasTask = true;
-            }
-        }
-        int base = ordered
-            ? String.valueOf(start + Math.max(0, count - 1)).length() + 1
-            : bullet(level).length();
-        if (hasTask) base += 1 + 3; // space + "[x]" / "[ ]"
-        return base;
-    }
-
-    private void renderListItem(ListItem item, List<StyledLine> out, int level,
-                                 boolean ordered, int index, int markerWidth) {
-        Node first = item.getFirstChild();
-        String marker = ordered ? index + "." : bullet(level);
-
-        if (first instanceof TaskListItemMarker task) {
-            String checkbox = task.isChecked()
-                ? slotStyled("dim", "[") + slotStyled("toolLabel", "x") + slotStyled("dim", "]")
-                : slotStyled("dim", "[ ]");
-            marker = marker + " " + checkbox;
-            first = first.getNext();
-        }
-
-        String content = "";
-        if (first instanceof Paragraph paragraph) {
-            content = renderInlineChildren(paragraph);
-            first = first.getNext();
-        }
-
-        String indent = " ".repeat(level * 2);
-        String markerText = padLeft(marker, markerWidth);
-        String prefix = indent + slotStyled("dim", markerText + " ");
-        String continuation = indent + " ".repeat(markerWidth + 1);
-        emitWrapped(content, prefix, Math.max(8, width - AnsiWidth.visibleWidth(prefix)),
-            continuation, out);
-
-        for (Node child = first; child != null; child = child.getNext()) {
-            if (child instanceof ListBlock nested) renderList(nested, out, level + 1);
-            else renderBlock(child, out, level + 1);
-        }
-    }
-
-    private String bullet(int level) {
-        return switch (level % 3) {
-            case 0 -> "•"; case 1 -> "◦"; default -> "▪";
-        };
-    }
-
-    private void renderCodeBlock(String info, String literal, List<StyledLine> out) {
-        out.add(renderFenceOpen(info));
-        var highlighter = new SyntaxHighlighter(info == null ? "" : info.strip(), theme);
-        String[] lines = literal.split("\\R", -1);
-        for (int i = 0; i < lines.length; i++) {
-            if (i == lines.length - 1 && lines[i].isEmpty()) continue;
-            out.addAll(renderCodeLine(lines[i], highlighter));
-        }
-        out.add(renderFenceClose());
+    private static int orderedMarkerEnd(String text) {
+        int i = 0;
+        while (i < text.length() && Character.isDigit(text.charAt(i))) i++;
+        if (i == 0 || i >= text.length() - 1) return -1;
+        char marker = text.charAt(i);
+        return (marker == '.' || marker == ')') && Character.isWhitespace(text.charAt(i + 1)) ? i + 1 : -1;
     }
 
     // ---- inline renderer (bare-metal: dim delimiters) ---------
@@ -249,8 +178,6 @@ final class BareMetalMarkdownRenderer {
         if (node instanceof Image image) return renderImage(image);
         if (node instanceof SoftLineBreak || node instanceof HardLineBreak) return " ";
         if (node instanceof HtmlInline html) return slotStyled("dim", html.getLiteral());
-        if (node instanceof TaskListItemMarker task)
-            return slotStyled("dim", task.isChecked() ? "[x]" : "[ ]");
         return renderInlineChildren(node, null);
     }
 
@@ -427,19 +354,6 @@ final class BareMetalMarkdownRenderer {
 
     // ---- helpers ----------------------------------------------
 
-    private void emitWrapped(String text, String prefix, int wrapWidth, List<StyledLine> out) {
-        emitWrapped(text, prefix, wrapWidth, "", out);
-    }
-
-    private void emitWrapped(String text, String firstPrefix, int wrapWidth,
-                              String continuationPrefix, List<StyledLine> out) {
-        var lines = wrapStyled(text, wrapWidth);
-        if (lines.isEmpty()) { out.add(StyledLine.of(firstPrefix)); return; }
-        out.add(StyledLine.of(firstPrefix + lines.getFirst()));
-        for (int i = 1; i < lines.size(); i++)
-            out.add(StyledLine.of(continuationPrefix + lines.get(i)));
-    }
-
     private static List<String> wrapStyled(String text, int width) {
         if (text == null || text.isEmpty()) return List.of("");
         if (AnsiWidth.visibleWidth(text) <= width) return List.of(text);
@@ -453,10 +367,6 @@ final class BareMetalMarkdownRenderer {
 
     private StyledLine styledLine(String slot, String text) {
         return StyledLine.of(theme.styled(slot, text));
-    }
-
-    private static String padLeft(String text, int width) {
-        return spaces(width - AnsiWidth.visibleWidth(text)) + text;
     }
 
     private static String spaces(int count) {

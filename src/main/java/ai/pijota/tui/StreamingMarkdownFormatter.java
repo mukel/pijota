@@ -24,7 +24,6 @@ final class StreamingMarkdownFormatter {
     }
 
     public void setWidth(int width) {
-        buffer.setWidth(width);
         renderer.setWidth(width);
     }
 
