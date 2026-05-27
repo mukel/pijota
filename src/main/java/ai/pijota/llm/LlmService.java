@@ -164,12 +164,27 @@ public final class LlmService implements AutoCloseable {
 
     public String summarize(List<Message> toSummarize, String instructions, String previousSummary,
                             BiConsumer<String, String> onPartial) {
+        return summarize(toSummarize, instructions, previousSummary, onPartial, null, null);
+    }
+
+    /**
+     * Summarize with optional model override and custom system prompt.
+     * If {@code modelOverride} is non-null, a one-off model instance is created without
+     * affecting the cached model used for the main conversation.
+     */
+    public String summarize(List<Message> toSummarize, String instructions, String previousSummary,
+                            BiConsumer<String, String> onPartial,
+                            String modelOverride, String customSystemPrompt) {
         String prompt = Summarizer.buildSummaryPrompt(toSummarize, instructions, previousSummary);
+        String effectiveSystemPrompt = customSystemPrompt != null && !customSystemPrompt.isBlank()
+            ? customSystemPrompt
+            : "You are a context summarization assistant. Read the conversation and output only the structured summary requested.";
         try {
-            var model = lc4jModel();
+            var model = modelOverride != null && !modelOverride.equals(modelName)
+                ? lc4jModelForModel(modelOverride)
+                : lc4jModel();
             var sysMsg = new ai.pijota.messages.Message.System(java.util.UUID.randomUUID(),
-                java.time.Instant.now(),
-                "You are a context summarization assistant. Read the conversation and output only the structured summary requested.");
+                java.time.Instant.now(), effectiveSystemPrompt);
             var userMsg = new ai.pijota.messages.Message.User(prompt);
             var messages = List.<ai.pijota.messages.Message>of(sysMsg, userMsg);
             var result = streamLangChain4j(messages, List.of(), onPartial != null ? onPartial : (_, _) -> {})
@@ -181,6 +196,12 @@ public final class LlmService implements AutoCloseable {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private StreamingChatModel lc4jModelForModel(String m) {
+        var factory = ProviderFactory.resolve(providerName, customProviders);
+        String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(providerName);
+        return factory.create(url, apiKey, m, providerName, thinkingLevel);
     }
 
     public String provider() { return providerName; }

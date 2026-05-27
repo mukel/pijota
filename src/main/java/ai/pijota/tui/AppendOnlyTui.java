@@ -2276,7 +2276,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private Tool.ToolResultView renderToolResultView(Message.ToolResult msg) {
-        if (!"bash".equals(msg.toolName()) && !"task".equals(msg.toolName())) return null;
+        if (!"bash".equals(msg.toolName()) && !"task".equals(msg.toolName())
+            && !"todowrite".equals(msg.toolName())) return null;
         var args = pendingEdit.toolArgs() != null
             ? Util.parseJsonArgs(pendingEdit.toolArgs().get())
             : Map.<String, Object>of();

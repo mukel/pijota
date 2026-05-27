@@ -2,6 +2,7 @@ package ai.pijota.agent;
 
 import ai.pijota.config.AppConfig;
 import ai.pijota.extensions.ExtensionRegistry;
+import ai.pijota.extensions.task.SubAgent;
 import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
@@ -46,7 +47,18 @@ public final class PijotaSession implements AutoCloseable {
         this.disableSession = noSession;
         this.sessionFile = noSession ? null : sessionManager.createSession(cwd);
         SelfRespawn.setSessionFile(this.sessionFile);
-        var summaryGen = (CompactionManager.SummaryGenerator) llm::summarize;
+        var summaryGen = (CompactionManager.SummaryGenerator) (msgs, instr, prev, onPart) -> {
+            var summaryAgent = findSummarizeAgent(cwd);
+            if (summaryAgent != null && summaryAgent.systemPrompt() != null) {
+                return llm.summarize(msgs, instr, prev, onPart,
+                    summaryAgent.model(), summaryAgent.systemPrompt());
+            }
+            if (summaryAgent != null && summaryAgent.model() != null) {
+                return llm.summarize(msgs, instr, prev, onPart,
+                    summaryAgent.model(), null);
+            }
+            return llm.summarize(msgs, instr, prev, onPart);
+        };
         this.agentLoop = AgentLoop.builder(llm, toolRegistry, cwd)
             .summaryGenerator(summaryGen)
             .extensionRegistry(extensionRegistry)
@@ -254,5 +266,14 @@ public final class PijotaSession implements AutoCloseable {
     @Override
     public void close() {
         agentLoop.close();
+    }
+
+    private static SubAgent findSummarizeAgent(String cwd) {
+        try {
+            for (var agent : SubAgent.loadAll(java.nio.file.Path.of(cwd))) {
+                if ("summarize".equals(agent.name())) return agent;
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 }

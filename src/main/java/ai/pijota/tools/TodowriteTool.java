@@ -99,4 +99,18 @@ public final class TodowriteTool implements Tool {
             }
         });
     }
+
+    @Override
+    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+        if (result.isError()) return ToolResultView.of(result.content());
+        String content = result.content();
+        if (content == null || content.isBlank()) return ToolResultView.of("");
+        var lines = content.lines().toList();
+        if (lines.isEmpty()) return ToolResultView.of("");
+        String summary = lines.getLast();
+        var body = lines.subList(0, Math.max(0, lines.size() - 1)).stream()
+            .map(line -> "│ " + line)
+            .toList();
+        return ToolResultView.of(summary, body);
+    }
 }
