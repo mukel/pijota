@@ -1744,6 +1744,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void handleTranscendBuild(String projectRoot, boolean testMode) {
+        handleTranscendBuild(projectRoot, testMode, true);
+    }
+
+    private void handleTranscendBuild(String projectRoot, boolean testMode, boolean showHeader) {
         Path root = Path.of(projectRoot);
         if (!Files.exists(root.resolve("pom.xml"))) {
             appendPlain(List.of(theme.styled("toolError", "no pom.xml found at " + root)));
@@ -1753,7 +1757,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         long gen = beginBusy("transcending");
         boolean keepBusy = false;
         try {
-            appendTranscendHeader();
+            if (showHeader) appendTranscendHeader();
             redrawPrompt();
 
             try {
@@ -1950,22 +1954,25 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (SelfRespawn.isPending() || SelfRespawn.isRespawnInProgress()) return;
 
         Path root = Path.of(worktree);
-        appendPlain(List.of(theme.styled("statusText", "[transcend] finalizing worktree restart...")));
+        appendPlain(List.of(theme.styled("toolLabel", "→ Transcend"),
+            theme.styled("statusText", "  … finalizing worktree build")));
         redrawPrompt();
 
         ProcessRunner.Result buildResult;
         try {
             buildResult = SelfRespawn.buildJar(root);
         } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "[transcend] final build error: " + e.getMessage())));
+            appendTranscendFailure(List.of("✕ compile final build"), "Build error: " + e.getMessage(), null);
             return;
         }
+        Path buildLog = writeTranscendLog("final-build", buildResult.stdout());
         if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
-            appendPlain(List.of(
-                theme.styled("toolError", "[transcend] final build failed (exit " + buildResult.exitCode() + ")"),
-                theme.styled("toolError", buildResult.stdout().isBlank() ? "[no output]" : buildResult.stdout().strip())));
+            appendTranscendFailure(List.of("✕ compile final build"),
+                buildResult.timedOut() ? "Build timed out." : "Build exited " + buildResult.exitCode() + ".",
+                buildLog);
             return;
         }
+        appendPlain(List.of(theme.styled("statusText", "  ✓ compiled final build")));
 
         ProcessRunner.Result testResult;
         try {
@@ -1974,19 +1981,23 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 .redirectErrorStream(true)
                 .run();
         } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "[transcend] final test error: " + e.getMessage())));
+            appendTranscendFailure(List.of("✓ compiled final build", "✕ run final tests"),
+                "Test error: " + e.getMessage(), null);
             return;
         }
+        Path testLog = writeTranscendLog("final-test", testResult.stdout());
         if (testResult.exitCode() != 0 || testResult.timedOut()) {
-            appendPlain(List.of(
-                theme.styled("toolError", "[transcend] final tests failed (exit " + testResult.exitCode() + ")"),
-                theme.styled("toolError", testResult.stdout().isBlank() ? "[no output]" : testResult.stdout().strip())));
+            appendTranscendFailure(List.of("✓ compiled final build", "✕ run final tests"),
+                testResult.timedOut() ? "Tests timed out." : "Tests exited " + testResult.exitCode() + ".",
+                testLog);
             return;
         }
+        appendPlain(List.of(theme.styled("statusText", "  ✓ final tests passed")));
 
         Path jar = SelfRespawn.findJarIn(root);
         if (jar == null || !Files.exists(jar)) {
-            appendPlain(List.of(theme.styled("toolError", "[transcend] final jar not found at " + root.resolve("target"))));
+            appendTranscendFailure(List.of("✓ compiled final build", "✓ final tests passed", "✕ find final jar"),
+                "Jar not found in " + root.resolve("target") + ".", buildLog);
             return;
         }
 
@@ -1995,11 +2006,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         } catch (Exception ignored) {}
 
         if (!SelfRespawn.requestRespawn(jar, branch, root)) {
-            appendPlain(List.of(theme.styled("toolError", "[transcend] respawn request was already pending")));
+            appendPlain(List.of(theme.styled("statusWarn", "  … restart already pending")));
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[transcend] restarting with worktree jar...")));
+        appendPlain(List.of(theme.styled("statusText", "  → restarting")));
         redrawPrompt();
         terminal.writer().flush();
         SelfRespawn.maybeRespawn();
@@ -2049,18 +2060,21 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[transcend] restored backup jar — restarting...")));
+        appendPlain(List.of(theme.styled("toolLabel", "→ Transcend"),
+            theme.styled("statusText", "  ✓ restored previous build"),
+            theme.styled("statusText", "  → restarting")));
         redrawPrompt();
         terminal.writer().flush();
         SelfRespawn.respawn(jar, session.sessionFile(), true);
         resumeTui();
         String err = SelfRespawn.lastRespawnError();
-        if (err != null) appendPlain(List.of(theme.styled("toolError", "[transcend] " + err)));
+        if (err != null) appendTranscendFailure(List.of("✓ restored previous build", "✕ restart"), err, null);
         redrawPrompt();
     }
 
     private void handleTranscendMerge(String branch) {
-        appendPlain(List.of(theme.styled("statusText", "[transcend] merging branch " + branch + "...")));
+        appendPlain(List.of(theme.styled("toolLabel", "→ Transcend"),
+            theme.styled("statusText", "  … merging " + branch)));
         redrawPrompt();
 
         ProcessRunner.Result mergeResult;
@@ -2075,14 +2089,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             String output = mergeResult.stdout().isBlank()
                 ? "[no output]" : mergeResult.stdout().strip();
             appendPlain(List.of(
-                theme.styled("toolError", "[transcend] merge failed (exit " + mergeResult.exitCode() + ")"),
+                theme.styled("toolError", "  ✕ merge failed  exit " + mergeResult.exitCode()),
                 theme.styled("toolError", output)));
             return;
         }
 
-        appendPlain(List.of(theme.styled("statusText", "[transcend] merge OK — building from merged tree...")));
+        appendPlain(List.of(theme.styled("statusText", "  ✓ merge complete")));
         redrawPrompt();
-        handleTranscendBuild(System.getProperty("user.dir"), false);
+        handleTranscendBuild(System.getProperty("user.dir"), false, false);
     }
 
     void undoLastTurn() {

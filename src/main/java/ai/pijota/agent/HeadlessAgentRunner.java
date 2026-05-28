@@ -39,6 +39,7 @@ public final class HeadlessAgentRunner {
             String taskProvider = (String) input.get("provider");
             String taskModel = (String) input.get("model");
             String taskApiKey = (String) input.get("apiKey");
+            boolean parentLogs = Boolean.TRUE.equals(input.get("parentLogs"));
             if (taskProvider != null && taskModel != null) {
                 String key = taskApiKey != null ? taskApiKey : llm.apiKey();
                 llm.setProviderAndModel(taskProvider, taskModel, key);
@@ -55,12 +56,13 @@ public final class HeadlessAgentRunner {
             if (logPath != null && !logPath.isBlank()) {
                 logFile = Path.of(logPath);
                 Files.createDirectories(logFile.getParent());
-                writerRef[0] = Files.newBufferedWriter(logFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                if (!parentLogs) {
+                    writerRef[0] = Files.newBufferedWriter(logFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                }
                 emit(new LogEvent(logFile.toString()));
             }
 
             var toolCount = new AtomicInteger(0);
-            var lastLineCount = new AtomicInteger(0);
 
             agentLoop.addEventListener(event -> {
                 switch (event) {
@@ -83,8 +85,7 @@ public final class HeadlessAgentRunner {
                             try { writerRef[0].write(delta); writerRef[0].flush(); }
                             catch (IOException ignored) {}
                         }
-                        int current = Util.countNewlines(delta);
-                        int added = current - lastLineCount.getAndSet(current);
+                        int added = Util.countNewlines(delta);
                         if (added > 0) emit(new StreamLinesEvent(added));
                     }
                     case AgentEvent.MessageStreamEnd _ -> {

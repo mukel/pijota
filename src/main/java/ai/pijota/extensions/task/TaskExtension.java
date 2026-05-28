@@ -62,16 +62,11 @@ public final class TaskExtension implements Extension {
             String base = String.format("  sub:%-14s  %d tools  %d lines  running",
                 state.name, state.toolCount, state.lines);
             if (state.logFile != null) {
-                base += "  log:" + fileName(state.logFile);
+                base += "  " + state.logFile;
             }
             lines.add(base);
         }
         return lines;
-    }
-
-    private static String fileName(String path) {
-        int idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-        return idx < 0 ? path : path.substring(idx + 1);
     }
 
     // === Extension ===

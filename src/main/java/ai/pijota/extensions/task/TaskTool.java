@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public final class TaskTool implements Tool {
     private static final int MAX_CONCURRENCY = 4;
+    private static final int OUTPUT_PREVIEW_LINES = 6;
 
     private final List<SubAgent> agents;
     private final LlmService llm;
@@ -306,6 +307,7 @@ public final class TaskTool implements Tool {
             taskJson.put("cwd", workDir);
             taskJson.put("subagentDepth", depth + 1);
             taskJson.put("logFile", logFile.toString());
+            taskJson.put("parentLogs", true);
             String p = llm.provider();
             String m = llm.model();
             if (p != null) taskJson.put("provider", p);
@@ -388,7 +390,7 @@ public final class TaskTool implements Tool {
                     String tool = (String) event.get("tool");
                     String args = (String) event.get("args");
                     toolCount.incrementAndGet();
-                    String tc = "→ " + formatToolCall(tool, args);
+                    String tc = formatToolCall(tool, args);
                     logWriter.write(tc + "\n");
                     logWriter.flush();
                     fireActivity(agentName, tc);
@@ -469,6 +471,12 @@ public final class TaskTool implements Tool {
         String text = result.content();
         String summary = text == null || text.isBlank() ? "" : text.lines().findFirst().orElse("");
         var body = new ArrayList<String>();
+        if (text != null && !text.isBlank()) {
+            text.lines()
+                .skip(1)
+                .limit(OUTPUT_PREVIEW_LINES)
+                .forEach(line -> body.add("│ " + line));
+        }
         Object logs = result.details().get("logFiles");
         if (logs instanceof List<?> list) {
             for (Object item : list) {

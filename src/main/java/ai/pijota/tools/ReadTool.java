@@ -3,6 +3,7 @@ package ai.pijota.tools;
 import ai.pijota.util.Util;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -63,35 +64,47 @@ public final class ReadTool implements Tool {
                 if (totalLines == 0) return ToolResult.success("", Map.of("totalLines", 0));
 
                 int startIdx = Math.max(0, offset - 1);
+                int displayOffset = startIdx + 1;
                 if (startIdx >= totalLines) {
                     return ToolResult.error("Offset " + offset
                         + " is beyond end of file (" + totalLines + " lines total)");
                 }
 
-                int endIdx = Math.min(totalLines, startIdx + limit);
+                int endIdx = Math.min(totalLines, startIdx + Math.max(0, limit));
                 var sb = new StringBuilder();
                 var details = new LinkedHashMap<String, Object>();
-                details.put("offset", offset);
+                details.put("offset", displayOffset);
                 details.put("limit", limit);
                 details.put("totalLines", totalLines);
 
+                int bytes = 0;
+                int shown = 0;
                 for (int i = startIdx; i < endIdx; i++) {
                     String line = truncateLine(lines.get(i));
-                    int bytes = line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
-                        + (sb.isEmpty() ? 0 : 1);
-                    if (sb.length() > 0 && sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + bytes > MAX_BYTES) {
+                    int nextBytes = line.getBytes(StandardCharsets.UTF_8).length + 1;
+                    if (shown > 0 && bytes + nextBytes > MAX_BYTES) {
                         details.put("truncated", true);
                         details.put("truncatedBy", "bytes");
                         break;
                     }
                     sb.append(line).append('\n');
+                    bytes += nextBytes;
+                    shown++;
                 }
 
-                int shown = (int) sb.toString().lines().count();
+                if (shown == 0 && startIdx < totalLines) {
+                    sb.append("[").append(totalLines - startIdx)
+                        .append(" more lines in file. Use offset=").append(displayOffset)
+                        .append(" to continue.]\n");
+                    details.put("truncated", true);
+                    details.put("nextOffset", displayOffset);
+                    return ToolResult.success(sb.toString(), details);
+                }
+
                 if (Boolean.TRUE.equals(details.get("truncated")) || startIdx + shown < totalLines) {
-                    int nextOffset = offset + shown;
-                    sb.append("[Showing lines ").append(offset).append("-")
-                        .append(offset + shown - 1).append(" of ").append(totalLines)
+                    int nextOffset = displayOffset + shown;
+                    sb.append("[Showing lines ").append(displayOffset).append("-")
+                        .append(displayOffset + shown - 1).append(" of ").append(totalLines)
                         .append(". Use offset=").append(nextOffset).append(" to continue.]\n");
                     details.put("truncated", true);
                     details.put("nextOffset", nextOffset);

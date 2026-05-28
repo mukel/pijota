@@ -10,6 +10,7 @@ import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ErrorUtil;
+import ai.pijota.util.Util;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ public final class AgentLoop implements AgentContext {
     private final AtomicReference<CompletableFuture<StreamResult>> activeStream =
         new AtomicReference<>();
     private volatile boolean messageStreamStarted = false;
+    private volatile String lastStreamContent = "";
     private int sessionTurn;
 
     public static Builder builder(LlmService llm, ToolRegistry toolRegistry, String cwd) {
@@ -241,6 +243,7 @@ public final class AgentLoop implements AgentContext {
         history.add(partialMsg);
         fireEvent(AgentEvent.assistantMessage(partialMsg, null));
         messageStreamStarted = false;
+        lastStreamContent = "";
 
         retry(() -> {
                 if (extensionRegistry != null)
@@ -251,7 +254,9 @@ public final class AgentLoop implements AgentContext {
                         messageStreamStarted = true;
                         fireEvent(AgentEvent.messageStreamStart("assistant"));
                     }
-                    String delta = partialContent;
+                    String content = partialContent != null ? partialContent : "";
+                    String delta = Util.deltaPrefix(content, lastStreamContent);
+                    lastStreamContent = content;
                     if (delta != null && !delta.isEmpty()) {
                         fireEvent(AgentEvent.messageStreamDelta(delta));
                     }
