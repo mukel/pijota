@@ -10,6 +10,7 @@ import ai.pijota.util.ProcessRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ public final class ExtensionRegistry {
     private final Map<String, List<BiFunction<ExtensionEvent, ExtensionContext, Object>>> listeners = new ConcurrentHashMap<>();
     private final List<java.util.function.Supplier<List<String>>> statusLineProviders = new CopyOnWriteArrayList<>();
     private final List<java.util.function.Supplier<List<String>>> footerLineProviders = new CopyOnWriteArrayList<>();
+    private final List<URLClassLoader> extensionClassLoaders = new CopyOnWriteArrayList<>();
     private final Map<String, String> keyedStatuses = new ConcurrentSkipListMap<>();
     private final List<java.util.function.Supplier<String>> systemPromptProviders = new CopyOnWriteArrayList<>();
     private final ExtensionAPIImpl api = new ExtensionAPIImpl();
@@ -84,8 +86,9 @@ public final class ExtensionRegistry {
     }
 
     private void loadJarExtensions(Path jar) throws Exception {
-        var loader = java.net.URLClassLoader.newInstance(
+        var loader = URLClassLoader.newInstance(
             new java.net.URL[]{jar.toUri().toURL()}, Thread.currentThread().getContextClassLoader());
+        extensionClassLoaders.add(loader);
         for (var ext : ServiceLoader.load(Extension.class, loader)) {
             register(ext);
         }
@@ -337,6 +340,12 @@ public final class ExtensionRegistry {
                 log.warn("Extension {} onShutdown failed: {}", ext.name(), e.getMessage());
             }
         }
+        for (var loader : extensionClassLoaders) {
+            try { loader.close(); } catch (Exception e) {
+                log.debug("Extension classloader close failed: {}", e.getMessage());
+            }
+        }
+        extensionClassLoaders.clear();
     }
 
     // === ExtensionAPIImpl ===

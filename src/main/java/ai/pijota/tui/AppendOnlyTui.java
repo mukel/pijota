@@ -39,10 +39,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,11 +53,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public final class AppendOnlyTui implements AutoCloseable, UiContext {
-    private static final int MAX_TREE_INDENT = 3;
     private static final String[] WORKING_FRAMES = {
         "●  ●●  ",
         " ● ●●  ",
@@ -97,11 +92,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final AtomicBoolean busy = new AtomicBoolean(false);
     private final AtomicLong busyGeneration = new AtomicLong(0);
     private String statusOverride;
-    private CompletableFuture<String> pendingQuestionAnswer;
-    private volatile CompletableFuture<Boolean> pendingConfirm;
-    private volatile CompletableFuture<String> pendingPrompt;
-    private StringBuilder pendingPromptText = new StringBuilder();
-    private String pendingPromptDefault = "";
+    private final DialogHandler dialogs;
 
     @Override public void setStatus(String msg) {
         statusOverride = msg;
@@ -117,23 +108,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     @Override public CompletableFuture<Boolean> confirm(String question) {
-        var future = new CompletableFuture<Boolean>();
-        pendingConfirm = future;
-        appendPlain(List.of(theme.styled("toolLabel", "confirm"), question));
-        statusOverride = "confirm (y/n)";
-        redrawPrompt();
-        return future;
+        return dialogs.confirm(question);
     }
 
     @Override public CompletableFuture<String> prompt(String question, String defaultValue) {
-        var future = new CompletableFuture<String>();
-        pendingPrompt = future;
-        pendingPromptText = new StringBuilder(defaultValue != null ? defaultValue : "");
-        pendingPromptDefault = defaultValue != null ? defaultValue : "";
-        appendPlain(List.of(theme.styled("toolLabel", "prompt"), question));
-        statusOverride = "type your response (Enter to confirm, Esc to cancel)";
-        redrawPrompt();
-        return future;
+        return dialogs.prompt(question, defaultValue);
     }
 
     @Override public void alert(String message) {
@@ -161,8 +140,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private String busyPhase;
     private final AtomicInteger queuedFollowUps = new AtomicInteger(0);
-    private volatile Process activeShellProcess;
-    private volatile Thread shellCommandThread;
     private long interruptArmedUntil;
     private long exitArmedUntil;
     private ThinkingLevel thinkingLevel = ThinkingLevel.OFF;
@@ -191,6 +168,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final Supplier<List<String>> extensionLinesSupplier;
     private final ThemeManager themeMgr = new ThemeManager(this);
     private final StreamProcessor streamProc = new StreamProcessor();
+    private final TranscendenceOrchestrator transcendence;
+    private final ShellCommandRunner shellCommands;
 
     public void requestSessionPicker() { showSessionPickerOnStart = true; }
     private static final long INTERRUPT_WINDOW_MS = 1200;
@@ -211,6 +190,22 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.messageBrowser = new MessageBrowser(promptEditor, session::userMessages);
         this.session = session;
         this.theme = theme;
+        this.dialogs = new DialogHandler(new DialogHandler.Host() {
+            @Override public void appendPlain(List<String> lines) { AppendOnlyTui.this.appendPlain(lines); }
+            @Override public String styled(String slot, String text) { return AppendOnlyTui.this.theme.styled(slot, text); }
+            @Override public void setStatus(String status) { statusOverride = status; }
+            @Override public void clearStatus() { statusOverride = null; }
+            @Override public void redrawPrompt() { AppendOnlyTui.this.redrawPrompt(); }
+        });
+        this.shellCommands = new ShellCommandRunner(new ShellCommandRunner.Host() {
+            @Override public List<String> promptEcho(String text) { return AppendOnlyTui.this.promptEcho(text); }
+            @Override public void appendPlain(List<String> lines) { AppendOnlyTui.this.appendPlain(lines); }
+            @Override public String styled(String slot, String text) { return AppendOnlyTui.this.theme.styled(slot, text); }
+            @Override public long beginBusy(String phase) { return AppendOnlyTui.this.beginBusy(phase); }
+            @Override public void endBusy(long generation) { AppendOnlyTui.this.endBusy(generation); }
+            @Override public void redrawPrompt() { AppendOnlyTui.this.redrawPrompt(); }
+            @Override public void fireUserBash(String command, boolean noContext) { session.fireUserBash(command, noContext); }
+        });
         this.provider = provider;
         this.model = model;
         this.settings = settings;
@@ -222,6 +217,24 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build();
         this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
         this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
+        this.transcendence = new TranscendenceOrchestrator(new TranscendenceOrchestrator.Host() {
+            @Override public boolean busy() { return busy.get(); }
+            @Override public void appendPlain(List<String> lines) { AppendOnlyTui.this.appendPlain(lines); }
+            @Override public List<String> promptEcho(String text) { return AppendOnlyTui.this.promptEcho(text); }
+            @Override public String styled(String slot, String text) { return theme.styled(slot, text); }
+            @Override public long beginBusy(String phase) { return AppendOnlyTui.this.beginBusy(phase); }
+            @Override public void endBusy(long generation) { AppendOnlyTui.this.endBusy(generation); }
+            @Override public void redrawPrompt() { AppendOnlyTui.this.redrawPrompt(); }
+            @Override public void resetStreamState() { AppendOnlyTui.this.resetStreamState(); }
+            @Override public void showSessionWarning() { AppendOnlyTui.this.showSessionWarning(); }
+            @Override public void suspendTui() { AppendOnlyTui.this.suspendTui(); }
+            @Override public void resumeTui() { AppendOnlyTui.this.resumeTui(); }
+            @Override public void flushTerminal() { terminal.writer().flush(); }
+            @Override public void submitAgent(Runnable task) { agentExecutor.submit(task); }
+            @Override public CompletableFuture<List<Message>> promptSession(String prompt) { return session.prompt(prompt); }
+            @Override public Path sessionFile() { return session.sessionFile(); }
+            @Override public void setStatusOverride(String status) { statusOverride = status; }
+        });
         this.selectors = new TuiSelectors(
             this::confirmModelSelection,
             this::confirmSessionSelection,
@@ -305,7 +318,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         running.set(false);
         shutdownLatch.countDown();
         if (inputThread != null && inputThread != Thread.currentThread()) inputThread.interrupt();
-        if (shellCommandThread != null) shellCommandThread.interrupt();
+        shellCommands.interruptThread();
         agentExecutor.shutdownNow();
         animator.shutdownNow();
         if (SelfRespawn.isRespawnInProgress()) return;
@@ -338,8 +351,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             try {
                 var key = InputDecoder.readKey(terminal);
                 try {
-                if (handleConfirm(key)) continue;
-                if (handlePrompt(key)) continue;
+                if (dialogs.handleConfirm(key)) continue;
+                if (dialogs.handlePrompt(key)) continue;
                 if (handleExtensionKeybinding(key)) continue;
                 if ((key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC) && selectors.anyActive()) {
                     selectors.deactivateAll();
@@ -441,61 +454,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
-    private boolean handleConfirm(Key key) {
-        var pc = pendingConfirm;
-        if (pc == null || pc.isDone()) return false;
-        if (key instanceof Key.Char c) {
-            if (c.value() == 'y' || c.value() == 'Y') pc.complete(true);
-            else if (c.value() == 'n' || c.value() == 'N') pc.complete(false);
-            else return true;
-        } else if (key == Key.Special.ESC) {
-            pc.complete(false);
-        } else {
-            return true;
-        }
-        pendingConfirm = null;
-        statusOverride = null;
-        redrawPrompt();
-        return true;
-    }
-
-    private boolean handlePrompt(Key key) {
-        var pp = pendingPrompt;
-        if (pp == null || pp.isDone()) return false;
-        if (key instanceof Key.Char c) {
-            pendingPromptText.append(c.value());
-            redrawPrompt();
-            return true;
-        }
-        return switch (key) {
-            case Key.Special.ENTER -> {
-                String result = pendingPromptText.isEmpty() ? pendingPromptDefault : pendingPromptText.toString();
-                pp.complete(result);
-                pendingPrompt = null;
-                pendingPromptText = new StringBuilder();
-                statusOverride = null;
-                redrawPrompt();
-                yield true;
-            }
-            case Key.Special.ESC, Key.Special.CTRL_C -> {
-                pp.complete(pendingPromptDefault);
-                pendingPrompt = null;
-                pendingPromptText = new StringBuilder();
-                statusOverride = null;
-                redrawPrompt();
-                yield true;
-            }
-            case Key.Special.BACKSPACE -> {
-                if (!pendingPromptText.isEmpty()) {
-                    pendingPromptText.setLength(pendingPromptText.length() - 1);
-                    redrawPrompt();
-                }
-                yield true;
-            }
-            default -> true;
-        };
-    }
-
     private boolean handleExtensionKeybinding(Key key) {
         if (key instanceof Key.Char) return false;
         if (isReservedKey(key)) return false;
@@ -555,14 +513,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void handleEsc(boolean forceInterrupt) {
-        var pending = pendingQuestionAnswer;
-        if (!busy.get() && pending != null && !pending.isDone()) {
-            pending.cancel(true);
-            pendingQuestionAnswer = null;
-            statusOverride = null;
-            redrawPrompt();
-            return;
-        }
+        if (dialogs.cancelQuestionIfIdle(busy.get())) return;
         if (!busy.get()) return;
         long now = System.currentTimeMillis();
         if (forceInterrupt || now <= interruptArmedUntil) {
@@ -571,7 +522,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             session.abort();
             flushStreamLines();
             resetStreamState();
-            if (activeShellProcess != null) ProcessRunner.killTree(activeShellProcess);
+            shellCommands.interruptProcess();
         } else {
             interruptArmedUntil = now + INTERRUPT_WINDOW_MS;
             statusOverride = "Press Esc again to interrupt";
@@ -641,15 +592,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         String submitted = Util.stripSystemReminders(text).strip();
         if (submitted.isBlank()) return;
         submitted = fileRefs.expand(submitted);
-        var pendingAnswer = pendingQuestionAnswer;
-        if (pendingAnswer != null && !pendingAnswer.isDone()) {
-            appendPlain(promptEcho(submitted));
-            pendingAnswer.complete(submitted);
-            pendingQuestionAnswer = null;
-            statusOverride = null;
-            redrawPrompt();
-            return;
-        }
+        String answer = submitted;
+        if (dialogs.submitQuestionAnswer(answer, () -> appendPlain(promptEcho(answer)))) return;
         String payload = submitted;
         session.stripSystemRemindersFromContext();
         if (payload.startsWith("/")) {
@@ -657,11 +601,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         if (payload.startsWith("!!")) {
-            handleShellCommand(payload.substring(2).strip(), false);
+            shellCommands.run(payload.substring(2).strip(), false);
             return;
         }
         if (payload.startsWith("!")) {
-            handleShellCommand(payload.substring(1).strip(), true);
+            shellCommands.run(payload.substring(1).strip(), true);
             return;
         }
         appendPlain(promptEcho(submitted));
@@ -686,44 +630,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 statusOverride = "Error: " + ErrorUtil.message(e.getCause());
             } finally {
                 showSessionWarning();
-                endBusy(gen);
-                redrawPrompt();
-            }
-        });
-    }
-
-    private void handleShellCommand(String command, boolean addToContext) {
-        if (command.isBlank()) return;
-        appendPlain(promptEcho((addToContext ? "!" : "!!") + command));
-        redrawPrompt();
-
-        session.fireUserBash(command, !addToContext);
-
-        long gen = beginBusy("running shell");
-        redrawPrompt();
-        shellCommandThread = Thread.ofPlatform().name("pijota-shell-command")
-            .start(() -> {
-            try {
-                var result = ProcessRunner.command("/bin/sh", "-lc", command)
-                    .redirectErrorStream(true)
-                    .noTimeout()
-                    .onStart(p -> { activeShellProcess = p; })
-                    .run();
-                var out = new ArrayList<String>();
-                String slot = result.exitCode() == 0 ? "toolLabel" : "toolError";
-                String suffix = result.exitCode() == 143 || result.exitCode() == 137
-                    ? "  interrupted" : "  exit " + result.exitCode();
-                out.add(theme.styled(slot, "! " + command + suffix));
-                String output = result.stdout().stripTrailing();
-                if (!output.isBlank()) {
-                    for (String line : output.split("\\R", -1)) out.add(line);
-                }
-                appendPlain(out);
-            } catch (Exception e) {
-                appendPlain(List.of(theme.styled("toolError", "! " + command + "  error: " + e.getMessage())));
-            } finally {
-                activeShellProcess = null;
-                shellCommandThread = null;
                 endBusy(gen);
                 redrawPrompt();
             }
@@ -967,33 +873,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
-        var future = new CompletableFuture<String>();
-        pendingQuestionAnswer = future;
-        var lines = new ArrayList<String>();
-        lines.add(theme.styled("toolLabel", "question"));
-        for (int i = 0; i < questions.size(); i++) {
-            var q = questions.get(i);
-            if (questions.size() > 1) lines.add("");
-            String prefix = questions.size() == 1 ? "" : "Q" + (i + 1) + "  ";
-            lines.add(prefix + q.question());
-            if (!q.options().isEmpty()) {
-                for (int j = 0; j < q.options().size(); j++) {
-                    var opt = q.options().get(j);
-                    String desc = opt.description() == null || opt.description().isBlank()
-                        ? "" : " - " + opt.description();
-                    lines.add(String.format("    %d) %s%s", j + 1, opt.label(), desc));
-                }
-                lines.add(theme.styled("statusText",
-                    q.multiple() ? "type numbers (comma-separated) or custom text (Esc cancel)"
-                                 : "type a number or custom text (Esc cancel)"));
-            } else {
-                lines.add(theme.styled("statusText", "type your answer (Esc cancel)"));
-            }
-        }
-        appendPlain(lines);
-        statusOverride = "answer (" + questions.size() + ")";
-        redrawPrompt();
-        return future;
+        return dialogs.askQuestions(questions);
     }
 
     void showModelSelector() {
@@ -1393,228 +1273,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         try {
-            var tree = buildTreeView(session.treeEntries());
-            var activePath = entryIds(session.branchEntries());
-
-            var lines = new ArrayList<String>();
-            lines.add(theme.styled("toolLabel", "Conversation Tree"));
-            lines.add(theme.styled("statusText", tree.userCount() + " turns · "
-                + tree.entries().size() + " entries · /fork N"));
-            lines.add("");
-            lines.add(theme.styled("statusText", "turns"));
-            String leafId = session.leafId();
-            var rootTurns = firstUserDescendants(tree.roots(), tree.children());
-            if (rootTurns.isEmpty()) {
-                lines.add(theme.styled("statusText", "no user turns yet"));
-            }
-            for (int i = 0; i < rootTurns.size(); i++) {
-                appendTurnNode(lines, rootTurns.get(i), tree.children(), tree.parents(), activePath, leafId, tree.userNumbers(),
-                    "", i == rootTurns.size() - 1, 0);
-            }
-            appendPlain(lines);
+            appendPlain(new TreeRenderer(theme).render(session.treeEntries(), session.branchEntries(), session.leafId()));
         } catch (Exception e) {
             appendPlain(List.of(theme.styled("toolError", "tree: " + e.getMessage())));
         }
-    }
-
-    private TreeView buildTreeView(List<Map<String, Object>> entries) {
-        var byId = new LinkedHashMap<String, Map<String, Object>>();
-        var children = new LinkedHashMap<String, List<Map<String, Object>>>();
-        var parents = new HashMap<String, String>();
-        var roots = new ArrayList<Map<String, Object>>();
-        var userNumbers = new HashMap<String, Integer>();
-        int userCount = 0;
-        for (var entry : entries) {
-            String id = entryId(entry);
-            if (id == null) continue;
-            byId.put(id, entry);
-            if (isUserEntry(entry)) userNumbers.put(id, ++userCount);
-        }
-        for (var entry : entries) {
-            String parentId = (String) entry.get("parentId");
-            if (parentId == null || !byId.containsKey(parentId)) {
-                roots.add(entry);
-            } else {
-                children.computeIfAbsent(parentId, _ -> new ArrayList<>()).add(entry);
-                String id = entryId(entry);
-                if (id != null) parents.put(id, parentId);
-            }
-        }
-        return new TreeView(entries, roots, children, parents, userNumbers, userCount);
-    }
-
-    private Set<String> entryIds(List<Map<String, Object>> entries) {
-        var ids = new HashSet<String>();
-        for (var entry : entries) {
-            String id = entryId(entry);
-            if (id != null) ids.add(id);
-        }
-        return ids;
-    }
-
-    private void appendTurnNode(List<String> lines, Map<String, Object> entry,
-                                Map<String, List<Map<String, Object>>> children,
-                                Map<String, String> parents,
-                                Set<String> activePath, String leafId,
-                                Map<String, Integer> userNumbers,
-                                String prefix, boolean last, int depth) {
-        String id = entryId(entry);
-        boolean currentTurn = leafId != null && containsBeforeNextUser(entry, children, leafId::equals);
-        boolean activeTurn = containsBeforeNextUser(entry, children, activePath::contains);
-        int visualDepth = Math.min(depth, MAX_TREE_INDENT);
-        String marker = currentTurn ? "→" : activeTurn ? "·" : " ";
-        String connector = depth > MAX_TREE_INDENT ? "┆ " : last ? "└ " : "├ ";
-        String visualPrefix = depth > MAX_TREE_INDENT ? "   ".repeat(MAX_TREE_INDENT) : prefix;
-        Integer from = depth > MAX_TREE_INDENT ? forkFrom(id, parents, userNumbers) : null;
-        String line = theme.styled("statusText", visualPrefix + connector)
-            + theme.styled(currentTurn ? "toolLabel" : "statusText", marker + " ")
-            + turnLabel(entry, userNumbers.get(id), children, currentTurn, from);
-        lines.add(line);
-
-        var childEntries = firstUserDescendants(children.getOrDefault(id, List.of()), children);
-        String childPrefix = visualDepth >= MAX_TREE_INDENT ? visualPrefix : prefix + (last ? "   " : "│  ");
-        for (int i = 0; i < childEntries.size(); i++) {
-            appendTurnNode(lines, childEntries.get(i), children, parents, activePath, leafId, userNumbers,
-                childPrefix, i == childEntries.size() - 1, depth + 1);
-        }
-    }
-
-    private String turnLabel(Map<String, Object> entry, Integer userNumber,
-                             Map<String, List<Map<String, Object>>> children,
-                             boolean currentTurn, Integer forkFrom) {
-        var summary = summarizeTurn(entry, children);
-        var label = new StringBuilder();
-        String number = userNumber == null ? "?" : String.valueOf(userNumber);
-        label.append(theme.styled(currentTurn ? "toolLabel" : "statusText", String.format("%2s", number)));
-        label.append("  ");
-        label.append(theme.styled(currentTurn ? "toolLabel" : "", snippet((String) entry.get("content"), 44)));
-        if (forkFrom != null && userNumber != null && forkFrom != userNumber - 1) {
-            label.append(theme.styled("statusText", "  · from ")).append(forkFrom);
-        }
-        if (summary.toolCalls() > 0) {
-            label.append(theme.styled("statusText", "  · ")).append(theme.styled("statusText", summary.toolCalls()
-                + " tool" + (summary.toolCalls() == 1 ? "" : "s")));
-        }
-        if (summary.errors() > 0) {
-            label.append(theme.styled("toolError", "  · " + summary.errors() + " error"
-                + (summary.errors() == 1 ? "" : "s")));
-        }
-        if (summary.compacted() > 0) {
-            label.append(theme.styled("statusWarn", "  · compacted"));
-        }
-        if (currentTurn) label.append(theme.styled("toolLabel", "  · current"));
-        return label.toString();
-    }
-
-    private Integer forkFrom(String id, Map<String, String> parents, Map<String, Integer> userNumbers) {
-        String parent = parents.get(id);
-        while (parent != null) {
-            Integer number = userNumbers.get(parent);
-            if (number != null) return number;
-            parent = parents.get(parent);
-        }
-        return null;
-    }
-
-    private List<Map<String, Object>> firstUserDescendants(List<Map<String, Object>> entries,
-                                                           Map<String, List<Map<String, Object>>> children) {
-        var users = new ArrayList<Map<String, Object>>();
-        for (var entry : entries) {
-            if (isUserEntry(entry)) {
-                users.add(entry);
-            } else {
-                users.addAll(firstUserDescendants(children.getOrDefault(entryId(entry), List.of()), children));
-            }
-        }
-        return users;
-    }
-
-    private TurnSummary summarizeTurn(Map<String, Object> entry,
-                                      Map<String, List<Map<String, Object>>> children) {
-        var tools = new LinkedHashSet<String>();
-        var state = new TurnSummaryState();
-        summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, tools, state);
-        return new TurnSummary(state.assistant, state.toolCallIds.size(), List.copyOf(tools), state.errors, state.compacted);
-    }
-
-    private void summarizeTurnChildren(List<Map<String, Object>> entries,
-                                       Map<String, List<Map<String, Object>>> children,
-                                       Set<String> tools, TurnSummaryState state) {
-        for (var entry : entries) {
-            if (isUserEntry(entry)) continue;
-            String type = (String) entry.getOrDefault("type", "message");
-            String role = (String) entry.getOrDefault("role", "");
-            if ("compaction".equals(type)) {
-                Object compacted = entry.get("compactedCount");
-                if (compacted instanceof Number n) state.compacted += n.intValue();
-            } else if ("assistant".equals(role)) {
-                Object toolCalls = entry.get("tool_calls");
-                if (toolCalls instanceof List<?> list) {
-                    for (var item : list) {
-                        if (item instanceof Map<?, ?> m) {
-                            Object callId = m.get("id");
-                            state.toolCallIds.add(callId instanceof String s ? s : String.valueOf(m));
-                        }
-                    }
-                }
-                String content = (String) entry.get("content");
-                if (content != null && !content.isBlank()) state.assistant = content;
-            } else if ("tool".equals(role) || "tool_result".equals(role)) {
-                String tool = String.valueOf(entry.getOrDefault("tool_name", "?"));
-                tools.add(tool);
-                if (Boolean.TRUE.equals(entry.get("is_error"))) state.errors++;
-            }
-            summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, tools, state);
-        }
-    }
-
-    private boolean containsBeforeNextUser(Map<String, Object> entry,
-                                           Map<String, List<Map<String, Object>>> children,
-                                           Predicate<String> predicate) {
-        String id = entryId(entry);
-        if (id != null && predicate.test(id)) return true;
-        for (var child : children.getOrDefault(id, List.of())) {
-            if (isUserEntry(child)) continue;
-            if (containsBeforeNextUser(child, children, predicate)) return true;
-        }
-        return false;
-    }
-
-    private static String entryId(Map<String, Object> entry) {
-        Object id = entry.get("id");
-        return id instanceof String s ? s : null;
-    }
-
-    private static boolean isUserEntry(Map<String, Object> entry) {
-        return "message".equals(entry.getOrDefault("type", "message"))
-            && "user".equals(entry.getOrDefault("role", ""));
-    }
-
-    private record TurnSummary(String assistant, int toolCalls, List<String> tools, int errors, int compacted) {}
-
-    private record TreeView(List<Map<String, Object>> entries,
-                            List<Map<String, Object>> roots,
-                            Map<String, List<Map<String, Object>>> children,
-                            Map<String, String> parents,
-                            Map<String, Integer> userNumbers,
-                            int userCount) {}
-
-    private static final class TurnSummaryState {
-        String assistant = "";
-        final Set<String> toolCallIds = new HashSet<>();
-        int errors;
-        int compacted;
-    }
-
-    private static String shortId(String id) {
-        if (id == null) return "????????";
-        return id.length() > 8 ? id.substring(0, 8) : id;
-    }
-
-    private static String snippet(String content, int max) {
-        if (content == null) return "";
-        String s = content.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim();
-        return s.length() > max ? s.substring(0, Math.max(0, max - 1)) + "…" : s;
     }
 
     void forkSession(String input) {
@@ -1697,406 +1359,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void handleTranscend(String args) {
-        boolean testMode = false;
-        boolean rollback = false;
-        String worktreePath = null;
-        String mergeBranch = null;
-        var goalParts = new ArrayList<String>();
-
-        var tokens = args.split("\\s+");
-        int i = 0;
-        while (i < tokens.length) {
-            if (tokens[i].isEmpty()) { i++; continue; }
-            switch (tokens[i]) {
-                case "--test" -> testMode = true;
-                case "--rollback" -> rollback = true;
-                case "--worktree" -> { if (i + 1 < tokens.length) worktreePath = tokens[++i]; }
-                case "--merge" -> { if (i + 1 < tokens.length) mergeBranch = tokens[++i]; }
-                default -> goalParts.add(tokens[i]);
-            }
-            i++;
-        }
-
-        String goal = goalParts.isEmpty() ? null : stripWrappingQuotes(String.join(" ", goalParts));
-
-        if (busy.get()) {
-            appendPlain(List.of(theme.styled("toolError", "/transcend is unavailable while a turn is running (Esc Esc to interrupt)")));
-            return;
-        }
-
-        if (goal != null) {
-            submitTranscendGoal(goal, worktreePath);
-            return;
-        }
-
-        if (rollback) {
-            handleTranscendRollback();
-            return;
-        }
-
-        if (mergeBranch != null && !mergeBranch.isEmpty()) {
-            handleTranscendMerge(mergeBranch);
-            return;
-        }
-
-        String effectiveWorktree = worktreePath != null ? worktreePath : System.getProperty("user.dir");
-        handleTranscendBuild(effectiveWorktree, testMode);
-    }
-
-    private void handleTranscendBuild(String projectRoot, boolean testMode) {
-        handleTranscendBuild(projectRoot, testMode, true);
-    }
-
-    private void handleTranscendBuild(String projectRoot, boolean testMode, boolean showHeader) {
-        Path root = Path.of(projectRoot);
-        if (!Files.exists(root.resolve("pom.xml"))) {
-            appendPlain(List.of(theme.styled("toolError", "no pom.xml found at " + root)));
-            return;
-        }
-
-        long gen = beginBusy("transcending");
-        boolean keepBusy = false;
-        try {
-            if (showHeader) appendTranscendHeader();
-            redrawPrompt();
-
-            try {
-                Path currentJar = SelfRespawn.findCurrentJar();
-                SelfRespawn.backupJar(currentJar);
-            } catch (Exception e) {
-                appendTranscendFailure(List.of("✕ preserve current build"),
-                    "Cannot preserve current build: " + e.getMessage(), null);
-                return;
-            }
-
-            appendPlain(List.of(theme.styled("statusText", "  ✓ preserved current build")));
-            redrawPrompt();
-
-            ProcessRunner.Result buildResult;
-            try {
-                buildResult = SelfRespawn.buildJar(root);
-            } catch (Exception e) {
-                appendTranscendFailure(List.of("✓ preserved current build", "✕ compile new build"),
-                    "Build error: " + e.getMessage(), null);
-                return;
-            }
-
-            Path log = writeTranscendLog("build", buildResult.stdout());
-
-            if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
-                appendTranscendFailure(List.of("✓ preserved current build", "✕ compile new build"),
-                    buildResult.timedOut() ? "Build timed out." : "Build exited " + buildResult.exitCode() + ".",
-                    log);
-                return;
-            }
-
-            Path jar = SelfRespawn.findJarIn(root);
-            if (jar == null || !Files.exists(jar)) {
-                appendTranscendFailure(List.of("✓ preserved current build", "✕ compile new build"),
-                    "Build finished, but no jar was found in " + root.resolve("target") + ".", log);
-                return;
-            }
-
-            appendPlain(List.of(theme.styled("statusText", "  ✓ compiled new build  " + jar.getFileName())));
-            redrawPrompt();
-
-            Path sessionFile = session.sessionFile();
-
-            if (testMode) {
-                appendPlain(List.of(theme.styled("statusText", "  … launching test instance")));
-                redrawPrompt();
-
-                suspendTui();
-                try {
-                    int ec = SelfRespawn.runInteractive(jar, sessionFile, true);
-                    resumeTui();
-                    appendPlain(List.of(theme.styled("statusText", "  ✓ test instance exited  code " + ec),
-                        "",
-                        theme.styled("toolLabel", "✓ Pijota test build is ready"),
-                        theme.styled("statusText", "  rollback: /transcend --rollback")));
-                } catch (Exception e) {
-                    resumeTui();
-                    appendTranscendFailure(List.of("✓ preserved current build", "✓ compiled new build", "✕ launch test instance"),
-                        "Test instance error: " + e.getMessage(), log);
-                }
-                redrawPrompt();
-                return;
-            }
-
-            appendPlain(List.of(theme.styled("statusText", "  → restarting")));
-            redrawPrompt();
-            terminal.writer().flush();
-            SelfRespawn.respawn(jar, sessionFile, true);
-            resumeTui();
-            String err = SelfRespawn.lastRespawnError();
-            if (err != null) {
-                appendTranscendFailure(List.of("✓ preserved current build", "✓ compiled new build", "✕ restart into new build"),
-                    err, log);
-            } else {
-                keepBusy = true;
-            }
-            redrawPrompt();
-        } finally {
-            if (!keepBusy) {
-                endBusy(gen);
-                redrawPrompt();
-            }
-        }
-    }
-
-    private void appendTranscendHeader() {
-        appendPlain(List.of(theme.styled("toolLabel", "→ Transcend")));
-    }
-
-    private void appendTranscendFailure(List<String> steps, String message, Path log) {
-        var lines = new ArrayList<String>();
-        for (String step : steps) {
-            String slot = step.startsWith("✕") ? "toolError" : "statusText";
-            lines.add(theme.styled(slot, "  " + step));
-        }
-        lines.add("");
-        lines.add(theme.styled("toolError", "Still running previous build."));
-        lines.add(theme.styled("toolError", message));
-        if (log != null) lines.add(theme.styled("statusText", "log: " + log));
-        appendPlain(lines);
-    }
-
-    private Path writeTranscendLog(String label, String output) {
-        if (output == null || output.isBlank()) return null;
-        try {
-            Path dir = Path.of(System.getProperty("java.io.tmpdir"), "pijota");
-            Files.createDirectories(dir);
-            Path file = Files.createTempFile(dir, "transcend-" + label + "-", ".log");
-            Files.writeString(file, output, StandardCharsets.UTF_8);
-            return file;
-        } catch (IOException ignored) {
-            return null;
-        }
-    }
-
-    private void submitTranscendGoal(String goal, String worktreePath) {
-        String resolvedWorktree = worktreePath;
-        String branchName = null;
-
-        if (resolvedWorktree == null) {
-            branchName = generateTranscendBranch(goal);
-            resolvedWorktree = "../pijota-" + branchName.replace('/', '-');
-        }
-
-        appendPlain(promptEcho("/transcend " + goal));
-        long gen = beginBusy("transcending");
-        redrawPrompt();
-
-        String finalWorktree = resolvedWorktree;
-        String finalBranch = branchName;
-        agentExecutor.submit(() -> {
-            boolean promptCompleted = false;
-            try {
-                if (finalBranch != null) {
-                    try {
-                        ProcessRunner.Result wtResult = ProcessRunner.command(
-                            "git", "worktree", "add", "-b", finalBranch, finalWorktree)
-                            .redirectErrorStream(true)
-                            .run();
-                        if (wtResult.exitCode() != 0) {
-                            appendPlain(List.of(
-                                theme.styled("toolError", "worktree creation failed:"),
-                                theme.styled("toolError", wtResult.stdout().strip())));
-                            endBusy(gen);
-                            redrawPrompt();
-                            return;
-                        }
-                    } catch (IOException e) {
-                        appendPlain(List.of(
-                            theme.styled("toolError", "worktree creation error: " + e.getMessage())));
-                        endBusy(gen);
-                        redrawPrompt();
-                        return;
-                    }
-                }
-
-                resetStreamState();
-                var fullPrompt = "TRANSCENDENCE GOAL: " + goal + "\n\n"
-                    + "Implement this goal by modifying pijota's source code. "
-                    + "A git worktree has been prepared at " + finalWorktree
-                    + (finalBranch != null ? " on branch " + finalBranch : "")
-                    + ". Use worktree=\"" + finalWorktree + "\" for ALL transcendence actions "
-                    + "(build, test, respawn).\n\n"
-                    + "Workflow:\n"
-                    + "1. Edit source files under " + finalWorktree + "/src/main/java/ai/pijota/\n"
-                    + "2. transcendence action=\"build\" worktree=\"" + finalWorktree + "\"\n"
-                    + "3. transcendence action=\"test\" worktree=\"" + finalWorktree + "\"\n"
-                    + "4. Verify only with the worktree jar, never with a bare `pijota` command. "
-                    + "Use `java -jar " + finalWorktree + "/target/<built-jar> ...` for smoke checks. "
-                    + "If the feature is TUI-only and cannot be automated, inspect the command dispatch code and continue.\n"
-                    + "5. Respawn is mandatory after build/test pass. Do not end the turn before calling: "
-                    + "transcendence action=\"respawn\" worktree=\"" + finalWorktree + "\""
-                    + (finalBranch != null ? " mergeBranch=\"" + finalBranch + "\"" : "") + "\n"
-                    + "6. Do not ask the user to merge; the replacement process will merge automatically.\n"
-                    + "7. Ignore inconclusive verification from the wrong executable; fix real failures only.\n\n"
-                    + "Work autonomously — do not ask for permission at each step.";
-                session.prompt(fullPrompt).join();
-                promptCompleted = true;
-                finalizeTranscendGoal(finalWorktree, finalBranch);
-            } catch (CompletionException e) {
-                statusOverride = "Error: " + ErrorUtil.message(e.getCause());
-            } finally {
-                if (!SelfRespawn.isRespawnInProgress()) {
-                    if (!promptCompleted) showSessionWarning();
-                    endBusy(gen);
-                    redrawPrompt();
-                }
-            }
-        });
-    }
-
-    private void finalizeTranscendGoal(String worktree, String branch) {
-        if (SelfRespawn.isPending() || SelfRespawn.isRespawnInProgress()) return;
-
-        Path root = Path.of(worktree);
-        appendPlain(List.of(theme.styled("toolLabel", "→ Transcend"),
-            theme.styled("statusText", "  … finalizing worktree build")));
-        redrawPrompt();
-
-        ProcessRunner.Result buildResult;
-        try {
-            buildResult = SelfRespawn.buildJar(root);
-        } catch (Exception e) {
-            appendTranscendFailure(List.of("✕ compile final build"), "Build error: " + e.getMessage(), null);
-            return;
-        }
-        Path buildLog = writeTranscendLog("final-build", buildResult.stdout());
-        if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
-            appendTranscendFailure(List.of("✕ compile final build"),
-                buildResult.timedOut() ? "Build timed out." : "Build exited " + buildResult.exitCode() + ".",
-                buildLog);
-            return;
-        }
-        appendPlain(List.of(theme.styled("statusText", "  ✓ compiled final build")));
-
-        ProcessRunner.Result testResult;
-        try {
-            testResult = ProcessRunner.command("mvn", "test")
-                .workDir(root)
-                .redirectErrorStream(true)
-                .run();
-        } catch (Exception e) {
-            appendTranscendFailure(List.of("✓ compiled final build", "✕ run final tests"),
-                "Test error: " + e.getMessage(), null);
-            return;
-        }
-        Path testLog = writeTranscendLog("final-test", testResult.stdout());
-        if (testResult.exitCode() != 0 || testResult.timedOut()) {
-            appendTranscendFailure(List.of("✓ compiled final build", "✕ run final tests"),
-                testResult.timedOut() ? "Tests timed out." : "Tests exited " + testResult.exitCode() + ".",
-                testLog);
-            return;
-        }
-        appendPlain(List.of(theme.styled("statusText", "  ✓ final tests passed")));
-
-        Path jar = SelfRespawn.findJarIn(root);
-        if (jar == null || !Files.exists(jar)) {
-            appendTranscendFailure(List.of("✓ compiled final build", "✓ final tests passed", "✕ find final jar"),
-                "Jar not found in " + root.resolve("target") + ".", buildLog);
-            return;
-        }
-
-        try {
-            SelfRespawn.backupJar(SelfRespawn.findCurrentJar());
-        } catch (Exception ignored) {}
-
-        if (!SelfRespawn.requestRespawn(jar, branch, root)) {
-            appendPlain(List.of(theme.styled("statusWarn", "  … restart already pending")));
-            return;
-        }
-
-        appendPlain(List.of(theme.styled("statusText", "  → restarting")));
-        redrawPrompt();
-        terminal.writer().flush();
-        SelfRespawn.maybeRespawn();
-    }
-
-    private static String generateTranscendBranch(String goal) {
-        String slug = goal.toLowerCase()
-            .replaceAll("[^a-z0-9\\s-]", "")
-            .replaceAll("\\s+", "-")
-            .replaceAll("-{2,}", "-")
-            .replaceAll("^-|-$", "");
-        if (slug.length() > 30) slug = slug.substring(0, 30).replaceAll("-$", "");
-        if (slug.isBlank()) slug = "update";
-        String ts = String.format("%tH%<tM%<tS", System.currentTimeMillis());
-        return "feat/" + slug + "-" + ts;
-    }
-
-    private static String stripWrappingQuotes(String value) {
-        if (value == null || value.length() < 2) return value;
-        char first = value.charAt(0);
-        char last = value.charAt(value.length() - 1);
-        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-            return value.substring(1, value.length() - 1);
-        }
-        return value;
-    }
-
-    private void handleTranscendRollback() {
-        if (!SelfRespawn.canRollback()) {
-            appendPlain(List.of(theme.styled("toolError", "no backup jar — nothing to rollback to")));
-            return;
-        }
-
-        Path jar = SelfRespawn.findCurrentJar();
-        if (jar == null) {
-            jar = SelfRespawn.findJarIn(Path.of(System.getProperty("user.dir")));
-        }
-        if (jar == null) {
-            appendPlain(List.of(theme.styled("toolError", "cannot determine target jar for rollback")));
-            return;
-        }
-
-        try {
-            SelfRespawn.rollback(jar);
-        } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "rollback failed: " + e.getMessage())));
-            return;
-        }
-
-        appendPlain(List.of(theme.styled("toolLabel", "→ Transcend"),
-            theme.styled("statusText", "  ✓ restored previous build"),
-            theme.styled("statusText", "  → restarting")));
-        redrawPrompt();
-        terminal.writer().flush();
-        SelfRespawn.respawn(jar, session.sessionFile(), true);
-        resumeTui();
-        String err = SelfRespawn.lastRespawnError();
-        if (err != null) appendTranscendFailure(List.of("✓ restored previous build", "✕ restart"), err, null);
-        redrawPrompt();
-    }
-
-    private void handleTranscendMerge(String branch) {
-        appendPlain(List.of(theme.styled("toolLabel", "→ Transcend"),
-            theme.styled("statusText", "  … merging " + branch)));
-        redrawPrompt();
-
-        ProcessRunner.Result mergeResult;
-        try {
-            mergeResult = SelfRespawn.mergeBranch(branch);
-        } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "merge error: " + e.getMessage())));
-            return;
-        }
-
-        if (mergeResult.exitCode() != 0) {
-            String output = mergeResult.stdout().isBlank()
-                ? "[no output]" : mergeResult.stdout().strip();
-            appendPlain(List.of(
-                theme.styled("toolError", "  ✕ merge failed  exit " + mergeResult.exitCode()),
-                theme.styled("toolError", output)));
-            return;
-        }
-
-        appendPlain(List.of(theme.styled("statusText", "  ✓ merge complete")));
-        redrawPrompt();
-        handleTranscendBuild(System.getProperty("user.dir"), false, false);
+        transcendence.handle(args);
     }
 
     void undoLastTurn() {
@@ -2372,8 +1635,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private PromptSnapshot decorate(PromptSnapshot snapshot) {
         String tokens = tokenStatus();
         String status = currentStatusOverride();
-        if (pendingPrompt != null && !pendingPrompt.isDone()) {
-            String promptLine = "\u25b6 " + pendingPromptText.toString() + "\033[7m \033[27m";
+        String promptLine = dialogs.promptStatusLine();
+        if (promptLine != null) {
             status = status != null ? status + "\n" + promptLine : promptLine;
         }
         String modelStr = " " + provider + "/" + model
@@ -2429,17 +1692,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private String currentStatusOverride() {
         String status = statusOverride;
         long now = System.currentTimeMillis();
-        if (status != null && !isQuestionPending()
+        if (status != null && !dialogs.questionPending()
             && now > interruptArmedUntil && now > exitArmedUntil
             && !"Interrupted".equals(status)) {
             statusOverride = null;
             return null;
         }
         return status;
-    }
-
-    private boolean isQuestionPending() {
-        return pendingQuestionAnswer != null;
     }
 
     private static boolean isEditWrite(Message.ToolResult msg) {
