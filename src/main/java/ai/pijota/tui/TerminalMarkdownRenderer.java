@@ -87,9 +87,17 @@ final class TerminalMarkdownRenderer {
         int prefixEnd = markdownPrefixEnd(line);
         String prefix = prefixEnd == 0 ? "" : highlightPrefix(line.substring(0, prefixEnd));
         String body = line.substring(prefixEnd);
+        if (isHeadingPrefix(line, prefixEnd)) return prefix + slotStyled("heading", body);
         String highlightedBody = highlightInlineSource(body);
         if (plainSlot != null && prefixEnd == 0 && highlightedBody.equals(body)) return slotStyled(plainSlot, line);
         return prefix + highlightedBody;
+    }
+
+    private boolean isHeadingPrefix(String line, int prefixEnd) {
+        if (prefixEnd <= 0) return false;
+        int i = 0;
+        while (i < line.length() && Character.isWhitespace(line.charAt(i))) i++;
+        return i < prefixEnd && line.charAt(i) == '#';
     }
 
     private int markdownPrefixEnd(String line) {

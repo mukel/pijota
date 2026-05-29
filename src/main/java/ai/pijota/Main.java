@@ -1,6 +1,8 @@
 package ai.pijota;
 
 import ai.pijota.agent.HeadlessAgentRunner;
+import ai.pijota.agent.SessionExporter;
+import ai.pijota.agent.SessionManager;
 import ai.pijota.cli.ArgParser;
 import ai.pijota.cli.Args;
 import ai.pijota.cli.FileProcessor;
@@ -15,6 +17,8 @@ import ai.pijota.tui.AppendOnlyTui;
 import ai.pijota.util.SelfRespawn;
 
 import java.io.Console;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public final class Main {
     private static final String VERSION = "0.4.0";
@@ -36,6 +40,7 @@ public final class Main {
             if (parsedArgs.help()) { ArgParser.printHelp(); return; }
             if (parsedArgs.version()) { System.out.println("pijota v" + VERSION); return; }
             if (parsedArgs.listModels()) { listModels(parsedArgs.listModelsFilter()); return; }
+            if (parsedArgs.exportPath() != null) { exportSession(parsedArgs); return; }
             if (!parsedArgs.worker() && shouldSupervise(parsedArgs)) {
                 System.exit(Supervisor.run(args));
             }
@@ -88,6 +93,26 @@ public final class Main {
             tui.close();
             session.close();
         }
+    }
+
+    private static void exportSession(Args args) throws Exception {
+        Path sessionFile;
+        if (args.sessionPath() != null) {
+            sessionFile = Path.of(args.sessionPath());
+        } else {
+            var sessionDir = Path.of(System.getProperty("user.home"), ".pijota", "sessions");
+            var sm = new SessionManager(sessionDir);
+            var cwd = System.getProperty("user.dir");
+            sessionFile = sm.latestSession(cwd, null);
+        }
+        if (!Files.exists(sessionFile)) {
+            System.err.println("Session file not found: " + sessionFile);
+            System.exit(1);
+        }
+        String md = SessionExporter.toMarkdown(sessionFile);
+        Path output = Path.of(args.exportPath());
+        Files.writeString(output, md);
+        System.out.println("Exported to " + output);
     }
 
     private static void login(String[] args) throws Exception {

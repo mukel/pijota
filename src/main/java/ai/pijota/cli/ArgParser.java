@@ -159,7 +159,7 @@ public final class ArgParser {
               --theme <path|name>       Load/select theme (repeatable)
               --no-themes               Skip theme discovery
               --no-context-files, -nc    Skip AGENTS.md and CLAUDE.md discovery
-              --export <file>           Export session to HTML
+              --export <file>           Export session to Markdown
               --list-models [filter]    List available models
               --verbose                 Verbose output
               --help, -h                Show this help

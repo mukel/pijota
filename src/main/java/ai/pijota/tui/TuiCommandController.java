@@ -32,6 +32,7 @@ final class TuiCommandController {
             case "/hotkeys" -> tui.showHotkeys();
             case "/session" -> tui.showSessionInfo();
             case "/context" -> tui.showContext();
+            case "/export" -> tui.exportSession(input);
             case "/save" -> tui.saveSession(input);
             case "/load" -> tui.loadSession(input);
             case "/sessions" -> tui.listSessions();

@@ -6,6 +6,7 @@ enum BuiltInSlashCommand {
     MODEL("/model", "Select or search models"),
     THEME("/theme", "List or switch themes"),
     COMPACT("/compact", "Manually compact the conversation"),
+    EXPORT("/export", "Export session to Markdown"),
     SAVE("/save", "Save session to a file"),
     LOAD("/load", "Load and resume a session"),
     DELETE("/delete", "Delete a saved session"),

@@ -2,6 +2,7 @@ package ai.pijota.tui;
 
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
+import ai.pijota.agent.SessionExporter;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.llm.ModelInfo;
 import ai.pijota.llm.ModelRegistry;
@@ -170,6 +171,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final StreamProcessor streamProc = new StreamProcessor();
     private final TranscendenceOrchestrator transcendence;
     private final ShellCommandRunner shellCommands;
+    private final SessionCommands sessionCommands;
 
     public void requestSessionPicker() { showSessionPickerOnStart = true; }
     private static final long INTERRUPT_WINDOW_MS = 1200;
@@ -205,6 +207,21 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             @Override public void endBusy(long generation) { AppendOnlyTui.this.endBusy(generation); }
             @Override public void redrawPrompt() { AppendOnlyTui.this.redrawPrompt(); }
             @Override public void fireUserBash(String command, boolean noContext) { session.fireUserBash(command, noContext); }
+        });
+        this.sessionCommands = new SessionCommands(new SessionCommands.Host() {
+            @Override public PijotaSession session() { return session; }
+            @Override public String styled(String slot, String text) { return theme.styled(slot, text); }
+            @Override public void appendPlain(List<String> lines) { AppendOnlyTui.this.appendPlain(lines); }
+            @Override public boolean busy() { return busy.get(); }
+            @Override public String sessionName() { return AppendOnlyTui.this.sessionName; }
+            @Override public void setSessionName(String name) { sessionName = name; }
+            @Override public String provider() { return AppendOnlyTui.this.provider; }
+            @Override public String model() { return AppendOnlyTui.this.model; }
+            @Override public String cwd() { return AppendOnlyTui.this.cwd; }
+            @Override public ThinkingLevel thinkingLevel() { return AppendOnlyTui.this.thinkingLevel; }
+            @Override public SettingsManager settings() { return AppendOnlyTui.this.settings; }
+            @Override public String tokenStatus() { return AppendOnlyTui.this.tokenStatus(); }
+            @Override public void refreshSessionName() { AppendOnlyTui.this.refreshSessionName(); }
         });
         this.provider = provider;
         this.model = model;
@@ -1054,18 +1071,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void copyLastResponse() {
-        String last = session.lastAssistantContent();
-        if (last == null || last.isBlank()) {
-            appendPlain(List.of(theme.styled("toolError", "no assistant response to copy")));
-            return;
-        }
-        try {
-            var clipboard = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
-            clipboard.setContents(new java.awt.datatransfer.StringSelection(last), null);
-            appendPlain(List.of(theme.styled("statusText", "copied last response to clipboard")));
-        } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "clipboard unavailable: " + e.getMessage())));
-        }
+        sessionCommands.copyLastResponse();
     }
 
     void showHotkeys() {
@@ -1095,61 +1101,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showContext() {
-        var msgs = session.messages();
-        int systems = 0, users = 0, assistants = 0, tools = 0, compactions = 0;
-        long sysChars = 0, userChars = 0, assistantChars = 0, toolChars = 0;
-        for (var m : msgs) {
-            switch (m) {
-                case Message.System s -> { systems++; sysChars += s.content().length(); }
-                case Message.User u -> { users++; userChars += u.content().length(); }
-                case Message.Assistant a -> { assistants++; assistantChars += (a.content() != null ? a.content().length() : 0); }
-                case Message.ToolResult tr -> { tools++; toolChars += tr.content().length(); }
-                case Message.CompactionSummary _ -> compactions++;
-                default -> {}
-            }
-        }
-        long totalChars = sysChars + userChars + assistantChars + toolChars;
-        long estTokens = totalChars / 4;
-        var lines = new ArrayList<String>();
-        lines.add(theme.styled("toolLabel", "context  " + msgs.size() + " msgs  " + fmtCount((int) estTokens)
-            + " est tokens  " + tokenStatus()));
-        lines.add(theme.styled("statusText", "  auto-compact  "
-            + (settings == null || settings.compactionEnabled() ? "on" : "off")));
-        if (systems > 0) lines.add(theme.styled("statusText",
-            "  system     " + systems + " msg  " + fmtCount((int)(sysChars / 4)) + " est tokens"));
-        lines.add(theme.styled("statusText",
-            "  user       " + users + " msgs  " + fmtCount((int)(userChars / 4)) + " est tokens"));
-        lines.add(theme.styled("statusText",
-            "  assistant  " + assistants + " msgs  " + fmtCount((int)(assistantChars / 4)) + " est tokens"));
-        lines.add(theme.styled("statusText",
-            "  tool       " + tools + " msgs  " + fmtCount((int)(toolChars / 4)) + " est tokens"));
-        if (compactions > 0) {
-            lines.add(theme.styled("statusText", "  compactions  " + compactions));
-            for (var m : msgs) {
-                if (m instanceof Message.CompactionSummary cs) {
-                    lines.add(theme.styled("hr", "─".repeat(40)));
-                    lines.add(theme.styled("statusText", "  last summary:"));
-                    for (String line : cs.summary().lines().toList()) {
-                        lines.add(theme.styled("statusText", "  " + line));
-                    }
-                }
-            }
-        }
-        appendPlain(lines);
+        sessionCommands.showContext();
     }
 
     void showSessionInfo() {
-        refreshSessionName();
-        appendPlain(List.of(
-            theme.styled("toolLabel", "session"),
-            theme.styled("statusText", "provider  " + provider),
-            theme.styled("statusText", "model    " + model),
-            theme.styled("statusText", "cwd      " + cwd),
-            theme.styled("statusText", "tokens   " + tokenStatus()),
-            theme.styled("statusText", "thinking " + thinkingLevel.label()),
-            theme.styled("statusText", "compact  " + (settings == null || settings.compactionEnabled() ? "auto" : "off"))));
-        if (sessionName != null)
-            appendPlain(List.of(theme.styled("statusText", "name     " + sessionName)));
+        sessionCommands.showSessionInfo();
     }
 
     void showWhoami() {
@@ -1176,18 +1132,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
+    void exportSession(String input) {
+        sessionCommands.exportSession();
+    }
+
     void saveSession(String input) {
-        String path = input.length() > 5 ? input.substring(5).trim() : "";
-        if (path.isBlank()) {
-            String ts = java.time.Instant.now().toString().replace(":", "-").substring(0, 19);
-            path = "pijota-session-" + ts + ".jsonl";
-        }
-        try {
-            session.saveMessages(java.nio.file.Path.of(path));
-            appendPlain(List.of(theme.styled("statusText", "session saved to " + path)));
-        } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "save failed: " + e.getMessage())));
-        }
+        sessionCommands.saveSession(input);
     }
 
     void loadSession(String input) {
@@ -1221,50 +1171,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void listSessions() {
-        var sessions = session.listSessions();
-        if (sessions.isEmpty()) {
-            appendPlain(List.of(theme.styled("statusText", "no saved sessions")));
-            return;
-        }
-        var lines = new ArrayList<String>();
-        lines.add(theme.styled("toolLabel", "sessions (" + sessions.size() + ")"));
-        for (var item : SessionItem.fromPaths(sessions)) {
-            String id = item.name().length() > 8 ? item.name().substring(0, 8) : item.name();
-            lines.add(theme.styled("statusText", "  " + id + "  " + item.detailText() + "  " + item.description()));
-        }
-        lines.add(theme.styled("statusText", "/load <id|path> to resume  /delete <id> to remove"));
-        appendPlain(lines);
+        sessionCommands.listSessions();
     }
 
     void deleteSession(String input) {
-        String spec = input.length() > 7 ? input.substring(7).trim() : "";
-        if (spec.isBlank()) {
-            appendPlain(List.of(theme.styled("toolError", "usage: /delete <id|path>")));
-            return;
-        }
-        try {
-            session.deleteSession(spec);
-            appendPlain(List.of(theme.styled("statusText", "deleted session: " + spec)));
-        } catch (IOException e) {
-            appendPlain(List.of(theme.styled("toolError", "delete failed: " + e.getMessage())));
-        }
+        sessionCommands.deleteSession(input);
     }
 
     void startNewSession() {
-        if (busy.get()) {
-            appendPlain(List.of(theme.styled("toolError", "/new is unavailable while a turn is running")));
-            return;
-        }
-        if (!session.messages().isEmpty())
-            appendPlain(List.of(theme.styled("statusWarn", "starting new session — previous messages discarded")));
-        try {
-            session.newSession();
-            sessionName = null;
-        } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "session creation failed: " + e.getMessage())));
-            return;
-        }
-        appendPlain(List.of(theme.styled("statusText", "started new session")));
+        sessionCommands.startNewSession();
     }
 
     void showTree() {
@@ -1342,20 +1257,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void cloneSession() {
-        if (busy.get()) {
-            appendPlain(List.of(theme.styled("toolError", "/clone is unavailable while a turn is running")));
-            return;
-        }
-        if (session.sessionFile() == null) {
-            appendPlain(List.of(theme.styled("toolError", "no active session")));
-            return;
-        }
-        try {
-            Path newFile = session.cloneCurrentBranch();
-            appendPlain(List.of(theme.styled("statusText", "cloned session to " + newFile.getFileName())));
-        } catch (Exception e) {
-            appendPlain(List.of(theme.styled("toolError", "clone failed: " + e.getMessage())));
-        }
+        sessionCommands.cloneSession();
     }
 
     void handleTranscend(String args) {
@@ -1455,18 +1357,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         msg.toolName(), pendingEdit.filePath(), pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
                 }
                 var lines = new ArrayList<String>();
-                lines.add(String.join("  ", parts));
+                lines.add(String.join(" ", parts));
                 if (rendered != null && !rendered.body().isEmpty()) {
                     for (String line : rendered.body()) {
-                        if (line.startsWith("╰→")) {
-                            lines.add(theme.styled("statusText", "╰→")
-                                + theme.styled("commandMeta", line.substring(2)));
-                        } else if (line.equals("┴") || line.equals("┬")) {
-                            lines.add(theme.styled("statusText", line));
-                        } else {
-                            String bodySlot = line.startsWith("⋯") ? "commandMeta" : "statusText";
-                            lines.add(theme.styled(bodySlot, line));
-                        }
+                        lines.add(renderToolBodyLine(msg.toolName(), line));
                     }
                 }
                 appendPlain(lines);
@@ -1520,6 +1414,25 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendContent(contentLines.accept(summary, softLineLimit()));
         flushStreamLines();
         resetStreamState();
+    }
+
+    private String renderToolBodyLine(String toolName, String line) {
+        if ("todowrite".equals(toolName)) return renderTodoLine(line);
+        if (line.startsWith("╰→")) {
+            return theme.styled("statusText", "╰→")
+                + theme.styled("commandMeta", line.substring(2));
+        }
+        if (line.equals("┴") || line.equals("┬")) return theme.styled("statusText", line);
+        String bodySlot = line.startsWith("⋯") ? "commandMeta" : "statusText";
+        return theme.styled(bodySlot, line);
+    }
+
+    private String renderTodoLine(String line) {
+        String slot = null;
+        if (line.startsWith("│ [✓]")) slot = "diffAdd";
+        else if (line.startsWith("│ [~]")) slot = "statusWarn";
+        if (slot == null) return theme.styled("statusText", line);
+        return theme.styled("statusText", "│ ") + theme.styled(slot, line.substring(2));
     }
 
     private List<StyledLine> renderContent(List<String> lines) {
