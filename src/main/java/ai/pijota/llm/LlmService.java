@@ -13,6 +13,9 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.chat.response.StreamingHandle;
 import dev.langchain4j.model.output.TokenUsage;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +24,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 public final class LlmService implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(LlmService.class);
+
     private final ConcurrentHashMap<String, StreamingChatModel> modelCache = new ConcurrentHashMap<>();
     private final List<ProviderFactory> customProviders;
     private final UsageTracker usage;
@@ -60,6 +65,8 @@ public final class LlmService implements AutoCloseable {
         this.usage = new UsageTracker(budgetLimit);
     }
 
+    public UsageTracker usage() { return usage; }
+
     public CompletableFuture<StreamResult> streamMessages(
             List<Message> messages, List<ToolSpecification> tools,
             BiConsumer<String, String> onPartial
@@ -75,6 +82,14 @@ public final class LlmService implements AutoCloseable {
     private CompletableFuture<StreamResult> streamLangChain4j(
             List<Message> messages, List<ToolSpecification> tools,
             BiConsumer<String, String> onPartial) {
+        return streamLangChain4j(lc4jModel(), messages, tools, onPartial, activeHandle);
+    }
+
+    private CompletableFuture<StreamResult> streamLangChain4j(
+            StreamingChatModel model,
+            List<Message> messages, List<ToolSpecification> tools,
+            BiConsumer<String, String> onPartial,
+            AtomicReference<StreamingHandle> handleRef) {
         var future = new CompletableFuture<StreamResult>();
         var result = new StreamResult();
         future.completeOnTimeout(result, 300, TimeUnit.SECONDS);
@@ -84,7 +99,7 @@ public final class LlmService implements AutoCloseable {
         if (tools != null && !tools.isEmpty())
             requestBuilder.toolSpecifications(tools);
 
-        lc4jModel().chat(requestBuilder.build(), new StreamingChatResponseHandler() {
+        model.chat(requestBuilder.build(), new StreamingChatResponseHandler() {
             private final StringBuilder thinkingBuf = new StringBuilder();
 
             @Override public void onPartialResponse(String t) {
@@ -92,8 +107,8 @@ public final class LlmService implements AutoCloseable {
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
             @Override public void onPartialResponse(PartialResponse pr, PartialResponseContext ctx) {
-                if (ctx != null && ctx.streamingHandle() != null)
-                    activeHandle.set(ctx.streamingHandle());
+                if (ctx != null && ctx.streamingHandle() != null && handleRef != null)
+                    handleRef.set(ctx.streamingHandle());
                 String t = pr.text();
                 if (t != null) {
                     applyPartialContent(result, t);
@@ -101,8 +116,8 @@ public final class LlmService implements AutoCloseable {
                 }
             }
             @Override public void onPartialThinking(PartialThinking pt, PartialThinkingContext ctx) {
-                if (ctx != null && ctx.streamingHandle() != null)
-                    activeHandle.set(ctx.streamingHandle());
+                if (ctx != null && ctx.streamingHandle() != null && handleRef != null)
+                    handleRef.set(ctx.streamingHandle());
                 thinkingBuf.append(pt.text());
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
@@ -119,11 +134,11 @@ public final class LlmService implements AutoCloseable {
                 var u = r.metadata().tokenUsage();
                 result.setUsage(u);
                 usage.add(u);
-                activeHandle.set(null);
+                if (handleRef != null) handleRef.set(null);
                 future.complete(result);
             }
             @Override public void onError(Throwable e) {
-                activeHandle.set(null);
+                if (handleRef != null) handleRef.set(null);
                 future.completeExceptionally(e);
             }
         });
@@ -180,20 +195,23 @@ public final class LlmService implements AutoCloseable {
             ? customSystemPrompt
             : "You are a context summarization assistant. Read the conversation and output only the structured summary requested.";
         try {
-            var model = modelOverride != null && !modelOverride.equals(modelName)
+            // Always use a fresh model instance, isolated from the main conversation's handle
+            var model = (modelOverride != null && !modelOverride.isEmpty())
                 ? lc4jModelForModel(modelOverride)
-                : lc4jModel();
+                : lc4jModelForModel(modelName);
             var sysMsg = new ai.pijota.messages.Message.System(java.util.UUID.randomUUID(),
                 java.time.Instant.now(), effectiveSystemPrompt);
             var userMsg = new ai.pijota.messages.Message.User(prompt);
             var messages = List.<ai.pijota.messages.Message>of(sysMsg, userMsg);
-            var result = streamLangChain4j(messages, List.of(), onPartial != null ? onPartial : (_, _) -> {})
+            var result = streamLangChain4j(model, messages, List.of(),
+                onPartial != null ? onPartial : (_, _) -> {}, null)
                 .get(120, java.util.concurrent.TimeUnit.SECONDS);
             return result.content() != null ? result.content().strip() : null;
         } catch (java.util.concurrent.TimeoutException e) {
-            abort();
+            log.warn("Summarization timed out after 120s", e);
             return null;
         } catch (Exception e) {
+            log.warn("Summarization failed: {}", e.toString());
             return null;
         }
     }
@@ -252,6 +270,10 @@ public final class LlmService implements AutoCloseable {
         UsageTracker(Double budgetLimit) { this.budgetLimit = budgetLimit; }
 
         boolean overBudget() { return budgetLimit != null && totalCost >= budgetLimit; }
+
+        int totalInputTokens() { return totalInputTokens; }
+        int totalOutputTokens() { return totalOutputTokens; }
+        double totalCost() { return totalCost; }
 
         void add(TokenUsage usage) {
             if (usage == null) return;

@@ -469,14 +469,34 @@ public final class TaskTool implements Tool {
     @Override
     public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
         String text = result.content();
-        String summary = text == null || text.isBlank() ? "" : text.lines().findFirst().orElse("");
+        boolean isSingle = !args.containsKey("tasks") && !args.containsKey("chain");
+        String summary;
         var body = new ArrayList<String>();
-        if (text != null && !text.isBlank()) {
-            text.lines()
-                .skip(1)
-                .limit(OUTPUT_PREVIEW_LINES)
-                .forEach(line -> body.add("│ " + line));
+
+        if (isSingle) {
+            summary = (String) args.getOrDefault("description",
+                args.getOrDefault("instructions", ""));
+            if (summary == null || summary.isBlank())
+                summary = text == null || text.isBlank() ? "" : Util.truncate(text, 60);
+            else
+                summary = Util.truncate(summary, 80);
+            if (text != null && !text.isBlank()) {
+                text.lines()
+                    .limit(OUTPUT_PREVIEW_LINES)
+                    .filter(line -> !line.isBlank())
+                    .forEach(line -> body.add("│ " + line));
+            }
+        } else {
+            summary = text == null || text.isBlank() ? "" : text.lines().findFirst().orElse("");
+            if (text != null && !text.isBlank()) {
+                text.lines()
+                    .skip(1)
+                    .limit(OUTPUT_PREVIEW_LINES)
+                    .filter(line -> !line.isBlank())
+                    .forEach(line -> body.add("│ " + line));
+            }
         }
+
         Object logs = result.details().get("logFiles");
         if (logs instanceof List<?> list) {
             for (Object item : list) {

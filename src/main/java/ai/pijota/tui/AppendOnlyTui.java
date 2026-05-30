@@ -1369,7 +1369,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case AgentEvent.Compaction c -> {
                 int remaining = c.compactedMessages().size();
                 int compactedMsgs = c.oldCount() - remaining;
-                int estTokens = c.totalChars() / 4;
+                int estTokens = c.estimatedTokens();
                 String reason = c.reason() != null && !c.reason().isBlank() ? " (" + c.reason() + ")" : "";
                 if (!compactionStreamRendered && c.summary() != null && !c.summary().isBlank()) {
                     renderFinalCompactionSummary(c.summary());
@@ -1431,6 +1431,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         String slot = null;
         if (line.startsWith("│ [✓]")) slot = "diffAdd";
         else if (line.startsWith("│ [~]")) slot = "statusWarn";
+        else if (line.startsWith("│ [−]")) slot = "toolError";
         if (slot == null) return theme.styled("statusText", line);
         return theme.styled("statusText", "│ ") + theme.styled(slot, line.substring(2));
     }
@@ -1633,7 +1634,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         terminalUi.redrawPrompt(decorate(promptEditor.snapshot()));
     }
 
+    private volatile long realInputTokens;
+    private volatile long realOutputTokens;
+
     private void addUsage(dev.langchain4j.model.output.TokenUsage usage) {
+        if (usage == null) return;
+        if (usage.inputTokenCount() != null) realInputTokens += usage.inputTokenCount();
+        if (usage.outputTokenCount() != null) realOutputTokens += usage.outputTokenCount();
     }
 
     private String tokenStatus() {

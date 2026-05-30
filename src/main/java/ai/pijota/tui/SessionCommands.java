@@ -157,27 +157,31 @@ final class SessionCommands {
             switch (m) {
                 case Message.System s -> { systems++; sysChars += s.content().length(); }
                 case Message.User u -> { users++; userChars += u.content().length(); }
-                case Message.Assistant a -> { assistants++; assistantChars += (a.content() != null ? a.content().length() : 0); }
+                case Message.Assistant a -> {
+                    assistants++;
+                    assistantChars += a.content() != null ? a.content().length() : 0;
+                    if (a.thinking() != null) assistantChars += a.thinking().length();
+                }
                 case Message.ToolResult tr -> { tools++; toolChars += tr.content().length(); }
                 case Message.CompactionSummary _ -> compactions++;
                 default -> {}
             }
         }
         long totalChars = sysChars + userChars + assistantChars + toolChars;
-        long estTokens = totalChars / 4;
+        int estTokens = (int) Math.ceil(totalChars / 4.0);
         var lines = new ArrayList<String>();
-        lines.add(host.styled("toolLabel", "context  " + msgs.size() + " msgs  " + fmtCount((int) estTokens)
+        lines.add(host.styled("toolLabel", "context  " + msgs.size() + " msgs  " + fmtCount(estTokens)
             + " est tokens  " + host.tokenStatus()));
         lines.add(host.styled("statusText", "  auto-compact  "
             + (host.settings() == null || host.settings().compactionEnabled() ? "on" : "off")));
         if (systems > 0) lines.add(host.styled("statusText",
-            "  system     " + systems + " msg  " + fmtCount((int)(sysChars / 4)) + " est tokens"));
+            "  system     " + systems + " msg  " + fmtCount((int) Math.ceil(sysChars / 4.0)) + " est tokens"));
         lines.add(host.styled("statusText",
-            "  user       " + users + " msgs  " + fmtCount((int)(userChars / 4)) + " est tokens"));
+            "  user       " + users + " msgs  " + fmtCount((int) Math.ceil(userChars / 4.0)) + " est tokens"));
         lines.add(host.styled("statusText",
-            "  assistant  " + assistants + " msgs  " + fmtCount((int)(assistantChars / 4)) + " est tokens"));
+            "  assistant  " + assistants + " msgs  " + fmtCount((int) Math.ceil(assistantChars / 4.0)) + " est tokens"));
         lines.add(host.styled("statusText",
-            "  tool       " + tools + " msgs  " + fmtCount((int)(toolChars / 4)) + " est tokens"));
+            "  tool       " + tools + " msgs  " + fmtCount((int) Math.ceil(toolChars / 4.0)) + " est tokens"));
         if (compactions > 0) {
             lines.add(host.styled("statusText", "  compactions  " + compactions));
             for (var m : msgs) {

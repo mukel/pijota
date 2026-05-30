@@ -22,7 +22,7 @@ public sealed interface AgentEvent {
     record CompactionStream(String content, String thinking) implements AgentEvent {}
     record CompactionStreamEnd() implements AgentEvent {}
 
-    record Compaction(List<Message> compactedMessages, int oldCount, int totalChars, String summary, String reason) implements AgentEvent {}
+    record Compaction(List<Message> compactedMessages, int oldCount, int estimatedChars, int estimatedTokens, String summary, String reason) implements AgentEvent {}
     record Error(Throwable throwable) implements AgentEvent {}
 
     static AgentEvent turnStart(int turn) { return new TurnStart(turn); }
@@ -39,8 +39,8 @@ public sealed interface AgentEvent {
     static AgentEvent messageStreamEnd(String type) { return new MessageStreamEnd(type); }
     static AgentEvent compactionStream(String content, String thinking) { return new CompactionStream(content, thinking); }
     static AgentEvent compactionStreamEnd() { return new CompactionStreamEnd(); }
-    static AgentEvent compaction(List<Message> compacted, int oldCount, int totalChars, String summary, String reason) {
-        return new Compaction(compacted, oldCount, totalChars, summary, reason);
+    static AgentEvent compaction(List<Message> compacted, int oldCount, int estimatedChars, int estimatedTokens, String summary, String reason) {
+        return new Compaction(compacted, oldCount, estimatedChars, estimatedTokens, summary, reason);
     }
     static AgentEvent error(Throwable t) { return new Error(t); }
 }

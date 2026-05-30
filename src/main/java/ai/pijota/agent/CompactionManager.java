@@ -58,16 +58,16 @@ public final class CompactionManager {
             List<Message> messages,
             java.util.function.Consumer<List<Message>> onCompact) {
 
-        int totalChars = estimateChars(messages);
-        int totalTokens = estimateTokens(messages);
+        int estimatedChars = estimateChars(messages);
+        int estimatedTokens = estimateTokens(messages);
         int limit = Math.max(0, contextWindow - reserveTokens);
 
-        if (!enabled || totalTokens < limit) {
-            return new CompactionResult(false, totalChars, 0);
+        if (!enabled || estimatedTokens < limit) {
+            return new CompactionResult(false, estimatedChars, estimatedTokens, 0);
         }
 
         int compactedCount = compact(messages, null, onCompact, null);
-        return new CompactionResult(true, totalChars, compactedCount);
+        return new CompactionResult(true, estimatedChars, estimatedTokens, compactedCount);
     }
 
     public CompactionResult compactNow(
@@ -82,9 +82,10 @@ public final class CompactionManager {
             String instructions,
             java.util.function.Consumer<List<Message>> onCompact,
             BiConsumer<String, String> onPartial) {
-        int totalChars = estimateChars(messages);
+        int estimatedChars = estimateChars(messages);
+        int estimatedTokens = estimateTokens(messages);
         int compactedCount = compact(messages, instructions, onCompact, onPartial);
-        return new CompactionResult(compactedCount > 0, totalChars, compactedCount);
+        return new CompactionResult(compactedCount > 0, estimatedChars, estimatedTokens, compactedCount);
     }
 
     private int compact(List<Message> messages,
@@ -201,7 +202,9 @@ public final class CompactionManager {
     }
 
     public static int estimateChars(List<Message> messages) {
-        return estimateTokens(messages);
+        int total = 0;
+        for (var msg : messages) total += charCount(msg);
+        return total;
     }
 
     public static int estimateTokens(List<Message> messages) {
@@ -211,11 +214,25 @@ public final class CompactionManager {
     }
 
     public static int estimateChars(Message msg) {
-        return estimateTokens(msg);
+        return charCount(msg);
     }
 
     public static int estimateTokens(Message msg) {
         return Math.max(1, tokenCount(msg));
+    }
+
+    private static int charCount(Message msg) {
+        if (msg instanceof Message.User u) return u.content().length();
+        if (msg instanceof Message.Assistant a) {
+            int chars = a.content() != null ? a.content().length() : 0;
+            if (a.thinking() != null) chars += a.thinking().length();
+            return chars;
+        }
+        if (msg instanceof Message.ToolResult tr) return tr.content().length();
+        if (msg instanceof Message.System s) return s.content().length();
+        if (msg instanceof Message.CompactionSummary cs) return cs.summary().length();
+        if (msg instanceof Message.BranchSummary bs) return bs.summary().length();
+        return 0;
     }
 
     private static int tokenCount(Message msg) {
@@ -249,5 +266,5 @@ public final class CompactionManager {
         void accept(String summary, int compactedCount, String firstKeptEntryId);
     }
 
-    public record CompactionResult(boolean compacted, int totalChars, int compactedCount) {}
+    public record CompactionResult(boolean compacted, int estimatedChars, int estimatedTokens, int compactedCount) {}
 }

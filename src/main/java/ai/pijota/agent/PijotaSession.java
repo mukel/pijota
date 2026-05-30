@@ -82,11 +82,13 @@ public final class PijotaSession implements AutoCloseable {
                 case AgentEvent.MessageStreamStart(String _) -> extensionRegistry.fireMessageStart();
                 case AgentEvent.MessageStreamDelta(String delta) -> extensionRegistry.fireMessageUpdate(delta);
                 case AgentEvent.MessageStreamEnd(String _) -> extensionRegistry.fireMessageEnd();
-                case AgentEvent.AssistantMessage(Message.Assistant msg, _) -> {
-                    Path file = this.sessionFile;
-                    if (!disableSession && file != null) {
-                        try { sessionManager.appendMessage(file, msg); }
-                        catch (IOException e) { rememberSessionWarning("assistant message save", e); }
+                case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
+                    if (usage != null) {
+                        Path file = this.sessionFile;
+                        if (!disableSession && file != null) {
+                            try { sessionManager.appendMessage(file, msg); }
+                            catch (IOException e) { rememberSessionWarning("assistant message save", e); }
+                        }
                     }
                 }
                 case AgentEvent.ToolResult(Message.ToolResult msg) -> {

@@ -154,10 +154,11 @@ public final class AgentLoop implements AgentContext {
             extensionRegistry.fireSessionBeforeCompact(false, reason);
         var messages = history.mutableList();
         int sizeBefore = messages.size();
-        int totalChars = CompactionManager.estimateChars(messages);
+        int estimatedChars = CompactionManager.estimateChars(messages);
+        int estimatedTokens = CompactionManager.estimateTokens(messages);
         var result = strategy.apply(messages, compacted -> {
             fireEvent(AgentEvent.compactionStreamEnd());
-            fireEvent(AgentEvent.compaction(compacted, sizeBefore, totalChars,
+            fireEvent(AgentEvent.compaction(compacted, sizeBefore, estimatedChars, estimatedTokens,
                 compactionSummary(compacted), reason));
         }, (content, thinking) -> fireEvent(AgentEvent.compactionStream(content, thinking)));
         if (extensionRegistry != null)

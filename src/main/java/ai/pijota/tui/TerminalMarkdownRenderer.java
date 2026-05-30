@@ -118,7 +118,10 @@ final class TerminalMarkdownRenderer {
     private String highlightPrefix(String prefix) {
         int i = 0;
         while (i < prefix.length() && Character.isWhitespace(prefix.charAt(i))) i++;
-        String slot = prefix.startsWith("#", i) ? "heading" : "dim";
+        String slot = "dim";
+        if (i < prefix.length() && Character.isDigit(prefix.charAt(i))) {
+            slot = "statusText";
+        }
         return prefix.substring(0, i) + slotStyled(slot, prefix.substring(i));
     }
 
