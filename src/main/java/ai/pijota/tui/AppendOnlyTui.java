@@ -324,8 +324,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(List.of(
             theme.styled("bannerName", "pijota " + version)
                 + theme.styled("bannerMeta", " · " + provider + "/" + model),
-            theme.styled("bannerMeta", shortenCwd(cwd))
-                + theme.styled("statusText", "  ·  Enter submits · Ctrl+J newline · Tab completes · /help")
+            theme.styled("statusText", "Type /help for available commands")
         ));
     }
 
