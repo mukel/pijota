@@ -732,9 +732,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var cfg = settings.config();
         boolean context = settings.contextFilesEnabled();
         boolean compact = settings.compactionEnabled();
+        boolean shorten = settings.shortenPathsEnabled();
         return List.of(
             new SettingsItem("auto_compact", "Auto-compact", compact ? "on" : "off", compact),
             new SettingsItem("context_files", "Context files", context ? "on  next session" : "off  next session", context),
+            new SettingsItem("shorten_paths", "Shorten paths", shorten ? "on" : "off", shorten),
             new SettingsItem("thinking_level", "Thinking", thinkingLevel.label(), true),
             new SettingsItem("hide_thinking", "Hide thinking", cfg.hideThinking() ? "on" : "off", cfg.hideThinking()),
             new SettingsItem("quiet_startup", "Quiet startup", cfg.quietStartup() ? "on  next start" : "off  next start", cfg.quietStartup())
@@ -753,6 +755,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
             case "hide_thinking" -> settings.setHideThinking(!settings.config().hideThinking());
             case "quiet_startup" -> settings.setQuietStartup(!settings.config().quietStartup());
+            case "shorten_paths" -> settings.setShortenPathsEnabled(!settings.shortenPathsEnabled());
             default -> {}
         }
         selectors.settings.setItems(settingsItems());
@@ -1340,7 +1343,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 var parts = new ArrayList<String>();
                 parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", "●"));
                 parts.add(theme.styled("statusText", msg.toolName()));
-                String detail = ToolRender.detail(msg.toolName(), pendingEdit.toolArgs(), cwd);
+                String detail = ToolRender.detail(msg.toolName(), pendingEdit.toolArgs(), cwd,
+                    settings != null && settings.shortenPathsEnabled());
                 if (!detail.isBlank()) parts.add(theme.styled("statusText", detail));
                 Tool.ToolResultView rendered = renderToolResultView(msg);
                 String summary = rendered != null ? rendered.summary() : toolResultSummary(msg);

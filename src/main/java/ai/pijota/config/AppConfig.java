@@ -26,6 +26,7 @@ public record AppConfig(
     @JsonProperty("context_files") Boolean contextFiles,
     @JsonProperty("hide_thinking") boolean hideThinking,
     @JsonProperty("quiet_startup") boolean quietStartup,
+    @JsonProperty("shorten_paths") boolean shortenPaths,
     @JsonProperty("max_retries") int maxRetries,
     @JsonProperty("retry_base_delay_ms") long retryBaseDelayMs,
     @JsonProperty("compaction") CompactionConfig compaction
@@ -33,7 +34,7 @@ public record AppConfig(
     public AppConfig() {
         this(null, null, Map.of(), "medium",
              "/bin/bash", null, null, null, List.of(), List.of(), true,
-               false, false, 3, 2000L,
+               false, false, true, 3, 2000L,
               new CompactionConfig());
     }
 
@@ -54,7 +55,7 @@ public record AppConfig(
         updated.put(provider, apiKey);
         return new AppConfig(provider, defaultModel, updated, thinkingLevel, shellPath,
             shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
-            maxRetries, retryBaseDelayMs, compaction);
+            shortenPaths, maxRetries, retryBaseDelayMs, compaction);
     }
 
     public AppConfig withoutApiKey(String provider) {
@@ -62,38 +63,44 @@ public record AppConfig(
         updated.remove(provider);
         return new AppConfig(defaultProvider, defaultModel, updated, thinkingLevel, shellPath,
             shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
-            maxRetries, retryBaseDelayMs, compaction);
+            shortenPaths, maxRetries, retryBaseDelayMs, compaction);
     }
 
     public AppConfig withDefaultProviderModel(String provider, String model) {
         return new AppConfig(provider, model, apiKeys, thinkingLevel, shellPath,
             shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
-            maxRetries, retryBaseDelayMs, compaction);
+            shortenPaths, maxRetries, retryBaseDelayMs, compaction);
     }
 
     public AppConfig withContextFiles(boolean enabled) {
         return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath,
             shellCommandPrefix, sessionDir, theme, themes, enabledModels, enabled, hideThinking, quietStartup,
-            maxRetries, retryBaseDelayMs, compaction);
+            shortenPaths, maxRetries, retryBaseDelayMs, compaction);
     }
 
     public AppConfig withHideThinking(boolean enabled) {
         return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath,
             shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, enabled, quietStartup,
-            maxRetries, retryBaseDelayMs, compaction);
+            shortenPaths, maxRetries, retryBaseDelayMs, compaction);
     }
 
     public AppConfig withQuietStartup(boolean enabled) {
         return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath,
             shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, hideThinking, enabled,
-            maxRetries, retryBaseDelayMs, compaction);
+            shortenPaths, maxRetries, retryBaseDelayMs, compaction);
+    }
+
+    public AppConfig withShortenPaths(boolean enabled) {
+        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath,
+            shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
+            enabled, maxRetries, retryBaseDelayMs, compaction);
     }
 
     public AppConfig withCompactionEnabled(boolean enabled) {
         var current = compaction != null ? compaction : new CompactionConfig();
         return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath,
             shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
-            maxRetries, retryBaseDelayMs,
+            shortenPaths, maxRetries, retryBaseDelayMs,
             new CompactionConfig(enabled, current.reserveTokens(), current.keepRecentTokens()));
     }
 

@@ -12,20 +12,20 @@ final class ToolRender {
 
     private ToolRender() {}
 
-    static String trace(String toolName, Supplier<String> args, String cwd) {
+    static String trace(String toolName, Supplier<String> args, String cwd, boolean shortenPaths) {
         Map<String, Object> a = parse(args);
         if (a.isEmpty()) return "→ " + toolName;
         return switch (toolName) {
-            case "read" -> "→ Read " + displayPath(pathArg(a), cwd) + options(a, "offset", "limit");
-            case "write" -> "→ Write " + displayPath(pathArg(a), cwd);
-            case "edit" -> "→ Edit " + displayPath(pathArg(a), cwd);
+            case "read" -> "→ Read " + displayPath(pathArg(a), cwd, shortenPaths) + options(a, "offset", "limit");
+            case "write" -> "→ Write " + displayPath(pathArg(a), cwd, shortenPaths);
+            case "edit" -> "→ Edit " + displayPath(pathArg(a), cwd, shortenPaths);
             case "grep" -> "✱ Grep " + quote(a.get("pattern")) + " in "
-                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
                 + options(a, "glob", "context", "limit");
             case "glob" -> "✱ Glob " + quote(a.get("pattern")) + " in "
-                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
                 + options(a, "limit");
-            case "ls" -> "→ Ls " + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+            case "ls" -> "→ Ls " + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
                 + options(a, "limit");
             case "bash" -> "→ Bash " + quote(shorten(a.getOrDefault("command", "").toString(), 80));
             case "question" -> "→ Question " + shorten(questionText(a), 80);
@@ -37,21 +37,21 @@ final class ToolRender {
         };
     }
 
-    static String detail(String toolName, Supplier<String> args, String cwd) {
+    static String detail(String toolName, Supplier<String> args, String cwd, boolean shortenPaths) {
         Map<String, Object> a = parse(args);
         if (a.isEmpty()) return "";
         return switch (toolName) {
-            case "read" -> displayPath(pathArg(a), cwd) + options(a, "offset", "limit");
-            case "write", "edit" -> displayPath(pathArg(a), cwd);
+            case "read" -> displayPath(pathArg(a), cwd, shortenPaths) + options(a, "offset", "limit");
+            case "write", "edit" -> displayPath(pathArg(a), cwd, shortenPaths);
             case "bash" -> quote(shorten(a.getOrDefault("command", "").toString(), 60));
             case "question" -> shorten(questionText(a), 60);
-            case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd)
+            case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
                 + options(a, "limit");
             case "grep" -> quote(a.get("pattern")) + " in "
-                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
                 + options(a, "glob", "context", "limit");
             case "glob" -> quote(a.get("pattern")) + " in "
-                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
                 + options(a, "limit");
             case "task" -> taskDetail(a);
             case "webfetch" -> shorten(a.getOrDefault("url", "").toString(), 60);
@@ -70,6 +70,22 @@ final class ToolRender {
     private static Map<String, Object> parse(Supplier<String> args) {
         if (args == null) return Map.of();
         return Util.parseJsonArgs(args.get());
+    }
+
+    private static String displayPath(String path, String cwd, boolean shorten) {
+        String result = displayPath(path, cwd);
+        if (shorten && result != null && !result.isBlank() && !result.equals(".")) {
+            Path p = Path.of(result);
+            Path name = p.getFileName();
+            if (name != null && p.getNameCount() > 1) {
+                Path parent = p.getParent();
+                if (parent != null && !parent.toString().isEmpty() && !parent.toString().equals(".")) {
+                    return parent.getFileName() + "/" + name;
+                }
+            }
+            return result;
+        }
+        return result;
     }
 
     private static String displayPath(String path, String cwd) {

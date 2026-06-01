@@ -51,6 +51,15 @@ public final class SettingsManager {
         save();
     }
 
+    public boolean shortenPathsEnabled() {
+        return config.shortenPaths();
+    }
+
+    public void setShortenPathsEnabled(boolean enabled) {
+        config = config.withShortenPaths(enabled);
+        save();
+    }
+
     public Path sessionDir() {
         String custom = config.sessionDir();
         if (custom != null && !custom.isBlank()) {
