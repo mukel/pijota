@@ -37,6 +37,8 @@ public sealed interface ExtensionEvent {
 
     record UserBash(String command, boolean excludeFromContext, Path cwd) implements ExtensionEvent {}
 
+    record BashToolCall(String toolCallId, String command, String workdir, long timeoutSec) implements ExtensionEvent {}
+
     record Input(String text, boolean handled) implements ExtensionEvent {
         public Input(String text) { this(text, false); }
         public Input markHandled() { return new Input(text, true); }

@@ -156,7 +156,6 @@ final class ToolRender {
     }
 
     private static String shorten(String s, int max) {
-        if (s == null || s.isBlank()) return "";
-        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
+        return Util.truncateWords(s, max);
     }
 }

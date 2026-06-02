@@ -164,6 +164,7 @@ public final class ExtensionRegistry {
             case ExtensionEvent.BeforeProviderRequest _ -> "before_provider_request";
             case ExtensionEvent.ModelSelect _ -> "model_select";
             case ExtensionEvent.UserBash _ -> "user_bash";
+            case ExtensionEvent.BashToolCall _ -> "bash_tool_call";
             case ExtensionEvent.Input e -> e.handled() ? "input_handled" : "input";
         };
     }
@@ -210,8 +211,38 @@ public final class ExtensionRegistry {
         fire(new ExtensionEvent.ModelSelect(model, previousModel, source));
     }
 
-    public void fireUserBash(String command, boolean excludeFromContext) {
-        fire(new ExtensionEvent.UserBash(command, excludeFromContext, cwd != null ? cwd : Path.of("")));
+    public ExtensionResult.UserBashResult fireUserBash(String command, boolean excludeFromContext) {
+        var event = new ExtensionEvent.UserBash(command, excludeFromContext, cwd != null ? cwd : Path.of(""));
+        var handlerCtx = new ExtensionContext(uiContext, runtime);
+        var handlers = listeners.getOrDefault("user_bash", List.of());
+        for (var handler : handlers) {
+            try {
+                Object result = handler.apply(event, handlerCtx);
+                if (result instanceof ExtensionResult.UserBashResult r && r.blocked()) {
+                    return r;
+                }
+            } catch (Exception e) {
+                log.warn("user_bash handler error: {}", e.getMessage());
+            }
+        }
+        return ExtensionResult.UserBashResult.allow();
+    }
+
+    public ExtensionResult.BashToolCallResult fireBashToolCall(String toolCallId, String command, String workdir, long timeoutSec) {
+        var event = new ExtensionEvent.BashToolCall(toolCallId, command, workdir, timeoutSec);
+        var handlerCtx = new ExtensionContext(uiContext, runtime);
+        var handlers = listeners.getOrDefault("bash_tool_call", List.of());
+        for (var handler : handlers) {
+            try {
+                Object result = handler.apply(event, handlerCtx);
+                if (result instanceof ExtensionResult.BashToolCallResult r && r.blocked()) {
+                    return r;
+                }
+            } catch (Exception e) {
+                log.warn("bash_tool_call handler error: {}", e.getMessage());
+            }
+        }
+        return ExtensionResult.BashToolCallResult.allow();
     }
 
     // -- user input --
@@ -375,7 +406,15 @@ public final class ExtensionRegistry {
         @Override public ExtensionAPI onToolExecutionEnd(BiConsumer<ExtensionEvent.ToolExecutionEnd, ExtensionContext> h) { return on("tool_execution_end", h); }
         @Override public ExtensionAPI onBeforeProviderRequest(BiConsumer<ExtensionEvent.BeforeProviderRequest, ExtensionContext> h) { return on("before_provider_request", h); }
         @Override public ExtensionAPI onModelSelect(BiConsumer<ExtensionEvent.ModelSelect, ExtensionContext> h) { return on("model_select", h); }
-        @Override public ExtensionAPI onUserBash(BiConsumer<ExtensionEvent.UserBash, ExtensionContext> h) { return on("user_bash", h); }
+        @Override public ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler) {
+            addListener("user_bash", (e, ctx) -> handler.apply((ExtensionEvent.UserBash) e, ctx));
+            return this;
+        }
+
+        @Override public ExtensionAPI onBashToolCall(BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler) {
+            addListener("bash_tool_call", (e, ctx) -> handler.apply((ExtensionEvent.BashToolCall) e, ctx));
+            return this;
+        }
 
         @Override public ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.ToolCall> handler) {
             addListener("tool_call", (e, ctx) -> handler.apply((ExtensionEvent.ToolCall) e, ctx));

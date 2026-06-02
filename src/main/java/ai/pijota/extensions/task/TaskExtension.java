@@ -59,7 +59,7 @@ public final class TaskExtension implements Extension {
         var lines = new ArrayList<String>();
         for (var state : agentStates.values()) {
             if (!"running".equals(state.state)) continue;
-            String base = String.format("  sub:%-14s  %d tools  %d lines  running",
+            String base = String.format("  task:%-13s  %d tools  %d lines  running",
                 state.name, state.toolCount, state.lines);
             if (state.logFile != null) {
                 base += "  " + state.logFile;

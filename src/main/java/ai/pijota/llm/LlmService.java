@@ -161,7 +161,9 @@ public final class LlmService implements AutoCloseable {
             var factory = ProviderFactory.resolve(p, customProviders);
             String url = customBaseUrl != null ? customBaseUrl
                 : ProviderCatalog.baseUrl(p);
-            return factory.create(url, apiKey, modelName, p, thinkingLevel);
+            String effectiveModel = modelName != null ? modelName
+                : ModelRegistry.defaultModelForProvider(p);
+            return factory.create(url, apiKey, effectiveModel, p, thinkingLevel);
         });
     }
 
@@ -217,9 +219,11 @@ public final class LlmService implements AutoCloseable {
     }
 
     private StreamingChatModel lc4jModelForModel(String m) {
+        String effectiveModel = (m != null && !m.isEmpty())
+            ? m : ModelRegistry.defaultModelForProvider(providerName);
         var factory = ProviderFactory.resolve(providerName, customProviders);
         String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(providerName);
-        return factory.create(url, apiKey, m, providerName, thinkingLevel);
+        return factory.create(url, apiKey, effectiveModel, providerName, thinkingLevel);
     }
 
     public String provider() { return providerName; }
@@ -228,7 +232,7 @@ public final class LlmService implements AutoCloseable {
 
     public void setModelName(String name) {
         String old = this.modelName;
-        this.modelName = name;
+        this.modelName = name != null ? name : ModelRegistry.defaultModelForProvider(this.providerName);
         modelCache.clear();
         if (modelChangeCallback != null && !name.equals(old))
             modelChangeCallback.accept(old, name);
@@ -241,7 +245,7 @@ public final class LlmService implements AutoCloseable {
     public void setProviderAndModel(String newProvider, String newModel, String newApiKey) {
         String old = this.modelName;
         this.providerName = newProvider;
-        this.modelName = newModel;
+        this.modelName = newModel != null ? newModel : ModelRegistry.defaultModelForProvider(newProvider);
         this.apiKey = newApiKey;
         modelCache.clear();
         if (modelChangeCallback != null && !newModel.equals(old))

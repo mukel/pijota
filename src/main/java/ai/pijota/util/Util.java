@@ -30,6 +30,15 @@ public final class Util {
         return s.substring(0, maxLen) + "...";
     }
 
+    public static String truncateWords(String s, int maxLen) {
+        if (s == null || s.length() <= maxLen) return truncate(s, maxLen);
+        int cut = maxLen - 3;
+        if (cut <= 0) return s.substring(0, maxLen) + "...";
+        int lastSpace = s.lastIndexOf(' ', cut);
+        if (lastSpace > cut / 2) return s.substring(0, lastSpace) + "...";
+        return s.substring(0, cut) + "...";
+    }
+
     public static String escapeJson(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"")
                 .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
@@ -109,6 +118,15 @@ public final class Util {
         Path p = Path.of(path);
         if (p.isAbsolute() || cwd == null || cwd.isBlank()) return p.normalize().toString();
         return Path.of(cwd).resolve(p).normalize().toString();
+    }
+
+    public static String relativePath(Path path, String cwd) {
+        try {
+            Path base = Path.of(cwd).toAbsolutePath().normalize();
+            Path abs = path.toAbsolutePath().normalize();
+            if (abs.startsWith(base)) return base.relativize(abs).toString();
+        } catch (Exception ignored) {}
+        return path.toString();
     }
 
     public static int countNewlines(String s) {

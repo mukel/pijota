@@ -51,10 +51,11 @@ public final class ReadTool implements Tool {
                 String pathStr = Util.resolvePath(args, cwd);
                 if (pathStr == null) return ToolResult.error("No path provided");
                 Path path = Path.of(pathStr);
+                String displayPath = Util.relativePath(path, cwd);
                 if (!Files.exists(path))
-                    return ToolResult.error("File not found: " + path);
+                    return ToolResult.error("File not found: " + displayPath);
                 if (Files.isDirectory(path))
-                    return ToolResult.error("Path is a directory: " + path);
+                    return ToolResult.error("Path is a directory: " + displayPath);
 
                 var lines = Files.readAllLines(path);
                 int totalLines = lines.size();

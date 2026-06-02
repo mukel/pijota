@@ -476,12 +476,15 @@ public final class TaskTool implements Tool {
         if (isSingle) {
             summary = (String) args.getOrDefault("description",
                 args.getOrDefault("instructions", ""));
-            if (summary == null || summary.isBlank())
-                summary = text == null || text.isBlank() ? "" : Util.truncate(text, 60);
+            boolean fromDescription = summary != null && !summary.isBlank();
+            if (fromDescription)
+                summary = Util.truncateWords(summary, 50);
             else
-                summary = Util.truncate(summary, 80);
+                summary = text == null || text.isBlank() ? "" : Util.truncateWords(text, 50);
             if (text != null && !text.isBlank()) {
-                text.lines()
+                var stream = text.lines();
+                if (!fromDescription) stream = stream.skip(1);
+                stream
                     .limit(OUTPUT_PREVIEW_LINES)
                     .filter(line -> !line.isBlank())
                     .forEach(line -> body.add("│ " + line));

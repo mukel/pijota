@@ -46,7 +46,11 @@ public interface ExtensionAPI {
 
     // ---- user bash ----
 
-    ExtensionAPI onUserBash(BiConsumer<ExtensionEvent.UserBash, ExtensionContext> handler);
+    ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler);
+
+    // ---- bash tool call (LLM-initiated) ----
+
+    ExtensionAPI onBashToolCall(BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler);
 
     // ---- input ----
 
