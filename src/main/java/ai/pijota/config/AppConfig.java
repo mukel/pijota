@@ -34,7 +34,7 @@ public record AppConfig(
     public AppConfig() {
         this(null, null, Map.of(), "medium",
              "/bin/bash", null, null, null, List.of(), List.of(), true,
-               false, false, true, 3, 2000L,
+               false, false, false, 3, 2000L,
               new CompactionConfig());
     }
 
