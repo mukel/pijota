@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public final class TaskTool implements Tool {
     private static final int MAX_CONCURRENCY = 4;
-    private static final int OUTPUT_PREVIEW_LINES = 6;
+    private static final int OUTPUT_PREVIEW_LINES = 12;
 
     private final List<SubAgent> agents;
     private final LlmService llm;

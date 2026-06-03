@@ -1470,16 +1470,19 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private Tool.ToolResultView renderToolResultView(Message.ToolResult msg) {
-        if (!"bash".equals(msg.toolName()) && !"task".equals(msg.toolName())
-            && !"todowrite".equals(msg.toolName())) return null;
-        var args = pendingEdit.toolArgs() != null
-            ? Util.parseJsonArgs(pendingEdit.toolArgs().get())
-            : Map.<String, Object>of();
-        return session.agentLoop().toolRegistry().get(msg.toolName())
-            .map(tool -> tool.renderResult(args,
-                new Tool.ToolResult(msg.content(), msg.isError(),
-                    msg.details() == null ? Map.of() : msg.details()), cwd))
-            .orElse(null);
+        return switch (msg.toolName()) {
+            case "bash", "task", "todowrite", "read", "grep", "write", "edit" -> {
+                var args = pendingEdit.toolArgs() != null
+                    ? Util.parseJsonArgs(pendingEdit.toolArgs().get())
+                    : Map.<String, Object>of();
+                yield session.agentLoop().toolRegistry().get(msg.toolName())
+                    .map(tool -> tool.renderResult(args,
+                        new Tool.ToolResult(msg.content(), msg.isError(),
+                            msg.details() == null ? Map.of() : msg.details()), cwd))
+                    .orElse(null);
+            }
+            default -> null;
+        };
     }
 
     private int softLineLimit() {
