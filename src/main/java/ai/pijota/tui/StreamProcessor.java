@@ -36,7 +36,7 @@ final class StreamProcessor {
 
     String stripAndFilter(String line) {
         String cleaned = stripSystemReminders(line);
-        if (cleaned.isBlank() || isReasoningMetaLine(cleaned.strip())) return null;
+        if (isReasoningMetaLine(cleaned.strip())) return null;
         return cleaned;
     }
 

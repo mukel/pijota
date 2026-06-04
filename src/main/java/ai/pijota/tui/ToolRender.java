@@ -95,7 +95,11 @@ final class ToolRender {
             Path resolved = Path.of(path);
             if (!resolved.isAbsolute()) resolved = base.resolve(resolved);
             resolved = resolved.toAbsolutePath().normalize();
-            if (resolved.startsWith(base)) return base.relativize(resolved).toString();
+            if (resolved.startsWith(base)) {
+                Path rel = base.relativize(resolved);
+                String s = rel.toString();
+                return s.isEmpty() ? "." : s;
+            }
         } catch (Exception ignored) {}
         String home = System.getProperty("user.home");
         return home != null && path.startsWith(home) ? "~" + path.substring(home.length()) : path;

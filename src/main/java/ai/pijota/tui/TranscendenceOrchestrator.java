@@ -96,6 +96,7 @@ final class TranscendenceOrchestrator {
 
         long gen = host.beginBusy("transcending");
         boolean keepBusy = false;
+        long buildStart = System.currentTimeMillis();
         try {
             if (showHeader) appendHeader();
             host.redrawPrompt();
@@ -104,19 +105,19 @@ final class TranscendenceOrchestrator {
                 Path currentJar = SelfRespawn.findCurrentJar();
                 SelfRespawn.backupJar(currentJar);
             } catch (Exception e) {
-                appendFailure(List.of("✕ preserve current build"),
+                appendFailure(List.of(step("✕", "preserve current build")),
                     "Cannot preserve current build: " + e.getMessage(), null);
                 return;
             }
 
-            host.appendPlain(List.of(host.styled("statusText", "  ✓ preserved current build")));
+            host.appendPlain(List.of(host.styled("statusText", "  ") + stepIcon("✓") + host.styled("statusText", " preserved current build")));
             host.redrawPrompt();
 
             ProcessRunner.Result buildResult;
             try {
                 buildResult = SelfRespawn.buildJar(root);
             } catch (Exception e) {
-                appendFailure(List.of("✓ preserved current build", "✕ compile new build"),
+                appendFailure(List.of(step("✓", "preserved current build"), step("✕", "compile new build")),
                     "Build error: " + e.getMessage(), null);
                 return;
             }
@@ -124,7 +125,7 @@ final class TranscendenceOrchestrator {
             Path log = writeLog("build", buildResult.stdout());
 
             if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
-                appendFailure(List.of("✓ preserved current build", "✕ compile new build"),
+                appendFailure(List.of(step("✓", "preserved current build"), step("✕", "compile new build")),
                     buildResult.timedOut() ? "Build timed out." : "Build exited " + buildResult.exitCode() + ".",
                     log);
                 return;
@@ -132,12 +133,16 @@ final class TranscendenceOrchestrator {
 
             Path jar = SelfRespawn.findJarIn(root);
             if (jar == null || !Files.exists(jar)) {
-                appendFailure(List.of("✓ preserved current build", "✕ compile new build"),
+                appendFailure(List.of(step("✓", "preserved current build"), step("✕", "compile new build")),
                     "Build finished, but no jar was found in " + root.resolve("target") + ".", log);
                 return;
             }
 
-            host.appendPlain(List.of(host.styled("statusText", "  ✓ compiled new build  " + jar.getFileName())));
+            double buildSec = (System.currentTimeMillis() - buildStart) / 1000.0;
+            host.appendPlain(List.of(host.styled("statusText", "  ") + stepIcon("✓")
+                + host.styled("statusText", " compiled ")
+                + host.styled("statusText", jar.getFileName().toString())
+                + host.styled("commandMeta", "  (" + String.format("%.1f", buildSec) + "s)")));
             host.redrawPrompt();
 
             Path sessionFile = host.sessionFile();
@@ -150,13 +155,13 @@ final class TranscendenceOrchestrator {
                 try {
                     int ec = SelfRespawn.runInteractive(jar, sessionFile, true);
                     host.resumeTui();
-                    host.appendPlain(List.of(host.styled("statusText", "  ✓ test instance exited  code " + ec),
+                    host.appendPlain(List.of(host.styled("statusText", "  ") + stepIcon("✓") + host.styled("statusText", " test instance exited  code " + ec),
                         "",
                         host.styled("toolLabel", "✓ Pijota test build is ready"),
                         host.styled("statusText", "  rollback: /transcend --rollback")));
                 } catch (Exception e) {
                     host.resumeTui();
-                    appendFailure(List.of("✓ preserved current build", "✓ compiled new build", "✕ launch test instance"),
+                    appendFailure(List.of(step("✓", "preserved current build"), step("✓", "compiled new build"), step("✕", "launch test instance")),
                         "Test instance error: " + e.getMessage(), log);
                 }
                 host.redrawPrompt();
@@ -170,7 +175,7 @@ final class TranscendenceOrchestrator {
             host.resumeTui();
             String err = SelfRespawn.lastRespawnError();
             if (err != null) {
-                appendFailure(List.of("✓ preserved current build", "✓ compiled new build", "✕ restart into new build"),
+                appendFailure(List.of(step("✓", "preserved current build"), step("✓", "compiled new build"), step("✕", "restart into new build")),
                     err, log);
             } else {
                 keepBusy = true;
@@ -182,6 +187,15 @@ final class TranscendenceOrchestrator {
                 host.redrawPrompt();
             }
         }
+    }
+
+    private String stepIcon(String icon) {
+        String slot = icon.equals("✓") ? "diffAdd" : "toolError";
+        return host.styled(slot, icon + " ");
+    }
+
+    private static String step(String icon, String label) {
+        return icon + " " + label;
     }
 
     private void appendHeader() {

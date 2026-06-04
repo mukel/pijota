@@ -146,6 +146,7 @@ public sealed interface PromptRegion
         }
 
         private static int rows(String text, int width) {
+            width = Math.max(1, width);
             int w = AnsiWidth.visibleWidth(text);
             if (w <= 0) return 0;
             return (w + width - 1) / width;

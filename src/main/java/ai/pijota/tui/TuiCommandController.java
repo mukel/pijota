@@ -43,6 +43,7 @@ final class TuiCommandController {
             case "/fork" -> tui.forkSession(input);
             case "/clone" -> tui.cloneSession();
             case "/transcend" -> tui.handleTranscend(commandArgs(input, cmd));
+            case "/skills" -> tui.showSkills();
             case "/whoami" -> tui.showWhoami();
             default -> handleUnknown(input, cmd);
         }

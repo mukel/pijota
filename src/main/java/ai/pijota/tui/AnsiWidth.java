@@ -92,7 +92,7 @@ final class AnsiWidth {
                 chunk.append(ch);
             } else {
                 int cw = charWidth(text, i);
-                if (visible >= maxWidth) {
+                if (visible > 0 && visible + cw > maxWidth) {
                     if (osc8Url != null) chunk.append("\033]8;;\033\\");
                     out.add(closeChunk(chunk, sgr.active()));
                     chunk.setLength(0);

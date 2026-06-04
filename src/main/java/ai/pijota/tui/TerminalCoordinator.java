@@ -101,7 +101,6 @@ final class TerminalCoordinator implements AutoCloseable {
 
     private void processBatch(List<UiOp> ops) {
         int width = Math.max(20, terminal.getWidth());
-        int appendWidth = Math.max(1, width - 4);
         var buf = new StringWriter();
         var out = new PrintWriter(buf);
 
@@ -115,11 +114,9 @@ final class TerminalCoordinator implements AutoCloseable {
             switch (op) {
                 case UiOp.Append append -> {
                     for (var line : append.lines()) {
-                        for (String visualLine : AnsiWidth.wrapPreservingAnsi(line.text(), appendWidth)) {
-                            out.print(CLEAR_LINE);
-                            out.print(visualLine);
-                            out.print("\r\n");
-                        }
+                        out.print(CLEAR_LINE);
+                        out.print(line.text());
+                        out.print("\r\n");
                     }
                 }
                 case UiOp.Prompt p -> {

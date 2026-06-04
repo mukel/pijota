@@ -13,6 +13,7 @@ final class StreamingMarkdownFormatter {
     private AnsiTheme theme;
     private boolean inFence;
     private SyntaxHighlighter highlighter;
+    private boolean previousNonBlank;
 
     public StreamingMarkdownFormatter(AnsiTheme theme) {
         this(theme, null);
@@ -38,7 +39,11 @@ final class StreamingMarkdownFormatter {
         String stripped = line.stripLeading();
         String marker = fenceMarker(stripped);
         if (marker != null) return toggleFence(stripped, marker);
-        if (inFence) return renderer.renderCodeLine(line, highlighter);
+        if (inFence) {
+            var rendered = renderer.renderCodeLine(line, highlighter);
+            previousNonBlank = true;
+            return rendered;
+        }
         return renderChunks(buffer.accept(line));
     }
 
@@ -47,6 +52,7 @@ final class StreamingMarkdownFormatter {
         if (inFence) {
             leaveFence();
             out.add(renderer.renderFenceClose());
+            previousNonBlank = true;
         }
         return out;
     }
@@ -54,6 +60,7 @@ final class StreamingMarkdownFormatter {
     public void reset() {
         buffer.clear();
         leaveFence();
+        previousNonBlank = false;
     }
 
     private List<StyledLine> toggleFence(String stripped, String marker) {
@@ -65,6 +72,7 @@ final class StreamingMarkdownFormatter {
             String info = enterFence(stripped, marker);
             out.add(renderer.renderFenceOpen(info));
         }
+        previousNonBlank = true;
         return out;
     }
 
@@ -83,8 +91,17 @@ final class StreamingMarkdownFormatter {
     private List<StyledLine> renderChunks(List<MarkdownChunk> chunks) {
         var out = new ArrayList<StyledLine>();
         for (var chunk : chunks) {
-            if (chunk.blankLine()) out.add(StyledLine.of(""));
-            else out.addAll(renderer.render(chunk.markdown()));
+            if (chunk.blankLine()) {
+                out.add(StyledLine.of(""));
+                previousNonBlank = false;
+                continue;
+            }
+            if (previousNonBlank && TerminalMarkdownRenderer.startsWithHeading(chunk.markdown())) {
+                out.add(StyledLine.of(""));
+            }
+            var rendered = renderer.render(chunk.markdown());
+            out.addAll(rendered);
+            previousNonBlank = rendered.stream().anyMatch(line -> !line.text().isEmpty());
         }
         return out;
     }

@@ -683,6 +683,22 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
+    void showSkills() {
+        if (skills.isEmpty()) {
+            appendPlain(List.of(theme.styled("statusText", "no skills found")));
+            return;
+        }
+        var lines = new ArrayList<String>();
+        lines.add(theme.styled("toolLabel", "skills (" + skills.size() + ")"));
+        for (var s : skills) {
+            String desc = s.description() != null && !s.description().isBlank()
+                ? "  " + s.description() : "";
+            lines.add(theme.styled("statusText", "  " + s.name()) + theme.styled("commandMeta", desc));
+        }
+        lines.add(theme.styled("statusText", "usage: /skill:<name> [instructions]"));
+        appendPlain(lines);
+    }
+
     void handleSkillCommand(String input) {
         String rest = input.substring("/skill:".length());
         String name = rest;
@@ -1532,7 +1548,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void appendFilteredAssistantLine(String line, List<StyledLine> out) {
         String cleaned = streamProc.stripAndFilter(line);
-        if (cleaned != null && !cleaned.isBlank()) out.addAll(markdown.format(cleaned));
+        if (cleaned != null) out.addAll(markdown.format(cleaned));
     }
 
     void appendPlain(List<String> lines) {

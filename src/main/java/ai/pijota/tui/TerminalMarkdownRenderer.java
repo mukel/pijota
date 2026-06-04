@@ -78,8 +78,30 @@ final class TerminalMarkdownRenderer {
 
     private List<StyledLine> renderSource(String markdown) {
         var out = new ArrayList<StyledLine>();
-        for (String line : markdown.split("\\R", -1)) out.add(StyledLine.of(highlightSourceLine(line)));
+        boolean prevNonBlank = false;
+        for (String line : markdown.split("\\R", -1)) {
+            if (isHeadingLine(line) && prevNonBlank)
+                out.add(StyledLine.of(""));
+            out.add(StyledLine.of(highlightSourceLine(line)));
+            prevNonBlank = !line.isEmpty();
+        }
         return out;
+    }
+
+    static boolean startsWithHeading(String markdown) {
+        if (markdown == null || markdown.isEmpty()) return false;
+        int end = markdown.indexOf('\n');
+        String firstLine = end >= 0 ? markdown.substring(0, end) : markdown;
+        return isHeadingLine(firstLine);
+    }
+
+    private static boolean isHeadingLine(String line) {
+        int i = 0;
+        while (i < line.length() && line.charAt(i) == ' ') i++;
+        if (i >= line.length() || line.charAt(i) != '#') return false;
+        int n = 0;
+        while (i + n < line.length() && line.charAt(i + n) == '#') n++;
+        return n < line.length() && line.charAt(i + n) == ' ';
     }
 
     private String highlightSourceLine(String line) {
@@ -87,7 +109,7 @@ final class TerminalMarkdownRenderer {
         int prefixEnd = markdownPrefixEnd(line);
         String prefix = prefixEnd == 0 ? "" : highlightPrefix(line.substring(0, prefixEnd));
         String body = line.substring(prefixEnd);
-        if (isHeadingPrefix(line, prefixEnd)) return prefix + slotStyled("heading", body);
+        if (isHeadingPrefix(line, prefixEnd)) return prefix + headingBody(body);
         String highlightedBody = highlightInlineSource(body);
         if (plainSlot != null && prefixEnd == 0 && highlightedBody.equals(body)) return slotStyled(plainSlot, line);
         return prefix + highlightedBody;
@@ -128,13 +150,34 @@ final class TerminalMarkdownRenderer {
     private String highlightInlineSource(String line) {
         var out = new StringBuilder();
         for (int i = 0; i < line.length();) {
-            int next = appendDelimited(line, i, "`", "inlineCode", out);
+            int next = appendCheckbox(line, i, out);
+            if (next < 0) next = appendDelimited(line, i, "`", "inlineCode", out);
             if (next < 0) next = appendDelimited(line, i, "**", "bold", out);
             if (next < 0) next = appendDelimited(line, i, "~~", "strikethrough", out);
             if (next >= 0) { i = next; continue; }
             out.append(line.charAt(i++));
         }
         return out.toString();
+    }
+
+    private int appendCheckbox(String line, int start, StringBuilder out) {
+        if (start + 3 > line.length()) return -1;
+        if (line.charAt(start) != '[' || line.charAt(start + 2) != ']') return -1;
+        char c = line.charAt(start + 1);
+        String slot = switch (c) {
+            case 'x', 'X' -> "diffAdd";
+            case ' ' -> "dim";
+            case '~' -> "statusWarn";
+            default -> null;
+        };
+        if (slot == null) return -1;
+        out.append(slotStyled(slot, line.substring(start, start + 3)));
+        int end = start + 3;
+        if (end < line.length() && line.charAt(end) == ' ') {
+            out.append(' ');
+            end++;
+        }
+        return end;
     }
 
     private int appendDelimited(String line, int start, String delimiter, String slot, StringBuilder out) {
@@ -369,6 +412,12 @@ final class TerminalMarkdownRenderer {
         if (text == null || text.isEmpty()) return List.of("");
         if (AnsiWidth.visibleWidth(text) <= width) return List.of(text);
         return AnsiWidth.wrapPreservingAnsi(text, Math.max(1, width));
+    }
+
+    private String headingBody(String body) {
+        String styled = slotStyled("heading", body);
+        if (styled.isEmpty()) return styled;
+        return theme.enabled ? "\033[1m" + styled : styled;
     }
 
     private String slotStyled(String slot, String text) {
