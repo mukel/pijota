@@ -34,6 +34,7 @@ public final class ExtensionRegistry {
     private final Map<String, List<BiFunction<ExtensionEvent, ExtensionContext, Object>>> listeners = new ConcurrentHashMap<>();
     private final List<java.util.function.Supplier<List<String>>> statusLineProviders = new CopyOnWriteArrayList<>();
     private final List<java.util.function.Supplier<List<String>>> footerLineProviders = new CopyOnWriteArrayList<>();
+    private final List<BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender>> messageRenderers = new CopyOnWriteArrayList<>();
     private final List<URLClassLoader> extensionClassLoaders = new CopyOnWriteArrayList<>();
     private final Map<String, String> keyedStatuses = new ConcurrentSkipListMap<>();
     private final List<java.util.function.Supplier<String>> systemPromptProviders = new CopyOnWriteArrayList<>();
@@ -204,6 +205,23 @@ public final class ExtensionRegistry {
 
     public void fireBeforeProviderRequest(List<Message> messages) {
         fire(new ExtensionEvent.BeforeProviderRequest(messages));
+    }
+
+    public boolean hasMessageRenderers() {
+        return !messageRenderers.isEmpty();
+    }
+
+    public Optional<List<String>> renderMessage(Message message) {
+        var handlerCtx = new ExtensionContext(uiContext, runtime);
+        for (var renderer : messageRenderers) {
+            try {
+                var rendered = renderer.apply(message, handlerCtx);
+                if (rendered != null && !rendered.lines().isEmpty()) return Optional.of(rendered.lines());
+            } catch (Exception e) {
+                log.warn("message renderer error: {}", e.getMessage());
+            }
+        }
+        return Optional.empty();
     }
 
     public void fireModelSelect(String model, String previousModel, String source) {
@@ -399,6 +417,10 @@ public final class ExtensionRegistry {
         @Override public ExtensionAPI onMessageStart(BiConsumer<ExtensionEvent.MessageStart, ExtensionContext> h) { return on("message_start", h); }
         @Override public ExtensionAPI onMessageUpdate(BiConsumer<ExtensionEvent.MessageUpdate, ExtensionContext> h) { return on("message_update", h); }
         @Override public ExtensionAPI onMessageEnd(BiConsumer<ExtensionEvent.MessageEnd, ExtensionContext> h) { return on("message_end", h); }
+        @Override public ExtensionAPI registerMessageRenderer(BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer) {
+            if (renderer != null) messageRenderers.add(renderer);
+            return this;
+        }
         @Override public ExtensionAPI onSessionBeforeCompact(BiConsumer<ExtensionEvent.SessionBeforeCompact, ExtensionContext> h) { return on("session_before_compact", h); }
         @Override public ExtensionAPI onSessionCompact(BiConsumer<ExtensionEvent.SessionCompact, ExtensionContext> h) { return on("session_compact", h); }
         @Override public ExtensionAPI onToolResult(BiConsumer<ExtensionEvent.ToolResult, ExtensionContext> h) { return on("tool_result", h); }

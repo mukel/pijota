@@ -29,8 +29,7 @@ final class ThemeLoader {
     private static AnsiTheme resolve(SettingsManager settings, Args args, String cwd) throws Exception {
         var candidates = new LinkedHashMap<String, Path>();
         if (!args.noThemes()) {
-            addThemeDir(candidates, Path.of(System.getProperty("user.home"), ".pi", "agent", "themes"));
-            addThemeDir(candidates, Path.of(cwd, ".pi", "themes"));
+            addThemeDir(candidates, Path.of(System.getProperty("user.home"), ".pijota", "themes"));
             for (String ref : safeList(settings.config().themes())) addThemeRef(candidates, Path.of(cwd), ref);
         }
         for (String ref : args.themePaths()) addThemeRef(candidates, Path.of(cwd), ref);

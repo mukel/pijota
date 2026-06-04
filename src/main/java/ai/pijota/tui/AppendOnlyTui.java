@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -72,6 +73,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private String provider;
     private String model;
     private String cwd;
+    private String rawCwd;
     private final SettingsManager settings;
     private final PijotaSession session;
     private FileReferenceResolver fileRefs;
@@ -159,6 +161,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final TuiCommandController commandController;
     private final Map<String, SlashCommand> extensionCommands;
     private final Map<KeyChord, ExtensionKeybinding> extensionKeybindings;
+    private final Map<String, Supplier<String>> toolArgsById = new ConcurrentHashMap<>();
     private final TuiSelectors selectors;
     private boolean loginIsLogout;
     private volatile boolean showSessionPickerOnStart;
@@ -287,6 +290,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     public void run(String version, String cwd) {
+        this.rawCwd = cwd;
         this.cwd = shortenCwd(cwd) + gitBranch(cwd);
         this.pendingEdit = new PendingEditManager(cwd);
         this.fileRefs = new FileReferenceResolver(Path.of(cwd));
@@ -1310,6 +1314,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 if (usage == null) busyPhase = null;
                 String content = msg.content() == null ? "" : msg.content();
                 String delta = deltaPrefix(content, lastContent);
+                boolean customMessageRenderer = session.extensionRegistry().hasMessageRenderers();
                 if (showThinking() && msg.thinking() != null && !msg.thinking().isBlank()) {
                     if (!thinkingHeaderShown) {
                         String label = "thinking " + thinkingLevel.label() + "...";
@@ -1318,8 +1323,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         thinkingHeaderShown = true;
                     }
                     String thinkingDelta = deltaPrefix(msg.thinking(), lastThinking);
-                    appendThinking(thinkingLines.accept(thinkingDelta, softLineLimit()));
+                    appendThinking(thinkingLines.accept(thinkingDelta));
                     lastThinking = msg.thinking();
+                }
+                if (customMessageRenderer) {
+                    if (usage != null) renderFinalAssistantMessage(msg, content, usage);
+                    redrawPrompt();
+                    return;
                 }
                 redrawPrompt();
                 if (!delta.isEmpty()) {
@@ -1331,7 +1341,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         contentStarted = true;
                     }
                 }
-                appendContent(contentLines.accept(delta, softLineLimit()));
+                appendContent(contentLines.accept(delta));
                 lastContent = content;
                 if (usage != null) {
                     addUsage(usage);
@@ -1341,6 +1351,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
             case AgentEvent.ToolStart(var name, var toolCallId, var args) -> {
                 flushStreamLines();
+                if (toolCallId != null && args != null) toolArgsById.put(toolCallId, args);
                 pendingEdit.onToolStart(name, args);
                 busyPhase = "tool " + name;
                 if (pendingEdit.hasPath() && pendingEdit.oldText() != null
@@ -1359,7 +1370,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 var parts = new ArrayList<String>();
                 parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", "●"));
                 parts.add(theme.styled("statusText", msg.toolName()));
-                String detail = ToolRender.detail(msg.toolName(), pendingEdit.toolArgs(), cwd,
+                Supplier<String> args = toolArgsById.remove(msg.toolCallId());
+                String detail = ToolRender.detail(msg.toolName(), args, rawCwd,
                     settings != null && settings.shortenPathsEnabled());
                 if (!detail.isBlank()) parts.add(theme.styled("statusText", detail));
                 Tool.ToolResultView rendered = renderToolResultView(msg);
@@ -1409,6 +1421,18 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
+    private void renderFinalAssistantMessage(Message.Assistant msg, String content,
+                                             dev.langchain4j.model.output.TokenUsage usage) {
+        var rendered = session.extensionRegistry().renderMessage(msg);
+        if (rendered.isPresent()) {
+            appendPlain(rendered.get());
+        } else if (!content.isEmpty()) {
+            appendContent(contentLines.accept(content));
+        }
+        addUsage(usage);
+        flushStreamLines();
+    }
+
     private void appendContent(List<String> lines) {
         if (lines.isEmpty()) return;
         List<StyledLine> rendered;
@@ -1422,7 +1446,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         String text = content == null ? "" : Util.stripSystemReminders(content);
         String delta = deltaPrefix(text, lastContent);
         if (!delta.isEmpty()) {
-            appendContent(contentLines.accept(delta, softLineLimit()));
+            appendContent(contentLines.accept(delta));
             lastContent = text;
             compactionStreamRendered = true;
         }
@@ -1430,7 +1454,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void renderFinalCompactionSummary(String summary) {
         resetStreamState();
-        appendContent(contentLines.accept(summary, softLineLimit()));
+        appendContent(contentLines.accept(summary));
         flushStreamLines();
         resetStreamState();
     }
@@ -1494,15 +1518,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 yield session.agentLoop().toolRegistry().get(msg.toolName())
                     .map(tool -> tool.renderResult(args,
                         new Tool.ToolResult(msg.content(), msg.isError(),
-                            msg.details() == null ? Map.of() : msg.details()), cwd))
+                    msg.details() == null ? Map.of() : msg.details()), rawCwd))
                     .orElse(null);
             }
             default -> null;
         };
-    }
-
-    private int softLineLimit() {
-        return Math.max(40, terminal.getWidth() - 4);
     }
 
     private void appendThinking(List<String> lines) {

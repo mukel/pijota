@@ -2,6 +2,7 @@ package ai.pijota.extensions;
 
 import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.modes.SlashCommand;
+import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 
 import java.util.List;
@@ -26,6 +27,7 @@ public interface ExtensionAPI {
     ExtensionAPI onMessageStart(BiConsumer<ExtensionEvent.MessageStart, ExtensionContext> handler);
     ExtensionAPI onMessageUpdate(BiConsumer<ExtensionEvent.MessageUpdate, ExtensionContext> handler);
     ExtensionAPI onMessageEnd(BiConsumer<ExtensionEvent.MessageEnd, ExtensionContext> handler);
+    ExtensionAPI registerMessageRenderer(BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer);
 
     // ---- session compact ----
 

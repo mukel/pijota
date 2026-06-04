@@ -49,12 +49,11 @@ final class DiffRenderer {
         for (int h = 0; h < hunks.size(); h++) {
             if (h > 0) out.add("");
             var hunk = hunks.get(h);
-            for (int i = 0; i < hunk.rows().size(); i++) {
+            for (var row : hunk.rows()) {
                 if (rendered >= MAX_RENDERED_ROWS) {
                     truncated = true;
                     break;
                 }
-                var row = hunk.rows().get(i);
                 out.add(format(row, oldWidth, newWidth, highlighter.highlightLine(row.text()), terminalWidth));
                 rendered++;
             }

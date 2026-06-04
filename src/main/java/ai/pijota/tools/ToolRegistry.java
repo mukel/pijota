@@ -57,16 +57,21 @@ public final class ToolRegistry {
             .flatMap(tool -> {
                 var errors = validateArguments(tool, arguments);
                 if (!errors.isEmpty()) {
-                    String raw = rawArgs != null && rawArgs.length() > 500
-                        ? rawArgs.substring(0, 500) + "..." : rawArgs;
                     return Optional.of(CompletableFuture.completedFuture(
-                        Tool.ToolResult.error("Invalid arguments: " + String.join("; ", errors)
-                            + "\n\nReceived: " + raw)));
+                        Tool.ToolResult.error(formatValidationError(toolName, errors))));
                 }
                 return Optional.of(tool.execute(toolCallId, arguments, sessionCwd));
             })
             .orElseGet(() -> CompletableFuture.completedFuture(
                 Tool.ToolResult.error("Unknown tool: " + toolName)));
+    }
+
+    private static String formatValidationError(String toolName, List<String> errors) {
+        var sb = new StringBuilder("Invalid arguments for ")
+            .append(toolName).append(":\n");
+        for (String e : errors) sb.append("- ").append(e).append('\n');
+        sb.append("Retry with arguments matching the ").append(toolName).append(" schema.");
+        return sb.toString();
     }
 
     private static List<String> validateArguments(Tool tool, Map<String, Object> args) {
@@ -76,34 +81,77 @@ public final class ToolRegistry {
         if (schema == null) return errors;
 
         @SuppressWarnings("unchecked")
+        var properties = (Map<String, Object>) schema.get("properties");
+        if (properties == null) return errors;
+
+        @SuppressWarnings("unchecked")
         var required = (List<String>) schema.get("required");
-        if (required != null) {
-            for (String key : required) {
-                if (hasArg(args, key, schema)) continue;
-                errors.add("Missing required field: " + key);
+
+        for (var entry : properties.entrySet()) {
+            String field = (String) entry.getKey();
+            @SuppressWarnings("unchecked")
+            var fieldSchema = (Map<String, Object>) entry.getValue();
+            String type = fieldSchema.get("type") instanceof String s ? s : null;
+            if (type == null) continue;
+
+            Object value = args.get(field);
+            if (value == null || (value instanceof String s && s.isBlank())) {
+                if (required != null && required.contains(field)
+                    && !hasAliasArg(args, field)) {
+                    errors.add(field + " is required");
+                }
+                continue;
             }
+
+            String typeError = checkType(field, value, type);
+            if (typeError != null) errors.add(typeError);
         }
         return errors;
     }
 
-    private static boolean hasArg(Map<String, Object> args, String key, Map<String, Object> schema) {
-        if (args.containsKey(key) && args.get(key) != null
-            && (!(args.get(key) instanceof String s) || !s.isBlank())) return true;
-        if ("path".equals(key)) {
-            if (args.containsKey("filePath") && args.get("filePath") != null
-                && (!(args.get("filePath") instanceof String s) || !s.isBlank())) return true;
-            if (args.containsKey("file_path") && args.get("file_path") != null
-                && (!(args.get("file_path") instanceof String s) || !s.isBlank())) return true;
+    private static String checkType(String field, Object value, String type) {
+        return switch (type) {
+            case "string" -> {
+                if (!(value instanceof String)) yield field + ": expected string, got " + describe(value);
+                yield null;
+            }
+            case "integer", "number" -> {
+                if (!(value instanceof Number)) yield field + ": expected " + type + ", got " + describe(value);
+                yield null;
+            }
+            case "boolean" -> {
+                if (!(value instanceof Boolean)) yield field + ": expected boolean, got " + describe(value);
+                yield null;
+            }
+            case "array" -> {
+                if (!(value instanceof List<?>)) yield field + ": expected array, got " + describe(value);
+                yield null;
+            }
+            default -> null;
+        };
+    }
+
+    private static boolean hasAliasArg(Map<String, Object> args, String field) {
+        if ("path".equals(field)) {
+            return hasStringArg(args, "filePath") || hasStringArg(args, "file_path");
         }
-        if ("edits".equals(key)) {
-            return hasString(args, "oldText") && hasString(args, "newText")
-                || hasString(args, "oldString") && hasString(args, "newString");
+        if ("edits".equals(field)) {
+            return hasStringArg(args, "oldText") && hasStringArg(args, "newText")
+                || hasStringArg(args, "oldString") && hasStringArg(args, "newString");
         }
         return false;
     }
 
-    private static boolean hasString(Map<String, Object> args, String key) {
+    private static boolean hasStringArg(Map<String, Object> args, String key) {
         return args.get(key) instanceof String s && !s.isBlank();
+    }
+
+    private static String describe(Object value) {
+        if (value == null) return "null";
+        if (value instanceof String s) return "string \"" + (s.length() > 40 ? s.substring(0, 40) + "…" : s) + "\"";
+        if (value instanceof Number n) return "number " + n;
+        if (value instanceof Boolean b) return "boolean " + b;
+        return value.getClass().getSimpleName();
     }
 
     public static ToolRegistry createDefault() {

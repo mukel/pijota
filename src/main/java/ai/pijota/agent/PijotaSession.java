@@ -126,6 +126,7 @@ public final class PijotaSession implements AutoCloseable {
     // -- Session management --
 
     public AgentLoop agentLoop() { return agentLoop; }
+    public ExtensionRegistry extensionRegistry() { return extensionRegistry; }
     public Path sessionFile() { return sessionFile; }
     public List<Message> messages() { return agentLoop.messages(); }
     public List<Message.User> userMessages() { return agentLoop.userMessages(); }

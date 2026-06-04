@@ -8,10 +8,6 @@ final class LineAccumulator {
     private final StringBuilder partial = new StringBuilder();
 
     public List<String> accept(String delta) {
-        return accept(delta, 0);
-    }
-
-    public List<String> accept(String delta, int softLimit) {
         var lines = new ArrayList<String>();
         if (delta == null || delta.isEmpty()) return lines;
         for (int i = 0; i < delta.length(); i++) {
@@ -21,7 +17,6 @@ final class LineAccumulator {
                 partial.setLength(0);
             } else {
                 partial.append(ch);
-                drainSoftLine(lines, softLimit);
             }
         }
         return lines;
@@ -36,25 +31,6 @@ final class LineAccumulator {
 
     public void clear() {
         partial.setLength(0);
-    }
-
-    private void drainSoftLine(List<String> lines, int softLimit) {
-        if (softLimit <= 0 || partial.length() < softLimit) return;
-        int cut = -1;
-        int max = Math.min(partial.length(), softLimit);
-        for (int i = max - 1; i > softLimit / 2; i--) {
-            if (Character.isWhitespace(partial.charAt(i))) {
-                cut = i;
-                break;
-            }
-        }
-        if (cut < 0) {
-            cut = softLimit;
-        }
-        String line = partial.substring(0, cut).stripTrailing();
-        if (!line.isEmpty()) lines.add(stripTrailingCr(line));
-        while (cut < partial.length() && Character.isWhitespace(partial.charAt(cut))) cut++;
-        partial.delete(0, cut);
     }
 
     private static String stripTrailingCr(String s) {

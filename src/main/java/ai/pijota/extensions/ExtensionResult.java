@@ -1,5 +1,7 @@
 package ai.pijota.extensions;
 
+import java.util.List;
+
 public final class ExtensionResult {
 
     public sealed interface ToolCall permits Allow, Block {}
@@ -21,5 +23,11 @@ public final class ExtensionResult {
     public record BashToolCallResult(boolean blocked, String reason) {
         public static BashToolCallResult allow() { return new BashToolCallResult(false, null); }
         public static BashToolCallResult block(String reason) { return new BashToolCallResult(true, reason); }
+    }
+
+    public record MessageRender(List<String> lines) {
+        public MessageRender {
+            lines = lines == null ? List.of() : List.copyOf(lines);
+        }
     }
 }

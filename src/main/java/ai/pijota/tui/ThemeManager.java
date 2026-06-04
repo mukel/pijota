@@ -67,8 +67,8 @@ final class ThemeManager {
             path = cwd.resolve(name);
         }
         if (!Files.isRegularFile(path)) {
-            Path piThemes = Path.of(System.getProperty("user.home"), ".pi", "agent", "themes", name + ".json");
-            if (Files.isRegularFile(piThemes)) return piThemes;
+            Path pijotaThemes = Path.of(System.getProperty("user.home"), ".pijota", "themes", name + ".json");
+            if (Files.isRegularFile(pijotaThemes)) return pijotaThemes;
             Path pijotaTheme = Path.of(System.getProperty("user.home"), ".pijota", "theme.json");
             if (Files.isRegularFile(pijotaTheme)) return pijotaTheme;
         }
@@ -103,15 +103,12 @@ final class ThemeManager {
 
     private static List<Path> fileThemes() {
         var paths = new ArrayList<Path>();
-        for (Path dir : List.of(
-                Path.of(System.getProperty("user.home"), ".pi", "agent", "themes"),
-                Path.of(System.getProperty("user.dir"), ".pi", "themes"))) {
-            if (!Files.isDirectory(dir)) continue;
-            try (var stream = Files.list(dir)) {
-                stream.filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .sorted().forEach(paths::add);
-            } catch (IOException ignored) {}
-        }
+        Path dir = Path.of(System.getProperty("user.home"), ".pijota", "themes");
+        if (!Files.isDirectory(dir)) return paths;
+        try (var stream = Files.list(dir)) {
+            stream.filter(p -> p.getFileName().toString().endsWith(".json"))
+                .sorted().forEach(paths::add);
+        } catch (IOException ignored) {}
         return paths;
     }
 

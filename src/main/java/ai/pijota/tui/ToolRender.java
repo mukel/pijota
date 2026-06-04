@@ -16,16 +16,16 @@ final class ToolRender {
         Map<String, Object> a = parse(args);
         if (a.isEmpty()) return "→ " + toolName;
         return switch (toolName) {
-            case "read" -> "→ Read " + displayPath(pathArg(a), cwd, shortenPaths) + options(a, "offset", "limit");
-            case "write" -> "→ Write " + displayPath(pathArg(a), cwd, shortenPaths);
-            case "edit" -> "→ Edit " + displayPath(pathArg(a), cwd, shortenPaths);
+            case "read" -> "→ Read " + displayPath(pathArg(a), cwd) + options(a, "offset", "limit");
+            case "write" -> "→ Write " + displayPath(pathArg(a), cwd);
+            case "edit" -> "→ Edit " + displayPath(pathArg(a), cwd);
             case "grep" -> "✱ Grep " + quote(a.get("pattern")) + " in "
-                + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
                 + options(a, "glob", "context", "limit");
             case "glob" -> "✱ Glob " + quote(a.get("pattern")) + " in "
-                + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
                 + options(a, "limit");
-            case "ls" -> "→ Ls " + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
+            case "ls" -> "→ Ls " + displayPath(a.getOrDefault("path", ".").toString(), cwd)
                 + options(a, "limit");
             case "bash" -> "→ Bash " + quote(shorten(a.getOrDefault("command", "").toString(), 80));
             case "question" -> "→ Question " + shorten(questionText(a), 80);
@@ -41,17 +41,17 @@ final class ToolRender {
         Map<String, Object> a = parse(args);
         if (a.isEmpty()) return "";
         return switch (toolName) {
-            case "read" -> displayPath(pathArg(a), cwd, shortenPaths) + options(a, "offset", "limit");
-            case "write", "edit" -> displayPath(pathArg(a), cwd, shortenPaths);
+            case "read" -> displayPath(pathArg(a), cwd) + options(a, "offset", "limit");
+            case "write", "edit" -> displayPath(pathArg(a), cwd);
             case "bash" -> quote(shorten(a.getOrDefault("command", "").toString(), 60));
             case "question" -> shorten(questionText(a), 60);
-            case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
+            case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd)
                 + options(a, "limit");
             case "grep" -> quote(a.get("pattern")) + " in "
-                + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
                 + options(a, "glob", "context", "limit");
             case "glob" -> quote(a.get("pattern")) + " in "
-                + displayPath(a.getOrDefault("path", ".").toString(), cwd, shortenPaths)
+                + displayPath(a.getOrDefault("path", ".").toString(), cwd)
                 + options(a, "limit");
             case "task" -> taskDetail(a);
             case "webfetch" -> shorten(a.getOrDefault("url", "").toString(), 60);
@@ -72,26 +72,10 @@ final class ToolRender {
         return Util.parseJsonArgs(args.get());
     }
 
-    private static String displayPath(String path, String cwd, boolean shorten) {
-        String result = displayPath(path, cwd);
-        if (shorten && result != null && !result.isBlank() && !result.equals(".")) {
-            Path p = Path.of(result);
-            Path name = p.getFileName();
-            if (name != null && p.getNameCount() > 1) {
-                Path parent = p.getParent();
-                if (parent != null && !parent.toString().isEmpty() && !parent.toString().equals(".")) {
-                    return parent.getFileName() + "/" + name;
-                }
-            }
-            return result;
-        }
-        return result;
-    }
-
     private static String displayPath(String path, String cwd) {
         if (path == null || path.isBlank()) return ".";
         try {
-            Path base = Path.of(cwd.replaceAll("\\(.*\\)", "").strip()).toAbsolutePath().normalize();
+            Path base = normalizePath(cwd.replaceAll("\\(.*\\)", "").strip());
             Path resolved = Path.of(path);
             if (!resolved.isAbsolute()) resolved = base.resolve(resolved);
             resolved = resolved.toAbsolutePath().normalize();
@@ -103,6 +87,14 @@ final class ToolRender {
         } catch (Exception ignored) {}
         String home = System.getProperty("user.home");
         return home != null && path.startsWith(home) ? "~" + path.substring(home.length()) : path;
+    }
+
+    private static Path normalizePath(String path) {
+        String home = System.getProperty("user.home");
+        if (home != null && (path.equals("~") || path.startsWith("~/"))) {
+            path = home + path.substring(1);
+        }
+        return Path.of(path).toAbsolutePath().normalize();
     }
 
     private static String fileName(String path) {

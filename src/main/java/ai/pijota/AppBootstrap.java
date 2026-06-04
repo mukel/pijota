@@ -72,7 +72,7 @@ final class AppBootstrap {
             settings.effectiveShellPath(), settings.config().shellCommandPrefix());
         tools.register(bashTool);
 
-        var llm = new LlmService(provider, model, apiKey);
+        var llm = new LlmService(provider, model, settings::resolveApiKey);
 
         var ext = new ExtensionRegistry();
         llm.setModelChangeCallback((oldModel, newModel) ->

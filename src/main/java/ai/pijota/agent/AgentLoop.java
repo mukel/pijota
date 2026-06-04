@@ -247,9 +247,10 @@ public final class AgentLoop implements AgentContext {
         lastStreamContent = "";
 
         retry(() -> {
+                var providerMessages = new ArrayList<>(requestMessages);
                 if (extensionRegistry != null)
-                    extensionRegistry.fireBeforeProviderRequest(requestMessages);
-                CompletableFuture<StreamResult> stream = llm.streamMessages(requestMessages, toolSpecs, (partialContent, partialThinking) -> {
+                    extensionRegistry.fireBeforeProviderRequest(providerMessages);
+                CompletableFuture<StreamResult> stream = llm.streamMessages(providerMessages, toolSpecs, (partialContent, partialThinking) -> {
                     if (!isActive(result)) return;
                     if (!messageStreamStarted) {
                         messageStreamStarted = true;

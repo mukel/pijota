@@ -32,7 +32,8 @@ public final class LlmService implements AutoCloseable {
 
     private volatile String providerName;
     private volatile String modelName;
-    private volatile String apiKey;
+    private final java.util.function.Function<String, String> apiKeyResolver;
+    private volatile String lastResolvedKey;
     private final String customBaseUrl;
     private volatile ThinkingLevel thinkingLevel = ThinkingLevel.OFF;
     private volatile java.util.function.BiConsumer<String, String> modelChangeCallback;
@@ -51,15 +52,35 @@ public final class LlmService implements AutoCloseable {
     }
 
     public LlmService(String provider, String modelName, String apiKey) {
-        this(provider, modelName, apiKey, null, List.of(), null);
+        this(provider, modelName, p -> apiKey, null, List.of(), null);
+    }
+
+    public LlmService(String provider, String modelName,
+                      java.util.function.Function<String, String> apiKeyResolver) {
+        this(provider, modelName, apiKeyResolver, null, List.of(), null);
     }
 
     public LlmService(String provider, String modelName, String apiKey,
                       String customBaseUrl, List<ProviderFactory> customProviders,
                       Double budgetLimit) {
-        this.providerName = provider != null ? provider : defaultProvider(apiKey);
+        this(provider, modelName, p -> apiKey, customBaseUrl, customProviders, budgetLimit);
+    }
+
+    /**
+     * Primary constructor with a dynamic API key resolver.
+     * The resolver is called before each LLM request with the current provider name,
+     * enabling transparent OAuth token refresh mid-session.
+     */
+    public LlmService(String provider, String modelName,
+                      java.util.function.Function<String, String> apiKeyResolver,
+                      String customBaseUrl, List<ProviderFactory> customProviders,
+                      Double budgetLimit) {
+        this.providerName = provider != null ? provider
+            : defaultProvider(apiKeyResolver != null ? apiKeyResolver.apply(null) : null);
         this.modelName = modelName != null ? modelName : ModelRegistry.defaultModelForProvider(this.providerName);
-        this.apiKey = apiKey;
+        this.apiKeyResolver = apiKeyResolver != null ? apiKeyResolver : p -> "";
+        String initialKey = this.apiKeyResolver.apply(this.providerName);
+        this.lastResolvedKey = initialKey != null ? initialKey : "";
         this.customBaseUrl = customBaseUrl;
         this.customProviders = customProviders;
         this.usage = new UsageTracker(budgetLimit);
@@ -75,7 +96,7 @@ public final class LlmService implements AutoCloseable {
             var r = new StreamResult(); r.setContent("[Budget limit exceeded]");
             return CompletableFuture.completedFuture(r);
         }
-
+        resolveCurrentApiKey();
         return streamLangChain4j(messages, tools, onPartial);
     }
 
@@ -156,6 +177,16 @@ public final class LlmService implements AutoCloseable {
         }
     }
 
+    private String resolveCurrentApiKey() {
+        String key = apiKeyResolver.apply(providerName);
+        if (key == null) key = "";
+        if (!key.equals(lastResolvedKey)) {
+            modelCache.clear();
+            lastResolvedKey = key;
+        }
+        return key;
+    }
+
     private StreamingChatModel lc4jModel() {
         return modelCache.computeIfAbsent(providerName, p -> {
             var factory = ProviderFactory.resolve(p, customProviders);
@@ -163,7 +194,7 @@ public final class LlmService implements AutoCloseable {
                 : ProviderCatalog.baseUrl(p);
             String effectiveModel = modelName != null ? modelName
                 : ModelRegistry.defaultModelForProvider(p);
-            return factory.create(url, apiKey, effectiveModel, p, thinkingLevel);
+            return factory.create(url, lastResolvedKey, effectiveModel, p, thinkingLevel);
         });
     }
 
@@ -219,16 +250,17 @@ public final class LlmService implements AutoCloseable {
     }
 
     private StreamingChatModel lc4jModelForModel(String m) {
+        resolveCurrentApiKey();
         String effectiveModel = (m != null && !m.isEmpty())
             ? m : ModelRegistry.defaultModelForProvider(providerName);
         var factory = ProviderFactory.resolve(providerName, customProviders);
         String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(providerName);
-        return factory.create(url, apiKey, effectiveModel, providerName, thinkingLevel);
+        return factory.create(url, lastResolvedKey, effectiveModel, providerName, thinkingLevel);
     }
 
     public String provider() { return providerName; }
     public String model() { return modelName; }
-    public String apiKey() { return apiKey; }
+    public String apiKey() { return lastResolvedKey; }
 
     public void setModelName(String name) {
         String old = this.modelName;
@@ -246,7 +278,7 @@ public final class LlmService implements AutoCloseable {
         String old = this.modelName;
         this.providerName = newProvider;
         this.modelName = newModel != null ? newModel : ModelRegistry.defaultModelForProvider(newProvider);
-        this.apiKey = newApiKey;
+        this.lastResolvedKey = newApiKey != null ? newApiKey : "";
         modelCache.clear();
         if (modelChangeCallback != null && !newModel.equals(old))
             modelChangeCallback.accept(old, newModel);
