@@ -1,4 +1,5 @@
 package ai.pijota.tui;
+import java.util.ArrayList;
 
 import ai.pijota.theme.AnsiTheme;
 import java.io.PrintWriter;
@@ -45,7 +46,7 @@ public sealed interface PromptRegion
         }
 
         private static java.util.ArrayList<VisLine> visualLines(PromptSnapshot ctx, int width) {
-            var out = new java.util.ArrayList<VisLine>();
+            var out = new ArrayList<VisLine>();
             int bodyWidth = Math.max(1, width - 2);
             for (int row = 0; row < ctx.lines().size(); row++) {
                 String text = ctx.lines().get(row);

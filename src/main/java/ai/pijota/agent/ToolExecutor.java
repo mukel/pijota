@@ -2,11 +2,11 @@ package ai.pijota.agent;
 
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.messages.Message;
+import ai.pijota.messages.ToolCall;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
-import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +38,7 @@ final class ToolExecutor {
         this.aborted = aborted;
     }
 
-    CompletableFuture<Void> execute(List<ToolExecutionRequest> requests) {
+    CompletableFuture<Void> execute(List<ToolCall> requests) {
         if (requests.isEmpty()) return CompletableFuture.completedFuture(null);
         if (requests.size() == 1) return executeOne(requests.get(0));
         boolean anySequential = requests.stream().anyMatch(r -> {
@@ -49,13 +49,13 @@ final class ToolExecutor {
         return executeParallel(requests);
     }
 
-    private CompletableFuture<Void> executeSequential(List<ToolExecutionRequest> requests) {
+    private CompletableFuture<Void> executeSequential(List<ToolCall> requests) {
         var future = new CompletableFuture<Void>();
         executeSequentially(requests, 0, future);
         return future;
     }
 
-    private void executeSequentially(List<ToolExecutionRequest> requests,
+    private void executeSequentially(List<ToolCall> requests,
                                      int idx, CompletableFuture<Void> future) {
         if (idx >= requests.size() || aborted.get()) { future.complete(null); return; }
         executeOne(requests.get(idx))
@@ -67,7 +67,7 @@ final class ToolExecutor {
             });
     }
 
-    private CompletableFuture<Void> executeParallel(List<ToolExecutionRequest> requests) {
+    private CompletableFuture<Void> executeParallel(List<ToolCall> requests) {
         var futures = requests.stream()
             .map(r -> executeOne(r).exceptionally(ex -> {
                 log.warn("Tool {} failed (continuing): {}", r.name(), ex.getMessage());
@@ -77,7 +77,7 @@ final class ToolExecutor {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
     }
 
-    private CompletableFuture<Void> executeOne(ToolExecutionRequest request) {
+    private CompletableFuture<Void> executeOne(ToolCall request) {
         onEvent.accept(AgentEvent.toolStart(request.name(), request.id(), request::arguments));
         try {
             if (extensions != null) {

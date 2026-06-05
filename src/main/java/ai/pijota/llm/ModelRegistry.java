@@ -1,5 +1,6 @@
 package ai.pijota.llm;
 
+import ai.pijota.config.ProviderCatalog;
 import ai.pijota.util.Util;
 
 import java.io.InputStream;
@@ -7,9 +8,20 @@ import java.util.List;
 
 public final class ModelRegistry {
 
-    private static final List<ModelInfo> LOADED_MODELS = load();
+    private static final List<ModelInfo> BUILTIN_MODELS = load();
 
-    public static final List<ModelInfo> KNOWN_MODELS = LOADED_MODELS.stream().toList();
+    public static volatile List<ModelInfo> KNOWN_MODELS = BUILTIN_MODELS.stream().toList();
+
+    public static synchronized void replaceDiscovered(List<ModelInfo> discovered) {
+        var byKey = new java.util.LinkedHashMap<String, ModelInfo>();
+        for (var model : BUILTIN_MODELS) {
+            byKey.put(key(model), model);
+        }
+        for (var model : discovered) {
+            byKey.put(key(model), model);
+        }
+        KNOWN_MODELS = List.copyOf(byKey.values());
+    }
 
     public static List<ModelInfo> filter(String search) {
         if (search == null || search.isBlank()) return KNOWN_MODELS;
@@ -53,6 +65,10 @@ public final class ModelRegistry {
         } catch (Exception e) {
             return List.of();
         }
+    }
+
+    private static String key(ModelInfo model) {
+        return model.provider().toLowerCase() + "/" + model.id().toLowerCase();
     }
 
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)

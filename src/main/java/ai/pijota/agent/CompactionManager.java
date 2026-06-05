@@ -16,17 +16,14 @@ public final class CompactionManager {
     private static final int DEFAULT_KEEP_RECENT_TOKENS = 20_000;
     private static final Logger log = LoggerFactory.getLogger(CompactionManager.class);
 
-    private int contextWindow;
-    private boolean enabled;
+    private volatile int contextWindow;
+    private volatile boolean enabled;
     private final int reserveTokens;
     private final int keepRecentTokens;
     private final SummaryGenerator summaryGenerator;
-    private CompactionAppender sessionAppender;
-    private String previousSummary;
+    private volatile CompactionAppender sessionAppender;
+    private volatile String previousSummary;
 
-    public CompactionManager() {
-        this(null);
-    }
 
     public CompactionManager(SummaryGenerator summaryGenerator) {
         this(DEFAULT_CONTEXT_WINDOW, new AppConfig.CompactionConfig(), summaryGenerator);
@@ -128,8 +125,10 @@ public final class CompactionManager {
         compactedList.add(new Message.CompactionSummary(summary));
         compactedList.addAll(messages.subList(keepFrom, messages.size()));
 
-        messages.clear();
-        messages.addAll(compactedList);
+        synchronized (messages) {
+            messages.clear();
+            messages.addAll(compactedList);
+        }
 
         var firstKept = compactedList.size() > 2 ? compactedList.get(2).id().toString() : null;
 
@@ -189,11 +188,13 @@ public final class CompactionManager {
     private static Message sanitize(Message msg) {
         return switch (msg) {
             case Message.User u -> new Message.User(u.id(), u.timestamp(), strip(u.content()));
-            case Message.Assistant a -> new Message.Assistant(a.id(), a.timestamp(), strip(a.content()), a.toolCalls(), strip(a.thinking()));
+            case Message.Assistant a -> new Message.Assistant(a.id(), a.timestamp(), strip(a.content()),
+                a.toolCalls(), strip(a.thinking()), a.sourceProvider(), a.sourceModel());
             case Message.ToolResult tr -> new Message.ToolResult(tr.id(), tr.timestamp(), tr.toolCallId(), tr.toolName(), strip(tr.content()), tr.isError(), tr.details());
             case Message.System s -> new Message.System(s.id(), s.timestamp(), strip(s.content()));
             case Message.CompactionSummary cs -> new Message.CompactionSummary(cs.id(), cs.timestamp(), strip(cs.summary()));
             case Message.BranchSummary bs -> new Message.BranchSummary(bs.id(), bs.timestamp(), strip(bs.summary()));
+            case Message.Custom c -> c;
         };
     }
 

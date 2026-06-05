@@ -11,8 +11,8 @@ import java.util.regex.Pattern;
 final class DiffRenderer {
     private static final int CONTEXT_LINES = 3;
     private static final int MAX_RENDERED_ROWS = 300;
-    private static final Pattern ANSI_RESET = Pattern.compile("\\033\\[0m");
-    private static final Pattern ANSI = Pattern.compile("\\033\\[[0-9;]*m");
+    private static final Pattern ANSI_RESET = Pattern.compile("\033\\[0m");
+    private static final Pattern ANSI = Pattern.compile("\033\\[[0-9;]*m");
 
     private final AnsiTheme theme;
 

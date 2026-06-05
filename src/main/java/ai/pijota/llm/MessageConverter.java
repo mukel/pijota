@@ -26,6 +26,7 @@ public final class MessageConverter {
                     pendingToolResultIds = new LinkedHashSet<>();
                     chatMessages.add(new SystemMessage(s.content()));
                 }
+                case Message.Custom _ -> {}
                 case Message.User u -> {
                     pendingToolResultIds = new LinkedHashSet<>();
                     chatMessages.add(new UserMessage(u.content()));
@@ -40,6 +41,7 @@ public final class MessageConverter {
                             String text = a.content() != null && !a.content().isBlank() ? a.content() : null;
                             chatMessages.add(AiMessage.builder()
                                 .text(text)
+                                .thinking(nonBlank(a.thinking()))
                                 .toolExecutionRequests(tcList)
                                 .build());
                             pendingToolResultIds = a.toolCalls().stream()
@@ -47,14 +49,13 @@ public final class MessageConverter {
                                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
                         } else {
                             pendingToolResultIds = new LinkedHashSet<>();
-                            if (a.content() != null && !a.content().isBlank()) {
-                                chatMessages.add(AiMessage.from(a.content()));
+                            if (hasText(a.content()) || hasText(a.thinking())) {
+                                chatMessages.add(assistantMessage(a.content() != null ? a.content() : "", a.thinking()));
                             }
                         }
                     } else {
                         pendingToolResultIds = new LinkedHashSet<>();
-                        chatMessages.add(AiMessage.from(
-                            a.content() != null ? a.content() : ""));
+                        chatMessages.add(assistantMessage(a.content() != null ? a.content() : "", a.thinking()));
                     }
                 }
                 case Message.ToolResult tr -> {
@@ -78,6 +79,21 @@ public final class MessageConverter {
             }
         }
         return chatMessages;
+    }
+
+    private static AiMessage assistantMessage(String text, String thinking) {
+        return AiMessage.builder()
+            .text(text)
+            .thinking(nonBlank(thinking))
+            .build();
+    }
+
+    private static String nonBlank(String value) {
+        return value != null && !value.isBlank() ? value : null;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private static boolean hasCompleteImmediateToolResults(List<Message> messages, int assistantIndex) {

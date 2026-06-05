@@ -8,54 +8,11 @@ import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchemaElement;
 import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public final class ToolSchema {
     private ToolSchema() {}
-
-    public static Map<String, Object> toMap(JsonSchemaElement schema) {
-        var out = new LinkedHashMap<String, Object>();
-        switch (schema) {
-            case JsonObjectSchema object -> {
-                out.put("type", "object");
-                if (object.description() != null) out.put("description", object.description());
-                var properties = new LinkedHashMap<String, Object>();
-                if (object.properties() != null) {
-                    for (var entry : object.properties().entrySet()) {
-                        properties.put(entry.getKey(), toMap(entry.getValue()));
-                    }
-                }
-                out.put("properties", properties);
-                if (object.required() != null && !object.required().isEmpty()) out.put("required", object.required());
-                if (object.additionalProperties() != null) out.put("additionalProperties", object.additionalProperties());
-            }
-            case JsonArraySchema array -> {
-                out.put("type", "array");
-                if (array.description() != null) out.put("description", array.description());
-                out.put("items", array.items() != null ? toMap(array.items()) : Map.of("type", "string"));
-            }
-            case JsonBooleanSchema bool -> {
-                out.put("type", "boolean");
-                if (bool.description() != null) out.put("description", bool.description());
-            }
-            case JsonIntegerSchema integer -> {
-                out.put("type", "integer");
-                if (integer.description() != null) out.put("description", integer.description());
-            }
-            case JsonNumberSchema number -> {
-                out.put("type", "number");
-                if (number.description() != null) out.put("description", number.description());
-            }
-            case JsonStringSchema string -> {
-                out.put("type", "string");
-                if (string.description() != null) out.put("description", string.description());
-            }
-            default -> out.put("type", "string");
-        }
-        return out;
-    }
 
     @SuppressWarnings("unchecked")
     public static JsonObjectSchema objectFromMap(Map<String, Object> schema) {

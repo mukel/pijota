@@ -6,6 +6,7 @@ import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
@@ -68,6 +69,19 @@ public interface ExtensionAPI {
     void registerStatusLines(java.util.function.Supplier<List<String>> lines);
     void registerFooterLines(java.util.function.Supplier<List<String>> lines);
     void registerSystemPrompt(java.util.function.Supplier<String> prompt);
+
+    // ---- message injection ----
+
+    /** Send a custom extension message to the session (displayed, not sent to LLM). */
+    void sendMessage(Message.Custom custom);
+
+    /** Send a user message to the agent. Triggers a turn when idle. */
+    void sendUserMessage(String content);
+
+    /** Send a user message with explicit delivery mode.
+     *  deliverAs: "steer" (processed next turn), "followUp" (after current turn),
+     *  "nextTurn" (when idle, same as default). */
+    void sendUserMessage(String content, String deliverAs);
 
     ExtensionRuntime runtime();
 }

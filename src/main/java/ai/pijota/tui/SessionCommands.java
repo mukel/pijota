@@ -94,6 +94,8 @@ final class SessionCommands {
         try {
             host.session().newSession();
             host.setSessionName(null);
+            host.session().consumeSessionWarning().ifPresent(warning ->
+                host.appendPlain(List.of(host.styled("toolError", warning))));
         } catch (Exception e) {
             host.appendPlain(List.of(host.styled("toolError", "session creation failed: " + e.getMessage())));
             return;

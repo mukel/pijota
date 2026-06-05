@@ -1,15 +1,15 @@
 package ai.pijota.llm;
 
-import dev.langchain4j.agent.tool.ToolExecutionRequest;
-import dev.langchain4j.model.output.TokenUsage;
+import ai.pijota.messages.ToolCall;
+import ai.pijota.messages.Usage;
 
 import java.util.List;
 
 public final class StreamResult {
     private final StringBuilder contentBuilder = new StringBuilder();
     private final StringBuilder thinkingBuilder = new StringBuilder();
-    private List<ToolExecutionRequest> toolRequests;
-    private TokenUsage usage;
+    private List<ToolCall> toolCalls;
+    private Usage usage;
 
     public void appendContent(String text) {
         if (text != null) {
@@ -31,11 +31,11 @@ public final class StreamResult {
         }
     }
 
-    public void setToolRequests(List<ToolExecutionRequest> requests) {
-        this.toolRequests = requests;
+    public void setToolCalls(List<ToolCall> toolCalls) {
+        this.toolCalls = toolCalls;
     }
 
-    public void setUsage(TokenUsage usage) {
+    public void setUsage(Usage usage) {
         this.usage = usage;
     }
 
@@ -47,15 +47,15 @@ public final class StreamResult {
         return thinkingBuilder.toString();
     }
 
-    public List<ToolExecutionRequest> toolRequests() {
-        return toolRequests != null ? toolRequests : List.of();
+    public List<ToolCall> toolCalls() {
+        return toolCalls != null ? toolCalls : List.of();
     }
 
     public boolean hasToolCalls() {
-        return toolRequests != null && !toolRequests.isEmpty();
+        return toolCalls != null && !toolCalls.isEmpty();
     }
 
-    public TokenUsage usage() {
+    public Usage usage() {
         return usage;
     }
 }

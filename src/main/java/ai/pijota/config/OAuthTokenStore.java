@@ -37,6 +37,11 @@ public final class OAuthTokenStore {
         return entry != null ? entry.refresh() : null;
     }
 
+    public String getAccountId(String provider) {
+        var entry = tokens.get(provider);
+        return entry != null ? entry.accountId() : null;
+    }
+
     public void save(String provider, String accessToken, String refreshToken,
                      long expiresAt, String accountId,
                      String tokenUrl, String clientId) {

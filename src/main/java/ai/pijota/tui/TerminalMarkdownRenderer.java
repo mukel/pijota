@@ -18,8 +18,7 @@ final class TerminalMarkdownRenderer {
     }
 
     void setWidth(int width) {
-        if (width <= 20) return;
-        this.width = width;
+        this.width = Math.max(1, width);
     }
 
     // ---- public API -------------------------------------------

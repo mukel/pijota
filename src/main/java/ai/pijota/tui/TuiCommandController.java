@@ -25,6 +25,7 @@ final class TuiCommandController {
             case "/settings" -> tui.showSettingsSelector();
             case "/login" -> tui.showLoginSelector();
             case "/logout" -> tui.showLogoutSelector();
+            case "/refresh" -> tui.refreshModels();
             case "/theme" -> tui.showThemeSelector();
             case "/undo" -> tui.undoLastTurn();
             case "/compact" -> tui.triggerCompaction(commandArgs(input, cmd));

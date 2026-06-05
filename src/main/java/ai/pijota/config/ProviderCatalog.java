@@ -1,4 +1,4 @@
-package ai.pijota.llm;
+package ai.pijota.config;
 
 import ai.pijota.util.Util;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

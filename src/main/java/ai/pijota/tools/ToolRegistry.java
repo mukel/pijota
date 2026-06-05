@@ -38,6 +38,7 @@ public final class ToolRegistry {
             .toList();
     }
 
+
     public List<String> enabledToolNames() {
         return enabledTools().stream().map(Tool::name).toList();
     }

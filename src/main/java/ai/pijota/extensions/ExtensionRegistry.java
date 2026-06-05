@@ -486,6 +486,27 @@ public final class ExtensionRegistry {
         }
 
         @Override
+        public void sendMessage(Message.Custom custom) {
+            if (agentContext != null) {
+                agentContext.addCustomMessage(custom);
+            }
+        }
+
+        @Override
+        public void sendUserMessage(String content) {
+            if (agentContext != null) {
+                agentContext.sendUserMessage(content);
+            }
+        }
+
+        @Override
+        public void sendUserMessage(String content, String deliverAs) {
+            if (agentContext != null) {
+                agentContext.sendUserMessage(content, deliverAs);
+            }
+        }
+
+        @Override
         public ExtensionRuntime runtime() { return runtime; }
     }
 

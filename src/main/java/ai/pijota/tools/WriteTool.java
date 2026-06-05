@@ -1,4 +1,5 @@
 package ai.pijota.tools;
+import java.util.ArrayList;
 
 import ai.pijota.util.Util;
 
@@ -70,7 +71,7 @@ public final class WriteTool implements Tool {
         String summary = result.content();
         String content = (String) args.get("content");
         if (content == null || content.isBlank()) return ToolResultView.of(summary);
-        var body = new java.util.ArrayList<String>();
+        var body = new ArrayList<String>();
         var lines = content.lines().limit(6).toList();
         for (int i = 0; i < lines.size(); i++) {
             if (i >= 5) { body.add("… " + (content.lines().count() - 5) + " more lines"); break; }

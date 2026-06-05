@@ -9,6 +9,30 @@
       "defaultModel": "deepseek-chat"
     },
     {
+      "id": "anthropic",
+      "displayName": "Anthropic",
+      "apiType": "anthropic",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "env": ["ANTHROPIC_API_KEY"],
+      "defaultModel": "claude-sonnet-4-5-20250929"
+    },
+    {
+      "id": "google",
+      "displayName": "Google AI",
+      "apiType": "google",
+      "baseUrl": "https://generativelanguage.googleapis.com",
+      "env": ["GEMINI_API_KEY"],
+      "defaultModel": "gemini-2.5-pro"
+    },
+    {
+      "id": "openai",
+      "displayName": "OpenAI",
+      "apiType": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "env": ["OPENAI_API_KEY"],
+      "defaultModel": "gpt-4o"
+    },
+    {
       "id": "groq",
       "displayName": "Groq",
       "apiType": "openai",
@@ -68,9 +92,8 @@
       "id": "openai-codex",
       "displayName": "OpenAI Codex",
       "apiType": "openai",
-      "baseUrl": "https://api.openai.com/v1",
-      "env": ["OPENAI_API_KEY"],
-      "defaultModel": "gpt-5",
+      "baseUrl": "https://chatgpt.com/backend-api",
+      "defaultModel": "gpt-5.5",
       "oauth": {
         "deviceEndpoint": "https://auth.openai.com/api/accounts/deviceauth/usercode",
         "tokenEndpoint": "https://auth.openai.com/api/accounts/deviceauth/token",

@@ -1,5 +1,7 @@
 package ai.pijota.llm;
+import java.util.ArrayList;
 
+import ai.pijota.config.ProviderCatalog;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 
@@ -15,6 +17,9 @@ public sealed interface ProviderFactory {
     record OpenAiCompatible() implements ProviderFactory {
         @Override
         public StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName, ThinkingLevel thinkingLevel) {
+            if ("openai-codex".equals(providerName)) {
+                return new CodexStreamingChatModel(baseUrl, apiKey, modelName, providerName, thinkingLevel);
+            }
             var builder = OpenAiStreamingChatModel.builder()
                 .baseUrl(baseUrl)
                 .apiKey(apiKey)
@@ -77,7 +82,7 @@ public sealed interface ProviderFactory {
     }
 
     private static List<ProviderFactory> builtins() {
-        var list = new java.util.ArrayList<ProviderFactory>();
+        var list = new ArrayList<ProviderFactory>();
         list.add(new OpenAiCompatible());
         try {
             list.add(new GoogleProvider());

@@ -1,4 +1,5 @@
 package ai.pijota.extensions.examples;
+import java.util.ArrayList;
 
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
@@ -38,7 +39,7 @@ public final class TruncatedToolExtension implements Extension {
                 String searchPath = (String) args.getOrDefault("path", ".");
                 String glob = (String) args.get("glob");
 
-                var cmd = new java.util.ArrayList<>(List.of("rg", "--line-number", "--color=never"));
+                var cmd = new ArrayList<>(List.of("rg", "--line-number", "--color=never"));
                 if (glob != null) { cmd.add("--glob"); cmd.add(glob); }
                 cmd.add(pattern);
                 cmd.add(searchPath);

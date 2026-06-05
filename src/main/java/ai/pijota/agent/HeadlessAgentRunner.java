@@ -55,7 +55,8 @@ public final class HeadlessAgentRunner {
             String logPath = (String) input.get("logFile");
             if (logPath != null && !logPath.isBlank()) {
                 logFile = Path.of(logPath);
-                Files.createDirectories(logFile.getParent());
+                Path parent = logFile.getParent();
+                if (parent != null) Files.createDirectories(parent);
                 if (!parentLogs) {
                     writerRef[0] = Files.newBufferedWriter(logFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
                 }

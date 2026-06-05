@@ -86,7 +86,10 @@ final class ToolRender {
             }
         } catch (Exception ignored) {}
         String home = System.getProperty("user.home");
-        return home != null && path.startsWith(home) ? "~" + path.substring(home.length()) : path;
+        if (home == null || !path.startsWith(home)) return path;
+        if (path.length() == home.length()) return "~";
+        if (path.charAt(home.length()) == '/') return "~" + path.substring(home.length());
+        return path;
     }
 
     private static Path normalizePath(String path) {

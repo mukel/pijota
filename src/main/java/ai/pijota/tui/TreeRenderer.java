@@ -58,7 +58,8 @@ final class TreeRenderer {
             if (isUserEntry(entry)) userNumbers.put(id, ++userCount);
         }
         for (var entry : entries) {
-            String parentId = (String) entry.get("parentId");
+            Object pid = entry.get("parentId");
+            String parentId = pid instanceof String s ? s : null;
             if (parentId == null || !byId.containsKey(parentId)) {
                 roots.add(entry);
             } else {
@@ -134,8 +135,9 @@ final class TreeRenderer {
     }
 
     private Integer forkFrom(String id, Map<String, String> parents, Map<String, Integer> userNumbers) {
+        var visited = new java.util.HashSet<String>();
         String parent = parents.get(id);
-        while (parent != null) {
+        while (parent != null && visited.add(parent)) {
             Integer number = userNumbers.get(parent);
             if (number != null) return number;
             parent = parents.get(parent);

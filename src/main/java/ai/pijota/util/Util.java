@@ -20,9 +20,6 @@ public final class Util {
 
     private Util() {}
 
-    public static String stripTrailingSlash(String url) {
-        return url != null ? url.replaceAll("/+$", "") : null;
-    }
 
     public static String truncate(String s, int maxLen) {
         if (s == null) return "";
@@ -40,8 +37,24 @@ public final class Util {
     }
 
     public static String escapeJson(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+        var sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
+                    else sb.append(c);
+                }
+            }
+        }
+        return sb.toString();
     }
 
     public static int getInt(Map<String, Object> args, String key, int defaultVal) {

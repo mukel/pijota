@@ -7,6 +7,7 @@ import ai.pijota.util.Util;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -14,6 +15,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 public final class SessionManager {
@@ -24,6 +27,10 @@ public final class SessionManager {
     // The current branch position in the tree. New appends create children of this entry.
     // null = root. Updated by append operations and load.
     private volatile String leafId;
+
+    // Per-file write lock — ensures append-only writes from concurrent threads
+    // (e.g. assistant message + tool result from overlapping turns) don't interleave.
+    private final ConcurrentHashMap<Path, ReentrantLock> writeLocks = new ConcurrentHashMap<>();
 
     public SessionManager(Path sessionDir) { this.sessionDir = sessionDir; }
 
@@ -38,6 +45,11 @@ public final class SessionManager {
         String id = UUID.randomUUID().toString();
         Path file = resolveSessionPath(cwd, id);
         Files.createDirectories(file.getParent());
+        // Clean up stale .tmp files from crashed saveMessages calls
+        try (var stream = Files.list(file.getParent())) {
+            stream.filter(p -> p.getFileName().toString().endsWith(".tmp"))
+                .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
+        } catch (IOException ignored) {}
         writeHeader(file, id, null, cwd, parentSession);
         return file;
     }
@@ -88,65 +100,134 @@ public final class SessionManager {
     // -- Entry types --
 
     public void appendMessage(Path sessionFile, Message message) throws IOException {
-        String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-        var entry = new LinkedHashMap<String, Object>();
-        entry.put("id", message.id().toString());
-        entry.put("parentId", parentId);
-        entry.put("timestamp", timestampOf(message));
-        entry.put("type", "message");
-        serializeMessage(entry, message);
-        Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        leafId = message.id().toString();
+        lockAndWrite(sessionFile, () -> {
+            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
+            var entry = new LinkedHashMap<String, Object>();
+            entry.put("id", message.id().toString());
+            entry.put("parentId", parentId);
+            entry.put("timestamp", timestampOf(message));
+            entry.put("type", "message");
+            serializeMessage(entry, message);
+            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            leafId = message.id().toString();
+        });
     }
 
     public void appendCompaction(Path sessionFile, String summary, int compactedCount,
                                   String firstKeptEntryId) throws IOException {
-        String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-        String entryId = UUID.randomUUID().toString();
-        var entry = new LinkedHashMap<String, Object>();
-        entry.put("id", entryId);
-        entry.put("parentId", parentId);
-        entry.put("timestamp", Instant.now().toString());
-        entry.put("type", "compaction");
-        entry.put("summary", summary);
-        entry.put("compactedCount", compactedCount);
-        if (firstKeptEntryId != null) entry.put("firstKeptEntryId", firstKeptEntryId);
-        Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        leafId = entryId;
+        lockAndWrite(sessionFile, () -> {
+            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
+            String entryId = UUID.randomUUID().toString();
+            var entry = new LinkedHashMap<String, Object>();
+            entry.put("id", entryId);
+            entry.put("parentId", parentId);
+            entry.put("timestamp", Instant.now().toString());
+            entry.put("type", "compaction");
+            entry.put("summary", summary);
+            entry.put("compactedCount", compactedCount);
+            if (firstKeptEntryId != null) entry.put("firstKeptEntryId", firstKeptEntryId);
+            // DSYNC: compaction is the durability gate — losing a compaction marker
+            // on crash would show stale context on restart.
+            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC);
+            leafId = entryId;
+        });
     }
 
     public void appendSessionInfo(Path sessionFile, String name) throws IOException {
-        String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-        var entry = new LinkedHashMap<String, Object>();
-        entry.put("id", UUID.randomUUID().toString());
-        entry.put("parentId", parentId);
-        entry.put("timestamp", Instant.now().toString());
-        entry.put("type", "session_info");
-        entry.put("name", name == null ? "" : name.trim());
-        Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        lockAndWrite(sessionFile, () -> {
+            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
+            var entry = new LinkedHashMap<String, Object>();
+            String entryId = UUID.randomUUID().toString();
+            entry.put("id", entryId);
+            entry.put("parentId", parentId);
+            entry.put("timestamp", Instant.now().toString());
+            entry.put("type", "session_info");
+            entry.put("name", name == null ? "" : name.trim());
+            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            leafId = entryId;
+        });
     }
 
     public void appendModelChange(Path sessionFile, String provider, String model, long contextWindow) throws IOException {
-        String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-        var entry = new LinkedHashMap<String, Object>();
-        entry.put("id", UUID.randomUUID().toString());
-        entry.put("parentId", parentId);
-        entry.put("timestamp", Instant.now().toString());
-        entry.put("type", "model_change");
-        entry.put("provider", provider == null ? "" : provider);
-        entry.put("model", model == null ? "" : model);
-        entry.put("contextWindow", contextWindow);
-        Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        lockAndWrite(sessionFile, () -> {
+            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
+            var entry = new LinkedHashMap<String, Object>();
+            String entryId = UUID.randomUUID().toString();
+            entry.put("id", entryId);
+            entry.put("parentId", parentId);
+            entry.put("timestamp", Instant.now().toString());
+            entry.put("type", "model_change");
+            entry.put("provider", provider == null ? "" : provider);
+            entry.put("model", model == null ? "" : model);
+            entry.put("contextWindow", contextWindow);
+            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            leafId = entryId;
+        });
+    }
+
+    public void appendCacheMetadata(Path sessionFile, String systemPrompt,
+                                    String toolManifestHash, String toolManifestJson,
+                                    String provider, String model) throws IOException {
+        lockAndWrite(sessionFile, () -> {
+            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
+            String entryId = UUID.randomUUID().toString();
+            var entry = new LinkedHashMap<String, Object>();
+            entry.put("id", entryId);
+            entry.put("parentId", parentId);
+            entry.put("timestamp", Instant.now().toString());
+            entry.put("type", "cache_metadata");
+            entry.put("systemPrompt", systemPrompt == null ? "" : systemPrompt);
+            entry.put("toolManifestHash", toolManifestHash == null ? "" : toolManifestHash);
+            entry.put("toolManifestJson", toolManifestJson == null ? "" : toolManifestJson);
+            entry.put("provider", provider == null ? "" : provider);
+            entry.put("model", model == null ? "" : model);
+            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            leafId = entryId;
+        });
+    }
+
+    public void appendThinkingLevelChange(Path sessionFile, String level) throws IOException {
+        lockAndWrite(sessionFile, () -> {
+            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
+            String entryId = UUID.randomUUID().toString();
+            var entry = new LinkedHashMap<String, Object>();
+            entry.put("id", entryId);
+            entry.put("parentId", parentId);
+            entry.put("timestamp", Instant.now().toString());
+            entry.put("type", "thinking_level_change");
+            entry.put("level", level == null ? "OFF" : level);
+            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            leafId = entryId;
+        });
+    }
+
+    public CacheMetadata latestCacheMetadata(Path sessionFile) throws IOException {
+        if (sessionFile == null || !Files.exists(sessionFile)) return null;
+        CacheMetadata metadata = null;
+        for (var entry : currentBranchEntries(sessionFile)) {
+            if ("cache_metadata".equals(entry.get("type"))) {
+                metadata = new CacheMetadata(
+                    (String) entry.getOrDefault("systemPrompt", ""),
+                    (String) entry.getOrDefault("toolManifestHash", ""),
+                    (String) entry.getOrDefault("toolManifestJson", ""),
+                    (String) entry.getOrDefault("provider", ""),
+                    (String) entry.getOrDefault("model", "")
+                );
+            }
+        }
+        return metadata;
     }
 
     public ModelSelection latestModelSelection(Path sessionFile) throws IOException {
         if (sessionFile == null || !Files.exists(sessionFile)) return null;
         ModelSelection selection = null;
-        for (var entry : readAllEntries(sessionFile).values()) {
+        for (var entry : currentBranchEntries(sessionFile)) {
             if ("model_change".equals(entry.get("type"))) {
                 String provider = (String) entry.getOrDefault("provider", "");
                 String model = (String) entry.getOrDefault("model", "");
@@ -160,14 +241,27 @@ public final class SessionManager {
     }
 
     public String sessionName(Path sessionFile) throws IOException {
+        if (sessionFile == null || !Files.exists(sessionFile)) return null;
         String name = null;
-        for (var entry : readAllEntries(sessionFile).values()) {
+        for (var entry : currentBranchEntries(sessionFile)) {
             if ("session_info".equals(entry.get("type"))) {
                 String value = (String) entry.getOrDefault("name", "");
                 name = value == null || value.isBlank() ? null : value.trim();
             }
         }
         return name;
+    }
+
+    public String latestThinkingLevel(Path sessionFile) throws IOException {
+        if (sessionFile == null || !Files.exists(sessionFile)) return null;
+        String level = null;
+        for (var entry : currentBranchEntries(sessionFile)) {
+            if ("thinking_level_change".equals(entry.get("type"))) {
+                String value = (String) entry.getOrDefault("level", "");
+                if (!value.isBlank()) level = value;
+            }
+        }
+        return level;
     }
 
     public void saveMessages(Path file, List<Message> messages, String cwd) throws IOException {
@@ -178,16 +272,30 @@ public final class SessionManager {
         header.put("timestamp", Instant.now().toString());
         header.put("cwd", cwd);
         sb.append(Util.MAPPER.writeValueAsString(header)).append('\n');
+        String prevId = null;
         for (var msg : messages) {
             if (msg instanceof Message.System) continue;
             var entry = new LinkedHashMap<String, Object>();
             entry.put("id", msg.id().toString());
+            if (prevId != null) entry.put("parentId", prevId);
             entry.put("timestamp", timestampOf(msg));
-            entry.put("type", "message");
             serializeMessage(entry, msg);
             sb.append(Util.MAPPER.writeValueAsString(entry)).append('\n');
+            prevId = msg.id().toString();
         }
-        Files.writeString(file, sb.toString());
+
+        // Atomic write: write to .tmp, fsync, then rename over the real file.
+        // A crash mid-write leaves the original intact; a crash after rename
+        // is fine (the tmp file may linger, cleaned up on next session create).
+        Path tmpFile = file.resolveSibling(file.getFileName() + ".tmp");
+        lockAndWrite(file, () -> {
+            Files.writeString(tmpFile, sb.toString());
+            // Force OS buffers to disk before the atomic rename
+            try { Files.writeString(tmpFile, "", StandardOpenOption.APPEND, StandardOpenOption.DSYNC); }
+            catch (IOException ignored) { /* best-effort fsync */ }
+            Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        });
+        leafId = prevId;
     }
 
     private static String timestampOf(Message msg) {
@@ -266,6 +374,16 @@ public final class SessionManager {
                 String summary = (String) entry.get("summary");
                 if (summary != null && !summary.isBlank()) {
                     messages.add(new Message.BranchSummary(summary));
+                }
+            }
+            case "compaction" -> {}
+            case "custom_message" -> {
+                String customType = (String) entry.get("custom_type");
+                String content = (String) entry.get("content");
+                if (customType != null && content != null) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> details = (Map<String, Object>) entry.get("details");
+                    messages.add(new Message.Custom(customType, content, details));
                 }
             }
             case "message" -> {
@@ -351,6 +469,16 @@ public final class SessionManager {
         return buildBranchPath(idToEntry, leafId);
     }
 
+    private List<Map<String, Object>> currentBranchEntries(Path file) throws IOException {
+        var idToEntry = readAllEntries(file);
+        if (idToEntry.isEmpty()) return List.of();
+        String effectiveLeaf = leafId;
+        if (effectiveLeaf == null || !idToEntry.containsKey(effectiveLeaf)) {
+            for (var id : idToEntry.keySet()) effectiveLeaf = id;
+        }
+        return buildBranchPath(idToEntry, effectiveLeaf);
+    }
+
     public List<Map<String, Object>> getTreeEntries(Path file) throws IOException {
         return new ArrayList<>(readAllEntries(file).values());
     }
@@ -390,6 +518,16 @@ public final class SessionManager {
         return sessionDirForCwd(cwd).resolve(id + ".jsonl");
     }
 
+    @FunctionalInterface
+    private interface WriteAction { void run() throws IOException; }
+
+    private void lockAndWrite(Path file, WriteAction action) throws IOException {
+        var lock = writeLocks.computeIfAbsent(file, _ -> new ReentrantLock());
+        lock.lock();
+        try { action.run(); }
+        finally { lock.unlock(); }
+    }
+
     private void writeHeader(Path file, String id, String parentEntryId, String cwd) throws IOException {
         writeHeader(file, id, parentEntryId, cwd, null);
     }
@@ -410,13 +548,15 @@ public final class SessionManager {
     private String findLastEntryId(Path sessionFile) {
         try {
             String lastLine = null;
-            try (Stream<String> lines = Files.lines(sessionFile)) {
-                var list = lines.toList();
-                if (!list.isEmpty()) lastLine = list.get(list.size() - 1);
+            try (var lines = Files.lines(sessionFile)) {
+                lastLine = lines.reduce((_, b) -> b).orElse(null);
             }
             if (lastLine != null) {
                 var node = Util.MAPPER.readTree(lastLine);
-                if (node.has("id")) return node.get("id").asText();
+                if (node.has("id") && node.has("type")
+                    && !"session".equals(node.get("type").asText())) {
+                    return node.get("id").asText();
+                }
             }
         } catch (IOException ignored) {}
         return null;
@@ -425,10 +565,12 @@ public final class SessionManager {
     private static void serializeMessage(Map<String, Object> entry, Message msg) {
         switch (msg) {
             case Message.User u -> {
+                entry.put("type", "message");
                 entry.put("role", "user");
                 entry.put("content", u.content());
             }
             case Message.Assistant a -> {
+                entry.put("type", "message");
                 entry.put("role", "assistant");
                 entry.put("content", a.content());
                 if (a.toolCalls() != null && !a.toolCalls().isEmpty()) {
@@ -437,8 +579,13 @@ public final class SessionManager {
                         .toList());
                 }
                 if (a.thinking() != null) entry.put("thinking", a.thinking());
+                if (a.sourceProvider() != null && !a.sourceProvider().isBlank())
+                    entry.put("source_provider", a.sourceProvider());
+                if (a.sourceModel() != null && !a.sourceModel().isBlank())
+                    entry.put("source_model", a.sourceModel());
             }
             case Message.ToolResult tr -> {
+                entry.put("type", "message");
                 entry.put("role", "tool_result");
                 entry.put("tool_call_id", tr.toolCallId());
                 entry.put("tool_name", tr.toolName());
@@ -447,14 +594,31 @@ public final class SessionManager {
                 if (tr.details() != null && !tr.details().isEmpty()) entry.put("details", tr.details());
             }
             case Message.System s -> {
+                entry.put("type", "message");
                 entry.put("role", "system");
                 entry.put("content", s.content());
             }
             case Message.BranchSummary bs -> {
+                entry.put("type", "branch_summary");
                 entry.put("role", "user");
+                entry.put("summary", bs.summary());
                 entry.put("content", "[Branch context]\n" + bs.summary());
             }
-            default -> {}
+            case Message.CompactionSummary cs -> {
+                entry.put("type", "compaction");
+                entry.put("role", "user");
+                entry.put("summary", cs.summary());
+                entry.put("content", "[Previous conversation summary]\n" + cs.summary());
+            }
+            case Message.Custom c -> {
+                entry.put("type", "custom_message");
+                entry.put("role", "custom");
+                entry.put("custom_type", c.customType());
+                entry.put("content", c.content());
+                if (c.details() != null && !c.details().isEmpty()) entry.put("details", c.details());
+            }
+            default -> throw new IllegalArgumentException(
+                "Unknown message type: " + msg.getClass().getSimpleName());
         }
     }
 
@@ -472,14 +636,21 @@ public final class SessionManager {
     private static Message deserializeEntry(Map<String, Object> entry) {
         String type = (String) entry.getOrDefault("type", "message");
         if ("model_change".equals(type) || "thinking_level_change".equals(type)
+            || "cache_metadata".equals(type)
             || "session_info".equals(type) || "compaction".equals(type) || "session".equals(type)
             || "branch_summary".equals(type)) {
             return null;
         }
 
         String role = (String) entry.getOrDefault("role", "user");
-        UUID id = UUID.fromString((String) entry.getOrDefault("id", UUID.randomUUID().toString()));
-        Instant ts = Instant.parse((String) entry.getOrDefault("timestamp", Instant.now().toString()));
+        UUID id;
+        Instant ts;
+        try {
+            id = UUID.fromString((String) entry.getOrDefault("id", UUID.randomUUID().toString()));
+            ts = Instant.parse((String) entry.getOrDefault("timestamp", Instant.now().toString()));
+        } catch (IllegalArgumentException | ClassCastException e) {
+            return null;
+        }
 
         return switch (role) {
             case "user" -> {
@@ -489,6 +660,8 @@ public final class SessionManager {
             case "assistant" -> {
                 String content = (String) entry.get("content");
                 String thinking = (String) entry.get("thinking");
+                String sourceProvider = (String) entry.get("source_provider");
+                String sourceModel = (String) entry.get("source_model");
                 List<ToolCall> tcs = List.of();
                 Object tcObj = entry.get("tool_calls");
                 if (tcObj instanceof List<?> list) {
@@ -502,7 +675,7 @@ public final class SessionManager {
                                     : m.get("arguments") != null ? m.get("arguments").toString() : "{}");
                         }).toList();
                 }
-                yield new Message.Assistant(id, ts, content, tcs, thinking);
+                yield new Message.Assistant(id, ts, content, tcs, thinking, sourceProvider, sourceModel);
             }
             case "tool", "tool_result" -> {
                 String tcId = (String) entry.get("tool_call_id");
@@ -523,4 +696,7 @@ public final class SessionManager {
             }
         };
     }
+
+    public record CacheMetadata(String systemPrompt, String toolManifestHash,
+                                String toolManifestJson, String provider, String model) {}
 }

@@ -5,13 +5,11 @@ import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.config.AppConfig;
 import ai.pijota.llm.LlmService;
 import ai.pijota.llm.StreamResult;
-import ai.pijota.llm.ToolSchema;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
-import dev.langchain4j.agent.tool.ToolSpecification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -184,6 +182,34 @@ public final class AgentLoop implements AgentContext {
         if (result != null && !result.isDone()) result.complete(new ArrayList<>(history.mutableList()));
     }
 
+    @Override
+    public void sendUserMessage(String content) {
+        if (isBusy()) {
+            sendUserMessage(content, "steer");
+        } else {
+            history.add(new Message.User(content));
+            fireEvent(AgentEvent.turnStart(sessionTurn + 1));
+        }
+    }
+
+    @Override
+    public void sendUserMessage(String content, String deliverAs) {
+        switch (deliverAs) {
+            case "steer" -> steeringQueue.enqueueSteering(content);
+            case "followUp" -> steeringQueue.enqueueFollowUp(content);
+            default -> {
+                if (isBusy()) steeringQueue.enqueueSteering(content);
+                else history.add(new Message.User(content));
+            }
+        }
+    }
+
+    @Override
+    public void addCustomMessage(Message.Custom message) {
+        history.add(message);
+        fireEvent(new AgentEvent.CustomMessage(message));
+    }
+
     private void removeStalePartialAssistant() {
         var msgs = history.mutableList();
         synchronized (msgs) {
@@ -238,7 +264,9 @@ public final class AgentLoop implements AgentContext {
         processSteeringMessages();
 
         var requestMessages = history.snapshot();
-        var toolSpecs = buildToolSpecifications();
+        String requestProvider = llm.provider();
+        String requestModel = llm.model();
+            var toolSpecs = toolRegistry.enabledTools();
 
         var partialMsg = new Message.Assistant("", List.of(), null);
         history.add(partialMsg);
@@ -264,7 +292,7 @@ public final class AgentLoop implements AgentContext {
                     }
                     var updated = new Message.Assistant(partialContent, List.of(), partialThinking);
                     fireEvent(AgentEvent.assistantMessage(updated, null));
-                    history.set(history.size() - 1, new Message.Assistant(updated.content(), updated.toolCalls(), ""));
+                    history.set(history.size() - 1, updated.withSource(requestProvider, requestModel));
                 });
                 activeStream.set(stream);
                 return stream;
@@ -275,17 +303,16 @@ public final class AgentLoop implements AgentContext {
                 fireEvent(AgentEvent.messageStreamEnd("assistant"));
 
                 var newToolCalls = streamResult.hasToolCalls()
-                    ? streamResult.toolRequests().stream()
-                        .map(tc -> new ToolCall(tc.id(), tc.name(), tc.arguments()))
-                        .toList()
+                    ? streamResult.toolCalls()
                     : List.<ToolCall>of();
 
                 var finalContent = streamResult.content() != null ? streamResult.content() : "";
                 var finalThinking = streamResult.thinking() != null && !streamResult.thinking().isBlank()
                     ? streamResult.thinking() : null;
-                var assistantMsg = new Message.Assistant(finalContent, newToolCalls, finalThinking);
+                var assistantMsg = new Message.Assistant(finalContent, newToolCalls, finalThinking)
+                    .withSource(requestProvider, requestModel);
                 fireEvent(AgentEvent.assistantMessage(assistantMsg, streamResult.usage()));
-                history.set(history.size() - 1, new Message.Assistant(assistantMsg.content(), assistantMsg.toolCalls(), ""));
+                history.set(history.size() - 1, assistantMsg);
 
                 if (!streamResult.hasToolCalls()) {
                     fireEvent(AgentEvent.turnEnd(turn));
@@ -293,7 +320,7 @@ public final class AgentLoop implements AgentContext {
                     return;
                 }
 
-                toolExecutor.execute(streamResult.toolRequests())
+                toolExecutor.execute(streamResult.toolCalls())
                     .thenAccept(_ -> {
                         if (!isActive(result)) return;
                         fireEvent(AgentEvent.turnEnd(turn));
@@ -344,16 +371,6 @@ public final class AgentLoop implements AgentContext {
             activeResult.compareAndSet(result, null);
             result.complete(new ArrayList<>(history.mutableList()));
         }
-    }
-
-    private List<ToolSpecification> buildToolSpecifications() {
-        return toolRegistry.enabledTools().stream()
-            .map(t -> ToolSpecification.builder()
-                .name(t.name())
-                .description(t.description())
-                .parameters(ToolSchema.objectFromMap(t.schema()))
-                .build())
-            .toList();
     }
 
     private void fireEvent(AgentEvent event) {

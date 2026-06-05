@@ -15,9 +15,7 @@ public final class OAuthLogin {
 
     public record DeviceCode(String deviceCode, String userCode, String verificationUri, int expiresIn) {}
 
-    public record TokenResult(String accessToken, String refreshToken, long expiresAt, String accountId) {
-        public boolean isExpired() { return System.currentTimeMillis() > expiresAt; }
-    }
+    public record TokenResult(String accessToken, String refreshToken, long expiresAt, String accountId) {}
 
     private OAuthLogin() {}
 
@@ -39,17 +37,20 @@ public final class OAuthLogin {
         var client = HttpClient.newHttpClient();
 
         var device = requestOpenAIDeviceCode(client, deviceCodeUrl, clientId);
-        String uri = "https://auth.openai.com/codex/device";
         System.out.println("\nOpen this URL in your browser:");
-        System.out.println(clickableLink(uri, uri));
+        System.out.println(clickableLink(device.verificationUri(), device.verificationUri()));
         System.out.println("Enter this code: " + device.userCode());
         System.out.println("Waiting for authorization...\n");
 
-        var authCode = pollOpenAIDeviceAuth(client, tokenUrl, device);
-        return exchangeOpenAIAuthCode(client, oauthTokenUrl, clientId, authCode.code, authCode.codeVerifier);
+        var result = pollOpenAIDeviceAuth(client, tokenUrl, device);
+        if (result.token() != null) return result.token();
+        var authCode = result.authCode();
+        return exchangeOpenAIAuthCode(client, oauthTokenUrl, clientId, authCode.code,
+            authCode.codeVerifier);
     }
 
     public record AuthCode(String code, String codeVerifier) {}
+    private record DeviceAuthResult(TokenResult token, AuthCode authCode) {}
 
     private static DeviceCode requestDeviceCode(HttpClient client, String endpoint,
                                                  String clientId, String scope) throws Exception {
@@ -124,13 +125,14 @@ public final class OAuthLogin {
         return new DeviceCode(
             node.get("device_auth_id").asText(),
             node.get("user_code").asText(),
-            "https://auth.openai.com/codex/device",
+            node.has("verification_uri") ? node.get("verification_uri").asText()
+                : "https://auth.openai.com/codex/device",
             node.has("interval") ? node.get("interval").asInt() : 5
         );
     }
 
-    private static AuthCode pollOpenAIDeviceAuth(HttpClient client, String endpoint,
-                                                   DeviceCode device) throws Exception {
+    private static DeviceAuthResult pollOpenAIDeviceAuth(HttpClient client, String endpoint,
+                                                         DeviceCode device) throws Exception {
         var interval = Duration.ofSeconds(Math.max(device.expiresIn(), 3));
         long deadline = System.currentTimeMillis() + TIMEOUT.toMillis();
         while (System.currentTimeMillis() < deadline) {
@@ -146,13 +148,15 @@ public final class OAuthLogin {
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 var node = Util.MAPPER.readTree(response.body());
+                if (node.has("access_token")) {
+                    return new DeviceAuthResult(buildTokenResult(node), null);
+                }
                 if (node.has("authorization_code") && node.has("code_verifier")) {
-                    return new AuthCode(
+                    return new DeviceAuthResult(null, new AuthCode(
                         node.get("authorization_code").asText(),
                         node.get("code_verifier").asText()
-                    );
+                    ));
                 }
-                throw new IOException("Invalid device auth token response: " + response.body());
             }
             if (response.statusCode() != 403 && response.statusCode() != 404) {
                 throw new IOException("OpenAI device auth polling failed: HTTP "
@@ -167,11 +171,12 @@ public final class OAuthLogin {
     private static TokenResult exchangeOpenAIAuthCode(HttpClient client, String tokenUrl,
                                                         String clientId, String code,
                                                         String codeVerifier) throws Exception {
+        String redirectUri = "https://auth.openai.com/deviceauth/callback";
         String body = "grant_type=authorization_code"
             + "&client_id=" + urlEncode(clientId)
             + "&code=" + urlEncode(code)
             + "&code_verifier=" + urlEncode(codeVerifier)
-            + "&redirect_uri=" + urlEncode("http://localhost:1455/auth/callback");
+            + "&redirect_uri=" + urlEncode(redirectUri);
         var request = HttpRequest.newBuilder()
             .uri(URI.create(tokenUrl))
             .header("Content-Type", "application/x-www-form-urlencoded")

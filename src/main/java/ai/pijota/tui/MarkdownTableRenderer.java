@@ -225,10 +225,7 @@ final class MarkdownTableRenderer {
     }
 
     private static int preferredWidth(String text) {
-        int max = 0;
-        for (String word : text.split("\\s+"))
-            max = Math.max(max, AnsiWidth.visibleWidth(word));
-        return Math.max(max, AnsiWidth.visibleWidth(text));
+        return AnsiWidth.visibleWidth(text);
     }
 
     private static int sum(int[] widths) {

@@ -21,6 +21,7 @@ enum BuiltInSlashCommand {
     HOTKEYS("/hotkeys", "Show keyboard shortcuts"),
     LOGIN("/login", "Log in to a provider via OAuth"),
     LOGOUT("/logout", "Remove stored credentials for a provider"),
+    REFRESH("/refresh", "Refresh available models"),
     TREE("/tree", "Show conversation tree"),
     FORK("/fork", "Fork a new session from a previous message"),
     CLONE("/clone", "Clone current branch to a new session"),

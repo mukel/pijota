@@ -3,6 +3,7 @@ package ai.pijota.agent;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 
+import java.util.Comparator;
 import java.util.List;
 
 public final class SystemPrompt {
@@ -58,7 +59,7 @@ public final class SystemPrompt {
 
         var toolDescs = new StringBuilder();
         var toolGuidelines = new StringBuilder();
-        for (Tool tool : registry.enabledTools()) {
+        for (Tool tool : registry.enabledTools().stream().sorted(Comparator.comparing(Tool::name)).toList()) {
             toolDescs.append("- `").append(tool.name()).append("`: ")
                 .append(tool.description()).append('\n');
             toolGuidelines.append(buildToolGuideline(tool));

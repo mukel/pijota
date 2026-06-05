@@ -65,7 +65,6 @@ public class AnsiTheme {
     public String diffAddLine   = "bg:#08180F";
     public String diffDeleteLine = "bg:#1D1411";
 
-    public String background   = "";
     public Map<String, String> extra = new HashMap<>();
 
     // -- factory presets -------------------------------

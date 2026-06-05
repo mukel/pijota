@@ -1,66 +1,111 @@
 package ai.pijota.tui;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Predicate;
 
 final class TuiSelectors {
-    final Selector<ModelItem> model = new Selector<>(List.of());
-    final Selector<SessionItem> session = new Selector<>(List.of());
-    final Selector<ThemeItem> theme = new Selector<>(List.of());
-    final Selector<SettingsItem> settings = new Selector<>(List.of());
-    final Selector<LoginProviderItem> login = new Selector<>(List.of());
-    final Selector<ForkMessageItem> fork = new Selector<>(List.of());
+    enum Slot {
+        MODEL(ModelItem.class),
+        SESSION(SessionItem.class),
+        THEME(ThemeItem.class),
+        SETTINGS(SettingsItem.class),
+        LOGIN(LoginProviderItem.class),
+        FORK(ForkMessageItem.class);
 
-    private final List<SelectorBinding> bindings;
+        private final Class<? extends SelectorItem> itemType;
+
+        Slot(Class<? extends SelectorItem> itemType) {
+            this.itemType = itemType;
+        }
+    }
+
+    private final EnumMap<Slot, SelectorBinding> bindings = new EnumMap<>(Slot.class);
 
     TuiSelectors(Runnable confirmModel, Runnable confirmSession, Runnable confirmTheme,
                  Runnable confirmSettings, Runnable confirmLogin, Runnable confirmFork) {
-        bindings = List.of(
-            new SelectorBinding(model, confirmModel),
-            new SelectorBinding(session, confirmSession),
-            new SelectorBinding(theme, confirmTheme),
-            new SelectorBinding(settings, confirmSettings),
-            new SelectorBinding(login, confirmLogin),
-            new SelectorBinding(fork, confirmFork)
-        );
+        bind(Slot.MODEL, confirmModel);
+        bind(Slot.SESSION, confirmSession);
+        bind(Slot.THEME, confirmTheme);
+        bind(Slot.SETTINGS, confirmSettings);
+        bind(Slot.LOGIN, confirmLogin);
+        bind(Slot.FORK, confirmFork);
     }
 
     List<PromptRegion> regions() {
         var regions = new ArrayList<PromptRegion>();
-        regions.add(new SelectorRegion<>(model));
-        regions.add(new SelectorRegion<>(session));
-        regions.add(new SelectorRegion<>(theme));
-        regions.add(new SelectorRegion<>(settings));
-        regions.add(new SelectorRegion<>(login));
-        regions.add(new SelectorRegion<>(fork));
+        for (var binding : bindings.values()) regions.add(new SelectorRegion<>(binding.selector()));
         return regions;
     }
 
     boolean anyActive() {
-        for (var binding : bindings) if (binding.selector().active()) return true;
+        for (var binding : bindings.values()) if (binding.selector().active()) return true;
         return false;
     }
 
     void deactivateAll() {
-        for (var binding : bindings) binding.selector().deactivate();
+        for (var binding : bindings.values()) binding.selector().deactivate();
     }
 
-    <T extends SelectorItem> void activate(Selector<T> selector, List<T> items) {
-        selector.setItems(items);
-        selector.activate(null);
+    <T extends SelectorItem> void show(Slot slot, List<T> items) {
+        checkItems(slot, items);
+        selector(slot).setItems(new ArrayList<>(items));
+        selector(slot).activate(null);
+    }
+
+    <T extends SelectorItem> void selectFirst(Slot slot, Predicate<T> test) {
+        selector(slot).selectFirst(item -> test.test(cast(slot, item)));
+    }
+
+    <T extends SelectorItem> Optional<T> selected(Slot slot) {
+        var selector = selector(slot);
+        if (!selector.active() || selector.total() == 0) return Optional.empty();
+        return Optional.of(cast(slot, selector.selectedItem()));
+    }
+
+    void deactivate(Slot slot) {
+        selector(slot).deactivate();
+    }
+
+    <T extends SelectorItem> void refresh(Slot slot, List<T> items) {
+        checkItems(slot, items);
+        selector(slot).setItems(new ArrayList<>(items));
     }
 
     boolean handle(Key key, Runnable redraw) {
-        for (var binding : bindings) {
+        for (var binding : bindings.values()) {
             if (handle(key, binding.selector(), binding.onConfirm(), redraw)) return true;
         }
         return false;
     }
 
     void filter(String text) {
-        for (var binding : bindings) {
+        for (var binding : bindings.values()) {
             if (binding.selector().active()) binding.selector().filter(text);
         }
+    }
+
+    private Selector<SelectorItem> selector(Slot slot) {
+        return bindings.get(slot).selector();
+    }
+
+    private static void checkItems(Slot slot, List<? extends SelectorItem> items) {
+        for (var item : items) {
+            if (!slot.itemType.isInstance(item)) {
+                throw new IllegalArgumentException(slot + " selector cannot show " + item.getClass().getSimpleName());
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends SelectorItem> T cast(Slot slot, SelectorItem item) {
+        return (T) slot.itemType.cast(item);
+    }
+
+    private void bind(Slot slot, Runnable onConfirm) {
+        bindings.put(slot, new SelectorBinding(new Selector<>(List.of()), onConfirm));
     }
 
     private static boolean handle(Key key, Selector<?> selector, Runnable onConfirm, Runnable redraw) {
@@ -73,5 +118,5 @@ final class TuiSelectors {
         return false;
     }
 
-    private record SelectorBinding(Selector<?> selector, Runnable onConfirm) {}
+    private record SelectorBinding(Selector<SelectorItem> selector, Runnable onConfirm) {}
 }

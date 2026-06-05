@@ -1,7 +1,7 @@
 package ai.pijota.agent;
 
 import ai.pijota.messages.Message;
-import dev.langchain4j.model.output.TokenUsage;
+import ai.pijota.messages.Usage;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -11,7 +11,7 @@ public sealed interface AgentEvent {
     record TurnStart(int turn) implements AgentEvent {}
     record TurnEnd(int turn) implements AgentEvent {}
 
-    record AssistantMessage(Message.Assistant message, TokenUsage usage) implements AgentEvent {}
+    record AssistantMessage(Message.Assistant message, Usage usage) implements AgentEvent {}
 
     record ToolStart(String toolName, String toolCallId, Supplier<String> argumentsSupplier) implements AgentEvent {}
     record ToolResult(Message.ToolResult message) implements AgentEvent {}
@@ -23,11 +23,12 @@ public sealed interface AgentEvent {
     record CompactionStreamEnd() implements AgentEvent {}
 
     record Compaction(List<Message> compactedMessages, int oldCount, int estimatedChars, int estimatedTokens, String summary, String reason) implements AgentEvent {}
+    record CustomMessage(Message.Custom message) implements AgentEvent {}
     record Error(Throwable throwable) implements AgentEvent {}
 
     static AgentEvent turnStart(int turn) { return new TurnStart(turn); }
     static AgentEvent turnEnd(int turn) { return new TurnEnd(turn); }
-    static AgentEvent assistantMessage(Message.Assistant msg, TokenUsage usage) {
+    static AgentEvent assistantMessage(Message.Assistant msg, Usage usage) {
         return new AssistantMessage(msg, usage);
     }
     static AgentEvent toolStart(String name, String toolCallId, Supplier<String> args) {

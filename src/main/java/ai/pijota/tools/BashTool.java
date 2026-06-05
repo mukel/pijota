@@ -1,4 +1,5 @@
 package ai.pijota.tools;
+import java.util.ArrayList;
 
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
@@ -137,7 +138,7 @@ public final class BashTool implements Tool {
         }
         summary = prefix + output.lines().count() + " line(s)";
 
-        var body = new java.util.ArrayList<String>();
+        var body = new ArrayList<String>();
         if (output != null && !output.isBlank() && !"(no output)".equals(output)) {
             var lines = output.lines().toList();
             if (lines.size() <= PREVIEW_LINES) {

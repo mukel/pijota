@@ -55,13 +55,25 @@ public final class ErrorUtil {
             || lower.contains("too long");
     }
 
+    private static boolean hasStatusCode(String msg, int... codes) {
+        for (int code : codes) {
+            if (msg.contains(String.valueOf(code))) {
+                int idx = msg.indexOf(String.valueOf(code));
+                boolean startBoundary = idx == 0 || !Character.isDigit(msg.charAt(idx - 1));
+                boolean endBoundary = idx + String.valueOf(code).length() >= msg.length()
+                    || !Character.isDigit(msg.charAt(idx + String.valueOf(code).length()));
+                if (startBoundary && endBoundary) return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean isRetryable(Throwable ex) {
         if (ex == null) return false;
         Throwable unwrapped = unwrap(ex);
         String msg = unwrapped.getMessage() != null ? unwrapped.getMessage().toLowerCase() : "";
 
-        if (msg.contains("400") || msg.contains("401") || msg.contains("403")
-            || msg.contains("404") || msg.contains("413")) return false;
+        if (hasStatusCode(msg, 400, 401, 403, 404, 413)) return false;
 
         if (isContextOverflow(unwrapped)) return false;
 

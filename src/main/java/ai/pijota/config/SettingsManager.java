@@ -1,6 +1,6 @@
 package ai.pijota.config;
 
-import ai.pijota.llm.ProviderCatalog;
+import ai.pijota.util.Util;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -113,10 +113,10 @@ public final class SettingsManager {
         // there is a stale copy from before the OAuthTokenStore auto-refresh era.
         boolean isOAuthProvider = ProviderCatalog.oauth(provider).isPresent();
 
-        if (!isOAuthProvider) {
-            String key = config.apiKeys().get(provider);
-            if (key != null) return key;
-        }
+        if (isOAuthProvider) return null;
+
+        String key = config.apiKeys() != null ? config.apiKeys().get(provider) : null;
+        if (key != null) return key;
         for (String name : apiKeyEnvNames(provider)) {
             String value = System.getenv(name);
             if (value != null && !value.isBlank()) return value;

@@ -385,7 +385,7 @@ public final class PromptEditor {
         return historyIndex >= 0;
     }
 
-    public boolean historyPrev() {
+    public synchronized boolean historyPrev() {
         if (history.isEmpty()) return false;
         if (historyIndex < 0) {
             preHistoryText = String.join("\n", lines);
@@ -399,7 +399,7 @@ public final class PromptEditor {
         return true;
     }
 
-    public void historyNext() {
+    public synchronized void historyNext() {
         if (historyIndex < 0) return;
         historyIndex++;
         if (historyIndex >= history.size()) {

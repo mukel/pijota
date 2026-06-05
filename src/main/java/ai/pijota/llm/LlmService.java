@@ -1,5 +1,6 @@
 package ai.pijota.llm;
 
+import ai.pijota.config.ProviderCatalog;
 import ai.pijota.messages.Message;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.model.chat.StreamingChatModel;
@@ -11,7 +12,6 @@ import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.model.chat.response.PartialThinkingContext;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.chat.response.StreamingHandle;
-import dev.langchain4j.model.output.TokenUsage;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +26,7 @@ import java.util.function.BiConsumer;
 public final class LlmService implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(LlmService.class);
 
-    private final ConcurrentHashMap<String, StreamingChatModel> modelCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ModelCacheKey, StreamingChatModel> modelCache = new ConcurrentHashMap<>();
     private final List<ProviderFactory> customProviders;
     private final UsageTracker usage;
 
@@ -40,6 +40,8 @@ public final class LlmService implements AutoCloseable {
 
     private final AtomicReference<StreamingHandle> activeHandle = new AtomicReference<>();
 
+    private record ModelCacheKey(String provider, String model, String apiKey, ThinkingLevel thinkingLevel) {}
+
     private static String defaultProvider(String apiKey) {
         if (apiKey != null) {
             if (apiKey.startsWith("sk-ant")) return "anthropic";
@@ -51,19 +53,9 @@ public final class LlmService implements AutoCloseable {
         return "openai";
     }
 
-    public LlmService(String provider, String modelName, String apiKey) {
-        this(provider, modelName, p -> apiKey, null, List.of(), null);
-    }
-
     public LlmService(String provider, String modelName,
                       java.util.function.Function<String, String> apiKeyResolver) {
         this(provider, modelName, apiKeyResolver, null, List.of(), null);
-    }
-
-    public LlmService(String provider, String modelName, String apiKey,
-                      String customBaseUrl, List<ProviderFactory> customProviders,
-                      Double budgetLimit) {
-        this(provider, modelName, p -> apiKey, customBaseUrl, customProviders, budgetLimit);
     }
 
     /**
@@ -89,7 +81,7 @@ public final class LlmService implements AutoCloseable {
     public UsageTracker usage() { return usage; }
 
     public CompletableFuture<StreamResult> streamMessages(
-            List<Message> messages, List<ToolSpecification> tools,
+            List<Message> messages, List<ai.pijota.tools.Tool> tools,
             BiConsumer<String, String> onPartial
     ) {
         if (usage.overBudget()) {
@@ -97,7 +89,17 @@ public final class LlmService implements AutoCloseable {
             return CompletableFuture.completedFuture(r);
         }
         resolveCurrentApiKey();
-        return streamLangChain4j(messages, tools, onPartial);
+        var adapted = MessageTransformer.transform(messages, providerName, modelName);
+        var specs = tools.stream()
+            .sorted(java.util.Comparator.comparing(ai.pijota.tools.Tool::name))
+            .map(t -> ToolSpecification.builder()
+                .name(t.name())
+                .description(t.description())
+                .parameters(ToolSchema.objectFromMap(
+                    ai.pijota.tools.ToolManifest.canonicalSchema(t.schema())))
+                .build())
+            .toList();
+        return streamLangChain4j(adapted, specs, onPartial);
     }
 
     private CompletableFuture<StreamResult> streamLangChain4j(
@@ -147,14 +149,22 @@ public final class LlmService implements AutoCloseable {
                 if (ai != null) {
                     if (ai.text() != null && !ai.text().isEmpty())
                         result.setContent(ai.text());
+                    if (ai.thinking() != null && !ai.thinking().isBlank() && thinkingBuf.isEmpty())
+                        result.setThinking(ai.thinking());
                     if (ai.toolExecutionRequests() != null)
-                        result.setToolRequests(ai.toolExecutionRequests());
+                        result.setToolCalls(ai.toolExecutionRequests().stream()
+                            .map(tc -> new ai.pijota.messages.ToolCall(tc.id(), tc.name(), tc.arguments()))
+                            .toList());
                 }
                 if (!thinkingBuf.isEmpty())
                     result.setThinking(thinkingBuf.toString());
                 var u = r.metadata().tokenUsage();
-                result.setUsage(u);
-                usage.add(u);
+                if (u != null) {
+                    result.setUsage(new ai.pijota.messages.Usage(
+                        u.inputTokenCount() != null ? u.inputTokenCount() : 0,
+                        u.outputTokenCount() != null ? u.outputTokenCount() : 0));
+                }
+                usage.add(result.usage());
                 if (handleRef != null) handleRef.set(null);
                 future.complete(result);
             }
@@ -188,13 +198,14 @@ public final class LlmService implements AutoCloseable {
     }
 
     private StreamingChatModel lc4jModel() {
-        return modelCache.computeIfAbsent(providerName, p -> {
-            var factory = ProviderFactory.resolve(p, customProviders);
+        String effectiveModel = modelName != null ? modelName
+            : ModelRegistry.defaultModelForProvider(providerName);
+        var key = new ModelCacheKey(providerName, effectiveModel, lastResolvedKey, thinkingLevel);
+        return modelCache.computeIfAbsent(key, cacheKey -> {
+            var factory = ProviderFactory.resolve(cacheKey.provider(), customProviders);
             String url = customBaseUrl != null ? customBaseUrl
-                : ProviderCatalog.baseUrl(p);
-            String effectiveModel = modelName != null ? modelName
-                : ModelRegistry.defaultModelForProvider(p);
-            return factory.create(url, lastResolvedKey, effectiveModel, p, thinkingLevel);
+                : ProviderCatalog.baseUrl(cacheKey.provider());
+            return factory.create(url, cacheKey.apiKey(), cacheKey.model(), cacheKey.provider(), cacheKey.thinkingLevel());
         });
     }
 
@@ -250,12 +261,22 @@ public final class LlmService implements AutoCloseable {
     }
 
     private StreamingChatModel lc4jModelForModel(String m) {
-        resolveCurrentApiKey();
-        String effectiveModel = (m != null && !m.isEmpty())
-            ? m : ModelRegistry.defaultModelForProvider(providerName);
-        var factory = ProviderFactory.resolve(providerName, customProviders);
-        String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(providerName);
-        return factory.create(url, lastResolvedKey, effectiveModel, providerName, thinkingLevel);
+        String requested = m != null && !m.isEmpty() ? m : null;
+        String explicitProvider = null;
+        if (requested != null && requested.contains("/")) {
+            int slash = requested.indexOf('/');
+            explicitProvider = requested.substring(0, slash);
+            requested = requested.substring(slash + 1);
+        }
+        String effectiveModel = requested != null ? requested : ModelRegistry.defaultModelForProvider(providerName);
+        String effectiveProvider = explicitProvider != null ? explicitProvider
+            : requested != null ? ModelRegistry.providerForModel(requested) : providerName;
+        if (effectiveProvider == null || effectiveProvider.isBlank()) effectiveProvider = providerName;
+        String key = apiKeyResolver.apply(effectiveProvider);
+        if (key == null) key = "";
+        var factory = ProviderFactory.resolve(effectiveProvider, customProviders);
+        String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(effectiveProvider);
+        return factory.create(url, key, effectiveModel, effectiveProvider, thinkingLevel);
     }
 
     public String provider() { return providerName; }
@@ -284,6 +305,8 @@ public final class LlmService implements AutoCloseable {
             modelChangeCallback.accept(old, newModel);
     }
 
+    public ThinkingLevel thinkingLevel() { return thinkingLevel; }
+
     public void setThinkingLevel(ThinkingLevel level) {
         this.thinkingLevel = level != null ? level : ThinkingLevel.OFF;
         modelCache.clear();
@@ -311,10 +334,10 @@ public final class LlmService implements AutoCloseable {
         int totalOutputTokens() { return totalOutputTokens; }
         double totalCost() { return totalCost; }
 
-        void add(TokenUsage usage) {
+        void add(ai.pijota.messages.Usage usage) {
             if (usage == null) return;
-            int in = usage.inputTokenCount() != null ? usage.inputTokenCount() : 0;
-            int out = usage.outputTokenCount() != null ? usage.outputTokenCount() : 0;
+            int in = (int) usage.inputTokens();
+            int out = (int) usage.outputTokens();
             totalInputTokens += in;
             totalOutputTokens += out;
             totalCost += (in / 1000.0) * COST_PER_1K_INPUT

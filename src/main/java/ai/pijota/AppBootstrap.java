@@ -67,7 +67,6 @@ final class AppBootstrap {
         }
 
         var tools = parsedArgs.noTools() ? new ToolRegistry() : ToolRegistry.createDefault();
-        if (!parsedArgs.enabledTools().isEmpty()) tools.enableOnly(parsedArgs.enabledTools());
         var bashTool = new BashTool(
             settings.effectiveShellPath(), settings.config().shellCommandPrefix());
         tools.register(bashTool);
@@ -95,6 +94,8 @@ final class AppBootstrap {
         if (!parsedArgs.noContextFiles() && settings.contextFilesEnabled())
             ext.register(new ai.pijota.extensions.examples.ContextFilesExtension(cwd));
 
+        if (!parsedArgs.enabledTools().isEmpty()) tools.enableOnly(parsedArgs.enabledTools());
+
         String appendPrompt = parsedArgs.appendSystemPrompts().isEmpty() ? null
             : String.join("\n", parsedArgs.appendSystemPrompts());
         String systemPrompt = SystemPrompt.build(tools, parsedArgs.systemPrompt(),
@@ -112,15 +113,21 @@ final class AppBootstrap {
 
         var session = new PijotaSession(llm, tools, sessions, ext,
             systemPrompt, cwd, parsedArgs.noSession(), contextWindow, settings.config().compaction());
+        ext.setAgentLoop(session.agentLoop());
+        boolean loadedSession = false;
         try {
             if (parsedArgs.sessionPath() != null) {
                 session.load(parsedArgs.sessionPath());
                 restoreSessionModel(session, settings);
+                restoreSessionThinkingLevel(session);
+                loadedSession = true;
             } else if (parsedArgs.recoverSession()) {
                 Path recovery = SelfRespawn.readRecoverySession();
                 if (recovery != null) {
                     session.load(recovery);
                     restoreSessionModel(session, settings);
+                    restoreSessionThinkingLevel(session);
+                    loadedSession = true;
                     SelfRespawn.clearRecoveryFile();
                 } else {
                     System.err.println("No recovery session found — starting fresh.");
@@ -128,12 +135,18 @@ final class AppBootstrap {
             } else if (parsedArgs.continueSession()) {
                 session.continueLastSession();
                 restoreSessionModel(session, settings);
+                restoreSessionThinkingLevel(session);
+                loadedSession = true;
             }
         } catch (IOException e) {
             System.err.println("[transcend] failed to load session: " + e.getMessage() + " — starting fresh.");
         }
-        ext.setAgentLoop(session.agentLoop());
         ext.fire(new ai.pijota.extensions.ExtensionEvent.SessionStart(session.sessionFile()));
+        if (loadedSession) {
+            session.checkCacheTarget();
+        } else {
+            session.refreshCacheMetadata();
+        }
         mergeTranscendWorktree(parsedArgs);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
@@ -183,6 +196,11 @@ final class AppBootstrap {
                 .findFirst()
                 .orElse(128_000L);
         session.restoreModel(selection.provider(), selection.model(), key, contextWindow);
+    }
+
+    private static void restoreSessionThinkingLevel(PijotaSession session) throws IOException {
+        var level = session.latestThinkingLevel();
+        if (level != null) session.restoreThinkingLevel(level);
     }
 
     private static boolean applyWorktreeDiff(Path worktree) throws IOException {

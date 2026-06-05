@@ -10,7 +10,7 @@ import ai.pijota.config.OAuthLogin;
 import ai.pijota.config.OAuthTokenStore;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.llm.ModelRegistry;
-import ai.pijota.llm.ProviderCatalog;
+import ai.pijota.config.ProviderCatalog;
 import ai.pijota.modes.PrintMode;
 import ai.pijota.modes.RpcMode;
 import ai.pijota.tui.AppendOnlyTui;
@@ -84,6 +84,7 @@ public final class Main {
             b.extensions()::statusLines,
             b.extensions().keybindings());
         b.extensions().setTui(tui);
+        tui.syncThinkingLevel(b.llm().thinkingLevel());
         b.extensions().ready();
         if (parsedArgs.resume()) tui.requestSessionPicker();
         try {

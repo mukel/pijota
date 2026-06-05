@@ -19,7 +19,6 @@ public final class FileMutationQueue {
             return action.call();
         } finally {
             lock.unlock();
-            if (!lock.hasQueuedThreads()) LOCKS.remove(key, lock);
         }
     }
 

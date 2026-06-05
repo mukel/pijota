@@ -6,6 +6,7 @@ import ai.pijota.extensions.task.SubAgent;
 import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
+import ai.pijota.tools.ToolManifest;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.SelfRespawn;
 
@@ -22,9 +23,11 @@ public final class PijotaSession implements AutoCloseable {
 
     private final AgentLoop agentLoop;
     private final SessionManager sessionManager;
+    private final ToolRegistry toolRegistry;
     private volatile Path sessionFile;
     private final ExtensionRegistry extensionRegistry;
     private final String baseSystemPrompt;
+    private volatile String sessionSystemPrompt;
     private final String cwd;
     private boolean disableSession;
     private volatile String sessionWarning;
@@ -41,8 +44,10 @@ public final class PijotaSession implements AutoCloseable {
         AppConfig.CompactionConfig compactionConfig
     ) throws IOException {
         this.sessionManager = sessionManager;
+        this.toolRegistry = toolRegistry;
         this.extensionRegistry = extensionRegistry;
         this.baseSystemPrompt = systemPrompt;
+        this.sessionSystemPrompt = systemPrompt;
         this.cwd = cwd;
         this.disableSession = noSession;
         this.sessionFile = noSession ? null : sessionManager.createSession(cwd);
@@ -111,7 +116,9 @@ public final class PijotaSession implements AutoCloseable {
             try { sessionManager.appendMessage(file, userMessage); }
             catch (IOException e) { rememberSessionWarning("user message save", e); }
         }
-        agentLoop.replaceSystemPrompt(extensionRegistry.fireBeforeAgentStart(agentLoop.messages(), baseSystemPrompt));
+        String effectivePrompt = extensionRegistry.fireBeforeAgentStart(agentLoop.messages(), sessionSystemPrompt);
+        agentLoop.replaceSystemPrompt(effectivePrompt);
+        extensionRegistry.setSystemPrompt(effectivePrompt);
         extensionRegistry.fireAgentStart();
         return agentLoop.prompt(userMessage)
             .thenApply(messages -> {
@@ -142,7 +149,19 @@ public final class PijotaSession implements AutoCloseable {
     public CompactionManager.CompactionResult compact(String instructions) { return agentLoop.compactWithResult(instructions); }
     public void setAutoCompactionEnabled(boolean enabled) { agentLoop.setAutoCompactionEnabled(enabled); }
     public void setContextWindow(long contextWindow) { agentLoop.setContextWindow(contextWindow); }
-    public void setThinkingLevel(ThinkingLevel level) { agentLoop.llm().setThinkingLevel(level); }
+    public void setThinkingLevel(ThinkingLevel level) { setThinkingLevel(level, true); }
+
+    public void restoreThinkingLevel(ThinkingLevel level) { setThinkingLevel(level, false); }
+
+    private void setThinkingLevel(ThinkingLevel level, boolean persist) {
+        ThinkingLevel effective = level != null ? level : ThinkingLevel.OFF;
+        agentLoop.llm().setThinkingLevel(effective);
+        Path file = this.sessionFile;
+        if (persist && !disableSession && file != null) {
+            try { sessionManager.appendThinkingLevelChange(file, effective.name()); }
+            catch (IOException e) { rememberSessionWarning("thinking level save", e); }
+        }
+    }
 
     public void switchModel(String provider, String model, String apiKey, long contextWindow) {
         switchModel(provider, model, apiKey, contextWindow, true);
@@ -157,13 +176,23 @@ public final class PijotaSession implements AutoCloseable {
         setContextWindow(contextWindow);
         Path file = this.sessionFile;
         if (persist && !disableSession && file != null) {
-            try { sessionManager.appendModelChange(file, provider, model, contextWindow); }
+            try {
+                sessionManager.appendModelChange(file, provider, model, contextWindow);
+                writeCacheMetadata(provider, model, sessionSystemPrompt);
+            }
             catch (IOException e) { rememberSessionWarning("model change save", e); }
         }
     }
 
     public SessionManager.ModelSelection latestModelSelection() throws IOException {
         return sessionManager.latestModelSelection(sessionFile);
+    }
+
+    public ThinkingLevel latestThinkingLevel() throws IOException {
+        String value = sessionManager.latestThinkingLevel(sessionFile);
+        if (value == null || value.isBlank()) return null;
+        try { return ThinkingLevel.valueOf(value); }
+        catch (IllegalArgumentException e) { return null; }
     }
 
     public void addEventListener(Consumer<AgentEvent> listener) {
@@ -212,6 +241,33 @@ public final class PijotaSession implements AutoCloseable {
         return sessionFile != null ? sessionManager.sessionName(sessionFile) : null;
     }
 
+    public SessionManager.CacheMetadata cacheMetadata() throws IOException {
+        return sessionManager.latestCacheMetadata(sessionFile);
+    }
+
+    public void refreshCacheMetadata() {
+        writeCacheMetadata(agentLoop.llm().provider(), agentLoop.llm().model(), sessionSystemPrompt);
+    }
+
+    public void checkCacheTarget() throws IOException {
+        var metadata = cacheMetadata();
+        if (metadata == null) {
+            checkCacheMetadata(null);
+            return;
+        }
+        String currentProvider = agentLoop.llm().provider();
+        String currentModel = agentLoop.llm().model();
+        if (metadata.provider() != null && !metadata.provider().isBlank()
+            && !metadata.provider().equals(currentProvider)) {
+            rememberSessionWarning("[cache] provider changed since session start; LLM server cache may miss");
+            return;
+        }
+        if (metadata.model() != null && !metadata.model().isBlank()
+            && !metadata.model().equals(currentModel)) {
+            rememberSessionWarning("[cache] model changed since session start; LLM server cache may miss");
+        }
+    }
+
     public void deleteSession(String spec) throws IOException {
         Path target = sessionManager.resolveSession(cwd, spec);
         if (sessionFile != null && target.toAbsolutePath().normalize().equals(sessionFile.toAbsolutePath().normalize()))
@@ -223,17 +279,55 @@ public final class PijotaSession implements AutoCloseable {
         sessionWarning = action + " failed: " + e.getMessage();
     }
 
+    private void rememberSessionWarning(String message) {
+        sessionWarning = message;
+    }
+
     private void switchSession(Path newFile) throws IOException {
         this.sessionFile = newFile;
         this.disableSession = false;
         SelfRespawn.setSessionFile(newFile);
         var msgs = sessionManager.loadMessages(newFile);
+        var metadata = sessionManager.latestCacheMetadata(newFile);
+        String restoredPrompt = metadata != null && metadata.systemPrompt() != null
+            && !metadata.systemPrompt().isBlank() ? metadata.systemPrompt() : baseSystemPrompt;
+        sessionSystemPrompt = restoredPrompt;
         agentLoop.clearMessages();
         agentLoop.restoreMessages(msgs);
-        agentLoop.replaceSystemPrompt(baseSystemPrompt);
+        agentLoop.replaceSystemPrompt(restoredPrompt);
+        extensionRegistry.setSystemPrompt(restoredPrompt);
+    }
+
+    private void writeCacheMetadata(String provider, String model, String systemPrompt) {
+        Path file = this.sessionFile;
+        if (disableSession || file == null) return;
+        try {
+            var manifest = ToolManifest.snapshot(toolRegistry);
+            sessionManager.appendCacheMetadata(file, systemPrompt, manifest.hash(), manifest.json(),
+                provider, model);
+        } catch (Exception e) {
+            rememberSessionWarning("cache metadata save", new IOException(e));
+        }
+    }
+
+    private void checkCacheMetadata(SessionManager.CacheMetadata metadata) {
+        if (metadata == null) {
+            rememberSessionWarning("[cache] session has no cache metadata; respawn cache hit is not guaranteed");
+            return;
+        }
+        var current = ToolManifest.snapshot(toolRegistry);
+        if (metadata.toolManifestHash() == null || metadata.toolManifestHash().isBlank()) {
+            rememberSessionWarning("[cache] session has no tool manifest hash; respawn cache hit is not guaranteed");
+        } else if (!metadata.toolManifestHash().equals(current.hash())) {
+            rememberSessionWarning("[cache] tool manifest changed; LLM server cache may miss");
+        }
     }
 
     public int load(Path file) throws IOException {
+        if (this.sessionFile != null && !this.sessionFile.equals(file)) {
+            try { java.nio.file.Files.deleteIfExists(this.sessionFile); }
+            catch (IOException ignored) {}
+        }
         switchSession(file);
         return agentLoop.messages().size();
     }
@@ -249,6 +343,7 @@ public final class PijotaSession implements AutoCloseable {
     public Path newSession() throws IOException {
         Path newFile = sessionManager.createSession(cwd);
         switchSession(newFile);
+        refreshCacheMetadata();
         return newFile;
     }
 

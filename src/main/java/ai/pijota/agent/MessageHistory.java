@@ -40,16 +40,22 @@ final class MessageHistory {
     }
 
     void clear() {
-        messages.clear();
+        synchronized (messages) {
+            messages.clear();
+        }
     }
 
     void restore(List<Message> msgs) {
-        messages.clear();
-        messages.addAll(msgs);
+        synchronized (messages) {
+            messages.clear();
+            messages.addAll(msgs);
+        }
     }
 
     List<Message> snapshot() {
-        return List.copyOf(messages);
+        synchronized (messages) {
+            return List.copyOf(messages);
+        }
     }
 
     List<Message> all() {
@@ -62,7 +68,9 @@ final class MessageHistory {
     }
 
     void addSystemPrompt(String s) {
-        messages.add(new Message.System(s));
+        synchronized (messages) {
+            messages.add(new Message.System(s));
+        }
     }
 
     void replaceSystemPrompt(String content) {

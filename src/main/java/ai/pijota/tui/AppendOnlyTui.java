@@ -2,9 +2,9 @@ package ai.pijota.tui;
 
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
-import ai.pijota.agent.SessionExporter;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.llm.ModelInfo;
+import ai.pijota.llm.ModelRefresher;
 import ai.pijota.llm.ModelRegistry;
 import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.extensions.ExtensionKeybinding;
@@ -13,7 +13,7 @@ import ai.pijota.extensions.UiContext;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.config.OAuthLogin;
 import ai.pijota.config.OAuthTokenStore;
-import ai.pijota.llm.ProviderCatalog;
+import ai.pijota.config.ProviderCatalog;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.theme.AnsiTheme;
@@ -94,7 +94,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         Executors.newSingleThreadExecutor(Thread.ofPlatform().name("pijota-tui-agent").factory());
     private final AtomicBoolean busy = new AtomicBoolean(false);
     private final AtomicLong busyGeneration = new AtomicLong(0);
-    private String statusOverride;
+    private volatile String statusOverride;
     private final DialogHandler dialogs;
 
     @Override public void setStatus(String msg) {
@@ -141,20 +141,20 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(List.of(theme.styled("toolError", msg)));
     }
 
-    private String busyPhase;
+    private volatile String busyPhase;
     private final AtomicInteger queuedFollowUps = new AtomicInteger(0);
     private long interruptArmedUntil;
     private long exitArmedUntil;
     private ThinkingLevel thinkingLevel = ThinkingLevel.OFF;
-    private boolean thinkingHeaderShown;
+    private volatile boolean thinkingHeaderShown;
     private String sessionName;
     private Attributes originalAttributes;
     private final Terminal.SignalHandler originalIntHandler;
     private final Terminal.SignalHandler originalWinchHandler;
-    private String lastContent = "";
-    private String lastThinking = "";
-    private boolean compactionStreamRendered;
-    private boolean contentStarted;
+    private volatile String lastContent = "";
+    private volatile String lastThinking = "";
+    private volatile boolean compactionStreamRendered;
+    private volatile boolean contentStarted;
     private final LineAccumulator contentLines = new LineAccumulator();
     private final LineAccumulator thinkingLines = new LineAccumulator();
     private final SlashCommandRegistry commands;
@@ -166,7 +166,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private boolean loginIsLogout;
     private volatile boolean showSessionPickerOnStart;
     private final AtomicInteger workingFrame = new AtomicInteger();
-    private final List<String> pendingFollowUps = new ArrayList<>();
+    private final List<String> pendingFollowUps = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final MessageBrowser messageBrowser;
     private PendingEditManager pendingEdit;
     private final Supplier<List<String>> extensionLinesSupplier;
@@ -467,7 +467,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     statusOverride = null;
                     redrawPrompt();
                 }
-            } catch (IOException ignored) {
+            } catch (Exception ignored) {
                 running.set(false);
                 break;
             }
@@ -742,7 +742,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             appendPlain(List.of(theme.styled("toolError", "settings unavailable")));
             return;
         }
-        selectors.activate(selectors.settings, settingsItems());
+        selectors.show(TuiSelectors.Slot.SETTINGS, settingsItems());
         promptEditor.setText("");
         redrawPrompt();
         return;
@@ -764,8 +764,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void confirmSettingsSelection() {
-        if (!selectors.settings.active() || selectors.settings.total() == 0) return;
-        var chosen = selectors.settings.selectedItem();
+        var chosen = selectors.<SettingsItem>selected(TuiSelectors.Slot.SETTINGS).orElse(null);
+        if (chosen == null) return;
         switch (chosen.id()) {
             case "auto_compact" -> settings.setCompactionEnabled(!settings.compactionEnabled());
             case "context_files" -> settings.setContextFilesEnabled(!settings.contextFilesEnabled());
@@ -778,7 +778,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case "shorten_paths" -> settings.setShortenPathsEnabled(!settings.shortenPathsEnabled());
             default -> {}
         }
-        selectors.settings.setItems(settingsItems());
+        selectors.refresh(TuiSelectors.Slot.SETTINGS, settingsItems());
         if (chosen.id().equals("auto_compact")) {
             session.setAutoCompactionEnabled(settings.compactionEnabled());
         }
@@ -799,15 +799,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         loginIsLogout = false;
-        selectors.activate(selectors.login, items);
+        selectors.show(TuiSelectors.Slot.LOGIN, items);
         promptEditor.setText("");
         redrawPrompt();
     }
 
     private void confirmLoginSelection() {
-        if (!selectors.login.active() || selectors.login.total() == 0) return;
-        var chosen = selectors.login.selectedItem();
-        selectors.login.deactivate();
+        var chosen = selectors.<LoginProviderItem>selected(TuiSelectors.Slot.LOGIN).orElse(null);
+        if (chosen == null) return;
+        selectors.deactivate(TuiSelectors.Slot.LOGIN);
         promptEditor.setText("");
         redrawPrompt();
         appendPlain(List.of(theme.styled("statusText", "Starting OAuth login for " + chosen.titleText() + "...")));
@@ -872,15 +872,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         loginIsLogout = true;
-        selectors.activate(selectors.login, items);
+        selectors.show(TuiSelectors.Slot.LOGIN, items);
         promptEditor.setText("");
         redrawPrompt();
     }
 
     private void confirmLogoutSelection() {
-        if (!selectors.login.active() || selectors.login.total() == 0) return;
-        var chosen = selectors.login.selectedItem();
-        selectors.login.deactivate();
+        var chosen = selectors.<LoginProviderItem>selected(TuiSelectors.Slot.LOGIN).orElse(null);
+        if (chosen == null) return;
+        selectors.deactivate(TuiSelectors.Slot.LOGIN);
         promptEditor.setText("");
         redrawPrompt();
         var store = new OAuthTokenStore();
@@ -895,18 +895,18 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             appendPlain(List.of(theme.styled("toolError", "no themes found")));
             return;
         }
-        selectors.activate(selectors.theme, items);
-        selectors.theme.selectFirst(ThemeItem::current);
+        selectors.show(TuiSelectors.Slot.THEME, items);
+        selectors.<ThemeItem>selectFirst(TuiSelectors.Slot.THEME, ThemeItem::current);
         promptEditor.setText("");
         redrawPrompt();
     }
 
     private void confirmThemeSelection() {
-        if (!selectors.theme.active() || selectors.theme.total() == 0) return;
-        var chosen = selectors.theme.selectedItem();
+        var chosen = selectors.<ThemeItem>selected(TuiSelectors.Slot.THEME).orElse(null);
+        if (chosen == null) return;
         if (chosen.path().isBlank()) themeMgr.switchTo(chosen.name());
         else themeMgr.switchToPath(chosen.path());
-        selectors.theme.deactivate();
+        selectors.deactivate(TuiSelectors.Slot.THEME);
         promptEditor.setText("");
         redrawPrompt();
     }
@@ -927,6 +927,22 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         showModelSelector(models);
     }
 
+    void refreshModels() {
+        if (busy.get()) {
+            appendPlain(List.of(theme.styled("toolError", "/refresh is unavailable while a turn is running")));
+            redrawPrompt();
+            return;
+        }
+        var result = ModelRefresher.refresh(settings);
+        appendPlain(List.of(theme.styled("statusText",
+            "refreshed " + result.modelsFound() + " models from "
+                + result.providersChecked() + " provider(s)")));
+        for (String error : result.errors()) {
+            appendPlain(List.of(theme.styled("toolError", "refresh: " + error)));
+        }
+        redrawPrompt();
+    }
+
     void showModelSelector(List<ModelInfo> models) {
         if (busy.get()) {
             appendPlain(List.of(theme.styled("toolError", "/model is unavailable while a turn is running")));
@@ -938,17 +954,18 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         var items = models.stream().map(m -> new ModelItem(m, m.id().equals(model))).toList();
-        selectors.activate(selectors.model, items);
-        selectors.model.selectFirst(i -> i.info().id().equals(model));
+        selectors.show(TuiSelectors.Slot.MODEL, items);
+        selectors.<ModelItem>selectFirst(TuiSelectors.Slot.MODEL, i -> i.info().id().equals(model));
         promptEditor.setText("");
         redrawPrompt();
     }
 
     private void confirmModelSelection() {
-        if (!selectors.model.active() || selectors.model.total() == 0) return;
-        var chosen = selectors.model.selectedItem().info();
+        var selected = selectors.<ModelItem>selected(TuiSelectors.Slot.MODEL).orElse(null);
+        if (selected == null) return;
+        var chosen = selected.info();
         switchToModel(chosen);
-        selectors.model.deactivate();
+        selectors.deactivate(TuiSelectors.Slot.MODEL);
         promptEditor.setText("");
         redrawPrompt();
     }
@@ -960,19 +977,19 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         var items = SessionItem.fromPaths(sessions);
-        selectors.activate(selectors.session, items);
+        selectors.show(TuiSelectors.Slot.SESSION, items);
         promptEditor.setText("");
         redrawPrompt();
     }
 
     private void confirmSessionSelection() {
-        if (!selectors.session.active() || selectors.session.total() == 0) return;
-        var chosen = selectors.session.selectedItem();
-        selectors.session.deactivate();
+        var chosen = selectors.<SessionItem>selected(TuiSelectors.Slot.SESSION).orElse(null);
+        if (chosen == null) return;
+        selectors.deactivate(TuiSelectors.Slot.SESSION);
         promptEditor.setText("");
         try {
             session.load(chosen.path());
-            restoreModelFromSession();
+            restoreRuntimeStateFromSession();
             refreshSessionName();
             appendPlain(List.of(theme.styled("statusText", "loaded session " + chosen.name())));
         } catch (IOException e) {
@@ -1056,6 +1073,30 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         } catch (IOException e) {
             appendPlain(List.of(theme.styled("toolError", "model restore failed: " + e.getMessage())));
         }
+    }
+
+    private void restoreThinkingLevelFromSession() {
+        try {
+            var level = session.latestThinkingLevel();
+            if (level == null) return;
+            thinkingLevel = level;
+            session.restoreThinkingLevel(level);
+        } catch (IOException e) {
+            appendPlain(List.of(theme.styled("toolError", "thinking level restore failed: " + e.getMessage())));
+        }
+    }
+
+    public void syncThinkingLevel(ThinkingLevel level) {
+        this.thinkingLevel = level != null ? level : ThinkingLevel.OFF;
+    }
+
+    private void restoreRuntimeStateFromSession() {
+        restoreModelFromSession();
+        restoreThinkingLevelFromSession();
+        session.refreshCacheMetadata();
+        try { session.checkCacheTarget(); }
+        catch (IOException e) { appendPlain(List.of(theme.styled("toolError", "cache check failed: " + e.getMessage()))); }
+        showSessionWarning();
     }
 
     private void updateWhoamiTool() {
@@ -1181,6 +1222,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             if (!session.messages().isEmpty())
                 appendPlain(List.of(theme.styled("statusWarn", "loading session — current messages will be replaced")));
             int count = session.load(file);
+            restoreRuntimeStateFromSession();
             refreshSessionName();
             if (count == 0) {
                 appendPlain(List.of(theme.styled("toolError", "no messages found in session file")));
@@ -1255,16 +1297,16 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         for (int i = 0; i < users.size(); i++) {
             items.add(new ForkMessageItem(i + 1, users.get(i)));
         }
-        selectors.activate(selectors.fork, items);
-        selectors.fork.selectFirst(item -> item.number() == users.size());
+        selectors.show(TuiSelectors.Slot.FORK, items);
+        selectors.<ForkMessageItem>selectFirst(TuiSelectors.Slot.FORK, item -> item.number() == users.size());
         statusOverride = "Select message to fork from; type to filter, Enter forks, Esc cancels";
         redrawPrompt();
     }
 
     private void confirmForkSelection() {
-        if (!selectors.fork.active() || selectors.fork.total() == 0) return;
-        var chosen = selectors.fork.selectedItem();
-        selectors.fork.deactivate();
+        var chosen = selectors.<ForkMessageItem>selected(TuiSelectors.Slot.FORK).orElse(null);
+        if (chosen == null) return;
+        selectors.deactivate(TuiSelectors.Slot.FORK);
         statusOverride = null;
         forkFromMessage(chosen.message(), "forked from message " + chosen.number());
     }
@@ -1272,6 +1314,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void forkFromMessage(Message.User user, String status) {
         try {
             session.forkFrom(user.id().toString());
+            restoreRuntimeStateFromSession();
+            refreshSessionName();
             appendPlain(List.of(theme.styled("statusText", status)));
         } catch (Exception e) {
             appendPlain(List.of(theme.styled("toolError", "fork failed: " + e.getMessage())));
@@ -1280,6 +1324,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     void cloneSession() {
         sessionCommands.cloneSession();
+        restoreRuntimeStateFromSession();
+        refreshSessionName();
     }
 
     void handleTranscend(String args) {
@@ -1370,7 +1416,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 var parts = new ArrayList<String>();
                 parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", "●"));
                 parts.add(theme.styled("statusText", msg.toolName()));
-                Supplier<String> args = toolArgsById.remove(msg.toolCallId());
+                Supplier<String> args = msg.toolCallId() != null ? toolArgsById.remove(msg.toolCallId()) : null;
                 String detail = ToolRender.detail(msg.toolName(), args, rawCwd,
                     settings != null && settings.shortenPathsEnabled());
                 if (!detail.isBlank()) parts.add(theme.styled("statusText", detail));
@@ -1416,13 +1462,29 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 flushStreamLines();
                 resetStreamState();
             }
+            case AgentEvent.CustomMessage(Message.Custom custom) -> {
+                flushStreamLines();
+                if (session.extensionRegistry().hasMessageRenderers()) {
+                    var rendered = session.extensionRegistry().renderMessage(custom);
+                    if (rendered.isPresent()) {
+                        appendPlain(List.of(theme.styled("customMessageLabel", custom.customType())));
+                        appendPlain(rendered.get());
+                    } else {
+                        appendPlain(List.of(theme.styled("customMessageLabel", custom.customType() + ": ") + custom.content()));
+                    }
+                } else {
+                    appendPlain(List.of(theme.styled("customMessageLabel", custom.customType() + ": ")
+                        + theme.styled("customMessageText", custom.content())));
+                }
+                redrawPrompt();
+            }
             case AgentEvent.Error(Throwable t) -> appendPlain(List.of(theme.styled("toolError", "error: " + ErrorUtil.message(t))));
             default -> {}
         }
     }
 
     private void renderFinalAssistantMessage(Message.Assistant msg, String content,
-                                             dev.langchain4j.model.output.TokenUsage usage) {
+                                             ai.pijota.messages.Usage usage) {
         var rendered = session.extensionRegistry().renderMessage(msg);
         if (rendered.isPresent()) {
             appendPlain(rendered.get());
@@ -1456,7 +1518,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         resetStreamState();
         appendContent(contentLines.accept(summary));
         flushStreamLines();
-        resetStreamState();
     }
 
     private String renderToolBodyLine(String toolName, String line) {
@@ -1646,15 +1707,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private String currentStatusOverride() {
-        String status = statusOverride;
-        long now = System.currentTimeMillis();
-        if (status != null && !dialogs.questionPending()
-            && now > interruptArmedUntil && now > exitArmedUntil
-            && !"Interrupted".equals(status)) {
-            statusOverride = null;
-            return null;
-        }
-        return status;
+        return statusOverride;
     }
 
     private static boolean isEditWrite(Message.ToolResult msg) {
@@ -1679,10 +1732,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private volatile long realInputTokens;
     private volatile long realOutputTokens;
 
-    private void addUsage(dev.langchain4j.model.output.TokenUsage usage) {
+    private void addUsage(ai.pijota.messages.Usage usage) {
         if (usage == null) return;
-        if (usage.inputTokenCount() != null) realInputTokens += usage.inputTokenCount();
-        if (usage.outputTokenCount() != null) realOutputTokens += usage.outputTokenCount();
+        realInputTokens += usage.inputTokens();
+        realOutputTokens += usage.outputTokens();
     }
 
     private String tokenStatus() {

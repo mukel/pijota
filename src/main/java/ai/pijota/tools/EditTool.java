@@ -285,7 +285,7 @@ public final class EditTool implements Tool {
         String summary = result.content();
         Object diffObj = result.details().get("diff");
         if (!(diffObj instanceof String diff) || diff.isBlank()) return ToolResultView.of(summary);
-        var body = new java.util.ArrayList<String>();
+        var body = new ArrayList<String>();
         int count = 0;
         for (String line : diff.split("\n")) {
             if (count++ >= 20) { body.add("… " + (diff.split("\n").length - 20) + " more changed lines"); break; }

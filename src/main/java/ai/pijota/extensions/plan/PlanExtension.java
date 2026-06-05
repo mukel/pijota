@@ -15,7 +15,7 @@ public final class PlanExtension implements Extension {
     private static final List<String> PLAN_TOOLS = List.of("read", "bash", "grep", "glob", "ls", "question");
     private static final List<String> NORMAL_TOOLS = List.of("read", "bash", "edit", "write", "grep", "glob", "ls");
 
-    private boolean planEnabled;
+    private volatile boolean planEnabled;
 
     @Override public String name() { return "plan"; }
     @Override public String description() { return "Read-only plan mode for safe code exploration"; }
