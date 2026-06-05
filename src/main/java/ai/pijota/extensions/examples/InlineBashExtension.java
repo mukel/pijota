@@ -25,7 +25,7 @@ public final class InlineBashExtension implements Extension {
             String trimmed = text.stripLeading();
 
             if (trimmed.startsWith("!") && !trimmed.startsWith("!{")) {
-                return new ExtensionResult.Continue(text);
+                return new ExtensionResult.InputResult(text, false);
             }
 
             Matcher m = INLINE_BASH.matcher(text);
@@ -34,7 +34,7 @@ public final class InlineBashExtension implements Extension {
                 replacements.add(new Replacement(m.group(0), m.group(1).strip()));
             }
             if (replacements.isEmpty()) {
-                return new ExtensionResult.Continue(text);
+                return new ExtensionResult.InputResult(text, false);
             }
 
             var result = new StringBuilder();
@@ -58,7 +58,7 @@ public final class InlineBashExtension implements Extension {
                 runtime.setStatus("inline-bash", "Expanded " + replacements.size() + " inline command(s)");
             }
 
-            return new ExtensionResult.Continue(result.toString());
+            return new ExtensionResult.InputResult(result.toString(), false);
         });
     }
 

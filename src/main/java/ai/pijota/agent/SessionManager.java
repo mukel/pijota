@@ -99,112 +99,71 @@ public final class SessionManager {
 
     // -- Entry types --
 
-    public void appendMessage(Path sessionFile, Message message) throws IOException {
+    private void appendEntry(Path sessionFile, String entryId, String type,
+                              java.util.function.Consumer<java.util.LinkedHashMap<String, Object>> fields,
+                              boolean dsync) throws IOException {
         lockAndWrite(sessionFile, () -> {
             String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
             var entry = new LinkedHashMap<String, Object>();
-            entry.put("id", message.id().toString());
+            entry.put("id", entryId);
             entry.put("parentId", parentId);
-            entry.put("timestamp", timestampOf(message));
-            entry.put("type", "message");
-            serializeMessage(entry, message);
-            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            leafId = message.id().toString();
+            entry.put("timestamp", Instant.now().toString());
+            entry.put("type", type);
+            fields.accept(entry);
+            var opts = dsync
+                ? new StandardOpenOption[]{StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC}
+                : new StandardOpenOption[]{StandardOpenOption.CREATE, StandardOpenOption.APPEND};
+            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n", opts);
+            leafId = entryId;
         });
+    }
+
+    public void appendMessage(Path sessionFile, Message message) throws IOException {
+        String entryId = message.id().toString();
+        appendEntry(sessionFile, entryId, "message", entry -> {
+            entry.put("timestamp", timestampOf(message)); // use message's real timestamp
+            serializeMessage(entry, message);
+        }, false);
     }
 
     public void appendCompaction(Path sessionFile, String summary, int compactedCount,
                                   String firstKeptEntryId) throws IOException {
-        lockAndWrite(sessionFile, () -> {
-            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-            String entryId = UUID.randomUUID().toString();
-            var entry = new LinkedHashMap<String, Object>();
-            entry.put("id", entryId);
-            entry.put("parentId", parentId);
-            entry.put("timestamp", Instant.now().toString());
-            entry.put("type", "compaction");
+        // DSYNC: compaction is the durability gate — losing it on crash would show stale context.
+        appendEntry(sessionFile, UUID.randomUUID().toString(), "compaction", entry -> {
             entry.put("summary", summary);
             entry.put("compactedCount", compactedCount);
             if (firstKeptEntryId != null) entry.put("firstKeptEntryId", firstKeptEntryId);
-            // DSYNC: compaction is the durability gate — losing a compaction marker
-            // on crash would show stale context on restart.
-            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC);
-            leafId = entryId;
-        });
+        }, true);
     }
 
     public void appendSessionInfo(Path sessionFile, String name) throws IOException {
-        lockAndWrite(sessionFile, () -> {
-            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-            var entry = new LinkedHashMap<String, Object>();
-            String entryId = UUID.randomUUID().toString();
-            entry.put("id", entryId);
-            entry.put("parentId", parentId);
-            entry.put("timestamp", Instant.now().toString());
-            entry.put("type", "session_info");
-            entry.put("name", name == null ? "" : name.trim());
-            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            leafId = entryId;
-        });
+        appendEntry(sessionFile, UUID.randomUUID().toString(), "session_info",
+            entry -> entry.put("name", name == null ? "" : name.trim()), false);
     }
 
     public void appendModelChange(Path sessionFile, String provider, String model, long contextWindow) throws IOException {
-        lockAndWrite(sessionFile, () -> {
-            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-            var entry = new LinkedHashMap<String, Object>();
-            String entryId = UUID.randomUUID().toString();
-            entry.put("id", entryId);
-            entry.put("parentId", parentId);
-            entry.put("timestamp", Instant.now().toString());
-            entry.put("type", "model_change");
+        appendEntry(sessionFile, UUID.randomUUID().toString(), "model_change", entry -> {
             entry.put("provider", provider == null ? "" : provider);
             entry.put("model", model == null ? "" : model);
             entry.put("contextWindow", contextWindow);
-            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            leafId = entryId;
-        });
+        }, false);
     }
 
     public void appendCacheMetadata(Path sessionFile, String systemPrompt,
                                     String toolManifestHash, String toolManifestJson,
                                     String provider, String model) throws IOException {
-        lockAndWrite(sessionFile, () -> {
-            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-            String entryId = UUID.randomUUID().toString();
-            var entry = new LinkedHashMap<String, Object>();
-            entry.put("id", entryId);
-            entry.put("parentId", parentId);
-            entry.put("timestamp", Instant.now().toString());
-            entry.put("type", "cache_metadata");
+        appendEntry(sessionFile, UUID.randomUUID().toString(), "cache_metadata", entry -> {
             entry.put("systemPrompt", systemPrompt == null ? "" : systemPrompt);
             entry.put("toolManifestHash", toolManifestHash == null ? "" : toolManifestHash);
             entry.put("toolManifestJson", toolManifestJson == null ? "" : toolManifestJson);
             entry.put("provider", provider == null ? "" : provider);
             entry.put("model", model == null ? "" : model);
-            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            leafId = entryId;
-        });
+        }, false);
     }
 
     public void appendThinkingLevelChange(Path sessionFile, String level) throws IOException {
-        lockAndWrite(sessionFile, () -> {
-            String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
-            String entryId = UUID.randomUUID().toString();
-            var entry = new LinkedHashMap<String, Object>();
-            entry.put("id", entryId);
-            entry.put("parentId", parentId);
-            entry.put("timestamp", Instant.now().toString());
-            entry.put("type", "thinking_level_change");
-            entry.put("level", level == null ? "OFF" : level);
-            Files.writeString(sessionFile, Util.MAPPER.writeValueAsString(entry) + "\n",
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            leafId = entryId;
-        });
+        appendEntry(sessionFile, UUID.randomUUID().toString(), "thinking_level_change",
+            entry -> entry.put("level", level == null ? "OFF" : level), false);
     }
 
     public CacheMetadata latestCacheMetadata(Path sessionFile) throws IOException {
@@ -396,7 +355,7 @@ public final class SessionManager {
         }
     }
 
-    private static List<Map<String, Object>> buildBranchPath(
+    public static List<Map<String, Object>> buildBranchPath(
             Map<String, Map<String, Object>> idToEntry,
             String leafId) {
         var path = new ArrayList<Map<String, Object>>();
@@ -483,7 +442,7 @@ public final class SessionManager {
         return new ArrayList<>(readAllEntries(file).values());
     }
 
-    private Map<String, Map<String, Object>> readAllEntries(Path file) throws IOException {
+    public static Map<String, Map<String, Object>> readAllEntries(Path file) throws IOException {
         var idToEntry = new LinkedHashMap<String, Map<String, Object>>();
         try (Stream<String> lines = Files.lines(file)) {
             lines.forEach(line -> {

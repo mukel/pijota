@@ -4,15 +4,9 @@ import java.util.List;
 
 public final class ExtensionResult {
 
-    public sealed interface ToolCall permits Allow, Block {}
+    public record Block(String reason) {}
 
-    public record Allow() implements ToolCall {}
-    public record Block(String reason) implements ToolCall {}
-
-    public sealed interface Input permits Continue, Consume {}
-
-    public record Continue(String text) implements Input {}
-    public record Consume(String text) implements Input {}
+    public record InputResult(String text, boolean consumed) {}
 
     public record UserBashResult(boolean blocked, String reason, String replacementCommand) {
         public static UserBashResult allow() { return new UserBashResult(false, null, null); }

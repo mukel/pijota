@@ -197,9 +197,46 @@ public final class Util {
     }
 
     public static String fmtCount(int value) {
+        return fmtCount((long) value);
+    }
+
+    public static String fmtCount(long value) {
         if (value >= 1_000_000) return String.format(Locale.ROOT, "%.1fM", value / 1_000_000.0);
-        if (value >= 1_000) return String.format(Locale.ROOT, "%.1fK", value / 1_000.0);
-        return Integer.toString(value);
+        if (value >= 1_000) return (value / 1_000) + "K";
+        return Long.toString(value);
+    }
+
+    public static String formatDuration(long ms) {
+        long seconds = ms / 1000;
+        if (seconds < 60) return seconds + "s";
+        long minutes = seconds / 60;
+        seconds %= 60;
+        return minutes + "m" + (seconds > 0 ? seconds + "s" : "");
+    }
+
+    public static String formatRelative(long epochMs) {
+        long diff = epochMs - System.currentTimeMillis();
+        long abs = Math.abs(diff);
+        String prefix = diff >= 0 ? "in " : "";
+        String suffix = diff >= 0 ? "" : " ago";
+        if (abs < 60_000) return prefix + (abs / 1000) + "s" + suffix;
+        if (abs < 3600_000) return prefix + (abs / 60_000) + "m" + suffix;
+        if (abs < 86_400_000) return prefix + (abs / 3600_000) + "h" + suffix;
+        return prefix + (abs / 86_400_000) + "d" + suffix;
+    }
+
+    public static String shortUuid() { return java.util.UUID.randomUUID().toString().substring(0, 8); }
+
+    public static String shortUuid(int len) {
+        return java.util.UUID.randomUUID().toString().replace("-", "").substring(0, Math.min(len, 32));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static String parseBashArgs(String argsJson) {
+        try {
+            var args = MAPPER.readValue(argsJson, Map.class);
+            return (String) args.get("command");
+        } catch (Exception e) { return null; }
     }
 
     public static String shortenCwd(String cwd) {

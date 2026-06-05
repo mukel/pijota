@@ -13,7 +13,6 @@ import ai.pijota.llm.ModelRegistry;
 import ai.pijota.tools.BashTool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ProcessRunner;
-import ai.pijota.util.Util;
 
 import ai.pijota.util.SelfRespawn;
 
@@ -36,12 +35,13 @@ final class AppBootstrap {
         var settings = new SettingsManager();
         String cwd = System.getProperty("user.dir");
 
-        String provider = parsedArgs.provider();
-        String model = parsedArgs.model();
         String apiKey = parsedArgs.apiKey();
 
-        if (provider == null) provider = settings.config().defaultProvider();
-        if (provider == null && model != null) provider = ModelRegistry.providerForModel(model);
+        var resolved = ModelRegistry.resolveProviderModel(
+            parsedArgs.provider(), parsedArgs.model(), settings);
+        String provider = resolved.provider();
+        String model = resolved.model();
+
         if (apiKey == null || apiKey.isBlank()) {
             if (provider != null && !provider.isBlank()) apiKey = settings.resolveApiKey(provider);
             if (apiKey == null || apiKey.isBlank()) {
@@ -49,15 +49,10 @@ final class AppBootstrap {
                     String detected = settings.detectProviderFromEnv();
                     if (detected != null) {
                         provider = detected;
-                        apiKey = settings.resolveApiKey(provider);
+                        apiKey = settings.resolveApiKey(detected);
                     }
                 }
             }
-        }
-        if (provider == null) provider = "openai";
-        if (model == null) {
-            model = Util.coalesce(settings.config().defaultModel(),
-                ModelRegistry.defaultModelForProvider(provider));
         }
         if (apiKey == null || apiKey.isBlank()) {
             if (!parsedArgs.agent()) {
@@ -87,9 +82,17 @@ final class AppBootstrap {
         ext.register(new TaskExtension());
         ext.register(new PlanExtension());
         ext.register(new ai.pijota.extensions.examples.InlineBashExtension());
+        ext.register(new ai.pijota.extensions.examples.FilterOutputExtension());
+        ext.register(new ai.pijota.extensions.examples.SecurityExtension());
+        ext.register(new ai.pijota.extensions.examples.WhimsicalExtension());
+        ext.register(new ai.pijota.extensions.examples.GoalExtension());
+        ext.register(new ai.pijota.extensions.examples.ScheduleExtension());
         ext.setExtensionFlags(parsedArgs.extensionFlags());
         if (!parsedArgs.noSkills())
             ext.register(new ai.pijota.extensions.skills.SkillExtension(parsedArgs.skillPaths()));
+
+        if (!parsedArgs.noPromptTemplates())
+            ext.register(new ai.pijota.extensions.prompts.PromptTemplateExtension(parsedArgs.promptTemplatePaths()));
 
         if (!parsedArgs.noContextFiles() && settings.contextFilesEnabled())
             ext.register(new ai.pijota.extensions.examples.ContextFilesExtension(cwd));
@@ -103,13 +106,7 @@ final class AppBootstrap {
         ext.setSystemPrompt(systemPrompt);
 
         var sessions = new SessionManager(settings.sessionDir());
-        String finalProvider = provider;
-        String finalModel = model;
-        int contextWindow = (int) ModelRegistry.KNOWN_MODELS.stream()
-            .filter(m -> m.provider().equals(finalProvider) && m.id().equals(finalModel))
-            .mapToLong(m -> m.contextWindow())
-            .findFirst()
-            .orElse(128_000L);
+        int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
 
         var session = new PijotaSession(llm, tools, sessions, ext,
             systemPrompt, cwd, parsedArgs.noSession(), contextWindow, settings.config().compaction());
@@ -182,20 +179,13 @@ final class AppBootstrap {
     private static void restoreSessionModel(PijotaSession session, SettingsManager settings) throws IOException {
         var selection = session.latestModelSelection();
         if (selection == null) return;
-        String key = settings.resolveApiKey(selection.provider());
-        if (key == null || key.isBlank()) {
+        var resolved = ModelRegistry.resolve(selection, settings);
+        if (resolved == null) {
             System.err.println("[session] cannot restore model " + selection.provider() + "/" + selection.model()
                 + " — missing API key");
             return;
         }
-        long contextWindow = selection.contextWindow() > 0 ? selection.contextWindow()
-            : ModelRegistry.KNOWN_MODELS.stream()
-                .filter(m -> m.provider().equalsIgnoreCase(selection.provider())
-                    && m.id().equalsIgnoreCase(selection.model()))
-                .mapToLong(m -> m.contextWindow())
-                .findFirst()
-                .orElse(128_000L);
-        session.restoreModel(selection.provider(), selection.model(), key, contextWindow);
+        session.restoreModel(resolved.provider(), resolved.model(), resolved.apiKey(), resolved.contextWindow());
     }
 
     private static void restoreSessionThinkingLevel(PijotaSession session) throws IOException {

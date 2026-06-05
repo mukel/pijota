@@ -35,13 +35,13 @@ public final class PlanExtension implements Extension {
         api.registerStatusLines(() -> planEnabled ? List.of("\u23f8 plan") : List.of());
 
         api.onToolCall((tc, _ctx) -> {
-            if (!planEnabled) return new ExtensionResult.Allow();
-            if (!"bash".equals(tc.toolName())) return new ExtensionResult.Allow();
+            if (!planEnabled) return null;
+            if (!"bash".equals(tc.toolName())) return null;
             String command = parseCommand(tc.arguments());
             if (command != null && !PlanUtils.isSafeCommand(command)) {
                 return new ExtensionResult.Block("Plan mode: destructive command blocked. /plan to exit.");
             }
-            return new ExtensionResult.Allow();
+            return null;
         });
 
         api.onBeforeAgentStart((bas, _ctx) -> {

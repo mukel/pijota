@@ -1,5 +1,6 @@
 package ai.pijota.extensions;
 
+import ai.pijota.agent.AgentEvent;
 import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
@@ -38,6 +39,7 @@ public final class ExtensionRegistry {
     private final List<URLClassLoader> extensionClassLoaders = new CopyOnWriteArrayList<>();
     private final Map<String, String> keyedStatuses = new ConcurrentSkipListMap<>();
     private final List<java.util.function.Supplier<String>> systemPromptProviders = new CopyOnWriteArrayList<>();
+    private final List<java.util.function.Supplier<String>> thinkingHeaderTextProviders = new CopyOnWriteArrayList<>();
     private final ExtensionAPIImpl api = new ExtensionAPIImpl();
     private final ExtensionRuntimeImpl runtime = new ExtensionRuntimeImpl();
     private ToolRegistry toolRegistry;
@@ -135,39 +137,13 @@ public final class ExtensionRegistry {
     public void fire(ExtensionEvent event) {
         if (agentContext == null || agentContext.isClosed()) return;
         var ctx = new ExtensionContext(uiContext, runtime);
-        var handlers = listeners.getOrDefault(eventName(event), List.of());
+        String name = event.name();
+        var handlers = listeners.getOrDefault(name, List.of());
         for (var handler : handlers) {
             try { handler.apply(event, ctx); } catch (Exception e) {
-                log.warn("Event handler error for {}: {}", eventName(event), e.getMessage());
+                log.warn("Event handler error for {}: {}", name, e.getMessage());
             }
         }
-    }
-
-    private static String eventName(ExtensionEvent event) {
-        return switch (event) {
-            case ExtensionEvent.SessionStart _ -> "session_start";
-            case ExtensionEvent.SessionReady _ -> "session_ready";
-            case ExtensionEvent.SessionShutdown _ -> "session_shutdown";
-            case ExtensionEvent.SessionBeforeCompact _ -> "session_before_compact";
-            case ExtensionEvent.SessionCompact _ -> "session_compact";
-            case ExtensionEvent.BeforeAgentStart _ -> "before_agent_start";
-            case ExtensionEvent.AgentStart _ -> "agent_start";
-            case ExtensionEvent.AgentEnd _ -> "agent_end";
-            case ExtensionEvent.TurnStart _ -> "turn_start";
-            case ExtensionEvent.TurnEnd _ -> "turn_end";
-            case ExtensionEvent.MessageStart _ -> "message_start";
-            case ExtensionEvent.MessageUpdate _ -> "message_update";
-            case ExtensionEvent.MessageEnd _ -> "message_end";
-            case ExtensionEvent.ToolCall _ -> "tool_call";
-            case ExtensionEvent.ToolResult _ -> "tool_result";
-            case ExtensionEvent.ToolExecutionStart _ -> "tool_execution_start";
-            case ExtensionEvent.ToolExecutionEnd _ -> "tool_execution_end";
-            case ExtensionEvent.BeforeProviderRequest _ -> "before_provider_request";
-            case ExtensionEvent.ModelSelect _ -> "model_select";
-            case ExtensionEvent.UserBash _ -> "user_bash";
-            case ExtensionEvent.BashToolCall _ -> "bash_tool_call";
-            case ExtensionEvent.Input e -> e.handled() ? "input_handled" : "input";
-        };
     }
 
     public Optional<String> beforeToolCall(String toolCallId, String toolName, String arguments) {
@@ -271,12 +247,9 @@ public final class ExtensionRegistry {
         for (var handler : listeners.getOrDefault("input", List.of())) {
             try {
                 Object handled = handler.apply(new ExtensionEvent.Input(result), handlerCtx);
-                if (handled instanceof ExtensionResult.Consume c) {
-                    result = c.text();
-                    break;
-                }
-                if (handled instanceof ExtensionResult.Continue c) {
-                    result = c.text();
+                if (handled instanceof ExtensionResult.InputResult r) {
+                    result = r.text();
+                    if (r.consumed()) break;
                 }
             } catch (Exception e) {
                 log.warn("input handler error: {}", e.getMessage());
@@ -300,26 +273,6 @@ public final class ExtensionRegistry {
 
     public void fireAfterAgentEnd() {
         fire(new ExtensionEvent.AgentEnd());
-    }
-
-    public void fireMessageStart() {
-        fire(new ExtensionEvent.MessageStart());
-    }
-
-    public void fireMessageUpdate(String delta) {
-        fire(new ExtensionEvent.MessageUpdate(delta));
-    }
-
-    public void fireMessageEnd() {
-        fire(new ExtensionEvent.MessageEnd());
-    }
-
-    public void fireTurnStart(int turn) {
-        fire(new ExtensionEvent.TurnStart(turn));
-    }
-
-    public void fireTurnEnd(int turn) {
-        fire(new ExtensionEvent.TurnEnd(turn));
     }
 
     public void fireSessionBeforeCompact(boolean cancel, String instructions) {
@@ -354,6 +307,14 @@ public final class ExtensionRegistry {
             lines.addAll(provider.get());
         }
         return lines;
+    }
+
+    public String thinkingHeaderText() {
+        for (var provider : thinkingHeaderTextProviders) {
+            String text = provider.get();
+            if (text != null && !text.isBlank()) return text;
+        }
+        return null;
     }
 
     public void ready() {
@@ -397,6 +358,17 @@ public final class ExtensionRegistry {
         extensionClassLoaders.clear();
     }
 
+    public void onAgentEvent(AgentEvent event) {
+        switch (event) {
+            case AgentEvent.TurnStart(var turn) -> fire(new ExtensionEvent.TurnStart(turn));
+            case AgentEvent.TurnEnd(var turn) -> fire(new ExtensionEvent.TurnEnd(turn));
+            case AgentEvent.MessageStreamStart _ -> fire(new ExtensionEvent.MessageStart());
+            case AgentEvent.MessageStreamDelta(var delta) -> fire(new ExtensionEvent.MessageUpdate(delta));
+            case AgentEvent.MessageStreamEnd _ -> fire(new ExtensionEvent.MessageEnd());
+            default -> {}
+        }
+    }
+
     // === ExtensionAPIImpl ===
 
     private class ExtensionAPIImpl implements ExtensionAPI {
@@ -438,12 +410,12 @@ public final class ExtensionRegistry {
             return this;
         }
 
-        @Override public ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.ToolCall> handler) {
+        @Override public ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler) {
             addListener("tool_call", (e, ctx) -> handler.apply((ExtensionEvent.ToolCall) e, ctx));
             return this;
         }
 
-        @Override public ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.Input> handler) {
+        @Override public ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler) {
             addListener("input", (e, ctx) -> handler.apply(((ExtensionEvent.Input) e).text(), ctx));
             return this;
         }
@@ -483,6 +455,11 @@ public final class ExtensionRegistry {
         @Override
         public void registerSystemPrompt(java.util.function.Supplier<String> prompt) {
             if (prompt != null) systemPromptProviders.add(prompt);
+        }
+
+        @Override
+        public void registerThinkingHeaderText(java.util.function.Supplier<String> text) {
+            if (text != null) thinkingHeaderTextProviders.add(text);
         }
 
         @Override

@@ -78,14 +78,14 @@ final class ToolExecutor {
     }
 
     private CompletableFuture<Void> executeOne(ToolCall request) {
-        onEvent.accept(AgentEvent.toolStart(request.name(), request.id(), request::arguments));
+        onEvent.accept(new AgentEvent.ToolStart(request.name(), request.id(), request::arguments));
         try {
             if (extensions != null) {
                 var blockReason = extensions.beforeToolCall(request.id(), request.name(), request.arguments());
                 if (blockReason.isPresent()) {
                     var blocked = new Message.ToolResult(request.id(), request.name(), blockReason.get(), true);
                     history.add(blocked);
-                    onEvent.accept(AgentEvent.toolResult(blocked));
+                    onEvent.accept(new AgentEvent.ToolResult(blocked));
                     return CompletableFuture.completedFuture(null);
                 }
             }
@@ -102,7 +102,7 @@ final class ToolExecutor {
                     var msg = new Message.ToolResult(
                         request.id(), request.name(), toolResult.content(), toolResult.isError(), toolResult.details());
                     history.add(msg);
-                    onEvent.accept(AgentEvent.toolResult(msg));
+                    onEvent.accept(new AgentEvent.ToolResult(msg));
                 })
                 .exceptionally(ex -> {
                     var errorResult = Tool.ToolResult.error("Tool error: " + ErrorUtil.message(ex));
@@ -111,7 +111,7 @@ final class ToolExecutor {
                     var msg = new Message.ToolResult(request.id(), request.name(),
                         "Tool error: " + ErrorUtil.message(ex), true);
                     history.add(msg);
-                    onEvent.accept(AgentEvent.toolResult(msg));
+                    onEvent.accept(new AgentEvent.ToolResult(msg));
                     return null;
                 });
         } catch (Exception e) {
@@ -121,7 +121,7 @@ final class ToolExecutor {
             var msg = new Message.ToolResult(request.id(), request.name(),
                 "Tool error: " + ErrorUtil.message(e), true);
             history.add(msg);
-            onEvent.accept(AgentEvent.toolResult(msg));
+            onEvent.accept(new AgentEvent.ToolResult(msg));
             return CompletableFuture.completedFuture(null);
         }
     }

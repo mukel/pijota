@@ -23,9 +23,9 @@ public final class PermissionGateExtension implements Extension {
     @Override
     public void init(ExtensionAPI api) {
         api.onToolCall((tc, ctx) -> {
-            if (!"bash".equals(tc.toolName())) return new ExtensionResult.Allow();
+            if (!"bash".equals(tc.toolName())) return null;
             String command = parseCommand(tc.arguments());
-            if (command == null || !isDangerous(command)) return new ExtensionResult.Allow();
+            if (command == null || !isDangerous(command)) return null;
 
             if (!ctx.hasUI()) return new ExtensionResult.Block("Dangerous command blocked (no UI)");
 
@@ -36,7 +36,7 @@ public final class PermissionGateExtension implements Extension {
                 return new ExtensionResult.Block("Confirm failed: " + e.getMessage());
             }
 
-            return new ExtensionResult.Allow();
+            return null;
         });
     }
 

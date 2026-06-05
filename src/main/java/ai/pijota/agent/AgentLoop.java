@@ -35,7 +35,8 @@ public final class AgentLoop implements AgentContext {
     private final List<Consumer<AgentEvent>> listeners = new CopyOnWriteArrayList<>();
     private final ExtensionRegistry extensionRegistry;
     private final CompactionManager compaction;
-    private final SteeringQueue steeringQueue;
+    private final List<String> steeringMessages = new ArrayList<>();
+    private final List<String> followUpMessages = new ArrayList<>();
     private final ToolExecutor toolExecutor;
     private final AtomicBoolean aborted = new AtomicBoolean(false);
     private final AtomicReference<CompletableFuture<List<Message>>> activeResult =
@@ -86,7 +87,6 @@ public final class AgentLoop implements AgentContext {
         this.llm = llm; this.toolRegistry = toolRegistry; this.cwd = cwd;
         this.history = new MessageHistory();
         this.compaction = compaction;
-        this.steeringQueue = new SteeringQueue();
         this.extensionRegistry = extensionRegistry;
         this.toolExecutor = new ToolExecutor(toolRegistry, extensionRegistry, cwd, history,
             this::fireEvent, aborted);
@@ -107,9 +107,7 @@ public final class AgentLoop implements AgentContext {
     public Optional<String> undoLastUserTurn() { return history.undoLastUserTurn(); }
     public void stripSystemRemindersFromContext() { history.stripSystemReminders(); }
     public List<Message.User> userMessages() { return history.userMessages(); }
-    public SteeringQueue steering() { return steeringQueue; }
-    public void steer(String m) { steeringQueue.enqueueSteering(m); }
-    public void followUp(String m) { steeringQueue.enqueueFollowUp(m); }
+    public void followUp(String m) { followUpMessages.add(m); }
     public boolean isBusy() { return activeResult.get() != null; }
     public boolean isClosed() { return aborted.get(); }
     public void close() { abort(); }
@@ -155,10 +153,10 @@ public final class AgentLoop implements AgentContext {
         int estimatedChars = CompactionManager.estimateChars(messages);
         int estimatedTokens = CompactionManager.estimateTokens(messages);
         var result = strategy.apply(messages, compacted -> {
-            fireEvent(AgentEvent.compactionStreamEnd());
-            fireEvent(AgentEvent.compaction(compacted, sizeBefore, estimatedChars, estimatedTokens,
+                fireEvent(new AgentEvent.CompactionStreamEnd());
+            fireEvent(new AgentEvent.Compaction(compacted, sizeBefore, estimatedChars, estimatedTokens,
                 compactionSummary(compacted), reason));
-        }, (content, thinking) -> fireEvent(AgentEvent.compactionStream(content, thinking)));
+        }, (content, thinking) -> fireEvent(new AgentEvent.CompactionStream(content, thinking)));
         if (extensionRegistry != null)
             extensionRegistry.fireSessionCompact();
         return result;
@@ -188,17 +186,17 @@ public final class AgentLoop implements AgentContext {
             sendUserMessage(content, "steer");
         } else {
             history.add(new Message.User(content));
-            fireEvent(AgentEvent.turnStart(sessionTurn + 1));
+            fireEvent(new AgentEvent.TurnStart(sessionTurn + 1));
         }
     }
 
     @Override
     public void sendUserMessage(String content, String deliverAs) {
         switch (deliverAs) {
-            case "steer" -> steeringQueue.enqueueSteering(content);
-            case "followUp" -> steeringQueue.enqueueFollowUp(content);
+            case "steer" -> steeringMessages.add(content);
+            case "followUp" -> followUpMessages.add(content);
             default -> {
-                if (isBusy()) steeringQueue.enqueueSteering(content);
+                if (isBusy()) steeringMessages.add(content);
                 else history.add(new Message.User(content));
             }
         }
@@ -248,7 +246,7 @@ public final class AgentLoop implements AgentContext {
 
     private void runLoopRecursive(CompletableFuture<List<Message>> result, int turn) {
         if (aborted.get()) {
-            fireEvent(AgentEvent.error(new RuntimeException("Aborted")));
+            fireEvent(new AgentEvent.Error(new RuntimeException("Aborted")));
             result.complete(new ArrayList<>(history.mutableList()));
             return;
         }
@@ -259,7 +257,7 @@ public final class AgentLoop implements AgentContext {
             return;
         }
 
-        fireEvent(AgentEvent.turnStart(turn));
+        fireEvent(new AgentEvent.TurnStart(turn));
 
         processSteeringMessages();
 
@@ -270,7 +268,7 @@ public final class AgentLoop implements AgentContext {
 
         var partialMsg = new Message.Assistant("", List.of(), null);
         history.add(partialMsg);
-        fireEvent(AgentEvent.assistantMessage(partialMsg, null));
+        fireEvent(new AgentEvent.AssistantMessage(partialMsg, null));
         messageStreamStarted = false;
         lastStreamContent = "";
 
@@ -282,16 +280,16 @@ public final class AgentLoop implements AgentContext {
                     if (!isActive(result)) return;
                     if (!messageStreamStarted) {
                         messageStreamStarted = true;
-                        fireEvent(AgentEvent.messageStreamStart("assistant"));
+                        fireEvent(new AgentEvent.MessageStreamStart("assistant"));
                     }
                     String content = partialContent != null ? partialContent : "";
                     String delta = Util.deltaPrefix(content, lastStreamContent);
                     lastStreamContent = content;
                     if (delta != null && !delta.isEmpty()) {
-                        fireEvent(AgentEvent.messageStreamDelta(delta));
+                        fireEvent(new AgentEvent.MessageStreamDelta(delta));
                     }
                     var updated = new Message.Assistant(partialContent, List.of(), partialThinking);
-                    fireEvent(AgentEvent.assistantMessage(updated, null));
+                    fireEvent(new AgentEvent.AssistantMessage(updated, null));
                     history.set(history.size() - 1, updated.withSource(requestProvider, requestModel));
                 });
                 activeStream.set(stream);
@@ -300,7 +298,7 @@ public final class AgentLoop implements AgentContext {
             .thenAccept(streamResult -> {
                 activeStream.getAndSet(null);
                 if (!isActive(result)) return;
-                fireEvent(AgentEvent.messageStreamEnd("assistant"));
+                fireEvent(new AgentEvent.MessageStreamEnd("assistant"));
 
                 var newToolCalls = streamResult.hasToolCalls()
                     ? streamResult.toolCalls()
@@ -311,11 +309,11 @@ public final class AgentLoop implements AgentContext {
                     ? streamResult.thinking() : null;
                 var assistantMsg = new Message.Assistant(finalContent, newToolCalls, finalThinking)
                     .withSource(requestProvider, requestModel);
-                fireEvent(AgentEvent.assistantMessage(assistantMsg, streamResult.usage()));
+                fireEvent(new AgentEvent.AssistantMessage(assistantMsg, streamResult.usage()));
                 history.set(history.size() - 1, assistantMsg);
 
                 if (!streamResult.hasToolCalls()) {
-                    fireEvent(AgentEvent.turnEnd(turn));
+                        fireEvent(new AgentEvent.TurnEnd(turn));
                     processFollowUp(result, turn);
                     return;
                 }
@@ -323,7 +321,7 @@ public final class AgentLoop implements AgentContext {
                 toolExecutor.execute(streamResult.toolCalls())
                     .thenAccept(_ -> {
                         if (!isActive(result)) return;
-                        fireEvent(AgentEvent.turnEnd(turn));
+                    fireEvent(new AgentEvent.TurnEnd(turn));
                         runAutoCompaction("auto");
                         runLoopRecursive(result, turn + 1);
                     })
@@ -346,16 +344,15 @@ public final class AgentLoop implements AgentContext {
                 }
                 String message = ErrorUtil.message(ex);
                 log.warn("LLM streaming error: {}", message);
-                fireEvent(AgentEvent.error(new RuntimeException(message)));
+                fireEvent(new AgentEvent.Error(new RuntimeException(message)));
                 result.completeExceptionally(new RuntimeException(message));
                 return null;
             });
     }
 
     private void processSteeringMessages() {
-        if (!steeringQueue.hasSteering()) return;
-        for (String msg : steeringQueue.drainSteering())
-            history.add(new Message.User(msg));
+        if (steeringMessages.isEmpty()) return;
+        drainAndProcess(steeringMessages);
     }
 
     private boolean isActive(CompletableFuture<List<Message>> result) {
@@ -363,14 +360,20 @@ public final class AgentLoop implements AgentContext {
     }
 
     private void processFollowUp(CompletableFuture<List<Message>> result, int turn) {
-        if (steeringQueue.hasFollowUp() && !aborted.get()) {
-            for (String msg : steeringQueue.drainFollowUp())
-                history.add(new Message.User(msg));
+        if (!followUpMessages.isEmpty() && !aborted.get()) {
+            drainAndProcess(followUpMessages);
             runLoopRecursive(result, turn + 1);
         } else {
             activeResult.compareAndSet(result, null);
             result.complete(new ArrayList<>(history.mutableList()));
         }
+    }
+
+    private void drainAndProcess(List<String> list) {
+        for (String msg : List.copyOf(list)) {
+            history.add(new Message.User(msg));
+        }
+        list.clear();
     }
 
     private void fireEvent(AgentEvent event) {
@@ -400,25 +403,5 @@ public final class AgentLoop implements AgentContext {
                         .exceptionally(e -> { delayed.completeExceptionally(e); return null; }));
                 return delayed;
             });
-    }
-
-    public static final class SteeringQueue {
-        private final List<String> steeringMessages = new CopyOnWriteArrayList<>();
-        private final List<String> followUpMessages = new CopyOnWriteArrayList<>();
-
-        public void enqueueSteering(String message) { steeringMessages.add(message); }
-        public void enqueueFollowUp(String message) { followUpMessages.add(message); }
-        public List<String> drainSteering() {
-            var copy = List.copyOf(steeringMessages);
-            steeringMessages.clear();
-            return copy;
-        }
-        public List<String> drainFollowUp() {
-            var copy = List.copyOf(followUpMessages);
-            followUpMessages.clear();
-            return copy;
-        }
-        public boolean hasSteering() { return !steeringMessages.isEmpty(); }
-        public boolean hasFollowUp() { return !followUpMessages.isEmpty(); }
     }
 }

@@ -4,7 +4,6 @@ import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.llm.ModelInfo;
-import ai.pijota.llm.ModelRefresher;
 import ai.pijota.llm.ModelRegistry;
 import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.extensions.ExtensionKeybinding;
@@ -137,14 +136,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     SlashCommand extensionCommand(String cmd) { return extensionCommands.get(cmd); }
     void stop() { running.set(false); }
 
-    void appendStatusError(String msg) {
-        appendPlain(List.of(theme.styled("toolError", msg)));
-    }
-
     private volatile String busyPhase;
     private final AtomicInteger queuedFollowUps = new AtomicInteger(0);
-    private long interruptArmedUntil;
-    private long exitArmedUntil;
+    private final DoublePressGate interruptGate = new DoublePressGate(INTERRUPT_WINDOW_MS);
+    private final DoublePressGate exitGate = new DoublePressGate(EXIT_WINDOW_MS);
     private ThinkingLevel thinkingLevel = ThinkingLevel.OFF;
     private volatile boolean thinkingHeaderShown;
     private String sessionName;
@@ -175,6 +170,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final TranscendenceOrchestrator transcendence;
     private final ShellCommandRunner shellCommands;
     private final SessionCommands sessionCommands;
+    private final ModelCommandHandler modelCommands;
 
     public void requestSessionPicker() { showSessionPickerOnStart = true; }
     private static final long INTERRUPT_WINDOW_MS = 1200;
@@ -225,6 +221,20 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             @Override public SettingsManager settings() { return AppendOnlyTui.this.settings; }
             @Override public String tokenStatus() { return AppendOnlyTui.this.tokenStatus(); }
             @Override public void refreshSessionName() { AppendOnlyTui.this.refreshSessionName(); }
+        });
+        this.modelCommands = new ModelCommandHandler(new ModelCommandHandler.Host() {
+            @Override public boolean busy() { return busy.get(); }
+            @Override public String provider() { return AppendOnlyTui.this.provider; }
+            @Override public String model() { return AppendOnlyTui.this.model; }
+            @Override public void appendPlain(List<String> lines) { AppendOnlyTui.this.appendPlain(lines); }
+            @Override public String styled(String slot, String text) { return theme.styled(slot, text); }
+            @Override public void redrawPrompt() { AppendOnlyTui.this.redrawPrompt(); }
+            @Override public void setStatus(String status) { statusOverride = status; }
+            @Override public void switchModel(ModelInfo chosen) { AppendOnlyTui.this.switchToModel(chosen); }
+            @Override public TuiSelectors selectors() { return selectors; }
+            @Override public PromptEditor promptEditor() { return promptEditor; }
+            @Override public PijotaSession session() { return session; }
+            @Override public SettingsManager settings() { return settings; }
         });
         this.provider = provider;
         this.model = model;
@@ -535,30 +545,26 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void handleEsc(boolean forceInterrupt) {
         if (dialogs.cancelQuestionIfIdle(busy.get())) return;
         if (!busy.get()) return;
-        long now = System.currentTimeMillis();
-        if (forceInterrupt || now <= interruptArmedUntil) {
-            interruptArmedUntil = 0;
+        if (forceInterrupt || interruptGate.tryFire()) {
+            interruptGate.disarm();
             statusOverride = "Interrupted";
             session.abort();
             flushStreamLines();
             resetStreamState();
             shellCommands.interruptProcess();
         } else {
-            interruptArmedUntil = now + INTERRUPT_WINDOW_MS;
             statusOverride = "Press Esc again to interrupt";
         }
         redrawPrompt();
     }
 
     private void handleCtrlC() {
-        long now = System.currentTimeMillis();
-        if (now <= exitArmedUntil) {
+        if (exitGate.tryFire()) {
             running.set(false);
             close();
             return;
         }
         promptEditor.setText("");
-        exitArmedUntil = now + EXIT_WINDOW_MS;
         statusOverride = "Press Ctrl+C again to exit";
         redrawPrompt();
     }
@@ -639,7 +645,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
         queuedFollowUps.set(0);
         pendingFollowUps.clear();
-        exitArmedUntil = 0;
+        exitGate.disarm();
         long gen = beginBusy("waiting for model");
         redrawPrompt();
         agentExecutor.submit(() -> {
@@ -659,7 +665,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private long beginBusy(String phase) {
         busy.set(true);
         busyPhase = phase;
-        interruptArmedUntil = 0;
+        interruptGate.disarm();
         statusOverride = null;
         return busyGeneration.incrementAndGet();
     }
@@ -667,7 +673,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void endBusy(long generation) {
         if (!busyGeneration.compareAndSet(generation, 0)) return;
         busy.set(false);
-        interruptArmedUntil = 0;
+        interruptGate.disarm();
         statusOverride = null;
     }
 
@@ -915,60 +921,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return dialogs.askQuestions(questions);
     }
 
-    void showModelSelector() {
-        if (busy.get()) {
-            appendPlain(List.of(theme.styled("toolError", "/model is unavailable while a turn is running")));
-            redrawPrompt();
-            return;
-        }
-        var models = ModelRegistry.KNOWN_MODELS.stream()
-            .filter(m -> settings == null || settings.resolveApiKey(m.provider()) != null)
-            .toList();
-        showModelSelector(models);
-    }
+    void showModelSelector() { modelCommands.showModelSelector(); }
 
-    void refreshModels() {
-        if (busy.get()) {
-            appendPlain(List.of(theme.styled("toolError", "/refresh is unavailable while a turn is running")));
-            redrawPrompt();
-            return;
-        }
-        var result = ModelRefresher.refresh(settings);
-        appendPlain(List.of(theme.styled("statusText",
-            "refreshed " + result.modelsFound() + " models from "
-                + result.providersChecked() + " provider(s)")));
-        for (String error : result.errors()) {
-            appendPlain(List.of(theme.styled("toolError", "refresh: " + error)));
-        }
-        redrawPrompt();
-    }
+    void refreshModels() { modelCommands.refreshModels(); }
 
-    void showModelSelector(List<ModelInfo> models) {
-        if (busy.get()) {
-            appendPlain(List.of(theme.styled("toolError", "/model is unavailable while a turn is running")));
-            redrawPrompt();
-            return;
-        }
-        if (models.isEmpty()) {
-            appendPlain(List.of(theme.styled("toolError", "no models found")));
-            return;
-        }
-        var items = models.stream().map(m -> new ModelItem(m, m.id().equals(model))).toList();
-        selectors.show(TuiSelectors.Slot.MODEL, items);
-        selectors.<ModelItem>selectFirst(TuiSelectors.Slot.MODEL, i -> i.info().id().equals(model));
-        promptEditor.setText("");
-        redrawPrompt();
-    }
+    void showModelSelector(List<ModelInfo> models) { modelCommands.showModelSelector(models); }
 
-    private void confirmModelSelection() {
-        var selected = selectors.<ModelItem>selected(TuiSelectors.Slot.MODEL).orElse(null);
-        if (selected == null) return;
-        var chosen = selected.info();
-        switchToModel(chosen);
-        selectors.deactivate(TuiSelectors.Slot.MODEL);
-        promptEditor.setText("");
-        redrawPrompt();
-    }
+    private void confirmModelSelection() { modelCommands.confirmModelSelection(); }
 
     private void showSessionPicker() {
         var sessions = session.resumableSessions();
@@ -998,45 +957,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
-    private ModelInfo nextModel(List<ModelInfo> models, int direction) {
-        for (int i = 0; i < models.size(); i++) {
-            if (models.get(i).provider().equals(provider) && models.get(i).id().equals(model)) {
-                int next = (i + direction + models.size()) % models.size();
-                return models.get(next);
-            }
-        }
-        return models.isEmpty() ? null : models.getFirst();
-    }
 
-    private void cycleModel() {
-        if (busy.get()) {
-            statusOverride = "Model switch unavailable while busy";
-            redrawPrompt();
-            return;
-        }
-        var models = availableModels();
-        if (models.size() <= 1) return;
-        var chosen = nextModel(models, 1);
-        switchToModel(chosen);
-    }
+    private void cycleModel() { modelCommands.cycleModel(1); }
 
-    private void cycleModelBackward() {
-        if (busy.get()) {
-            statusOverride = "Model switch unavailable while busy";
-            redrawPrompt();
-            return;
-        }
-        var models = availableModels();
-        if (models.size() <= 1) return;
-        var chosen = nextModel(models, -1);
-        switchToModel(chosen);
-    }
+    private void cycleModelBackward() { modelCommands.cycleModel(-1); }
 
-    private List<ModelInfo> availableModels() {
-        return ModelRegistry.KNOWN_MODELS.stream()
-            .filter(m -> settings == null || settings.resolveApiKey(m.provider()) != null)
-            .toList();
-    }
 
     private void switchToModel(ModelInfo chosen) {
         String key = settings != null ? settings.resolveApiKey(chosen.provider()) : null;
@@ -1780,14 +1705,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private static long resolveContextWindow(String provider, String model) {
-        return ModelRegistry.KNOWN_MODELS.stream()
-            .filter(m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model))
-            .findFirst()
-            .or(() -> ModelRegistry.KNOWN_MODELS.stream()
-                .filter(m -> m.id().equalsIgnoreCase(model))
-                .findFirst())
-            .map(ModelInfo::contextWindow)
-            .orElse(128_000L);
+        return ai.pijota.llm.ModelRegistry.resolveContextWindow(provider, model);
     }
 
     private final class PendingRegion implements PromptRegion.Custom {

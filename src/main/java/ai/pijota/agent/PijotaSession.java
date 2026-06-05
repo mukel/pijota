@@ -82,11 +82,6 @@ public final class PijotaSession implements AutoCloseable {
 
         this.agentLoop.addEventListener(event -> {
             switch (event) {
-                case AgentEvent.TurnStart(int turn) -> extensionRegistry.fireTurnStart(turn);
-                case AgentEvent.TurnEnd(int turn) -> extensionRegistry.fireTurnEnd(turn);
-                case AgentEvent.MessageStreamStart(String _) -> extensionRegistry.fireMessageStart();
-                case AgentEvent.MessageStreamDelta(String delta) -> extensionRegistry.fireMessageUpdate(delta);
-                case AgentEvent.MessageStreamEnd(String _) -> extensionRegistry.fireMessageEnd();
                 case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
                     if (usage != null) {
                         Path file = this.sessionFile;
@@ -106,6 +101,7 @@ public final class PijotaSession implements AutoCloseable {
                 default -> {}
             }
         });
+        this.agentLoop.addEventListener(extensionRegistry::onAgentEvent);
     }
 
     public CompletableFuture<List<Message>> prompt(String userInput) {

@@ -7,6 +7,36 @@ import java.util.Comparator;
 import java.util.List;
 
 final class SlashCommandRegistry {
+    private static final List<CompletionItem> BUILTIN_COMMANDS = List.of(
+        new CompletionItem("/help", "Show commands and key bindings"),
+        new CompletionItem("/settings", "Open settings menu"),
+        new CompletionItem("/model", "Select or search models"),
+        new CompletionItem("/theme", "List or switch themes"),
+        new CompletionItem("/compact", "Manually compact the conversation"),
+        new CompletionItem("/export", "Export session to Markdown"),
+        new CompletionItem("/save", "Save session to a file"),
+        new CompletionItem("/load", "Load and resume a session"),
+        new CompletionItem("/delete", "Delete a saved session"),
+        new CompletionItem("/sessions", "List saved sessions"),
+        new CompletionItem("/name", "Set session display name"),
+        new CompletionItem("/context", "Show token usage breakdown"),
+        new CompletionItem("/undo", "Edit previous message"),
+        new CompletionItem("/copy", "Copy last assistant response"),
+        new CompletionItem("/session", "Show session info"),
+        new CompletionItem("/whoami", "Show current model info"),
+        new CompletionItem("/new", "Start a new session"),
+        new CompletionItem("/hotkeys", "Show keyboard shortcuts"),
+        new CompletionItem("/login", "Log in to a provider via OAuth"),
+        new CompletionItem("/logout", "Remove stored credentials for a provider"),
+        new CompletionItem("/refresh", "Refresh available models"),
+        new CompletionItem("/tree", "Show conversation tree"),
+        new CompletionItem("/fork", "Fork a new session from a previous message"),
+        new CompletionItem("/clone", "Clone current branch to a new session"),
+        new CompletionItem("/transcend", "Rebuild and restart pijota, or set a self-modification goal"),
+        new CompletionItem("/skills", "List available skills"),
+        new CompletionItem("/quit", "Exit pijota")
+    );
+
     private final List<CompletionItem> commands;
 
     public SlashCommandRegistry() {
@@ -14,10 +44,7 @@ final class SlashCommandRegistry {
     }
 
     public SlashCommandRegistry(List<SlashCommand> extensionCommands) {
-        var list = new ArrayList<CompletionItem>();
-        for (var cmd : BuiltInSlashCommand.values()) {
-            list.add(new CompletionItem(cmd.name, cmd.description));
-        }
+        var list = new ArrayList<CompletionItem>(BUILTIN_COMMANDS);
         for (var ext : extensionCommands) {
             list.add(new CompletionItem("/" + ext.name(), ext.description()));
         }

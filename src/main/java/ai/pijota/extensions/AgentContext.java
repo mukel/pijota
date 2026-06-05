@@ -1,7 +1,7 @@
 package ai.pijota.extensions;
 
-import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
+import ai.pijota.llm.LlmService;
 
 import java.util.List;
 

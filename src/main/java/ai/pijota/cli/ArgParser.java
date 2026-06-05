@@ -24,10 +24,12 @@ public final class ArgParser {
         var noSkills = false;
         var noThemes = false;
         var noContextFiles = false;
+        var noPromptTemplates = false;
         var enabledTools = new ArrayList<String>();
         var extensionPaths = new ArrayList<String>();
         var skillPaths = new ArrayList<String>();
         var themePaths = new ArrayList<String>();
+        var promptTemplatePaths = new ArrayList<String>();
         var print = false;
         var resume = false;
         var continueSession = false;
@@ -96,6 +98,8 @@ public final class ArgParser {
                 case "--no-skills", "-ns" -> noSkills = true;
                 case "--no-themes" -> noThemes = true;
                 case "--no-context-files", "-nc" -> noContextFiles = true;
+                case "--no-prompt-templates", "-np" -> noPromptTemplates = true;
+                case "--prompt-template", "--template" -> promptTemplatePaths.add(nextArg(rawArgs, i++));
                 case "--verbose" -> verbose = true;
                 case "--help", "-h" -> help = true;
                 case "--version", "-v" -> version = true;
@@ -124,7 +128,8 @@ public final class ArgParser {
 
         return new Args(provider, model, apiKey, systemPrompt, appendSystemPrompts,
             thinkingLevel, outputMode, sessionPath, noSession, noTools, noExtensions, noSkills, noThemes,
-            noContextFiles, enabledTools, extensionPaths, skillPaths, themePaths, print, resume, continueSession,
+            noContextFiles, noPromptTemplates, enabledTools, extensionPaths, skillPaths, themePaths, promptTemplatePaths,
+            print, resume, continueSession,
             recoverSession, forkPath, exportPath, listModels, listModelsFilter, help, version, verbose, agent, worker,
             fileArgs, promptArgs, Map.copyOf(extensionFlags));
     }
@@ -159,6 +164,8 @@ public final class ArgParser {
               --theme <path|name>       Load/select theme (repeatable)
               --no-themes               Skip theme discovery
               --no-context-files, -nc    Skip AGENTS.md and CLAUDE.md discovery
+              --no-prompt-templates, -np Skip prompt template auto-discovery
+              --prompt-template <path>   Load prompt template (repeatable)
               --export <file>           Export session to Markdown
               --list-models [filter]    List available models
               --verbose                 Verbose output

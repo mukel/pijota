@@ -80,6 +80,10 @@ public final class LlmService implements AutoCloseable {
 
     public UsageTracker usage() { return usage; }
 
+    public long totalInputTokens() { return usage.totalInputTokens(); }
+    public long totalOutputTokens() { return usage.totalOutputTokens(); }
+    public boolean isOverBudget() { return usage.overBudget(); }
+
     public CompletableFuture<StreamResult> streamMessages(
             List<Message> messages, List<ai.pijota.tools.Tool> tools,
             BiConsumer<String, String> onPartial

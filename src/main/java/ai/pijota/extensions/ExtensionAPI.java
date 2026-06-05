@@ -37,7 +37,7 @@ public interface ExtensionAPI {
 
     // ---- tool events ----
 
-    ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.ToolCall> handler);
+    ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler);
     ExtensionAPI onToolResult(BiConsumer<ExtensionEvent.ToolResult, ExtensionContext> handler);
     ExtensionAPI onToolExecutionStart(BiConsumer<ExtensionEvent.ToolExecutionStart, ExtensionContext> handler);
     ExtensionAPI onToolExecutionEnd(BiConsumer<ExtensionEvent.ToolExecutionEnd, ExtensionContext> handler);
@@ -57,7 +57,7 @@ public interface ExtensionAPI {
 
     // ---- input ----
 
-    ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.Input> handler);
+    ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler);
 
     // ---- registration ----
 
@@ -69,6 +69,7 @@ public interface ExtensionAPI {
     void registerStatusLines(java.util.function.Supplier<List<String>> lines);
     void registerFooterLines(java.util.function.Supplier<List<String>> lines);
     void registerSystemPrompt(java.util.function.Supplier<String> prompt);
+    void registerThinkingHeaderText(java.util.function.Supplier<String> text);
 
     // ---- message injection ----
 

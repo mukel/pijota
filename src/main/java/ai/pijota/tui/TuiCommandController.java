@@ -18,34 +18,35 @@ final class TuiCommandController {
 
     void handle(String input) {
         String cmd = commandName(input);
+        String arg = commandArgs(input, cmd);
         switch (cmd) {
-            case "/help" -> tui.appendPlain(tui.lines(commands.helpText(), "statusText"));
-            case "/quit" -> tui.stop();
-            case "/model" -> handleModel(commandArgs(input, cmd));
+            case "/help"     -> tui.appendPlain(tui.lines(commands.helpText(), "statusText"));
+            case "/quit"     -> tui.stop();
+            case "/model"    -> handleModel(arg);
             case "/settings" -> tui.showSettingsSelector();
-            case "/login" -> tui.showLoginSelector();
-            case "/logout" -> tui.showLogoutSelector();
-            case "/refresh" -> tui.refreshModels();
-            case "/theme" -> tui.showThemeSelector();
-            case "/undo" -> tui.undoLastTurn();
-            case "/compact" -> tui.triggerCompaction(commandArgs(input, cmd));
-            case "/copy" -> tui.copyLastResponse();
-            case "/hotkeys" -> tui.showHotkeys();
-            case "/session" -> tui.showSessionInfo();
-            case "/context" -> tui.showContext();
-            case "/export" -> tui.exportSession(input);
-            case "/save" -> tui.saveSession(input);
-            case "/load" -> tui.loadSession(input);
+            case "/login"    -> tui.showLoginSelector();
+            case "/logout"   -> tui.showLogoutSelector();
+            case "/refresh"  -> tui.refreshModels();
+            case "/theme"    -> tui.showThemeSelector();
+            case "/undo"     -> tui.undoLastTurn();
+            case "/compact"  -> tui.triggerCompaction(arg);
+            case "/copy"     -> tui.copyLastResponse();
+            case "/hotkeys"  -> tui.showHotkeys();
+            case "/session"  -> tui.showSessionInfo();
+            case "/context"  -> tui.showContext();
+            case "/export"   -> tui.exportSession(input);
+            case "/save"     -> tui.saveSession(input);
+            case "/load"     -> tui.loadSession(input);
             case "/sessions" -> tui.listSessions();
-            case "/delete" -> tui.deleteSession(input);
-            case "/name" -> renameSession(commandArgs(input, cmd));
-            case "/new" -> tui.startNewSession();
-            case "/tree" -> tui.showTree();
-            case "/fork" -> tui.forkSession(input);
-            case "/clone" -> tui.cloneSession();
-            case "/transcend" -> tui.handleTranscend(commandArgs(input, cmd));
-            case "/skills" -> tui.showSkills();
-            case "/whoami" -> tui.showWhoami();
+            case "/delete"   -> tui.deleteSession(input);
+            case "/name"     -> renameSession(arg);
+            case "/new"      -> tui.startNewSession();
+            case "/tree"     -> tui.showTree();
+            case "/fork"     -> tui.forkSession(input);
+            case "/clone"    -> tui.cloneSession();
+            case "/transcend"-> tui.handleTranscend(arg);
+            case "/skills"   -> tui.showSkills();
+            case "/whoami"   -> tui.showWhoami();
             default -> handleUnknown(input, cmd);
         }
     }

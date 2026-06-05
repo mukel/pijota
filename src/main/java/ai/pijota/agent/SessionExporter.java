@@ -7,7 +7,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,13 +41,32 @@ public final class SessionExporter {
             throw new IOException("Session file not found: " + sessionFile);
         }
 
-        var allEntries = readEntries(sessionFile);
-        if (allEntries.isEmpty()) {
+        // Read the session header (first line with type=session)
+        var header = Map.<String, Object>of();
+        try (var lines = Files.lines(sessionFile)) {
+            var first = lines.limit(1).reduce((a, b) -> b).orElse(null);
+            if (first != null) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    var h = (Map<String, Object>) ai.pijota.util.Util.MAPPER.readValue(first, Map.class);
+                    if ("session".equals(h.get("type"))) header = h;
+                } catch (Exception ignored) {}
+            }
+        }
+
+        var idToEntry = SessionManager.readAllEntries(sessionFile);
+        if (idToEntry.isEmpty()) {
             return "# Pijota Session\n\n*(empty session)*\n";
         }
 
-        var header = findHeader(allEntries);
-        var branch = buildBranch(allEntries, leafId);
+        // If no leafId specified, use the last entry in insertion order
+        String effectiveLeaf = leafId;
+        if (effectiveLeaf == null || !idToEntry.containsKey(effectiveLeaf)) {
+            effectiveLeaf = null;
+            for (var id : idToEntry.keySet()) effectiveLeaf = id;
+        }
+
+        var branch = SessionManager.buildBranchPath(idToEntry, effectiveLeaf);
 
         var md = new StringBuilder();
         appendFrontMatter(md, header, sessionFile);
@@ -82,66 +100,6 @@ public final class SessionExporter {
     }
 
     // -- internal helpers --
-
-    private static List<Map<String, Object>> readEntries(Path file) throws IOException {
-        var entries = new ArrayList<Map<String, Object>>();
-        try (var lines = Files.lines(file)) {
-            lines.forEach(line -> {
-                try {
-                    @SuppressWarnings("unchecked")
-                    var map = (Map<String, Object>) ai.pijota.util.Util.MAPPER.readValue(line, Map.class);
-                    entries.add(map);
-                } catch (Exception ignored) {}
-            });
-        }
-        return entries;
-    }
-
-    private static Map<String, Object> findHeader(List<Map<String, Object>> entries) {
-        for (var e : entries) {
-            if ("session".equals(e.get("type"))) return e;
-        }
-        return Map.of();
-    }
-
-    /**
-     * Build the active branch: follow parentId backward from leafId (or last entry)
-     * to produce a forward-ordered list of entries.
-     */
-    private static List<Map<String, Object>> buildBranch(List<Map<String, Object>> entries, String leafId) {
-        var byId = new LinkedHashMap<String, Map<String, Object>>();
-        for (var e : entries) {
-            String id = (String) e.get("id");
-            if (id != null && !"session".equals(e.get("type"))) {
-                byId.put(id, e);
-            }
-        }
-
-        String tip = leafId;
-        if (tip == null || !byId.containsKey(tip)) {
-            // Use last non-header entry
-            for (int i = entries.size() - 1; i >= 0; i--) {
-                String id = (String) entries.get(i).get("id");
-                if (id != null && byId.containsKey(id)) {
-                    tip = id;
-                    break;
-                }
-            }
-        }
-        if (tip == null) return List.of();
-
-        var path = new ArrayList<Map<String, Object>>();
-        var visited = new java.util.HashSet<String>();
-        String cur = tip;
-        while (cur != null && visited.add(cur)) {
-            var entry = byId.get(cur);
-            if (entry == null) break;
-            path.add(entry);
-            cur = (String) entry.get("parentId");
-        }
-        java.util.Collections.reverse(path);
-        return path;
-    }
 
     private static void appendFrontMatter(StringBuilder md,
                                           Map<String, Object> header,

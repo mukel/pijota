@@ -36,7 +36,7 @@ final class ThemeManager {
                     return;
                 }
             } catch (Exception ignored) {}
-            tui.appendStatusError("theme not found: " + name);
+            tui.appendError("theme not found: " + name);
         }
     }
 
@@ -48,10 +48,10 @@ final class ThemeManager {
                 var loaded = AnsiTheme.load(path);
                 apply(loaded, loaded.name != null ? loaded.name : path.getFileName().toString());
             } else {
-                tui.appendStatusError("theme not found: " + pathStr);
+                tui.appendError("theme not found: " + pathStr);
             }
         } catch (IOException e) {
-            tui.appendStatusError("theme load failed: " + e.getMessage());
+            tui.appendError("theme load failed: " + e.getMessage());
         }
     }
 
