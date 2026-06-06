@@ -48,10 +48,11 @@ public sealed interface PromptRegion
         private static java.util.ArrayList<VisLine> visualLines(PromptSnapshot ctx, int width) {
             var out = new ArrayList<VisLine>();
             int bodyWidth = Math.max(1, width - 2);
+            boolean continuation = ctx.promptState() == PromptSnapshot.PromptState.CONTINUATION;
             for (int row = 0; row < ctx.lines().size(); row++) {
                 String text = ctx.lines().get(row);
-                String firstPrefix = row == 0 ? promptPrefix(ctx) : "| ";
-                String firstPrefixSlot = row == 0 ? promptPrefixSlot(ctx, text) : "statusText";
+                String firstPrefix = row == 0 ? promptPrefix(ctx) : continuation ? "┃ " : "│ ";
+                String firstPrefixSlot = row == 0 ? promptPrefixSlot(ctx, text) : continuation ? "dim" : "statusText";
                 if (text.isEmpty()) {
                     out.add(new VisLine(firstPrefix, firstPrefixSlot, "", row, 0, 0));
                     continue;
@@ -73,30 +74,39 @@ public sealed interface PromptRegion
 
         private static String promptPrefix(PromptSnapshot ctx) {
             return switch (ctx.promptState()) {
-                case BUSY -> "~ ";
-                case ERROR -> "! ";
-                case CONTINUATION -> "| ";
-                case IDLE -> "> ";
+                case BUSY -> "◇ ";
+                case ERROR -> "✖ ";
+                case CONTINUATION -> "┃ ";
+                case IDLE -> "▸ ";
             };
         }
 
         private static String promptPrefixSlot(PromptSnapshot ctx, String firstLine) {
             if (ctx.promptState() == PromptSnapshot.PromptState.BUSY) return "statusText";
             if (ctx.promptState() == PromptSnapshot.PromptState.ERROR) return "toolError";
-            if (ctx.promptState() == PromptSnapshot.PromptState.CONTINUATION) return "statusText";
+            if (ctx.promptState() == PromptSnapshot.PromptState.CONTINUATION) return "dim";
             return firstLine.startsWith("!") ? "bashMode" : "prompt";
         }
     }
 
     record StatusBar() implements PromptRegion {
+        private static final int MAX_EXTENSION_LINES = 3;
+
         @Override
         public int height(int width, PromptSnapshot ctx) {
             int h = 0;
-            if (ctx.cwd() != null && !ctx.cwd().isBlank()) h += rows(ctx.cwd(), width);
-            for (String line : ctx.extensionLines()) h += rows(line, width);
-            if (ctx.status() != null && !ctx.status().isBlank()) {
-                for (String part : ctx.status().split("\\n", -1))
-                    h += rows(part, width);
+            boolean hasCwd = ctx.cwd() != null && !ctx.cwd().isBlank();
+            boolean hasStatus = ctx.status() != null && !ctx.status().isBlank();
+            if (hasCwd) {
+                for (String part : ctx.cwd().split("\\n", -1)) h += rows(part, width);
+            }
+            if (hasStatus) {
+                for (String part : ctx.status().split("\\n", -1)) h += rows(part, width);
+            }
+            if (!ctx.extensionLines().isEmpty()) {
+                int extCount = Math.min(MAX_EXTENSION_LINES, ctx.extensionLines().size());
+                for (int i = 0; i < extCount; i++) h += rows(ctx.extensionLines().get(i), width);
+                if (ctx.extensionLines().size() > MAX_EXTENSION_LINES) h += 1;
             }
             return h;
         }
@@ -108,21 +118,36 @@ public sealed interface PromptRegion
             boolean hasSubAgents = !ctx.extensionLines().isEmpty();
             if (!hasCwd && !hasStatus && !hasSubAgents) return NO_CURSOR;
             boolean first = true;
+
+            // CWD line: ~/project (main) · session-name · provider/model · think
             if (hasCwd) {
                 out.print('\r');
                 out.print("\033[K");
                 out.print(theme.styled("cwdLine", ctx.cwd()));
                 first = false;
             }
+
+            // Extension lines (capped)
             if (hasSubAgents) {
-                for (String line : ctx.extensionLines()) {
+                int limit = Math.min(MAX_EXTENSION_LINES, ctx.extensionLines().size());
+                for (int i = 0; i < limit; i++) {
                     if (!first) out.print("\r\n");
                     else out.print('\r');
                     out.print("\033[K");
-                    out.print(styledLine(theme, "statusText", line));
+                    out.print(theme.styled("statusText", ctx.extensionLines().get(i)));
+                    first = false;
+                }
+                int extra = ctx.extensionLines().size() - MAX_EXTENSION_LINES;
+                if (extra > 0) {
+                    if (!first) out.print("\r\n");
+                    else out.print('\r');
+                    out.print("\033[K");
+                    out.print(theme.styled("dim", "  … " + extra + " more"));
                     first = false;
                 }
             }
+
+            // Status line: tokens + optional warning at end
             if (hasStatus) {
                 if (!first) out.print("\r\n");
                 String[] parts = ctx.status().split("\\n", -1);
@@ -130,20 +155,13 @@ public sealed interface PromptRegion
                     if (i > 0) out.print("\r\n");
                     else out.print('\r');
                     out.print("\033[K");
-                    String text = styledLine(theme, "statusBar", parts[i]);
+                    String text = theme.styled("statusBar", parts[i]);
                     if (i == parts.length - 1 && ctx.warning() != null && !ctx.warning().isBlank())
                         text += "  " + theme.styled("statusWarn", ctx.warning());
                     out.print(text);
                 }
             }
             return NO_CURSOR;
-        }
-
-        private static String styledLine(AnsiTheme theme, String slot, String text) {
-            if (text == null || text.isEmpty()) return "";
-            String style = theme.style(slot);
-            if (style.isEmpty()) return text;
-            return style + text.replace(theme.reset(), theme.reset() + style) + theme.reset();
         }
 
         private static int rows(String text, int width) {

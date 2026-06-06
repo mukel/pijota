@@ -5,6 +5,7 @@ import ai.pijota.theme.AnsiTheme;
 import java.io.PrintWriter;
 
 public final class SelectorRegion<T extends SelectorItem> implements PromptRegion.Custom {
+    private static final int MAX_VISIBLE = Selector.MAX_VISIBLE;
     private final Selector<T> selector;
 
     public SelectorRegion(Selector<T> selector) {
@@ -14,7 +15,12 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
     @Override
     public int height(int width, PromptSnapshot ctx) {
         if (!selector.active() || selector.total() == 0) return 0;
-        return 1 + selector.visibleCount() + 1;
+        int h = 1 + selector.visibleCount() + 1;
+        int total = selector.total();
+        int start = selector.visibleStart();
+        if (start > 0) h++;
+        if (start + MAX_VISIBLE < total) h++;
+        return h;
     }
 
     @Override
@@ -33,6 +39,13 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
         out.print('\r');
         out.print("\033[K");
         out.print(theme.styled("hr", "─".repeat(Math.max(10, width - 2))));
+
+        if (start > 0) {
+            out.print("\r\n");
+            out.print('\r');
+            out.print("\033[K");
+            out.print(theme.styled("dim", "  ↑ " + start + " more above"));
+        }
 
         for (int i = start; i < end; i++) {
             var item = selector.visibleItem(i - start);
@@ -53,6 +66,13 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
                     + " ".repeat(Math.max(0, maxTitle - item.titleText().length() + 4))
                     + AnsiWidth.truncateVisual(detail, detailWidth)));
             }
+        }
+
+        if (start + MAX_VISIBLE < total) {
+            out.print("\r\n");
+            out.print('\r');
+            out.print("\033[K");
+            out.print(theme.styled("dim", "  ↓ " + (total - start - MAX_VISIBLE) + " more below"));
         }
 
         out.print("\r\n");

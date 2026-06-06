@@ -95,8 +95,9 @@ final class StreamingMarkdownFormatter {
     }
 
     private String renderCodeLine(String line) {
-        if (fenceHighlighter != null) return fenceHighlighter.highlightLine(line);
-        return styled("codeBody", line);
+        String gutter = theme.styled("statusText", "│ ");
+        if (fenceHighlighter != null) return gutter + fenceHighlighter.highlightLine(line);
+        return gutter + styled("codeBody", line);
     }
 
     private List<String> acceptMarkdownLine(String line) {

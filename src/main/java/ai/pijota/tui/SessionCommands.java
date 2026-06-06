@@ -62,8 +62,8 @@ final class SessionCommands {
         var lines = new ArrayList<String>();
         lines.add(host.styled("toolLabel", "sessions (" + sessions.size() + ")"));
         for (var item : SessionItem.fromPaths(sessions)) {
-            String id = item.name().length() > 8 ? item.name().substring(0, 8) : item.name();
-            lines.add(host.styled("statusText", "  " + id + "  " + item.detailText() + "  " + item.description()));
+            lines.add(host.styled("statusText", "  " + item.description()
+                + host.styled("commandMeta", "  " + item.detailText())));
         }
         lines.add(host.styled("statusText", "/load <id|path> to resume  /delete <id> to remove"));
         host.appendPlain(lines);

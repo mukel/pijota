@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class Selector<T extends SelectorItem> {
-    private static final int MAX_VISIBLE = 5;
+    static final int MAX_VISIBLE = 5;
 
     private List<T> allItems;
     private final List<Integer> visibleIndices = new ArrayList<>();

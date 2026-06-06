@@ -28,11 +28,17 @@ public final class PromptLayout {
         int cursorRow = -1;
         int cursorCol = -1;
 
+        // separator between content and prompt area
+        out.print("\r\033[K");
+        out.print(theme.styled("hr", "╭" + "─".repeat(Math.max(0, width - 2))));
+        out.print("\r\n");
+        height = 1;
+
         for (int i = 0; i < regions.size(); i++) {
             var region = regions.get(i);
             int h = region.height(width, snapshot);
             if (h <= 0) continue;
-            if (height > 0) out.print("\r\n");
+            if (height > 1) out.print("\r\n");
             var cursor = region.render(out, width, theme, snapshot);
             if (cursor.visualRow() >= 0) {
                 cursorRow = height + cursor.visualRow();

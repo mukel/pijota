@@ -335,11 +335,25 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             appendPlain(List.of(theme.styled("bannerMeta", "pijota " + version)));
             return;
         }
-        appendPlain(List.of(
-            theme.styled("bannerName", "pijota " + version)
-                + theme.styled("bannerMeta", " · " + provider + "/" + model),
-            theme.styled("statusText", "Type /help for available commands")
-        ));
+        var lines = new ArrayList<String>();
+        lines.add(theme.styled("bannerName", "  pijota " + version)
+            + theme.styled("bannerMeta", " · " + provider + "/" + model));
+        lines.add(theme.styled("dim", "  /help for commands · /model to switch models"));
+
+        // recent sessions
+        try {
+            var items = SessionItem.fromPaths(session.resumableSessions());
+            if (!items.isEmpty()) {
+                lines.add(theme.styled("dim", "  recent sessions:"));
+                int count = 0;
+                for (var it : items) {
+                    if (count++ >= 3) break;
+                    lines.add(theme.styled("statusText", "    " + it.description()
+                        + theme.styled("commandMeta", "  " + it.detailText())));
+                }
+            }
+        } catch (Exception ignored) {}
+        appendPlain(lines);
     }
 
     @Override
@@ -1063,29 +1077,51 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showHotkeys() {
-        var lines = new ArrayList<>(List.of(
-            theme.styled("toolLabel", "shortcuts"),
-            theme.styled("statusText", "Enter        submit prompt"),
-            theme.styled("statusText", "Ctrl+J       newline"),
-            theme.styled("statusText", "Tab          autocomplete"),
-            theme.styled("statusText", "Shift+Tab    toggle thinking"),
-            theme.styled("statusText", "Up/Down      history / navigate selector"),
-            theme.styled("statusText", "Esc          interrupt (double to force)"),
-            theme.styled("statusText", "Ctrl+C       clear input (double to exit)"),
-            theme.styled("statusText", "Ctrl+K       delete to end"),
-            theme.styled("statusText", "Ctrl+U       clear line"),
-            theme.styled("statusText", "Ctrl+W       delete word"),
-            theme.styled("statusText", "Ctrl+L       select model"),
-            theme.styled("statusText", "Ctrl+P       cycle model"),
-            theme.styled("statusText", "Ctrl+G       external editor"),
-            theme.styled("statusText", "Ctrl+X Ctrl+E external editor"),
-            theme.styled("statusText", "/ for commands"),
-            theme.styled("statusText", "! run bash"),
-            theme.styled("statusText", "!! run bash (no context)")));
+        var lines = new ArrayList<String>();
+        lines.add(theme.styled("heading", "  keyboard shortcuts"));
+        lines.add("");
+
+        // two-column layout
+        String[][] keys = {
+            {"Enter", "submit prompt"},
+            {"Ctrl+J", "newline"},
+            {"Tab", "autocomplete"},
+            {"Shift+Tab", "toggle thinking"},
+            {"Up/Down", "history / navigate"},
+            {"Esc", "interrupt (double-force)"},
+            {"Ctrl+C", "clear / double to exit"},
+            {"Ctrl+K", "delete to end"},
+            {"Ctrl+U", "clear line"},
+            {"Ctrl+W", "delete word"},
+            {"Ctrl+A/E", "start/end of line"},
+            {"Ctrl+L", "select model"},
+            {"Ctrl+P", "cycle model forward"},
+            {"Ctrl+Shift+P", "cycle model backward"},
+            {"Ctrl+G", "open in editor"},
+        };
+
+        int keyWidth = 0;
+        for (var k : keys) keyWidth = Math.max(keyWidth, AnsiWidth.visibleWidth(k[0]));
+        keyWidth += 2;
+
+        for (var k : keys) {
+            lines.add(theme.styled("toolLabel", padRight(k[0], keyWidth))
+                + theme.styled("statusText", k[1]));
+        }
+        lines.add("");
+        lines.add(theme.styled("statusText", "  commands: /help /model /theme /compact /session /tree /fork /undo"));
+        lines.add(theme.styled("statusText", "  shell:    !cmd  or  !!cmd (no context)"));
+
         for (var binding : extensionKeybindings.values()) {
-            lines.add(theme.styled("statusText", binding.key() + "       " + binding.description()));
+            lines.add(theme.styled("toolLabel", padRight(binding.key().toString(), keyWidth))
+                + theme.styled("statusText", binding.description()));
         }
         appendPlain(lines);
+    }
+
+    private static String padRight(String s, int width) {
+        int w = AnsiWidth.visibleWidth(s);
+        return s + " ".repeat(Math.max(0, width - w));
     }
 
     void showContext() {
@@ -1288,9 +1324,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 boolean customMessageRenderer = session.extensionRegistry().hasMessageRenderers();
                 if (showThinking() && msg.thinking() != null && !msg.thinking().isBlank()) {
                     if (!thinkingHeaderShown) {
-                        String label = "thinking " + thinkingLevel.label() + "...";
-                        appendThinking(List.of(theme.styled("heading", "  " + label)));
-                        appendThinking(List.of(theme.styled("hr", "  " + "─".repeat(40))));
+                        appendThinking(List.of(theme.styled("statusText", "  ── thinking " + thinkingLevel.label() + " ──")));
                         thinkingHeaderShown = true;
                     }
                     String thinkingDelta = deltaPrefix(msg.thinking(), lastThinking);
@@ -1307,7 +1341,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     if (!contentStarted) {
                         if (thinkingHeaderShown) {
                             thinkingLines.flush().ifPresent(line -> appendThinking(List.of(line)));
-                            appendThinking(List.of(theme.styled("hr", "  " + "─".repeat(40))));
+                            appendThinking(List.of(theme.styled("dim", "  ──")));
                         }
                         contentStarted = true;
                     }
@@ -1339,7 +1373,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 pendingEdit.onToolResult(isEditWrite(msg), msg.isError());
                 String slot = msg.isError() ? "toolError" : "toolResult";
                 var parts = new ArrayList<String>();
-                parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", "●"));
+                String icon = toolIcon(msg.toolName(), msg.isError());
+                parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", icon));
                 parts.add(theme.styled("statusText", msg.toolName()));
                 Supplier<String> args = msg.toolCallId() != null ? toolArgsById.remove(msg.toolCallId()) : null;
                 String detail = ToolRender.detail(msg.toolName(), args, rawCwd,
@@ -1370,16 +1405,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
             case AgentEvent.Compaction c -> {
                 int remaining = c.compactedMessages().size();
-                int compactedMsgs = c.oldCount() - remaining;
+                int removed = c.oldCount() - remaining;
                 int estTokens = c.estimatedTokens();
-                String reason = c.reason() != null && !c.reason().isBlank() ? " (" + c.reason() + ")" : "";
+                String reason = c.reason() != null && !c.reason().isBlank() ? " · " + c.reason() : "";
                 if (!compactionStreamRendered && c.summary() != null && !c.summary().isBlank()) {
                     renderFinalCompactionSummary(c.summary());
                 }
                 appendPlain(List.of(theme.styled("statusText",
-                    "[compacted " + c.oldCount() + " -> " + remaining
-                    + " messages, removed " + compactedMsgs + ", ~" + fmtCount(estTokens)
-                    + " est tokens before]" + reason)));
+                    "[compacted] " + c.oldCount() + " → " + remaining + " msgs"
+                    + " · ~" + fmtCount(estTokens) + " tokens" + reason)));
                 compactionStreamRendered = false;
             }
             case AgentEvent.CompactionStream stream -> renderCompactionStream(stream.content(), stream.thinking());
@@ -1422,9 +1456,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void appendContent(List<String> lines) {
         if (lines.isEmpty()) return;
+        int width = terminal.getWidth() - 4;
         List<StyledLine> rendered;
         synchronized (this) {
-            rendered = renderContent(lines);
+            rendered = renderContent(lines, width);
         }
         terminalUi.appendLines(rendered);
     }
@@ -1433,6 +1468,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         String text = content == null ? "" : Util.stripSystemReminders(content);
         String delta = deltaPrefix(text, lastContent);
         if (!delta.isEmpty()) {
+            if (!compactionStreamRendered) {
+                appendPlain(List.of(theme.styled("statusText", "  ── compacting ──")));
+            }
             appendContent(contentLines.accept(delta));
             lastContent = text;
             compactionStreamRendered = true;
@@ -1441,6 +1479,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void renderFinalCompactionSummary(String summary) {
         resetStreamState();
+        appendPlain(List.of(theme.styled("statusText", "  ── compacted ──")));
         appendContent(contentLines.accept(summary));
         flushStreamLines();
     }
@@ -1465,8 +1504,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return theme.styled("statusText", "│ ") + theme.styled(slot, line.substring(2));
     }
 
-    private List<StyledLine> renderContent(List<String> lines) {
-        markdown.setWidth(terminal.getWidth() - 4);
+    private List<StyledLine> renderContent(List<String> lines, int width) {
+        markdown.setWidth(width);
         var out = new ArrayList<StyledLine>();
         for (String line : lines) {
             appendFilteredAssistantLine(line, out);
@@ -1521,20 +1560,22 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private List<StyledLine> renderThinking(List<String> lines) {
-        thinkingMarkdown.setWidth(terminal.getWidth() - 4);
+        int width = terminal.getWidth() - 4;
+        thinkingMarkdown.setWidth(width);
         var out = new ArrayList<StyledLine>();
         for (String line : lines) out.addAll(thinkingMarkdown.format(line));
         return out;
     }
 
     private void flushStreamLines() {
+        int width = terminal.getWidth() - 4;
         List<List<StyledLine>> batches = new ArrayList<>();
         synchronized (this) {
             if (showThinking()) thinkingLines.flush().ifPresent(line -> batches.add(renderThinking(List.of(line))));
-            contentLines.flush().ifPresent(line -> batches.add(renderContent(List.of(line))));
-            markdown.setWidth(terminal.getWidth() - 4);
+            contentLines.flush().ifPresent(line -> batches.add(renderContent(List.of(line), width)));
+            markdown.setWidth(width);
             batches.add(markdown.flush());
-            thinkingMarkdown.setWidth(terminal.getWidth() - 4);
+            thinkingMarkdown.setWidth(width);
             batches.add(thinkingMarkdown.flush());
         }
         for (var batch : batches) terminalUi.appendLines(batch);
@@ -1565,7 +1606,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var out = new ArrayList<String>();
         String[] split = text.split("\\R", -1);
         for (int i = 0; i < split.length; i++) {
-            out.add(theme.styled("promptEcho", i == 0 ? "> " : "| ") + split[i]);
+            out.add(theme.styled("promptEcho", i == 0 ? "▸ " : "│ ") + split[i]);
         }
         return out;
     }
@@ -1581,24 +1622,26 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (promptLine != null) {
             status = status != null ? status + "\n" + promptLine : promptLine;
         }
-        String modelStr = " " + provider + "/" + model
-            + (thinkingLevel != ThinkingLevel.OFF ? " • " + thinkingLevel.label() : "");
-        snapshot = snapshot.withCwd(this.cwd).withContextPct(tokenPct())
+        String cwdLine = this.cwd;
+        if (sessionName != null && !sessionName.isBlank()) {
+            cwdLine += theme.styled("commandMeta", " · " + sessionName);
+        }
+        cwdLine += theme.styled("commandMeta", " · " + provider + "/" + model);
+        if (thinkingLevel != ThinkingLevel.OFF) {
+            cwdLine += theme.styled("statusWarn", " " + thinkingLevel.label());
+        }
+        snapshot = snapshot.withCwd(cwdLine).withContextPct(tokenPct())
             .withPendingMessages(List.copyOf(pendingFollowUps))
             .withExtensionLines(mergedExtensionLines())
             .withPromptState(promptState(snapshot, status));
         if (!busy.get()) {
-            String bar = tokens + modelStr;
-            if (AnsiWidth.visibleWidth(bar) > terminal.getWidth()) bar = tokens + "\n" + modelStr;
-            return snapshot.withStatus(bar).withWarning(status);
+            return snapshot.withStatus(tokens).withWarning(status);
         }
         String frame = WORKING_FRAMES[Math.floorMod(workingFrame.get(), WORKING_FRAMES.length)];
         int queued = queuedFollowUps.get();
-        String line = tokens + "  " + frame;
-        if (busyPhase != null && !busyPhase.isBlank()) line += " " + busyPhase;
-        if (queued > 0) line += "  queued " + queued;
-        String bar = line + modelStr;
-        if (AnsiWidth.visibleWidth(bar) > terminal.getWidth()) bar = line + "\n" + modelStr;
+        String bar = tokens + "  " + frame;
+        if (busyPhase != null && !busyPhase.isBlank()) bar += " " + busyPhase;
+        if (queued > 0) bar += "  queued " + queued;
         return snapshot.withStatus(bar).withWarning(status);
     }
 
@@ -1628,7 +1671,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private List<String> mergedExtensionLines() {
-        return extensionLinesSupplier.get();
+        var raw = extensionLinesSupplier.get();
+        if (raw.size() <= 1) return raw;
+        var seen = new java.util.LinkedHashSet<>(raw);
+        return seen.size() == raw.size() ? raw : List.copyOf(seen);
     }
 
     private String currentStatusOverride() {
@@ -1637,6 +1683,23 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private static boolean isEditWrite(Message.ToolResult msg) {
         return "edit".equals(msg.toolName()) || "write".equals(msg.toolName());
+    }
+
+    private static String toolIcon(String toolName, boolean error) {
+        if (error) return "✖";
+        return switch (toolName) {
+            case "read" -> "📖";
+            case "write", "edit" -> "✏";
+            case "bash" -> "$";
+            case "grep" -> "🔍";
+            case "glob" -> "📁";
+            case "ls" -> "📂";
+            case "task" -> "⚙";
+            case "question" -> "❓";
+            case "websearch", "webfetch" -> "🌐";
+            case "todowrite" -> "📋";
+            default -> "●";
+        };
     }
 
     private boolean showThinking() {
@@ -1711,17 +1774,27 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final class PendingRegion implements PromptRegion.Custom {
         @Override
         public int height(int width, PromptSnapshot ctx) {
-            return ctx.pendingMessages().isEmpty() ? 0 : ctx.pendingMessages().size();
+            if (ctx.pendingMessages().isEmpty()) return 0;
+            int h = 0;
+            for (String msg : ctx.pendingMessages()) {
+                String line = "queued  " + msg;
+                int vw = AnsiWidth.visibleWidth(line);
+                h += (vw <= 0) ? 1 : (vw + width - 1) / width;
+            }
+            return h;
         }
 
         @Override
         public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
             if (ctx.pendingMessages().isEmpty()) return NO_CURSOR;
+            boolean first = true;
             for (int i = 0; i < ctx.pendingMessages().size(); i++) {
-                if (i > 0) out.print("\r\n");
+                String wrapped = AnsiWidth.truncateVisual("queued  " + ctx.pendingMessages().get(i), width);
+                if (!first) out.print("\r\n");
                 out.print('\r');
                 out.print("\033[K");
-                out.print(theme.styled("statusWarn", "queued  " + ctx.pendingMessages().get(i)));
+                out.print(theme.styled("statusWarn", wrapped));
+                first = false;
             }
             return NO_CURSOR;
         }

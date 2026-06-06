@@ -86,7 +86,8 @@ public record SessionItem(Path path, String name, String description, long mtime
         else if (ago < 3600_000) age = (ago / 60_000) + "m ago";
         else if (ago < 86400_000) age = (ago / 3600_000) + "h ago";
         else age = (ago / 86400_000) + "d ago";
-        return age;
+        String shortName = name.length() > 12 ? name.substring(0, 12) : name;
+        return age + "  " + shortName;
     }
 
     private record ParsedDescription(String firstUser, String sessionName) {}
