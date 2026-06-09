@@ -32,7 +32,7 @@ public final class ModelRefresher {
 
         for (var provider : ProviderCatalog.providers()) {
             String token = settings != null ? settings.resolveApiKey(provider.id()) : null;
-            if (token == null || token.isBlank()) continue;
+            if (token == null) continue;
             if (!"openai".equals(ProviderCatalog.apiType(provider.id()))) continue;
             String accountId = oauth.getAccountId(provider.id());
             boolean oauthToken = accountId != null && !accountId.isBlank();

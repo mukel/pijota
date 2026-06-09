@@ -14,7 +14,8 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
     @Override
     public int height(int width, PromptSnapshot ctx) {
-        if (!selector.active() || selector.total() == 0) return 0;
+        if (!selector.active()) return 0;
+        if (selector.total() == 0) return 3;
         int h = 1 + selector.visibleCount() + 1;
         int total = selector.total();
         int start = selector.visibleStart();
@@ -25,7 +26,7 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
     @Override
     public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
-        if (!selector.active() || selector.total() == 0) return NO_CURSOR;
+        if (!selector.active()) return NO_CURSOR;
 
         int sel = selector.selectionIndex();
         int total = selector.total();
@@ -38,7 +39,21 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
         out.print('\r');
         out.print("\033[K");
-        out.print(theme.styled("hr", "─".repeat(Math.max(10, width - 2))));
+        String title = selector.title() + (total > 0 ? "  " + total : "");
+        out.print(theme.styled("hr", title));
+
+        if (total == 0) {
+            out.print("\r\n");
+            out.print('\r');
+            out.print("\033[K");
+            String message = selector.itemCount() == 0 ? "  nothing to show" : "  no matches";
+            out.print(theme.styled("statusText", message));
+            out.print("\r\n");
+            out.print('\r');
+            out.print("\033[K");
+            out.print(theme.styled("dim", "  " + TuiCopy.SELECTOR_HINT));
+            return NO_CURSOR;
+        }
 
         if (start > 0) {
             out.print("\r\n");
@@ -54,7 +69,7 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
             out.print("\033[K");
             String detail = item.detailText();
             if (i == sel) {
-                out.print(theme.styled("statusText", "→ "));
+                out.print(theme.styled("prompt", "› "));
                 out.print(theme.styled("heading", item.titleText()));
                 out.print(theme.styled("statusText",
                     " ".repeat(Math.max(0, maxTitle - item.titleText().length() + 4))
@@ -78,7 +93,8 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
         out.print("\r\n");
         out.print('\r');
         out.print("\033[K");
-        out.print(theme.styled("statusText", "  (" + (sel + 1) + "/" + total + ")"));
+        out.print(theme.styled("statusText", "  " + (sel + 1) + "/" + total));
+        out.print(theme.styled("dim", "  · " + TuiCopy.SELECTOR_HINT));
 
         return NO_CURSOR;
     }

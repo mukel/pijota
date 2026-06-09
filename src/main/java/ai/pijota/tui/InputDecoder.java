@@ -58,6 +58,9 @@ public final class InputDecoder {
         if (next < 0) return Key.Special.ESC;
         if (next == 27) return Key.Special.DOUBLE_ESC;
         if (next == 13 || next == 10) return Key.Special.NEWLINE;
+        if (next == 'b' || next == 'B') return Key.Special.CTRL_LEFT;
+        if (next == 'f' || next == 'F') return Key.Special.CTRL_RIGHT;
+        if (next == 'd' || next == 'D') return Key.Special.ALT_D;
         if (next != '[') return Key.Special.UNKNOWN;
 
         var seq = new StringBuilder();

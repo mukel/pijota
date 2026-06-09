@@ -204,6 +204,10 @@ public final class PijotaSession implements AutoCloseable {
             .toList();
     }
 
+    public Path resolveSession(String spec) throws IOException {
+        return sessionManager.resolveSession(cwd, spec);
+    }
+
     public void saveMessages(Path file) throws IOException {
         sessionManager.saveMessages(file, agentLoop.messages(), cwd);
     }

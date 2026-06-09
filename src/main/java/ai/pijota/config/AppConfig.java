@@ -90,6 +90,12 @@ public record AppConfig(
             shortenPaths, maxRetries, retryBaseDelayMs, compaction);
     }
 
+    public AppConfig withThinkingLevel(String level) {
+        return new AppConfig(defaultProvider, defaultModel, apiKeys, level, shellPath,
+            shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
+            shortenPaths, maxRetries, retryBaseDelayMs, compaction);
+    }
+
     public AppConfig withShortenPaths(boolean enabled) {
         return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath,
             shellCommandPrefix, sessionDir, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,

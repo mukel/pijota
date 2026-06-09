@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
-public final class LlmService implements AutoCloseable {
+public final class LlmService implements LlmClient {
     private static final Logger log = LoggerFactory.getLogger(LlmService.class);
 
     private final ConcurrentHashMap<ModelCacheKey, StreamingChatModel> modelCache = new ConcurrentHashMap<>();
@@ -67,9 +67,11 @@ public final class LlmService implements AutoCloseable {
                       java.util.function.Function<String, String> apiKeyResolver,
                       String customBaseUrl, List<ProviderFactory> customProviders,
                       Double budgetLimit) {
-        this.providerName = provider != null ? provider
+        String initialProvider = provider != null ? provider
             : defaultProvider(apiKeyResolver != null ? apiKeyResolver.apply(null) : null);
-        this.modelName = modelName != null ? modelName : ModelRegistry.defaultModelForProvider(this.providerName);
+        var providerModel = ModelRegistry.resolveProviderModel(initialProvider, modelName, null);
+        this.providerName = providerModel.provider();
+        this.modelName = providerModel.model();
         this.apiKeyResolver = apiKeyResolver != null ? apiKeyResolver : p -> "";
         String initialKey = this.apiKeyResolver.apply(this.providerName);
         this.lastResolvedKey = initialKey != null ? initialKey : "";
@@ -128,8 +130,34 @@ public final class LlmService implements AutoCloseable {
 
         model.chat(requestBuilder.build(), new StreamingChatResponseHandler() {
             private final StringBuilder thinkingBuf = new StringBuilder();
+            private final long streamStartNanos = System.nanoTime();
+            private long lastDeltaNanos = streamStartNanos;
+            private int deltaCount = 0;
+            private int totalChars = 0;
+
+            private void traceDelta(String newText) {
+                if (!log.isDebugEnabled()) return;
+                long now = System.nanoTime();
+                deltaCount++;
+                int size = newText != null ? newText.length() : 0;
+                totalChars += size;
+                long sinceStart = (now - streamStartNanos) / 1_000_000;
+                long sinceLast = (now - lastDeltaNanos) / 1_000_000;
+                lastDeltaNanos = now;
+                log.debug("stream delta #{}: {} chars | +{}ms since start | +{}ms since last delta",
+                    deltaCount, size, sinceStart, sinceLast);
+            }
+            private void traceComplete() {
+                if (!log.isDebugEnabled()) return;
+                long totalMs = (System.nanoTime() - streamStartNanos) / 1_000_000;
+                log.debug("stream complete: {} deltas, {} total chars in {}ms (avg {}/delta, avg {}/delta)",
+                    deltaCount, totalChars, totalMs,
+                    deltaCount > 0 ? totalChars / deltaCount : 0,
+                    deltaCount > 0 ? totalMs / deltaCount : 0);
+            }
 
             @Override public void onPartialResponse(String t) {
+                traceDelta(t);
                 applyPartialContent(result, t);
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
@@ -138,6 +166,7 @@ public final class LlmService implements AutoCloseable {
                     handleRef.set(ctx.streamingHandle());
                 String t = pr.text();
                 if (t != null) {
+                    traceDelta(t);
                     applyPartialContent(result, t);
                     onPartial.accept(result.content(), thinkingBuf.toString());
                 }
@@ -145,10 +174,15 @@ public final class LlmService implements AutoCloseable {
             @Override public void onPartialThinking(PartialThinking pt, PartialThinkingContext ctx) {
                 if (ctx != null && ctx.streamingHandle() != null && handleRef != null)
                     handleRef.set(ctx.streamingHandle());
-                thinkingBuf.append(pt.text());
+                String ptText = pt.text();
+                if (ptText != null) {
+                    traceDelta(ptText);
+                }
+                thinkingBuf.append(ptText);
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
             @Override public void onCompleteResponse(ChatResponse r) {
+                traceComplete();
                 var ai = r.aiMessage();
                 if (ai != null) {
                     if (ai.text() != null && !ai.text().isEmpty())
@@ -202,9 +236,10 @@ public final class LlmService implements AutoCloseable {
     }
 
     private StreamingChatModel lc4jModel() {
-        String effectiveModel = modelName != null ? modelName
-            : ModelRegistry.defaultModelForProvider(providerName);
-        var key = new ModelCacheKey(providerName, effectiveModel, lastResolvedKey, thinkingLevel);
+        var providerModel = ModelRegistry.resolveProviderModel(providerName, modelName, null);
+        String effectiveModel = providerModel.model();
+        String effectiveProvider = providerModel.provider();
+        var key = new ModelCacheKey(effectiveProvider, effectiveModel, lastResolvedKey, thinkingLevel);
         return modelCache.computeIfAbsent(key, cacheKey -> {
             var factory = ProviderFactory.resolve(cacheKey.provider(), customProviders);
             String url = customBaseUrl != null ? customBaseUrl
@@ -272,10 +307,12 @@ public final class LlmService implements AutoCloseable {
             explicitProvider = requested.substring(0, slash);
             requested = requested.substring(slash + 1);
         }
-        String effectiveModel = requested != null ? requested : ModelRegistry.defaultModelForProvider(providerName);
         String effectiveProvider = explicitProvider != null ? explicitProvider
             : requested != null ? ModelRegistry.providerForModel(requested) : providerName;
         if (effectiveProvider == null || effectiveProvider.isBlank()) effectiveProvider = providerName;
+        var providerModel = ModelRegistry.resolveProviderModel(effectiveProvider, requested, null);
+        effectiveProvider = providerModel.provider();
+        String effectiveModel = providerModel.model();
         String key = apiKeyResolver.apply(effectiveProvider);
         if (key == null) key = "";
         var factory = ProviderFactory.resolve(effectiveProvider, customProviders);
@@ -287,12 +324,18 @@ public final class LlmService implements AutoCloseable {
     public String model() { return modelName; }
     public String apiKey() { return lastResolvedKey; }
 
+    public boolean streamsWithTools() {
+        return !("local".equals(providerName) || "workstation".equals(providerName));
+    }
+
     public void setModelName(String name) {
         String old = this.modelName;
-        this.modelName = name != null ? name : ModelRegistry.defaultModelForProvider(this.providerName);
+        var providerModel = ModelRegistry.resolveProviderModel(this.providerName, name, null);
+        this.providerName = providerModel.provider();
+        this.modelName = providerModel.model();
         modelCache.clear();
-        if (modelChangeCallback != null && !name.equals(old))
-            modelChangeCallback.accept(old, name);
+        if (modelChangeCallback != null && !this.modelName.equals(old))
+            modelChangeCallback.accept(old, this.modelName);
     }
 
     public void setModelChangeCallback(java.util.function.BiConsumer<String, String> callback) {
@@ -301,12 +344,13 @@ public final class LlmService implements AutoCloseable {
 
     public void setProviderAndModel(String newProvider, String newModel, String newApiKey) {
         String old = this.modelName;
-        this.providerName = newProvider;
-        this.modelName = newModel != null ? newModel : ModelRegistry.defaultModelForProvider(newProvider);
+        var providerModel = ModelRegistry.resolveProviderModel(newProvider, newModel, null);
+        this.providerName = providerModel.provider();
+        this.modelName = providerModel.model();
         this.lastResolvedKey = newApiKey != null ? newApiKey : "";
         modelCache.clear();
-        if (modelChangeCallback != null && !newModel.equals(old))
-            modelChangeCallback.accept(old, newModel);
+        if (modelChangeCallback != null && !this.modelName.equals(old))
+            modelChangeCallback.accept(old, this.modelName);
     }
 
     public ThinkingLevel thinkingLevel() { return thinkingLevel; }

@@ -148,7 +148,8 @@ final class DialogHandler {
 
     String promptStatusLine() {
         if (pendingPrompt == null || pendingPrompt.isDone()) return null;
-        return "▶ " + pendingPromptText + "\033[7m \033[27m";
+        return host.styled("statusText", "▶ " + pendingPromptText)
+            + host.styled("highlight", " ");
     }
 
     boolean questionPending() {

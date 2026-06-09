@@ -44,7 +44,7 @@ final class AppBootstrap {
 
         if (apiKey == null || apiKey.isBlank()) {
             if (provider != null && !provider.isBlank()) apiKey = settings.resolveApiKey(provider);
-            if (apiKey == null || apiKey.isBlank()) {
+            if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
                 if (parsedArgs.provider() == null) {
                     String detected = settings.detectProviderFromEnv();
                     if (detected != null) {
@@ -54,7 +54,7 @@ final class AppBootstrap {
                 }
             }
         }
-        if (apiKey == null || apiKey.isBlank()) {
+        if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
             if (!parsedArgs.agent()) {
                 System.err.println("No API key. Set " + settings.apiKeyHint(provider) + ".");
                 System.exit(1);
@@ -67,6 +67,13 @@ final class AppBootstrap {
         tools.register(bashTool);
 
         var llm = new LlmService(provider, model, settings::resolveApiKey);
+        String effectiveThinking = parsedArgs.thinkingLevel();
+        if (effectiveThinking == null || effectiveThinking.isBlank()) {
+            effectiveThinking = settings.config().thinkingLevel();
+        }
+        if (effectiveThinking != null && !effectiveThinking.isBlank()) {
+            llm.setThinkingLevel(ai.pijota.llm.ThinkingLevel.fromString(effectiveThinking));
+        }
 
         var ext = new ExtensionRegistry();
         llm.setModelChangeCallback((oldModel, newModel) ->

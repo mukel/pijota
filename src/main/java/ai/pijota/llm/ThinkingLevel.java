@@ -27,4 +27,20 @@ public enum ThinkingLevel {
             case HIGH -> OFF;
         };
     }
+
+    public static ThinkingLevel fromString(String s) {
+        if (s == null || s.isBlank()) return MEDIUM;
+        String lower = s.trim().toLowerCase();
+        return switch (lower) {
+            case "off", "thinking off" -> OFF;
+            case "minimal" -> MINIMAL;
+            case "low" -> LOW;
+            case "medium" -> MEDIUM;
+            case "high" -> HIGH;
+            default -> {
+                try { yield ThinkingLevel.valueOf(s.trim().toUpperCase()); }
+                catch (IllegalArgumentException e) { yield MEDIUM; }
+            }
+        };
+    }
 }

@@ -1,12 +1,12 @@
 package ai.pijota.extensions;
 
 import ai.pijota.messages.Message;
-import ai.pijota.llm.LlmService;
+import ai.pijota.llm.LlmClient;
 
 import java.util.List;
 
 public interface AgentContext {
-    LlmService llm();
+    LlmClient llm();
     boolean isBusy();
     boolean isClosed();
     void abort();

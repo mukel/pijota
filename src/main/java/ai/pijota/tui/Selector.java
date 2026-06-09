@@ -10,6 +10,7 @@ final class Selector<T extends SelectorItem> {
     private final List<Integer> visibleIndices = new ArrayList<>();
     private int selected;
     private boolean active;
+    private String title = "select";
 
     Selector(List<T> items) {
         allItems = List.copyOf(items);
@@ -21,6 +22,12 @@ final class Selector<T extends SelectorItem> {
         for (int i = 0; i < allItems.size(); i++) visibleIndices.add(i);
         selected = 0;
     }
+
+    void setTitle(String title) {
+        this.title = title == null || title.isBlank() ? "select" : title;
+    }
+
+    String title() { return title; }
 
     void activate(String query) {
         filter(query);
@@ -80,6 +87,7 @@ final class Selector<T extends SelectorItem> {
 
     int visibleCount() { return Math.min(MAX_VISIBLE, visibleIndices.size()); }
     int total() { return visibleIndices.size(); }
+    int itemCount() { return allItems.size(); }
     int visibleStart() {
         if (visibleIndices.size() <= MAX_VISIBLE) return 0;
         int half = MAX_VISIBLE / 2;

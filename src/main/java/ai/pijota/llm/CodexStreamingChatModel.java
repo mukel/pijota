@@ -32,7 +32,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 final class CodexStreamingChatModel implements StreamingChatModel {
+    private static final Logger log = LoggerFactory.getLogger(CodexStreamingChatModel.class);
     private static final String DEFAULT_BASE_URL = "https://chatgpt.com/backend-api";
 
     private final HttpClient client = HttpClient.newHttpClient();
@@ -180,6 +184,11 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         var text = new StringBuilder();
         var toolCalls = new ArrayList<ToolExecutionRequest>();
         var seenToolCalls = new HashSet<String>();
+        long streamStartNanos = System.nanoTime();
+        long lastEventNanos = streamStartNanos;
+        int sseCount = 0;
+        int deltaCount = 0;
+        int totalDeltaChars = 0;
         try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -188,8 +197,22 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                 if (data.isEmpty() || data.equals("[DONE]")) continue;
                 JsonNode event = Util.MAPPER.readTree(data);
                 String type = event.has("type") ? event.get("type").asText() : "";
+                if (log.isDebugEnabled()) {
+                    sseCount++;
+                    long now = System.nanoTime();
+                    long sinceStart = (now - streamStartNanos) / 1_000_000;
+                    long sinceLast = (now - lastEventNanos) / 1_000_000;
+                    lastEventNanos = now;
+                    log.debug("sse event #{}: type={} | +{}ms since start | +{}ms since last",
+                        sseCount, type, sinceStart, sinceLast);
+                }
                 if (type.equals("response.output_text.delta") && event.has("delta")) {
                     String delta = event.get("delta").asText();
+                    if (log.isDebugEnabled()) {
+                        deltaCount++;
+                        totalDeltaChars += delta.length();
+                        log.debug("  text delta #{}: {} chars (total {} chars)", deltaCount, delta.length(), totalDeltaChars);
+                    }
                     text.append(delta);
                     handler.onPartialResponse(new PartialResponse(text.toString()), null);
                 } else if (type.equals("response.output_item.done") && event.has("item")) {

@@ -3,8 +3,6 @@ package ai.pijota.tui;
 import ai.pijota.theme.AnsiTheme;
 import org.jline.terminal.Terminal;
 
-import java.io.StringWriter;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -19,20 +17,9 @@ final class TerminalCoordinator implements AutoCloseable {
         record Stop() implements UiOp {}
     }
 
-    private static final String HIDE_CURSOR = "\033[?25l";
-    private static final String SHOW_CURSOR = "\033[?25h";
-    private static final String CLEAR_LINE = "\r\033[K";
-
-    // CSI 2026 / DECSET Synchronized Output — tells the terminal to buffer all
-    // writes between BEGIN and END, then apply them as one atomic frame.
-    // Eliminates flicker on Ghostty, Kitty, iTerm2, WezTerm, Alacritty, etc.
-    // Terminals without support (xterm, older builds) ignore the sequences.
-    // Spec: https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036
-    private static final String BEGIN_SYNC = "\033[?2026h";
-    private static final String END_SYNC = "\033[?2026l";
-
     private final Terminal terminal;
     private final PromptLayout layout;
+    private final TerminalFrameRenderer frameRenderer;
     private volatile AnsiTheme theme;
     private final BlockingQueue<UiOp> queue = new LinkedBlockingQueue<>();
     private final AtomicBoolean running = new AtomicBoolean();
@@ -43,6 +30,7 @@ final class TerminalCoordinator implements AutoCloseable {
         this.terminal = terminal;
         this.theme = theme;
         this.layout = layout;
+        this.frameRenderer = new TerminalFrameRenderer(layout);
     }
 
     public void start(PromptSnapshot initialPrompt) {
@@ -80,7 +68,7 @@ final class TerminalCoordinator implements AutoCloseable {
         try {
             var batch = new ArrayList<UiOp>();
             while (running.get() || !queue.isEmpty()) {
-                UiOp first = queue.poll(100, TimeUnit.MILLISECONDS);
+                UiOp first = queue.poll(5, TimeUnit.MILLISECONDS);
                 if (first == null) continue;
                 if (first instanceof UiOp.Stop) return;
                 batch.clear();
@@ -101,24 +89,12 @@ final class TerminalCoordinator implements AutoCloseable {
 
     private void processBatch(List<UiOp> ops) {
         int width = Math.max(20, terminal.getWidth());
-        var buf = new StringWriter();
-        var out = new PrintWriter(buf);
-
-        out.print(BEGIN_SYNC);
-        out.print(HIDE_CURSOR);
-        layout.eraseCurrent(out);
 
         PromptSnapshot finalSnapshot = prompt;
-
+        var appends = new ArrayList<UiOp.Append>();
         for (var op : ops) {
             switch (op) {
-                case UiOp.Append append -> {
-                    for (var line : append.lines()) {
-                        out.print(CLEAR_LINE);
-                        out.print(line.text());
-                        out.print("\r\n");
-                    }
-                }
+                case UiOp.Append append -> appends.add(append);
                 case UiOp.Prompt p -> {
                     prompt = p.snapshot();
                     finalSnapshot = p.snapshot();
@@ -127,16 +103,30 @@ final class TerminalCoordinator implements AutoCloseable {
             }
         }
 
-        layout.renderAfterErase(out, width, theme, finalSnapshot);
-        out.print(SHOW_CURSOR);
-        out.print(END_SYNC);
-        terminal.writer().print(buf.toString());
+        if (appends.isEmpty()) {
+            emitFrame(width, finalSnapshot, List.of(), true, true);
+            return;
+        }
+
+        // Render each Append in its own sync frame for line-by-line streaming.
+        // The first frame erases the prompt area; the last redraws the prompt.
+        for (int i = 0; i < appends.size(); i++) {
+            boolean doErase = (i == 0);
+            boolean doPrompt = (i == appends.size() - 1);
+            emitFrame(width, doPrompt ? finalSnapshot : null,
+                      appends.get(i).lines(), doErase, doPrompt);
+        }
+    }
+
+    private void emitFrame(int width, PromptSnapshot snapshot, List<StyledLine> lines,
+                           boolean erase, boolean showPrompt) {
+        terminal.writer().print(frameRenderer.renderFrame(width, snapshot, lines, erase, showPrompt, theme));
         terminal.writer().flush();
     }
 
     private void restore() {
         try {
-            terminal.writer().print("\033[0m" + SHOW_CURSOR + "\r\n");
+            terminal.writer().print("\033[0m" + TerminalFrameRenderer.SHOW_CURSOR + "\r\n");
             terminal.writer().flush();
         } catch (Exception ignored) {}
     }

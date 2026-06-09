@@ -52,13 +52,32 @@ final class SlashCommandRegistry {
     }
 
     public String helpText() {
-        var out = new StringBuilder("commands");
-        int maxLen = commands.stream().mapToInt(c -> c.name().length()).max().orElse(0);
-        for (var cmd : commands) {
-            out.append('\n').append(String.format("  %-" + (maxLen + 2) + "s %s", cmd.name(), cmd.description()));
+        var out = new StringBuilder("pijota commands\n");
+        appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/context", "/whoami", "/skills");
+        appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/name", "/new", "/delete");
+        appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme", "/transcend");
+        appendGroup(out, "account", "/login", "/logout", "/refresh", "/hotkeys", "/quit");
+
+        var builtins = BUILTIN_COMMANDS.stream().map(CompletionItem::name).collect(java.util.stream.Collectors.toSet());
+        var extensions = commands.stream().filter(c -> !builtins.contains(c.name())).toList();
+        if (!extensions.isEmpty()) appendGroup(out, "extensions", extensions.stream().map(CompletionItem::name).toArray(String[]::new));
+
+        out.append("\nkeys\n");
+        out.append("  Enter submit · Ctrl+J newline · Ctrl+G editor · Esc interrupt · Ctrl+C clear/exit\n");
+        out.append("  Ctrl+L model picker · Ctrl+P cycle model · Shift+Tab thinking\n");
+        return out.toString().stripTrailing();
+    }
+
+    private void appendGroup(StringBuilder out, String title, String... names) {
+        out.append('\n').append(title).append('\n');
+        int maxLen = java.util.Arrays.stream(names).mapToInt(String::length).max().orElse(0);
+        for (String name : names) {
+            command(name).ifPresent(cmd -> out.append(String.format("  %-" + (maxLen + 2) + "s %s%n", cmd.name(), cmd.description())));
         }
-        out.append("\n\nkeys: Ctrl+J newline | Ctrl+X Ctrl+E editor | Esc interrupt | Ctrl+C exit");
-        return out.toString();
+    }
+
+    private java.util.Optional<CompletionItem> command(String name) {
+        return commands.stream().filter(c -> c.name().equals(name)).findFirst();
     }
 
     public List<String> complete(String text) {

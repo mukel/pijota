@@ -33,7 +33,7 @@ public sealed interface PromptRegion
                 out.print('\r');
                 out.print("\033[K");
                 out.print(theme.styled(line.prefixSlot(), line.prefix()));
-                out.print(line.text());
+                out.print(theme.styled("text", line.text()));
                 if (line.logicalRow() == ctx.cursorRow()
                         && ctx.cursorCol() >= line.startCol()
                         && ctx.cursorCol() <= line.endCol()) {
@@ -77,7 +77,7 @@ public sealed interface PromptRegion
                 case BUSY -> "◇ ";
                 case ERROR -> "✖ ";
                 case CONTINUATION -> "┃ ";
-                case IDLE -> "▸ ";
+                case IDLE -> ctx.lines().size() == 1 && ctx.lines().getFirst().isEmpty() ? "› " : "▸ ";
             };
         }
 
@@ -94,47 +94,50 @@ public sealed interface PromptRegion
 
         @Override
         public int height(int width, PromptSnapshot ctx) {
+            String primary = primaryLine(ctx);
             int h = 0;
-            boolean hasCwd = ctx.cwd() != null && !ctx.cwd().isBlank();
-            boolean hasStatus = ctx.status() != null && !ctx.status().isBlank();
-            if (hasCwd) {
-                for (String part : ctx.cwd().split("\\n", -1)) h += rows(part, width);
-            }
-            if (hasStatus) {
-                for (String part : ctx.status().split("\\n", -1)) h += rows(part, width);
-            }
-            if (!ctx.extensionLines().isEmpty()) {
-                int extCount = Math.min(MAX_EXTENSION_LINES, ctx.extensionLines().size());
-                for (int i = 0; i < extCount; i++) h += rows(ctx.extensionLines().get(i), width);
-                if (ctx.extensionLines().size() > MAX_EXTENSION_LINES) h += 1;
-            }
+            if (primary != null && !primary.isBlank()) h += primaryRows(primary, width);
+            if (ctx.warning() != null && !ctx.warning().isBlank()) h += warningRows(ctx.warning(), width);
+            if (!ctx.extensionLines().isEmpty()) h += Math.min(MAX_EXTENSION_LINES, ctx.extensionLines().size());
+            if (ctx.extensionLines().size() > MAX_EXTENSION_LINES) h += 1;
             return h;
         }
 
         @Override
         public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
-            boolean hasCwd = ctx.cwd() != null && !ctx.cwd().isBlank();
-            boolean hasStatus = ctx.status() != null && !ctx.status().isBlank();
-            boolean hasSubAgents = !ctx.extensionLines().isEmpty();
-            if (!hasCwd && !hasStatus && !hasSubAgents) return NO_CURSOR;
+            String primary = primaryLine(ctx);
+            boolean hasWarning = ctx.warning() != null && !ctx.warning().isBlank();
+            boolean hasExtensions = !ctx.extensionLines().isEmpty();
+            if (primary == null && !hasWarning && !hasExtensions) return NO_CURSOR;
             boolean first = true;
 
-            // CWD line: ~/project (main) · session-name · provider/model · think
-            if (hasCwd) {
-                out.print('\r');
-                out.print("\033[K");
-                out.print(theme.styled("cwdLine", ctx.cwd()));
-                first = false;
+            if (primary != null && !primary.isBlank()) {
+                for (String segment : AnsiWidth.wrapPreservingAnsi(primary, width)) {
+                    if (!first) out.print("\r\n");
+                    else out.print('\r');
+                    out.print("\033[K");
+                    out.print(theme.styled("cwdLine", segment));
+                    first = false;
+                }
             }
 
-            // Extension lines (capped)
-            if (hasSubAgents) {
+            if (hasWarning) {
+                for (String part : ctx.warning().split("\\n", -1)) {
+                    if (!first) out.print("\r\n");
+                    else out.print('\r');
+                    out.print("\033[K");
+                    out.print(theme.styled("statusWarn", AnsiWidth.truncateVisual("  " + part, width)));
+                    first = false;
+                }
+            }
+
+            if (hasExtensions) {
                 int limit = Math.min(MAX_EXTENSION_LINES, ctx.extensionLines().size());
                 for (int i = 0; i < limit; i++) {
                     if (!first) out.print("\r\n");
                     else out.print('\r');
                     out.print("\033[K");
-                    out.print(theme.styled("statusText", ctx.extensionLines().get(i)));
+                    out.print(theme.styled("statusText", AnsiWidth.truncateVisual("  " + ctx.extensionLines().get(i), width)));
                     first = false;
                 }
                 int extra = ctx.extensionLines().size() - MAX_EXTENSION_LINES;
@@ -146,30 +149,36 @@ public sealed interface PromptRegion
                     first = false;
                 }
             }
-
-            // Status line: tokens + optional warning at end
-            if (hasStatus) {
-                if (!first) out.print("\r\n");
-                String[] parts = ctx.status().split("\\n", -1);
-                for (int i = 0; i < parts.length; i++) {
-                    if (i > 0) out.print("\r\n");
-                    else out.print('\r');
-                    out.print("\033[K");
-                    String text = theme.styled("statusBar", parts[i]);
-                    if (i == parts.length - 1 && ctx.warning() != null && !ctx.warning().isBlank())
-                        text += "  " + theme.styled("statusWarn", ctx.warning());
-                    out.print(text);
-                }
-            }
             return NO_CURSOR;
         }
 
-        private static int rows(String text, int width) {
+        private static String primaryLine(PromptSnapshot ctx) {
+            boolean hasCwd = ctx.cwd() != null && !ctx.cwd().isBlank();
+            boolean hasStatus = ctx.status() != null && !ctx.status().isBlank();
+            if (!hasCwd && !hasStatus) return null;
+            if (!hasCwd) return ctx.status();
+            if (!hasStatus) return ctx.cwd();
+            return ctx.status() + "  " + ctx.cwd();
+        }
+
+        private static int primaryRows(String line, int width) {
             width = Math.max(1, width);
-            int w = AnsiWidth.visibleWidth(text);
+            int w = AnsiWidth.visibleWidth(line);
             if (w <= 0) return 0;
             return (w + width - 1) / width;
         }
+
+        private static int warningRows(String warning, int width) {
+            int h = 0;
+            for (String part : warning.split("\\n", -1)) {
+                width = Math.max(1, width);
+                int w = AnsiWidth.visibleWidth("  " + part);
+                if (w <= 0) continue;
+                h += (w + width - 1) / width;
+            }
+            return h;
+        }
+
     }
 
     record Completions() implements PromptRegion {
@@ -180,7 +189,7 @@ public sealed interface PromptRegion
             int total = ctx.completions().size();
             if (total == 0) return 0;
             int visible = Math.min(MAX_VISIBLE, total);
-            return 1 + visible + (total > MAX_VISIBLE ? 1 : 0);
+            return 1 + visible + 1;
         }
 
         @Override
@@ -193,7 +202,7 @@ public sealed interface PromptRegion
 
             out.print('\r');
             out.print("\033[K");
-            out.print(theme.styled("hr", "─".repeat(Math.max(10, width - 2))));
+            out.print(theme.styled("hr", "suggestions"));
 
             int start = 0;
             if (total > MAX_VISIBLE) {
@@ -210,26 +219,26 @@ public sealed interface PromptRegion
                 if (i == sel) {
                     out.print(theme.styled("statusText", "→ "));
                     out.print(theme.styled("heading", item.name()));
-                    out.print(theme.styled("statusText", padRight(item.description(), maxLen, item.name())));
+                    out.print(theme.styled("statusText", padRight(item.description(), maxLen, item.name(), width)));
                 } else {
                     out.print("  ");
-                    out.print(theme.styled("statusText", item.name() + padRight(item.description(), maxLen, item.name())));
+                    out.print(theme.styled("statusText", item.name() + padRight(item.description(), maxLen, item.name(), width)));
                 }
             }
 
-            if (total > MAX_VISIBLE) {
-                out.print("\r\n");
-                out.print('\r');
-                out.print("\033[K");
-                out.print(theme.styled("statusText", "  (" + (sel + 1) + "/" + total + ")"));
-            }
+            out.print("\r\n");
+            out.print('\r');
+            out.print("\033[K");
+            out.print(theme.styled("statusText", "  " + (sel + 1) + "/" + total));
+            out.print(theme.styled("dim", "  · Enter · ↑/↓"));
 
             return NO_CURSOR;
         }
 
-        private static String padRight(String desc, int maxLen, String name) {
+        private static String padRight(String desc, int maxLen, String name, int width) {
             int pad = maxLen - name.length() + 4;
-            return " ".repeat(Math.max(0, pad)) + desc;
+            int detailWidth = Math.max(8, width - maxLen - 8);
+            return " ".repeat(Math.max(0, pad)) + AnsiWidth.truncateVisual(desc, detailWidth);
         }
     }
 

@@ -3,10 +3,11 @@ package ai.pijota.agent;
 import ai.pijota.extensions.AgentContext;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.config.AppConfig;
-import ai.pijota.llm.LlmService;
+import ai.pijota.llm.LlmClient;
 import ai.pijota.llm.StreamResult;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
+import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
@@ -28,7 +29,7 @@ public final class AgentLoop implements AgentContext {
     private static final Logger log = LoggerFactory.getLogger(AgentLoop.class);
     private static final int MAX_TURNS = 25;
 
-    private final LlmService llm;
+    private final LlmClient llm;
     private final ToolRegistry toolRegistry;
     private final String cwd;
     private final MessageHistory history;
@@ -47,12 +48,12 @@ public final class AgentLoop implements AgentContext {
     private volatile String lastStreamContent = "";
     private int sessionTurn;
 
-    public static Builder builder(LlmService llm, ToolRegistry toolRegistry, String cwd) {
+    public static Builder builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
         return new Builder(llm, toolRegistry, cwd);
     }
 
     public static final class Builder {
-        private final LlmService llm;
+        private final LlmClient llm;
         private final ToolRegistry toolRegistry;
         private final String cwd;
         private CompactionManager.SummaryGenerator summaryGenerator;
@@ -60,7 +61,7 @@ public final class AgentLoop implements AgentContext {
         private int contextWindow;
         private AppConfig.CompactionConfig compactionConfig;
 
-        Builder(LlmService llm, ToolRegistry toolRegistry, String cwd) {
+        Builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
             this.llm = llm; this.toolRegistry = toolRegistry; this.cwd = cwd;
         }
 
@@ -82,8 +83,8 @@ public final class AgentLoop implements AgentContext {
         }
     }
 
-    private AgentLoop(LlmService llm, ToolRegistry toolRegistry, String cwd,
-                      CompactionManager compaction, ExtensionRegistry extensionRegistry) {
+    private AgentLoop(LlmClient llm, ToolRegistry toolRegistry, String cwd,
+                       CompactionManager compaction, ExtensionRegistry extensionRegistry) {
         this.llm = llm; this.toolRegistry = toolRegistry; this.cwd = cwd;
         this.history = new MessageHistory();
         this.compaction = compaction;
@@ -94,7 +95,7 @@ public final class AgentLoop implements AgentContext {
 
     public void addEventListener(Consumer<AgentEvent> l) { listeners.add(l); }
     public void removeEventListener(Consumer<AgentEvent> l) { listeners.remove(l); }
-    public LlmService llm() { return llm; }
+    public LlmClient llm() { return llm; }
     public ToolRegistry toolRegistry() { return toolRegistry; }
 
     public void addSystemPrompt(String s) { history.addSystemPrompt(s); }
@@ -264,7 +265,7 @@ public final class AgentLoop implements AgentContext {
         var requestMessages = history.snapshot();
         String requestProvider = llm.provider();
         String requestModel = llm.model();
-            var toolSpecs = toolRegistry.enabledTools();
+        var toolSpecs = llm.streamsWithTools() ? toolRegistry.enabledTools() : List.<Tool>of();
 
         var partialMsg = new Message.Assistant("", List.of(), null);
         history.add(partialMsg);

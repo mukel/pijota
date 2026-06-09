@@ -121,7 +121,7 @@ public final class SyntaxHighlighter {
     );
 
     private static final Set<Character> PUNCTUATION_CHARS = Set.of(
-        '.',',',';','(',')','{','}','[',']'
+        '.',',',';','(',')','{','}','[',']','@'
     );
 
     private final AnsiTheme theme;

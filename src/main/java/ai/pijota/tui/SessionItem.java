@@ -5,6 +5,9 @@ import ai.pijota.util.Util;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +15,8 @@ import java.util.Map;
 public record SessionItem(Path path, String name, String description, long mtime, boolean named) implements SelectorItem {
 
     private static final int MAX_DESC_LEN = 80;
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("MMM d HH:mm")
+        .withZone(ZoneId.systemDefault());
 
     public static List<SessionItem> fromPaths(List<Path> paths) {
         var items = new ArrayList<SessionItem>();
@@ -75,7 +80,7 @@ public record SessionItem(Path path, String name, String description, long mtime
         return s.substring(0, cut) + "…";
     }
 
-    @Override public String searchText() { return name + " " + description; }
+    @Override public String searchText() { return name + " " + description + " " + path.getFileName(); }
     @Override public String titleText() { return description; }
 
     @Override
@@ -86,8 +91,9 @@ public record SessionItem(Path path, String name, String description, long mtime
         else if (ago < 3600_000) age = (ago / 60_000) + "m ago";
         else if (ago < 86400_000) age = (ago / 3600_000) + "h ago";
         else age = (ago / 86400_000) + "d ago";
-        String shortName = name.length() > 12 ? name.substring(0, 12) : name;
-        return age + "  " + shortName;
+        String shortName = name.length() > 14 ? name.substring(0, 14) : name;
+        String date = mtime > 0 ? DATE.format(Instant.ofEpochMilli(mtime)) : "unknown";
+        return age + "  " + date + "  " + shortName;
     }
 
     private record ParsedDescription(String firstUser, String sessionName) {}

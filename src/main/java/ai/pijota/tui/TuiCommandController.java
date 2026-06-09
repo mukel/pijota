@@ -37,7 +37,7 @@ final class TuiCommandController {
             case "/export"   -> tui.exportSession(input);
             case "/save"     -> tui.saveSession(input);
             case "/load"     -> tui.loadSession(input);
-            case "/sessions" -> tui.listSessions();
+            case "/sessions" -> tui.showSessionPicker(arg);
             case "/delete"   -> tui.deleteSession(input);
             case "/name"     -> renameSession(arg);
             case "/new"      -> tui.startNewSession();

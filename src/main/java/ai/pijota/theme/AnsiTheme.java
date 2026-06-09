@@ -4,6 +4,7 @@ import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.lang.reflect.Modifier;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -19,6 +20,7 @@ public class AnsiTheme {
     public String name = "custom";
     public boolean enabled = true;
 
+    public String text         = "#d4d4d4";
     public String heading      = "bold;#00758F";
     public String bold         = "bold";
     public String italic       = "italic";
@@ -53,8 +55,10 @@ public class AnsiTheme {
     public String statusWarn   = "dim;yellow";
     public String bannerName   = "bold;#00758F";
     public String bannerMeta   = "dim";
-    public String cwdLine      = "bright_black";
+    public String cwdLine      = "dim;bright_black";
     public String bashMode      = "#00FF66";
+    public String thinkingText  = "dim;#7AA6B8";
+    public double thinkingOpacity = 0.72;
 
     public String diffHeader    = "#7AA6B8";
     public String diffMeta      = "bright_black";
@@ -78,6 +82,7 @@ public class AnsiTheme {
     public static AnsiTheme light() {
         var t = new AnsiTheme();
         t.name = "light";
+        t.text = "#1f2328";
         t.heading = "bold;#005F87";
         t.dim = "#666666";
         t.codeFence = "#666666";
@@ -95,23 +100,113 @@ public class AnsiTheme {
         t.statusBar = "#666666";
         t.bannerName = "bold;#005F87";
         t.cwdLine = "#666666";
+        t.thinkingText = "#666666";
         return t;
     }
 
-    public AnsiTheme muted() {
-        var parent = this;
-        var t = new AnsiTheme() {
-            @Override
-            public String style(String slot) {
-                String base = parent.style(slot);
-                if (base == null || base.isEmpty()) return base;
-                if (base.contains("dim")) return base;
-                return "dim;" + base;
-            }
-        };
-        t.enabled = true;
-        t.name = name + "-muted";
+    public AnsiTheme thinking() {
+        var t = copy();
+        t.name = name + "-thinking";
+        String bg = isLightTheme() ? "#ffffff" : "#000000";
+        double opacity = Math.max(0.0, Math.min(1.0, thinkingOpacity));
+        String resolvedBase = firstColor(thinkingText, statusText, dim);
+        final String base = resolvedBase != null ? resolvedBase : isLightTheme() ? "#666666" : "#7AA6B8";
+
+        for (String slot : THINKING_SLOTS) {
+            t.setSlotSpec(slot, opacitySpec(slotSpec(slot), bg, opacity, base, true));
+        }
+        t.extra.replaceAll((key, spec) -> opacitySpec(spec, bg, opacity, base, false));
         return t;
+    }
+
+    private AnsiTheme copy() {
+        var t = new AnsiTheme();
+        for (var field : AnsiTheme.class.getFields()) {
+            if (Modifier.isStatic(field.getModifiers())) continue;
+            try {
+                Object value = field.get(this);
+                if (value instanceof Map<?, ?> map) value = new HashMap<>(map);
+                field.set(t, value);
+            } catch (IllegalAccessException ignored) {}
+        }
+        return t;
+    }
+
+    private static String opacitySpec(String spec, String bg, double opacity, String fallbackColor, boolean colorizeStyleOnly) {
+        if (spec == null || spec.isBlank()) {
+            return colorizeStyleOnly && fallbackColor != null ? blendHex(fallbackColor, bg, opacity) : spec;
+        }
+        var out = new StringBuilder();
+        boolean hasForeground = false;
+        for (String raw : spec.split(";")) {
+            String part = raw.strip();
+            if (part.isEmpty()) continue;
+            String mapped = part;
+            if (part.startsWith("#") && part.length() == 7) {
+                mapped = blendHex(part, bg, opacity);
+                hasForeground = true;
+            } else if (COLOR_HEX.containsKey(part)) {
+                mapped = blendHex(COLOR_HEX.get(part), bg, opacity);
+                hasForeground = true;
+            } else if (part.startsWith("ansi:")) {
+                String hex = ansiHex(part.substring(5));
+                if (hex != null) {
+                    mapped = blendHex(hex, bg, opacity);
+                    hasForeground = true;
+                }
+            }
+            if (!out.isEmpty()) out.append(';');
+            out.append(mapped);
+        }
+        if (!hasForeground && colorizeStyleOnly && fallbackColor != null) {
+            if (!out.isEmpty()) out.append(';');
+            out.append(blendHex(fallbackColor, bg, opacity));
+        }
+        return out.toString();
+    }
+
+    private static String firstColor(String... specs) {
+        for (String spec : specs) {
+            if (spec == null) continue;
+            for (String raw : spec.split(";")) {
+                String part = raw.strip();
+                if (part.startsWith("#") && part.length() == 7) return part;
+                String hex = COLOR_HEX.get(part);
+                if (hex != null) return hex;
+                if (part.startsWith("ansi:")) {
+                    hex = ansiHex(part.substring(5));
+                    if (hex != null) return hex;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isLightTheme() {
+        return name != null && name.toLowerCase(java.util.Locale.ROOT).contains("light");
+    }
+
+    private static String blendHex(String fg, String bg, double opacity) {
+        double a = Math.max(0.0, Math.min(1.0, opacity));
+        int fr = Integer.parseInt(fg.substring(1, 3), 16);
+        int fgG = Integer.parseInt(fg.substring(3, 5), 16);
+        int fb = Integer.parseInt(fg.substring(5, 7), 16);
+        int br = Integer.parseInt(bg.substring(1, 3), 16);
+        int bgG = Integer.parseInt(bg.substring(3, 5), 16);
+        int bb = Integer.parseInt(bg.substring(5, 7), 16);
+        int r = (int) Math.round(br + (fr - br) * a);
+        int g = (int) Math.round(bgG + (fgG - bgG) * a);
+        int b = (int) Math.round(bb + (fb - bb) * a);
+        return String.format(java.util.Locale.ROOT, "#%02x%02x%02x", r, g, b);
+    }
+
+    private static String ansiHex(String raw) {
+        try {
+            int n = Integer.parseInt(raw);
+            return n >= 0 && n < ANSI_HEX.length ? ANSI_HEX[n] : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     public static AnsiTheme load(Path path) throws IOException {
@@ -146,6 +241,7 @@ public class AnsiTheme {
         if (c == null || !c.isObject()) return t;
 
         t.heading = styledColor(c, vars, "mdHeading", t.heading);
+        t.text = color(c, vars, "text", t.text);
         t.dim = color(c, vars, "dim", t.dim);
         t.codeFence = styledColor(c, vars, "mdCodeBlockBorder", t.codeFence);
         t.codeBody = color(c, vars, "mdCodeBlock", t.codeBody);
@@ -172,6 +268,7 @@ public class AnsiTheme {
         t.bannerMeta = styledColor(c, vars, "muted", t.bannerMeta);
         t.cwdLine = color(c, vars, "dim", t.cwdLine);
         t.bashMode = color(c, vars, "bashMode", t.bashMode);
+        t.thinkingText = color(c, vars, "thinkingText", t.thinkingText);
         t.diffAdd = color(c, vars, "toolDiffAdded", t.diffAdd);
         t.diffDelete = color(c, vars, "toolDiffRemoved", t.diffDelete);
         t.diffContext = color(c, vars, "toolDiffContext", t.diffContext);
@@ -183,7 +280,7 @@ public class AnsiTheme {
 
         addExtra(t, c, vars, "mdLink", "mdLinkUrl", "mdListBullet", "success", "warning",
             "selectedBg", "userMessageBg", "userMessageText", "customMessageBg", "customMessageText",
-            "customMessageLabel", "toolPendingBg", "toolSuccessBg", "toolErrorBg", "thinkingText",
+            "customMessageLabel", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
             "thinkingOff", "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh", "thinkingXhigh");
         return t;
     }
@@ -258,50 +355,18 @@ public class AnsiTheme {
     }
 
     private String slotSpec(String name) {
-        return switch (name) {
-            case "heading"       -> heading;
-            case "bold"          -> bold;
-            case "italic"        -> italic;
-            case "dim"           -> dim;
-            case "strikethrough" -> strikethrough;
-            case "codeFence"     -> codeFence;
-            case "codeBody"      -> codeBody;
-            case "blockquote"    -> blockquote;
-            case "hr"            -> hr;
-            case "highlight"     -> highlight;
-            case "inlineCode"    -> inlineCode;
-            case "synKeyword"    -> synKeyword;
-            case "synType"       -> synType;
-            case "synString"     -> synString;
-            case "synNumber"     -> synNumber;
-            case "synComment"    -> synComment;
-            case "synFunction"   -> synFunction;
-            case "synVariable"   -> synVariable;
-            case "synOperator"   -> synOperator;
-            case "synPunctuation" -> synPunctuation;
-            case "prompt"        -> prompt;
-            case "promptEcho"    -> promptEcho;
-            case "toolLabel"     -> toolLabel;
-            case "toolResult"    -> toolResult;
-            case "toolError"     -> toolError;
-            case "commandMeta"   -> commandMeta;
-            case "statusText"    -> statusText;
-            case "statusBar"     -> statusBar;
-            case "statusWarn"    -> statusWarn;
-            case "bannerName"    -> bannerName;
-            case "bannerMeta"    -> bannerMeta;
-            case "cwdLine"       -> cwdLine;
-            case "bashMode"      -> bashMode;
-            case "diffHeader"    -> diffHeader;
-            case "diffMeta"      -> diffMeta;
-            case "diffAdd"       -> diffAdd;
-            case "diffDelete"    -> diffDelete;
-            case "diffContext"   -> diffContext;
-            case "diffHunk"      -> diffHunk;
-            case "diffAddLine"   -> diffAddLine;
-            case "diffDeleteLine" -> diffDeleteLine;
-            default -> extra.getOrDefault(name, "");
-        };
+        try {
+            var field = AnsiTheme.class.getField(name);
+            if (field.getType() == String.class) return (String) field.get(this);
+        } catch (ReflectiveOperationException ignored) {}
+        return extra.getOrDefault(name, "");
+    }
+
+    private void setSlotSpec(String name, String spec) {
+        try {
+            var field = AnsiTheme.class.getField(name);
+            if (field.getType() == String.class) field.set(this, spec);
+        } catch (ReflectiveOperationException ignored) {}
     }
 
     // -- internal -------------------------------------
@@ -362,6 +427,14 @@ public class AnsiTheme {
         } catch (NumberFormatException ignored) {}
     }
 
+    private static final String[] THINKING_SLOTS = {
+        "heading", "bold", "italic", "highlight", "dim", "strikethrough",
+        "codeFence", "codeBody", "blockquote", "hr", "inlineCode",
+        "synKeyword", "synType", "synString", "synNumber", "synComment", "synFunction",
+        "synVariable", "synOperator", "synPunctuation",
+        "toolLabel", "commandMeta", "statusText", "statusWarn", "thinkingText"
+    };
+
     private static final Map<String, Integer> CODE_MAP = Map.ofEntries(
         Map.entry("bold",       1),
         Map.entry("dim",        2),
@@ -387,4 +460,28 @@ public class AnsiTheme {
         Map.entry("bright_cyan",    96),
         Map.entry("bright_white",   97)
     );
+
+    private static final Map<String, String> COLOR_HEX = Map.ofEntries(
+        Map.entry("black", "#000000"),
+        Map.entry("red", "#800000"),
+        Map.entry("green", "#008000"),
+        Map.entry("yellow", "#808000"),
+        Map.entry("blue", "#000080"),
+        Map.entry("magenta", "#800080"),
+        Map.entry("cyan", "#008080"),
+        Map.entry("white", "#c0c0c0"),
+        Map.entry("bright_black", "#808080"),
+        Map.entry("bright_red", "#ff0000"),
+        Map.entry("bright_green", "#00ff00"),
+        Map.entry("bright_yellow", "#ffff00"),
+        Map.entry("bright_blue", "#0000ff"),
+        Map.entry("bright_magenta", "#ff00ff"),
+        Map.entry("bright_cyan", "#00ffff"),
+        Map.entry("bright_white", "#ffffff")
+    );
+
+    private static final String[] ANSI_HEX = {
+        "#000000", "#800000", "#008000", "#808000", "#000080", "#800080", "#008080", "#c0c0c0",
+        "#808080", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"
+    };
 }

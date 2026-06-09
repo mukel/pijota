@@ -10,6 +10,11 @@ import java.util.List;
 import java.util.Optional;
 
 public final class PromptEditor {
+    @FunctionalInterface
+    interface FileCompletionProvider {
+        List<CompletionItem> complete(String text);
+    }
+
     public record Result(boolean changed, Optional<String> submitted, boolean exit) {
         static Result didChange() { return new Result(true, Optional.empty(), false); }
         static Result unchangedResult() { return new Result(false, Optional.empty(), false); }
@@ -18,9 +23,11 @@ public final class PromptEditor {
     }
 
     private final SlashCommandRegistry commands;
+    private final FileCompletionProvider fileCompletionProvider;
     private final List<String> lines = new ArrayList<>();
     private int row;
     private int col;
+    private int desiredCol = -1;
     private List<CompletionItem> completions = List.of();
     private int selectedCompletion = -1;
     private final Selector<CompletionItem> selector = new Selector<>(List.of());
@@ -30,7 +37,13 @@ public final class PromptEditor {
     private String completionPrefix = "";
 
     public PromptEditor(SlashCommandRegistry commands) {
+        this(commands, PromptEditor::defaultFileCompletions);
+    }
+
+    PromptEditor(SlashCommandRegistry commands, FileCompletionProvider fileCompletionProvider) {
         this.commands = commands;
+        this.fileCompletionProvider = fileCompletionProvider != null
+            ? fileCompletionProvider : PromptEditor::defaultFileCompletions;
         lines.add("");
     }
 
@@ -64,14 +77,15 @@ public final class PromptEditor {
             case RIGHT -> right();
             case UP -> up();
             case DOWN -> down();
-            case HOME -> { col = 0; clearCompletions(); yield Result.didChange(); }
-            case END -> { col = lines.get(row).length(); clearCompletions(); yield Result.didChange(); }
+            case HOME -> { col = 0; desiredCol = -1; clearCompletions(); yield Result.didChange(); }
+            case END -> { col = lines.get(row).length(); desiredCol = -1; clearCompletions(); yield Result.didChange(); }
             case TAB -> complete();
-            case CTRL_A -> { col = 0; clearCompletions(); yield Result.didChange(); }
-            case CTRL_E -> { col = lines.get(row).length(); clearCompletions(); yield Result.didChange(); }
+            case CTRL_A -> { col = 0; desiredCol = -1; clearCompletions(); yield Result.didChange(); }
+            case CTRL_E -> { col = lines.get(row).length(); desiredCol = -1; clearCompletions(); yield Result.didChange(); }
             case CTRL_K -> killToEnd();
             case CTRL_U -> { reset(); yield Result.didChange(); }
             case CTRL_W -> deleteWordBeforeCursor();
+            case ALT_D -> deleteWordAfterCursor();
             case CTRL_LEFT -> wordLeft();
             case CTRL_RIGHT -> wordRight();
             case CTRL_C, CTRL_D -> Result.exitResult();
@@ -84,6 +98,7 @@ public final class PromptEditor {
         String line = lines.get(row);
         lines.set(row, line.substring(0, col) + ch + line.substring(col));
         col++;
+        desiredCol = -1;
         refreshCompletions();
         return Result.didChange();
     }
@@ -94,17 +109,15 @@ public final class PromptEditor {
         lines.add(row + 1, line.substring(col));
         row++;
         col = 0;
+        desiredCol = -1;
         clearCompletions();
         return Result.didChange();
     }
 
     private Result submit() {
         String text;
-        if (selector.total() > 0) {
-            text = completionPrefix + selector.selectedItem().name();
-        } else {
-            text = String.join("\n", lines).stripTrailing();
-        }
+        if (selector.total() > 0) return submitOrAcceptCompletion();
+        text = String.join("\n", lines).stripTrailing();
         reset();
         if (!text.isBlank()) {
             history.remove(text);
@@ -118,6 +131,7 @@ public final class PromptEditor {
             String line = lines.get(row);
             lines.set(row, line.substring(0, col - 1) + line.substring(col));
             col--;
+            desiredCol = -1;
             refreshCompletions();
             return Result.didChange();
         }
@@ -129,6 +143,7 @@ public final class PromptEditor {
         String line = lines.get(row);
         if (col < line.length()) {
             lines.set(row, line.substring(0, col) + line.substring(col + 1));
+            desiredCol = -1;
             refreshCompletions();
             return Result.didChange();
         }
@@ -142,6 +157,7 @@ public final class PromptEditor {
         if (col > 0) col--;
         else if (row > 0) { row--; col = lines.get(row).length(); }
         else return Result.unchangedResult();
+        desiredCol = -1;
         clearCompletions();
         return Result.didChange();
     }
@@ -150,22 +166,25 @@ public final class PromptEditor {
         if (col < lines.get(row).length()) col++;
         else if (row < lines.size() - 1) { row++; col = 0; }
         else return Result.unchangedResult();
+        desiredCol = -1;
         clearCompletions();
         return Result.didChange();
     }
 
     private Result up() {
         if (row == 0) return Result.unchangedResult();
+        if (desiredCol < 0) desiredCol = col;
         row--;
-        col = Math.min(col, lines.get(row).length());
+        col = Math.min(desiredCol, lines.get(row).length());
         clearCompletions();
         return Result.didChange();
     }
 
     private Result down() {
         if (row >= lines.size() - 1) return Result.unchangedResult();
+        if (desiredCol < 0) desiredCol = col;
         row++;
-        col = Math.min(col, lines.get(row).length());
+        col = Math.min(desiredCol, lines.get(row).length());
         clearCompletions();
         return Result.didChange();
     }
@@ -181,6 +200,7 @@ public final class PromptEditor {
                 if (matches.size() == 1) {
                     lines.set(0, matches.getFirst().name());
                     col = lines.getFirst().length();
+                    desiredCol = -1;
                     selector.deactivate();
                     completions = List.of();
                     selectedCompletion = -1;
@@ -194,7 +214,8 @@ public final class PromptEditor {
             }
         }
 
-        var paths = fileCompletions(text);
+        completionPrefix = fileCompletionPrefix(text);
+        var paths = fileCompletionProvider.complete(text);
         if (!paths.isEmpty()) {
             selector.setItems(paths);
             selector.activate(text);
@@ -206,11 +227,10 @@ public final class PromptEditor {
         return Result.unchangedResult();
     }
 
-    private List<CompletionItem> fileCompletions(String text) {
+    private static List<CompletionItem> defaultFileCompletions(String text) {
         int lastSpace = text.lastIndexOf(' ');
         String prefix = lastSpace >= 0 ? text.substring(lastSpace + 1) : text;
         if (prefix.isBlank()) return List.of();
-        completionPrefix = lastSpace >= 0 ? text.substring(0, lastSpace + 1) : "";
         try {
             Path dir;
             String filePrefix;
@@ -251,11 +271,17 @@ public final class PromptEditor {
         }
     }
 
+    private static String fileCompletionPrefix(String text) {
+        int lastSpace = text.lastIndexOf(' ');
+        return lastSpace >= 0 ? text.substring(0, lastSpace + 1) : "";
+    }
+
     private Result mergeWithPrevious() {
         String current = lines.remove(row);
         row--;
         col = lines.get(row).length();
         lines.set(row, lines.get(row) + current);
+        desiredCol = -1;
         clearCompletions();
         return Result.didChange();
     }
@@ -264,11 +290,13 @@ public final class PromptEditor {
         String line = lines.get(row);
         if (col < line.length()) {
             lines.set(row, line.substring(0, col));
+            desiredCol = -1;
             clearCompletions();
             return Result.didChange();
         }
         if (row >= lines.size() - 1) return Result.unchangedResult();
         lines.subList(row + 1, lines.size()).clear();
+        desiredCol = -1;
         clearCompletions();
         return Result.didChange();
     }
@@ -285,6 +313,26 @@ public final class PromptEditor {
         while (start > 0 && !Character.isWhitespace(line.charAt(start - 1))) start--;
         lines.set(row, line.substring(0, start) + line.substring(col));
         col = start;
+        desiredCol = -1;
+        refreshCompletions();
+        return Result.didChange();
+    }
+
+    private Result deleteWordAfterCursor() {
+        String line = lines.get(row);
+        if (col >= line.length()) {
+            if (row >= lines.size() - 1) return Result.unchangedResult();
+            lines.set(row, line + lines.remove(row + 1));
+            desiredCol = -1;
+            clearCompletions();
+            return Result.didChange();
+        }
+
+        int end = col;
+        while (end < line.length() && Character.isWhitespace(line.charAt(end))) end++;
+        while (end < line.length() && !Character.isWhitespace(line.charAt(end))) end++;
+        lines.set(row, line.substring(0, col) + line.substring(end));
+        desiredCol = -1;
         refreshCompletions();
         return Result.didChange();
     }
@@ -298,6 +346,7 @@ public final class PromptEditor {
         String line = lines.get(row);
         while (col > 0 && Character.isWhitespace(line.charAt(col - 1))) col--;
         while (col > 0 && !Character.isWhitespace(line.charAt(col - 1))) col--;
+        desiredCol = -1;
         clearCompletions();
         return Result.didChange();
     }
@@ -312,8 +361,29 @@ public final class PromptEditor {
         }
         while (col < line.length() && !Character.isWhitespace(line.charAt(col))) col++;
         while (col < line.length() && Character.isWhitespace(line.charAt(col))) col++;
+        desiredCol = -1;
         clearCompletions();
         return Result.didChange();
+    }
+
+    private Result submitOrAcceptCompletion() {
+        String accepted = completionPrefix + selector.selectedItem().name();
+        if (isSlashCommandCompletion()) {
+            reset();
+            history.remove(accepted);
+            history.add(accepted);
+            return Result.submitted(accepted);
+        }
+        lines.set(0, accepted);
+        row = 0;
+        col = accepted.length();
+        desiredCol = -1;
+        clearCompletions();
+        return Result.didChange();
+    }
+
+    private boolean isSlashCommandCompletion() {
+        return row == 0 && lines.size() == 1 && lines.getFirst().startsWith("/");
     }
 
     private void refreshCompletions() {
@@ -352,14 +422,17 @@ public final class PromptEditor {
             return;
         }
         String line = lines.get(row);
+        String suffix = line.substring(col);
         lines.set(row, line.substring(0, col) + parts[0]);
-        col = parts[0].length();
+        col += parts[0].length();
         for (int i = 1; i < parts.length; i++) {
             newline();
             String current = lines.get(row);
             lines.set(row, current + parts[i]);
             col += parts[i].length();
         }
+        lines.set(row, lines.get(row) + suffix);
+        desiredCol = -1;
         refreshCompletions();
     }
 
@@ -420,6 +493,7 @@ public final class PromptEditor {
         }
         row = lines.size() - 1;
         col = lines.get(row).length();
+        desiredCol = -1;
         clearCompletions();
     }
 
@@ -428,6 +502,7 @@ public final class PromptEditor {
         lines.add("");
         row = 0;
         col = 0;
+        desiredCol = -1;
         clearCompletions();
     }
 }

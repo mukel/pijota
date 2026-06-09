@@ -23,29 +23,28 @@ final class TerminalMarkdownRenderer {
 
     // ---- public API -------------------------------------------
 
-    List<StyledLine> render(String markdown, String plainSlot) {
+    List<StyledLine> render(String markdown, String defaultTextSlot, boolean defaultItalic) {
         if (markdown == null || markdown.isEmpty()) return List.of();
         var table = MarkdownTableRenderer.renderIfTable(markdown, theme, width);
         if (table.isPresent()) return table.get();
-        return renderSource(markdown, plainSlot);
+        return renderSource(markdown, defaultTextSlot, defaultItalic);
     }
 
-    private List<StyledLine> renderSource(String markdown, String plainSlot) {
+    private List<StyledLine> renderSource(String markdown, String defaultTextSlot, boolean defaultItalic) {
         var out = new ArrayList<StyledLine>();
         for (String line : markdown.split("\\R", -1)) {
-            out.add(StyledLine.of(highlightSourceLine(line, plainSlot)));
+            out.add(StyledLine.of(highlightSourceLine(line, defaultTextSlot, defaultItalic)));
         }
         return out;
     }
 
-    private String highlightSourceLine(String line, String plainSlot) {
+    private String highlightSourceLine(String line, String defaultTextSlot, boolean defaultItalic) {
         if (line.isEmpty()) return line;
         int prefixEnd = markdownPrefixEnd(line);
         String prefix = prefixEnd == 0 ? "" : highlightPrefix(line.substring(0, prefixEnd));
         String body = line.substring(prefixEnd);
         if (isHeadingPrefix(line, prefixEnd)) return prefix + headingBody(body);
-        String highlightedBody = highlightInlineSource(body);
-        if (plainSlot != null && prefixEnd == 0 && highlightedBody.equals(body)) return slotStyled(plainSlot, line);
+        String highlightedBody = highlightInlineSource(body, defaultTextSlot, defaultItalic);
         return prefix + highlightedBody;
     }
 
@@ -81,16 +80,26 @@ final class TerminalMarkdownRenderer {
         return prefix.substring(0, i) + slotStyled(slot, prefix.substring(i));
     }
 
-    private String highlightInlineSource(String line) {
+    private String highlightInlineSource(String line, String defaultTextSlot, boolean defaultItalic) {
         var out = new StringBuilder();
+        var plain = new StringBuilder();
         for (int i = 0; i < line.length();) {
+            char ch = line.charAt(i);
+            if (ch == '[' || ch == '`' || ch == '*' || ch == '~') {
+                appendDefaultStyled(out, plain, defaultTextSlot, defaultItalic);
+            }
             int next = appendCheckbox(line, i, out);
             if (next < 0) next = appendDelimited(line, i, "`", "inlineCode", out);
             if (next < 0) next = appendDelimited(line, i, "**", "bold", out);
             if (next < 0) next = appendDelimited(line, i, "~~", "strikethrough", out);
-            if (next >= 0) { i = next; continue; }
-            out.append(line.charAt(i++));
+            if (next >= 0) {
+                i = next;
+                continue;
+            }
+            plain.append(ch);
+            i++;
         }
+        appendDefaultStyled(out, plain, defaultTextSlot, defaultItalic);
         return out.toString();
     }
 
@@ -135,14 +144,29 @@ final class TerminalMarkdownRenderer {
     // ---- helpers ----------------------------------------------
 
     private String headingBody(String body) {
-        String styled = slotStyled("heading", body);
-        if (styled.isEmpty()) return styled;
-        return theme.enabled ? "\033[1m" + styled : styled;
+        return slotStyled("heading", body);
     }
 
     private String slotStyled(String slot, String text) {
         if (text == null || text.isEmpty()) return "";
         return theme.styled(slot, text);
+    }
+
+    private void appendDefaultStyled(StringBuilder out, StringBuilder plain, String slot, boolean italic) {
+        if (plain.isEmpty()) return;
+        String text = plain.toString();
+        plain.setLength(0);
+        if (!italic && (slot == null || slot.isBlank())) {
+            out.append(text);
+            return;
+        }
+        if (!theme.enabled) {
+            out.append(text);
+            return;
+        }
+        if (slot != null && !slot.isBlank()) out.append(theme.style(slot));
+        if (italic) out.append(theme.style("italic"));
+        out.append(text).append(theme.reset());
     }
 
 }

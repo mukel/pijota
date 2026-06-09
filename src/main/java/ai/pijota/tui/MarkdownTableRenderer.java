@@ -151,27 +151,39 @@ final class MarkdownTableRenderer {
     }
 
     private String applyTextMarks(String text) {
-        text = applyMark(text, "==", "highlight");
-        text = applyMark(text, "++", "diffAdd");
-        return applyMark(text, "--", "diffDelete");
-    }
-
-    private String applyMark(String text, String marker, String slot) {
         var sb = new StringBuilder();
         int i = 0;
-        int mlen = marker.length();
         while (i < text.length()) {
-            int start = text.indexOf(marker, i);
-            if (start < 0) { sb.append(text.substring(i)); break; }
-            sb.append(text, i, start);
-            int end = text.indexOf(marker, start + mlen);
-            if (end < 0) { sb.append(text.substring(start)); break; }
-            sb.append(styled("dim", marker));
-            sb.append(styled(slot, text.substring(start + mlen, end)));
-            sb.append(styled("dim", marker));
-            i = end + mlen;
+            Mark mark = nextMark(text, i);
+            if (mark == null) {
+                sb.append(styled("text", text.substring(i)));
+                break;
+            }
+            if (mark.start() > i) sb.append(styled("text", text.substring(i, mark.start())));
+            int contentStart = mark.start() + mark.marker().length();
+            int end = text.indexOf(mark.marker(), contentStart);
+            if (end < 0) {
+                sb.append(styled("text", text.substring(mark.start())));
+                break;
+            }
+            sb.append(styled("dim", mark.marker()));
+            sb.append(styled(mark.slot(), text.substring(contentStart, end)));
+            sb.append(styled("dim", mark.marker()));
+            i = end + mark.marker().length();
         }
         return sb.toString();
+    }
+
+    private record Mark(int start, String marker, String slot) {}
+
+    private static Mark nextMark(String text, int from) {
+        Mark best = null;
+        for (var mark : List.of(new Mark(text.indexOf("==", from), "==", "highlight"),
+            new Mark(text.indexOf("++", from), "++", "diffAdd"),
+            new Mark(text.indexOf("--", from), "--", "diffDelete"))) {
+            if (mark.start() >= 0 && (best == null || mark.start() < best.start())) best = mark;
+        }
+        return best;
     }
 
     private String renderLink(Link link) {
@@ -179,7 +191,7 @@ final class MarkdownTableRenderer {
         String url = link.getDestination();
         String bracketed = styled("dim", "[") + styled("mdLink", text) + styled("dim", "]");
         if (url == null || url.isBlank() || url.indexOf(' ') >= 0) return bracketed;
-        String visible = bracketed + styled("dim", "(") + styled("statusText", url) + styled("dim", ")");
+        String visible = bracketed + styled("dim", "(") + styled("mdLinkUrl", url) + styled("dim", ")");
         return "\033]8;;" + url + "\033\\" + visible + "\033]8;;\033\\";
     }
 

@@ -20,6 +20,9 @@ public sealed interface ProviderFactory {
             if ("openai-codex".equals(providerName)) {
                 return new CodexStreamingChatModel(baseUrl, apiKey, modelName, providerName, thinkingLevel);
             }
+            if ("local".equals(providerName) || "workstation".equals(providerName)) {
+                return new LocalOpenAiStreamingChatModel(baseUrl, apiKey, modelName, thinkingLevel);
+            }
             var builder = OpenAiStreamingChatModel.builder()
                 .baseUrl(baseUrl)
                 .apiKey(apiKey)

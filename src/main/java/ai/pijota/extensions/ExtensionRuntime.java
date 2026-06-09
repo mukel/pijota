@@ -1,6 +1,6 @@
 package ai.pijota.extensions;
 
-import ai.pijota.llm.LlmService;
+import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ExtensionRuntime {
-    LlmService llm();
+    LlmClient llm();
     Path cwd();
     String systemPrompt();
     List<Message> messages();

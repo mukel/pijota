@@ -28,9 +28,9 @@ public final class PromptLayout {
         int cursorRow = -1;
         int cursorCol = -1;
 
-        // separator between content and prompt area
+        // A single quiet separator keeps the prompt visually grounded without boxing it in.
         out.print("\r\033[K");
-        out.print(theme.styled("hr", "╭" + "─".repeat(Math.max(0, width - 2))));
+        out.print(theme.styled("hr", "─".repeat(Math.max(10, width - 2))));
         out.print("\r\n");
         height = 1;
 
@@ -58,4 +58,5 @@ public final class PromptLayout {
         }
         out.flush();
     }
+
 }

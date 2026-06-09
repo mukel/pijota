@@ -8,17 +8,19 @@ import java.util.function.Predicate;
 
 final class TuiSelectors {
     enum Slot {
-        MODEL(ModelItem.class),
-        SESSION(SessionItem.class),
-        THEME(ThemeItem.class),
-        SETTINGS(SettingsItem.class),
-        LOGIN(LoginProviderItem.class),
-        FORK(ForkMessageItem.class);
+        MODEL(ModelItem.class, "models"),
+        SESSION(SessionItem.class, "sessions"),
+        THEME(ThemeItem.class, "themes"),
+        SETTINGS(SettingsItem.class, "settings"),
+        LOGIN(LoginProviderItem.class, "providers"),
+        FORK(ForkMessageItem.class, "fork from");
 
         private final Class<? extends SelectorItem> itemType;
+        private final String title;
 
-        Slot(Class<? extends SelectorItem> itemType) {
+        Slot(Class<? extends SelectorItem> itemType, String title) {
             this.itemType = itemType;
+            this.title = title;
         }
     }
 
@@ -50,9 +52,14 @@ final class TuiSelectors {
     }
 
     <T extends SelectorItem> void show(Slot slot, List<T> items) {
+        show(slot, items, null);
+    }
+
+    <T extends SelectorItem> void show(Slot slot, List<T> items, String query) {
         checkItems(slot, items);
+        selector(slot).setTitle(slot.title);
         selector(slot).setItems(new ArrayList<>(items));
-        selector(slot).activate(null);
+        selector(slot).activate(query);
     }
 
     <T extends SelectorItem> void selectFirst(Slot slot, Predicate<T> test) {

@@ -489,7 +489,7 @@ public final class ExtensionRegistry {
 
     private class ExtensionRuntimeImpl implements ExtensionRuntime {
         @Override
-        public LlmService llm() {
+        public ai.pijota.llm.LlmClient llm() {
             return agentContext != null ? agentContext.llm() : llm;
         }
 

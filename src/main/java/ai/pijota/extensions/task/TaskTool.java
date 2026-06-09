@@ -1,6 +1,6 @@
 package ai.pijota.extensions.task;
 
-import ai.pijota.llm.LlmService;
+import ai.pijota.llm.LlmClient;
 import ai.pijota.tools.Tool;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
@@ -24,7 +24,7 @@ public final class TaskTool implements Tool {
     private static final int OUTPUT_PREVIEW_LINES = 12;
 
     private final List<SubAgent> agents;
-    private final LlmService llm;
+    private final LlmClient llm;
     private final java.util.function.Supplier<List<String>> enabledToolNames;
     private final java.util.function.Supplier<String> systemPrompt;
     private final java.util.function.BiConsumer<String, String> activityHandler;
@@ -34,7 +34,7 @@ public final class TaskTool implements Tool {
     private final Map<String, List<Map<String, Object>>> chainConfigs;
     private final AtomicInteger logCounter = new AtomicInteger();
 
-    public TaskTool(List<SubAgent> agents, LlmService llm,
+    public TaskTool(List<SubAgent> agents, LlmClient llm,
                     java.util.function.Supplier<List<String>> enabledToolNames,
                     java.util.function.Supplier<String> systemPrompt,
                     java.util.function.BiConsumer<String, String> activityHandler,

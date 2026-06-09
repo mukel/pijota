@@ -45,7 +45,9 @@ public final class ModelRegistry {
 
     public static String defaultModelForProvider(String provider) {
         String fromCatalog = ProviderCatalog.defaultModel(provider);
-        if (fromCatalog != null && !fromCatalog.isBlank()) return fromCatalog;
+        if (fromCatalog != null && !fromCatalog.isBlank() && isKnownProviderModel(provider, fromCatalog)) {
+            return fromCatalog;
+        }
         return forProvider(provider).stream()
             .map(ModelInfo::id)
             .findFirst()
@@ -81,16 +83,24 @@ public final class ModelRegistry {
 
     public static ResolvedModel resolve(SessionManager.ModelSelection selection, SettingsManager settings) {
         if (selection == null || settings == null) return null;
-        String key = settings.resolveApiKey(selection.provider());
+        var providerModel = resolveProviderModel(selection.provider(), selection.model(), settings);
+        String key = settings.resolveApiKey(providerModel.provider());
         if (key == null || key.isBlank()) return null;
-        return new ResolvedModel(selection.provider(), selection.model(), key, resolveContextWindow(selection));
+        long contextWindow = selection.provider().equalsIgnoreCase(providerModel.provider())
+            && selection.model().equalsIgnoreCase(providerModel.model())
+            && selection.contextWindow() > 0
+            ? selection.contextWindow()
+            : resolveContextWindow(providerModel.provider(), providerModel.model());
+        return new ResolvedModel(providerModel.provider(), providerModel.model(), key, contextWindow);
     }
 
     public static ResolvedModel resolve(String provider, String model, SettingsManager settings) {
         if (provider == null || model == null || settings == null) return null;
-        String key = settings.resolveApiKey(provider);
+        var providerModel = resolveProviderModel(provider, model, settings);
+        String key = settings.resolveApiKey(providerModel.provider());
         if (key == null || key.isBlank()) return null;
-        return new ResolvedModel(provider, model, key, resolveContextWindow(provider, model));
+        return new ResolvedModel(providerModel.provider(), providerModel.model(), key,
+            resolveContextWindow(providerModel.provider(), providerModel.model()));
     }
 
     public record ResolvedModel(String provider, String model, String apiKey, long contextWindow) {
@@ -102,12 +112,20 @@ public final class ModelRegistry {
     public static ProviderModel resolveProviderModel(String explicitProvider, String explicitModel, SettingsManager settings) {
         String provider = explicitProvider;
         String model = explicitModel;
-        if (provider == null && settings != null) provider = settings.config().defaultProvider();
         if (provider == null && model != null) provider = providerForModel(model);
+        if (provider == null && settings != null) provider = settings.config().defaultProvider();
         if (provider == null) provider = "openai";
         if (model == null) model = settings != null ? settings.config().defaultModel() : null;
-        if (model == null) model = defaultModelForProvider(provider);
+        if (model == null || !isKnownProviderModel(provider, model)) {
+            model = defaultModelForProvider(provider);
+        }
         return new ProviderModel(provider, model);
+    }
+
+    public static boolean isKnownProviderModel(String provider, String model) {
+        if (provider == null || model == null) return false;
+        return KNOWN_MODELS.stream()
+            .anyMatch(m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model));
     }
 
     private static List<ModelInfo> load() {

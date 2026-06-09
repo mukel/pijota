@@ -32,6 +32,11 @@ public final class SettingsManager {
         save();
     }
 
+    public void setThinkingLevel(String level) {
+        config = config.withThinkingLevel(level);
+        save();
+    }
+
     public void setHideThinking(boolean enabled) {
         config = config.withHideThinking(enabled);
         save();
@@ -104,16 +109,19 @@ public final class SettingsManager {
         return null;
     }
 
+    /** Returns true if the provider requires an API key (has env vars or OAuth). */
+    public static boolean requiresApiKey(String provider) {
+        if (ProviderCatalog.oauth(provider).isPresent()) return true;
+        return !ProviderCatalog.envNames(provider).isEmpty();
+    }
+
     public String resolveApiKey(String provider) {
+        // Providers with no env vars and no OAuth don't need an API key
+        if (!requiresApiKey(provider)) return "";
+
         var oauthStore = new OAuthTokenStore();
         String oauthToken = oauthStore.getAccessToken(provider);
         if (oauthToken != null && !oauthToken.isBlank()) return oauthToken;
-
-        // For OAuth-capable providers, skip settings.json apiKeys — the token
-        // there is a stale copy from before the OAuthTokenStore auto-refresh era.
-        boolean isOAuthProvider = ProviderCatalog.oauth(provider).isPresent();
-
-        if (isOAuthProvider) return null;
 
         String key = config.apiKeys() != null ? config.apiKeys().get(provider) : null;
         if (key != null) return key;

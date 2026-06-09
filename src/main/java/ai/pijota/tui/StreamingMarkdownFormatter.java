@@ -12,7 +12,8 @@ final class StreamingMarkdownFormatter {
 
     private final TerminalMarkdownRenderer renderer;
     private AnsiTheme theme;
-    private final String plainSlot;
+    private final String defaultTextSlot;
+    private final boolean defaultItalic;
     private final StringBuilder table = new StringBuilder();
     private String pendingTableHeader;
     private boolean inFence;
@@ -20,12 +21,13 @@ final class StreamingMarkdownFormatter {
     private boolean previousNonBlank;
 
     public StreamingMarkdownFormatter(AnsiTheme theme) {
-        this(theme, null);
+        this(theme, "text", false);
     }
 
-    public StreamingMarkdownFormatter(AnsiTheme theme, String plainSlot) {
+    public StreamingMarkdownFormatter(AnsiTheme theme, String defaultTextSlot, boolean defaultItalic) {
         this.theme = theme;
-        this.plainSlot = plainSlot;
+        this.defaultTextSlot = defaultTextSlot;
+        this.defaultItalic = defaultItalic;
         this.renderer = new TerminalMarkdownRenderer(theme);
     }
 
@@ -95,9 +97,8 @@ final class StreamingMarkdownFormatter {
     }
 
     private String renderCodeLine(String line) {
-        String gutter = theme.styled("statusText", "│ ");
-        if (fenceHighlighter != null) return gutter + fenceHighlighter.highlightLine(line);
-        return gutter + styled("codeBody", line);
+        if (fenceHighlighter != null) return fenceHighlighter.highlightLine(line);
+        return styled("codeBody", line);
     }
 
     private List<String> acceptMarkdownLine(String line) {
@@ -176,7 +177,7 @@ final class StreamingMarkdownFormatter {
             if (previousNonBlank && startsWithHeading(chunk)) {
                 out.add(StyledLine.of(""));
             }
-            var rendered = renderer.render(chunk, plainSlot);
+            var rendered = renderer.render(chunk, defaultTextSlot, defaultItalic);
             out.addAll(rendered);
             previousNonBlank = rendered.stream().anyMatch(line -> !line.text().isEmpty());
         }
@@ -206,7 +207,7 @@ final class StreamingMarkdownFormatter {
     }
 
     private StyledLine fenceLine(String text) {
-        return StyledLine.of(styled("dim", text));
+        return StyledLine.of(styled("codeFence", text));
     }
 
     private String styled(String slot, String text) {
