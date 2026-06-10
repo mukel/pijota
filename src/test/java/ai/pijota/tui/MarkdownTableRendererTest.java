@@ -4,38 +4,43 @@ import ai.pijota.testkit.AnsiStripper;
 import ai.pijota.theme.AnsiTheme;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class MarkdownTableRendererTest {
     @Test
-    void rendersTableWithHeadersAndData() {
-        var rendered = MarkdownTableRenderer.renderIfTable(
-            "| Name | Age |\n|------|-----|\n| Alice | 30 |",
-            AnsiTheme.dark(), 40);
+    void rendersSimpleMarkdownTableWithAlignment() {
+        var result = MarkdownTableRenderer.renderIfTable(
+            "| A   | B   |\n| --- | --- |\n| x   | y   |",
+            AnsiTheme.dark(), 80);
 
-        assertTrue(rendered.isPresent());
-        var lines = rendered.get();
-        assertTrue(lines.size() >= 4);
-        assertTrue(AnsiStripper.strip(lines.get(1).text()).contains("Alice"));
-        assertTrue(AnsiStripper.strip(lines.get(1).text()).contains("30"));
+        assertTrue(result.isPresent());
+        var lines = result.get();
+        assertEquals(5, lines.size());
+        assertTrue(lines.get(1).text().contains("A"));
+        assertTrue(lines.get(1).text().contains("B"));
+        assertTrue(lines.get(2).text().contains("─"));
+        assertTrue(lines.get(3).text().contains("x"));
+        assertTrue(lines.get(3).text().contains("y"));
     }
 
     @Test
-    void returnsEmptyForNonTableInput() {
-        assertTrue(MarkdownTableRenderer.renderIfTable(
-            "plain text line", AnsiTheme.dark(), 40).isEmpty());
+    void headersUseBoldSlot() {
+        var result = MarkdownTableRenderer.renderIfTable(
+            "| Name |\n| ---- |\n| val  |",
+            AnsiTheme.dark(), 80);
 
-        assertTrue(MarkdownTableRenderer.renderIfTable(
-            "|orphan pipe no newline", AnsiTheme.dark(), 40).isEmpty());
+        var headerLine = result.orElseThrow().get(1).text();
+        assertTrue(headerLine.contains("\u001B[1m"), "header should use bold style");
+        assertEquals("Name", AnsiStripper.strip(headerLine).trim());
     }
 
     @Test
-    void tableSeparatorUsesThemeHrSlot() {
-        var rendered = MarkdownTableRenderer.renderIfTable(
-            "| A | B |\n|---|---|", AnsiTheme.dark(), 30);
-
-        assertTrue(rendered.isPresent());
-        var separatorLine = rendered.get().get(2).text();
-        assertTrue(separatorLine.contains("─") || separatorLine.contains("\u001B["));
+    void returnsEmptyWhenInputIsNotATable() {
+        assertEquals(Optional.empty(), MarkdownTableRenderer.renderIfTable(
+            "plain text", AnsiTheme.dark(), 80));
+        assertEquals(Optional.empty(), MarkdownTableRenderer.renderIfTable(
+            "| single pipe |", AnsiTheme.dark(), 80));
     }
 }
