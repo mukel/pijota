@@ -1,11 +1,5 @@
 package ai.pijota.tui;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,29 +29,20 @@ public final class PromptEditor {
 
     private final SlashCommandRegistry commands;
     private final FileCompletionProvider fileCompletionProvider;
-    private final List<String> lines = new ArrayList<>();
-    private int row;
-    private int col;
-    private int desiredCol = -1;
-    private List<CompletionItem> completions = List.of();
-    private int selectedCompletion = -1;
-    private final Selector<CompletionItem> selector = new Selector<>(List.of());
-    private final List<String> history = new ArrayList<>();
-    private int historyIndex = -1;
-    private String preHistoryText = "";
-    private String completionPrefix = "";
+    private final PromptTextBuffer buffer = new PromptTextBuffer();
+    private final PromptCompletionState completions = new PromptCompletionState();
+    private final PromptHistory history = new PromptHistory();
     private String suggestion = "";
 
     public PromptEditor(SlashCommandRegistry commands) {
-        this(commands, PromptEditor::defaultFileCompletions);
+        this(commands, PromptFileCompletions::complete);
     }
 
     PromptEditor(SlashCommandRegistry commands, FileCompletionProvider fileCompletionProvider) {
         this.commands = commands;
         this.fileCompletionProvider = fileCompletionProvider != null
                                         ? fileCompletionProvider
-                                        : PromptEditor::defaultFileCompletions;
-        lines.add("");
+                                        : PromptFileCompletions::complete;
     }
 
     public synchronized Result apply(Key key) {
@@ -72,12 +57,12 @@ public final class PromptEditor {
     }
 
     public synchronized PromptSnapshot snapshot() {
-        return new PromptSnapshot(List.copyOf(lines), row, col, completions, selectedCompletion)
-                                        .withSuggestion(suggestion);
+        return new PromptSnapshot(buffer.lines(), buffer.row(), buffer.col(), completions.visibleItems(),
+                                        completions.selectedIndex()).withSuggestion(suggestion);
     }
 
     public synchronized String text() {
-        return String.join("\n", lines);
+        return buffer.text();
     }
 
     public synchronized String suggestion() {
@@ -85,7 +70,7 @@ public final class PromptEditor {
     }
 
     public synchronized boolean reverseHistoryActive() {
-        return selector.active() && !history.isEmpty() && selector.itemCount() == history.size();
+        return completions.active() && history.isReverseSearchItemCount(completions.itemCount());
     }
 
     public synchronized void setText(String text) {
@@ -102,31 +87,11 @@ public final class PromptEditor {
             case RIGHT -> right();
             case UP -> up();
             case DOWN -> down();
-            case HOME -> {
-                col = 0;
-                desiredCol = -1;
-                clearCompletions();
-                yield Result.didChange();
-            }
-            case END -> {
-                col = lines.get(row).length();
-                desiredCol = -1;
-                clearCompletions();
-                yield Result.didChange();
-            }
+            case HOME -> applyEffect(buffer.home());
+            case END -> applyEffect(buffer.end());
             case TAB -> complete();
-            case CTRL_A -> {
-                col = 0;
-                desiredCol = -1;
-                clearCompletions();
-                yield Result.didChange();
-            }
-            case CTRL_E -> {
-                col = lines.get(row).length();
-                desiredCol = -1;
-                clearCompletions();
-                yield Result.didChange();
-            }
+            case CTRL_A -> applyEffect(buffer.home());
+            case CTRL_E -> applyEffect(buffer.end());
             case CTRL_K -> killToEnd();
             case CTRL_U -> {
                 reset();
@@ -144,131 +109,75 @@ public final class PromptEditor {
     }
 
     private Result insert(char ch) {
-        String line = lines.get(row);
-        lines.set(row, line.substring(0, col) + ch + line.substring(col));
-        col++;
-        desiredCol = -1;
-        refreshCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.insert(ch));
     }
 
     private Result newline() {
-        String line = lines.get(row);
-        lines.set(row, line.substring(0, col));
-        lines.add(row + 1, line.substring(col));
-        row++;
-        col = 0;
-        desiredCol = -1;
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.newline());
     }
 
     private Result submit() {
         String text;
-        if (selector.total() > 0)
+        if (completions.total() > 0)
             return submitOrAcceptCompletion();
-        text = String.join("\n", lines).stripTrailing();
+        text = buffer.text().stripTrailing();
         reset();
-        if (!text.isBlank()) {
-            history.remove(text);
-            history.add(text);
-        }
+        history.add(text);
         return text.isBlank() ? Result.didChange() : Result.submitted(text);
     }
 
     private Result backspace() {
-        if (col > 0) {
-            String line = lines.get(row);
-            lines.set(row, line.substring(0, col - 1) + line.substring(col));
-            col--;
-            desiredCol = -1;
-            refreshCompletions();
-            return Result.didChange();
-        }
-        if (row == 0)
-            return Result.unchangedResult();
-        return mergeWithPrevious();
+        return applyEffect(buffer.backspace());
     }
 
     private Result delete() {
-        String line = lines.get(row);
-        if (col < line.length()) {
-            lines.set(row, line.substring(0, col) + line.substring(col + 1));
-            desiredCol = -1;
-            refreshCompletions();
-            return Result.didChange();
-        }
-        if (row >= lines.size() - 1)
-            return Result.unchangedResult();
-        lines.set(row, line + lines.remove(row + 1));
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.delete());
     }
 
     private Result left() {
-        if (col > 0)
-            col--;
-        else if (row > 0) {
-            row--;
-            col = lines.get(row).length();
-        } else
-            return Result.unchangedResult();
-        desiredCol = -1;
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.left());
     }
 
     private Result right() {
-        if (col < lines.get(row).length())
-            col++;
-        else if (row < lines.size() - 1) {
-            row++;
-            col = 0;
-        } else
-            return Result.unchangedResult();
-        desiredCol = -1;
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.right());
     }
 
     private Result up() {
-        if (row == 0)
-            return Result.unchangedResult();
-        if (desiredCol < 0)
-            desiredCol = col;
-        row--;
-        col = Math.min(desiredCol, lines.get(row).length());
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.up());
     }
 
     private Result down() {
-        if (row >= lines.size() - 1)
-            return Result.unchangedResult();
-        if (desiredCol < 0)
-            desiredCol = col;
-        row++;
-        col = Math.min(desiredCol, lines.get(row).length());
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.down());
+    }
+
+    private Result applyEffect(PromptTextBuffer.Effect effect) {
+        return switch (effect) {
+            case UNCHANGED -> Result.unchangedResult();
+            case REFRESH_COMPLETIONS -> {
+                refreshCompletions();
+                yield Result.didChange();
+            }
+            case CLEAR_COMPLETIONS -> {
+                clearCompletions();
+                yield Result.didChange();
+            }
+        };
     }
 
     private Result complete() {
-        if (row != 0 || col != lines.getFirst().length())
+        if (reverseHistoryActive())
             return Result.unchangedResult();
-        String text = lines.getFirst();
-        completionPrefix = "";
+        if (!buffer.isAtEndOfFirstLine())
+            return Result.unchangedResult();
+        String text = buffer.firstLine();
+        completions.prefix("");
 
         if (text.startsWith("/")) {
             var matches = commands.completeWithDescriptions(text);
             if (!matches.isEmpty()) {
                 if (matches.size() == 1) {
-                    lines.set(0, matches.getFirst().name());
-                    col = lines.getFirst().length();
-                    desiredCol = -1;
-                    selector.deactivate();
-                    completions = List.of();
-                    selectedCompletion = -1;
+                    buffer.replaceSingleLine(matches.getFirst().name());
+                    completions.clear();
                     suggestion = "";
                     return Result.didChange();
                 }
@@ -276,76 +185,25 @@ public final class PromptEditor {
                 if (prefixMatches.size() >= 2) {
                     String common = commonPrefix(prefixMatches);
                     if (common.length() > text.length()) {
-                        lines.set(0, common);
-                        col = common.length();
-                        desiredCol = -1;
-                        selector.deactivate();
-                        completions = List.of();
-                        selectedCompletion = -1;
+                        buffer.replaceSingleLine(common);
+                        completions.clear();
                         refreshCompletions();
                         return Result.didChange();
                     }
                 }
-                selector.setItems(matches);
-                selector.activate(text);
-                completions = matches;
-                selectedCompletion = selector.selectionIndex();
+                completions.show(matches, text, "");
                 return Result.didChange();
             }
         }
 
-        completionPrefix = fileCompletionPrefix(text);
+        String completionPrefix = fileCompletionPrefix(text);
         var paths = fileCompletionProvider.complete(text);
         if (!paths.isEmpty()) {
-            selector.setItems(paths);
-            selector.activate(text);
-            completions = paths;
-            selectedCompletion = selector.selectionIndex();
+            completions.show(paths, text, completionPrefix);
             return Result.didChange();
         }
 
         return Result.unchangedResult();
-    }
-
-    private static List<CompletionItem> defaultFileCompletions(String text) {
-        int lastSpace = text.lastIndexOf(' ');
-        String prefix = lastSpace >= 0 ? text.substring(lastSpace + 1) : text;
-        if (prefix.isBlank())
-            return List.of();
-        try {
-            Path dir;
-            String filePrefix;
-            int lastSep = Math.max(prefix.lastIndexOf('/'), prefix.lastIndexOf(File.separatorChar));
-            if (lastSep >= 0) {
-                String dirStr = prefix.substring(0, lastSep + 1);
-                dir = Path.of(dirStr);
-                if (!dir.isAbsolute())
-                    dir = Path.of("").toAbsolutePath().resolve(dir);
-                filePrefix = prefix.substring(lastSep + 1);
-            } else {
-                dir = Path.of("").toAbsolutePath();
-                filePrefix = prefix;
-            }
-            if (!Files.isDirectory(dir))
-                return List.of();
-            String fPrefix = filePrefix.toLowerCase();
-            try (var stream = Files.list(dir)) {
-                return stream.filter(p -> {
-                    String name = p.getFileName().toString();
-                    return !name.startsWith(".") && name.toLowerCase().contains(fPrefix);
-                }).sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase())).limit(15).map(p -> {
-                    String name = p.getFileName().toString();
-                    String display = lastSep >= 0 ? prefix.substring(0, lastSep + 1) + name : name;
-                    if (Files.isDirectory(p))
-                        display += "/";
-                    return new CompletionItem(display, Files.isDirectory(p) ? "dir" : "");
-                }).toList();
-            } catch (IOException e) {
-                return List.of();
-            }
-        } catch (Exception e) {
-            return List.of();
-        }
     }
 
     private static String fileCompletionPrefix(String text) {
@@ -353,127 +211,40 @@ public final class PromptEditor {
         return lastSpace >= 0 ? text.substring(0, lastSpace + 1) : "";
     }
 
-    private Result mergeWithPrevious() {
-        String current = lines.remove(row);
-        row--;
-        col = lines.get(row).length();
-        lines.set(row, lines.get(row) + current);
-        desiredCol = -1;
-        clearCompletions();
-        return Result.didChange();
-    }
-
     private Result killToEnd() {
-        String line = lines.get(row);
-        if (col < line.length()) {
-            lines.set(row, line.substring(0, col));
-            desiredCol = -1;
-            clearCompletions();
-            return Result.didChange();
-        }
-        if (row >= lines.size() - 1)
-            return Result.unchangedResult();
-        lines.subList(row + 1, lines.size()).clear();
-        desiredCol = -1;
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.killToEnd());
     }
 
     private Result deleteWordBeforeCursor() {
-        if (col == 0) {
-            if (row == 0)
-                return Result.unchangedResult();
-            return mergeWithPrevious();
-        }
-
-        String line = lines.get(row);
-        int start = col;
-        while (start > 0 && Character.isWhitespace(line.charAt(start - 1)))
-            start--;
-        while (start > 0 && !Character.isWhitespace(line.charAt(start - 1)))
-            start--;
-        lines.set(row, line.substring(0, start) + line.substring(col));
-        col = start;
-        desiredCol = -1;
-        refreshCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.deleteWordBeforeCursor());
     }
 
     private Result deleteWordAfterCursor() {
-        String line = lines.get(row);
-        if (col >= line.length()) {
-            if (row >= lines.size() - 1)
-                return Result.unchangedResult();
-            lines.set(row, line + lines.remove(row + 1));
-            desiredCol = -1;
-            clearCompletions();
-            return Result.didChange();
-        }
-
-        int end = col;
-        while (end < line.length() && Character.isWhitespace(line.charAt(end)))
-            end++;
-        while (end < line.length() && !Character.isWhitespace(line.charAt(end)))
-            end++;
-        lines.set(row, line.substring(0, col) + line.substring(end));
-        desiredCol = -1;
-        refreshCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.deleteWordAfterCursor());
     }
 
     private Result wordLeft() {
-        if (col == 0) {
-            if (row == 0)
-                return Result.unchangedResult();
-            row--;
-            col = lines.get(row).length();
-        }
-        String line = lines.get(row);
-        while (col > 0 && Character.isWhitespace(line.charAt(col - 1)))
-            col--;
-        while (col > 0 && !Character.isWhitespace(line.charAt(col - 1)))
-            col--;
-        desiredCol = -1;
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.wordLeft());
     }
 
     private Result wordRight() {
-        String line = lines.get(row);
-        if (col >= line.length()) {
-            if (row >= lines.size() - 1)
-                return Result.unchangedResult();
-            row++;
-            col = 0;
-            line = lines.get(row);
-        }
-        while (col < line.length() && !Character.isWhitespace(line.charAt(col)))
-            col++;
-        while (col < line.length() && Character.isWhitespace(line.charAt(col)))
-            col++;
-        desiredCol = -1;
-        clearCompletions();
-        return Result.didChange();
+        return applyEffect(buffer.wordRight());
     }
 
     private Result submitOrAcceptCompletion() {
-        String accepted = completionPrefix + selector.selectedItem().name();
+        String accepted = completions.prefix() + completions.selectedItem().name();
         if (isSlashCommandCompletion()) {
             reset();
-            history.remove(accepted);
             history.add(accepted);
             return Result.submitted(accepted);
         }
-        lines.set(0, accepted);
-        row = 0;
-        col = accepted.length();
-        desiredCol = -1;
+        buffer.replaceSingleLine(accepted);
         clearCompletions();
         return Result.didChange();
     }
 
     private boolean isSlashCommandCompletion() {
-        return row == 0 && lines.size() == 1 && lines.getFirst().startsWith("/");
+        return buffer.isSingleLineStartingWith("/");
     }
 
     private void refreshCompletions() {
@@ -481,16 +252,13 @@ public final class PromptEditor {
             suggestion = computeSuggestion();
             return;
         }
-        if (row == 0 && col == lines.getFirst().length()) {
-            String text = lines.getFirst();
-            completionPrefix = "";
+        if (buffer.isAtEndOfFirstLine()) {
+            String text = buffer.firstLine();
+            completions.prefix("");
             if (text.startsWith("/")) {
                 var matches = commands.completeWithDescriptions(text);
                 if (!matches.isEmpty()) {
-                    selector.setItems(matches);
-                    selector.filter(text);
-                    completions = matches;
-                    selectedCompletion = selector.selectionIndex();
+                    completions.filter(matches, text);
                     suggestion = computeSuggestion();
                     return;
                 }
@@ -503,7 +271,7 @@ public final class PromptEditor {
     }
 
     private String computeSuggestion() {
-        if (row != lines.size() - 1 || col != lines.getLast().length())
+        if (!buffer.cursorAtEndOfBuffer())
             return "";
         String text = text();
         if (text.startsWith("/")) {
@@ -513,12 +281,7 @@ public final class PromptEditor {
             String first = matches.getFirst();
             return first.length() > text.length() ? first : "";
         }
-        for (int i = history.size() - 1; i >= 0; i--) {
-            String entry = history.get(i);
-            if (entry.regionMatches(true, 0, text, 0, text.length()) && entry.length() > text.length())
-                return entry;
-        }
-        return "";
+        return history.suggestionFor(text);
     }
 
     private static String commonPrefix(List<CompletionItem> matches) {
@@ -539,119 +302,60 @@ public final class PromptEditor {
     }
 
     private Result reverseHistorySearch() {
-        if (history.isEmpty())
+        var items = history.reverseSearchItems();
+        if (items.isEmpty())
             return Result.unchangedResult();
-        var items = history.reversed().stream().<CompletionItem>map(h -> new CompletionItem(h, "history")).toList();
-        selector.setItems(items);
-        selector.activate("");
-        completions = items;
-        selectedCompletion = 0;
+        completions.show(items, "", "");
         return Result.didChange();
     }
 
     void clearCompletions() {
-        completions = List.of();
-        selectedCompletion = -1;
-        completionPrefix = "";
+        completions.clear();
         suggestion = "";
-        selector.setItems(List.of());
-        selector.deactivate();
     }
 
     public void insertText(String text) {
-        if (text == null || text.isEmpty())
-            return;
-        String[] parts = text.split("\\R", -1);
-        if (parts.length == 1) {
-            for (char ch : text.toCharArray())
-                insert(ch);
-            return;
-        }
-        String line = lines.get(row);
-        String suffix = line.substring(col);
-        lines.set(row, line.substring(0, col) + parts[0]);
-        col += parts[0].length();
-        for (int i = 1; i < parts.length; i++) {
-            newline();
-            String current = lines.get(row);
-            lines.set(row, current + parts[i]);
-            col += parts[i].length();
-        }
-        lines.set(row, lines.get(row) + suffix);
-        desiredCol = -1;
-        refreshCompletions();
+        applyEffect(buffer.insertText(text));
     }
 
     public boolean hasCompletions() {
-        return selector.total() > 0;
+        return completions.total() > 0;
     }
 
     public void selectNext() {
-        selector.selectNext();
-        selectedCompletion = selector.selectionIndex();
+        completions.selectNext();
     }
 
     public void selectPrev() {
-        selector.selectPrev();
-        selectedCompletion = selector.selectionIndex();
+        completions.selectPrev();
     }
 
     public boolean isEmpty() {
-        return lines.size() == 1 && lines.getFirst().isEmpty();
+        return buffer.isEmpty();
     }
 
     public boolean isInHistory() {
-        return historyIndex >= 0;
+        return history.isNavigating();
     }
 
     public synchronized boolean historyPrev() {
-        if (history.isEmpty())
-            return false;
-        if (historyIndex < 0) {
-            preHistoryText = String.join("\n", lines);
-            historyIndex = history.size() - 1;
-        } else if (historyIndex > 0) {
-            historyIndex--;
-        } else {
-            return false;
-        }
-        setTextInternal(history.get(historyIndex));
-        return true;
+        return history.previous(buffer.text()).map(text -> {
+            setTextInternal(text);
+            return true;
+        }).orElse(false);
     }
 
     public synchronized void historyNext() {
-        if (historyIndex < 0)
-            return;
-        historyIndex++;
-        if (historyIndex >= history.size()) {
-            historyIndex = -1;
-            setTextInternal(preHistoryText);
-        } else {
-            setTextInternal(history.get(historyIndex));
-        }
+        history.next().ifPresent(this::setTextInternal);
     }
 
     private void setTextInternal(String text) {
-        lines.clear();
-        if (text == null || text.isEmpty()) {
-            lines.add("");
-        } else {
-            lines.addAll(text.lines().toList());
-            if (text.endsWith("\n"))
-                lines.add("");
-        }
-        row = lines.size() - 1;
-        col = lines.get(row).length();
-        desiredCol = -1;
+        buffer.setText(text);
         clearCompletions();
     }
 
     private void reset() {
-        lines.clear();
-        lines.add("");
-        row = 0;
-        col = 0;
-        desiredCol = -1;
+        buffer.reset();
         clearCompletions();
     }
 }
