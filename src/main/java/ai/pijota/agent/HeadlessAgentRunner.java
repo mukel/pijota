@@ -2,6 +2,7 @@ package ai.pijota.agent;
 
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.extensions.HeadlessToolContext;
+import ai.pijota.llm.LlmClient;
 import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.ToolRegistry;
@@ -22,7 +23,7 @@ public final class HeadlessAgentRunner {
 
     private HeadlessAgentRunner() {}
 
-    public static int run(LlmService llm, ExtensionRegistry extensions) {
+    public static int run(LlmClient llm, ExtensionRegistry extensions) {
         var writerRef = new BufferedWriter[] {null};
         try {
             @SuppressWarnings("unchecked")
@@ -167,7 +168,7 @@ public final class HeadlessAgentRunner {
         return 0;
     }
 
-    private static ToolRegistry buildRegistry(List<String> names, int depth, LlmService llm, String systemPrompt,
+    private static ToolRegistry buildRegistry(List<String> names, int depth, LlmClient llm, String systemPrompt,
                                     String cwd, ExtensionRegistry extensions) {
         var defaults = ToolRegistry.createDefault();
         var registry = new ToolRegistry();
@@ -175,7 +176,8 @@ public final class HeadlessAgentRunner {
             defaults.get(name).ifPresent(registry::register);
         }
         if (extensions != null) {
-            extensions.contributeHeadlessTools(new HeadlessToolContext(names, depth, llm, registry, systemPrompt,
+            LlmService llmService = llm instanceof LlmService s ? s : null;
+            extensions.contributeHeadlessTools(new HeadlessToolContext(names, depth, llmService, registry, systemPrompt,
                                             Path.of(cwd)));
         }
         return registry;

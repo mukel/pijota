@@ -108,4 +108,78 @@ class TerminalMarkdownRendererTest {
         var result = renderer.render("| a | b |\n| - | - |\n| 1 | 2 |", "text", false);
         assertFalse(result.isEmpty());
     }
+
+    @Test
+    void renderBlockquote() {
+        var renderer = new TerminalMarkdownRenderer(theme());
+        var result = renderer.render("> quote", "text", false);
+        assertFalse(result.isEmpty());
+        assertTrue(result.get(0).text().contains("quote"));
+    }
+
+    @Test
+    void renderUnorderedList() {
+        var renderer = new TerminalMarkdownRenderer(theme());
+        var result = renderer.render("- item", "text", false);
+        assertFalse(result.isEmpty());
+        assertTrue(result.get(0).text().contains("item"));
+    }
+
+    @Test
+    void renderOrderedList() {
+        var renderer = new TerminalMarkdownRenderer(theme());
+        var result = renderer.render("9. ninth", "text", false);
+        assertFalse(result.isEmpty());
+        assertTrue(result.get(0).text().contains("9."));
+        assertTrue(result.get(0).text().contains("ninth"));
+    }
+
+    @Test
+    void renderStrikethrough() {
+        var renderer = new TerminalMarkdownRenderer(theme());
+        var result = renderer.render("~~gone~~", "text", false);
+        assertFalse(result.isEmpty());
+        assertTrue(result.get(0).text().contains("gone"));
+    }
+
+    @Test
+    void renderCheckbox() {
+        var renderer = new TerminalMarkdownRenderer(theme());
+        assertTrue(renderer.render("[x] done", "text", false).get(0).text().contains("done"));
+        assertTrue(renderer.render("[ ] todo", "text", false).get(0).text().contains("todo"));
+        assertTrue(renderer.render("[~] skip", "text", false).get(0).text().contains("skip"));
+    }
+
+    @Test
+    void renderWithDefaultItalic() {
+        var renderer = new TerminalMarkdownRenderer(theme());
+        var result = renderer.render("italic body", "text", true);
+        assertFalse(result.isEmpty());
+        assertTrue(result.get(0).text().contains("italic body"));
+    }
+
+    @Test
+    void disabledThemeRendersPlainText() {
+        var disabled = theme();
+        disabled.enabled = false;
+        var renderer = new TerminalMarkdownRenderer(disabled);
+        var result = renderer.render("plain", "text", false);
+        assertEquals("plain", result.get(0).text());
+    }
+
+    @Test
+    void renderHeadingWithLeadingSpaces() {
+        var renderer = new TerminalMarkdownRenderer(theme());
+        var result = renderer.render("   # Heading", "text", false);
+        assertFalse(result.isEmpty());
+        assertTrue(result.get(0).text().contains("Heading"));
+    }
+
+    @Test
+    void renderPreservesBlankLines() {
+        var renderer = new TerminalMarkdownRenderer(theme());
+        var result = renderer.render("a\n\nb", "text", false);
+        assertEquals(3, result.size());
+        assertEquals("", result.get(1).text());
+    }
 }

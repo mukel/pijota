@@ -65,6 +65,71 @@ class InputDecoderTest {
         assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(27, '[', 'X')));
     }
 
+    @Test
+    void readsPasteWithBracketedPasteTerminator() throws IOException {
+        var paste = InputDecoder.readPaste(input('h', 'i', 27, '[', '2', '0', '1', '~'));
+        assertEquals(new Key.Paste("hi"), paste);
+    }
+
+    @Test
+    void readPasteReturnsNullWithoutTerminator() throws IOException {
+        assertNull(InputDecoder.readPaste(input('h', 'i')));
+        assertNull(InputDecoder.readPaste(input('h', 'i', 27, '[', 'A')));
+    }
+
+    @Test
+    void mapsCtrlXOpenEditor() throws IOException {
+        assertEquals(Key.Special.OPEN_EDITOR, InputDecoder.readKey(input(24, 5)));
+    }
+
+    @Test
+    void mapsAdditionalControlKeys() throws IOException {
+        assertEquals(Key.Special.CTRL_L, InputDecoder.readKey(input(12)));
+        assertEquals(Key.Special.CTRL_P, InputDecoder.readKey(input(16)));
+    }
+
+    @Test
+    void mapsUnknownControlCharToUnknown() throws IOException {
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(2)));
+    }
+
+    @Test
+    void mapsBackspaceFromChar8() throws IOException {
+        assertEquals(Key.Special.BACKSPACE, InputDecoder.readKey(input(8)));
+    }
+
+    @Test
+    void mapsPageKeysAndShiftTab() throws IOException {
+        assertEquals(Key.Special.PG_UP, InputDecoder.readKey(input(27, '[', '5', '~')));
+        assertEquals(Key.Special.PG_DOWN, InputDecoder.readKey(input(27, '[', '6', '~')));
+        assertEquals(Key.Special.SHIFT_TAB, InputDecoder.readKey(input(27, '[', 'Z')));
+    }
+
+    @Test
+    void mapsHomeAndEndVariants() throws IOException {
+        assertEquals(Key.Special.HOME, InputDecoder.readKey(input(27, '[', '1', '~')));
+        assertEquals(Key.Special.END, InputDecoder.readKey(input(27, '[', '4', '~')));
+    }
+
+    @Test
+    void mapsPasteStartAndModifierVariants() throws IOException {
+        assertEquals(Key.Special.PASTE_START, InputDecoder.readKey(input(27, '[', '2', '0', '0', '~')));
+        assertEquals(Key.Special.CTRL_RIGHT, InputDecoder.readKey(input(27, '[', '5', 'C')));
+        assertEquals(Key.Special.CTRL_LEFT, InputDecoder.readKey(input(27, '[', '5', 'D')));
+        assertEquals(Key.Special.CTRL_SHIFT_P, InputDecoder.readKey(input(27, '[', '1', '6', 'P')));
+    }
+
+    @Test
+    void escapeFollowedByNewlineReturnsNewline() throws IOException {
+        assertEquals(Key.Special.NEWLINE, InputDecoder.readKey(input(27, 13)));
+        assertEquals(Key.Special.NEWLINE, InputDecoder.readKey(input(27, 10)));
+    }
+
+    @Test
+    void incompleteEscapeSequenceReturnsUnknown() throws IOException {
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(27, '[')));
+    }
+
     private static InputDecoder.Input input(int... chars) {
         var it = Arrays.stream(chars).iterator();
         return new InputDecoder.Input() {

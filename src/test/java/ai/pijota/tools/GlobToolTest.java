@@ -53,4 +53,55 @@ class GlobToolTest {
         assertTrue(result.isError());
         assertTrue(result.content().contains("No pattern"));
     }
+
+    @Test
+    void nameDescriptionAndDefaultEnabled() {
+        var tool = new GlobTool();
+        assertEquals("glob", tool.name());
+        assertFalse(tool.description().isBlank());
+        assertTrue(tool.defaultEnabled());
+    }
+
+    @Test
+    void reportsPathNotFound() throws Exception {
+        var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
+                                        limit));
+
+        var result = tool.execute("tc1", Map.of("pattern", "*.java", "path", tempDir.resolve("missing").toString()),
+                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("Path not found"));
+    }
+
+    @Test
+    void reportsLimitReached() throws Exception {
+        Files.createFile(tempDir.resolve("a.java"));
+        Files.createFile(tempDir.resolve("b.java"));
+
+        var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
+                                        limit));
+
+        var result = tool.execute("tc1", Map.of("pattern", "*.java", "path", tempDir.toString(), "limit", 1),
+                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("results limit reached"));
+        assertEquals(1, result.details().get("resultLimitReached"));
+    }
+
+    @Test
+    void javaSearchHandlesDoubleGlobRecursively() throws Exception {
+        Files.createDirectories(tempDir.resolve("sub"));
+        Files.createFile(tempDir.resolve("sub/c.java"));
+
+        var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
+                                        limit));
+
+        var result = tool.execute("tc1", Map.of("pattern", "**/*.java", "path", tempDir.toString()), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
+
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("sub/c.java"));
+    }
 }

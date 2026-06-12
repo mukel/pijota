@@ -15,7 +15,7 @@ public final class SettingsManager {
         this(loadConfig(), SettingsManager::persistConfig);
     }
 
-    SettingsManager(AppConfig config, java.util.function.Consumer<AppConfig> onSave) {
+    public SettingsManager(AppConfig config, java.util.function.Consumer<AppConfig> onSave) {
         this.config = config;
         this.onSave = onSave;
     }

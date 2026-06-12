@@ -118,4 +118,27 @@ class SlashCommandToolTest {
         assertEquals(a, new SlashCommandTool.Option("yes", "agree"));
         assertNotEquals(a, new SlashCommandTool.Option("no", "agree"));
     }
+
+    @Test
+    void multipleFlagPreserved() throws Exception {
+        var tool = new SlashCommandTool();
+        var result = tool.execute("call-1", Map.of("question", "choose", "multiple", true), "/cwd").get();
+        assertTrue(result.content().contains("Q1: choose"));
+    }
+
+    @Test
+    void malformedOptionsAreSkipped() throws Exception {
+        var tool = new SlashCommandTool();
+        var options = List.of(Map.of("label", "ok"), "not-a-map");
+        var result = tool.execute("call-1", Map.of("question", "q", "options", options), "/cwd").get();
+        assertTrue(result.content().contains("- ok:"));
+    }
+
+    @Test
+    void textAliasInsideQuestions() throws Exception {
+        var tool = new SlashCommandTool();
+        var questions = List.of(Map.of("text", "alias?"));
+        var result = tool.execute("call-1", Map.of("questions", questions), "/cwd").get();
+        assertTrue(result.content().contains("Q1: alias?"));
+    }
 }

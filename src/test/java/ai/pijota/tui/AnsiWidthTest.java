@@ -108,4 +108,68 @@ class AnsiWidthTest {
         assertFalse(lines.isEmpty());
         assertTrue(lines.get(0).contains("\033"));
     }
+
+    @Test
+    void visibleWidthSurrogatePair() {
+        assertEquals(2, AnsiWidth.visibleWidth("🙈"));
+    }
+
+    @Test
+    void visibleWidthISOControlCharSkipped() {
+        assertEquals(1, AnsiWidth.visibleWidth("a\bb"));
+    }
+
+    @Test
+    void visibleWidthTabInMiddleExpands() {
+        assertEquals(5, AnsiWidth.visibleWidth("a\tb"));
+    }
+
+    @Test
+    void truncateVisualKeepsAnsiSequences() {
+        var text = "\033[31mred text\033[0m";
+        var result = AnsiWidth.truncateVisual(text, 4);
+        assertTrue(result.startsWith("\033[31mred "));
+        assertTrue(result.endsWith("\033[0m"));
+    }
+
+    @Test
+    void truncateVisualCjk() {
+        var result = AnsiWidth.truncateVisual("你好世界", 4);
+        assertTrue(result.startsWith("你好"));
+        assertTrue(result.endsWith("\033[0m"));
+    }
+
+    @Test
+    void truncateVisualExactWidth() {
+        assertEquals("hi\033[0m", AnsiWidth.truncateVisual("hi", 2));
+    }
+
+    @Test
+    void wrapPreservingAnsiEmptyInput() {
+        var lines = AnsiWidth.wrapPreservingAnsi("", 10);
+        assertEquals(List.of(""), lines);
+    }
+
+    @Test
+    void wrapPreservingAnsiTabBreaksLine() {
+        var lines = AnsiWidth.wrapPreservingAnsi("a\tb", 5);
+        assertFalse(lines.isEmpty());
+    }
+
+    @Test
+    void wrapPreservingAnsiOsc8Link() {
+        var text = "\033]8;;http://x.com\033\\link\033]8;;\033\\";
+        var lines = AnsiWidth.wrapPreservingAnsi(text, 3);
+        assertTrue(lines.size() >= 2);
+        assertTrue(lines.get(0).contains("link"));
+    }
+
+    @Test
+    void wrapPreservingAnsiSgrStateCarriesAcrossLines() {
+        var text = "\033[31mred text here\033[0m";
+        var lines = AnsiWidth.wrapPreservingAnsi(text, 5);
+        assertTrue(lines.size() >= 2);
+        assertTrue(lines.get(0).endsWith("\033[0m"));
+        assertTrue(lines.get(1).contains("\033[31m"));
+    }
 }

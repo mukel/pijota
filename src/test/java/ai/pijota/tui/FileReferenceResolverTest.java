@@ -99,6 +99,80 @@ class FileReferenceResolverTest {
         assertEquals("@justword", resolver.expand("@justword"));
     }
 
+    @Test
+    void resolvesRelativeSubdirectoryFile(@TempDir Path tmp) throws Exception {
+        var dir = tmp.resolve("sub");
+        Files.createDirectory(dir);
+        var file = dir.resolve("nested.txt");
+        Files.writeString(file, "deep");
+
+        var resolver = new FileReferenceResolver(tmp);
+        var expanded = resolver.expand("see @./sub/nested.txt");
+
+        assertTrue(expanded.contains("nested.txt"));
+        assertTrue(expanded.contains("deep"));
+    }
+
+    @Test
+    void globExpandsMultipleFiles(@TempDir Path tmp) throws Exception {
+        Files.writeString(tmp.resolve("a.txt"), "alpha");
+        Files.writeString(tmp.resolve("b.txt"), "beta");
+
+        var resolver = new FileReferenceResolver(tmp);
+        var expanded = resolver.expand("@./*.txt");
+
+        assertTrue(expanded.contains("alpha"));
+        assertTrue(expanded.contains("beta"));
+    }
+
+    @Test
+    void globNoMatchesReturnsOriginalReference(@TempDir Path tmp) {
+        var resolver = new FileReferenceResolver(tmp);
+        assertEquals("@./*.nothing", resolver.expand("@./*.nothing"));
+    }
+
+    @Test
+    void truncatesLargeFiles(@TempDir Path tmp) throws Exception {
+        var file = tmp.resolve("big.txt");
+        Files.writeString(file, "x".repeat(32_001));
+
+        var resolver = new FileReferenceResolver(tmp);
+        var expanded = resolver.expand("@./big.txt");
+
+        assertTrue(expanded.contains("... (truncated)"));
+    }
+
+    @Test
+    void referenceAtStartOfLine(@TempDir Path tmp) throws Exception {
+        var file = tmp.resolve("note.txt");
+        Files.writeString(file, "note");
+
+        var resolver = new FileReferenceResolver(tmp);
+        var expanded = resolver.expand("@./note.txt end");
+
+        assertTrue(expanded.contains("note"));
+        assertFalse(expanded.contains("@./note.txt"));
+    }
+
+    @Test
+    void resolvesTildeHomeReference(@TempDir Path tmp) throws Exception {
+        var home = tmp.resolve("home");
+        Files.createDirectory(home);
+        var file = home.resolve("doc.md");
+        Files.writeString(file, "hello");
+
+        String previousHome = System.getProperty("user.home");
+        System.setProperty("user.home", home.toString());
+        try {
+            var resolver = new FileReferenceResolver(tmp);
+            var expanded = resolver.expand("@~/doc.md");
+            assertTrue(expanded.contains("doc.md"));
+            assertTrue(expanded.contains("hello"));
+        } finally {
+            System.setProperty("user.home", previousHome);
+        }
+    }
+
     private static void deleteRecursively(Path path) {
         try {
             try (var walk = Files.walk(path).sorted((a, b) -> -a.compareTo(b))) {

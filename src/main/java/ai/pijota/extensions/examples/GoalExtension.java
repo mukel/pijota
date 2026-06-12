@@ -58,7 +58,8 @@ public final class GoalExtension implements Extension {
                                                                         Map.of("type", "boolean", "description",
                                                                                                         "Replace current goal even if not complete")),
                                                                         "required", List.of("objective")),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(doCreateGoal(args))));
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(doCreateGoal(args)),
+                                        createGoalRenderer()));
 
         api.registerTool(new Tool.ToolDefinition("get_goal",
                                         "Returns the current goal state including objective, status, budget, progress, and usage.",
@@ -69,16 +70,21 @@ public final class GoalExtension implements Extension {
                                         "Update the goal status. Supports status: complete, pause, resume, idle.",
                                         Map.of("type", "object", "properties", Map.of("status", Map.of("type", "string",
                                                                         "description",
-                                                                        "Set to complete, pause, resume, or idle")),
+                                                                        "Set to complete, pause, resume, or idle",
+                                                                        "enum",
+                                                                        List.of("complete", "pause", "resume",
+                                                                                                        "idle"))),
                                                                         "required", List.of("status")),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(doUpdateGoal(args))));
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(doUpdateGoal(args)),
+                                        updateGoalRenderer()));
 
         api.registerTool(new Tool.ToolDefinition("add_goal_progress",
                                         "Append a progress note or milestone to the current goal.",
                                         Map.of("type", "object", "properties", Map.of("note", Map.of("type", "string",
                                                                         "description", "Progress note or milestone")),
                                                                         "required", List.of("note")),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(doAddProgress(args))));
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(doAddProgress(args)),
+                                        addProgressRenderer()));
 
         api.registerStatusLines(this::statusLine);
 
@@ -352,6 +358,33 @@ public final class GoalExtension implements Extension {
             case COMPLETE -> "complete";
             case BUDGET_LIMITED -> "budget-limited";
             case IDLE -> "idle";
+        };
+    }
+
+    private static Tool.ResultRenderer createGoalRenderer() {
+        return (args, result, cwd) -> {
+            if (result.isError())
+                return Tool.ToolResultView.of("Failed to create goal");
+            String objective = String.valueOf(args.getOrDefault("objective", ""));
+            return Tool.ToolResultView.of("Created goal: " + Util.truncate(objective, 60));
+        };
+    }
+
+    private static Tool.ResultRenderer updateGoalRenderer() {
+        return (args, result, cwd) -> {
+            if (result.isError())
+                return Tool.ToolResultView.of("Goal update failed");
+            String status = String.valueOf(args.getOrDefault("status", ""));
+            return Tool.ToolResultView.of("Goal status updated to " + status);
+        };
+    }
+
+    private static Tool.ResultRenderer addProgressRenderer() {
+        return (args, result, cwd) -> {
+            if (result.isError())
+                return Tool.ToolResultView.of("Failed to add progress");
+            String note = String.valueOf(args.getOrDefault("note", ""));
+            return Tool.ToolResultView.of("Progress: " + Util.truncate(note, 60));
         };
     }
 

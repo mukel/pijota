@@ -51,6 +51,30 @@ class GoalExtensionTest {
     }
 
     @Test
+    void createGoalToolRendersSummary() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        var tool = fake.tool("create_goal").toTool();
+
+        var result = tool.execute("id", Map.of("objective", "write tests"), ".").join();
+        var view = tool.renderResult(Map.of("objective", "write tests"), result, ".");
+
+        assertTrue(view.summary().contains("Created goal: write tests"));
+    }
+
+    @Test
+    void createGoalRendererHandlesErrors() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        var tool = fake.tool("create_goal").toTool();
+
+        var result = tool.execute("id", Map.of("objective", ""), ".").join();
+        var view = tool.renderResult(Map.of("objective", ""), result, ".");
+
+        assertTrue(view.summary().contains("Failed"));
+    }
+
+    @Test
     void createGoalFailsWithoutReplaceWhenGoalExists() {
         var fake = new FakeExtensionAPI();
         new GoalExtension().init(fake);
@@ -138,6 +162,38 @@ class GoalExtensionTest {
 
         var get = execute(fake.tool("get_goal"), Map.of());
         assertTrue(get.content().contains("status: budget-limited"));
+    }
+
+    @Test
+    void budgetLimitIsEnforcedAtTurnStart() {
+        var fake = new FakeExtensionAPI();
+        fake.llm().setTokens(0, 0);
+        new GoalExtension().init(fake);
+        execute(fake.tool("create_goal"), Map.of("objective", "x", "token_budget", 100));
+
+        fake.llm().setTokens(60, 50); // 110 total, exceeds 100
+        fake.fireTurnStart(1);
+
+        var get = execute(fake.tool("get_goal"), Map.of());
+        assertTrue(get.content().contains("status: budget-limited"));
+    }
+
+    @Test
+    void continueOnIdleIsDebounced() throws InterruptedException {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        execute(fake.tool("create_goal"), Map.of("objective", "x", "continue_on_idle", true));
+
+        fake.fireTurnEnd(1);
+        fake.fireTurnEnd(2);
+        fake.fireTurnEnd(3);
+
+        assertEquals(1, fake.userMessages().size());
+
+        Thread.sleep(1100);
+        fake.fireTurnEnd(4);
+
+        assertEquals(2, fake.userMessages().size());
     }
 
     @Test
@@ -416,8 +472,18 @@ class GoalExtensionTest {
             return messages;
         }
 
+        List<String> userMessages() {
+            return userMessages;
+        }
+
         FakeLlm llm() {
             return runtime.llm;
+        }
+
+        void fireTurnStart(int turnNumber) {
+            var ev = new ExtensionEvent.TurnStart(turnNumber);
+            for (var h : turnStartHandlers)
+                h.accept(ev, null);
         }
 
         void fireTurnEnd(int turnNumber) {

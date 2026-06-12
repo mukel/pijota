@@ -42,6 +42,14 @@ class WebsearchToolTest {
     }
 
     @Test
+    void stripHtmlHandlesNewlinesAndMultipleTags() {
+        var html = "<div><p>line1</p><p>line2</p></div>";
+        var text = WebsearchTool.stripHtml(html);
+        assertTrue(text.contains("line1"));
+        assertTrue(text.contains("line2"));
+    }
+
+    @Test
     void cleanUrlAddsHttpsForProtocolRelative() {
         assertEquals("https://example.com", WebsearchTool.cleanUrl("//example.com"));
     }
@@ -67,6 +75,13 @@ class WebsearchToolTest {
     void executeWithNullQueryReturnsError() throws Exception {
         var tool = new WebsearchTool();
         var result = tool.execute("call-1", Map.of(), "/cwd").get();
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void executeWithWhitespaceQueryReturnsError() throws Exception {
+        var tool = new WebsearchTool();
+        var result = tool.execute("call-1", Map.of("query", "   "), "/cwd").get();
         assertTrue(result.isError());
     }
 

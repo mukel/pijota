@@ -2,11 +2,13 @@ package ai.pijota.testkit;
 
 import ai.pijota.llm.LlmClient;
 import ai.pijota.llm.StreamResult;
+import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.messages.Usage;
 import ai.pijota.tools.Tool;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,9 +30,27 @@ public final class FauxLlm implements LlmClient {
         return this;
     }
 
+    public FauxLlm provider(String value) {
+        this.provider = value;
+        return this;
+    }
+
+    public FauxLlm model(String value) {
+        this.model = value;
+        return this;
+    }
+
     public FauxLlm enqueue(Response response) {
         responses.add(response);
         return this;
+    }
+
+    public FauxLlm enqueueError(String message) {
+        return enqueue(new Response(List.of(), List.of(), List.of(), null, new IOException(message), false));
+    }
+
+    public FauxLlm enqueueError(Throwable error) {
+        return enqueue(new Response(List.of(), List.of(), List.of(), null, error, false));
     }
 
     public List<Request> requests() {
@@ -67,6 +87,17 @@ public final class FauxLlm implements LlmClient {
     }
 
     @Override
+    public void setProviderAndModel(String provider, String model, String apiKey) {
+        this.provider = provider;
+        this.model = model;
+    }
+
+    @Override
+    public void setThinkingLevel(ThinkingLevel level) {
+        // no-op for tests
+    }
+
+    @Override
     public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
                                     BiConsumer<String, String> onPartial) {
         requests.add(new Request(List.copyOf(messages), List.copyOf(tools)));
@@ -79,6 +110,10 @@ public final class FauxLlm implements LlmClient {
             var future = new CompletableFuture<StreamResult>();
             future.completeOnTimeout(new StreamResult(), 2, TimeUnit.SECONDS);
             return future;
+        }
+
+        if (response.error() != null) {
+            return CompletableFuture.failedFuture(response.error());
         }
 
         var result = new StreamResult();
@@ -103,18 +138,27 @@ public final class FauxLlm implements LlmClient {
     }
 
     public FauxLlm blockUntilAborted() {
-        enqueue(new Response(List.of(), List.of(), List.of(), null, true));
+        enqueue(new Response(List.of(), List.of(), List.of(), null, null, true));
         return this;
     }
 
     public record Response(List<String> contentDeltas, List<String> thinkingDeltas, List<ToolCall> toolCalls,
-                                    Usage usage, boolean blockUntilAborted) {
+                                    Usage usage, Throwable error, boolean blockUntilAborted) {
         Response(List<String> contentDeltas, List<String> thinkingDeltas, List<ToolCall> toolCalls, Usage usage) {
-            this(contentDeltas, thinkingDeltas, toolCalls, usage, false);
+            this(contentDeltas, thinkingDeltas, toolCalls, usage, null, false);
+        }
+
+        Response(List<String> contentDeltas, List<String> thinkingDeltas, List<ToolCall> toolCalls, Usage usage,
+                                        boolean blockUntilAborted) {
+            this(contentDeltas, thinkingDeltas, toolCalls, usage, null, blockUntilAborted);
         }
 
         public static Response content(String... deltas) {
             return new Response(List.of(deltas), List.of(), List.of(), null);
+        }
+
+        public static Response content(Usage usage, String... deltas) {
+            return new Response(List.of(deltas), List.of(), List.of(), usage, null, false);
         }
 
         public static Response thinkingAndContent(List<String> thinkingDeltas, String... contentDeltas) {
@@ -123,6 +167,10 @@ public final class FauxLlm implements LlmClient {
 
         public static Response toolCall(ToolCall... toolCalls) {
             return new Response(List.of(), List.of(), List.of(toolCalls), null);
+        }
+
+        public static Response toolCall(Usage usage, ToolCall... toolCalls) {
+            return new Response(List.of(), List.of(), List.of(toolCalls), usage, null, false);
         }
     }
 }

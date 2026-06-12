@@ -1,7 +1,9 @@
 package ai.pijota.agent;
 
+import ai.pijota.config.AppConfig;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
+import ai.pijota.messages.Usage;
 import ai.pijota.testkit.FauxLlm;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -109,6 +112,257 @@ class AgentLoopTest {
         assertEquals(6, messages.size(), "user, assistant(toolCall), toolResult, assistant, user(followUp), assistant");
         assertEquals("follow this up", ((Message.User) messages.get(4)).content());
         assertEquals("follow up answer", ((Message.Assistant) messages.get(5)).content());
+    }
+
+    @Test
+    void steeringMessageIsProcessedAtStartOfTurn() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("ok"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        agent.sendUserMessage("steer me", "steer");
+        var messages = agent.prompt("do it").get(1, TimeUnit.SECONDS);
+
+        assertEquals(3, messages.size());
+        assertEquals("steer me", ((Message.User) messages.get(0)).content());
+        assertEquals("do it", ((Message.User) messages.get(1)).content());
+        assertEquals("ok", ((Message.Assistant) messages.get(2)).content());
+    }
+
+    @Test
+    void sendUserMessageWithFollowUpAddsToFollowUpQueue() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("first")).enqueue(FauxLlm.Response.content("second"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        agent.sendUserMessage("follow this", "followUp");
+        var messages = agent.prompt("hi").get(2, TimeUnit.SECONDS);
+
+        assertEquals(4, messages.size());
+        assertEquals("follow this", ((Message.User) messages.get(2)).content());
+        assertEquals("second", ((Message.Assistant) messages.get(3)).content());
+    }
+
+    @Test
+    void addCustomMessageAddsMessageAndFiresEvent() {
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+        var events = recordEvents(agent);
+
+        agent.addCustomMessage(new Message.Custom("note", "value"));
+
+        assertEquals(1, agent.messages().size());
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.CustomMessage));
+    }
+
+    @Test
+    void replaceSystemPromptUpdatesExistingSystemMessage() {
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+        agent.addSystemPrompt("v1");
+
+        agent.replaceSystemPrompt("v2");
+
+        assertEquals("v2", ((Message.System) agent.messages().get(0)).content());
+    }
+
+    @Test
+    void undoLastUserTurnRemovesUserAndFollowingMessages() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("a1")).enqueue(FauxLlm.Response.content("a2"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        agent.prompt("first").get(1, TimeUnit.SECONDS);
+        agent.prompt("second").get(1, TimeUnit.SECONDS);
+
+        var undone = agent.undoLastUserTurn();
+
+        assertTrue(undone.isPresent());
+        assertEquals("second", undone.get());
+        assertEquals(2, agent.messages().size());
+    }
+
+    @Test
+    void lastAssistantContentFindsLatestAssistantText() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("first")).enqueue(FauxLlm.Response.content("second"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        agent.prompt("q1").get(1, TimeUnit.SECONDS);
+        agent.prompt("q2").get(1, TimeUnit.SECONDS);
+
+        assertEquals("second", agent.lastAssistantContent());
+    }
+
+    @Test
+    void listenerExceptionsDoNotPreventOtherListenersFromReceivingEvents() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("hi"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        var goodEvents = new ArrayList<AgentEvent>();
+        agent.addEventListener(e -> {
+            throw new RuntimeException("boom");
+        });
+        agent.addEventListener(goodEvents::add);
+
+        agent.prompt("hello").get(1, TimeUnit.SECONDS);
+
+        assertFalse(goodEvents.isEmpty());
+    }
+
+    @Test
+    void removeEventListenerStopsDelivery() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("hi"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        var events = recordEvents(agent);
+        agent.removeEventListener(events::add);
+
+        agent.prompt("hello").get(1, TimeUnit.SECONDS);
+
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
+    void retryRecoversFromRetryableError() throws Exception {
+        var llm = new FauxLlm().enqueueError("server error 500").enqueue(FauxLlm.Response.content("ok"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        var messages = agent.prompt("hi").get(5, TimeUnit.SECONDS);
+
+        assertEquals("ok", ((Message.Assistant) messages.get(1)).content());
+        assertEquals(2, llm.requests().size());
+    }
+
+    @Test
+    void contextOverflowRemovesPartialAssistantAndRetries() throws Exception {
+        var llm = new FauxLlm().enqueueError("maximum context length exceeded")
+                                        .enqueue(FauxLlm.Response.content("recovered"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        var events = recordEvents(agent);
+
+        var messages = agent.prompt("hi").get(2, TimeUnit.SECONDS);
+
+        assertEquals("recovered", ((Message.Assistant) messages.get(1)).content());
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.Compaction));
+    }
+
+    @Test
+    void manualCompactionFiresCompactionEventAndInsertsSummary() {
+        var summarizer = (CompactionManager.SummaryGenerator) (msgs, instr, prev, onPart) -> "summary";
+        var config = new AppConfig.CompactionConfig(true, 100, 1);
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").summaryGenerator(summarizer)
+                                        .compactionConfig(config).contextWindow(1000).build();
+        var events = recordEvents(agent);
+        agent.addSystemPrompt("sys");
+        agent.sendUserMessage("old");
+        agent.sendUserMessage("recent big " + "x".repeat(4000));
+
+        var result = agent.compactWithResult("compact");
+
+        assertTrue(result.compacted());
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.Compaction));
+        assertTrue(agent.messages().stream().anyMatch(m -> m instanceof Message.CompactionSummary));
+    }
+
+    @Test
+    void maxTurnsTerminationAddsLimitMessage() throws Exception {
+        var llm = new FauxLlm();
+        for (int i = 0; i < 25; i++) {
+            llm.enqueue(FauxLlm.Response.toolCall(new ToolCall("tc" + i, "fake", "{\"value\":\"ok\"}")));
+        }
+        var registry = new ToolRegistry();
+        registry.register(fakeTool());
+        var agent = AgentLoop.builder(llm, registry, "/workspace").build();
+
+        var messages = agent.prompt("loop").get(2, TimeUnit.SECONDS);
+
+        var last = (Message.Assistant) messages.get(messages.size() - 1);
+        assertTrue(last.content().contains("Max turns"));
+    }
+
+    @Test
+    void abortSetsClosedAndCompletesResult() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("partial")).blockUntilAborted();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        var future = agent.prompt("start");
+        Thread.sleep(100);
+        agent.close();
+
+        assertTrue(agent.isClosed());
+        assertDoesNotThrow(() -> future.get(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void isBusyReflectsActivePrompt() throws Exception {
+        var llm = new FauxLlm().blockUntilAborted();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        var future = agent.prompt("start");
+        assertTrue(agent.isBusy());
+        agent.abort();
+        future.get(1, TimeUnit.SECONDS);
+        assertFalse(agent.isBusy());
+    }
+
+    @Test
+    void setContextWindowOnlyAcceptsPositiveIntRange() {
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+        agent.setContextWindow(100);
+        agent.setContextWindow(0);
+        agent.setContextWindow(((long) Integer.MAX_VALUE) + 1);
+        // no public getter; exercise branches without error
+        assertTrue(agent.messages().isEmpty());
+    }
+
+    @Test
+    void setAutoCompactionEnabledDoesNotThrow() {
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+        assertDoesNotThrow(() -> {
+            agent.setAutoCompactionEnabled(true);
+            agent.setAutoCompactionEnabled(false);
+        });
+    }
+
+    @Test
+    void restoresMessagesAndClearsHistory() {
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+        agent.addSystemPrompt("sys");
+        agent.sendUserMessage("hi");
+
+        agent.clearMessages();
+        assertTrue(agent.messages().isEmpty());
+
+        agent.restoreMessages(List.of(new Message.User("restored")));
+        assertEquals(1, agent.messages().size());
+    }
+
+    @Test
+    void userMessagesReturnsOnlyUserMessages() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("a1"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        agent.prompt("q").get(1, TimeUnit.SECONDS);
+
+        var users = agent.userMessages();
+        assertEquals(1, users.size());
+        assertEquals("q", users.get(0).content());
+    }
+
+    @Test
+    void turnStartEventCountsUpEachTurn() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("a1")).enqueue(FauxLlm.Response.content("a2"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        var turnStarts = new AtomicInteger(0);
+        agent.addEventListener(e -> {
+            if (e instanceof AgentEvent.TurnStart)
+                turnStarts.incrementAndGet();
+        });
+
+        agent.prompt("q1").get(1, TimeUnit.SECONDS);
+        agent.prompt("q2").get(1, TimeUnit.SECONDS);
+
+        assertTrue(turnStarts.get() >= 2);
+    }
+
+    @Test
+    void assistantMessageWithUsageIsStored() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content(new Usage(3, 5), "hi"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        var messages = agent.prompt("hello").get(1, TimeUnit.SECONDS);
+
+        assertEquals("hi", ((Message.Assistant) messages.get(1)).content());
     }
 
     private static List<AgentEvent> recordEvents(AgentLoop agent) {

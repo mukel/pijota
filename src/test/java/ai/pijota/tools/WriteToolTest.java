@@ -50,4 +50,34 @@ class WriteToolTest {
 
         assertEquals("data", Files.readString(path));
     }
+
+    @Test
+    void renderResultErrorReturnsContent() {
+        var tool = new WriteTool();
+        var result = Tool.ToolResult.error("denied");
+        var view = tool.renderResult(Map.of(), result, "/tmp");
+        assertEquals("denied", view.summary());
+    }
+
+    @Test
+    void renderResultBlankContentReturnsSummaryOnly() {
+        var tool = new WriteTool();
+        var result = Tool.ToolResult.success("wrote file");
+        var view = tool.renderResult(Map.of("content", "   "), result, "/tmp");
+        assertEquals("wrote file", view.summary());
+        assertTrue(view.body().isEmpty());
+    }
+
+    @Test
+    void renderResultPreviewTruncatesAfterFiveLines() {
+        var tool = new WriteTool();
+        var content = java.util.stream.IntStream.range(0, 10).mapToObj(i -> "line" + i)
+                                        .collect(java.util.stream.Collectors.joining("\n"));
+        var result = Tool.ToolResult.success("wrote file");
+        var view = tool.renderResult(Map.of("content", content), result, "/tmp");
+        assertEquals("wrote file", view.summary());
+        assertTrue(view.body().contains("line4"));
+        assertFalse(view.body().contains("line5"));
+        assertTrue(view.body().contains("… 5 more lines"));
+    }
 }

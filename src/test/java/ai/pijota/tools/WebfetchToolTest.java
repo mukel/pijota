@@ -39,6 +39,12 @@ class WebfetchToolTest {
     }
 
     @Test
+    void acceptHeaderDefault() {
+        var header = WebfetchTool.acceptHeader("unknown");
+        assertTrue(header.contains("text/html"));
+    }
+
+    @Test
     void htmlToMarkdownConvertsBasicTags() {
         var html = "<p>Hello</p><p>World</p>";
         var md = WebfetchTool.htmlToMarkdown(html);
@@ -68,6 +74,14 @@ class WebfetchToolTest {
         var html = "<a href=\"https://example.com\">click</a>";
         var md = WebfetchTool.htmlToMarkdown(html);
         assertTrue(md.contains("click") || md.contains("example"));
+    }
+
+    @Test
+    void htmlToMarkdownConvertsImageAndCode() {
+        var html = "<img src=\"pic.png\" alt=\"pic\"><code>code</code>";
+        var md = WebfetchTool.htmlToMarkdown(html);
+        assertTrue(md.contains("pic.png"));
+        assertTrue(md.contains("`code`"));
     }
 
     @Test
@@ -102,6 +116,14 @@ class WebfetchToolTest {
     }
 
     @Test
+    void htmlToTextStripsScriptsAndDecodesEntities() {
+        var html = "<script>x</script><div>a&nbsp;b</div>";
+        var text = WebfetchTool.htmlToText(html);
+        assertFalse(text.contains("script"));
+        assertTrue(text.contains("a b"));
+    }
+
+    @Test
     void convertContentMarkdownFormatWithHtmlMime() {
         var content = "<p>Hello</p>";
         var result = WebfetchTool.convertContent(content, "text/html", "markdown");
@@ -132,6 +154,14 @@ class WebfetchToolTest {
     }
 
     @Test
+    void convertContentDefaultFormat() {
+        var content = "<p>Hello</p>";
+        var result = WebfetchTool.convertContent(content, "text/html", "unknown");
+        assertFalse(result.contains("<p>"));
+        assertTrue(result.contains("Hello"));
+    }
+
+    @Test
     void detectCharsetFromContentType() {
         var charset = WebfetchTool.detectCharset("text/html; charset=ISO-8859-1", new byte[0]);
         assertEquals("ISO-8859-1", charset);
@@ -151,6 +181,12 @@ class WebfetchToolTest {
     }
 
     @Test
+    void detectCharsetInvalidFallsBackToUtf8() {
+        var charset = WebfetchTool.detectCharset("text/html; charset=invalid-charset", new byte[0]);
+        assertEquals(StandardCharsets.UTF_8.name(), charset);
+    }
+
+    @Test
     void executeWithNullUrlReturnsError() throws Exception {
         var tool = new WebfetchTool();
         var result = tool.execute("call-1", java.util.Map.of(), "/cwd").get();
@@ -161,6 +197,13 @@ class WebfetchToolTest {
     void executeWithBlankUrlReturnsError() throws Exception {
         var tool = new WebfetchTool();
         var result = tool.execute("call-1", java.util.Map.of("url", "  "), "/cwd").get();
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void executeWithInvalidUrlReturnsError() throws Exception {
+        var tool = new WebfetchTool();
+        var result = tool.execute("call-1", java.util.Map.of("url", "not a url"), "/cwd").get();
         assertTrue(result.isError());
     }
 }
