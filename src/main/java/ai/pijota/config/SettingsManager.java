@@ -1,13 +1,10 @@
 package ai.pijota.config;
 
-import ai.pijota.util.Util;
-
 import java.nio.file.Path;
 import java.util.List;
 
 public final class SettingsManager {
-    private static final Path CONFIG_HOME = Path.of(
-        System.getProperty("user.home"), ".pijota");
+    private static final Path CONFIG_HOME = Path.of(System.getProperty("user.home"), ".pijota");
     private static final Path SETTINGS_FILE = CONFIG_HOME.resolve("settings.json");
     private static final Path SESSION_DIR = CONFIG_HOME.resolve("sessions");
 
@@ -21,7 +18,9 @@ public final class SettingsManager {
         }
     }
 
-    public AppConfig config() { return config; }
+    public AppConfig config() {
+        return config;
+    }
 
     public boolean contextFilesEnabled() {
         return config.contextFiles() == null || config.contextFiles();
@@ -73,7 +72,9 @@ public final class SettingsManager {
         return SESSION_DIR;
     }
 
-    public Path configHome() { return CONFIG_HOME; }
+    public Path configHome() {
+        return CONFIG_HOME;
+    }
 
     public void save() {
         try {
@@ -101,33 +102,40 @@ public final class SettingsManager {
 
     public String detectProviderFromEnv() {
         for (var provider : ProviderCatalog.providers().stream().map(ProviderCatalog.Provider::id).toList()) {
-            if (resolveApiKey(provider) != null) return provider;
+            if (resolveApiKey(provider) != null)
+                return provider;
         }
         for (var provider : knownEnvProviders()) {
-            if (resolveApiKey(provider) != null) return provider;
+            if (resolveApiKey(provider) != null)
+                return provider;
         }
         return null;
     }
 
     /** Returns true if the provider requires an API key (has env vars or OAuth). */
     public static boolean requiresApiKey(String provider) {
-        if (ProviderCatalog.oauth(provider).isPresent()) return true;
+        if (ProviderCatalog.oauth(provider).isPresent())
+            return true;
         return !ProviderCatalog.envNames(provider).isEmpty();
     }
 
     public String resolveApiKey(String provider) {
         // Providers with no env vars and no OAuth don't need an API key
-        if (!requiresApiKey(provider)) return "";
+        if (!requiresApiKey(provider))
+            return "";
 
         var oauthStore = new OAuthTokenStore();
         String oauthToken = oauthStore.getAccessToken(provider);
-        if (oauthToken != null && !oauthToken.isBlank()) return oauthToken;
+        if (oauthToken != null && !oauthToken.isBlank())
+            return oauthToken;
 
         String key = config.apiKeys() != null ? config.apiKeys().get(provider) : null;
-        if (key != null) return key;
+        if (key != null)
+            return key;
         for (String name : apiKeyEnvNames(provider)) {
             String value = System.getenv(name);
-            if (value != null && !value.isBlank()) return value;
+            if (value != null && !value.isBlank())
+                return value;
         }
         return null;
     }
@@ -137,13 +145,14 @@ public final class SettingsManager {
     }
 
     private static List<String> knownEnvProviders() {
-        return List.of("anthropic", "openai", "google", "deepseek", "groq",
-            "openrouter", "xai", "mistral", "together", "fireworks", "cerebras");
+        return List.of("anthropic", "openai", "google", "deepseek", "groq", "openrouter", "xai", "mistral", "together",
+                                        "fireworks", "cerebras");
     }
 
     private static List<String> apiKeyEnvNames(String provider) {
         var fromCatalog = ProviderCatalog.envNames(provider);
-        if (!fromCatalog.isEmpty()) return fromCatalog;
+        if (!fromCatalog.isEmpty())
+            return fromCatalog;
         return switch (provider) {
             case "openai" -> List.of("OPENAI_API_KEY");
             case "anthropic" -> List.of("ANTHROPIC_API_KEY");
@@ -162,7 +171,8 @@ public final class SettingsManager {
 
     public String effectiveShellPath() {
         String p = config.shellPath();
-        if (p != null && !p.isBlank()) return p;
+        if (p != null && !p.isBlank())
+            return p;
         return System.getenv().getOrDefault("SHELL", "/bin/bash");
     }
 }

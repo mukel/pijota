@@ -49,12 +49,35 @@ public final class ProcessRunner {
         return new ProcessRunner(args);
     }
 
-    public ProcessRunner workDir(Path dir)                    { this.workDir = dir; return this; }
-    public ProcessRunner timeout(long duration, TimeUnit unit){ this.timeout = Duration.ofMillis(unit.toMillis(duration)); return this; }
-    public ProcessRunner timeout(Duration duration)           { this.timeout = duration; return this; }
-    public ProcessRunner noTimeout()                          { this.noTimeout = true; return this; }
-    public ProcessRunner maxOutputBytes(int bytes)            { this.maxOutputBytes = bytes; return this; }
-    public ProcessRunner onStart(Consumer<Process> handler)   { this.onStart = handler; return this; }
+    public ProcessRunner workDir(Path dir) {
+        this.workDir = dir;
+        return this;
+    }
+
+    public ProcessRunner timeout(long duration, TimeUnit unit) {
+        this.timeout = Duration.ofMillis(unit.toMillis(duration));
+        return this;
+    }
+
+    public ProcessRunner timeout(Duration duration) {
+        this.timeout = duration;
+        return this;
+    }
+
+    public ProcessRunner noTimeout() {
+        this.noTimeout = true;
+        return this;
+    }
+
+    public ProcessRunner maxOutputBytes(int bytes) {
+        this.maxOutputBytes = bytes;
+        return this;
+    }
+
+    public ProcessRunner onStart(Consumer<Process> handler) {
+        this.onStart = handler;
+        return this;
+    }
 
     public ProcessRunner feedStdin(String text) {
         this.stdinFeeder = () -> text;
@@ -91,7 +114,8 @@ public final class ProcessRunner {
 
     public ProcessRunner redirectErrorStream(boolean enable) {
         this.redirectErrorStream = enable;
-        if (enable) this.captureStderr = false;
+        if (enable)
+            this.captureStderr = false;
         return this;
     }
 
@@ -149,7 +173,8 @@ public final class ProcessRunner {
                     timedOut = true;
                     killTree(process);
                     finished = process.waitFor(KILL_GRACE.toMillis(), TimeUnit.MILLISECONDS);
-                    if (!finished) process.destroyForcibly();
+                    if (!finished)
+                        process.destroyForcibly();
                 }
             }
         } catch (InterruptedException e) {
@@ -158,7 +183,8 @@ public final class ProcessRunner {
             Thread.currentThread().interrupt();
         } finally {
             aborted.set(true);
-            if (stdinThread != null) stdinThread.interrupt();
+            if (stdinThread != null)
+                stdinThread.interrupt();
             joinThread(stdoutThreadRef.get(), GOBBLER_JOIN);
             joinThread(stderrThreadRef.get(), GOBBLER_JOIN);
             joinThread(discardThreadRef.get(), GOBBLER_JOIN);
@@ -170,13 +196,8 @@ public final class ProcessRunner {
         }
 
         int exitCode = process.isAlive() ? -1 : process.exitValue();
-        return new Result(
-            exitCode,
-            stdoutCapture.text(),
-            stderrCapture.text(),
-            timedOut,
-            stdoutCapture.truncated() || stderrCapture.truncated()
-        );
+        return new Result(exitCode, stdoutCapture.text(), stderrCapture.text(), timedOut,
+                                        stdoutCapture.truncated() || stderrCapture.truncated());
     }
 
     /** Runs an interactive process that takes over the terminal (editor, pager). Returns exit code. */
@@ -213,39 +234,51 @@ public final class ProcessRunner {
     // -- process tree killing (ProcessHandle-based, bullet-proof) --
 
     public static void killTree(Process process) {
-        if (process == null) return;
+        if (process == null)
+            return;
         var handles = new ArrayList<ProcessHandle>();
         process.descendants().forEach(handles::add);
         handles.sort(Comparator.comparingLong(ProcessHandle::pid).reversed());
-        for (var h : handles) destroy(h);
+        for (var h : handles)
+            destroy(h);
         destroy(process.toHandle());
         waitForExit(process.toHandle(), KILL_GRACE);
-        for (var h : handles) destroyForcibly(h);
+        for (var h : handles)
+            destroyForcibly(h);
         destroyForcibly(process.toHandle());
     }
 
     public static void abortIfAlive(Process process) {
-        if (process != null && process.isAlive()) killTree(process);
+        if (process != null && process.isAlive())
+            killTree(process);
     }
 
     private static void destroy(ProcessHandle h) {
-        try { if (h.isAlive()) h.destroy(); } catch (Exception ignored) {}
+        try {
+            if (h.isAlive())
+                h.destroy();
+        } catch (Exception ignored) {}
     }
 
     private static void destroyForcibly(ProcessHandle h) {
-        try { if (h.isAlive()) h.destroyForcibly(); } catch (Exception ignored) {}
+        try {
+            if (h.isAlive())
+                h.destroyForcibly();
+        } catch (Exception ignored) {}
     }
 
     private static void waitForExit(ProcessHandle h, Duration timeout) {
-        try { h.onExit().get(timeout.toMillis(), TimeUnit.MILLISECONDS); }
-        catch (Exception ignored) {}
+        try {
+            h.onExit().get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (Exception ignored) {}
     }
 
     // -- internal helpers --
 
     private Process startProcess() throws IOException {
         var builder = new ProcessBuilder(command);
-        if (workDir != null) builder.directory(workDir.toFile());
+        if (workDir != null)
+            builder.directory(workDir.toFile());
         if (inheritIO) {
             builder.inheritIO();
         } else {
@@ -258,7 +291,9 @@ public final class ProcessRunner {
 
     private void setOnStart(Process p) {
         if (onStart != null) {
-            try { onStart.accept(p); } catch (Exception ignored) {}
+            try {
+                onStart.accept(p);
+            } catch (Exception ignored) {}
         }
     }
 
@@ -275,10 +310,13 @@ public final class ProcessRunner {
 
     private Thread startStdoutLineReader(Process process, AtomicBoolean aborted) {
         return Thread.ofVirtual().name("pijota-stdout-lines").start(() -> {
-            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            try (var reader = new BufferedReader(
+                                            new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null && !aborted.get()) {
-                    try { stdoutLineHandler.accept(line); } catch (Exception ignored) {}
+                    try {
+                        stdoutLineHandler.accept(line);
+                    } catch (Exception ignored) {}
                 }
             } catch (IOException ignored) {}
         });
@@ -306,29 +344,39 @@ public final class ProcessRunner {
     }
 
     private void validate() {
-        if (command.isEmpty()) throw new IllegalArgumentException("command is required");
+        if (command.isEmpty())
+            throw new IllegalArgumentException("command is required");
         for (String arg : command) {
-            if (arg == null) throw new IllegalArgumentException("command contains null argument");
+            if (arg == null)
+                throw new IllegalArgumentException("command contains null argument");
         }
-        if (!noTimeout && (timeout.isZero() || timeout.isNegative())) throw new IllegalArgumentException("positive timeout is required");
+        if (!noTimeout && (timeout.isZero() || timeout.isNegative()))
+            throw new IllegalArgumentException("positive timeout is required");
     }
 
     private static void joinThread(Thread t, Duration timeout) {
-        if (t == null) return;
-        try { t.join(timeout.toMillis()); } catch (InterruptedException ignored) {
+        if (t == null)
+            return;
+        try {
+            t.join(timeout.toMillis());
+        } catch (InterruptedException ignored) {
             Thread.currentThread().interrupt();
         }
     }
 
     private static void closeQuietly(Closeable c) {
-        try { if (c != null) c.close(); } catch (IOException ignored) {}
+        try {
+            if (c != null)
+                c.close();
+        } catch (IOException ignored) {}
     }
 
     // -- result --
 
-    public record Result(int exitCode, String stdout, String stderr,
-                         boolean timedOut, boolean outputTruncated) {
-        public boolean success() { return exitCode == 0 && !timedOut; }
+    public record Result(int exitCode, String stdout, String stderr, boolean timedOut, boolean outputTruncated) {
+        public boolean success() {
+            return exitCode == 0 && !timedOut;
+        }
     }
 
     // -- capture buffer (thread-safe, bounded) --
@@ -344,15 +392,21 @@ public final class ProcessRunner {
 
         synchronized void write(byte[] buf, int len) {
             int remaining = maxBytes - bytes.size();
-            if (remaining <= 0) { truncated = true; return; }
+            if (remaining <= 0) {
+                truncated = true;
+                return;
+            }
             bytes.write(buf, 0, Math.min(len, remaining));
-            if (len > remaining) truncated = true;
+            if (len > remaining)
+                truncated = true;
         }
 
         synchronized String text() {
             return bytes.toString(StandardCharsets.UTF_8);
         }
 
-        boolean truncated() { return truncated; }
+        boolean truncated() {
+            return truncated;
+        }
     }
 }

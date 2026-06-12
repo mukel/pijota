@@ -1,7 +1,4 @@
 package ai.pijota.extensions;
 
-public record ExtensionKeybinding(
-    KeyChord key,
-    String description,
-    Runnable handler
-) {}
+public record ExtensionKeybinding(KeyChord key, String description, Runnable handler) {
+}

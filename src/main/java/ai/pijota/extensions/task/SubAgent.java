@@ -15,19 +15,11 @@ import java.util.Map;
 /**
  * Agent configuration matching Pi's agents.md format.
  *
- * Discovery paths (Pi-compatible):
- *   ~/.pi/agent/agents/*.md
- *   .pi/agents/*.md
- * Compatibility: also reads .pijota/agents/*.json (legacy).
+ * Discovery paths (Pi-compatible): ~/.pi/agent/agents/*.md .pi/agents/*.md Compatibility: also reads
+ * .pijota/agents/*.json (legacy).
  */
-public record SubAgent(
-    String name,
-    String description,
-    String systemPrompt,
-    List<String> tools,
-    String model,
-    String source
-) {
+public record SubAgent(String name, String description, String systemPrompt, List<String> tools, String model,
+                                String source) {
     public static SubAgent loadMarkdown(Path file, String source) {
         try {
             String content = Files.readString(file);
@@ -44,15 +36,16 @@ public record SubAgent(
                     systemPrompt = content.substring(end + 3).strip();
                     for (String kv : yaml.split("\\R")) {
                         int colon = kv.indexOf(':');
-                        if (colon < 0) continue;
+                        if (colon < 0)
+                            continue;
                         String key = kv.substring(0, colon).strip();
                         String value = kv.substring(colon + 1).strip();
                         switch (key) {
                             case "name" -> name = value;
                             case "description" -> description = value;
                             case "model" -> model = value;
-                            case "tools" -> tools = Arrays.stream(value.split("[,;]"))
-                                .map(String::strip).filter(s -> !s.isBlank()).toList();
+                            case "tools" -> tools = Arrays.stream(value.split("[,;]")).map(String::strip)
+                                                            .filter(s -> !s.isBlank()).toList();
                         }
                     }
                 }
@@ -60,8 +53,8 @@ public record SubAgent(
 
             return new SubAgent(name, description, systemPrompt, tools, model, source);
         } catch (Exception e) {
-            return new SubAgent(file.getFileName().toString().replace(".md", ""),
-                "failed: " + e.getMessage(), "", List.of(), null, source);
+            return new SubAgent(file.getFileName().toString().replace(".md", ""), "failed: " + e.getMessage(), "",
+                                            List.of(), null, source);
         }
     }
 
@@ -70,22 +63,21 @@ public record SubAgent(
             @SuppressWarnings("unchecked")
             var map = Util.MAPPER.readValue(file.toFile(), Map.class);
             String name = string(map, "name", file.getFileName().toString().replace(".json", ""));
-            return new SubAgent(name,
-                string(map, "description", ""),
-                string(map, "systemPrompt", ""),
-                map.containsKey("tools") ? toolsFromMap(map.get("tools")) : List.of(),
-                string(map, "model", null),
-                source);
+            return new SubAgent(name, string(map, "description", ""), string(map, "systemPrompt", ""),
+                                            map.containsKey("tools") ? toolsFromMap(map.get("tools")) : List.of(),
+                                            string(map, "model", null), source);
         } catch (Exception e) {
-            return new SubAgent(file.getFileName().toString().replace(".json", ""),
-                "failed: " + e.getMessage(), "", List.of(), null, source);
+            return new SubAgent(file.getFileName().toString().replace(".json", ""), "failed: " + e.getMessage(), "",
+                                            List.of(), null, source);
         }
     }
 
     @SuppressWarnings("unchecked")
     private static List<String> toolsFromMap(Object val) {
-        if (val instanceof List<?> list) return list.stream().map(Object::toString).toList();
-        if (val instanceof String s) return Arrays.stream(s.split("[,;]")).map(String::strip).filter(t -> !t.isBlank()).toList();
+        if (val instanceof List<?> list)
+            return list.stream().map(Object::toString).toList();
+        if (val instanceof String s)
+            return Arrays.stream(s.split("[,;]")).map(String::strip).filter(t -> !t.isBlank()).toList();
         return List.of();
     }
 
@@ -128,10 +120,12 @@ public record SubAgent(
     @SuppressWarnings("unchecked")
     private static void applyOverrides(List<SubAgent> agents, Path configFile) {
         try {
-            if (!Files.exists(configFile)) return;
+            if (!Files.exists(configFile))
+                return;
             Map<String, Object> config = Util.MAPPER.readValue(configFile.toFile(), Map.class);
             Map<String, Object> overrides = (Map<String, Object>) config.get("agentOverrides");
-            if (overrides == null) return;
+            if (overrides == null)
+                return;
             boolean disableBuiltins = Boolean.TRUE.equals(config.get("disableBuiltins"));
 
             for (int i = agents.size() - 1; i >= 0; i--) {
@@ -150,34 +144,35 @@ public record SubAgent(
                 }
             }
         } catch (Exception e) {
-            System.err.println("[pijota] failed to load sub-agent overrides from " + configFile + ": " + e.getMessage());
+            System.err.println("[pijota] failed to load sub-agent overrides from " + configFile + ": "
+                                            + e.getMessage());
         }
     }
 
     private SubAgent withOverride(Map<String, Object> override) {
         String m = override.get("model") instanceof String s ? s : model;
-        List<String> t = override.containsKey("tools")
-            ? toolsFromMap(override.get("tools")) : tools;
+        List<String> t = override.containsKey("tools") ? toolsFromMap(override.get("tools")) : tools;
         String sp = override.get("systemPrompt") instanceof String s ? s : systemPrompt;
         return new SubAgent(name, description, sp, t, m, source);
     }
 
     private static List<SubAgent> loadMarkdownDir(Path dir, String source) {
-        if (!Files.isDirectory(dir)) return List.of();
+        if (!Files.isDirectory(dir))
+            return List.of();
         try (var stream = Files.walk(dir, 3)) {
-            return stream
-                .filter(p -> p.getFileName().toString().endsWith(".md"))
-                .map(p -> loadMarkdown(p, source))
-                .toList();
+            return stream.filter(p -> p.getFileName().toString().endsWith(".md")).map(p -> loadMarkdown(p, source))
+                                            .toList();
         } catch (Exception ignored) {}
         return List.of();
     }
 
     private static List<SubAgent> loadJsonDir(Path dir, String source) {
-        if (!Files.isDirectory(dir)) return List.of();
+        if (!Files.isDirectory(dir))
+            return List.of();
         try (var stream = Files.newDirectoryStream(dir, "*.json")) {
             var list = new ArrayList<SubAgent>();
-            for (Path p : stream) list.add(loadJson(p, source));
+            for (Path p : stream)
+                list.add(loadJson(p, source));
             return list;
         } catch (Exception ignored) {}
         return List.of();
@@ -188,21 +183,22 @@ public record SubAgent(
         try {
             var classLoader = SubAgent.class.getClassLoader();
             URL resourceUrl = classLoader.getResource("agents");
-            if (resourceUrl == null) return List.of();
+            if (resourceUrl == null)
+                return List.of();
             URI uri = resourceUrl.toURI();
             if ("jar".equals(uri.getScheme())) {
                 try (var jarFs = FileSystems.newFileSystem(uri, Map.of())) {
                     Path agentsPath = jarFs.getPath("agents");
                     try (var stream = Files.list(agentsPath)) {
                         stream.filter(p -> p.getFileName().toString().endsWith(".md"))
-                            .forEach(p -> agents.add(loadMarkdown(p, "builtin")));
+                                                        .forEach(p -> agents.add(loadMarkdown(p, "builtin")));
                     }
                 }
             } else {
                 Path dir = Path.of(uri);
                 try (var stream = Files.list(dir)) {
                     stream.filter(p -> p.getFileName().toString().endsWith(".md"))
-                        .forEach(p -> agents.add(loadMarkdown(p, "builtin")));
+                                                    .forEach(p -> agents.add(loadMarkdown(p, "builtin")));
                 }
             }
         } catch (Exception ignored) {}

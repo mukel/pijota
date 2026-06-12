@@ -23,7 +23,8 @@ public final class PromptTemplateLoader {
         discoverIn(templates, Path.of(cwd, ".pijota", "prompts"));
         for (String pathStr : explicitPaths) {
             Path p = Path.of(pathStr);
-            if (!p.isAbsolute()) p = Path.of(cwd).resolve(p);
+            if (!p.isAbsolute())
+                p = Path.of(cwd).resolve(p);
             loadTemplate(p).ifPresent(t -> templates.putIfAbsent(t.name(), t));
         }
         return new ArrayList<>(templates.values());
@@ -31,7 +32,8 @@ public final class PromptTemplateLoader {
 
     /** Replace shell-style variables: $1..$9, $@, $ARGUMENTS, ${@:N}, ${@:N:L}. */
     public static String expand(String content, String[] args) {
-        if (args.length == 0) return content;
+        if (args.length == 0)
+            return content;
 
         String expanded = content;
 
@@ -55,15 +57,18 @@ public final class PromptTemplateLoader {
 
     private static String expandSlices(String content, String[] args) {
         Matcher m = SLICE.matcher(content);
-        if (!m.find()) return content;
+        if (!m.find())
+            return content;
         StringBuilder sb = new StringBuilder();
         do {
             int start = Integer.parseInt(m.group(1)) - 1; // 1-indexed
             int len = m.group(2) != null ? Integer.parseInt(m.group(2)) : args.length - start;
-            if (start < 0) start = 0;
+            if (start < 0)
+                start = 0;
             int end = Math.min(start + len, args.length);
             var slice = new ArrayList<String>();
-            for (int i = start; i < end; i++) slice.add(args[i]);
+            for (int i = start; i < end; i++)
+                slice.add(args[i]);
             m.appendReplacement(sb, Matcher.quoteReplacement(String.join(" ", slice)));
         } while (m.find());
         m.appendTail(sb);
@@ -72,18 +77,23 @@ public final class PromptTemplateLoader {
 
     /** Parse shell-style quoted arguments, same as Pi's parseCommandArgs. */
     public static String[] parseArgs(String input) {
-        if (input == null || input.isBlank()) return new String[0];
+        if (input == null || input.isBlank())
+            return new String[0];
         var args = new ArrayList<String>();
         boolean inSingle = false, inDouble = false;
         var current = new StringBuilder();
         for (int i = 0; i < input.length(); i++) {
             char c = input.charAt(i);
             if (inSingle) {
-                if (c == '\'') inSingle = false;
-                else current.append(c);
+                if (c == '\'')
+                    inSingle = false;
+                else
+                    current.append(c);
             } else if (inDouble) {
-                if (c == '"') inDouble = false;
-                else current.append(c);
+                if (c == '"')
+                    inDouble = false;
+                else
+                    current.append(c);
             } else if (c == '\'') {
                 inSingle = true;
             } else if (c == '"') {
@@ -97,12 +107,14 @@ public final class PromptTemplateLoader {
                 current.append(c);
             }
         }
-        if (!current.isEmpty()) args.add(current.toString());
+        if (!current.isEmpty())
+            args.add(current.toString());
         return args.toArray(new String[0]);
     }
 
     public static String buildPrompt(List<PromptTemplate> templates) {
-        if (templates.isEmpty()) return "";
+        if (templates.isEmpty())
+            return "";
         var sb = new StringBuilder();
         sb.append("\n<available_prompt_templates>\n");
         sb.append("The following prompt templates are available. Expand them via /<name> <args>.\n");
@@ -122,7 +134,8 @@ public final class PromptTemplateLoader {
     // ---- internal discovery ----
 
     private static void discoverIn(Map<String, PromptTemplate> templates, Path dir) {
-        if (!Files.isDirectory(dir)) return;
+        if (!Files.isDirectory(dir))
+            return;
         try (Stream<Path> stream = Files.list(dir)) {
             stream.sorted().forEach(p -> loadTemplate(p).ifPresent(t -> templates.putIfAbsent(t.name(), t)));
         } catch (IOException ignored) {}
@@ -130,24 +143,26 @@ public final class PromptTemplateLoader {
 
     private static Optional<PromptTemplate> loadTemplate(Path path) {
         try {
-            if (!Files.isRegularFile(path)) return Optional.empty();
+            if (!Files.isRegularFile(path))
+                return Optional.empty();
             String fileName = path.getFileName().toString();
-            if (!fileName.endsWith(".md")) return Optional.empty();
+            if (!fileName.endsWith(".md"))
+                return Optional.empty();
             String name = fileName.substring(0, fileName.length() - 3);
-            if (name.isEmpty()) return Optional.empty();
+            if (name.isEmpty())
+                return Optional.empty();
 
             String raw = Files.readString(path);
             var parsed = parseFrontmatter(raw);
             String description = parsed.frontmatter().getOrDefault("description", "").toString();
             if (description.isBlank()) {
                 // fall back to first non-empty line of body, truncated to 60 chars
-                String firstLine = parsed.body().lines()
-                    .filter(l -> !l.isBlank())
-                    .findFirst().orElse("");
+                String firstLine = parsed.body().lines().filter(l -> !l.isBlank()).findFirst().orElse("");
                 description = firstLine.length() > 60 ? firstLine.substring(0, 57) + "..." : firstLine;
             }
             String argumentHint = parsed.frontmatter().getOrDefault("argument-hint", "").toString();
-            if (argumentHint.isBlank()) argumentHint = null;
+            if (argumentHint.isBlank())
+                argumentHint = null;
 
             return Optional.of(new PromptTemplate(name, description, argumentHint, parsed.body(), path));
         } catch (IOException e) {
@@ -157,7 +172,8 @@ public final class PromptTemplateLoader {
 
     // ---- minimal YAML frontmatter parser ----
 
-    record Parsed(Map<String, String> frontmatter, String body) {}
+    record Parsed(Map<String, String> frontmatter, String body) {
+    }
 
     private static Parsed parseFrontmatter(String raw) {
         var frontmatter = new LinkedHashMap<String, String>();
@@ -175,9 +191,8 @@ public final class PromptTemplateLoader {
                         String value = line.substring(colon + 1).trim();
                         if (!key.isEmpty() && !value.isEmpty()) {
                             // strip surrounding quotes
-                            if (value.length() >= 2
-                                && ((value.startsWith("\"") && value.endsWith("\""))
-                                 || (value.startsWith("'") && value.endsWith("'")))) {
+                            if (value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\""))
+                                                            || (value.startsWith("'") && value.endsWith("'")))) {
                                 value = value.substring(1, value.length() - 1);
                             }
                             frontmatter.put(key, value);

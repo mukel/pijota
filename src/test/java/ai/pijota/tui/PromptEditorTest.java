@@ -91,8 +91,8 @@ class PromptEditorTest {
 
     @Test
     void usesInjectedFileCompletionProvider() {
-        var editor = new PromptEditor(new SlashCommandRegistry(), text -> List.of(
-            new CompletionItem(text + ".java", "file")));
+        var editor = new PromptEditor(new SlashCommandRegistry(),
+                                        text -> List.of(new CompletionItem(text + ".java", "file")));
 
         editor.insertText("src/Main");
         var result = editor.apply(Key.Special.TAB);

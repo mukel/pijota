@@ -9,9 +9,13 @@ import java.util.concurrent.CompletableFuture;
 final class DialogHandler {
     interface Host {
         void appendPlain(List<String> lines);
+
         String styled(String slot, String text);
+
         void setStatus(String status);
+
         void clearStatus();
+
         void redrawPrompt();
     }
 
@@ -53,19 +57,21 @@ final class DialogHandler {
         lines.add(host.styled("toolLabel", "question"));
         for (int i = 0; i < questions.size(); i++) {
             var q = questions.get(i);
-            if (questions.size() > 1) lines.add("");
+            if (questions.size() > 1)
+                lines.add("");
             String prefix = questions.size() == 1 ? "" : "Q" + (i + 1) + "  ";
             lines.add(prefix + q.question());
             if (!q.options().isEmpty()) {
                 for (int j = 0; j < q.options().size(); j++) {
                     var opt = q.options().get(j);
                     String desc = opt.description() == null || opt.description().isBlank()
-                        ? "" : " - " + opt.description();
+                                                    ? ""
+                                                    : " - " + opt.description();
                     lines.add(String.format("    %d) %s%s", j + 1, opt.label(), desc));
                 }
-                lines.add(host.styled("statusText",
-                    q.multiple() ? "type numbers (comma-separated) or custom text (Esc cancel)"
-                                 : "type a number or custom text (Esc cancel)"));
+                lines.add(host.styled("statusText", q.multiple()
+                                                ? "type numbers (comma-separated) or custom text (Esc cancel)"
+                                                : "type a number or custom text (Esc cancel)"));
             } else {
                 lines.add(host.styled("statusText", "type your answer (Esc cancel)"));
             }
@@ -78,11 +84,15 @@ final class DialogHandler {
 
     boolean handleConfirm(Key key) {
         var pc = pendingConfirm;
-        if (pc == null || pc.isDone()) return false;
+        if (pc == null || pc.isDone())
+            return false;
         if (key instanceof Key.Char c) {
-            if (c.value() == 'y' || c.value() == 'Y') pc.complete(true);
-            else if (c.value() == 'n' || c.value() == 'N') pc.complete(false);
-            else return true;
+            if (c.value() == 'y' || c.value() == 'Y')
+                pc.complete(true);
+            else if (c.value() == 'n' || c.value() == 'N')
+                pc.complete(false);
+            else
+                return true;
         } else if (key == Key.Special.ESC) {
             pc.complete(false);
         } else {
@@ -96,7 +106,8 @@ final class DialogHandler {
 
     boolean handlePrompt(Key key) {
         var pp = pendingPrompt;
-        if (pp == null || pp.isDone()) return false;
+        if (pp == null || pp.isDone())
+            return false;
         if (key instanceof Key.Char c) {
             pendingPromptText.append(c.value());
             host.redrawPrompt();
@@ -127,7 +138,8 @@ final class DialogHandler {
 
     boolean cancelQuestionIfIdle(boolean busy) {
         var pending = pendingQuestionAnswer;
-        if (busy || pending == null || pending.isDone()) return false;
+        if (busy || pending == null || pending.isDone())
+            return false;
         pending.cancel(true);
         pendingQuestionAnswer = null;
         host.clearStatus();
@@ -137,7 +149,8 @@ final class DialogHandler {
 
     boolean submitQuestionAnswer(String answer, Runnable echo) {
         var pending = pendingQuestionAnswer;
-        if (pending == null || pending.isDone()) return false;
+        if (pending == null || pending.isDone())
+            return false;
         echo.run();
         pending.complete(answer);
         pendingQuestionAnswer = null;
@@ -147,9 +160,9 @@ final class DialogHandler {
     }
 
     String promptStatusLine() {
-        if (pendingPrompt == null || pendingPrompt.isDone()) return null;
-        return host.styled("statusText", "▶ " + pendingPromptText)
-            + host.styled("highlight", " ");
+        if (pendingPrompt == null || pendingPrompt.isDone())
+            return null;
+        return host.styled("statusText", "▶ " + pendingPromptText) + host.styled("highlight", " ");
     }
 
     boolean questionPending() {

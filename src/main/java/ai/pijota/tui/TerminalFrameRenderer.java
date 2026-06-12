@@ -22,13 +22,14 @@ final class TerminalFrameRenderer {
         this.layout = layout;
     }
 
-    String renderFrame(int width, PromptSnapshot snapshot, List<StyledLine> lines,
-                       boolean erase, boolean showPrompt, AnsiTheme theme) {
+    String renderFrame(int width, PromptSnapshot snapshot, List<StyledLine> lines, boolean erase, boolean showPrompt,
+                                    AnsiTheme theme) {
         var buf = new StringWriter();
         var out = new PrintWriter(buf);
         out.print(BEGIN_SYNC);
         out.print(HIDE_CURSOR);
-        if (erase) layout.eraseCurrent(out);
+        if (erase)
+            layout.eraseCurrent(out);
         for (var line : lines) {
             out.print(CLEAR_LINE);
             out.print(line.text());

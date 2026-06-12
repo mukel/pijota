@@ -47,7 +47,8 @@ public final class ProviderCatalog {
 
     private static Catalog load() {
         try (InputStream in = ProviderCatalog.class.getResourceAsStream("/providers.json")) {
-            if (in == null) return new Catalog(List.of());
+            if (in == null)
+                return new Catalog(List.of());
             return Util.MAPPER.readValue(in, Catalog.class);
         } catch (Exception e) {
             return new Catalog(List.of());
@@ -62,16 +63,8 @@ public final class ProviderCatalog {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Provider(
-        String id,
-        String displayName,
-        String apiType,
-        String baseUrl,
-        List<String> env,
-        String defaultModel,
-        Map<String, String> headers,
-        OAuth oauth
-    ) {
+    public record Provider(String id, String displayName, String apiType, String baseUrl, List<String> env,
+                                    String defaultModel, Map<String, String> headers, OAuth oauth) {
         public Provider {
             env = env == null ? List.of() : List.copyOf(env);
             headers = headers == null ? Map.of() : Map.copyOf(headers);
@@ -79,6 +72,7 @@ public final class ProviderCatalog {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record OAuth(String deviceEndpoint, String tokenEndpoint, String oauthTokenEndpoint,
-                         String clientId, String scope) {}
+    public record OAuth(String deviceEndpoint, String tokenEndpoint, String oauthTokenEndpoint, String clientId,
+                                    String scope) {
+    }
 }

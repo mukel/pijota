@@ -16,14 +16,13 @@ final class Supervisor {
         List<String> command = initialWorkerCommand(originalArgs);
 
         while (true) {
-            Process worker = new ProcessBuilder(command)
-                .inheritIO()
-                .directory(Path.of(System.getProperty("user.dir")).toFile())
-                .start();
+            Process worker = new ProcessBuilder(command).inheritIO()
+                                            .directory(Path.of(System.getProperty("user.dir")).toFile()).start();
             int exitCode = worker.waitFor();
 
             var restart = SelfRespawn.readRestartRequest();
-            if (restart.isEmpty()) return exitCode;
+            if (restart.isEmpty())
+                return exitCode;
 
             command = restart.get();
             SelfRespawn.clearRestartRequest();

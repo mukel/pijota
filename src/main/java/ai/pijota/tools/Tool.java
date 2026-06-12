@@ -15,13 +15,19 @@ public interface Tool {
         return execute(toolCallId, arguments, null);
     }
 
-    CompletableFuture<ToolResult> execute(
-            String toolCallId, Map<String, Object> arguments, String sessionCwd);
+    CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> arguments, String sessionCwd);
 
-    default boolean defaultEnabled() { return true; }
+    default boolean defaultEnabled() {
+        return true;
+    }
 
-    enum ExecutionMode { SEQUENTIAL, PARALLEL }
-    default ExecutionMode executionMode() { return ExecutionMode.PARALLEL; }
+    enum ExecutionMode {
+        SEQUENTIAL, PARALLEL
+    }
+    default ExecutionMode executionMode() {
+        return ExecutionMode.PARALLEL;
+    }
+
     default void abort() {}
 
     record ToolResult(String content, boolean isError, Map<String, Object> details) {
@@ -48,72 +54,91 @@ public interface Tool {
         ToolResultView render(Map<String, Object> args, ToolResult result, String cwd);
     }
 
-    record ToolDefinition(
-        String name,
-        String description,
-        Map<String, Object> schema,
-        Execute execute,
-        boolean defaultEnabled,
-        ResultRenderer resultRenderer
-    ) {
-        public ToolDefinition(String name, String description, Map<String, Object> schema,
-                               Execute execute) {
+    record ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
+                                    boolean defaultEnabled, ResultRenderer resultRenderer) {
+        public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute) {
             this(name, description, schema, execute, true, null);
         }
 
-        public ToolDefinition(String name, String description, Map<String, Object> schema,
-                               Execute execute, ResultRenderer resultRenderer) {
+        public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
+                                        ResultRenderer resultRenderer) {
             this(name, description, schema, execute, true, resultRenderer);
         }
 
-        public ToolDefinition(String name, String description, Map<String, Object> schema,
-                               Execute execute, boolean defaultEnabled) {
+        public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
+                                        boolean defaultEnabled) {
             this(name, description, schema, execute, defaultEnabled, null);
         }
 
         public Tool toTool() {
             return new Tool() {
-                @Override public String name() { return name; }
-                @Override public String description() { return description; }
-                @Override public Map<String, Object> schema() { return schema; }
-                @Override public boolean defaultEnabled() { return defaultEnabled; }
-                @Override public CompletableFuture<ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+                @Override
+                public String name() {
+                    return name;
+                }
+
+                @Override
+                public String description() {
+                    return description;
+                }
+
+                @Override
+                public Map<String, Object> schema() {
+                    return schema;
+                }
+
+                @Override
+                public boolean defaultEnabled() {
+                    return defaultEnabled;
+                }
+
+                @Override
+                public CompletableFuture<ToolResult> execute(String id, Map<String, Object> args, String cwd) {
                     return ToolDefinition.this.execute.execute(id, args, cwd);
                 }
-                @Override public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
-                    return resultRenderer != null ? resultRenderer.render(args, result, cwd)
-                                                  : Tool.super.renderResult(args, result, cwd);
+
+                @Override
+                public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+                    return resultRenderer != null
+                                                    ? resultRenderer.render(args, result, cwd)
+                                                    : Tool.super.renderResult(args, result, cwd);
                 }
             };
         }
     }
 
-    record ToolInfo(String name, String description) {}
+    record ToolInfo(String name, String description) {
+    }
 
     /**
      * Rendered view of a tool result for TUI display.
-     * @param summary single-line summary shown after the tool name + args
-     * @param body    additional lines rendered below the summary (diff, output preview, etc.)
+     * 
+     * @param summary
+     *            single-line summary shown after the tool name + args
+     * @param body
+     *            additional lines rendered below the summary (diff, output preview, etc.)
      */
     record ToolResultView(String summary, java.util.List<String> body) {
         public static ToolResultView of(String summary) {
             return new ToolResultView(summary, java.util.List.of());
         }
+
         public static ToolResultView of(String summary, java.util.List<String> body) {
             return new ToolResultView(summary, body);
         }
     }
 
     /**
-     * Produce a display-oriented rendering of this tool's result.
-     * Each tool can override to provide richer output (diffs, previews, etc.).
+     * Produce a display-oriented rendering of this tool's result. Each tool can override to provide richer output
+     * (diffs, previews, etc.).
      */
     default ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
         String text = result.content();
         if (result.isError()) {
             return ToolResultView.of(text != null ? text : "");
         }
-        if (text == null || text.isBlank()) return ToolResultView.of("");
+        if (text == null || text.isBlank())
+            return ToolResultView.of("");
         String first = text.lines().findFirst().orElse(text);
         return ToolResultView.of(first);
     }

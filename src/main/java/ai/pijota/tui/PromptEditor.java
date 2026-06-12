@@ -16,10 +16,21 @@ public final class PromptEditor {
     }
 
     public record Result(boolean changed, Optional<String> submitted, boolean exit) {
-        static Result didChange() { return new Result(true, Optional.empty(), false); }
-        static Result unchangedResult() { return new Result(false, Optional.empty(), false); }
-        static Result submitted(String text) { return new Result(true, Optional.of(text), false); }
-        static Result exitResult() { return new Result(false, Optional.empty(), true); }
+        static Result didChange() {
+            return new Result(true, Optional.empty(), false);
+        }
+
+        static Result unchangedResult() {
+            return new Result(false, Optional.empty(), false);
+        }
+
+        static Result submitted(String text) {
+            return new Result(true, Optional.of(text), false);
+        }
+
+        static Result exitResult() {
+            return new Result(false, Optional.empty(), true);
+        }
     }
 
     private final SlashCommandRegistry commands;
@@ -43,14 +54,18 @@ public final class PromptEditor {
     PromptEditor(SlashCommandRegistry commands, FileCompletionProvider fileCompletionProvider) {
         this.commands = commands;
         this.fileCompletionProvider = fileCompletionProvider != null
-            ? fileCompletionProvider : PromptEditor::defaultFileCompletions;
+                                        ? fileCompletionProvider
+                                        : PromptEditor::defaultFileCompletions;
         lines.add("");
     }
 
     public synchronized Result apply(Key key) {
         return switch (key) {
             case Key.Char c -> insert(c.value());
-            case Key.Paste p -> { insertText(p.text()); yield Result.didChange(); }
+            case Key.Paste p -> {
+                insertText(p.text());
+                yield Result.didChange();
+            }
             case Key.Special s -> applySpecial(s);
         };
     }
@@ -77,13 +92,36 @@ public final class PromptEditor {
             case RIGHT -> right();
             case UP -> up();
             case DOWN -> down();
-            case HOME -> { col = 0; desiredCol = -1; clearCompletions(); yield Result.didChange(); }
-            case END -> { col = lines.get(row).length(); desiredCol = -1; clearCompletions(); yield Result.didChange(); }
+            case HOME -> {
+                col = 0;
+                desiredCol = -1;
+                clearCompletions();
+                yield Result.didChange();
+            }
+            case END -> {
+                col = lines.get(row).length();
+                desiredCol = -1;
+                clearCompletions();
+                yield Result.didChange();
+            }
             case TAB -> complete();
-            case CTRL_A -> { col = 0; desiredCol = -1; clearCompletions(); yield Result.didChange(); }
-            case CTRL_E -> { col = lines.get(row).length(); desiredCol = -1; clearCompletions(); yield Result.didChange(); }
+            case CTRL_A -> {
+                col = 0;
+                desiredCol = -1;
+                clearCompletions();
+                yield Result.didChange();
+            }
+            case CTRL_E -> {
+                col = lines.get(row).length();
+                desiredCol = -1;
+                clearCompletions();
+                yield Result.didChange();
+            }
             case CTRL_K -> killToEnd();
-            case CTRL_U -> { reset(); yield Result.didChange(); }
+            case CTRL_U -> {
+                reset();
+                yield Result.didChange();
+            }
             case CTRL_W -> deleteWordBeforeCursor();
             case ALT_D -> deleteWordAfterCursor();
             case CTRL_LEFT -> wordLeft();
@@ -116,7 +154,8 @@ public final class PromptEditor {
 
     private Result submit() {
         String text;
-        if (selector.total() > 0) return submitOrAcceptCompletion();
+        if (selector.total() > 0)
+            return submitOrAcceptCompletion();
         text = String.join("\n", lines).stripTrailing();
         reset();
         if (!text.isBlank()) {
@@ -135,7 +174,8 @@ public final class PromptEditor {
             refreshCompletions();
             return Result.didChange();
         }
-        if (row == 0) return Result.unchangedResult();
+        if (row == 0)
+            return Result.unchangedResult();
         return mergeWithPrevious();
     }
 
@@ -147,33 +187,44 @@ public final class PromptEditor {
             refreshCompletions();
             return Result.didChange();
         }
-        if (row >= lines.size() - 1) return Result.unchangedResult();
+        if (row >= lines.size() - 1)
+            return Result.unchangedResult();
         lines.set(row, line + lines.remove(row + 1));
         clearCompletions();
         return Result.didChange();
     }
 
     private Result left() {
-        if (col > 0) col--;
-        else if (row > 0) { row--; col = lines.get(row).length(); }
-        else return Result.unchangedResult();
+        if (col > 0)
+            col--;
+        else if (row > 0) {
+            row--;
+            col = lines.get(row).length();
+        } else
+            return Result.unchangedResult();
         desiredCol = -1;
         clearCompletions();
         return Result.didChange();
     }
 
     private Result right() {
-        if (col < lines.get(row).length()) col++;
-        else if (row < lines.size() - 1) { row++; col = 0; }
-        else return Result.unchangedResult();
+        if (col < lines.get(row).length())
+            col++;
+        else if (row < lines.size() - 1) {
+            row++;
+            col = 0;
+        } else
+            return Result.unchangedResult();
         desiredCol = -1;
         clearCompletions();
         return Result.didChange();
     }
 
     private Result up() {
-        if (row == 0) return Result.unchangedResult();
-        if (desiredCol < 0) desiredCol = col;
+        if (row == 0)
+            return Result.unchangedResult();
+        if (desiredCol < 0)
+            desiredCol = col;
         row--;
         col = Math.min(desiredCol, lines.get(row).length());
         clearCompletions();
@@ -181,8 +232,10 @@ public final class PromptEditor {
     }
 
     private Result down() {
-        if (row >= lines.size() - 1) return Result.unchangedResult();
-        if (desiredCol < 0) desiredCol = col;
+        if (row >= lines.size() - 1)
+            return Result.unchangedResult();
+        if (desiredCol < 0)
+            desiredCol = col;
         row++;
         col = Math.min(desiredCol, lines.get(row).length());
         clearCompletions();
@@ -190,7 +243,8 @@ public final class PromptEditor {
     }
 
     private Result complete() {
-        if (row != 0 || col != lines.getFirst().length()) return Result.unchangedResult();
+        if (row != 0 || col != lines.getFirst().length())
+            return Result.unchangedResult();
         String text = lines.getFirst();
         completionPrefix = "";
 
@@ -230,7 +284,8 @@ public final class PromptEditor {
     private static List<CompletionItem> defaultFileCompletions(String text) {
         int lastSpace = text.lastIndexOf(' ');
         String prefix = lastSpace >= 0 ? text.substring(lastSpace + 1) : text;
-        if (prefix.isBlank()) return List.of();
+        if (prefix.isBlank())
+            return List.of();
         try {
             Path dir;
             String filePrefix;
@@ -238,31 +293,27 @@ public final class PromptEditor {
             if (lastSep >= 0) {
                 String dirStr = prefix.substring(0, lastSep + 1);
                 dir = Path.of(dirStr);
-                if (!dir.isAbsolute()) dir = Path.of("").toAbsolutePath().resolve(dir);
+                if (!dir.isAbsolute())
+                    dir = Path.of("").toAbsolutePath().resolve(dir);
                 filePrefix = prefix.substring(lastSep + 1);
             } else {
                 dir = Path.of("").toAbsolutePath();
                 filePrefix = prefix;
             }
-            if (!Files.isDirectory(dir)) return List.of();
+            if (!Files.isDirectory(dir))
+                return List.of();
             String fPrefix = filePrefix.toLowerCase();
             try (var stream = Files.list(dir)) {
-                return stream
-                    .filter(p -> {
-                        String name = p.getFileName().toString();
-                        return !name.startsWith(".") && name.toLowerCase().contains(fPrefix);
-                    })
-                    .sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase()))
-                    .limit(15)
-                    .map(p -> {
-                        String name = p.getFileName().toString();
-                        String display = lastSep >= 0
-                            ? prefix.substring(0, lastSep + 1) + name
-                            : name;
-                        if (Files.isDirectory(p)) display += "/";
-                        return new CompletionItem(display, Files.isDirectory(p) ? "dir" : "");
-                    })
-                    .toList();
+                return stream.filter(p -> {
+                    String name = p.getFileName().toString();
+                    return !name.startsWith(".") && name.toLowerCase().contains(fPrefix);
+                }).sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase())).limit(15).map(p -> {
+                    String name = p.getFileName().toString();
+                    String display = lastSep >= 0 ? prefix.substring(0, lastSep + 1) + name : name;
+                    if (Files.isDirectory(p))
+                        display += "/";
+                    return new CompletionItem(display, Files.isDirectory(p) ? "dir" : "");
+                }).toList();
             } catch (IOException e) {
                 return List.of();
             }
@@ -294,7 +345,8 @@ public final class PromptEditor {
             clearCompletions();
             return Result.didChange();
         }
-        if (row >= lines.size() - 1) return Result.unchangedResult();
+        if (row >= lines.size() - 1)
+            return Result.unchangedResult();
         lines.subList(row + 1, lines.size()).clear();
         desiredCol = -1;
         clearCompletions();
@@ -303,14 +355,17 @@ public final class PromptEditor {
 
     private Result deleteWordBeforeCursor() {
         if (col == 0) {
-            if (row == 0) return Result.unchangedResult();
+            if (row == 0)
+                return Result.unchangedResult();
             return mergeWithPrevious();
         }
 
         String line = lines.get(row);
         int start = col;
-        while (start > 0 && Character.isWhitespace(line.charAt(start - 1))) start--;
-        while (start > 0 && !Character.isWhitespace(line.charAt(start - 1))) start--;
+        while (start > 0 && Character.isWhitespace(line.charAt(start - 1)))
+            start--;
+        while (start > 0 && !Character.isWhitespace(line.charAt(start - 1)))
+            start--;
         lines.set(row, line.substring(0, start) + line.substring(col));
         col = start;
         desiredCol = -1;
@@ -321,7 +376,8 @@ public final class PromptEditor {
     private Result deleteWordAfterCursor() {
         String line = lines.get(row);
         if (col >= line.length()) {
-            if (row >= lines.size() - 1) return Result.unchangedResult();
+            if (row >= lines.size() - 1)
+                return Result.unchangedResult();
             lines.set(row, line + lines.remove(row + 1));
             desiredCol = -1;
             clearCompletions();
@@ -329,8 +385,10 @@ public final class PromptEditor {
         }
 
         int end = col;
-        while (end < line.length() && Character.isWhitespace(line.charAt(end))) end++;
-        while (end < line.length() && !Character.isWhitespace(line.charAt(end))) end++;
+        while (end < line.length() && Character.isWhitespace(line.charAt(end)))
+            end++;
+        while (end < line.length() && !Character.isWhitespace(line.charAt(end)))
+            end++;
         lines.set(row, line.substring(0, col) + line.substring(end));
         desiredCol = -1;
         refreshCompletions();
@@ -339,13 +397,16 @@ public final class PromptEditor {
 
     private Result wordLeft() {
         if (col == 0) {
-            if (row == 0) return Result.unchangedResult();
+            if (row == 0)
+                return Result.unchangedResult();
             row--;
             col = lines.get(row).length();
         }
         String line = lines.get(row);
-        while (col > 0 && Character.isWhitespace(line.charAt(col - 1))) col--;
-        while (col > 0 && !Character.isWhitespace(line.charAt(col - 1))) col--;
+        while (col > 0 && Character.isWhitespace(line.charAt(col - 1)))
+            col--;
+        while (col > 0 && !Character.isWhitespace(line.charAt(col - 1)))
+            col--;
         desiredCol = -1;
         clearCompletions();
         return Result.didChange();
@@ -354,13 +415,16 @@ public final class PromptEditor {
     private Result wordRight() {
         String line = lines.get(row);
         if (col >= line.length()) {
-            if (row >= lines.size() - 1) return Result.unchangedResult();
+            if (row >= lines.size() - 1)
+                return Result.unchangedResult();
             row++;
             col = 0;
             line = lines.get(row);
         }
-        while (col < line.length() && !Character.isWhitespace(line.charAt(col))) col++;
-        while (col < line.length() && Character.isWhitespace(line.charAt(col))) col++;
+        while (col < line.length() && !Character.isWhitespace(line.charAt(col)))
+            col++;
+        while (col < line.length() && Character.isWhitespace(line.charAt(col)))
+            col++;
         desiredCol = -1;
         clearCompletions();
         return Result.didChange();
@@ -415,10 +479,12 @@ public final class PromptEditor {
     }
 
     public void insertText(String text) {
-        if (text == null || text.isEmpty()) return;
+        if (text == null || text.isEmpty())
+            return;
         String[] parts = text.split("\\R", -1);
         if (parts.length == 1) {
-            for (char ch : text.toCharArray()) insert(ch);
+            for (char ch : text.toCharArray())
+                insert(ch);
             return;
         }
         String line = lines.get(row);
@@ -459,7 +525,8 @@ public final class PromptEditor {
     }
 
     public synchronized boolean historyPrev() {
-        if (history.isEmpty()) return false;
+        if (history.isEmpty())
+            return false;
         if (historyIndex < 0) {
             preHistoryText = String.join("\n", lines);
             historyIndex = history.size() - 1;
@@ -473,7 +540,8 @@ public final class PromptEditor {
     }
 
     public synchronized void historyNext() {
-        if (historyIndex < 0) return;
+        if (historyIndex < 0)
+            return;
         historyIndex++;
         if (historyIndex >= history.size()) {
             historyIndex = -1;
@@ -489,7 +557,8 @@ public final class PromptEditor {
             lines.add("");
         } else {
             lines.addAll(text.lines().toList());
-            if (text.endsWith("\n")) lines.add("");
+            if (text.endsWith("\n"))
+                lines.add("");
         }
         row = lines.size() - 1;
         col = lines.get(row).length();

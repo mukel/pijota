@@ -13,14 +13,16 @@ public final class OAuthLogin {
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(3);
     private static final Duration TIMEOUT = Duration.ofMinutes(10);
 
-    public record DeviceCode(String deviceCode, String userCode, String verificationUri, int expiresIn) {}
+    public record DeviceCode(String deviceCode, String userCode, String verificationUri, int expiresIn) {
+    }
 
-    public record TokenResult(String accessToken, String refreshToken, long expiresAt, String accountId) {}
+    public record TokenResult(String accessToken, String refreshToken, long expiresAt, String accountId) {
+    }
 
     private OAuthLogin() {}
 
-    public static TokenResult login(String deviceEndpoint, String tokenEndpoint,
-                                     String clientId, String scope) throws Exception {
+    public static TokenResult login(String deviceEndpoint, String tokenEndpoint, String clientId, String scope)
+                                    throws Exception {
         var client = HttpClient.newHttpClient();
 
         var device = requestDeviceCode(client, deviceEndpoint, clientId, scope);
@@ -32,8 +34,8 @@ public final class OAuthLogin {
         return pollForToken(client, tokenEndpoint, clientId, device.deviceCode());
     }
 
-    public static TokenResult loginOpenAI(String deviceCodeUrl, String tokenUrl,
-                                           String oauthTokenUrl, String clientId) throws Exception {
+    public static TokenResult loginOpenAI(String deviceCodeUrl, String tokenUrl, String oauthTokenUrl, String clientId)
+                                    throws Exception {
         var client = HttpClient.newHttpClient();
 
         var device = requestOpenAIDeviceCode(client, deviceCodeUrl, clientId);
@@ -43,49 +45,43 @@ public final class OAuthLogin {
         System.out.println("Waiting for authorization...\n");
 
         var result = pollOpenAIDeviceAuth(client, tokenUrl, device);
-        if (result.token() != null) return result.token();
+        if (result.token() != null)
+            return result.token();
         var authCode = result.authCode();
-        return exchangeOpenAIAuthCode(client, oauthTokenUrl, clientId, authCode.code,
-            authCode.codeVerifier);
+        return exchangeOpenAIAuthCode(client, oauthTokenUrl, clientId, authCode.code, authCode.codeVerifier);
     }
 
-    public record AuthCode(String code, String codeVerifier) {}
-    private record DeviceAuthResult(TokenResult token, AuthCode authCode) {}
+    public record AuthCode(String code, String codeVerifier) {
+    }
+    private record DeviceAuthResult(TokenResult token, AuthCode authCode) {
+    }
 
-    private static DeviceCode requestDeviceCode(HttpClient client, String endpoint,
-                                                 String clientId, String scope) throws Exception {
+    private static DeviceCode requestDeviceCode(HttpClient client, String endpoint, String clientId, String scope)
+                                    throws Exception {
         String body = "client_id=" + urlEncode(clientId) + "&scope=" + urlEncode(scope);
-        var request = HttpRequest.newBuilder()
-            .uri(URI.create(endpoint))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build();
+        var request = HttpRequest.newBuilder().uri(URI.create(endpoint))
+                                        .header("Content-Type", "application/x-www-form-urlencoded")
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
-            throw new IOException("Device code request failed: HTTP " + response.statusCode()
-                + " - " + response.body());
+            throw new IOException("Device code request failed: HTTP " + response.statusCode() + " - "
+                                            + response.body());
         }
         var node = Util.MAPPER.readTree(response.body());
-        return new DeviceCode(
-            node.get("device_code").asText(),
-            node.get("user_code").asText(),
-            node.get("verification_uri").asText(),
-            node.has("expires_in") ? node.get("expires_in").asInt() : 300
-        );
+        return new DeviceCode(node.get("device_code").asText(), node.get("user_code").asText(),
+                                        node.get("verification_uri").asText(),
+                                        node.has("expires_in") ? node.get("expires_in").asInt() : 300);
     }
 
-    private static TokenResult pollForToken(HttpClient client, String endpoint,
-                                             String clientId, String deviceCode) throws Exception {
+    private static TokenResult pollForToken(HttpClient client, String endpoint, String clientId, String deviceCode)
+                                    throws Exception {
         long deadline = System.currentTimeMillis() + TIMEOUT.toMillis();
         while (System.currentTimeMillis() < deadline) {
-            String body = "grant_type=urn:ietf:params:oauth:grant-type:device_code"
-                + "&client_id=" + urlEncode(clientId)
-                + "&device_code=" + urlEncode(deviceCode);
-            var request = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
+            String body = "grant_type=urn:ietf:params:oauth:grant-type:device_code" + "&client_id="
+                                            + urlEncode(clientId) + "&device_code=" + urlEncode(deviceCode);
+            var request = HttpRequest.newBuilder().uri(URI.create(endpoint))
+                                            .header("Content-Type", "application/x-www-form-urlencoded")
+                                            .POST(HttpRequest.BodyPublishers.ofString(body)).build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 var node = Util.MAPPER.readTree(response.body());
@@ -94,8 +90,7 @@ public final class OAuthLogin {
                 }
             }
             if (response.statusCode() != 400 && response.statusCode() != 403) {
-                throw new IOException("Token request failed: HTTP " + response.statusCode()
-                    + " - " + response.body());
+                throw new IOException("Token request failed: HTTP " + response.statusCode() + " - " + response.body());
             }
             System.out.print(".");
             Thread.sleep(POLL_INTERVAL.toMillis());
@@ -103,48 +98,37 @@ public final class OAuthLogin {
         throw new IOException("OAuth authorization timed out");
     }
 
-    private static DeviceCode requestOpenAIDeviceCode(HttpClient client, String endpoint,
-                                                       String clientId) throws Exception {
+    private static DeviceCode requestOpenAIDeviceCode(HttpClient client, String endpoint, String clientId)
+                                    throws Exception {
         var body = Util.MAPPER.createObjectNode().put("client_id", clientId).toString();
-        var request = HttpRequest.newBuilder()
-            .uri(URI.create(endpoint))
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build();
+        var request = HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json")
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 404) {
-            throw new IOException(
-                "Device code login not enabled. Enable it in ChatGPT Settings → Security →\n" +
-                "\"Allow device code authorization\" (under Codex), then try again.");
+            throw new IOException("Device code login not enabled. Enable it in ChatGPT Settings → Security →\n"
+                                            + "\"Allow device code authorization\" (under Codex), then try again.");
         }
         if (response.statusCode() != 200) {
-            throw new IOException("OpenAI device code request failed: HTTP "
-                + response.statusCode() + " - " + response.body());
+            throw new IOException("OpenAI device code request failed: HTTP " + response.statusCode() + " - "
+                                            + response.body());
         }
         var node = Util.MAPPER.readTree(response.body());
-        return new DeviceCode(
-            node.get("device_auth_id").asText(),
-            node.get("user_code").asText(),
-            node.has("verification_uri") ? node.get("verification_uri").asText()
-                : "https://auth.openai.com/codex/device",
-            node.has("interval") ? node.get("interval").asInt() : 5
-        );
+        return new DeviceCode(node.get("device_auth_id").asText(), node.get("user_code").asText(),
+                                        node.has("verification_uri")
+                                                                        ? node.get("verification_uri").asText()
+                                                                        : "https://auth.openai.com/codex/device",
+                                        node.has("interval") ? node.get("interval").asInt() : 5);
     }
 
-    private static DeviceAuthResult pollOpenAIDeviceAuth(HttpClient client, String endpoint,
-                                                         DeviceCode device) throws Exception {
+    private static DeviceAuthResult pollOpenAIDeviceAuth(HttpClient client, String endpoint, DeviceCode device)
+                                    throws Exception {
         var interval = Duration.ofSeconds(Math.max(device.expiresIn(), 3));
         long deadline = System.currentTimeMillis() + TIMEOUT.toMillis();
         while (System.currentTimeMillis() < deadline) {
-            var body = Util.MAPPER.createObjectNode()
-                .put("device_auth_id", device.deviceCode())
-                .put("user_code", device.userCode())
-                .toString();
-            var request = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
+            var body = Util.MAPPER.createObjectNode().put("device_auth_id", device.deviceCode())
+                                            .put("user_code", device.userCode()).toString();
+            var request = HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json")
+                                            .POST(HttpRequest.BodyPublishers.ofString(body)).build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 var node = Util.MAPPER.readTree(response.body());
@@ -152,15 +136,13 @@ public final class OAuthLogin {
                     return new DeviceAuthResult(buildTokenResult(node), null);
                 }
                 if (node.has("authorization_code") && node.has("code_verifier")) {
-                    return new DeviceAuthResult(null, new AuthCode(
-                        node.get("authorization_code").asText(),
-                        node.get("code_verifier").asText()
-                    ));
+                    return new DeviceAuthResult(null, new AuthCode(node.get("authorization_code").asText(),
+                                                    node.get("code_verifier").asText()));
                 }
             }
             if (response.statusCode() != 403 && response.statusCode() != 404) {
-                throw new IOException("OpenAI device auth polling failed: HTTP "
-                    + response.statusCode() + " - " + response.body());
+                throw new IOException("OpenAI device auth polling failed: HTTP " + response.statusCode() + " - "
+                                                + response.body());
             }
             System.out.print(".");
             Thread.sleep(interval.toMillis());
@@ -168,24 +150,19 @@ public final class OAuthLogin {
         throw new IOException("OpenAI OAuth authorization timed out");
     }
 
-    private static TokenResult exchangeOpenAIAuthCode(HttpClient client, String tokenUrl,
-                                                        String clientId, String code,
-                                                        String codeVerifier) throws Exception {
+    private static TokenResult exchangeOpenAIAuthCode(HttpClient client, String tokenUrl, String clientId, String code,
+                                    String codeVerifier) throws Exception {
         String redirectUri = "https://auth.openai.com/deviceauth/callback";
-        String body = "grant_type=authorization_code"
-            + "&client_id=" + urlEncode(clientId)
-            + "&code=" + urlEncode(code)
-            + "&code_verifier=" + urlEncode(codeVerifier)
-            + "&redirect_uri=" + urlEncode(redirectUri);
-        var request = HttpRequest.newBuilder()
-            .uri(URI.create(tokenUrl))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build();
+        String body = "grant_type=authorization_code" + "&client_id=" + urlEncode(clientId) + "&code=" + urlEncode(code)
+                                        + "&code_verifier=" + urlEncode(codeVerifier) + "&redirect_uri="
+                                        + urlEncode(redirectUri);
+        var request = HttpRequest.newBuilder().uri(URI.create(tokenUrl))
+                                        .header("Content-Type", "application/x-www-form-urlencoded")
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
-            throw new IOException("OpenAI token exchange failed: HTTP "
-                + response.statusCode() + " - " + response.body());
+            throw new IOException("OpenAI token exchange failed: HTTP " + response.statusCode() + " - "
+                                            + response.body());
         }
         var node = Util.MAPPER.readTree(response.body());
         if (!node.has("access_token")) {
@@ -195,26 +172,20 @@ public final class OAuthLogin {
     }
 
     /**
-     * Refreshes an expired access token. Works for both standard OAuth
-     * (tokenEndpoint) and OpenAI OAuth (oauthTokenEndpoint) — just pass
-     * the appropriate URL as tokenUrl.
+     * Refreshes an expired access token. Works for both standard OAuth (tokenEndpoint) and OpenAI OAuth
+     * (oauthTokenEndpoint) — just pass the appropriate URL as tokenUrl.
      */
-    public static TokenResult refreshToken(String tokenUrl, String clientId,
-                                            String refreshToken) throws Exception {
+    public static TokenResult refreshToken(String tokenUrl, String clientId, String refreshToken) throws Exception {
         var client = HttpClient.newHttpClient();
-        String body = "grant_type=refresh_token"
-            + "&client_id=" + urlEncode(clientId)
-            + "&refresh_token=" + urlEncode(refreshToken);
-        var request = HttpRequest.newBuilder()
-            .uri(URI.create(tokenUrl))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .timeout(Duration.ofSeconds(30))
-            .build();
+        String body = "grant_type=refresh_token" + "&client_id=" + urlEncode(clientId) + "&refresh_token="
+                                        + urlEncode(refreshToken);
+        var request = HttpRequest.newBuilder().uri(URI.create(tokenUrl))
+                                        .header("Content-Type", "application/x-www-form-urlencoded")
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30))
+                                        .build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
-            throw new IOException("Token refresh failed: HTTP " + response.statusCode()
-                + " - " + response.body());
+            throw new IOException("Token refresh failed: HTTP " + response.statusCode() + " - " + response.body());
         }
         var node = Util.MAPPER.readTree(response.body());
         if (!node.has("access_token")) {

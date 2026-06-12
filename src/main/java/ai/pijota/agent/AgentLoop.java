@@ -40,10 +40,8 @@ public final class AgentLoop implements AgentContext {
     private final List<String> followUpMessages = new ArrayList<>();
     private final ToolExecutor toolExecutor;
     private final AtomicBoolean aborted = new AtomicBoolean(false);
-    private final AtomicReference<CompletableFuture<List<Message>>> activeResult =
-        new AtomicReference<>();
-    private final AtomicReference<CompletableFuture<StreamResult>> activeStream =
-        new AtomicReference<>();
+    private final AtomicReference<CompletableFuture<List<Message>>> activeResult = new AtomicReference<>();
+    private final AtomicReference<CompletableFuture<StreamResult>> activeStream = new AtomicReference<>();
     private volatile boolean messageStreamStarted = false;
     private volatile String lastStreamContent = "";
     private int sessionTurn;
@@ -62,20 +60,38 @@ public final class AgentLoop implements AgentContext {
         private AppConfig.CompactionConfig compactionConfig;
 
         Builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
-            this.llm = llm; this.toolRegistry = toolRegistry; this.cwd = cwd;
+            this.llm = llm;
+            this.toolRegistry = toolRegistry;
+            this.cwd = cwd;
         }
 
-        public Builder summaryGenerator(CompactionManager.SummaryGenerator g) { this.summaryGenerator = g; return this; }
-        public Builder extensionRegistry(ExtensionRegistry er) { this.extensionRegistry = er; return this; }
-        public Builder contextWindow(int cw) { this.contextWindow = cw; return this; }
-        public Builder compactionConfig(AppConfig.CompactionConfig cfg) { this.compactionConfig = cfg; return this; }
+        public Builder summaryGenerator(CompactionManager.SummaryGenerator g) {
+            this.summaryGenerator = g;
+            return this;
+        }
+
+        public Builder extensionRegistry(ExtensionRegistry er) {
+            this.extensionRegistry = er;
+            return this;
+        }
+
+        public Builder contextWindow(int cw) {
+            this.contextWindow = cw;
+            return this;
+        }
+
+        public Builder compactionConfig(AppConfig.CompactionConfig cfg) {
+            this.compactionConfig = cfg;
+            return this;
+        }
 
         public AgentLoop build() {
             CompactionManager cm;
             if (summaryGenerator != null) {
                 cm = contextWindow > 0 || compactionConfig != null
-                    ? new CompactionManager(contextWindow, compactionConfig, summaryGenerator)
-                    : new CompactionManager(summaryGenerator);
+                                                ? new CompactionManager(contextWindow, compactionConfig,
+                                                                                summaryGenerator)
+                                                : new CompactionManager(summaryGenerator);
             } else {
                 cm = new CompactionManager(null);
             }
@@ -83,35 +99,88 @@ public final class AgentLoop implements AgentContext {
         }
     }
 
-    private AgentLoop(LlmClient llm, ToolRegistry toolRegistry, String cwd,
-                       CompactionManager compaction, ExtensionRegistry extensionRegistry) {
-        this.llm = llm; this.toolRegistry = toolRegistry; this.cwd = cwd;
+    private AgentLoop(LlmClient llm, ToolRegistry toolRegistry, String cwd, CompactionManager compaction,
+                                    ExtensionRegistry extensionRegistry) {
+        this.llm = llm;
+        this.toolRegistry = toolRegistry;
+        this.cwd = cwd;
         this.history = new MessageHistory();
         this.compaction = compaction;
         this.extensionRegistry = extensionRegistry;
-        this.toolExecutor = new ToolExecutor(toolRegistry, extensionRegistry, cwd, history,
-            this::fireEvent, aborted);
+        this.toolExecutor = new ToolExecutor(toolRegistry, extensionRegistry, cwd, history, this::fireEvent, aborted);
     }
 
-    public void addEventListener(Consumer<AgentEvent> l) { listeners.add(l); }
-    public void removeEventListener(Consumer<AgentEvent> l) { listeners.remove(l); }
-    public LlmClient llm() { return llm; }
-    public ToolRegistry toolRegistry() { return toolRegistry; }
+    public void addEventListener(Consumer<AgentEvent> l) {
+        listeners.add(l);
+    }
 
-    public void addSystemPrompt(String s) { history.addSystemPrompt(s); }
-    public void replaceSystemPrompt(String content) { history.replaceSystemPrompt(content); }
-    public List<Message> messages() { return history.all(); }
-    MessageHistory messageHistory() { return history; }
-    public void clearMessages() { history.clear(); }
-    public void restoreMessages(List<Message> msgs) { history.restore(msgs); }
-    public String lastAssistantContent() { return history.lastAssistantContent(); }
-    public Optional<String> undoLastUserTurn() { return history.undoLastUserTurn(); }
-    public void stripSystemRemindersFromContext() { history.stripSystemReminders(); }
-    public List<Message.User> userMessages() { return history.userMessages(); }
-    public void followUp(String m) { followUpMessages.add(m); }
-    public boolean isBusy() { return activeResult.get() != null; }
-    public boolean isClosed() { return aborted.get(); }
-    public void close() { abort(); }
+    public void removeEventListener(Consumer<AgentEvent> l) {
+        listeners.remove(l);
+    }
+
+    public LlmClient llm() {
+        return llm;
+    }
+
+    public ToolRegistry toolRegistry() {
+        return toolRegistry;
+    }
+
+    public void addSystemPrompt(String s) {
+        history.addSystemPrompt(s);
+    }
+
+    public void replaceSystemPrompt(String content) {
+        history.replaceSystemPrompt(content);
+    }
+
+    public List<Message> messages() {
+        return history.all();
+    }
+
+    MessageHistory messageHistory() {
+        return history;
+    }
+
+    public void clearMessages() {
+        history.clear();
+    }
+
+    public void restoreMessages(List<Message> msgs) {
+        history.restore(msgs);
+    }
+
+    public String lastAssistantContent() {
+        return history.lastAssistantContent();
+    }
+
+    public Optional<String> undoLastUserTurn() {
+        return history.undoLastUserTurn();
+    }
+
+    public void stripSystemRemindersFromContext() {
+        history.stripSystemReminders();
+    }
+
+    public List<Message.User> userMessages() {
+        return history.userMessages();
+    }
+
+    public void followUp(String m) {
+        followUpMessages.add(m);
+    }
+
+    public boolean isBusy() {
+        return activeResult.get() != null;
+    }
+
+    public boolean isClosed() {
+        return aborted.get();
+    }
+
+    public void close() {
+        abort();
+    }
 
     public void compact(String instructions) {
         runManualCompaction(instructions);
@@ -132,7 +201,8 @@ public final class AgentLoop implements AgentContext {
     }
 
     private CompactionManager.CompactionResult runManualCompaction(String instructions) {
-        return runCompaction(instructions, (msgs, cb, partial) -> compaction.compactNow(msgs, instructions, cb, partial));
+        return runCompaction(instructions,
+                                        (msgs, cb, partial) -> compaction.compactNow(msgs, instructions, cb, partial));
     }
 
     private void runAutoCompaction(String reason) {
@@ -142,8 +212,8 @@ public final class AgentLoop implements AgentContext {
     @FunctionalInterface
     private interface CompactionStrategy {
         CompactionManager.CompactionResult apply(List<Message> messages,
-                                                 java.util.function.Consumer<List<Message>> callback,
-                                                 java.util.function.BiConsumer<String, String> partialCallback);
+                                        java.util.function.Consumer<List<Message>> callback,
+                                        java.util.function.BiConsumer<String, String> partialCallback);
     }
 
     private CompactionManager.CompactionResult runCompaction(String reason, CompactionStrategy strategy) {
@@ -154,9 +224,9 @@ public final class AgentLoop implements AgentContext {
         int estimatedChars = CompactionManager.estimateChars(messages);
         int estimatedTokens = CompactionManager.estimateTokens(messages);
         var result = strategy.apply(messages, compacted -> {
-                fireEvent(new AgentEvent.CompactionStreamEnd());
+            fireEvent(new AgentEvent.CompactionStreamEnd());
             fireEvent(new AgentEvent.Compaction(compacted, sizeBefore, estimatedChars, estimatedTokens,
-                compactionSummary(compacted), reason));
+                                            compactionSummary(compacted), reason));
         }, (content, thinking) -> fireEvent(new AgentEvent.CompactionStream(content, thinking)));
         if (extensionRegistry != null)
             extensionRegistry.fireSessionCompact();
@@ -165,7 +235,8 @@ public final class AgentLoop implements AgentContext {
 
     private static String compactionSummary(List<Message> compacted) {
         for (var msg : compacted) {
-            if (msg instanceof Message.CompactionSummary cs) return cs.summary();
+            if (msg instanceof Message.CompactionSummary cs)
+                return cs.summary();
         }
         return "";
     }
@@ -174,11 +245,13 @@ public final class AgentLoop implements AgentContext {
         aborted.set(true);
         llm.abort();
         CompletableFuture<StreamResult> stream = activeStream.getAndSet(null);
-        if (stream != null) stream.cancel(true);
+        if (stream != null)
+            stream.cancel(true);
         toolRegistry.abortRunningTools();
         removeStalePartialAssistant();
         CompletableFuture<List<Message>> result = activeResult.getAndSet(null);
-        if (result != null && !result.isDone()) result.complete(new ArrayList<>(history.mutableList()));
+        if (result != null && !result.isDone())
+            result.complete(new ArrayList<>(history.mutableList()));
     }
 
     @Override
@@ -197,8 +270,10 @@ public final class AgentLoop implements AgentContext {
             case "steer" -> steeringMessages.add(content);
             case "followUp" -> followUpMessages.add(content);
             default -> {
-                if (isBusy()) steeringMessages.add(content);
-                else history.add(new Message.User(content));
+                if (isBusy())
+                    steeringMessages.add(content);
+                else
+                    history.add(new Message.User(content));
             }
         }
     }
@@ -212,12 +287,11 @@ public final class AgentLoop implements AgentContext {
     private void removeStalePartialAssistant() {
         var msgs = history.mutableList();
         synchronized (msgs) {
-            if (msgs.isEmpty()) return;
+            if (msgs.isEmpty())
+                return;
             var last = msgs.get(msgs.size() - 1);
-            if (last instanceof Message.Assistant a
-                && a.content().isEmpty()
-                && a.toolCalls().isEmpty()
-                && (a.thinking() == null || a.thinking().isBlank())) {
+            if (last instanceof Message.Assistant a && a.content().isEmpty() && a.toolCalls().isEmpty()
+                                            && (a.thinking() == null || a.thinking().isBlank())) {
                 msgs.remove(msgs.size() - 1);
             }
         }
@@ -252,8 +326,7 @@ public final class AgentLoop implements AgentContext {
             return;
         }
         if (turn > MAX_TURNS) {
-            history.add(new Message.Assistant("[Max turns (" + MAX_TURNS + ") reached. Stopping.]",
-                List.of(), null));
+            history.add(new Message.Assistant("[Max turns (" + MAX_TURNS + ") reached. Stopping.]", List.of(), null));
             result.complete(new ArrayList<>(history.mutableList()));
             return;
         }
@@ -274,85 +347,89 @@ public final class AgentLoop implements AgentContext {
         lastStreamContent = "";
 
         retry(() -> {
-                var providerMessages = new ArrayList<>(requestMessages);
-                if (extensionRegistry != null)
-                    extensionRegistry.fireBeforeProviderRequest(providerMessages);
-                CompletableFuture<StreamResult> stream = llm.streamMessages(providerMessages, toolSpecs, (partialContent, partialThinking) -> {
-                    if (!isActive(result)) return;
-                    if (!messageStreamStarted) {
-                        messageStreamStarted = true;
-                        fireEvent(new AgentEvent.MessageStreamStart("assistant"));
-                    }
-                    String content = partialContent != null ? partialContent : "";
-                    String delta = Util.deltaPrefix(content, lastStreamContent);
-                    lastStreamContent = content;
-                    if (delta != null && !delta.isEmpty()) {
-                        fireEvent(new AgentEvent.MessageStreamDelta(delta));
-                    }
-                    var updated = new Message.Assistant(partialContent, List.of(), partialThinking);
-                    fireEvent(new AgentEvent.AssistantMessage(updated, null));
-                    history.set(history.size() - 1, updated.withSource(requestProvider, requestModel));
-                });
-                activeStream.set(stream);
-                return stream;
-            })
-            .thenAccept(streamResult -> {
-                activeStream.getAndSet(null);
-                if (!isActive(result)) return;
-                fireEvent(new AgentEvent.MessageStreamEnd("assistant"));
+            var providerMessages = new ArrayList<>(requestMessages);
+            if (extensionRegistry != null)
+                extensionRegistry.fireBeforeProviderRequest(providerMessages);
+            CompletableFuture<StreamResult> stream = llm.streamMessages(providerMessages, toolSpecs,
+                                            (partialContent, partialThinking) -> {
+                                                if (!isActive(result))
+                                                    return;
+                                                if (!messageStreamStarted) {
+                                                    messageStreamStarted = true;
+                                                    fireEvent(new AgentEvent.MessageStreamStart("assistant"));
+                                                }
+                                                String content = partialContent != null ? partialContent : "";
+                                                String delta = Util.deltaPrefix(content, lastStreamContent);
+                                                lastStreamContent = content;
+                                                if (delta != null && !delta.isEmpty()) {
+                                                    fireEvent(new AgentEvent.MessageStreamDelta(delta));
+                                                }
+                                                var updated = new Message.Assistant(partialContent, List.of(),
+                                                                                partialThinking);
+                                                fireEvent(new AgentEvent.AssistantMessage(updated, null));
+                                                history.set(history.size() - 1, updated.withSource(requestProvider,
+                                                                                requestModel));
+                                            });
+            activeStream.set(stream);
+            return stream;
+        }).thenAccept(streamResult -> {
+            activeStream.getAndSet(null);
+            if (!isActive(result))
+                return;
+            fireEvent(new AgentEvent.MessageStreamEnd("assistant"));
 
-                var newToolCalls = streamResult.hasToolCalls()
-                    ? streamResult.toolCalls()
-                    : List.<ToolCall>of();
+            var newToolCalls = streamResult.hasToolCalls() ? streamResult.toolCalls() : List.<ToolCall>of();
 
-                var finalContent = streamResult.content() != null ? streamResult.content() : "";
-                var finalThinking = streamResult.thinking() != null && !streamResult.thinking().isBlank()
-                    ? streamResult.thinking() : null;
-                var assistantMsg = new Message.Assistant(finalContent, newToolCalls, finalThinking)
-                    .withSource(requestProvider, requestModel);
-                fireEvent(new AgentEvent.AssistantMessage(assistantMsg, streamResult.usage()));
-                history.set(history.size() - 1, assistantMsg);
+            var finalContent = streamResult.content() != null ? streamResult.content() : "";
+            var finalThinking = streamResult.thinking() != null && !streamResult.thinking().isBlank()
+                                            ? streamResult.thinking()
+                                            : null;
+            var assistantMsg = new Message.Assistant(finalContent, newToolCalls, finalThinking)
+                                            .withSource(requestProvider, requestModel);
+            fireEvent(new AgentEvent.AssistantMessage(assistantMsg, streamResult.usage()));
+            history.set(history.size() - 1, assistantMsg);
 
-                if (!streamResult.hasToolCalls()) {
-                        fireEvent(new AgentEvent.TurnEnd(turn));
-                    processFollowUp(result, turn);
+            if (!streamResult.hasToolCalls()) {
+                fireEvent(new AgentEvent.TurnEnd(turn));
+                processFollowUp(result, turn);
+                return;
+            }
+
+            toolExecutor.execute(streamResult.toolCalls()).thenAccept(_ -> {
+                if (!isActive(result))
                     return;
-                }
-
-                toolExecutor.execute(streamResult.toolCalls())
-                    .thenAccept(_ -> {
-                        if (!isActive(result)) return;
-                    fireEvent(new AgentEvent.TurnEnd(turn));
-                        runAutoCompaction("auto");
-                        runLoopRecursive(result, turn + 1);
-                    })
-                    .exceptionally(ex -> {
-                        if (!isActive(result)) return null;
-                        log.warn("Tool execution chain failed", ex);
-                        result.completeExceptionally(ex);
-                        return null;
-                    });
-            })
-            .exceptionally(ex -> {
-                activeStream.set(null);
-                if (!isActive(result)) return null;
-                if (ErrorUtil.isContextOverflow(ex)) {
-                    log.warn("Context overflow, compacting and retrying");
-                    history.remove(history.size() - 1);
-                    runManualCompaction("overflow — compacted to recover from context limit");
-                    runLoopRecursive(result, turn);
+                fireEvent(new AgentEvent.TurnEnd(turn));
+                runAutoCompaction("auto");
+                runLoopRecursive(result, turn + 1);
+            }).exceptionally(ex -> {
+                if (!isActive(result))
                     return null;
-                }
-                String message = ErrorUtil.message(ex);
-                log.warn("LLM streaming error: {}", message);
-                fireEvent(new AgentEvent.Error(new RuntimeException(message)));
-                result.completeExceptionally(new RuntimeException(message));
+                log.warn("Tool execution chain failed", ex);
+                result.completeExceptionally(ex);
                 return null;
             });
+        }).exceptionally(ex -> {
+            activeStream.set(null);
+            if (!isActive(result))
+                return null;
+            if (ErrorUtil.isContextOverflow(ex)) {
+                log.warn("Context overflow, compacting and retrying");
+                history.remove(history.size() - 1);
+                runManualCompaction("overflow — compacted to recover from context limit");
+                runLoopRecursive(result, turn);
+                return null;
+            }
+            String message = ErrorUtil.message(ex);
+            log.warn("LLM streaming error: {}", message);
+            fireEvent(new AgentEvent.Error(new RuntimeException(message)));
+            result.completeExceptionally(new RuntimeException(message));
+            return null;
+        });
     }
 
     private void processSteeringMessages() {
-        if (steeringMessages.isEmpty()) return;
+        if (steeringMessages.isEmpty())
+            return;
         drainAndProcess(steeringMessages);
     }
 
@@ -379,8 +456,11 @@ public final class AgentLoop implements AgentContext {
 
     private void fireEvent(AgentEvent event) {
         for (var l : listeners) {
-            try { l.accept(event); }
-            catch (Exception e) { log.warn("Event listener error", e); }
+            try {
+                l.accept(event);
+            } catch (Exception e) {
+                log.warn("Event listener error", e);
+            }
         }
     }
 
@@ -389,20 +469,20 @@ public final class AgentLoop implements AgentContext {
     }
 
     private <T> CompletableFuture<T> retry(Supplier<CompletableFuture<T>> task, int attempt) {
-        return task.get()
-            .exceptionallyCompose(ex -> {
-                if (attempt >= 2 || !ErrorUtil.isRetryable(ex))
-                    return CompletableFuture.failedFuture(ex);
-                long defaultDelay = (long) (2000 * Math.pow(2.0, attempt));
-                long delay = ErrorUtil.retryAfterDelayMs(ex, defaultDelay);
-                log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}",
-                    attempt + 1, 3, delay, ErrorUtil.message(ex));
-                var delayed = new CompletableFuture<T>();
-                CompletableFuture.delayedExecutor(delay, TimeUnit.MILLISECONDS)
-                    .execute(() -> retry(task, attempt + 1)
-                        .thenAccept(delayed::complete)
-                        .exceptionally(e -> { delayed.completeExceptionally(e); return null; }));
-                return delayed;
-            });
+        return task.get().exceptionallyCompose(ex -> {
+            if (attempt >= 2 || !ErrorUtil.isRetryable(ex))
+                return CompletableFuture.failedFuture(ex);
+            long defaultDelay = (long) (2000 * Math.pow(2.0, attempt));
+            long delay = ErrorUtil.retryAfterDelayMs(ex, defaultDelay);
+            log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}", attempt + 1, 3, delay,
+                                            ErrorUtil.message(ex));
+            var delayed = new CompletableFuture<T>();
+            CompletableFuture.delayedExecutor(delay, TimeUnit.MILLISECONDS).execute(() -> retry(task, attempt + 1)
+                                            .thenAccept(delayed::complete).exceptionally(e -> {
+                                                delayed.completeExceptionally(e);
+                                                return null;
+                                            }));
+            return delayed;
+        });
     }
 }

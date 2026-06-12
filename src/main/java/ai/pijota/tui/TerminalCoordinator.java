@@ -12,9 +12,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 final class TerminalCoordinator implements AutoCloseable {
     private sealed interface UiOp {
-        record Append(List<StyledLine> lines) implements UiOp {}
-        record Prompt(PromptSnapshot snapshot) implements UiOp {}
-        record Stop() implements UiOp {}
+        record Append(List<StyledLine> lines) implements UiOp {
+        }
+        record Prompt(PromptSnapshot snapshot) implements UiOp {
+        }
+        record Stop() implements UiOp {
+        }
     }
 
     private final Terminal terminal;
@@ -41,7 +44,8 @@ final class TerminalCoordinator implements AutoCloseable {
     }
 
     public void appendLines(List<StyledLine> lines) {
-        if (!lines.isEmpty()) queue.offer(new UiOp.Append(lines));
+        if (!lines.isEmpty())
+            queue.offer(new UiOp.Append(lines));
     }
 
     public void redrawPrompt(PromptSnapshot snapshot) {
@@ -54,10 +58,12 @@ final class TerminalCoordinator implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!running.getAndSet(false)) return;
+        if (!running.getAndSet(false))
+            return;
         queue.offer(new UiOp.Stop());
         try {
-            if (writerThread != null) writerThread.join(500);
+            if (writerThread != null)
+                writerThread.join(500);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -69,8 +75,10 @@ final class TerminalCoordinator implements AutoCloseable {
             var batch = new ArrayList<UiOp>();
             while (running.get() || !queue.isEmpty()) {
                 UiOp first = queue.poll(5, TimeUnit.MILLISECONDS);
-                if (first == null) continue;
-                if (first instanceof UiOp.Stop) return;
+                if (first == null)
+                    continue;
+                if (first instanceof UiOp.Stop)
+                    return;
                 batch.clear();
                 batch.add(first);
                 queue.drainTo(batch);
@@ -113,13 +121,12 @@ final class TerminalCoordinator implements AutoCloseable {
         for (int i = 0; i < appends.size(); i++) {
             boolean doErase = (i == 0);
             boolean doPrompt = (i == appends.size() - 1);
-            emitFrame(width, doPrompt ? finalSnapshot : null,
-                      appends.get(i).lines(), doErase, doPrompt);
+            emitFrame(width, doPrompt ? finalSnapshot : null, appends.get(i).lines(), doErase, doPrompt);
         }
     }
 
-    private void emitFrame(int width, PromptSnapshot snapshot, List<StyledLine> lines,
-                           boolean erase, boolean showPrompt) {
+    private void emitFrame(int width, PromptSnapshot snapshot, List<StyledLine> lines, boolean erase,
+                                    boolean showPrompt) {
         terminal.writer().print(frameRenderer.renderFrame(width, snapshot, lines, erase, showPrompt, theme));
         terminal.writer().flush();
     }

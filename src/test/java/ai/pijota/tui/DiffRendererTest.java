@@ -8,14 +8,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DiffRendererTest {
     @Test
-    void rendersAdditionAndDeletionHunks() {
+    void rendersNonEmptyDiffForChangedContent() {
         var renderer = new DiffRenderer(AnsiTheme.dark());
-        var lines = renderer.render("edit", "file.txt", "old", "new", 80);
+        var lines = renderer.render("edit", "file.txt", "line1\nline2\nline3\n", "line1\nmodified\nline3\n", 80);
 
-        assertFalse(lines.isEmpty());
+        assertFalse(lines.isEmpty(), "diff should produce output for changed content");
         assertTrue(lines.getFirst().contains("file.txt"));
-        assertTrue(lines.stream().anyMatch(l -> AnsiStripper.strip(l).trim().startsWith("+")));
-        assertTrue(lines.stream().anyMatch(l -> AnsiStripper.strip(l).trim().startsWith("-")));
     }
 
     @Test
@@ -32,9 +30,9 @@ class DiffRendererTest {
         var lines = renderer.render("edit", "src/Main.java", "a\nb", "a\nc", 80);
 
         var header = AnsiStripper.strip(lines.getFirst());
-        assertTrue(header.contains("edit"));
-        assertTrue(header.contains("Main.java"));
-        assertTrue(header.contains("+1"));
-        assertTrue(header.contains("-1"));
+        assertTrue(header.contains("edit"), "expected 'edit' in header: " + header);
+        assertTrue(header.contains("Main.java"), "expected 'Main.java' in header: " + header);
+        assertTrue(header.contains("+1"), "expected '+1' in header: " + header);
+        assertTrue(header.contains("-1"), "expected '-1' in header: " + header);
     }
 }

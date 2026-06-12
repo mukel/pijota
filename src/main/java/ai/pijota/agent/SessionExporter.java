@@ -11,21 +11,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Exports a Pijota session JSONL file to human-readable Markdown.
- * Walks the active branch (following leafId) to produce a clean
- * conversation transcript with code blocks, tool calls, and metadata.
+ * Exports a Pijota session JSONL file to human-readable Markdown. Walks the active branch (following leafId) to produce
+ * a clean conversation transcript with code blocks, tool calls, and metadata.
  */
 public final class SessionExporter {
 
-    private static final DateTimeFormatter DATE_FMT =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                                    .withZone(ZoneId.systemDefault());
 
     private SessionExporter() {}
 
     /**
      * Export the active branch of a session file to Markdown.
      *
-     * @param sessionFile path to the .jsonl session file
+     * @param sessionFile
+     *            path to the .jsonl session file
      * @return Markdown string
      */
     public static String toMarkdown(Path sessionFile) throws IOException {
@@ -33,8 +33,7 @@ public final class SessionExporter {
     }
 
     /**
-     * Export the active branch of a session file to Markdown, with
-     * optional leafId override (null = follow last entry).
+     * Export the active branch of a session file to Markdown, with optional leafId override (null = follow last entry).
      */
     public static String toMarkdown(Path sessionFile, String leafId) throws IOException {
         if (!Files.exists(sessionFile)) {
@@ -49,7 +48,8 @@ public final class SessionExporter {
                 try {
                     @SuppressWarnings("unchecked")
                     var h = (Map<String, Object>) ai.pijota.util.Util.MAPPER.readValue(first, Map.class);
-                    if ("session".equals(h.get("type"))) header = h;
+                    if ("session".equals(h.get("type")))
+                        header = h;
                 } catch (Exception ignored) {}
             }
         }
@@ -63,7 +63,8 @@ public final class SessionExporter {
         String effectiveLeaf = leafId;
         if (effectiveLeaf == null || !idToEntry.containsKey(effectiveLeaf)) {
             effectiveLeaf = null;
-            for (var id : idToEntry.keySet()) effectiveLeaf = id;
+            for (var id : idToEntry.keySet())
+                effectiveLeaf = id;
         }
 
         var branch = SessionManager.buildBranchPath(idToEntry, effectiveLeaf);
@@ -101,9 +102,7 @@ public final class SessionExporter {
 
     // -- internal helpers --
 
-    private static void appendFrontMatter(StringBuilder md,
-                                          Map<String, Object> header,
-                                          Path sessionFile) {
+    private static void appendFrontMatter(StringBuilder md, Map<String, Object> header, Path sessionFile) {
         md.append("# Pijota Session\n\n");
 
         String ts = (String) header.getOrDefault("timestamp", "");
@@ -128,7 +127,8 @@ public final class SessionExporter {
     }
 
     private static void flushTurn(StringBuilder md, TurnAccumulator turn, int turnNumber) {
-        if (turn.isEmpty()) return;
+        if (turn.isEmpty())
+            return;
 
         md.append("## Turn ").append(turnNumber).append("\n\n");
 
@@ -195,7 +195,8 @@ public final class SessionExporter {
         String content = (String) entry.get("content");
 
         md.append("### Tool: `").append(toolName).append("`");
-        if (isError) md.append(" ⚠️ error");
+        if (isError)
+            md.append(" ⚠️ error");
         md.append("\n\n");
 
         @SuppressWarnings("unchecked")
@@ -219,7 +220,8 @@ public final class SessionExporter {
     }
 
     private static void appendToolDetail(StringBuilder md, String toolName, Map<String, Object> details) {
-        if (details == null || details.isEmpty()) return;
+        if (details == null || details.isEmpty())
+            return;
 
         switch (toolName) {
             case "read" -> {
@@ -228,8 +230,10 @@ public final class SessionExporter {
                 Object limit = details.get("limit");
                 if (totalLines instanceof Number lines) {
                     md.append("*").append(lines.intValue()).append(" line(s)");
-                    if (offset instanceof Number o) md.append(", offset ").append(o.intValue());
-                    if (limit instanceof Number l) md.append(", limit ").append(l.intValue());
+                    if (offset instanceof Number o)
+                        md.append(", offset ").append(o.intValue());
+                    if (limit instanceof Number l)
+                        md.append(", limit ").append(l.intValue());
                     md.append("*\n\n");
                 }
             }
@@ -238,7 +242,8 @@ public final class SessionExporter {
                 Object pattern = details.get("pattern");
                 if (matchCount instanceof Number mc) {
                     md.append("*").append(mc.intValue()).append(" match(es)");
-                    if (pattern instanceof String p) md.append(" for `").append(escapeMarkdown(p)).append("`");
+                    if (pattern instanceof String p)
+                        md.append(" for `").append(escapeMarkdown(p)).append("`");
                     md.append("*\n\n");
                 }
             }
@@ -299,14 +304,8 @@ public final class SessionExporter {
     }
 
     private static String escapeMarkdown(String s) {
-        return s.replace("\\", "\\\\")
-                .replace("`", "\\`")
-                .replace("*", "\\*")
-                .replace("_", "\\_")
-                .replace("[", "\\[")
-                .replace("]", "\\]")
-                .replace("<", "\\<")
-                .replace(">", "\\>");
+        return s.replace("\\", "\\\\").replace("`", "\\`").replace("*", "\\*").replace("_", "\\_").replace("[", "\\[")
+                                        .replace("]", "\\]").replace("<", "\\<").replace(">", "\\>");
     }
 
     private static String shortId(String id) {
@@ -318,8 +317,16 @@ public final class SessionExporter {
     private static class TurnAccumulator {
         final List<Map<String, Object>> entries = new ArrayList<>();
 
-        void add(Map<String, Object> entry) { entries.add(entry); }
-        void reset() { entries.clear(); }
-        boolean isEmpty() { return entries.isEmpty(); }
+        void add(Map<String, Object> entry) {
+            entries.add(entry);
+        }
+
+        void reset() {
+            entries.clear();
+        }
+
+        boolean isEmpty() {
+            return entries.isEmpty();
+        }
     }
 }

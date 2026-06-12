@@ -56,7 +56,8 @@ public final class ExtensionRegistry {
 
     public void loadServiceLoaderExtensions() {
         try {
-            for (var ext : ServiceLoader.load(Extension.class)) register(ext);
+            for (var ext : ServiceLoader.load(Extension.class))
+                register(ext);
         } catch (Throwable e) {
             log.debug("No extensions found via ServiceLoader: {}", e.getMessage());
         }
@@ -64,13 +65,12 @@ public final class ExtensionRegistry {
 
     public void loadFromDirectory(Path dir) {
         try {
-            if (Files.notExists(dir)) return;
+            if (Files.notExists(dir))
+                return;
             List<Path> files;
             try (var stream = Files.list(dir)) {
-                files = stream
-                    .filter(p -> p.getFileName().toString().endsWith(".class")
-                        || p.getFileName().toString().endsWith(".jar"))
-                    .toList();
+                files = stream.filter(p -> p.getFileName().toString().endsWith(".class")
+                                                || p.getFileName().toString().endsWith(".jar")).toList();
             }
             for (var file : files) {
                 try {
@@ -89,8 +89,8 @@ public final class ExtensionRegistry {
     }
 
     private void loadJarExtensions(Path jar) throws Exception {
-        var loader = URLClassLoader.newInstance(
-            new java.net.URL[]{jar.toUri().toURL()}, Thread.currentThread().getContextClassLoader());
+        var loader = URLClassLoader.newInstance(new java.net.URL[] {jar.toUri().toURL()},
+                                        Thread.currentThread().getContextClassLoader());
         extensionClassLoaders.add(loader);
         for (var ext : ServiceLoader.load(Extension.class, loader)) {
             register(ext);
@@ -110,19 +110,43 @@ public final class ExtensionRegistry {
         }
     }
 
-    public void setToolRegistry(ToolRegistry registry) { this.toolRegistry = registry; }
-    public void setAgentLoop(AgentContext loop) { this.agentContext = loop; }
-    public void setLlm(LlmService l) { this.llm = l; }
-    public void setTui(UiContext t) { this.uiContext = t; }
-    public void setCwd(Path c) { this.cwd = c; }
-    public void setSystemPrompt(String sp) { this.systemPrompt = sp; }
-    public void setExtensionFlags(Map<String, String> flags) { this.extensionFlags = flags != null ? Map.copyOf(flags) : Map.of(); }
+    public void setToolRegistry(ToolRegistry registry) {
+        this.toolRegistry = registry;
+    }
 
-    public ExtensionAPI api() { return api; }
+    public void setAgentLoop(AgentContext loop) {
+        this.agentContext = loop;
+    }
+
+    public void setLlm(LlmService l) {
+        this.llm = l;
+    }
+
+    public void setTui(UiContext t) {
+        this.uiContext = t;
+    }
+
+    public void setCwd(Path c) {
+        this.cwd = c;
+    }
+
+    public void setSystemPrompt(String sp) {
+        this.systemPrompt = sp;
+    }
+
+    public void setExtensionFlags(Map<String, String> flags) {
+        this.extensionFlags = flags != null ? Map.copyOf(flags) : Map.of();
+    }
+
+    public ExtensionAPI api() {
+        return api;
+    }
 
     public void register(Extension ext) {
         extensions.add(ext);
-        try { ext.init(api); } catch (Exception e) {
+        try {
+            ext.init(api);
+        } catch (Exception e) {
             log.warn("Extension {} init failed: {}", ext.name(), e.getMessage());
         }
         log.info("Registered extension: {}", ext.name());
@@ -135,12 +159,15 @@ public final class ExtensionRegistry {
     // -- event dispatch --
 
     public void fire(ExtensionEvent event) {
-        if (agentContext == null || agentContext.isClosed()) return;
+        if (agentContext == null || agentContext.isClosed())
+            return;
         var ctx = new ExtensionContext(uiContext, runtime);
         String name = event.name();
         var handlers = listeners.getOrDefault(name, List.of());
         for (var handler : handlers) {
-            try { handler.apply(event, ctx); } catch (Exception e) {
+            try {
+                handler.apply(event, ctx);
+            } catch (Exception e) {
                 log.warn("Event handler error for {}: {}", name, e.getMessage());
             }
         }
@@ -192,7 +219,8 @@ public final class ExtensionRegistry {
         for (var renderer : messageRenderers) {
             try {
                 var rendered = renderer.apply(message, handlerCtx);
-                if (rendered != null && !rendered.lines().isEmpty()) return Optional.of(rendered.lines());
+                if (rendered != null && !rendered.lines().isEmpty())
+                    return Optional.of(rendered.lines());
             } catch (Exception e) {
                 log.warn("message renderer error: {}", e.getMessage());
             }
@@ -222,7 +250,8 @@ public final class ExtensionRegistry {
         return ExtensionResult.UserBashResult.allow();
     }
 
-    public ExtensionResult.BashToolCallResult fireBashToolCall(String toolCallId, String command, String workdir, long timeoutSec) {
+    public ExtensionResult.BashToolCallResult fireBashToolCall(String toolCallId, String command, String workdir,
+                                    long timeoutSec) {
         var event = new ExtensionEvent.BashToolCall(toolCallId, command, workdir, timeoutSec);
         var handlerCtx = new ExtensionContext(uiContext, runtime);
         var handlers = listeners.getOrDefault("bash_tool_call", List.of());
@@ -249,7 +278,8 @@ public final class ExtensionRegistry {
                 Object handled = handler.apply(new ExtensionEvent.Input(result), handlerCtx);
                 if (handled instanceof ExtensionResult.InputResult r) {
                     result = r.text();
-                    if (r.consumed()) break;
+                    if (r.consumed())
+                        break;
                 }
             } catch (Exception e) {
                 log.warn("input handler error: {}", e.getMessage());
@@ -263,7 +293,7 @@ public final class ExtensionRegistry {
     public String fireBeforeAgentStart(List<Message> messages, String systemPrompt) {
         var prompt = new StringBuilder(systemPrompt != null ? systemPrompt : "");
         fire(new ExtensionEvent.BeforeAgentStart(messages, prompt,
-            toolRegistry != null ? toolRegistry.activeTools() : List.of()));
+                                        toolRegistry != null ? toolRegistry.activeTools() : List.of()));
         return prompt.toString();
     }
 
@@ -312,7 +342,8 @@ public final class ExtensionRegistry {
     public String thinkingHeaderText() {
         for (var provider : thinkingHeaderTextProviders) {
             String text = provider.get();
-            if (text != null && !text.isBlank()) return text;
+            if (text != null && !text.isBlank())
+                return text;
         }
         return null;
     }
@@ -320,7 +351,9 @@ public final class ExtensionRegistry {
     public void ready() {
         fire(new ExtensionEvent.SessionReady());
         for (var ext : extensions) {
-            try { ext.onReady(runtime); } catch (Exception e) {
+            try {
+                ext.onReady(runtime);
+            } catch (Exception e) {
                 log.warn("Extension {} onReady failed: {}", ext.name(), e.getMessage());
             }
         }
@@ -330,14 +363,17 @@ public final class ExtensionRegistry {
         var prompts = new ArrayList<String>();
         for (var provider : systemPromptProviders) {
             String prompt = provider.get();
-            if (prompt != null && !prompt.isBlank()) prompts.add(prompt);
+            if (prompt != null && !prompt.isBlank())
+                prompts.add(prompt);
         }
         return prompts;
     }
 
     public void contributeHeadlessTools(HeadlessToolContext ctx) {
         for (var ext : extensions) {
-            try { ext.contributeHeadlessTools(ctx); } catch (Exception e) {
+            try {
+                ext.contributeHeadlessTools(ctx);
+            } catch (Exception e) {
                 log.warn("Extension {} error in contributeHeadlessTools: {}", ext.name(), e.getMessage());
             }
         }
@@ -346,12 +382,16 @@ public final class ExtensionRegistry {
     public void cleanup() {
         fire(new ExtensionEvent.SessionShutdown());
         for (var ext : extensions) {
-            try { ext.onShutdown(runtime); } catch (Exception e) {
+            try {
+                ext.onShutdown(runtime);
+            } catch (Exception e) {
                 log.warn("Extension {} onShutdown failed: {}", ext.name(), e.getMessage());
             }
         }
         for (var loader : extensionClassLoaders) {
-            try { loader.close(); } catch (Exception e) {
+            try {
+                loader.close();
+            } catch (Exception e) {
                 log.debug("Extension classloader close failed: {}", e.getMessage());
             }
         }
@@ -374,48 +414,134 @@ public final class ExtensionRegistry {
     private class ExtensionAPIImpl implements ExtensionAPI {
 
         private <T extends ExtensionEvent> ExtensionAPI on(String name, BiConsumer<T, ExtensionContext> handler) {
-            addListener(name, (e, ctx) -> { handler.accept((T) e, ctx); return null; });
+            addListener(name, (e, ctx) -> {
+                handler.accept((T) e, ctx);
+                return null;
+            });
             return this;
         }
 
-        @Override public ExtensionAPI onSessionStart(BiConsumer<ExtensionEvent.SessionStart, ExtensionContext> h) { return on("session_start", h); }
-        @Override public ExtensionAPI onSessionReady(BiConsumer<ExtensionEvent.SessionReady, ExtensionContext> h) { return on("session_ready", h); }
-        @Override public ExtensionAPI onSessionShutdown(BiConsumer<ExtensionEvent.SessionShutdown, ExtensionContext> h) { return on("session_shutdown", h); }
-        @Override public ExtensionAPI onBeforeAgentStart(BiConsumer<ExtensionEvent.BeforeAgentStart, ExtensionContext> h) { return on("before_agent_start", h); }
-        @Override public ExtensionAPI onAgentStart(BiConsumer<ExtensionEvent.AgentStart, ExtensionContext> h) { return on("agent_start", h); }
-        @Override public ExtensionAPI onAgentEnd(BiConsumer<ExtensionEvent.AgentEnd, ExtensionContext> h) { return on("agent_end", h); }
-        @Override public ExtensionAPI onTurnStart(BiConsumer<ExtensionEvent.TurnStart, ExtensionContext> h) { return on("turn_start", h); }
-        @Override public ExtensionAPI onTurnEnd(BiConsumer<ExtensionEvent.TurnEnd, ExtensionContext> h) { return on("turn_end", h); }
-        @Override public ExtensionAPI onMessageStart(BiConsumer<ExtensionEvent.MessageStart, ExtensionContext> h) { return on("message_start", h); }
-        @Override public ExtensionAPI onMessageUpdate(BiConsumer<ExtensionEvent.MessageUpdate, ExtensionContext> h) { return on("message_update", h); }
-        @Override public ExtensionAPI onMessageEnd(BiConsumer<ExtensionEvent.MessageEnd, ExtensionContext> h) { return on("message_end", h); }
-        @Override public ExtensionAPI registerMessageRenderer(BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer) {
-            if (renderer != null) messageRenderers.add(renderer);
+        @Override
+        public ExtensionAPI onSessionStart(BiConsumer<ExtensionEvent.SessionStart, ExtensionContext> h) {
+            return on("session_start", h);
+        }
+
+        @Override
+        public ExtensionAPI onSessionReady(BiConsumer<ExtensionEvent.SessionReady, ExtensionContext> h) {
+            return on("session_ready", h);
+        }
+
+        @Override
+        public ExtensionAPI onSessionShutdown(BiConsumer<ExtensionEvent.SessionShutdown, ExtensionContext> h) {
+            return on("session_shutdown", h);
+        }
+
+        @Override
+        public ExtensionAPI onBeforeAgentStart(BiConsumer<ExtensionEvent.BeforeAgentStart, ExtensionContext> h) {
+            return on("before_agent_start", h);
+        }
+
+        @Override
+        public ExtensionAPI onAgentStart(BiConsumer<ExtensionEvent.AgentStart, ExtensionContext> h) {
+            return on("agent_start", h);
+        }
+
+        @Override
+        public ExtensionAPI onAgentEnd(BiConsumer<ExtensionEvent.AgentEnd, ExtensionContext> h) {
+            return on("agent_end", h);
+        }
+
+        @Override
+        public ExtensionAPI onTurnStart(BiConsumer<ExtensionEvent.TurnStart, ExtensionContext> h) {
+            return on("turn_start", h);
+        }
+
+        @Override
+        public ExtensionAPI onTurnEnd(BiConsumer<ExtensionEvent.TurnEnd, ExtensionContext> h) {
+            return on("turn_end", h);
+        }
+
+        @Override
+        public ExtensionAPI onMessageStart(BiConsumer<ExtensionEvent.MessageStart, ExtensionContext> h) {
+            return on("message_start", h);
+        }
+
+        @Override
+        public ExtensionAPI onMessageUpdate(BiConsumer<ExtensionEvent.MessageUpdate, ExtensionContext> h) {
+            return on("message_update", h);
+        }
+
+        @Override
+        public ExtensionAPI onMessageEnd(BiConsumer<ExtensionEvent.MessageEnd, ExtensionContext> h) {
+            return on("message_end", h);
+        }
+
+        @Override
+        public ExtensionAPI registerMessageRenderer(
+                                        BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer) {
+            if (renderer != null)
+                messageRenderers.add(renderer);
             return this;
         }
-        @Override public ExtensionAPI onSessionBeforeCompact(BiConsumer<ExtensionEvent.SessionBeforeCompact, ExtensionContext> h) { return on("session_before_compact", h); }
-        @Override public ExtensionAPI onSessionCompact(BiConsumer<ExtensionEvent.SessionCompact, ExtensionContext> h) { return on("session_compact", h); }
-        @Override public ExtensionAPI onToolResult(BiConsumer<ExtensionEvent.ToolResult, ExtensionContext> h) { return on("tool_result", h); }
-        @Override public ExtensionAPI onToolExecutionStart(BiConsumer<ExtensionEvent.ToolExecutionStart, ExtensionContext> h) { return on("tool_execution_start", h); }
-        @Override public ExtensionAPI onToolExecutionEnd(BiConsumer<ExtensionEvent.ToolExecutionEnd, ExtensionContext> h) { return on("tool_execution_end", h); }
-        @Override public ExtensionAPI onBeforeProviderRequest(BiConsumer<ExtensionEvent.BeforeProviderRequest, ExtensionContext> h) { return on("before_provider_request", h); }
-        @Override public ExtensionAPI onModelSelect(BiConsumer<ExtensionEvent.ModelSelect, ExtensionContext> h) { return on("model_select", h); }
-        @Override public ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler) {
+
+        @Override
+        public ExtensionAPI onSessionBeforeCompact(
+                                        BiConsumer<ExtensionEvent.SessionBeforeCompact, ExtensionContext> h) {
+            return on("session_before_compact", h);
+        }
+
+        @Override
+        public ExtensionAPI onSessionCompact(BiConsumer<ExtensionEvent.SessionCompact, ExtensionContext> h) {
+            return on("session_compact", h);
+        }
+
+        @Override
+        public ExtensionAPI onToolResult(BiConsumer<ExtensionEvent.ToolResult, ExtensionContext> h) {
+            return on("tool_result", h);
+        }
+
+        @Override
+        public ExtensionAPI onToolExecutionStart(BiConsumer<ExtensionEvent.ToolExecutionStart, ExtensionContext> h) {
+            return on("tool_execution_start", h);
+        }
+
+        @Override
+        public ExtensionAPI onToolExecutionEnd(BiConsumer<ExtensionEvent.ToolExecutionEnd, ExtensionContext> h) {
+            return on("tool_execution_end", h);
+        }
+
+        @Override
+        public ExtensionAPI onBeforeProviderRequest(
+                                        BiConsumer<ExtensionEvent.BeforeProviderRequest, ExtensionContext> h) {
+            return on("before_provider_request", h);
+        }
+
+        @Override
+        public ExtensionAPI onModelSelect(BiConsumer<ExtensionEvent.ModelSelect, ExtensionContext> h) {
+            return on("model_select", h);
+        }
+
+        @Override
+        public ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler) {
             addListener("user_bash", (e, ctx) -> handler.apply((ExtensionEvent.UserBash) e, ctx));
             return this;
         }
 
-        @Override public ExtensionAPI onBashToolCall(BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler) {
+        @Override
+        public ExtensionAPI onBashToolCall(
+                                        BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler) {
             addListener("bash_tool_call", (e, ctx) -> handler.apply((ExtensionEvent.BashToolCall) e, ctx));
             return this;
         }
 
-        @Override public ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler) {
+        @Override
+        public ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler) {
             addListener("tool_call", (e, ctx) -> handler.apply((ExtensionEvent.ToolCall) e, ctx));
             return this;
         }
 
-        @Override public ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler) {
+        @Override
+        public ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler) {
             addListener("input", (e, ctx) -> handler.apply(((ExtensionEvent.Input) e).text(), ctx));
             return this;
         }
@@ -434,32 +560,38 @@ public final class ExtensionRegistry {
 
         @Override
         public void registerKeybinding(ExtensionKeybinding keybinding) {
-            if (keybinding != null) keybindings.add(keybinding);
+            if (keybinding != null)
+                keybindings.add(keybinding);
         }
 
         @Override
         public void registerSkills(List<SkillLoader.Skill> newSkills) {
-            if (newSkills != null) skills.addAll(newSkills);
+            if (newSkills != null)
+                skills.addAll(newSkills);
         }
 
         @Override
         public void registerStatusLines(java.util.function.Supplier<List<String>> lines) {
-            if (lines != null) statusLineProviders.add(lines);
+            if (lines != null)
+                statusLineProviders.add(lines);
         }
 
         @Override
         public void registerFooterLines(java.util.function.Supplier<List<String>> lines) {
-            if (lines != null) footerLineProviders.add(lines);
+            if (lines != null)
+                footerLineProviders.add(lines);
         }
 
         @Override
         public void registerSystemPrompt(java.util.function.Supplier<String> prompt) {
-            if (prompt != null) systemPromptProviders.add(prompt);
+            if (prompt != null)
+                systemPromptProviders.add(prompt);
         }
 
         @Override
         public void registerThinkingHeaderText(java.util.function.Supplier<String> text) {
-            if (text != null) thinkingHeaderTextProviders.add(text);
+            if (text != null)
+                thinkingHeaderTextProviders.add(text);
         }
 
         @Override
@@ -484,7 +616,9 @@ public final class ExtensionRegistry {
         }
 
         @Override
-        public ExtensionRuntime runtime() { return runtime; }
+        public ExtensionRuntime runtime() {
+            return runtime;
+        }
     }
 
     private class ExtensionRuntimeImpl implements ExtensionRuntime {
@@ -494,13 +628,19 @@ public final class ExtensionRegistry {
         }
 
         @Override
-        public Path cwd() { return cwd; }
+        public Path cwd() {
+            return cwd;
+        }
 
         @Override
-        public String systemPrompt() { return systemPrompt; }
+        public String systemPrompt() {
+            return systemPrompt;
+        }
 
         @Override
-        public ToolRegistry tools() { return toolRegistry; }
+        public ToolRegistry tools() {
+            return toolRegistry;
+        }
 
         @Override
         public List<Tool.ToolInfo> activeTools() {
@@ -509,7 +649,8 @@ public final class ExtensionRegistry {
 
         @Override
         public void setActiveTools(List<String> toolNames) {
-            if (toolRegistry != null) toolRegistry.enableOnly(toolNames);
+            if (toolRegistry != null)
+                toolRegistry.enableOnly(toolNames);
         }
 
         @Override
@@ -518,43 +659,62 @@ public final class ExtensionRegistry {
         }
 
         @Override
-        public String sessionName() { return sessionName; }
+        public String sessionName() {
+            return sessionName;
+        }
 
         @Override
-        public void setSessionName(String name) { sessionName = name; }
+        public void setSessionName(String name) {
+            sessionName = name;
+        }
 
         @Override
-        public boolean isIdle() { return agentContext != null && !agentContext.isBusy(); }
+        public boolean isIdle() {
+            return agentContext != null && !agentContext.isBusy();
+        }
 
         @Override
-        public boolean isClosed() { return agentContext != null && agentContext.isClosed(); }
+        public boolean isClosed() {
+            return agentContext != null && agentContext.isClosed();
+        }
 
         @Override
-        public List<Message> messages() { return agentContext != null ? agentContext.messages() : List.of(); }
+        public List<Message> messages() {
+            return agentContext != null ? agentContext.messages() : List.of();
+        }
 
         @Override
-        public void compact(String instructions) { if (agentContext != null) agentContext.compact(instructions); }
+        public void compact(String instructions) {
+            if (agentContext != null)
+                agentContext.compact(instructions);
+        }
 
         @Override
         public void abort() {
-            if (agentContext != null) agentContext.abort();
+            if (agentContext != null)
+                agentContext.abort();
         }
 
         @Override
         public void setStatus(String message) {
-            if (uiContext != null) uiContext.setStatus(message);
+            if (uiContext != null)
+                uiContext.setStatus(message);
         }
 
         @Override
         public void appendStatus(String message) {
-            if (uiContext != null) uiContext.appendStatus(message);
+            if (uiContext != null)
+                uiContext.appendStatus(message);
         }
 
         @Override
         public void setStatus(String key, String message) {
-            if (key == null || key.isBlank()) return;
-            if (message == null || message.isBlank()) keyedStatuses.remove(key);
-            else keyedStatuses.put(key, message);
+            if (key == null || key.isBlank())
+                return;
+            if (message == null || message.isBlank())
+                keyedStatuses.remove(key);
+            else
+                keyedStatuses.put(key, message);
         }
 
         @Override
@@ -569,13 +729,15 @@ public final class ExtensionRegistry {
 
         @Override
         public void clearStatus(String key) {
-            if (key != null) keyedStatuses.remove(key);
+            if (key != null)
+                keyedStatuses.remove(key);
         }
 
         @Override
         public boolean getFlag(String name, boolean defaultValue) {
             String val = extensionFlags != null ? extensionFlags.get(name) : null;
-            if (val == null) return defaultValue;
+            if (val == null)
+                return defaultValue;
             return "true".equalsIgnoreCase(val) || "1".equals(val) || "yes".equalsIgnoreCase(val);
         }
 

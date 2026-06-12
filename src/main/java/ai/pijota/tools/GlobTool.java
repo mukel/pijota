@@ -19,34 +19,52 @@ public final class GlobTool implements Tool {
     private static final int DEFAULT_LIMIT = 1000;
     private static final long DEFAULT_TIMEOUT_SECONDS = 30;
     private volatile Process currentProcess;
+    private final SearchBackend searchBackend;
 
-    @Override public String name() { return "glob"; }
+    /** Injectable search backend so tests can bypass process spawns. */
+    @FunctionalInterface
+    interface SearchBackend {
+        SearchResult search(String pattern, Path searchPath, int limit, long timeoutSeconds) throws IOException;
+    }
+
+    public GlobTool() {
+        this.searchBackend = this::processSearch;
+    }
+
+    GlobTool(SearchBackend searchBackend) {
+        this.searchBackend = searchBackend;
+    }
+
+    @Override
+    public String name() {
+        return "glob";
+    }
 
     @Override
     public String description() {
         return "Search for files by glob pattern. Returns matching file paths relative to the search directory. "
-            + "Respects .gitignore. Output is truncated to 1000 results or 100KB.";
+                                        + "Respects .gitignore. Output is truncated to 1000 results or 100KB.";
     }
 
-    @Override public boolean defaultEnabled() { return true; }
+    @Override
+    public boolean defaultEnabled() {
+        return true;
+    }
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "pattern", Map.of("type", "string",
-                    "description", "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'"),
-                "path", Map.of("type", "string",
-                    "description", "Directory to search in (default: current directory)"),
-                "limit", Map.of("type", "integer",
-                    "description", "Maximum number of results (default: 1000)"),
-                "timeout", Map.of("type", "number",
-                    "description", "Timeout in seconds before file search is killed (default 30)")
-            ),
-            "required", List.of("pattern"),
-            "additionalProperties", false
-        );
+        return Map.of("type", "object", "properties", Map.of("pattern", Map.of("type", "string", "description",
+                                        "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'"),
+                                        "path",
+                                        Map.of("type", "string", "description",
+                                                                        "Directory to search in (default: current directory)"),
+                                        "limit",
+                                        Map.of("type", "integer", "description",
+                                                                        "Maximum number of results (default: 1000)"),
+                                        "timeout",
+                                        Map.of("type", "number", "description",
+                                                                        "Timeout in seconds before file search is killed (default 30)")),
+                                        "required", List.of("pattern"), "additionalProperties", false);
     }
 
     @Override
@@ -54,30 +72,33 @@ public final class GlobTool implements Tool {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String pattern = (String) args.get("pattern");
-                if (pattern == null || pattern.isBlank()) return ToolResult.error("No pattern provided");
+                if (pattern == null || pattern.isBlank())
+                    return ToolResult.error("No pattern provided");
 
                 Path base = Util.resolveDir(cwd);
                 Path searchPath = Util.resolveSearchPath(base, (String) args.get("path"));
-                if (!Files.exists(searchPath)) return ToolResult.error("Path not found: " + searchPath);
+                if (!Files.exists(searchPath))
+                    return ToolResult.error("Path not found: " + searchPath);
 
                 int limit = Math.max(1, Util.getInt(args, "limit", DEFAULT_LIMIT));
                 long timeout = Math.max(1, Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS));
 
-                SearchResult result = rgSearch(pattern, searchPath, limit, timeout);
-                if (result == null) result = fdSearch(pattern, searchPath, limit, timeout);
-                if (result == null) result = javaSearch(pattern, searchPath, limit);
-                if (result.lines().isEmpty()) return ToolResult.success("No files found matching pattern: " + pattern);
+                SearchResult result = searchBackend.search(pattern, searchPath, limit, timeout);
+                if (result.lines().isEmpty())
+                    return ToolResult.success("No files found matching pattern: " + pattern);
 
                 boolean limitReached = result.lines().size() >= limit;
                 String output = String.join("\n", result.lines());
-                if (limitReached) output += "\n\n[" + limit + " results limit reached. Use limit="
-                    + (limit * 2) + " for more, or refine pattern]";
+                if (limitReached)
+                    output += "\n\n[" + limit + " results limit reached. Use limit=" + (limit * 2)
+                                                    + " for more, or refine pattern]";
                 var truncated = Util.truncateToFile(output, Util.DEFAULT_MAX_CHARS, "pijota-find-");
 
                 var details = new LinkedHashMap<String, Object>(truncated.details());
                 details.put("backend", result.backend());
                 details.put("resultCount", result.lines().size());
-                if (limitReached) details.put("resultLimitReached", limit);
+                if (limitReached)
+                    details.put("resultLimitReached", limit);
                 return ToolResult.success(truncated.text(), details);
             } catch (IOException e) {
                 return ToolResult.error("Find error: " + e.getMessage());
@@ -90,22 +111,32 @@ public final class GlobTool implements Tool {
         ProcessRunner.abortIfAlive(currentProcess);
     }
 
+    private SearchResult processSearch(String pattern, Path searchPath, int limit, long timeoutSeconds) {
+        try {
+            SearchResult result = rgSearch(pattern, searchPath, limit, timeoutSeconds);
+            if (result == null)
+                result = fdSearch(pattern, searchPath, limit, timeoutSeconds);
+            if (result == null)
+                result = javaSearch(pattern, searchPath, limit);
+            return result != null ? result : new SearchResult(List.of(), "java");
+        } catch (IOException e) {
+            return new SearchResult(List.of(), "java");
+        }
+    }
+
     private SearchResult fdSearch(String pattern, Path searchPath, int limit, long timeoutSeconds) {
         try {
-            var command = List.of("fd", "--hidden", "--type", "f", "--glob", "--max-results",
-                Integer.toString(limit), "--", pattern, searchPath.toString());
-            var result = ProcessRunner.command(command)
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                .maxOutputBytes(Util.DEFAULT_MAX_CHARS)
-                .onStart(p -> currentProcess = p)
-                .run();
-            if (result.timedOut()) return new SearchResult(List.of("[fd timed out after " + timeoutSeconds + " seconds]"), "fd");
-            if (result.exitCode() != 0) return null;
-            var lines = result.stdout().lines()
-                .filter(s -> !s.isBlank())
-                .map(s -> relativize(searchPath, Path.of(s)))
-                .limit(limit)
-                .toList();
+            var command = List.of("fd", "--hidden", "--type", "f", "--glob", "--max-results", Integer.toString(limit),
+                                            "--", pattern, searchPath.toString());
+            var result = ProcessRunner.command(command).timeout(Duration.ofSeconds(timeoutSeconds))
+                                            .maxOutputBytes(Util.DEFAULT_MAX_CHARS).onStart(p -> currentProcess = p)
+                                            .run();
+            if (result.timedOut())
+                return new SearchResult(List.of("[fd timed out after " + timeoutSeconds + " seconds]"), "fd");
+            if (result.exitCode() != 0)
+                return null;
+            var lines = result.stdout().lines().filter(s -> !s.isBlank()).map(s -> relativize(searchPath, Path.of(s)))
+                                            .limit(limit).toList();
             return new SearchResult(lines, "fd");
         } catch (Exception ignored) {
             return null;
@@ -116,20 +147,17 @@ public final class GlobTool implements Tool {
 
     private SearchResult rgSearch(String pattern, Path searchPath, int limit, long timeoutSeconds) {
         try {
-            var command = new ArrayList<>(List.of("rg", "--files", "--hidden",
-                "--glob", pattern, "--", searchPath.toString()));
-            var result = ProcessRunner.command(command)
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                .maxOutputBytes(Util.DEFAULT_MAX_CHARS)
-                .onStart(p -> currentProcess = p)
-                .run();
-            if (result.timedOut()) return new SearchResult(List.of("[rg timed out after " + timeoutSeconds + " seconds]"), "rg");
-            if (result.exitCode() != 0) return null;
-            var lines = result.stdout().lines()
-                .filter(s -> !s.isBlank())
-                .map(s -> relativize(searchPath, Path.of(s)))
-                .limit(limit)
-                .toList();
+            var command = new ArrayList<>(List.of("rg", "--files", "--hidden", "--glob", pattern, "--",
+                                            searchPath.toString()));
+            var result = ProcessRunner.command(command).timeout(Duration.ofSeconds(timeoutSeconds))
+                                            .maxOutputBytes(Util.DEFAULT_MAX_CHARS).onStart(p -> currentProcess = p)
+                                            .run();
+            if (result.timedOut())
+                return new SearchResult(List.of("[rg timed out after " + timeoutSeconds + " seconds]"), "rg");
+            if (result.exitCode() != 0)
+                return null;
+            var lines = result.stdout().lines().filter(s -> !s.isBlank()).map(s -> relativize(searchPath, Path.of(s)))
+                                            .limit(limit).toList();
             return new SearchResult(lines, "rg");
         } catch (Exception ignored) {
             return null;
@@ -138,15 +166,13 @@ public final class GlobTool implements Tool {
         }
     }
 
-    private static SearchResult javaSearch(String pattern, Path searchPath, int limit) throws IOException {
+    static SearchResult javaSearch(String pattern, Path searchPath, int limit) throws IOException {
         var matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
         int maxDepth = pattern.contains("**") ? 64 : 1;
         var results = new ArrayList<String>();
         try (Stream<Path> stream = Files.walk(searchPath, maxDepth)) {
-            stream.filter(Files::isRegularFile)
-                .filter(p -> matcher.matches(searchPath.relativize(p)))
-                .limit(limit)
-                .forEach(p -> results.add(relativize(searchPath, p)));
+            stream.filter(Files::isRegularFile).filter(p -> matcher.matches(searchPath.relativize(p))).limit(limit)
+                                            .forEach(p -> results.add(relativize(searchPath, p)));
         }
         return new SearchResult(results, "java");
     }
@@ -161,5 +187,6 @@ public final class GlobTool implements Tool {
         }
     }
 
-    private record SearchResult(List<String> lines, String backend) {}
+    record SearchResult(List<String> lines, String backend) {
+    }
 }

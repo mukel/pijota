@@ -11,18 +11,17 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SessionManagerTest {
-    @TempDir Path tempDir;
+    @TempDir
+    Path tempDir;
 
     @Test
     void savesAndLoadsConversationMessagesWithoutSystemPrompts() throws Exception {
         var manager = new SessionManager(tempDir);
         var file = tempDir.resolve("session.jsonl");
-        var messages = List.<Message>of(
-            new Message.System("system prompt"),
-            new Message.User("hello"),
-            new Message.Assistant("hi", List.of(new ToolCall("tc1", "read", "{}")), "thinking"),
-            new Message.ToolResult("tc1", "read", "contents", false)
-        );
+        var messages = List.<Message>of(new Message.System("system prompt"), new Message.User("hello"),
+                                        new Message.Assistant("hi", List.of(new ToolCall("tc1", "read", "{}")),
+                                                                        "thinking"),
+                                        new Message.ToolResult("tc1", "read", "contents", false));
 
         manager.saveMessages(file, messages, "/workspace");
         var loaded = manager.loadMessages(file);

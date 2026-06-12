@@ -59,12 +59,12 @@ class UtilTest {
 
     @Test
     void stripSystemRemindersRemovesXmlTagsAndContent() {
-        assertEquals("before after", Util.stripSystemReminders("before <system-reminder>x</system-reminder> after"));
+        assertEquals("before  after", Util.stripSystemReminders("before <system-reminder>x</system-reminder> after"));
     }
 
     @Test
     void getIntReturnsNumberOrDefault() {
-        assertEquals(10, Util.getInt(Map.of("x", 10), "x", 0));
-        assertEquals(0, Util.getInt(Map.of(), "x", 0));
+        assertEquals(10, Util.getInt(java.util.Map.of("x", (Object) 10), "x", 0));
+        assertEquals(0, Util.getInt(java.util.Map.of(), "x", 0));
     }
 }

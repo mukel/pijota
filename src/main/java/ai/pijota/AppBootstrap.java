@@ -20,16 +20,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 final class AppBootstrap {
-    record Result(
-        LlmService llm,
-        ToolRegistry tools,
-        ExtensionRegistry extensions,
-        PijotaSession session,
-        SessionManager sessions,
-        SettingsManager settings,
-        Args args,
-        String cwd
-    ) {}
+    record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
+                                    SessionManager sessions, SettingsManager settings, Args args, String cwd) {
+    }
 
     static Result bootstrap(Args parsedArgs) throws Exception {
         var settings = new SettingsManager();
@@ -37,13 +30,13 @@ final class AppBootstrap {
 
         String apiKey = parsedArgs.apiKey();
 
-        var resolved = ModelRegistry.resolveProviderModel(
-            parsedArgs.provider(), parsedArgs.model(), settings);
+        var resolved = ModelRegistry.resolveProviderModel(parsedArgs.provider(), parsedArgs.model(), settings);
         String provider = resolved.provider();
         String model = resolved.model();
 
         if (apiKey == null || apiKey.isBlank()) {
-            if (provider != null && !provider.isBlank()) apiKey = settings.resolveApiKey(provider);
+            if (provider != null && !provider.isBlank())
+                apiKey = settings.resolveApiKey(provider);
             if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
                 if (parsedArgs.provider() == null) {
                     String detected = settings.detectProviderFromEnv();
@@ -62,8 +55,7 @@ final class AppBootstrap {
         }
 
         var tools = parsedArgs.noTools() ? new ToolRegistry() : ToolRegistry.createDefault();
-        var bashTool = new BashTool(
-            settings.effectiveShellPath(), settings.config().shellCommandPrefix());
+        var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix());
         tools.register(bashTool);
 
         var llm = new LlmService(provider, model, settings::resolveApiKey);
@@ -76,8 +68,7 @@ final class AppBootstrap {
         }
 
         var ext = new ExtensionRegistry();
-        llm.setModelChangeCallback((oldModel, newModel) ->
-            ext.fireModelSelect(newModel, oldModel, "set"));
+        llm.setModelChangeCallback((oldModel, newModel) -> ext.fireModelSelect(newModel, oldModel, "set"));
         ext.setToolRegistry(tools);
         ext.setCwd(Path.of(cwd));
         ext.setLlm(llm);
@@ -104,19 +95,21 @@ final class AppBootstrap {
         if (!parsedArgs.noContextFiles() && settings.contextFilesEnabled())
             ext.register(new ai.pijota.extensions.examples.ContextFilesExtension(cwd));
 
-        if (!parsedArgs.enabledTools().isEmpty()) tools.enableOnly(parsedArgs.enabledTools());
+        if (!parsedArgs.enabledTools().isEmpty())
+            tools.enableOnly(parsedArgs.enabledTools());
 
-        String appendPrompt = parsedArgs.appendSystemPrompts().isEmpty() ? null
-            : String.join("\n", parsedArgs.appendSystemPrompts());
-        String systemPrompt = SystemPrompt.build(tools, parsedArgs.systemPrompt(),
-            appendPrompt, cwd, ext.systemPromptContributions());
+        String appendPrompt = parsedArgs.appendSystemPrompts().isEmpty()
+                                        ? null
+                                        : String.join("\n", parsedArgs.appendSystemPrompts());
+        String systemPrompt = SystemPrompt.build(tools, parsedArgs.systemPrompt(), appendPrompt, cwd,
+                                        ext.systemPromptContributions());
         ext.setSystemPrompt(systemPrompt);
 
         var sessions = new SessionManager(settings.sessionDir());
         int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
 
-        var session = new PijotaSession(llm, tools, sessions, ext,
-            systemPrompt, cwd, parsedArgs.noSession(), contextWindow, settings.config().compaction());
+        var session = new PijotaSession(llm, tools, sessions, ext, systemPrompt, cwd, parsedArgs.noSession(),
+                                        contextWindow, settings.config().compaction());
         ext.setAgentLoop(session.agentLoop());
         boolean loadedSession = false;
         try {
@@ -159,7 +152,8 @@ final class AppBootstrap {
     private static void mergeTranscendWorktree(Args args) {
         String branch = args.extensionFlags().get("transcend-merge-branch");
         String worktree = args.extensionFlags().get("transcend-worktree");
-        if ((branch == null || branch.isBlank()) && (worktree == null || worktree.isBlank())) return;
+        if ((branch == null || branch.isBlank()) && (worktree == null || worktree.isBlank()))
+            return;
 
         try {
             if (branch != null && !branch.isBlank()) {
@@ -172,11 +166,11 @@ final class AppBootstrap {
             }
 
             if (worktree != null && !worktree.isBlank()) {
-                if (!applyWorktreeDiff(Path.of(worktree.strip()))) return;
+                if (!applyWorktreeDiff(Path.of(worktree.strip())))
+                    return;
 
                 ProcessRunner.command("git", "worktree", "remove", "--force", worktree.strip())
-                    .redirectErrorStream(true)
-                    .run();
+                                                .redirectErrorStream(true).run();
             }
         } catch (Exception e) {
             System.err.println("[transcend] automatic merge failed: " + e.getMessage());
@@ -185,11 +179,12 @@ final class AppBootstrap {
 
     private static void restoreSessionModel(PijotaSession session, SettingsManager settings) throws IOException {
         var selection = session.latestModelSelection();
-        if (selection == null) return;
+        if (selection == null)
+            return;
         var resolved = ModelRegistry.resolve(selection, settings);
         if (resolved == null) {
             System.err.println("[session] cannot restore model " + selection.provider() + "/" + selection.model()
-                + " — missing API key");
+                                            + " — missing API key");
             return;
         }
         session.restoreModel(resolved.provider(), resolved.model(), resolved.apiKey(), resolved.contextWindow());
@@ -197,27 +192,23 @@ final class AppBootstrap {
 
     private static void restoreSessionThinkingLevel(PijotaSession session) throws IOException {
         var level = session.latestThinkingLevel();
-        if (level != null) session.restoreThinkingLevel(level);
+        if (level != null)
+            session.restoreThinkingLevel(level);
     }
 
     private static boolean applyWorktreeDiff(Path worktree) throws IOException {
-        var diff = ProcessRunner.command("git", "diff", "--binary", "HEAD")
-            .workDir(worktree)
-            .redirectErrorStream(true)
-            .maxOutputBytes(10 * 1024 * 1024)
-            .run();
+        var diff = ProcessRunner.command("git", "diff", "--binary", "HEAD").workDir(worktree).redirectErrorStream(true)
+                                        .maxOutputBytes(10 * 1024 * 1024).run();
         if (diff.exitCode() != 0) {
             System.err.println("[transcend] failed to collect worktree diff:");
             System.err.println(diff.stdout().strip());
             return false;
         }
-        if (diff.stdout().isBlank()) return true;
+        if (diff.stdout().isBlank())
+            return true;
 
-        var apply = ProcessRunner.command("git", "apply", "--3way", "--whitespace=nowarn")
-            .feedStdin(diff.stdout())
-            .redirectErrorStream(true)
-            .maxOutputBytes(10 * 1024 * 1024)
-            .run();
+        var apply = ProcessRunner.command("git", "apply", "--3way", "--whitespace=nowarn").feedStdin(diff.stdout())
+                                        .redirectErrorStream(true).maxOutputBytes(10 * 1024 * 1024).run();
         if (apply.exitCode() != 0) {
             System.err.println("[transcend] failed to apply worktree changes:");
             System.err.println(apply.stdout().strip());

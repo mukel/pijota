@@ -18,8 +18,15 @@ public final class PromptTemplateExtension implements Extension {
         this.templates = new CopyOnWriteArrayList<>();
     }
 
-    @Override public String name() { return "prompt-templates"; }
-    @Override public String description() { return "Prompt template expansion via /<name> <args>"; }
+    @Override
+    public String name() {
+        return "prompt-templates";
+    }
+
+    @Override
+    public String description() {
+        return "Prompt template expansion via /<name> <args>";
+    }
 
     @Override
     public void init(ExtensionAPI api) {
@@ -31,34 +38,28 @@ public final class PromptTemplateExtension implements Extension {
         var loaded = PromptTemplateLoader.load(api.runtime().cwd().toString(), explicitPaths);
         templates.clear();
         templates.addAll(loaded);
-        if (templates.isEmpty()) return;
+        if (templates.isEmpty())
+            return;
 
         // register each template as a slash command
         for (var t : templates) {
-            api.registerSlashCommand(new SlashCommand(
-                t.name(),
-                t.description(),
-                List.of(),
-                args -> {
-                    String expanded = PromptTemplateLoader.expand(
-                        t.content(),
-                        PromptTemplateLoader.parseArgs(args));
-                    api.sendUserMessage(expanded);
-                }
-            ));
+            api.registerSlashCommand(new SlashCommand(t.name(), t.description(), List.of(), args -> {
+                String expanded = PromptTemplateLoader.expand(t.content(), PromptTemplateLoader.parseArgs(args));
+                api.sendUserMessage(expanded);
+            }));
         }
 
         // register /prompts to list available templates
-        api.registerSlashCommand(new SlashCommand("prompts",
-            "List available prompt templates", List.of(), _args -> {
-                var sb = new StringBuilder();
-                templates.stream().sorted(Comparator.comparing(PromptTemplate::name)).forEach(t -> {
-                    sb.append("\n  /").append(t.name());
-                    if (t.argumentHint() != null) sb.append(' ').append(t.argumentHint());
-                    sb.append(" — ").append(t.description());
-                });
-                api.runtime().setStatus(sb.toString().stripLeading());
-            }));
+        api.registerSlashCommand(new SlashCommand("prompts", "List available prompt templates", List.of(), _args -> {
+            var sb = new StringBuilder();
+            templates.stream().sorted(Comparator.comparing(PromptTemplate::name)).forEach(t -> {
+                sb.append("\n  /").append(t.name());
+                if (t.argumentHint() != null)
+                    sb.append(' ').append(t.argumentHint());
+                sb.append(" — ").append(t.description());
+            });
+            api.runtime().setStatus(sb.toString().stripLeading());
+        }));
 
         // contribute to system prompt so LLM knows about available templates
         api.registerSystemPrompt(() -> PromptTemplateLoader.buildPrompt(templates));

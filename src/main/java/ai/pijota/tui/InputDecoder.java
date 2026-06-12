@@ -7,68 +7,132 @@ import java.io.IOException;
 public final class InputDecoder {
     private InputDecoder() {}
 
+    @FunctionalInterface
+    interface Input {
+        /** Read one byte. Returns -1 on EOF. */
+        int read() throws IOException;
+
+        /** Read one byte with timeout. Returns -1 on timeout/EOF. */
+        default int read(int timeout) throws IOException {
+            return read();
+        }
+    }
+
+    private static Input input(Terminal terminal) {
+        return new Input() {
+            @Override
+            public int read() throws IOException {
+                return terminal.reader().read();
+            }
+
+            @Override
+            public int read(int timeout) throws IOException {
+                return terminal.reader().read(timeout);
+            }
+        };
+    }
+
     public static Key readKey(Terminal terminal) throws IOException {
-        int ch = terminal.reader().read();
-        if (ch == -1 || ch == 4) return Key.Special.CTRL_D;
-        if (ch == 1) return Key.Special.CTRL_A;
-        if (ch == 3) return Key.Special.CTRL_C;
-        if (ch == 5) return Key.Special.CTRL_E;
-        if (ch == 7) return Key.Special.CTRL_G;
-        if (ch == 11) return Key.Special.CTRL_K;
-        if (ch == 12) return Key.Special.CTRL_L;
-        if (ch == 16) return Key.Special.CTRL_P;
-        if (ch == 21) return Key.Special.CTRL_U;
-        if (ch == 23) return Key.Special.CTRL_W;
-        if (ch == 24) return readCtrlX(terminal);
-        if (ch == 9) return Key.Special.TAB;
-        if (ch == 10) return Key.Special.NEWLINE;
-        if (ch == 13) return Key.Special.ENTER;
-        if (ch == 127 || ch == 8) return Key.Special.BACKSPACE;
-        if (ch == 27) return readEscape(terminal);
-        if (ch >= 32) return new Key.Char((char) ch);
-        return Key.Special.UNKNOWN;
+        return readKey(input(terminal));
     }
 
     public static Key readPaste(Terminal terminal) throws IOException {
+        return readPaste(input(terminal));
+    }
+
+    static Key readKey(Input in) throws IOException {
+        int ch = in.read();
+        if (ch == -1 || ch == 4)
+            return Key.Special.CTRL_D;
+        if (ch == 1)
+            return Key.Special.CTRL_A;
+        if (ch == 3)
+            return Key.Special.CTRL_C;
+        if (ch == 5)
+            return Key.Special.CTRL_E;
+        if (ch == 7)
+            return Key.Special.CTRL_G;
+        if (ch == 11)
+            return Key.Special.CTRL_K;
+        if (ch == 12)
+            return Key.Special.CTRL_L;
+        if (ch == 16)
+            return Key.Special.CTRL_P;
+        if (ch == 21)
+            return Key.Special.CTRL_U;
+        if (ch == 23)
+            return Key.Special.CTRL_W;
+        if (ch == 24)
+            return readCtrlX(in);
+        if (ch == 9)
+            return Key.Special.TAB;
+        if (ch == 10)
+            return Key.Special.NEWLINE;
+        if (ch == 13)
+            return Key.Special.ENTER;
+        if (ch == 127 || ch == 8)
+            return Key.Special.BACKSPACE;
+        if (ch == 27)
+            return readEscape(in);
+        if (ch >= 32)
+            return new Key.Char((char) ch);
+        return Key.Special.UNKNOWN;
+    }
+
+    static Key readPaste(Input in) throws IOException {
         var sb = new StringBuilder();
         while (true) {
-            int ch = terminal.reader().read();
+            int ch = in.read();
             if (ch == 27) {
-                int next = terminal.reader().read();
-                if (next == -1) return null;
+                int next = in.read();
+                if (next == -1)
+                    return null;
                 if (next == '[') {
                     var end = new StringBuilder();
                     while (true) {
-                        int c = terminal.reader().read();
-                        if (c == -1) return null;
+                        int c = in.read();
+                        if (c == -1)
+                            return null;
                         end.append((char) c);
-                        if (c >= 0x40 && c <= 0x7e) break;
+                        if (c >= 0x40 && c <= 0x7e)
+                            break;
                     }
-                    if ("201~".equals(end.toString())) return new Key.Paste(sb.toString());
+                    if ("201~".equals(end.toString()))
+                        return new Key.Paste(sb.toString());
                 }
                 return null;
             }
-            if (ch == -1) return null;
+            if (ch == -1)
+                return null;
             sb.append((char) ch);
         }
     }
 
-    private static Key readEscape(Terminal terminal) throws IOException {
-        int next = terminal.reader().read(20);
-        if (next < 0) return Key.Special.ESC;
-        if (next == 27) return Key.Special.DOUBLE_ESC;
-        if (next == 13 || next == 10) return Key.Special.NEWLINE;
-        if (next == 'b' || next == 'B') return Key.Special.CTRL_LEFT;
-        if (next == 'f' || next == 'F') return Key.Special.CTRL_RIGHT;
-        if (next == 'd' || next == 'D') return Key.Special.ALT_D;
-        if (next != '[') return Key.Special.UNKNOWN;
+    private static Key readEscape(Input in) throws IOException {
+        int next = in.read(20);
+        if (next < 0)
+            return Key.Special.ESC;
+        if (next == 27)
+            return Key.Special.DOUBLE_ESC;
+        if (next == 13 || next == 10)
+            return Key.Special.NEWLINE;
+        if (next == 'b' || next == 'B')
+            return Key.Special.CTRL_LEFT;
+        if (next == 'f' || next == 'F')
+            return Key.Special.CTRL_RIGHT;
+        if (next == 'd' || next == 'D')
+            return Key.Special.ALT_D;
+        if (next != '[')
+            return Key.Special.UNKNOWN;
 
         var seq = new StringBuilder();
         while (true) {
-            int c = terminal.reader().read(20);
-            if (c == -1) break;
+            int c = in.read(20);
+            if (c == -1)
+                break;
             seq.append((char) c);
-            if (c >= 0x40 && c <= 0x7e) break;
+            if (c >= 0x40 && c <= 0x7e)
+                break;
         }
         return switch (seq.toString()) {
             case "A" -> Key.Special.UP;
@@ -89,9 +153,10 @@ public final class InputDecoder {
         };
     }
 
-    private static Key readCtrlX(Terminal terminal) throws IOException {
-        int next = terminal.reader().read(500);
-        if (next == 5) return Key.Special.OPEN_EDITOR;
+    private static Key readCtrlX(Input in) throws IOException {
+        int next = in.read(500);
+        if (next == 5)
+            return Key.Special.OPEN_EDITOR;
         return Key.Special.UNKNOWN;
     }
 }

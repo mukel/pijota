@@ -28,19 +28,16 @@ public final class ModelRegistry {
     }
 
     public static List<ModelInfo> filter(String search) {
-        if (search == null || search.isBlank()) return KNOWN_MODELS;
+        if (search == null || search.isBlank())
+            return KNOWN_MODELS;
         String lower = search.toLowerCase();
-        return KNOWN_MODELS.stream()
-            .filter(m -> m.id().toLowerCase().contains(lower)
-                || m.provider().toLowerCase().contains(lower)
-                || m.displayName().toLowerCase().contains(lower))
-            .toList();
+        return KNOWN_MODELS.stream().filter(m -> m.id().toLowerCase().contains(lower)
+                                        || m.provider().toLowerCase().contains(lower)
+                                        || m.displayName().toLowerCase().contains(lower)).toList();
     }
 
     public static List<ModelInfo> forProvider(String provider) {
-        return KNOWN_MODELS.stream()
-            .filter(m -> m.provider().equalsIgnoreCase(provider))
-            .toList();
+        return KNOWN_MODELS.stream().filter(m -> m.provider().equalsIgnoreCase(provider)).toList();
     }
 
     public static String defaultModelForProvider(String provider) {
@@ -48,74 +45,83 @@ public final class ModelRegistry {
         if (fromCatalog != null && !fromCatalog.isBlank() && isKnownProviderModel(provider, fromCatalog)) {
             return fromCatalog;
         }
-        return forProvider(provider).stream()
-            .map(ModelInfo::id)
-            .findFirst()
-            .orElse(null);
+        return forProvider(provider).stream().map(ModelInfo::id).findFirst().orElse(null);
     }
 
     public static String providerForModel(String modelId) {
-        if (modelId == null) return null;
-        return KNOWN_MODELS.stream()
-            .filter(m -> m.id().equalsIgnoreCase(modelId))
-            .findFirst()
-            .map(ModelInfo::provider)
-            .orElse(null);
+        if (modelId == null)
+            return null;
+        return KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(modelId)).findFirst().map(ModelInfo::provider)
+                                        .orElse(null);
     }
 
     public static long resolveContextWindow(String provider, String model) {
-        if (provider == null || model == null) return DEFAULT_CONTEXT_WINDOW;
-        return KNOWN_MODELS.stream()
-            .filter(m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model))
-            .findFirst()
-            .or(() -> KNOWN_MODELS.stream()
-                .filter(m -> m.id().equalsIgnoreCase(model))
-                .findFirst())
-            .map(ModelInfo::contextWindow)
-            .orElse(DEFAULT_CONTEXT_WINDOW);
+        if (provider == null || model == null)
+            return DEFAULT_CONTEXT_WINDOW;
+        return KNOWN_MODELS.stream().filter(
+                                        m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model))
+                                        .findFirst()
+                                        .or(() -> KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model))
+                                                                        .findFirst())
+                                        .map(ModelInfo::contextWindow).orElse(DEFAULT_CONTEXT_WINDOW);
     }
 
     public static long resolveContextWindow(SessionManager.ModelSelection selection) {
-        if (selection == null) return DEFAULT_CONTEXT_WINDOW;
-        if (selection.contextWindow() > 0) return selection.contextWindow();
+        if (selection == null)
+            return DEFAULT_CONTEXT_WINDOW;
+        if (selection.contextWindow() > 0)
+            return selection.contextWindow();
         return resolveContextWindow(selection.provider(), selection.model());
     }
 
     public static ResolvedModel resolve(SessionManager.ModelSelection selection, SettingsManager settings) {
-        if (selection == null || settings == null) return null;
+        if (selection == null || settings == null)
+            return null;
         var providerModel = resolveProviderModel(selection.provider(), selection.model(), settings);
         String key = settings.resolveApiKey(providerModel.provider());
-        if (key == null || key.isBlank()) return null;
+        if (key == null || key.isBlank())
+            return null;
         long contextWindow = selection.provider().equalsIgnoreCase(providerModel.provider())
-            && selection.model().equalsIgnoreCase(providerModel.model())
-            && selection.contextWindow() > 0
-            ? selection.contextWindow()
-            : resolveContextWindow(providerModel.provider(), providerModel.model());
+                                        && selection.model().equalsIgnoreCase(providerModel.model())
+                                        && selection.contextWindow() > 0
+                                                                        ? selection.contextWindow()
+                                                                        : resolveContextWindow(providerModel.provider(),
+                                                                                                        providerModel.model());
         return new ResolvedModel(providerModel.provider(), providerModel.model(), key, contextWindow);
     }
 
     public static ResolvedModel resolve(String provider, String model, SettingsManager settings) {
-        if (provider == null || model == null || settings == null) return null;
+        if (provider == null || model == null || settings == null)
+            return null;
         var providerModel = resolveProviderModel(provider, model, settings);
         String key = settings.resolveApiKey(providerModel.provider());
-        if (key == null || key.isBlank()) return null;
+        if (key == null || key.isBlank())
+            return null;
         return new ResolvedModel(providerModel.provider(), providerModel.model(), key,
-            resolveContextWindow(providerModel.provider(), providerModel.model()));
+                                        resolveContextWindow(providerModel.provider(), providerModel.model()));
     }
 
     public record ResolvedModel(String provider, String model, String apiKey, long contextWindow) {
-        public int contextWindowInt() { return (int) Math.min(contextWindow, Integer.MAX_VALUE); }
+        public int contextWindowInt() {
+            return (int) Math.min(contextWindow, Integer.MAX_VALUE);
+        }
     }
 
-    public record ProviderModel(String provider, String model) {}
+    public record ProviderModel(String provider, String model) {
+    }
 
-    public static ProviderModel resolveProviderModel(String explicitProvider, String explicitModel, SettingsManager settings) {
+    public static ProviderModel resolveProviderModel(String explicitProvider, String explicitModel,
+                                    SettingsManager settings) {
         String provider = explicitProvider;
         String model = explicitModel;
-        if (provider == null && model != null) provider = providerForModel(model);
-        if (provider == null && settings != null) provider = settings.config().defaultProvider();
-        if (provider == null) provider = "openai";
-        if (model == null) model = settings != null ? settings.config().defaultModel() : null;
+        if (provider == null && model != null)
+            provider = providerForModel(model);
+        if (provider == null && settings != null)
+            provider = settings.config().defaultProvider();
+        if (provider == null)
+            provider = "openai";
+        if (model == null)
+            model = settings != null ? settings.config().defaultModel() : null;
         if (model == null || !isKnownProviderModel(provider, model)) {
             model = defaultModelForProvider(provider);
         }
@@ -123,14 +129,16 @@ public final class ModelRegistry {
     }
 
     public static boolean isKnownProviderModel(String provider, String model) {
-        if (provider == null || model == null) return false;
-        return KNOWN_MODELS.stream()
-            .anyMatch(m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model));
+        if (provider == null || model == null)
+            return false;
+        return KNOWN_MODELS.stream().anyMatch(
+                                        m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model));
     }
 
     private static List<ModelInfo> load() {
         try (InputStream in = ModelRegistry.class.getResourceAsStream("/models.json")) {
-            if (in == null) return List.of();
+            if (in == null)
+                return List.of();
             var catalog = Util.MAPPER.readValue(in, ModelCatalog.class);
             return catalog.models();
         } catch (Exception e) {

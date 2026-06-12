@@ -11,7 +11,9 @@ import java.util.List;
 final class ThemeManager {
     private final AppendOnlyTui tui;
 
-    ThemeManager(AppendOnlyTui tui) { this.tui = tui; }
+    ThemeManager(AppendOnlyTui tui) {
+        this.tui = tui;
+    }
 
     List<ThemeItem> discover() {
         var items = new ArrayList<ThemeItem>();
@@ -43,7 +45,8 @@ final class ThemeManager {
     void switchToPath(String pathStr) {
         try {
             Path path = Path.of(pathStr);
-            if (!path.isAbsolute()) path = Path.of(System.getProperty("user.dir")).resolve(pathStr);
+            if (!path.isAbsolute())
+                path = Path.of(System.getProperty("user.dir")).resolve(pathStr);
             if (Files.isRegularFile(path)) {
                 var loaded = AnsiTheme.load(path);
                 apply(loaded, loaded.name != null ? loaded.name : path.getFileName().toString());
@@ -68,9 +71,11 @@ final class ThemeManager {
         }
         if (!Files.isRegularFile(path)) {
             Path pijotaThemes = Path.of(System.getProperty("user.home"), ".pijota", "themes", name + ".json");
-            if (Files.isRegularFile(pijotaThemes)) return pijotaThemes;
+            if (Files.isRegularFile(pijotaThemes))
+                return pijotaThemes;
             Path pijotaTheme = Path.of(System.getProperty("user.home"), ".pijota", "theme.json");
-            if (Files.isRegularFile(pijotaTheme)) return pijotaTheme;
+            if (Files.isRegularFile(pijotaTheme))
+                return pijotaTheme;
         }
         return Files.isRegularFile(path) ? path : null;
     }
@@ -83,18 +88,15 @@ final class ThemeManager {
                 String path = dir.getPath();
                 String jarPath = path.substring(5, path.indexOf('!'));
                 try (java.util.jar.JarFile jar = new java.util.jar.JarFile(jarPath)) {
-                    jar.stream()
-                        .filter(e -> e.getName().startsWith("themes/") && e.getName().endsWith(".json"))
-                        .map(e -> e.getName().substring(7, e.getName().length() - 5))
-                        .sorted()
-                        .forEach(names::add);
+                    jar.stream().filter(e -> e.getName().startsWith("themes/") && e.getName().endsWith(".json"))
+                                                    .map(e -> e.getName().substring(7, e.getName().length() - 5))
+                                                    .sorted().forEach(names::add);
                 }
             } else if (dir != null) {
                 try (var stream = Files.list(Path.of(dir.toURI()))) {
                     stream.filter(p -> p.getFileName().toString().endsWith(".json"))
-                        .map(p -> p.getFileName().toString().replace(".json", ""))
-                        .sorted()
-                        .forEach(names::add);
+                                                    .map(p -> p.getFileName().toString().replace(".json", "")).sorted()
+                                                    .forEach(names::add);
                 }
             }
         } catch (Exception ignored) {}
@@ -104,10 +106,10 @@ final class ThemeManager {
     private static List<Path> fileThemes() {
         var paths = new ArrayList<Path>();
         Path dir = Path.of(System.getProperty("user.home"), ".pijota", "themes");
-        if (!Files.isDirectory(dir)) return paths;
+        if (!Files.isDirectory(dir))
+            return paths;
         try (var stream = Files.list(dir)) {
-            stream.filter(p -> p.getFileName().toString().endsWith(".json"))
-                .sorted().forEach(paths::add);
+            stream.filter(p -> p.getFileName().toString().endsWith(".json")).sorted().forEach(paths::add);
         } catch (IOException ignored) {}
         return paths;
     }

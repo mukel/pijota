@@ -44,7 +44,8 @@ final class StreamingMarkdownFormatter {
         String line = raw == null ? "" : raw;
         String stripped = line.stripLeading();
         String marker = fenceMarker(stripped);
-        if (marker != null) return toggleFence(stripped, marker);
+        if (marker != null)
+            return toggleFence(stripped, marker);
         if (inFence) {
             var rendered = List.of(StyledLine.of(renderCodeLine(line)));
             previousNonBlank = true;
@@ -97,13 +98,15 @@ final class StreamingMarkdownFormatter {
     }
 
     private String renderCodeLine(String line) {
-        if (fenceHighlighter != null) return fenceHighlighter.highlightLine(line);
+        if (fenceHighlighter != null)
+            return fenceHighlighter.highlightLine(line);
         return styled("codeBody", line);
     }
 
     private List<String> acceptMarkdownLine(String line) {
         var out = new ArrayList<String>();
-        if (line == null) line = "";
+        if (line == null)
+            line = "";
 
         if (line.isBlank()) {
             flushTableInto(out);
@@ -133,8 +136,10 @@ final class StreamingMarkdownFormatter {
             return out;
         }
 
-        if (line.indexOf('|') >= 0) pendingTableHeader = line;
-        else out.add(line);
+        if (line.indexOf('|') >= 0)
+            pendingTableHeader = line;
+        else
+            out.add(line);
         return out;
     }
 
@@ -150,18 +155,21 @@ final class StreamingMarkdownFormatter {
     }
 
     private void appendTableLine(String line) {
-        if (!table.isEmpty()) table.append('\n');
+        if (!table.isEmpty())
+            table.append('\n');
         table.append(line);
     }
 
     private void flushTableInto(List<String> out) {
-        if (!inTable()) return;
+        if (!inTable())
+            return;
         out.add(table.toString());
         table.setLength(0);
     }
 
     private void flushPendingHeaderInto(List<String> out) {
-        if (pendingTableHeader == null) return;
+        if (pendingTableHeader == null)
+            return;
         out.add(pendingTableHeader);
         pendingTableHeader = null;
     }
@@ -185,15 +193,19 @@ final class StreamingMarkdownFormatter {
     }
 
     private static String fenceMarker(String stripped) {
-        if (stripped.startsWith("```")) return "```";
-        if (stripped.startsWith("~~~")) return "~~~";
+        if (stripped.startsWith("```"))
+            return "```";
+        if (stripped.startsWith("~~~"))
+            return "~~~";
         return null;
     }
 
     private static String fenceLanguage(String info) {
-        if (info == null || info.isBlank()) return "";
+        if (info == null || info.isBlank())
+            return "";
         String lang = info.strip().split("\\s+", 2)[0].toLowerCase();
-        if (lang.startsWith("language-")) lang = lang.substring("language-".length());
+        if (lang.startsWith("language-"))
+            lang = lang.substring("language-".length());
         return switch (lang) {
             case "js" -> "javascript";
             case "ts" -> "typescript";
@@ -215,25 +227,33 @@ final class StreamingMarkdownFormatter {
     }
 
     private static boolean isTableSeparator(String stripped) {
-        if (stripped.indexOf('|') < 0) return false;
+        if (stripped.indexOf('|') < 0)
+            return false;
         String s = stripped;
-        if (s.startsWith("|")) s = s.substring(1);
-        if (s.endsWith("|")) s = s.substring(0, s.length() - 1);
+        if (s.startsWith("|"))
+            s = s.substring(1);
+        if (s.endsWith("|"))
+            s = s.substring(0, s.length() - 1);
         for (String cell : s.split("\\|", -1)) {
-            if (!TABLE_SEPARATOR_CELL.matcher(cell.strip()).matches()) return false;
+            if (!TABLE_SEPARATOR_CELL.matcher(cell.strip()).matches())
+                return false;
         }
         return true;
     }
 
     private static boolean startsWithHeading(String markdown) {
-        if (markdown == null || markdown.isEmpty()) return false;
+        if (markdown == null || markdown.isEmpty())
+            return false;
         int end = markdown.indexOf('\n');
         String firstLine = end >= 0 ? markdown.substring(0, end) : markdown;
         int i = 0;
-        while (i < firstLine.length() && firstLine.charAt(i) == ' ') i++;
-        if (i >= firstLine.length() || firstLine.charAt(i) != '#') return false;
+        while (i < firstLine.length() && firstLine.charAt(i) == ' ')
+            i++;
+        if (i >= firstLine.length() || firstLine.charAt(i) != '#')
+            return false;
         int n = 0;
-        while (i + n < firstLine.length() && firstLine.charAt(i + n) == '#') n++;
+        while (i + n < firstLine.length() && firstLine.charAt(i + n) == '#')
+            n++;
         return n < firstLine.length() && firstLine.charAt(i + n) == ' ';
     }
 }

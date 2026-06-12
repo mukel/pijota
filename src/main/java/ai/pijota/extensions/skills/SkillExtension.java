@@ -17,27 +17,32 @@ public final class SkillExtension implements Extension {
         this.skills = new java.util.concurrent.CopyOnWriteArrayList<>();
     }
 
-    @Override public String name() { return "skills"; }
-    @Override public String description() { return "Skill discovery and skill instruction loading"; }
+    @Override
+    public String name() {
+        return "skills";
+    }
+
+    @Override
+    public String description() {
+        return "Skill discovery and skill instruction loading";
+    }
 
     @Override
     public void init(ExtensionAPI api) {
         this.api = api;
         reloadSkills();
 
-        api.registerSlashCommand(new SlashCommand("skills",
-            "List available skills", List.of(), _args -> {
-                if (skills.isEmpty()) {
-                    api.runtime().setStatus("No skills loaded");
-                    return;
-                }
-                var sb = new StringBuilder();
-                skills.stream().sorted(Comparator.comparing(SkillLoader.Skill::name)).forEach(s -> {
-                    sb.append("\n  ").append(s.name())
-                      .append(" — ").append(s.description());
-                });
-                api.runtime().setStatus(sb.toString().stripLeading());
-            }));
+        api.registerSlashCommand(new SlashCommand("skills", "List available skills", List.of(), _args -> {
+            if (skills.isEmpty()) {
+                api.runtime().setStatus("No skills loaded");
+                return;
+            }
+            var sb = new StringBuilder();
+            skills.stream().sorted(Comparator.comparing(SkillLoader.Skill::name)).forEach(s -> {
+                sb.append("\n  ").append(s.name()).append(" — ").append(s.description());
+            });
+            api.runtime().setStatus(sb.toString().stripLeading());
+        }));
     }
 
     private void reloadSkills() {

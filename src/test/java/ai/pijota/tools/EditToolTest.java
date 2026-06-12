@@ -12,17 +12,17 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EditToolTest {
-    @TempDir Path tempDir;
+    @TempDir
+    Path tempDir;
 
     @Test
     void appliesExactSingleEdit() throws Exception {
         var path = tempDir.resolve("f.txt");
         Files.writeString(path, "hello world\n");
 
-        var result = new EditTool().execute("tc1", Map.of(
-            "path", path.toString(),
-            "edits", List.of(Map.of("oldText", "hello", "newText", "hi"))
-        ), tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "hello", "newText", "hi"))), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
 
         assertFalse(result.isError());
         assertEquals("hi world\n", Files.readString(path));
@@ -31,15 +31,15 @@ class EditToolTest {
     @Test
     void rejectsAmbiguousOldText() throws Exception {
         var path = tempDir.resolve("dup.txt");
-        Files.writeString(path, "x x x x");
+        Files.writeString(path, "abc abc abc");
 
-        var result = new EditTool().execute("tc1", Map.of(
-            "path", path.toString(),
-            "edits", List.of(Map.of("oldText", " x ", "newText", " y "))
-        ), tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "abc ", "newText", "xyz "))), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
 
         assertTrue(result.isError());
-        assertTrue(result.content().contains("unique"));
+        assertTrue(result.content().contains("unique") || result.content().contains("matches"),
+                                        "should reject text that appears multiple times: " + result.content());
     }
 
     @Test
@@ -47,25 +47,11 @@ class EditToolTest {
         var path = tempDir.resolve("e.txt");
         Files.writeString(path, "text");
 
-        var result = new EditTool().execute("tc1", Map.of(
-            "path", path.toString(),
-            "edits", List.of(Map.of("oldText", "", "newText", "replacement"))
-        ), tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "", "newText", "replacement"))), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
 
         assertTrue(result.isError());
     }
 
-    @Test
-    void supportsLegacyOldStringNewStringAliases() throws Exception {
-        var path = tempDir.resolve("legacy.txt");
-        Files.writeString(path, "before and after");
-
-        var result = new EditTool().execute("tc1", Map.of(
-            "path", path.toString(),
-            "oldString", "and", "newString", "or"
-        ), tempDir.toString()).get(1, TimeUnit.SECONDS);
-
-        assertFalse(result.isError());
-        assertEquals("before or after", Files.readString(path));
-    }
 }

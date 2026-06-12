@@ -17,21 +17,18 @@ public final class GoalExtension implements Extension {
     private static final String CUSTOM_TYPE = "goal";
     private static final long MAX_OBJECTIVE_LENGTH = 8000;
 
-    private enum Status { ACTIVE, PAUSED, COMPLETE, IDLE, BUDGET_LIMITED }
+    private enum Status {
+        ACTIVE, PAUSED, COMPLETE, IDLE, BUDGET_LIMITED
+    }
 
-    record GoalEntry(
-        String objective, String status, long tokenBudget,
-        long inputTokensAtStart, long outputTokensAtStart, long startedAtMs
-    ) {
+    record GoalEntry(String objective, String status, long tokenBudget, long inputTokensAtStart,
+                                    long outputTokensAtStart, long startedAtMs) {
         String toJson() {
-            return Util.MAPPER.createObjectNode()
-                .put("objective", objective != null ? objective : "")
-                .put("status", status)
-                .put("token_budget", tokenBudget)
-                .put("input_tokens_at_start", inputTokensAtStart)
-                .put("output_tokens_at_start", outputTokensAtStart)
-                .put("started_at_ms", startedAtMs)
-                .toString();
+            return Util.MAPPER.createObjectNode().put("objective", objective != null ? objective : "")
+                                            .put("status", status).put("token_budget", tokenBudget)
+                                            .put("input_tokens_at_start", inputTokensAtStart)
+                                            .put("output_tokens_at_start", outputTokensAtStart)
+                                            .put("started_at_ms", startedAtMs).toString();
         }
     }
 
@@ -44,54 +41,60 @@ public final class GoalExtension implements Extension {
     private volatile long outputTokensOnStart;
     private ExtensionAPI api;
 
-    @Override public String name() { return "goal"; }
-    @Override public String description() { return "Codex-style goal tracking and continuation"; }
+    @Override
+    public String name() {
+        return "goal";
+    }
+
+    @Override
+    public String description() {
+        return "Codex-style goal tracking and continuation";
+    }
 
     @Override
     public void init(ExtensionAPI api) {
         this.api = api;
 
-        api.registerSlashCommand(new SlashCommand("goal",
-            "View or manage the current goal",
-            List.of(), this::handleGoalCommand));
+        api.registerSlashCommand(new SlashCommand("goal", "View or manage the current goal", List.of(),
+                                        this::handleGoalCommand));
 
-        api.registerTool(new Tool.ToolDefinition(
-            "create_goal",
-            "Create a goal with an objective and optional token budget. Fails if a non-complete goal exists unless replace_existing is true.",
-            Map.of(
-                "type", "object",
-                "properties", Map.of(
-                    "objective", Map.of("type", "string", "description", "What the agent should accomplish"),
-                    "token_budget", Map.of("type", "integer", "description", "Maximum tokens to use before marking budget-limited"),
-                    "replace_existing", Map.of("type", "boolean", "description", "Replace current goal even if not complete")
-                ),
-                "required", List.of("objective")
-            ),
-            (id, args, cwd) -> CompletableFuture.completedFuture(doCreateGoal(args))
-        ));
+        api.registerTool(new Tool.ToolDefinition("create_goal",
+                                        "Create a goal with an objective and optional token budget. Fails if a non-complete goal exists unless replace_existing is true.",
+                                        Map.of("type", "object", "properties", Map.of("objective", Map.of("type",
+                                                                        "string", "description",
+                                                                        "What the agent should accomplish"),
+                                                                        "token_budget",
+                                                                        Map.of("type", "integer", "description",
+                                                                                                        "Maximum tokens to use before marking budget-limited"),
+                                                                        "replace_existing",
+                                                                        Map.of("type", "boolean", "description",
+                                                                                                        "Replace current goal even if not complete")),
+                                                                        "required", List.of("objective")),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(doCreateGoal(args))));
 
-        api.registerTool(new Tool.ToolDefinition(
-            "get_goal",
-            "Returns the current goal state including objective, status, token budget, and usage.",
-            Map.of("type", "object", "properties", Map.of()),
-            (id, args, cwd) -> CompletableFuture.completedFuture(doGetGoal())
-        ));
+        api.registerTool(new Tool.ToolDefinition("get_goal",
+                                        "Returns the current goal state including objective, status, token budget, and usage.",
+                                        Map.of("type", "object", "properties", Map.of()),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(doGetGoal())));
 
-        api.registerTool(new Tool.ToolDefinition(
-            "update_goal",
-            "Update the goal status. Only supports status: \"complete\".",
-            Map.of("type", "object", "properties", Map.of(
-                "status", Map.of("type", "string", "description", "Set to \"complete\" to mark the goal as done")
-            ), "required", List.of("status")),
-            (id, args, cwd) -> CompletableFuture.completedFuture(doUpdateGoal(args))
-        ));
+        api.registerTool(new Tool.ToolDefinition("update_goal",
+                                        "Update the goal status. Only supports status: \"complete\".",
+                                        Map.of("type", "object", "properties", Map.of("status", Map.of("type", "string",
+                                                                        "description",
+                                                                        "Set to \"complete\" to mark the goal as done")),
+                                                                        "required", List.of("status")),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(doUpdateGoal(args))));
 
         api.registerStatusLines(this::statusLine);
 
-        api.onTurnStart((ev, ctx) -> { if (status == Status.ACTIVE) pausedMs = 0; });
+        api.onTurnStart((ev, ctx) -> {
+            if (status == Status.ACTIVE)
+                pausedMs = 0;
+        });
 
         api.onTurnEnd((ev, ctx) -> {
-            if (status != Status.ACTIVE) return;
+            if (status != Status.ACTIVE)
+                return;
             if (tokenBudget > 0 && currentUsage() >= tokenBudget) {
                 status = Status.BUDGET_LIMITED;
                 saveEntry();
@@ -108,16 +111,22 @@ public final class GoalExtension implements Extension {
             Message msg = api.runtime().messages().get(i);
             if (msg instanceof Message.Custom c && CUSTOM_TYPE.equals(c.customType())) {
                 String json = c.content();
-                if (json == null || json.isBlank()) break;
+                if (json == null || json.isBlank())
+                    break;
                 try {
                     var node = Util.MAPPER.readTree(json);
                     String storedStatus = node.has("status") ? node.get("status").asText() : "";
-                    if ("idle".equals(storedStatus) || "complete".equals(storedStatus)) break;
+                    if ("idle".equals(storedStatus) || "complete".equals(storedStatus))
+                        break;
                     currentObjective = node.has("objective") ? node.get("objective").asText() : "";
                     status = parseStatus(storedStatus);
                     tokenBudget = node.has("token_budget") ? node.get("token_budget").asLong() : 0;
-                    inputTokensOnStart = node.has("input_tokens_at_start") ? node.get("input_tokens_at_start").asLong() : 0;
-                    outputTokensOnStart = node.has("output_tokens_at_start") ? node.get("output_tokens_at_start").asLong() : 0;
+                    inputTokensOnStart = node.has("input_tokens_at_start")
+                                                    ? node.get("input_tokens_at_start").asLong()
+                                                    : 0;
+                    outputTokensOnStart = node.has("output_tokens_at_start")
+                                                    ? node.get("output_tokens_at_start").asLong()
+                                                    : 0;
                     startedAtMs = node.has("started_at_ms") ? node.get("started_at_ms").asLong() : 0;
                 } catch (Exception ignored) {}
                 break;
@@ -129,7 +138,10 @@ public final class GoalExtension implements Extension {
 
     private void handleGoalCommand(String args) {
         String trimmed = args == null ? "" : args.strip();
-        if (trimmed.isEmpty()) { showGoal(); return; }
+        if (trimmed.isEmpty()) {
+            showGoal();
+            return;
+        }
         switch (trimmed) {
             case "pause" -> doPause();
             case "resume" -> doResume();
@@ -139,22 +151,34 @@ public final class GoalExtension implements Extension {
     }
 
     private void showGoal() {
-        if (status == Status.IDLE) { api.runtime().setStatus("No active goal. Use /goal <objective> to create one."); return; }
+        if (status == Status.IDLE) {
+            api.runtime().setStatus("No active goal. Use /goal <objective> to create one.");
+            return;
+        }
         long elapsed = elapsedMs();
         long used = currentUsage();
-        api.runtime().setStatus(String.format("%s %s · %s · %s · %s",
-            Emojis.DART, currentObjective, statusLabel(), Util.fmtCount(used), Util.formatDuration(elapsed)));
+        api.runtime().setStatus(String.format("%s %s · %s · %s · %s", Emojis.DART, currentObjective, statusLabel(),
+                                        Util.fmtCount(used), Util.formatDuration(elapsed)));
     }
 
     private void startOrReplace(String objective) {
-        if (objective.length() > MAX_OBJECTIVE_LENGTH) { api.runtime().setStatus("Objective too long (max " + MAX_OBJECTIVE_LENGTH + " chars)"); return; }
-        if (status == Status.ACTIVE || status == Status.PAUSED || status == Status.BUDGET_LIMITED) { api.runtime().setStatus("Goal already active. Use /goal clear first or /goal pause."); return; }
+        if (objective.length() > MAX_OBJECTIVE_LENGTH) {
+            api.runtime().setStatus("Objective too long (max " + MAX_OBJECTIVE_LENGTH + " chars)");
+            return;
+        }
+        if (status == Status.ACTIVE || status == Status.PAUSED || status == Status.BUDGET_LIMITED) {
+            api.runtime().setStatus("Goal already active. Use /goal clear first or /goal pause.");
+            return;
+        }
         startGoal(objective, 0);
         saveEntry();
     }
 
     private void doPause() {
-        if (status != Status.ACTIVE) { api.runtime().setStatus("No active goal to pause"); return; }
+        if (status != Status.ACTIVE) {
+            api.runtime().setStatus("No active goal to pause");
+            return;
+        }
         status = Status.PAUSED;
         pausedMs = System.currentTimeMillis();
         saveEntry();
@@ -162,8 +186,12 @@ public final class GoalExtension implements Extension {
     }
 
     private void doResume() {
-        if (status != Status.PAUSED && status != Status.BUDGET_LIMITED) { api.runtime().setStatus("No paused goal to resume"); return; }
-        if (status == Status.PAUSED && pausedMs > 0) startedAtMs += System.currentTimeMillis() - pausedMs;
+        if (status != Status.PAUSED && status != Status.BUDGET_LIMITED) {
+            api.runtime().setStatus("No paused goal to resume");
+            return;
+        }
+        if (status == Status.PAUSED && pausedMs > 0)
+            startedAtMs += System.currentTimeMillis() - pausedMs;
         status = Status.ACTIVE;
         pausedMs = 0;
         saveEntry();
@@ -171,7 +199,10 @@ public final class GoalExtension implements Extension {
     }
 
     private void doClear() {
-        if (status == Status.IDLE) { api.runtime().setStatus("No goal to clear"); return; }
+        if (status == Status.IDLE) {
+            api.runtime().setStatus("No goal to clear");
+            return;
+        }
         status = Status.IDLE;
         currentObjective = null;
         tokenBudget = 0;
@@ -185,8 +216,10 @@ public final class GoalExtension implements Extension {
 
     private Tool.ToolResult doCreateGoal(Map<String, Object> args) {
         String objective = (String) args.get("objective");
-        if (objective == null || objective.isBlank()) return Tool.ToolResult.error("objective is required");
-        if (objective.length() > MAX_OBJECTIVE_LENGTH) return Tool.ToolResult.error("objective exceeds " + MAX_OBJECTIVE_LENGTH + " chars");
+        if (objective == null || objective.isBlank())
+            return Tool.ToolResult.error("objective is required");
+        if (objective.length() > MAX_OBJECTIVE_LENGTH)
+            return Tool.ToolResult.error("objective exceeds " + MAX_OBJECTIVE_LENGTH + " chars");
         boolean replace = Boolean.TRUE.equals(args.get("replace_existing"));
         if (!replace && (status == Status.ACTIVE || status == Status.PAUSED || status == Status.BUDGET_LIMITED))
             return Tool.ToolResult.error("Goal already exists. Use replace_existing: true to override.");
@@ -197,19 +230,23 @@ public final class GoalExtension implements Extension {
     }
 
     private Tool.ToolResult doGetGoal() {
-        if (status == Status.IDLE) return Tool.ToolResult.success("{\"status\": \"idle\"}");
+        if (status == Status.IDLE)
+            return Tool.ToolResult.success("{\"status\": \"idle\"}");
         return Tool.ToolResult.success(makeEntry().toJson());
     }
 
     private Tool.ToolResult doUpdateGoal(Map<String, Object> args) {
         String newStatus = (String) args.get("status");
-        if (!"complete".equals(newStatus)) return Tool.ToolResult.error("Only status \"complete\" is supported");
-        if (status == Status.IDLE) return Tool.ToolResult.error("No active goal to update");
-        if (status == Status.COMPLETE) return Tool.ToolResult.success("Goal already complete");
+        if (!"complete".equals(newStatus))
+            return Tool.ToolResult.error("Only status \"complete\" is supported");
+        if (status == Status.IDLE)
+            return Tool.ToolResult.error("No active goal to update");
+        if (status == Status.COMPLETE)
+            return Tool.ToolResult.success("Goal already complete");
         status = Status.COMPLETE;
         saveEntry();
-        return Tool.ToolResult.success(String.format("Goal completed: %s\n  used %s\n  elapsed %s",
-            currentObjective, Util.fmtCount(currentUsage()), Util.formatDuration(elapsedMs())));
+        return Tool.ToolResult.success(String.format("Goal completed: %s\n  used %s\n  elapsed %s", currentObjective,
+                                        Util.fmtCount(currentUsage()), Util.formatDuration(elapsedMs())));
     }
 
     // ---- internals ----
@@ -226,8 +263,8 @@ public final class GoalExtension implements Extension {
     }
 
     private GoalEntry makeEntry() {
-        return new GoalEntry(currentObjective, status.name().toLowerCase(), tokenBudget,
-            inputTokensOnStart, outputTokensOnStart, startedAtMs);
+        return new GoalEntry(currentObjective, status.name().toLowerCase(), tokenBudget, inputTokensOnStart,
+                                        outputTokensOnStart, startedAtMs);
     }
 
     private void saveEntry() {
@@ -236,17 +273,22 @@ public final class GoalExtension implements Extension {
     }
 
     private List<String> statusLine() {
-        if (status != Status.ACTIVE && status != Status.BUDGET_LIMITED) return List.of();
+        if (status != Status.ACTIVE && status != Status.BUDGET_LIMITED)
+            return List.of();
         long elapsed = elapsedMs();
         long used = currentUsage();
-        String line = String.format("%s %s · %s%s",
-            Emojis.DART, Util.truncate(currentObjective, 60), Util.formatDuration(elapsed),
-            tokenBudget > 0 ? " · " + Util.fmtCount(used) + "/" + Util.fmtCount(tokenBudget) : "");
+        String line = String.format("%s %s · %s%s", Emojis.DART, Util.truncate(currentObjective, 60),
+                                        Util.formatDuration(elapsed),
+                                        tokenBudget > 0
+                                                                        ? " · " + Util.fmtCount(used) + "/" + Util
+                                                                                                        .fmtCount(tokenBudget)
+                                                                        : "");
         return List.of(line);
     }
 
     private long elapsedMs() {
-        if (startedAtMs == 0) return 0;
+        if (startedAtMs == 0)
+            return 0;
         long endMs = (status == Status.PAUSED && pausedMs > 0) ? pausedMs : System.currentTimeMillis();
         return Math.max(0, endMs - startedAtMs);
     }

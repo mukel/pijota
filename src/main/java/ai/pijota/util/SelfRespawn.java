@@ -31,9 +31,13 @@ public final class SelfRespawn {
 
     private SelfRespawn() {}
 
-    public static void setSessionFile(Path file) { activeSessionFile = file; }
+    public static void setSessionFile(Path file) {
+        activeSessionFile = file;
+    }
 
-    public static void storeArgs(String[] args) { originalArgs = args.clone(); }
+    public static void storeArgs(String[] args) {
+        originalArgs = args.clone();
+    }
 
     public static boolean requestRespawn(Path jar) {
         return requestRespawn(jar, null, null);
@@ -69,22 +73,27 @@ public final class SelfRespawn {
 
     private static Path stageLaunchJar(Path jar, Path mergeWorktree) throws IOException {
         Path normalizedJar = jar.toAbsolutePath().normalize();
-        if (mergeWorktree == null) return normalizedJar;
+        if (mergeWorktree == null)
+            return normalizedJar;
 
         Path worktree = mergeWorktree.toAbsolutePath().normalize();
-        if (!normalizedJar.startsWith(worktree)) return normalizedJar;
+        if (!normalizedJar.startsWith(worktree))
+            return normalizedJar;
 
         Path parent = STAGED_JAR.getParent();
-        if (parent != null) Files.createDirectories(parent);
+        if (parent != null)
+            Files.createDirectories(parent);
         Files.copy(normalizedJar, STAGED_JAR, StandardCopyOption.REPLACE_EXISTING);
         return STAGED_JAR.toAbsolutePath().normalize();
     }
 
     public static Path readRecoverySession() {
         try {
-            if (!Files.exists(RECOVERY_FILE)) return null;
+            if (!Files.exists(RECOVERY_FILE))
+                return null;
             String content = Files.readString(RECOVERY_FILE).strip();
-            if (content.isBlank()) return null;
+            if (content.isBlank())
+                return null;
             Path path = Path.of(content);
             return Files.exists(path) ? path : null;
         } catch (IOException e) {
@@ -94,10 +103,12 @@ public final class SelfRespawn {
 
     private static void writeRecoveryFile() {
         Path session = activeSessionFile;
-        if (session == null) return;
+        if (session == null)
+            return;
         try {
             Path parent = RECOVERY_FILE.getParent();
-            if (parent != null) Files.createDirectories(parent);
+            if (parent != null)
+                Files.createDirectories(parent);
             Files.writeString(RECOVERY_FILE, session.toAbsolutePath().toString());
         } catch (IOException ignored) {}
     }
@@ -114,11 +125,14 @@ public final class SelfRespawn {
 
     private static volatile String lastRespawnError;
 
-    public static String lastRespawnError() { return lastRespawnError; }
+    public static String lastRespawnError() {
+        return lastRespawnError;
+    }
 
     public static void maybeRespawn() {
         lastRespawnError = null;
-        if (!pending.get() || respawnInProgress.get()) return;
+        if (!pending.get() || respawnInProgress.get())
+            return;
 
         Path jar = pendingJar.getAndSet(null);
         pending.set(false);
@@ -139,7 +153,8 @@ public final class SelfRespawn {
     }
 
     private static void executeRespawn(Path jar, Path sessionFile, String mergeBranch, Path mergeWorktree) {
-        if (!respawnInProgress.compareAndSet(false, true)) return;
+        if (!respawnInProgress.compareAndSet(false, true))
+            return;
         try {
             respawn(jar, sessionFile, true, mergeBranch, mergeWorktree);
         } finally {
@@ -151,8 +166,7 @@ public final class SelfRespawn {
         String cp = System.getProperty("java.class.path");
         if (cp != null) {
             for (String entry : cp.split(System.getProperty("path.separator", ":"))) {
-                if (entry.endsWith(".jar") && entry.contains("pijota")
-                    && !entry.contains("backup"))
+                if (entry.endsWith(".jar") && entry.contains("pijota") && !entry.contains("backup"))
                     return Path.of(entry);
             }
         }
@@ -160,20 +174,23 @@ public final class SelfRespawn {
     }
 
     public static Path findJarIn(Path projectDir) {
-        if (projectDir == null) return null;
+        if (projectDir == null)
+            return null;
         Path target = projectDir.resolve("target");
-        if (!Files.isDirectory(target)) return null;
+        if (!Files.isDirectory(target))
+            return null;
         try (var s = Files.list(target)) {
             return s.filter(p -> {
                 String n = p.getFileName().toString();
-                return n.startsWith("pijota-") && n.endsWith(".jar")
-                    && !n.contains("original") && !n.contains("backup")
-                    && !n.contains("sources") && !n.contains("javadoc");
+                return n.startsWith("pijota-") && n.endsWith(".jar") && !n.contains("original") && !n.contains("backup")
+                                                && !n.contains("sources") && !n.contains("javadoc");
             }).max((a, b) -> {
                 try {
                     return Long.compare(Files.getLastModifiedTime(a).toMillis(),
-                                       Files.getLastModifiedTime(b).toMillis());
-                } catch (IOException e) { return 0; }
+                                                    Files.getLastModifiedTime(b).toMillis());
+                } catch (IOException e) {
+                    return 0;
+                }
             }).orElse(null);
         } catch (IOException e) {
             return null;
@@ -181,9 +198,11 @@ public final class SelfRespawn {
     }
 
     public static boolean backupJar(Path jar) throws IOException {
-        if (jar == null || !Files.exists(jar)) return false;
+        if (jar == null || !Files.exists(jar))
+            return false;
         Path parent = BACKUP_JAR.getParent();
-        if (parent != null) Files.createDirectories(parent);
+        if (parent != null)
+            Files.createDirectories(parent);
         Files.copy(jar, BACKUP_JAR, StandardCopyOption.REPLACE_EXISTING);
         return true;
     }
@@ -200,21 +219,19 @@ public final class SelfRespawn {
         if (targetJar == null)
             throw new IOException("No target jar to restore to");
         Path parent = targetJar.getParent();
-        if (parent != null) Files.createDirectories(parent);
+        if (parent != null)
+            Files.createDirectories(parent);
         Files.copy(BACKUP_JAR, targetJar, StandardCopyOption.REPLACE_EXISTING);
     }
 
     public static ProcessRunner.Result buildJar(Path projectRoot) throws IOException {
         if (projectRoot == null || !Files.exists(projectRoot.resolve("pom.xml")))
             throw new IOException("No pom.xml in " + projectRoot);
-        return ProcessRunner.command("mvn", "package", "-Pfat", "-q")
-            .workDir(projectRoot)
-            .redirectErrorStream(true)
-            .run();
+        return ProcessRunner.command("mvn", "package", "-Pfat", "-q").workDir(projectRoot).redirectErrorStream(true)
+                                        .run();
     }
 
-    public static int runInteractive(Path jar, Path sessionFile, boolean resumeSession)
-            throws IOException {
+    public static int runInteractive(Path jar, Path sessionFile, boolean resumeSession) throws IOException {
         if (jar == null || !Files.exists(jar))
             throw new IOException("Jar not found: " + jar);
         List<String> cmd = buildCommand(jar, sessionFile, resumeSession);
@@ -225,8 +242,8 @@ public final class SelfRespawn {
         respawn(jar, sessionFile, resumeSession, null, null);
     }
 
-    public static void respawn(Path jar, Path sessionFile, boolean resumeSession,
-                               String mergeBranch, Path mergeWorktree) {
+    public static void respawn(Path jar, Path sessionFile, boolean resumeSession, String mergeBranch,
+                                    Path mergeWorktree) {
         if (jar == null || !Files.exists(jar)) {
             lastRespawnError = "jar not found: " + jar;
             System.err.println(LOCK_PREFIX + "respawn aborted: " + lastRespawnError);
@@ -257,16 +274,19 @@ public final class SelfRespawn {
     }
 
     public static Optional<List<String>> readRestartRequest() {
-        if (!Files.exists(RESTART_FILE)) return Optional.empty();
+        if (!Files.exists(RESTART_FILE))
+            return Optional.empty();
         var properties = new Properties();
         try (var in = Files.newInputStream(RESTART_FILE)) {
             properties.load(in);
             int count = Integer.parseInt(properties.getProperty("argc", "0"));
-            if (count <= 0) return Optional.empty();
+            if (count <= 0)
+                return Optional.empty();
             var command = new ArrayList<String>();
             for (int i = 0; i < count; i++) {
                 String arg = properties.getProperty("arg." + i);
-                if (arg == null) return Optional.empty();
+                if (arg == null)
+                    return Optional.empty();
                 command.add(arg);
             }
             return Optional.of(command);
@@ -277,12 +297,15 @@ public final class SelfRespawn {
     }
 
     public static void clearRestartRequest() {
-        try { Files.deleteIfExists(RESTART_FILE); } catch (IOException ignored) {}
+        try {
+            Files.deleteIfExists(RESTART_FILE);
+        } catch (IOException ignored) {}
     }
 
     private static void writeRestartRequest(List<String> command) throws IOException {
         Path parent = RESTART_FILE.getParent();
-        if (parent != null) Files.createDirectories(parent);
+        if (parent != null)
+            Files.createDirectories(parent);
 
         var properties = new Properties();
         properties.setProperty("argc", Integer.toString(command.size()));
@@ -304,13 +327,12 @@ public final class SelfRespawn {
     public static ProcessRunner.Result mergeBranch(String branch) throws IOException {
         if (branch == null || branch.isBlank())
             throw new IOException("No branch specified");
-        return ProcessRunner.command("git", "merge", branch)
-            .redirectErrorStream(true)
-            .run();
+        return ProcessRunner.command("git", "merge", branch).redirectErrorStream(true).run();
     }
 
     public static String backupStatus() {
-        if (!Files.exists(BACKUP_JAR)) return "no backup";
+        if (!Files.exists(BACKUP_JAR))
+            return "no backup";
         try {
             long sz = Files.size(BACKUP_JAR);
             return sz <= 0 ? "empty" : (sz / 1024 + "KB");
@@ -323,8 +345,8 @@ public final class SelfRespawn {
         return buildCommand(jar, sessionFile, resumeSession, null, null);
     }
 
-    private static List<String> buildCommand(Path jar, Path sessionFile, boolean resumeSession,
-                                             String mergeBranch, Path mergeWorktree) {
+    private static List<String> buildCommand(Path jar, Path sessionFile, boolean resumeSession, String mergeBranch,
+                                    Path mergeWorktree) {
         List<String> cmd = new ArrayList<>();
         cmd.add(resolveJava());
         cmd.add("-jar");
@@ -358,12 +380,15 @@ public final class SelfRespawn {
         String javaHome = System.getProperty("java.home");
         if (javaHome != null && !javaHome.isBlank()) {
             Path javaBin = Path.of(javaHome, "bin", "java");
-            if (Files.exists(javaBin)) return javaBin.toAbsolutePath().toString();
+            if (Files.exists(javaBin))
+                return javaBin.toAbsolutePath().toString();
             javaBin = Path.of(javaHome, "bin", "java.exe");
-            if (Files.exists(javaBin)) return javaBin.toAbsolutePath().toString();
+            if (Files.exists(javaBin))
+                return javaBin.toAbsolutePath().toString();
         }
         String cmd = ProcessHandle.current().info().command().orElse("");
-        if (!cmd.isBlank()) return cmd;
+        if (!cmd.isBlank())
+            return cmd;
         String os = System.getProperty("os.name", "").toLowerCase();
         return os.contains("win") ? "java.exe" : "java";
     }
@@ -371,13 +396,15 @@ public final class SelfRespawn {
     static List<String> preservedArgs() {
         List<String> out = new ArrayList<>();
         String[] orig = originalArgs;
-        if (orig == null) return out;
+        if (orig == null)
+            return out;
 
         for (int i = 0; i < orig.length; i++) {
             String a = orig[i];
 
             if (isSkippedFlag(a)) {
-                if (i + 1 < orig.length && isValue(orig[i + 1])) i++;
+                if (i + 1 < orig.length && isValue(orig[i + 1]))
+                    i++;
                 continue;
             }
 
@@ -392,18 +419,18 @@ public final class SelfRespawn {
 
     private static boolean isSkippedFlag(String a) {
         return a.equals("--session") || a.equals("--session-path") || a.equals("--resume") || a.equals("--continue")
-            || a.equals("--recover") || a.equals("--fork") || a.equals("--export") || a.equals("--no-session")
-            || a.equals("--agent") || a.equals("--print") || a.equals("--mode")
-            || a.equals("--worker")
-            || a.equals("--transcend-merge-branch") || a.equals("--transcend-worktree")
-            || a.equals("--output-mode") || a.equals("--help") || a.equals("--version")
-            || a.equals("--list-models")
-            || a.equals("-s") || a.equals("-r") || a.equals("-c") || a.equals("-p")
-            || a.equals("-h") || a.equals("-v");
+                                        || a.equals("--recover") || a.equals("--fork") || a.equals("--export")
+                                        || a.equals("--no-session") || a.equals("--agent") || a.equals("--print")
+                                        || a.equals("--mode") || a.equals("--worker")
+                                        || a.equals("--transcend-merge-branch") || a.equals("--transcend-worktree")
+                                        || a.equals("--output-mode") || a.equals("--help") || a.equals("--version")
+                                        || a.equals("--list-models") || a.equals("-s") || a.equals("-r")
+                                        || a.equals("-c") || a.equals("-p") || a.equals("-h") || a.equals("-v");
     }
 
     private static String blankToNull(String value) {
-        if (value == null) return null;
+        if (value == null)
+            return null;
         String stripped = value.strip();
         return stripped.isBlank() ? null : stripped;
     }

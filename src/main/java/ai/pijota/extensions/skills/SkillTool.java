@@ -15,7 +15,9 @@ public final class SkillTool implements Tool {
     }
 
     @Override
-    public String name() { return "skill"; }
+    public String name() {
+        return "skill";
+    }
 
     @Override
     public String description() {
@@ -24,13 +26,10 @@ public final class SkillTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "name", Map.of("type", "string", "description", "The skill name to load")
-            ),
-            "required", List.of("name")
-        );
+        return Map.of("type", "object", "properties",
+                                        Map.of("name", Map.of("type", "string", "description",
+                                                                        "The skill name to load")),
+                                        "required", List.of("name"));
     }
 
     @Override
@@ -43,8 +42,8 @@ public final class SkillTool implements Tool {
         if (skill == null) {
             return CompletableFuture.completedFuture(ToolResult.error("Skill not found: " + name));
         }
-        return CompletableFuture.completedFuture(ToolResult.success(
-            "# Skill: " + skill.name() + "\n\n" + skill.content() + "\n"));
+        return CompletableFuture.completedFuture(ToolResult
+                                        .success("# Skill: " + skill.name() + "\n\n" + skill.content() + "\n"));
     }
 
     Tool.ToolDefinition toDefinition() {

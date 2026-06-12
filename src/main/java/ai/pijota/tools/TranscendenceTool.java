@@ -14,46 +14,40 @@ import java.util.concurrent.CompletableFuture;
 
 public final class TranscendenceTool implements Tool {
 
-    @Override public String name() { return "transcendence"; }
+    @Override
+    public String name() {
+        return "transcendence";
+    }
 
     @Override
     public String description() {
         return "Self-modification tool. Edit pijota's own source code, then use this tool to build, test, or respawn. "
-            + "Actions: 'build' (mvn package), 'test' (mvn test), "
-            + "'respawn' (build + restart with new jar), 'rollback' (restore backup jar + restart). "
-            + "Use 'worktree' param to operate on a git worktree path. "
-            + "Always build and test before respawning. After build/test pass, respawn is mandatory; do not stop "
-            + "because a manual verification command was inconclusive or used the wrong executable. If respawn fails, use rollback to revert.";
+                                        + "Actions: 'build' (mvn package), 'test' (mvn test), "
+                                        + "'respawn' (build + restart with new jar), 'rollback' (restore backup jar + restart). "
+                                        + "Use 'worktree' param to operate on a git worktree path. "
+                                        + "Always build and test before respawning. After build/test pass, respawn is mandatory; do not stop "
+                                        + "because a manual verification command was inconclusive or used the wrong executable. If respawn fails, use rollback to revert.";
     }
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "action", Map.of(
-                    "type", "string",
-                    "description", "Action: 'build', 'test', 'respawn', or 'rollback'"
-                ),
-                "worktree", Map.of(
-                    "type", "string",
-                    "description", "Optional path to git worktree. If set, operates on that worktree instead of current directory."
-                ),
-                "mergeBranch", Map.of(
-                    "type", "string",
-                    "description", "Optional branch to merge into the original checkout after successful respawn. Use with action='respawn'."
-                )
-            ),
-            "required", List.of("action"),
-            "additionalProperties", false
-        );
+        return Map.of("type", "object", "properties", Map.of("action", Map.of("type", "string", "description",
+                                        "Action: 'build', 'test', 'respawn', or 'rollback'"), "worktree",
+                                        Map.of("type", "string", "description",
+                                                                        "Optional path to git worktree. If set, operates on that worktree instead of current directory."),
+                                        "mergeBranch",
+                                        Map.of("type", "string", "description",
+                                                                        "Optional branch to merge into the original checkout after successful respawn. Use with action='respawn'.")),
+                                        "required", List.of("action"), "additionalProperties", false);
     }
 
-    @Override public ExecutionMode executionMode() { return ExecutionMode.SEQUENTIAL; }
+    @Override
+    public ExecutionMode executionMode() {
+        return ExecutionMode.SEQUENTIAL;
+    }
 
     @Override
-    public CompletableFuture<ToolResult> execute(
-            String toolCallId, Map<String, Object> args, String sessionCwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String action = (String) args.get("action");
@@ -69,8 +63,8 @@ public final class TranscendenceTool implements Tool {
                     case "test" -> doTest(projectRoot);
                     case "respawn" -> doRespawn(projectRoot, mergeBranch);
                     case "rollback" -> doRollback(projectRoot);
-                    default -> ToolResult.error("Unknown action: " + action
-                        + ". Valid: build, test, respawn, rollback");
+                    default ->
+                        ToolResult.error("Unknown action: " + action + ". Valid: build, test, respawn, rollback");
                 };
             } catch (Exception e) {
                 return ToolResult.error("✕ Transcend failed\n\n" + e.getMessage());
@@ -105,17 +99,18 @@ public final class TranscendenceTool implements Tool {
         Path log = writeTranscendLog("build", result.stdout());
 
         if (result.timedOut()) {
-            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
-                "Build timed out.", log));
+            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build", "Build timed out.",
+                                            log));
         }
 
         var details = new LinkedHashMap<String, Object>();
         details.put("exitCode", result.exitCode());
-        if (log != null) details.put("log", log.toString());
+        if (log != null)
+            details.put("log", log.toString());
 
         if (result.exitCode() != 0) {
             return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
-                "Build exited " + result.exitCode() + ".", log));
+                                            "Build exited " + result.exitCode() + ".", log));
         }
 
         Path jar = SelfRespawn.findJarIn(projectRoot);
@@ -123,21 +118,19 @@ public final class TranscendenceTool implements Tool {
             details.put("jar", jar.getFileName().toString());
         } else {
             return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
-                "Build finished, but no jar was found in target/.", log));
+                                            "Build finished, but no jar was found in target/.", log));
         }
 
         return ToolResult.success("→ Transcend\n  ✓ preserved current build\n  ✓ compiled new build  "
-            + jar.getFileName(), details);
+                                        + jar.getFileName(), details);
     }
 
     private ToolResult doTest(Path projectRoot) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
             return ToolResult.error("No pom.xml found at " + projectRoot);
 
-        ProcessRunner.Result result = ProcessRunner.command("mvn", "test")
-            .workDir(projectRoot)
-            .redirectErrorStream(true)
-            .run();
+        ProcessRunner.Result result = ProcessRunner.command("mvn", "test").workDir(projectRoot)
+                                        .redirectErrorStream(true).run();
         Path log = writeTranscendLog("test", result.stdout());
 
         if (result.timedOut()) {
@@ -146,13 +139,15 @@ public final class TranscendenceTool implements Tool {
 
         var details = new LinkedHashMap<String, Object>();
         details.put("exitCode", result.exitCode());
-        if (log != null) details.put("log", log.toString());
+        if (log != null)
+            details.put("log", log.toString());
 
         if (result.exitCode() != 0) {
             return ToolResult.error(failure("✕ tests failed", null, "Tests exited " + result.exitCode() + ".", log));
         }
 
-        return ToolResult.success("→ Transcend\n  ✓ tests passed\n\nNext: transcendence action=\"respawn\" with the same worktree.", details);
+        return ToolResult.success("→ Transcend\n  ✓ tests passed\n\nNext: transcendence action=\"respawn\" with the same worktree.",
+                                        details);
     }
 
     private ToolResult doRespawn(Path projectRoot, String mergeBranch) throws IOException {
@@ -175,29 +170,35 @@ public final class TranscendenceTool implements Tool {
         Path log = writeTranscendLog("build", buildResult.stdout());
 
         if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
-            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
-                buildResult.timedOut() ? "Build timed out." : "Build exited " + buildResult.exitCode() + ".", log));
+            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build", buildResult.timedOut()
+                                            ? "Build timed out."
+                                            : "Build exited " + buildResult.exitCode() + ".", log));
         }
 
         Path jar = SelfRespawn.findJarIn(projectRoot);
         if (jar == null || !Files.exists(jar)) {
             return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
-                "Build finished, but no jar was found in target/.", log));
+                                            "Build finished, but no jar was found in target/.", log));
         }
 
         if (!SelfRespawn.requestRespawn(jar, mergeBranch, projectRoot)) {
             return ToolResult.success("→ Transcend\n  ✓ preserved current build\n  ✓ compiled new build  "
-                + jar.getFileName() + "\n  … restart already pending",
-                Map.of("jar", jar.getFileName().toString(), "warning", "respawn already pending"));
+                                            + jar.getFileName() + "\n  … restart already pending",
+                                            Map.of("jar", jar.getFileName().toString(), "warning",
+                                                                            "respawn already pending"));
         }
 
         var details = new LinkedHashMap<String, Object>();
         details.put("jar", jar.getFileName().toString());
-        if (log != null) details.put("log", log.toString());
-        if (mergeBranch != null && !mergeBranch.isBlank()) details.put("mergeBranch", mergeBranch.strip());
+        if (log != null)
+            details.put("log", log.toString());
+        if (mergeBranch != null && !mergeBranch.isBlank())
+            details.put("mergeBranch", mergeBranch.strip());
 
         return ToolResult.success("→ Transcend\n  ✓ preserved current build\n  ✓ compiled new build  "
-            + jar.getFileName() + "\n  ✓ restart queued\n\n✓ Pijota will restart into the new build after this turn.", details);
+                                        + jar.getFileName()
+                                        + "\n  ✓ restart queued\n\n✓ Pijota will restart into the new build after this turn.",
+                                        details);
     }
 
     private ToolResult doRollback(Path projectRoot) {
@@ -209,7 +210,7 @@ public final class TranscendenceTool implements Tool {
             jar = SelfRespawn.findCurrentJar();
             if (jar == null)
                 return ToolResult.error("Cannot determine target jar for rollback. "
-                    + "Restore manually: cp target/pijota-backup.jar target/<jar>");
+                                                + "Restore manually: cp target/pijota-backup.jar target/<jar>");
         }
 
         try {
@@ -224,15 +225,19 @@ public final class TranscendenceTool implements Tool {
 
     private static String failure(String step1, String step2, String message, Path log) {
         var sb = new StringBuilder("→ Transcend\n");
-        if (step1 != null) sb.append("  ").append(step1).append('\n');
-        if (step2 != null) sb.append("  ").append(step2).append('\n');
+        if (step1 != null)
+            sb.append("  ").append(step1).append('\n');
+        if (step2 != null)
+            sb.append("  ").append(step2).append('\n');
         sb.append("\nStill running previous build.\n").append(message);
-        if (log != null) sb.append("\nlog: ").append(log);
+        if (log != null)
+            sb.append("\nlog: ").append(log);
         return sb.toString();
     }
 
     private static Path writeTranscendLog(String label, String output) {
-        if (output == null || output.isBlank()) return null;
+        if (output == null || output.isBlank())
+            return null;
         try {
             Path dir = Path.of(System.getProperty("java.io.tmpdir"), "pijota");
             Files.createDirectories(dir);

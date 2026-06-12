@@ -28,7 +28,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,21 +49,22 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
     @Override
     public void doChat(ChatRequest request, StreamingChatResponseHandler handler) {
         try {
-            var httpRequest = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofMinutes(5))
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody(request).toString(), StandardCharsets.UTF_8))
-                .build();
-            client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofInputStream())
-                .thenAccept(response -> {
-                    try {
-                        streamResponse(response, handler);
-                    } catch (Throwable e) {
-                        handler.onError(e);
-                    }
-                })
-                .exceptionally(e -> { handler.onError(e); return null; });
+            var httpRequest = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofMinutes(5))
+                                            .header("Content-Type", "application/json")
+                                            .header("Authorization", "Bearer " + apiKey)
+                                            .POST(HttpRequest.BodyPublishers.ofString(requestBody(request).toString(),
+                                                                            StandardCharsets.UTF_8))
+                                            .build();
+            client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofInputStream()).thenAccept(response -> {
+                try {
+                    streamResponse(response, handler);
+                } catch (Throwable e) {
+                    handler.onError(e);
+                }
+            }).exceptionally(e -> {
+                handler.onError(e);
+                return null;
+            });
         } catch (Throwable e) {
             handler.onError(e);
         }
@@ -77,8 +77,7 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         body.set("messages", messages(request.messages()));
         boolean enableThinking = thinkingLevel != ThinkingLevel.OFF;
         body.put("enable_thinking", enableThinking);
-        body.set("chat_template_kwargs", Util.MAPPER.createObjectNode()
-            .put("enable_thinking", enableThinking));
+        body.set("chat_template_kwargs", Util.MAPPER.createObjectNode().put("enable_thinking", enableThinking));
         if (request.toolSpecifications() != null && !request.toolSpecifications().isEmpty()) {
             body.set("tools", tools(request.toolSpecifications()));
             body.put("tool_choice", "auto");
@@ -97,7 +96,8 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
                 var item = message("assistant", ai.text() != null ? ai.text() : "");
                 if (ai.toolExecutionRequests() != null && !ai.toolExecutionRequests().isEmpty()) {
                     var toolCalls = Util.MAPPER.createArrayNode();
-                    for (var call : ai.toolExecutionRequests()) toolCalls.add(toolCall(call));
+                    for (var call : ai.toolExecutionRequests())
+                        toolCalls.add(toolCall(call));
                     item.set("tool_calls", toolCalls);
                 }
                 out.add(item);
@@ -129,11 +129,9 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
     }
 
     private static String userText(UserMessage user) {
-        if (user.hasSingleText()) return user.singleText();
-        return user.contents().stream()
-            .map(Object::toString)
-            .reduce((a, b) -> a + "\n" + b)
-            .orElse("");
+        if (user.hasSingleText())
+            return user.singleText();
+        return user.contents().stream().map(Object::toString).reduce((a, b) -> a + "\n" + b).orElse("");
     }
 
     private ArrayNode tools(List<ToolSpecification> specs) {
@@ -150,10 +148,11 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         return tools;
     }
 
-    private void streamResponse(HttpResponse<java.io.InputStream> response,
-                                StreamingChatResponseHandler handler) throws IOException {
+    private void streamResponse(HttpResponse<java.io.InputStream> response, StreamingChatResponseHandler handler)
+                                    throws IOException {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("HTTP " + response.statusCode() + ": " + new String(response.body().readAllBytes(), StandardCharsets.UTF_8));
+            throw new IOException("HTTP " + response.statusCode() + ": "
+                                            + new String(response.body().readAllBytes(), StandardCharsets.UTF_8));
         }
         var content = new StringBuilder();
         var thinking = new StringBuilder();
@@ -162,16 +161,21 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (!line.startsWith("data:")) continue;
+                if (!line.startsWith("data:"))
+                    continue;
                 String data = line.substring(5).trim();
-                if (data.isEmpty()) continue;
-                if ("[DONE]".equals(data)) break;
+                if (data.isEmpty())
+                    continue;
+                if ("[DONE]".equals(data))
+                    break;
                 JsonNode event = Util.MAPPER.readTree(data);
                 usage = usage(event, usage);
                 var choices = event.get("choices");
-                if (choices == null || !choices.isArray() || choices.isEmpty()) continue;
+                if (choices == null || !choices.isArray() || choices.isEmpty())
+                    continue;
                 JsonNode delta = choices.get(0).get("delta");
-                if (delta == null) continue;
+                if (delta == null)
+                    continue;
                 String thought = text(delta.get("reasoning_content"));
                 if (!thought.isEmpty()) {
                     thinking.append(thought);
@@ -186,17 +190,13 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
             }
         }
 
-        var requests = toolCalls.entrySet().stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(entry -> entry.getValue().build())
-            .toList();
-        var ai = AiMessage.builder()
-            .text(content.toString())
-            .thinking(thinking.isEmpty() ? null : thinking.toString())
-            .toolExecutionRequests(requests.isEmpty() ? null : requests)
-            .build();
+        var requests = toolCalls.entrySet().stream().sorted(Map.Entry.comparingByKey())
+                                        .map(entry -> entry.getValue().build()).toList();
+        var ai = AiMessage.builder().text(content.toString()).thinking(thinking.isEmpty() ? null : thinking.toString())
+                                        .toolExecutionRequests(requests.isEmpty() ? null : requests).build();
         var builder = ChatResponse.builder().aiMessage(ai);
-        if (usage != null) builder.tokenUsage(usage);
+        if (usage != null)
+            builder.tokenUsage(usage);
         handler.onCompleteResponse(builder.build());
     }
 
@@ -205,22 +205,27 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
     }
 
     private static void collectToolCalls(JsonNode calls, Map<Integer, ToolCallBuilder> out) {
-        if (calls == null || !calls.isArray()) return;
+        if (calls == null || !calls.isArray())
+            return;
         for (var call : calls) {
             int index = call.path("index").asInt(out.size());
             var b = out.computeIfAbsent(index, _ -> new ToolCallBuilder());
-            if (call.hasNonNull("id")) b.id = call.get("id").asText();
+            if (call.hasNonNull("id"))
+                b.id = call.get("id").asText();
             var fn = call.get("function");
             if (fn != null) {
-                if (fn.hasNonNull("name")) b.name = fn.get("name").asText();
-                if (fn.hasNonNull("arguments")) b.arguments.append(fn.get("arguments").asText());
+                if (fn.hasNonNull("name"))
+                    b.name = fn.get("name").asText();
+                if (fn.hasNonNull("arguments"))
+                    b.arguments.append(fn.get("arguments").asText());
             }
         }
     }
 
     private static TokenUsage usage(JsonNode event, TokenUsage current) {
         JsonNode usage = event.get("usage");
-        if (usage == null || usage.isNull()) return current;
+        if (usage == null || usage.isNull())
+            return current;
         Integer prompt = usage.has("prompt_tokens") ? usage.get("prompt_tokens").asInt() : null;
         Integer completion = usage.has("completion_tokens") ? usage.get("completion_tokens").asInt() : null;
         Integer total = usage.has("total_tokens") ? usage.get("total_tokens").asInt() : null;
@@ -238,11 +243,8 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         StringBuilder arguments = new StringBuilder();
 
         ToolExecutionRequest build() {
-            return ToolExecutionRequest.builder()
-                .id(id)
-                .name(name)
-                .arguments(arguments.isEmpty() ? "{}" : arguments.toString())
-                .build();
+            return ToolExecutionRequest.builder().id(id).name(name)
+                                            .arguments(arguments.isEmpty() ? "{}" : arguments.toString()).build();
         }
     }
 }

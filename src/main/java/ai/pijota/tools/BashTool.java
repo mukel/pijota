@@ -1,4 +1,5 @@
 package ai.pijota.tools;
+
 import java.util.ArrayList;
 
 import ai.pijota.util.ProcessRunner;
@@ -30,57 +31,51 @@ public final class BashTool implements Tool {
         this.shellPrefix = shellPrefix;
     }
 
-    @Override public String name() { return "bash"; }
+    @Override
+    public String name() {
+        return "bash";
+    }
 
     @Override
     public String description() {
         return "Execute a bash command in the current working directory. Returns stdout and stderr. "
-            + "Output is truncated at 100KB. Optionally provide a timeout in seconds (default 120s).";
+                                        + "Output is truncated at 100KB. Optionally provide a timeout in seconds (default 120s).";
     }
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "command", Map.of("type", "string", "description", "Shell command to execute"),
-                "timeout", Map.of("type", "number",
-                    "description", "Timeout in seconds (optional)")
-            ),
-            "required", List.of("command"),
-            "additionalProperties", false
-        );
+        return Map.of("type", "object", "properties", Map.of("command",
+                                        Map.of("type", "string", "description", "Shell command to execute"), "timeout",
+                                        Map.of("type", "number", "description", "Timeout in seconds (optional)")),
+                                        "required", List.of("command"), "additionalProperties", false);
     }
 
-    @Override public ExecutionMode executionMode() { return ExecutionMode.SEQUENTIAL; }
+    @Override
+    public ExecutionMode executionMode() {
+        return ExecutionMode.SEQUENTIAL;
+    }
 
     @Override
-    public CompletableFuture<ToolResult> execute(
-            String toolCallId, Map<String, Object> args, String sessionCwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String command = (String) args.get("command");
                 Path workdir = args.containsKey("workdir")
-                    ? Path.of((String) args.get("workdir"))
-                    : Util.resolveDir(sessionCwd);
+                                                ? Path.of((String) args.get("workdir"))
+                                                : Util.resolveDir(sessionCwd);
 
                 if (!Files.isDirectory(workdir))
                     return ToolResult.error("Working directory does not exist: " + workdir);
 
                 // Timeout in SECONDS (pi-compatible)
-                long timeoutSeconds = (long) Util.getLong(args, "timeout",
-                    DEFAULT_TIMEOUT_SECONDS);
+                long timeoutSeconds = (long) Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS);
 
-                String fullCmd = shellPrefix != null
-                    ? shellPrefix + "\n" + command : command;
+                String fullCmd = shellPrefix != null ? shellPrefix + "\n" + command : command;
 
-                var result = ProcessRunner.command(List.of(shellPath, "-c", fullCmd))
-                    .workDir(workdir)
-                    .timeout(Duration.ofSeconds(timeoutSeconds))
-                    .maxOutputBytes(MAX_OUTPUT_BYTES)
-                    .redirectErrorStream(true)
-                    .onStart(p -> currentProcess = p)
-                    .run();
+                var result = ProcessRunner.command(List.of(shellPath, "-c", fullCmd)).workDir(workdir)
+                                                .timeout(Duration.ofSeconds(timeoutSeconds))
+                                                .maxOutputBytes(MAX_OUTPUT_BYTES).redirectErrorStream(true)
+                                                .onStart(p -> currentProcess = p).run();
 
                 String output = result.stdout();
                 var details = new LinkedHashMap<String, Object>();
@@ -106,8 +101,10 @@ public final class BashTool implements Tool {
                     } catch (IOException ignored) {}
                 }
 
-                if (result.timedOut()) return new ToolResult(output, true, details);
-                if (result.exitCode() != 0) return new ToolResult(output, true, details);
+                if (result.timedOut())
+                    return new ToolResult(output, true, details);
+                if (result.exitCode() != 0)
+                    return new ToolResult(output, true, details);
 
                 if (output.isEmpty())
                     return ToolResult.success("(no output)", details);
@@ -117,7 +114,8 @@ public final class BashTool implements Tool {
             } catch (Exception e) {
                 Thread.currentThread().interrupt();
                 Process p = currentProcess;
-                if (p != null) ProcessRunner.killTree(p);
+                if (p != null)
+                    ProcessRunner.killTree(p);
                 return ToolResult.error("Command interrupted");
             } finally {
                 currentProcess = null;
@@ -130,7 +128,8 @@ public final class BashTool implements Tool {
         String summary;
         Map<String, Object> details = result.details();
         String prefix = "";
-        if (Boolean.TRUE.equals(details.get("timedOut"))) prefix = "(timed out) ";
+        if (Boolean.TRUE.equals(details.get("timedOut")))
+            prefix = "(timed out) ";
         String output = result.content();
         if (output == null || output.isBlank() || "(no output)".equals(output)) {
             summary = prefix + "(no output)";
@@ -142,7 +141,8 @@ public final class BashTool implements Tool {
         if (output != null && !output.isBlank() && !"(no output)".equals(output)) {
             var lines = output.lines().toList();
             if (lines.size() <= PREVIEW_LINES) {
-                for (String line : lines) body.add("│ " + line);
+                for (String line : lines)
+                    body.add("│ " + line);
             } else {
                 for (int i = 0; i < PREVIEW_HEAD_LINES; i++) {
                     body.add("│ " + lines.get(i));
@@ -173,6 +173,7 @@ public final class BashTool implements Tool {
     @Override
     public void abort() {
         Process p = currentProcess;
-        if (p != null && p.isAlive()) ProcessRunner.killTree(p);
+        if (p != null && p.isAlive())
+            ProcessRunner.killTree(p);
     }
 }

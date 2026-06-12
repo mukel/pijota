@@ -2,31 +2,21 @@ package ai.pijota.tui;
 
 import java.util.List;
 
-record PromptSnapshot(
-    List<String> lines,
-    int cursorRow,
-    int cursorCol,
-    List<CompletionItem> completions,
-    int selectedCompletion,
-    String cwd,
-    int contextPct,
-    String status,
-    String warning,
-    List<String> pendingMessages,
-    List<String> extensionLines,
-    PromptState promptState
-) {
-    enum PromptState { IDLE, BUSY, ERROR, CONTINUATION }
+record PromptSnapshot(List<String> lines, int cursorRow, int cursorCol, List<CompletionItem> completions,
+                                int selectedCompletion, String cwd, int contextPct, String status, String warning,
+                                List<String> pendingMessages, List<String> extensionLines, PromptState promptState) {
+    enum PromptState {
+        IDLE, BUSY, ERROR, CONTINUATION
+    }
 
-    public PromptSnapshot(List<String> lines, int cursorRow, int cursorCol,
-                          List<CompletionItem> completions, int selectedCompletion) {
-        this(lines, cursorRow, cursorCol, completions, selectedCompletion,
-            null, 0, null, null, List.of(), List.of(), PromptState.IDLE);
+    public PromptSnapshot(List<String> lines, int cursorRow, int cursorCol, List<CompletionItem> completions,
+                                    int selectedCompletion) {
+        this(lines, cursorRow, cursorCol, completions, selectedCompletion, null, 0, null, null, List.of(), List.of(),
+                                        PromptState.IDLE);
     }
 
     public PromptSnapshot(List<String> lines, int cursorRow, int cursorCol, List<CompletionItem> completions) {
-        this(lines, cursorRow, cursorCol, completions, -1,
-            null, 0, null, null, List.of(), List.of(), PromptState.IDLE);
+        this(lines, cursorRow, cursorCol, completions, -1, null, 0, null, null, List.of(), List.of(), PromptState.IDLE);
     }
 
     public PromptSnapshot withCwd(String cwd) {
@@ -57,10 +47,9 @@ record PromptSnapshot(
         return copy(cwd, contextPct, status, warning, pendingMessages, extensionLines, promptState);
     }
 
-    private PromptSnapshot copy(String cwd, int contextPct, String status, String warning,
-                                List<String> pendingMessages, List<String> extensionLines,
-                                PromptState promptState) {
-        return new PromptSnapshot(lines, cursorRow, cursorCol, completions, selectedCompletion,
-            cwd, contextPct, status, warning, pendingMessages, extensionLines, promptState);
+    private PromptSnapshot copy(String cwd, int contextPct, String status, String warning, List<String> pendingMessages,
+                                    List<String> extensionLines, PromptState promptState) {
+        return new PromptSnapshot(lines, cursorRow, cursorCol, completions, selectedCompletion, cwd, contextPct, status,
+                                        warning, pendingMessages, extensionLines, promptState);
     }
 }

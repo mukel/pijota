@@ -5,8 +5,15 @@ import ai.pijota.extensions.ExtensionAPI;
 
 public final class StatusLineExtension implements Extension {
 
-    @Override public String name() { return "status-line"; }
-    @Override public String description() { return "Shows turn progress in status bar"; }
+    @Override
+    public String name() {
+        return "status-line";
+    }
+
+    @Override
+    public String description() {
+        return "Shows turn progress in status bar";
+    }
 
     @Override
     public void init(ExtensionAPI api) {

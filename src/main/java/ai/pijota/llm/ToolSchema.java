@@ -18,7 +18,8 @@ public final class ToolSchema {
     public static JsonObjectSchema objectFromMap(Map<String, Object> schema) {
         var builder = JsonObjectSchema.builder().additionalProperties(false);
         Object description = schema.get("description");
-        if (description instanceof String s) builder.description(s);
+        if (description instanceof String s)
+            builder.description(s);
         Object required = schema.get("required");
         if (required instanceof List<?> list) {
             builder.required(list.stream().filter(String.class::isInstance).map(String.class::cast).toList());
@@ -42,7 +43,8 @@ public final class ToolSchema {
             case "object" -> objectFromMap(schema);
             case "array" -> {
                 var builder = JsonArraySchema.builder();
-                if (description != null) builder.description(description);
+                if (description != null)
+                    builder.description(description);
                 Object items = schema.get("items");
                 if (items instanceof Map<?, ?> itemSchema) {
                     builder.items(elementFromMap((Map<String, Object>) itemSchema));
@@ -53,22 +55,26 @@ public final class ToolSchema {
             }
             case "integer" -> {
                 var builder = JsonIntegerSchema.builder();
-                if (description != null) builder.description(description);
+                if (description != null)
+                    builder.description(description);
                 yield builder.build();
             }
             case "number" -> {
                 var builder = JsonNumberSchema.builder();
-                if (description != null) builder.description(description);
+                if (description != null)
+                    builder.description(description);
                 yield builder.build();
             }
             case "boolean" -> {
                 var builder = JsonBooleanSchema.builder();
-                if (description != null) builder.description(description);
+                if (description != null)
+                    builder.description(description);
                 yield builder.build();
             }
             default -> {
                 var builder = JsonStringSchema.builder();
-                if (description != null) builder.description(description);
+                if (description != null)
+                    builder.description(description);
                 yield builder.build();
             }
         };

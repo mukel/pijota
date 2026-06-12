@@ -2,7 +2,6 @@ package ai.pijota.util;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
@@ -12,17 +11,15 @@ import java.util.concurrent.ExecutionException;
 public final class ErrorUtil {
     private ErrorUtil() {}
 
-    private static final List<DateTimeFormatter> HTTP_DATE_FORMATS = List.of(
-        DateTimeFormatter.RFC_1123_DATE_TIME,
-        DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z"),
-        DateTimeFormatter.ofPattern("EEE, dd-MMM-yy HH:mm:ss z"),
-        DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy")
-    );
+    private static final List<DateTimeFormatter> HTTP_DATE_FORMATS = List.of(DateTimeFormatter.RFC_1123_DATE_TIME,
+                                    DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z"),
+                                    DateTimeFormatter.ofPattern("EEE, dd-MMM-yy HH:mm:ss z"),
+                                    DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy"));
 
     public static Throwable unwrap(Throwable t) {
         Throwable current = t;
         while ((current instanceof CompletionException || current instanceof ExecutionException)
-            && current.getCause() != null) {
+                                        && current.getCause() != null) {
             current = current.getCause();
         }
         return current;
@@ -31,28 +28,27 @@ public final class ErrorUtil {
     public static String message(Throwable t) {
         Throwable unwrapped = unwrap(t);
         String message = unwrapped.getMessage();
-        if (message == null || message.isBlank()) message = unwrapped.getClass().getSimpleName();
+        if (message == null || message.isBlank())
+            message = unwrapped.getClass().getSimpleName();
         return sanitize(message);
     }
 
     public static String sanitize(String message) {
-        if (message == null) return "";
-        return message
-            .replaceAll("sk-[A-Za-z0-9_-]{6,}", "sk-***")
-            .replaceAll("sk-ant-[A-Za-z0-9_-]{6,}", "sk-ant-***")
-            .replaceAll("(?i)(api[_ -]?key[^:]*: )[^\\s,}]+", "$1***")
-            .replaceAll("(?i)(authorization: bearer )[^\\s,}]+", "$1***");
+        if (message == null)
+            return "";
+        return message.replaceAll("sk-[A-Za-z0-9_-]{6,}", "sk-***").replaceAll("sk-ant-[A-Za-z0-9_-]{6,}", "sk-ant-***")
+                                        .replaceAll("(?i)(api[_ -]?key[^:]*: )[^\\s,}]+", "$1***")
+                                        .replaceAll("(?i)(authorization: bearer )[^\\s,}]+", "$1***");
     }
 
     public static boolean isContextOverflow(Throwable t) {
         String m = t != null ? ErrorUtil.message(t) : null;
-        if (m == null) return false;
+        if (m == null)
+            return false;
         String lower = m.toLowerCase();
-        return lower.contains("context_length_exceeded")
-            || lower.contains("maximum context length")
-            || lower.contains("prompt is too long")
-            || lower.contains("reduce the length")
-            || lower.contains("too long");
+        return lower.contains("context_length_exceeded") || lower.contains("maximum context length")
+                                        || lower.contains("prompt is too long") || lower.contains("reduce the length")
+                                        || lower.contains("too long");
     }
 
     private static boolean hasStatusCode(String msg, int... codes) {
@@ -61,39 +57,42 @@ public final class ErrorUtil {
                 int idx = msg.indexOf(String.valueOf(code));
                 boolean startBoundary = idx == 0 || !Character.isDigit(msg.charAt(idx - 1));
                 boolean endBoundary = idx + String.valueOf(code).length() >= msg.length()
-                    || !Character.isDigit(msg.charAt(idx + String.valueOf(code).length()));
-                if (startBoundary && endBoundary) return true;
+                                                || !Character.isDigit(msg.charAt(idx + String.valueOf(code).length()));
+                if (startBoundary && endBoundary)
+                    return true;
             }
         }
         return false;
     }
 
     public static boolean isRetryable(Throwable ex) {
-        if (ex == null) return false;
+        if (ex == null)
+            return false;
         Throwable unwrapped = unwrap(ex);
         String msg = unwrapped.getMessage() != null ? unwrapped.getMessage().toLowerCase() : "";
 
-        if (hasStatusCode(msg, 400, 401, 403, 404, 413)) return false;
+        if (hasStatusCode(msg, 400, 401, 403, 404, 413))
+            return false;
 
-        if (isContextOverflow(unwrapped)) return false;
+        if (isContextOverflow(unwrapped))
+            return false;
 
-        return msg.contains("rate limit") || msg.contains("rate_limit")
-            || msg.contains("too many requests") || msg.contains("429")
-            || msg.contains("overloaded") || msg.contains("capacity")
-            || msg.contains("server error") || msg.contains("503")
-            || msg.contains("502") || msg.contains("500")
-            || msg.contains("timeout") || msg.contains("timed out")
-            || msg.contains("connection reset") || msg.contains("connection refused")
-            || msg.contains("temporarily unavailable")
-            || msg.contains("internal error")
-            || unwrapped instanceof java.io.IOException
-            || unwrapped instanceof java.util.concurrent.TimeoutException;
+        return msg.contains("rate limit") || msg.contains("rate_limit") || msg.contains("too many requests")
+                                        || msg.contains("429") || msg.contains("overloaded") || msg.contains("capacity")
+                                        || msg.contains("server error") || msg.contains("503") || msg.contains("502")
+                                        || msg.contains("500") || msg.contains("timeout") || msg.contains("timed out")
+                                        || msg.contains("connection reset") || msg.contains("connection refused")
+                                        || msg.contains("temporarily unavailable") || msg.contains("internal error")
+                                        || unwrapped instanceof java.io.IOException
+                                        || unwrapped instanceof java.util.concurrent.TimeoutException;
     }
 
     public static long retryAfterDelayMs(Throwable ex, long defaultDelayMs) {
-        if (ex == null) return defaultDelayMs;
+        if (ex == null)
+            return defaultDelayMs;
         String retryAfter = extractRetryAfterHeader(ex);
-        if (retryAfter == null) return defaultDelayMs;
+        if (retryAfter == null)
+            return defaultDelayMs;
 
         try {
             long seconds = Long.parseLong(retryAfter.trim());
@@ -113,14 +112,16 @@ public final class ErrorUtil {
         Throwable current = ex;
         while (current != null) {
             String header = tryGetRetryAfter(current);
-            if (header != null) return header;
+            if (header != null)
+                return header;
             current = current.getCause();
         }
         return null;
     }
 
     private static String tryGetRetryAfter(Object obj) {
-        if (obj == null) return null;
+        if (obj == null)
+            return null;
 
         try {
             var responseObj = invokeMethod(obj, "response");
@@ -128,9 +129,11 @@ public final class ErrorUtil {
                 var headersObj = invokeMethod(responseObj, "headers");
                 if (headersObj != null) {
                     String header = (String) invokeMethodWithArg(headersObj, "get", "Retry-After");
-                    if (header != null && !header.isBlank()) return header;
+                    if (header != null && !header.isBlank())
+                        return header;
                     header = (String) invokeMethodWithArg(headersObj, "get", "retry-after");
-                    if (header != null && !header.isBlank()) return header;
+                    if (header != null && !header.isBlank())
+                        return header;
                 }
             }
         } catch (Exception ignored) {}

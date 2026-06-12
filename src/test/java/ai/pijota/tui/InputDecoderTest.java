@@ -1,0 +1,76 @@
+package ai.pijota.tui;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.util.Arrays;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class InputDecoderTest {
+    @Test
+    void mapsControlCharactersToSpecialKeys() throws IOException {
+        assertEquals(Key.Special.CTRL_A, InputDecoder.readKey(input(1)));
+        assertEquals(Key.Special.CTRL_C, InputDecoder.readKey(input(3)));
+        assertEquals(Key.Special.CTRL_D, InputDecoder.readKey(input(4)));
+        assertEquals(Key.Special.CTRL_E, InputDecoder.readKey(input(5)));
+        assertEquals(Key.Special.CTRL_G, InputDecoder.readKey(input(7)));
+        assertEquals(Key.Special.CTRL_K, InputDecoder.readKey(input(11)));
+        assertEquals(Key.Special.CTRL_U, InputDecoder.readKey(input(21)));
+        assertEquals(Key.Special.CTRL_W, InputDecoder.readKey(input(23)));
+    }
+
+    @Test
+    void mapsPrintableCharactersToCharKey() throws IOException {
+        assertEquals(new Key.Char('a'), InputDecoder.readKey(input('a')));
+        assertEquals(new Key.Char('Z'), InputDecoder.readKey(input('Z')));
+        assertEquals(new Key.Char(' '), InputDecoder.readKey(input(' ')));
+    }
+
+    @Test
+    void mapsSpecialCharactersToNamedKeys() throws IOException {
+        assertEquals(Key.Special.TAB, InputDecoder.readKey(input(9)));
+        assertEquals(Key.Special.NEWLINE, InputDecoder.readKey(input(10)));
+        assertEquals(Key.Special.ENTER, InputDecoder.readKey(input(13)));
+        assertEquals(Key.Special.BACKSPACE, InputDecoder.readKey(input(127)));
+    }
+
+    @Test
+    void mapsEscapeSequencesToArrowAndNavigationKeys() throws IOException {
+        assertEquals(Key.Special.UP, InputDecoder.readKey(input(27, '[', 'A')));
+        assertEquals(Key.Special.DOWN, InputDecoder.readKey(input(27, '[', 'B')));
+        assertEquals(Key.Special.RIGHT, InputDecoder.readKey(input(27, '[', 'C')));
+        assertEquals(Key.Special.LEFT, InputDecoder.readKey(input(27, '[', 'D')));
+        assertEquals(Key.Special.HOME, InputDecoder.readKey(input(27, '[', 'H')));
+        assertEquals(Key.Special.END, InputDecoder.readKey(input(27, '[', 'F')));
+        assertEquals(Key.Special.DELETE, InputDecoder.readKey(input(27, '[', '3', '~')));
+        assertEquals(Key.Special.SHIFT_TAB, InputDecoder.readKey(input(27, '[', 'Z')));
+    }
+
+    @Test
+    void mapsEscapeAloneToEscapeAndDoubleEscape() throws IOException {
+        assertEquals(Key.Special.ESC, InputDecoder.readKey(input(27)));
+        assertEquals(Key.Special.DOUBLE_ESC, InputDecoder.readKey(input(27, 27)));
+    }
+
+    @Test
+    void mapsAltAndCtrlArrowModifiersToNamedKeys() throws IOException {
+        assertEquals(Key.Special.ALT_D, InputDecoder.readKey(input(27, 'd')));
+        assertEquals(Key.Special.CTRL_RIGHT, InputDecoder.readKey(input(27, 'f')));
+    }
+
+    @Test
+    void mapsUnknownSequencesToUnknownKey() throws IOException {
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(27, '[', 'X')));
+    }
+
+    private static InputDecoder.Input input(int... chars) {
+        var it = Arrays.stream(chars).iterator();
+        return new InputDecoder.Input() {
+            @Override
+            public int read() {
+                return it.hasNext() ? it.next() : -1;
+            }
+        };
+    }
+}

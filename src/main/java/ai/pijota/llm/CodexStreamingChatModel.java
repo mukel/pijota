@@ -46,8 +46,8 @@ final class CodexStreamingChatModel implements StreamingChatModel {
     private final String providerName;
     private final ThinkingLevel thinkingLevel;
 
-    CodexStreamingChatModel(String baseUrl, String apiKey, String modelName,
-                            String providerName, ThinkingLevel thinkingLevel) {
+    CodexStreamingChatModel(String baseUrl, String apiKey, String modelName, String providerName,
+                                    ThinkingLevel thinkingLevel) {
         this.baseUrl = baseUrl != null && !baseUrl.isBlank() ? baseUrl : DEFAULT_BASE_URL;
         this.apiKey = apiKey;
         this.modelName = modelName;
@@ -60,18 +60,15 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         Thread.startVirtualThread(() -> {
             try {
                 var body = requestBody(request);
-                var httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(resolveCodexUrl(baseUrl)))
-                    .timeout(Duration.ofSeconds(300))
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("chatgpt-account-id", accountId())
-                    .header("originator", "pijota")
-                    .header("User-Agent", userAgent())
-                    .header("OpenAI-Beta", "responses=experimental")
-                    .header("accept", "text/event-stream")
-                    .header("content-type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
-                    .build();
+                var httpRequest = HttpRequest.newBuilder().uri(URI.create(resolveCodexUrl(baseUrl)))
+                                                .timeout(Duration.ofSeconds(300))
+                                                .header("Authorization", "Bearer " + apiKey)
+                                                .header("chatgpt-account-id", accountId())
+                                                .header("originator", "pijota").header("User-Agent", userAgent())
+                                                .header("OpenAI-Beta", "responses=experimental")
+                                                .header("accept", "text/event-stream")
+                                                .header("content-type", "application/json")
+                                                .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
                 var response = client.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
                     String error = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
@@ -96,9 +93,8 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         body.put("tool_choice", "auto");
         body.put("parallel_tool_calls", true);
         if (thinkingLevel != ThinkingLevel.OFF) {
-            body.set("reasoning", Util.MAPPER.createObjectNode()
-                .put("effort", codexThinkingLevel())
-                .put("summary", "auto"));
+            body.set("reasoning", Util.MAPPER.createObjectNode().put("effort", codexThinkingLevel()).put("summary",
+                                            "auto"));
         }
         if (request.toolSpecifications() != null && !request.toolSpecifications().isEmpty()) {
             body.set("tools", tools(request.toolSpecifications()));
@@ -108,7 +104,8 @@ final class CodexStreamingChatModel implements StreamingChatModel {
 
     private String systemPrompt(List<ChatMessage> messages) {
         for (var message : messages) {
-            if (message instanceof SystemMessage system) return system.text();
+            if (message instanceof SystemMessage system)
+                return system.text();
         }
         return "You are a helpful assistant.";
     }
@@ -116,7 +113,8 @@ final class CodexStreamingChatModel implements StreamingChatModel {
     private ArrayNode inputMessages(List<ChatMessage> messages) {
         var input = Util.MAPPER.createArrayNode();
         for (var message : messages) {
-            if (message instanceof SystemMessage) continue;
+            if (message instanceof SystemMessage)
+                continue;
             if (message instanceof UserMessage user) {
                 input.add(messageItem("message", "user", userText(user)));
             } else if (message instanceof AiMessage ai) {
@@ -145,21 +143,18 @@ final class CodexStreamingChatModel implements StreamingChatModel {
     }
 
     private String userText(UserMessage user) {
-        if (user.hasSingleText()) return user.singleText();
-        return user.contents().stream()
-            .map(Object::toString)
-            .reduce((a, b) -> a + "\n" + b)
-            .orElse("");
+        if (user.hasSingleText())
+            return user.singleText();
+        return user.contents().stream().map(Object::toString).reduce((a, b) -> a + "\n" + b).orElse("");
     }
 
     private ObjectNode messageItem(String type, String role, String text) {
         var item = Util.MAPPER.createObjectNode();
         item.put("type", type);
         item.put("role", role);
-        item.set("content", Util.MAPPER.createArrayNode().add(
-            Util.MAPPER.createObjectNode()
-                .put("type", role.equals("assistant") ? "output_text" : "input_text")
-                .put("text", text != null ? text : "")));
+        item.set("content", Util.MAPPER.createArrayNode().add(Util.MAPPER.createObjectNode()
+                                        .put("type", role.equals("assistant") ? "output_text" : "input_text")
+                                        .put("text", text != null ? text : "")));
         return item;
     }
 
@@ -169,18 +164,20 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             var tool = Util.MAPPER.createObjectNode();
             tool.put("type", "function");
             tool.put("name", spec.name());
-            if (spec.description() != null) tool.put("description", spec.description());
+            if (spec.description() != null)
+                tool.put("description", spec.description());
             try {
                 JsonNode json = Util.MAPPER.readTree(spec.toJson());
-                if (json.has("parameters")) tool.set("parameters", json.get("parameters"));
+                if (json.has("parameters"))
+                    tool.set("parameters", json.get("parameters"));
             } catch (Exception ignored) {}
             tools.add(tool);
         }
         return tools;
     }
 
-    private void streamResponse(HttpResponse<java.io.InputStream> response,
-                                StreamingChatResponseHandler handler) throws IOException {
+    private void streamResponse(HttpResponse<java.io.InputStream> response, StreamingChatResponseHandler handler)
+                                    throws IOException {
         var text = new StringBuilder();
         var toolCalls = new ArrayList<ToolExecutionRequest>();
         var seenToolCalls = new HashSet<String>();
@@ -192,9 +189,11 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (!line.startsWith("data:")) continue;
+                if (!line.startsWith("data:"))
+                    continue;
                 String data = line.substring(5).trim();
-                if (data.isEmpty() || data.equals("[DONE]")) continue;
+                if (data.isEmpty() || data.equals("[DONE]"))
+                    continue;
                 JsonNode event = Util.MAPPER.readTree(data);
                 String type = event.has("type") ? event.get("type").asText() : "";
                 if (log.isDebugEnabled()) {
@@ -203,15 +202,16 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                     long sinceStart = (now - streamStartNanos) / 1_000_000;
                     long sinceLast = (now - lastEventNanos) / 1_000_000;
                     lastEventNanos = now;
-                    log.debug("sse event #{}: type={} | +{}ms since start | +{}ms since last",
-                        sseCount, type, sinceStart, sinceLast);
+                    log.debug("sse event #{}: type={} | +{}ms since start | +{}ms since last", sseCount, type,
+                                                    sinceStart, sinceLast);
                 }
                 if (type.equals("response.output_text.delta") && event.has("delta")) {
                     String delta = event.get("delta").asText();
                     if (log.isDebugEnabled()) {
                         deltaCount++;
                         totalDeltaChars += delta.length();
-                        log.debug("  text delta #{}: {} chars (total {} chars)", deltaCount, delta.length(), totalDeltaChars);
+                        log.debug("  text delta #{}: {} chars (total {} chars)", deltaCount, delta.length(),
+                                                        totalDeltaChars);
                     }
                     text.append(delta);
                     handler.onPartialResponse(new PartialResponse(text.toString()), null);
@@ -224,54 +224,51 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                 }
             }
         }
-        var ai = toolCalls.isEmpty()
-            ? AiMessage.from(text.toString())
-            : AiMessage.from(text.toString(), toolCalls);
-        handler.onCompleteResponse(ChatResponse.builder()
-            .aiMessage(ai)
-            .tokenUsage(new TokenUsage())
-            .build());
+        var ai = toolCalls.isEmpty() ? AiMessage.from(text.toString()) : AiMessage.from(text.toString(), toolCalls);
+        handler.onCompleteResponse(ChatResponse.builder().aiMessage(ai).tokenUsage(new TokenUsage()).build());
     }
 
     private void collectCompleted(JsonNode response, List<ToolExecutionRequest> toolCalls,
-                                  HashSet<String> seenToolCalls) {
+                                    HashSet<String> seenToolCalls) {
         var output = response.get("output");
-        if (output == null || !output.isArray()) return;
-        for (var item : output) addToolCall(item, toolCalls, seenToolCalls);
+        if (output == null || !output.isArray())
+            return;
+        for (var item : output)
+            addToolCall(item, toolCalls, seenToolCalls);
     }
 
-    private void addToolCall(JsonNode item, List<ToolExecutionRequest> toolCalls,
-                             HashSet<String> seenToolCalls) {
-        if (item == null || !"function_call".equals(item.path("type").asText())) return;
+    private void addToolCall(JsonNode item, List<ToolExecutionRequest> toolCalls, HashSet<String> seenToolCalls) {
+        if (item == null || !"function_call".equals(item.path("type").asText()))
+            return;
         String callId = item.path("call_id").asText(item.path("id").asText());
         String name = item.path("name").asText();
-        if (callId.isBlank() || name.isBlank()) return;
-        if (!seenToolCalls.add(callId)) return;
-        toolCalls.add(ToolExecutionRequest.builder()
-            .id(callId)
-            .name(name)
-            .arguments(item.path("arguments").asText("{}"))
-            .build());
+        if (callId.isBlank() || name.isBlank())
+            return;
+        if (!seenToolCalls.add(callId))
+            return;
+        toolCalls.add(ToolExecutionRequest.builder().id(callId).name(name)
+                                        .arguments(item.path("arguments").asText("{}")).build());
     }
 
     private String accountId() {
         String fromStore = new OAuthTokenStore().getAccountId(providerName);
-        if (fromStore != null && !fromStore.isBlank()) return fromStore;
+        if (fromStore != null && !fromStore.isBlank())
+            return fromStore;
         String fromToken = extractAccountId(apiKey);
-        if (fromToken != null && !fromToken.isBlank()) return fromToken;
+        if (fromToken != null && !fromToken.isBlank())
+            return fromToken;
         throw new IllegalStateException("missing ChatGPT account id for " + providerName);
     }
 
     private static String extractAccountId(String token) {
         try {
             var parts = token.split("\\.");
-            if (parts.length != 3) return null;
+            if (parts.length != 3)
+                return null;
             byte[] decoded = java.util.Base64.getUrlDecoder().decode(padBase64(parts[1]));
             var node = Util.MAPPER.readTree(decoded);
             var auth = node.get("https://api.openai.com/auth");
-            return auth != null && auth.has("chatgpt_account_id")
-                ? auth.get("chatgpt_account_id").asText()
-                : null;
+            return auth != null && auth.has("chatgpt_account_id") ? auth.get("chatgpt_account_id").asText() : null;
         } catch (Exception e) {
             return null;
         }
@@ -284,8 +281,10 @@ final class CodexStreamingChatModel implements StreamingChatModel {
 
     private static String resolveCodexUrl(String baseUrl) {
         String normalized = (baseUrl == null || baseUrl.isBlank() ? DEFAULT_BASE_URL : baseUrl).replaceAll("/+$", "");
-        if (normalized.endsWith("/codex/responses")) return normalized;
-        if (normalized.endsWith("/codex")) return normalized + "/responses";
+        if (normalized.endsWith("/codex/responses"))
+            return normalized;
+        if (normalized.endsWith("/codex"))
+            return normalized + "/responses";
         return normalized + "/codex/responses";
     }
 

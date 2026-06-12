@@ -24,13 +24,11 @@ public final class CompactionManager {
     private volatile CompactionAppender sessionAppender;
     private volatile String previousSummary;
 
-
     public CompactionManager(SummaryGenerator summaryGenerator) {
         this(DEFAULT_CONTEXT_WINDOW, new AppConfig.CompactionConfig(), summaryGenerator);
     }
 
-    public CompactionManager(int contextWindow, AppConfig.CompactionConfig config,
-                             SummaryGenerator summaryGenerator) {
+    public CompactionManager(int contextWindow, AppConfig.CompactionConfig config, SummaryGenerator summaryGenerator) {
         var cfg = config != null ? config : new AppConfig.CompactionConfig();
         this.contextWindow = contextWindow;
         this.enabled = cfg.enabled();
@@ -40,7 +38,8 @@ public final class CompactionManager {
     }
 
     public void setContextWindow(int contextWindow) {
-        if (contextWindow > 0) this.contextWindow = contextWindow;
+        if (contextWindow > 0)
+            this.contextWindow = contextWindow;
     }
 
     public void setEnabled(boolean enabled) {
@@ -51,9 +50,8 @@ public final class CompactionManager {
         this.sessionAppender = appender;
     }
 
-    public CompactionResult checkAndCompact(
-            List<Message> messages,
-            java.util.function.Consumer<List<Message>> onCompact) {
+    public CompactionResult checkAndCompact(List<Message> messages,
+                                    java.util.function.Consumer<List<Message>> onCompact) {
 
         int estimatedChars = estimateChars(messages);
         int estimatedTokens = estimateTokens(messages);
@@ -67,40 +65,37 @@ public final class CompactionManager {
         return new CompactionResult(true, estimatedChars, estimatedTokens, compactedCount);
     }
 
-    public CompactionResult compactNow(
-            List<Message> messages,
-            String instructions,
-            java.util.function.Consumer<List<Message>> onCompact) {
+    public CompactionResult compactNow(List<Message> messages, String instructions,
+                                    java.util.function.Consumer<List<Message>> onCompact) {
         return compactNow(messages, instructions, onCompact, null);
     }
 
-    public CompactionResult compactNow(
-            List<Message> messages,
-            String instructions,
-            java.util.function.Consumer<List<Message>> onCompact,
-            BiConsumer<String, String> onPartial) {
+    public CompactionResult compactNow(List<Message> messages, String instructions,
+                                    java.util.function.Consumer<List<Message>> onCompact,
+                                    BiConsumer<String, String> onPartial) {
         int estimatedChars = estimateChars(messages);
         int estimatedTokens = estimateTokens(messages);
         int compactedCount = compact(messages, instructions, onCompact, onPartial);
         return new CompactionResult(compactedCount > 0, estimatedChars, estimatedTokens, compactedCount);
     }
 
-    private int compact(List<Message> messages,
-                         String instructions,
-                         java.util.function.Consumer<List<Message>> onCompact,
-                         BiConsumer<String, String> onPartial) {
+    private int compact(List<Message> messages, String instructions,
+                                    java.util.function.Consumer<List<Message>> onCompact,
+                                    BiConsumer<String, String> onPartial) {
         int keepFrom = messages.size();
         int recentTokens = 0;
 
         for (int i = messages.size() - 1; i >= 1; i--) {
             recentTokens += estimateTokens(messages.get(i));
             keepFrom = i;
-            if (recentTokens >= keepRecentTokens) break;
+            if (recentTokens >= keepRecentTokens)
+                break;
         }
 
         keepFrom = ensureToolCallOwners(messages, keepFrom);
 
-        if (keepFrom <= 2) return 0;
+        if (keepFrom <= 2)
+            return 0;
 
         List<Message> toSummarize = sanitizedCopy(messages.subList(1, keepFrom));
         String summary;
@@ -114,8 +109,7 @@ public final class CompactionManager {
             summary = null;
         }
         if (summary == null || summary.isBlank()) {
-            summary = "[degraded — LLM summarizer unavailable] "
-                + summarize(toSummarize);
+            summary = "[degraded — LLM summarizer unavailable] " + summarize(toSummarize);
         }
         summary = ai.pijota.util.Util.stripSystemReminders(summary).strip();
         previousSummary = summary;
@@ -136,7 +130,8 @@ public final class CompactionManager {
             try {
                 sessionAppender.accept(summary, keepFrom - 1, firstKept);
             } catch (Exception e) {
-                log.warn("Failed to persist compaction summary", e);}
+                log.warn("Failed to persist compaction summary", e);
+            }
         }
 
         onCompact.accept(List.copyOf(compactedList));
@@ -151,7 +146,8 @@ public final class CompactionManager {
                 referencedIds.add(tr.toolCallId());
             }
         }
-        if (referencedIds.isEmpty()) return keepFrom;
+        if (referencedIds.isEmpty())
+            return keepFrom;
 
         for (int i = keepFrom - 1; i >= 1; i--) {
             if (messages.get(i) instanceof Message.Assistant a && a.toolCalls() != null) {
@@ -169,12 +165,14 @@ public final class CompactionManager {
     private String summarize(List<Message> toSummarize) {
         int users = 0, assistants = 0, toolResults = 0;
         for (var msg : toSummarize) {
-            if (msg instanceof Message.User) users++;
-            else if (msg instanceof Message.Assistant) assistants++;
-            else if (msg instanceof Message.ToolResult) toolResults++;
+            if (msg instanceof Message.User)
+                users++;
+            else if (msg instanceof Message.Assistant)
+                assistants++;
+            else if (msg instanceof Message.ToolResult)
+                toolResults++;
         }
-        return users + " user message(s), " + assistants + " assistant response(s), "
-            + toolResults + " tool result(s)";
+        return users + " user message(s), " + assistants + " assistant response(s), " + toolResults + " tool result(s)";
     }
 
     private static List<Message> sanitizedCopy(List<Message> messages) {
@@ -188,11 +186,13 @@ public final class CompactionManager {
     private static Message sanitize(Message msg) {
         return switch (msg) {
             case Message.User u -> new Message.User(u.id(), u.timestamp(), strip(u.content()));
-            case Message.Assistant a -> new Message.Assistant(a.id(), a.timestamp(), strip(a.content()),
-                a.toolCalls(), strip(a.thinking()), a.sourceProvider(), a.sourceModel());
-            case Message.ToolResult tr -> new Message.ToolResult(tr.id(), tr.timestamp(), tr.toolCallId(), tr.toolName(), strip(tr.content()), tr.isError(), tr.details());
+            case Message.Assistant a -> new Message.Assistant(a.id(), a.timestamp(), strip(a.content()), a.toolCalls(),
+                                            strip(a.thinking()), a.sourceProvider(), a.sourceModel());
+            case Message.ToolResult tr -> new Message.ToolResult(tr.id(), tr.timestamp(), tr.toolCallId(),
+                                            tr.toolName(), strip(tr.content()), tr.isError(), tr.details());
             case Message.System s -> new Message.System(s.id(), s.timestamp(), strip(s.content()));
-            case Message.CompactionSummary cs -> new Message.CompactionSummary(cs.id(), cs.timestamp(), strip(cs.summary()));
+            case Message.CompactionSummary cs ->
+                new Message.CompactionSummary(cs.id(), cs.timestamp(), strip(cs.summary()));
             case Message.BranchSummary bs -> new Message.BranchSummary(bs.id(), bs.timestamp(), strip(bs.summary()));
             case Message.Custom c -> c;
         };
@@ -204,13 +204,15 @@ public final class CompactionManager {
 
     public static int estimateChars(List<Message> messages) {
         int total = 0;
-        for (var msg : messages) total += charCount(msg);
+        for (var msg : messages)
+            total += charCount(msg);
         return total;
     }
 
     public static int estimateTokens(List<Message> messages) {
         int total = 0;
-        for (var msg : messages) total += estimateTokens(msg);
+        for (var msg : messages)
+            total += estimateTokens(msg);
         return Math.max(1, total);
     }
 
@@ -223,43 +225,57 @@ public final class CompactionManager {
     }
 
     private static int charCount(Message msg) {
-        if (msg instanceof Message.User u) return u.content().length();
+        if (msg instanceof Message.User u)
+            return u.content().length();
         if (msg instanceof Message.Assistant a) {
             int chars = a.content() != null ? a.content().length() : 0;
-            if (a.thinking() != null) chars += a.thinking().length();
+            if (a.thinking() != null)
+                chars += a.thinking().length();
             return chars;
         }
-        if (msg instanceof Message.ToolResult tr) return tr.content().length();
-        if (msg instanceof Message.System s) return s.content().length();
-        if (msg instanceof Message.CompactionSummary cs) return cs.summary().length();
-        if (msg instanceof Message.BranchSummary bs) return bs.summary().length();
+        if (msg instanceof Message.ToolResult tr)
+            return tr.content().length();
+        if (msg instanceof Message.System s)
+            return s.content().length();
+        if (msg instanceof Message.CompactionSummary cs)
+            return cs.summary().length();
+        if (msg instanceof Message.BranchSummary bs)
+            return bs.summary().length();
         return 0;
     }
 
     private static int tokenCount(Message msg) {
-        if (msg instanceof Message.User u) return estimateTextTokens(u.content());
+        if (msg instanceof Message.User u)
+            return estimateTextTokens(u.content());
         if (msg instanceof Message.Assistant a) {
             int tokens = estimateTextTokens(a.content());
-            if (a.thinking() != null) tokens += estimateTextTokens(a.thinking());
-            if (a.toolCalls() != null) tokens += a.toolCalls().size() * 200;
+            if (a.thinking() != null)
+                tokens += estimateTextTokens(a.thinking());
+            if (a.toolCalls() != null)
+                tokens += a.toolCalls().size() * 200;
             return tokens;
         }
-        if (msg instanceof Message.ToolResult tr) return estimateTextTokens(tr.content());
-        if (msg instanceof Message.System s) return estimateTextTokens(s.content());
-        if (msg instanceof Message.CompactionSummary cs) return estimateTextTokens(cs.summary());
-        if (msg instanceof Message.BranchSummary bs) return estimateTextTokens(bs.summary());
+        if (msg instanceof Message.ToolResult tr)
+            return estimateTextTokens(tr.content());
+        if (msg instanceof Message.System s)
+            return estimateTextTokens(s.content());
+        if (msg instanceof Message.CompactionSummary cs)
+            return estimateTextTokens(cs.summary());
+        if (msg instanceof Message.BranchSummary bs)
+            return estimateTextTokens(bs.summary());
         return 100;
     }
 
     static int estimateTextTokens(String text) {
-        if (text == null || text.isEmpty()) return 0;
+        if (text == null || text.isEmpty())
+            return 0;
         return (int) Math.ceil(text.length() / 4.0);
     }
 
     @FunctionalInterface
     public interface SummaryGenerator {
         String generate(List<Message> toSummarize, String instructions, String previousSummary,
-                        BiConsumer<String, String> onPartial);
+                                        BiConsumer<String, String> onPartial);
     }
 
     @FunctionalInterface
@@ -267,5 +283,6 @@ public final class CompactionManager {
         void accept(String summary, int compactedCount, String firstKeptEntryId);
     }
 
-    public record CompactionResult(boolean compacted, int estimatedChars, int estimatedTokens, int compactedCount) {}
+    public record CompactionResult(boolean compacted, int estimatedChars, int estimatedTokens, int compactedCount) {
+    }
 }

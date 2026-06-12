@@ -13,11 +13,29 @@ public final class ExtensionContext {
         this.runtime = runtime;
     }
 
-    public UiContext ui() { return ui; }
-    public ExtensionRuntime runtime() { return runtime; }
+    public UiContext ui() {
+        return ui;
+    }
 
-    public boolean hasUI() { return ui != null; }
-    public List<Message> messages() { return runtime != null ? runtime.messages() : List.of(); }
-    public void compact(String instructions) { if (runtime != null) runtime.compact(instructions); }
-    public void shutdown() { if (runtime != null && !runtime.isClosed()) runtime.abort(); }
+    public ExtensionRuntime runtime() {
+        return runtime;
+    }
+
+    public boolean hasUI() {
+        return ui != null;
+    }
+
+    public List<Message> messages() {
+        return runtime != null ? runtime.messages() : List.of();
+    }
+
+    public void compact(String instructions) {
+        if (runtime != null)
+            runtime.compact(instructions);
+    }
+
+    public void shutdown() {
+        if (runtime != null && !runtime.isClosed())
+            runtime.abort();
+    }
 }

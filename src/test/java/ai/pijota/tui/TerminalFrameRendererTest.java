@@ -13,7 +13,8 @@ class TerminalFrameRendererTest {
     void rendersAppendOnlyFrameWithoutStartingWriterThread() {
         var renderer = new TerminalFrameRenderer(new PromptLayout(List.of()));
 
-        var frame = renderer.renderFrame(80, null, List.of(StyledLine.of("assistant output")), true, false, AnsiTheme.dark());
+        var frame = renderer.renderFrame(80, null, List.of(StyledLine.of("assistant output")), true, false,
+                                        AnsiTheme.dark());
 
         assertTrue(frame.startsWith(TerminalFrameRenderer.BEGIN_SYNC));
         assertTrue(frame.contains(TerminalFrameRenderer.HIDE_CURSOR));

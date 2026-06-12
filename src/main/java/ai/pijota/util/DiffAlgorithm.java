@@ -7,10 +7,14 @@ import java.util.List;
 public final class DiffAlgorithm {
     private DiffAlgorithm() {}
 
-    public enum Kind { CONTEXT, ADD, DELETE }
+    public enum Kind {
+        CONTEXT, ADD, DELETE
+    }
 
-    public record Row(Kind kind, int oldLine, int newLine, String text) {}
-    public record Hunk(List<Row> rows) {}
+    public record Row(Kind kind, int oldLine, int newLine, String text) {
+    }
+    public record Hunk(List<Row> rows) {
+    }
 
     public static List<Row> diff(String oldText, String newText) {
         String[] a = oldText != null && !oldText.isEmpty() ? oldText.split("\\R", -1) : new String[0];
@@ -20,9 +24,18 @@ public final class DiffAlgorithm {
         int oldLine = 1, newLine = 1;
         for (var edit : edits) {
             switch (edit.kind) {
-                case 0 -> { for (int i = 0; i < edit.len; i++) out.add(new Row(Kind.CONTEXT, oldLine++, newLine++, a[edit.oldStart + i])); }
-                case -1 -> { for (int i = 0; i < edit.len; i++) out.add(new Row(Kind.DELETE, oldLine++, 0, a[edit.oldStart + i])); }
-                case 1 -> { for (int i = 0; i < edit.len; i++) out.add(new Row(Kind.ADD, 0, newLine++, b[edit.newStart + i])); }
+                case 0 -> {
+                    for (int i = 0; i < edit.len; i++)
+                        out.add(new Row(Kind.CONTEXT, oldLine++, newLine++, a[edit.oldStart + i]));
+                }
+                case -1 -> {
+                    for (int i = 0; i < edit.len; i++)
+                        out.add(new Row(Kind.DELETE, oldLine++, 0, a[edit.oldStart + i]));
+                }
+                case 1 -> {
+                    for (int i = 0; i < edit.len; i++)
+                        out.add(new Row(Kind.ADD, 0, newLine++, b[edit.newStart + i]));
+                }
             }
         }
         return out;
@@ -32,15 +45,22 @@ public final class DiffAlgorithm {
         var out = new ArrayList<Hunk>();
         int i = 0;
         while (i < rows.size()) {
-            while (i < rows.size() && rows.get(i).kind() == Kind.CONTEXT) i++;
-            if (i >= rows.size()) break;
+            while (i < rows.size() && rows.get(i).kind() == Kind.CONTEXT)
+                i++;
+            if (i >= rows.size())
+                break;
             int start = Math.max(0, i - context);
             int lastChange = i;
             int nextStart = rows.size();
             for (int j = i + 1; j < rows.size(); j++) {
-                if (rows.get(j).kind() == Kind.CONTEXT) continue;
-                if (j - lastChange <= context * 2 + 1) lastChange = j;
-                else { nextStart = j; break; }
+                if (rows.get(j).kind() == Kind.CONTEXT)
+                    continue;
+                if (j - lastChange <= context * 2 + 1)
+                    lastChange = j;
+                else {
+                    nextStart = j;
+                    break;
+                }
             }
             int end = Math.min(rows.size(), lastChange + context + 1);
             out.add(new Hunk(List.copyOf(rows.subList(start, end))));
@@ -57,29 +77,38 @@ public final class DiffAlgorithm {
         return rows.stream().filter(r -> r.newLine() > 0).mapToInt(Row::newLine).findFirst().orElse(0);
     }
 
-    public static long countOld(List<Row> rows) { return rows.stream().filter(r -> r.oldLine() > 0).count(); }
-    public static long countNew(List<Row> rows) { return rows.stream().filter(r -> r.newLine() > 0).count(); }
+    public static long countOld(List<Row> rows) {
+        return rows.stream().filter(r -> r.oldLine() > 0).count();
+    }
 
-    private record Edit(int kind, int oldStart, int newStart, int len) {}
+    public static long countNew(List<Row> rows) {
+        return rows.stream().filter(r -> r.newLine() > 0).count();
+    }
+
+    private record Edit(int kind, int oldStart, int newStart, int len) {
+    }
 
     private static List<Edit> myersDiff(String[] a, String[] b) {
         int n = a.length, m = b.length;
-        if (n == 0 && m == 0) return List.of();
-        if (n == 0) return List.of(new Edit(1, 0, 0, m));
-        if (m == 0) return List.of(new Edit(-1, 0, 0, n));
+        if (n == 0 && m == 0)
+            return List.of();
+        if (n == 0)
+            return List.of(new Edit(1, 0, 0, m));
+        if (m == 0)
+            return List.of(new Edit(-1, 0, 0, n));
 
         int prefix = 0;
-        while (prefix < n && prefix < m && a[prefix].equals(b[prefix])) prefix++;
+        while (prefix < n && prefix < m && a[prefix].equals(b[prefix]))
+            prefix++;
 
         int suffix = 0;
-        while (prefix + suffix < n
-            && prefix + suffix < m
-            && a[n - 1 - suffix].equals(b[m - 1 - suffix])) {
+        while (prefix + suffix < n && prefix + suffix < m && a[n - 1 - suffix].equals(b[m - 1 - suffix])) {
             suffix++;
         }
 
         var edits = new ArrayList<Edit>();
-        if (prefix > 0) edits.add(new Edit(0, 0, 0, prefix));
+        if (prefix > 0)
+            edits.add(new Edit(0, 0, 0, prefix));
 
         int middleN = n - prefix - suffix;
         int middleM = m - prefix - suffix;
@@ -97,7 +126,8 @@ public final class DiffAlgorithm {
             }
         }
 
-        if (suffix > 0) edits.add(new Edit(0, n - suffix, m - suffix, suffix));
+        if (suffix > 0)
+            edits.add(new Edit(0, n - suffix, m - suffix, suffix));
         return edits;
     }
 
@@ -121,7 +151,8 @@ public final class DiffAlgorithm {
                 }
                 int y = x - k;
                 while (x < n && y < m && a[x].equals(b[y])) {
-                    x++; y++;
+                    x++;
+                    y++;
                 }
                 v[idx] = x;
                 if (x >= n && y >= m) {
@@ -144,8 +175,7 @@ public final class DiffAlgorithm {
         return compactV[k + d];
     }
 
-    private static List<Edit> backtrack(List<int[]> trace, int d, int k,
-                                         String[] a, String[] b, int n, int m) {
+    private static List<Edit> backtrack(List<int[]> trace, int d, int k, String[] a, String[] b, int n, int m) {
         var edits = new ArrayList<Edit>();
         int x = n, y = m;
 
@@ -192,7 +222,10 @@ public final class DiffAlgorithm {
             int commonLen = Math.min(x, y);
             boolean allMatch = true;
             for (int i = 0; i < commonLen; i++) {
-                if (!a[i].equals(b[i])) { allMatch = false; break; }
+                if (!a[i].equals(b[i])) {
+                    allMatch = false;
+                    break;
+                }
             }
             if (allMatch)
                 edits.addFirst(new Edit(0, 0, 0, commonLen));

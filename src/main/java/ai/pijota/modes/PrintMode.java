@@ -36,16 +36,16 @@ public final class PrintMode {
         }
     }
 
-    private static List<Message> streamAndWait(String prompt, AgentLoop agentLoop,
-                                               Args.OutputMode outputMode)
-            throws ExecutionException, InterruptedException {
+    private static List<Message> streamAndWait(String prompt, AgentLoop agentLoop, Args.OutputMode outputMode)
+                                    throws ExecutionException, InterruptedException {
         var lastContent = new AtomicReference<>("");
         var done = new CompletableFuture<List<Message>>();
         var textStarted = new AtomicBoolean(false);
 
         Consumer<AgentEvent> listener = event -> {
             if (event instanceof AgentEvent.AssistantMessage(var msg, var usage)) {
-                if (outputMode == Args.OutputMode.JSON) return;
+                if (outputMode == Args.OutputMode.JSON)
+                    return;
                 String content = msg.content() == null ? "" : msg.content();
                 String prev = lastContent.get();
                 if (content.startsWith(prev)) {
@@ -53,16 +53,22 @@ public final class PrintMode {
                     if (!delta.isEmpty()) {
                         textStarted.set(true);
                         System.out.print(delta);
-                        try { System.out.flush(); } catch (Exception ignored) {}
+                        try {
+                            System.out.flush();
+                        } catch (Exception ignored) {}
                     }
                 }
                 lastContent.set(content);
                 if (usage != null && !done.isDone()) {
-                    if (textStarted.get()) System.out.println();
-                    try { System.out.flush(); } catch (Exception ignored) {}
+                    if (textStarted.get())
+                        System.out.println();
+                    try {
+                        System.out.flush();
+                    } catch (Exception ignored) {}
                 }
             } else if (event instanceof AgentEvent.Error(var t)) {
-                if (!done.isDone()) done.completeExceptionally(t);
+                if (!done.isDone())
+                    done.completeExceptionally(t);
             }
         };
         agentLoop.addEventListener(listener);
@@ -70,8 +76,10 @@ public final class PrintMode {
         try {
             var future = agentLoop.prompt(prompt);
             future.whenComplete((result, error) -> {
-                if (error != null) done.completeExceptionally(error);
-                else done.complete(result);
+                if (error != null)
+                    done.completeExceptionally(error);
+                else
+                    done.complete(result);
             });
             return done.get();
         } finally {
@@ -85,14 +93,13 @@ public final class PrintMode {
         System.out.println("  \"messages\": [");
         boolean first = true;
         for (var msg : result) {
-            if (msg instanceof Message.Assistant a
-                && a.content() != null && !a.content().isBlank()) {
-                if (!first) System.out.println(",");
+            if (msg instanceof Message.Assistant a && a.content() != null && !a.content().isBlank()) {
+                if (!first)
+                    System.out.println(",");
                 first = false;
                 System.out.println("    {");
                 System.out.println("      \"role\": \"assistant\",");
-                System.out.println("      \"content\": \""
-                    + Util.escapeJson(a.content()) + "\"");
+                System.out.println("      \"content\": \"" + Util.escapeJson(a.content()) + "\"");
                 System.out.print("    }");
             }
         }

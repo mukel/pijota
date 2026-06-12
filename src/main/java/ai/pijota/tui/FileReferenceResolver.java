@@ -43,7 +43,8 @@ final class FileReferenceResolver {
     private String resolve(String ref) {
         try {
             String raw = cwd.toString().replaceAll("\\(.*\\)", "").strip();
-            if (raw.startsWith("~")) raw = System.getProperty("user.home") + raw.substring(1);
+            if (raw.startsWith("~"))
+                raw = System.getProperty("user.home") + raw.substring(1);
             Path base = Path.of(raw);
             if (ref.startsWith("~")) {
                 String home = System.getProperty("user.home");
@@ -59,24 +60,31 @@ final class FileReferenceResolver {
                     pattern = ref.substring(slash + 1);
                 }
                 try (var stream = Files.newDirectoryStream(globBase, pattern)) {
-                    for (Path p : stream) matches.add(p);
+                    for (Path p : stream)
+                        matches.add(p);
                 } catch (Exception ignored) {}
-                if (matches.isEmpty()) return "";
+                if (matches.isEmpty())
+                    return "";
                 matches.sort(null);
                 var sb = new StringBuilder();
                 for (Path p : matches) {
                     sb.append('\n');
-                    sb.append(p).append(":\n```").append(SyntaxHighlighter.languageForFilename(p.getFileName().toString())).append('\n');
+                    sb.append(p).append(":\n```").append(
+                                                    SyntaxHighlighter.languageForFilename(p.getFileName().toString()))
+                                                    .append('\n');
                     sb.append(Files.readString(p)).append('\n');
                     sb.append("```\n");
                 }
                 return sb.toString();
             }
             Path file = base.resolve(ref).normalize();
-            if (!Files.isRegularFile(file)) return "";
+            if (!Files.isRegularFile(file))
+                return "";
             String content = Files.readString(file);
-            if (content.length() > 32_000) content = content.substring(0, 32_000) + "\n... (truncated)";
-            return "\n" + file + ":\n```" + SyntaxHighlighter.languageForFilename(file.getFileName().toString()) + "\n" + content + "\n```\n";
+            if (content.length() > 32_000)
+                content = content.substring(0, 32_000) + "\n... (truncated)";
+            return "\n" + file + ":\n```" + SyntaxHighlighter.languageForFilename(file.getFileName().toString()) + "\n"
+                                            + content + "\n```\n";
         } catch (Exception ignored) {}
         return "";
     }

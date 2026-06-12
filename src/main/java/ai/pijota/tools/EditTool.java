@@ -16,53 +16,51 @@ import java.util.concurrent.CompletableFuture;
 
 public final class EditTool implements Tool {
 
-    @Override public String name() { return "edit"; }
+    @Override
+    public String name() {
+        return "edit";
+    }
 
     @Override
     public String description() {
         return "Edit a single file using exact text replacement. Every edits[].oldText must match "
-            + "a unique, non-overlapping region of the original file. If two changes affect the same "
-            + "block or nearby lines, merge them into one edit instead of emitting overlapping edits. "
-            + "Do not include large unchanged regions just to connect distant changes.";
+                                        + "a unique, non-overlapping region of the original file. If two changes affect the same "
+                                        + "block or nearby lines, merge them into one edit instead of emitting overlapping edits. "
+                                        + "Do not include large unchanged regions just to connect distant changes.";
     }
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "path", Map.of("type", "string",
-                    "description", "Path to the file to edit (relative or absolute)"),
-                "edits", Map.of("type", "array",
-                    "description", "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
-                    "items", Map.of("type", "object",
-                    "properties", Map.of(
-                        "oldText", Map.of("type", "string",
-                            "description", "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."),
-                        "newText", Map.of("type", "string",
-                            "description", "Replacement text for this targeted edit.")
-                    ),
-                    "required", List.of("oldText", "newText")
-                ))
-            ),
-            "required", List.of("path", "edits"),
-            "additionalProperties", false
-        );
+        return Map.of("type", "object", "properties", Map.of("path", Map.of("type", "string", "description",
+                                        "Path to the file to edit (relative or absolute)"), "edits",
+                                        Map.of("type", "array", "description",
+                                                                        "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
+                                                                        "items",
+                                                                        Map.of("type", "object", "properties", Map.of(
+                                                                                                        "oldText",
+                                                                                                        Map.of("type", "string", "description",
+                                                                                                                                        "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."),
+                                                                                                        "newText",
+                                                                                                        Map.of("type", "string", "description",
+                                                                                                                                        "Replacement text for this targeted edit.")),
+                                                                                                        "required",
+                                                                                                        List.of("oldText", "newText")))),
+                                        "required", List.of("path", "edits"), "additionalProperties", false);
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(
-            String toolCallId, Map<String, Object> args, String cwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String pathStr = Util.resolvePath(args, cwd);
-                if (pathStr == null) return ToolResult.error("No path provided");
+                if (pathStr == null)
+                    return ToolResult.error("No path provided");
 
                 Path path = Path.of(pathStr);
                 return FileMutationQueue.run(path, () -> editFile(path, args));
-        } catch (Exception e) {
-            return ToolResult.error("Edit error: " + e.getMessage());
-        }
+            } catch (Exception e) {
+                return ToolResult.error("Edit error: " + e.getMessage());
+            }
         });
     }
 
@@ -71,8 +69,8 @@ public final class EditTool implements Tool {
             return ToolResult.error("Cannot read/write: " + path);
 
         var edits = extractEdits(args);
-        if (edits.isEmpty()) return ToolResult.error("Edit tool input is invalid. "
-            + "edits must contain at least one replacement.");
+        if (edits.isEmpty())
+            return ToolResult.error("Edit tool input is invalid. " + "edits must contain at least one replacement.");
 
         String original = Files.readString(path);
         String rawContent = stripBom(original);
@@ -93,15 +91,18 @@ public final class EditTool implements Tool {
                 matches.add(new ExactMatch(i, oldLF, newLF, content.indexOf(oldLF)));
             } else if (exactCount > 1) {
                 errors.add("edit[" + i + "]: oldText matches " + exactCount
-                    + " locations (must be unique). Add more surrounding context.");
+                                                + " locations (must be unique). Add more surrounding context.");
             } else {
                 var fuzzy = tryFuzzyMatch(content, oldLF, newLF, i);
-                if (fuzzy != null) matches.add(fuzzy);
-                else errors.add("edit[" + i + "]: oldText not found in file.");
+                if (fuzzy != null)
+                    matches.add(fuzzy);
+                else
+                    errors.add("edit[" + i + "]: oldText not found in file.");
             }
         }
 
-        if (!errors.isEmpty()) return ToolResult.error(String.join("\n", errors));
+        if (!errors.isEmpty())
+            return ToolResult.error(String.join("\n", errors));
 
         matches.sort(Comparator.comparingInt(MatchResult::start));
         for (int i = 1; i < matches.size(); i++) {
@@ -109,10 +110,11 @@ public final class EditTool implements Tool {
             var current = matches.get(i);
             if (previous.start() + previous.oldText().length() > current.start()) {
                 errors.add("edits[" + previous.index() + "] and edits[" + current.index()
-                    + "] overlap. Merge them into one edit or target disjoint regions.");
+                                                + "] overlap. Merge them into one edit or target disjoint regions.");
             }
         }
-        if (!errors.isEmpty()) return ToolResult.error(String.join("\n", errors));
+        if (!errors.isEmpty())
+            return ToolResult.error(String.join("\n", errors));
 
         String result = content;
         boolean usedFuzzy = matches.stream().anyMatch(m -> m instanceof FuzzyMatch);
@@ -121,13 +123,13 @@ public final class EditTool implements Tool {
             for (var m : matches) {
                 String oldNormalized = m instanceof FuzzyMatch ? normalizeForFuzzyMatch(m.oldText()) : m.oldText();
                 result = result.substring(0, m.start()) + m.newText()
-                    + result.substring(m.start() + oldNormalized.length());
+                                                + result.substring(m.start() + oldNormalized.length());
             }
         } else {
             matches.sort(Comparator.comparingInt(MatchResult::start).reversed());
             for (var m : matches) {
                 result = result.substring(0, m.start()) + m.newText()
-                    + result.substring(m.start() + m.oldText().length());
+                                                + result.substring(m.start() + m.oldText().length());
             }
         }
 
@@ -137,13 +139,10 @@ public final class EditTool implements Tool {
 
         Files.writeString(path, restoreLineEndings(result, lineEnding), StandardOpenOption.TRUNCATE_EXISTING);
 
-        var details = Map.<String, Object>of(
-            "diff", displayDiff(content, result),
-            "patch", unifiedPatch(path.toString(), content, result),
-            "firstChangedLine", firstChangedLine(content, result)
-        );
-        return ToolResult.success("Successfully replaced " + matches.size()
-            + " block(s) in " + path + ".", details);
+        var details = Map.<String, Object>of("diff", displayDiff(content, result), "patch",
+                                        unifiedPatch(path.toString(), content, result), "firstChangedLine",
+                                        firstChangedLine(content, result));
+        return ToolResult.success("Successfully replaced " + matches.size() + " block(s) in " + path + ".", details);
     }
 
     @SuppressWarnings("unchecked")
@@ -155,7 +154,8 @@ public final class EditTool implements Tool {
                 if (item instanceof Map<?, ?> m) {
                     String oldT = (String) m.get("oldText");
                     String newT = (String) m.get("newText");
-                    if (oldT != null && newT != null) edits.add(new Edit(oldT, newT));
+                    if (oldT != null && newT != null)
+                        edits.add(new Edit(oldT, newT));
                 }
             }
         }
@@ -163,12 +163,12 @@ public final class EditTool implements Tool {
         if (edits.isEmpty() && editsObj instanceof String s) {
             try {
                 @SuppressWarnings("unchecked")
-                var parsed = (List<Map<String, Object>>)
-                    Util.MAPPER.readValue(s, List.class);
+                var parsed = (List<Map<String, Object>>) Util.MAPPER.readValue(s, List.class);
                 for (var m : parsed) {
                     String oldT = (String) m.get("oldText");
                     String newT = (String) m.get("newText");
-                    if (oldT != null && newT != null) edits.add(new Edit(oldT, newT));
+                    if (oldT != null && newT != null)
+                        edits.add(new Edit(oldT, newT));
                 }
             } catch (Exception e) {
                 // Edits sent as JSON string failed to parse; fall through to legacy mode
@@ -178,23 +178,34 @@ public final class EditTool implements Tool {
         String oldStr = Util.getFirstString(args, "oldText", "oldString");
         String newStr = Util.getFirstString(args, "newText", "newString");
         if (oldStr != null && newStr != null) {
-            args.remove("oldText"); args.remove("oldString");
-            args.remove("newText"); args.remove("newString");
+            args.remove("oldText");
+            args.remove("oldString");
+            args.remove("newText");
+            args.remove("newString");
             edits.add(new Edit(oldStr, newStr));
         }
         return edits;
     }
 
-    private record Edit(String oldText, String newText) {}
-
-    private sealed interface MatchResult permits ExactMatch, FuzzyMatch {
-        int index(); String oldText(); String newText(); int start();
+    private record Edit(String oldText, String newText) {
     }
 
-    private record ExactMatch(int index, String oldText, String newText, int start) implements MatchResult {}
+    private sealed interface MatchResult permits ExactMatch, FuzzyMatch {
+        int index();
 
-    private record FuzzyMatch(int index, String oldText, String newText, int start, String reason)
-            implements MatchResult {}
+        String oldText();
+
+        String newText();
+
+        int start();
+    }
+
+    private record ExactMatch(int index, String oldText, String newText, int start) implements MatchResult {
+    }
+
+    private record FuzzyMatch(int index, String oldText, String newText, int start,
+                                    String reason) implements MatchResult {
+    }
 
     private static FuzzyMatch tryFuzzyMatch(String content, String oldLF, String newLF, int idx) {
         String oldTrimmed = oldLF.replaceAll("(?m)\\s+$", "");
@@ -222,8 +233,8 @@ public final class EditTool implements Tool {
             long oc = DiffAlgorithm.countOld(hunk.rows());
             int ns = DiffAlgorithm.firstNew(hunk.rows());
             long nc = DiffAlgorithm.countNew(hunk.rows());
-            sb.append("@@ -").append(os).append(',').append(oc)
-                .append(" +").append(ns).append(',').append(nc).append(" @@\n");
+            sb.append("@@ -").append(os).append(',').append(oc).append(" +").append(ns).append(',').append(nc)
+                                            .append(" @@\n");
             for (var row : hunk.rows()) {
                 char mark = switch (row.kind()) {
                     case ADD -> '+';
@@ -239,26 +250,25 @@ public final class EditTool implements Tool {
     private static String displayDiff(String oldText, String newText) {
         var sb = new StringBuilder();
         var rows = DiffAlgorithm.diff(oldText, newText);
-        int width = Integer.toString(Math.max(
-            oldText != null ? oldText.split("\\R", -1).length : 0,
-            newText != null ? newText.split("\\R", -1).length : 0)).length();
+        int width = Integer.toString(Math.max(oldText != null ? oldText.split("\\R", -1).length : 0,
+                                        newText != null ? newText.split("\\R", -1).length : 0)).length();
         for (var hunk : DiffAlgorithm.hunks(rows, 4)) {
             for (var row : hunk.rows()) {
-                if (row.kind() == DiffAlgorithm.Kind.CONTEXT) continue;
+                if (row.kind() == DiffAlgorithm.Kind.CONTEXT)
+                    continue;
                 int line = row.kind() == DiffAlgorithm.Kind.ADD ? row.newLine() : row.oldLine();
                 sb.append(row.kind() == DiffAlgorithm.Kind.ADD ? '+' : '-')
-                    .append(String.format(Locale.ROOT, "%" + width + "d", line))
-                    .append(' ').append(row.text()).append('\n');
+                                                .append(String.format(Locale.ROOT, "%" + width + "d", line)).append(' ')
+                                                .append(row.text()).append('\n');
             }
         }
         return sb.toString();
     }
 
     private static int firstChangedLine(String oldText, String newText) {
-        return DiffAlgorithm.diff(oldText, newText).stream()
-            .filter(r -> r.kind() != DiffAlgorithm.Kind.CONTEXT)
-            .mapToInt(r -> r.newLine() > 0 ? r.newLine() : Math.max(1, r.oldLine()))
-            .findFirst().orElse(1);
+        return DiffAlgorithm.diff(oldText, newText).stream().filter(r -> r.kind() != DiffAlgorithm.Kind.CONTEXT)
+                                        .mapToInt(r -> r.newLine() > 0 ? r.newLine() : Math.max(1, r.oldLine()))
+                                        .findFirst().orElse(1);
     }
 
     private static String stripBom(String s) {
@@ -266,8 +276,10 @@ public final class EditTool implements Tool {
     }
 
     private static String detectLineEnding(String s) {
-        if (s.contains("\r\n")) return "\r\n";
-        if (s.contains("\r")) return "\r";
+        if (s.contains("\r\n"))
+            return "\r\n";
+        if (s.contains("\r"))
+            return "\r";
         return "\n";
     }
 
@@ -281,14 +293,19 @@ public final class EditTool implements Tool {
 
     @Override
     public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
-        if (result.isError()) return ToolResultView.of(result.content());
+        if (result.isError())
+            return ToolResultView.of(result.content());
         String summary = result.content();
         Object diffObj = result.details().get("diff");
-        if (!(diffObj instanceof String diff) || diff.isBlank()) return ToolResultView.of(summary);
+        if (!(diffObj instanceof String diff) || diff.isBlank())
+            return ToolResultView.of(summary);
         var body = new ArrayList<String>();
         int count = 0;
         for (String line : diff.split("\n")) {
-            if (count++ >= 20) { body.add("… " + (diff.split("\n").length - 20) + " more changed lines"); break; }
+            if (count++ >= 20) {
+                body.add("… " + (diff.split("\n").length - 20) + " more changed lines");
+                break;
+            }
             body.add(line);
         }
         return ToolResultView.of(summary, body);

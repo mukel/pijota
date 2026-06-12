@@ -19,7 +19,8 @@ final class Selector<T extends SelectorItem> {
     void setItems(List<T> items) {
         allItems = List.copyOf(items);
         visibleIndices.clear();
-        for (int i = 0; i < allItems.size(); i++) visibleIndices.add(i);
+        for (int i = 0; i < allItems.size(); i++)
+            visibleIndices.add(i);
         selected = 0;
     }
 
@@ -27,7 +28,9 @@ final class Selector<T extends SelectorItem> {
         this.title = title == null || title.isBlank() ? "select" : title;
     }
 
-    String title() { return title; }
+    String title() {
+        return title;
+    }
 
     void activate(String query) {
         filter(query);
@@ -48,12 +51,15 @@ final class Selector<T extends SelectorItem> {
         active = false;
     }
 
-    boolean active() { return active; }
+    boolean active() {
+        return active;
+    }
 
     void filter(String query) {
         visibleIndices.clear();
         if (query == null || query.isBlank()) {
-            for (int i = 0; i < allItems.size(); i++) visibleIndices.add(i);
+            for (int i = 0; i < allItems.size(); i++)
+                visibleIndices.add(i);
         } else {
             String q = query.toLowerCase();
             for (int i = 0; i < allItems.size(); i++) {
@@ -61,35 +67,53 @@ final class Selector<T extends SelectorItem> {
                     visibleIndices.add(i);
             }
         }
-        if (visibleIndices.isEmpty()) { selected = -1; return; }
-        if (selected >= visibleIndices.size()) selected = Math.max(0, visibleIndices.size() - 1);
+        if (visibleIndices.isEmpty()) {
+            selected = -1;
+            return;
+        }
+        if (selected >= visibleIndices.size())
+            selected = Math.max(0, visibleIndices.size() - 1);
     }
 
     void selectNext() {
-        if (visibleIndices.isEmpty()) return;
+        if (visibleIndices.isEmpty())
+            return;
         selected = (selected + 1) % visibleIndices.size();
     }
 
     void selectPrev() {
-        if (visibleIndices.isEmpty()) return;
+        if (visibleIndices.isEmpty())
+            return;
         selected = selected <= 0 ? visibleIndices.size() - 1 : selected - 1;
     }
 
     void selectPageUp() {
-        if (visibleIndices.isEmpty()) return;
+        if (visibleIndices.isEmpty())
+            return;
         selected = Math.max(0, selected - MAX_VISIBLE);
     }
 
     void selectPageDown() {
-        if (visibleIndices.isEmpty()) return;
+        if (visibleIndices.isEmpty())
+            return;
         selected = Math.min(visibleIndices.size() - 1, selected + MAX_VISIBLE);
     }
 
-    int visibleCount() { return Math.min(MAX_VISIBLE, visibleIndices.size()); }
-    int total() { return visibleIndices.size(); }
-    int itemCount() { return allItems.size(); }
+    int visibleCount() {
+        return Math.min(MAX_VISIBLE, visibleIndices.size());
+    }
+
+    int total() {
+        return visibleIndices.size();
+    }
+
+    int itemCount() {
+        return allItems.size();
+    }
+
     int visibleStart() {
-        if (visibleIndices.size() <= MAX_VISIBLE) return 0;
+        if (visibleIndices.size() <= MAX_VISIBLE)
+            return 0;
         int half = MAX_VISIBLE / 2;
         int start = selected - half;
         return Math.max(0, Math.min(start, visibleIndices.size() - MAX_VISIBLE));
@@ -103,5 +127,7 @@ final class Selector<T extends SelectorItem> {
         return allItems.get(visibleIndices.get(visibleStart() + position));
     }
 
-    int selectionIndex() { return selected; }
+    int selectionIndex() {
+        return selected;
+    }
 }

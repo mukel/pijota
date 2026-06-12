@@ -40,35 +40,38 @@ public final class LlmService implements LlmClient {
 
     private final AtomicReference<StreamingHandle> activeHandle = new AtomicReference<>();
 
-    private record ModelCacheKey(String provider, String model, String apiKey, ThinkingLevel thinkingLevel) {}
+    private record ModelCacheKey(String provider, String model, String apiKey, ThinkingLevel thinkingLevel) {
+    }
 
     private static String defaultProvider(String apiKey) {
         if (apiKey != null) {
-            if (apiKey.startsWith("sk-ant")) return "anthropic";
-            if (apiKey.startsWith("sk-")) return "openai";
+            if (apiKey.startsWith("sk-ant"))
+                return "anthropic";
+            if (apiKey.startsWith("sk-"))
+                return "openai";
         }
-        if (System.getenv("ANTHROPIC_API_KEY") != null) return "anthropic";
-        if (System.getenv("OPENAI_API_KEY") != null) return "openai";
-        if (System.getenv("GEMINI_API_KEY") != null) return "google";
+        if (System.getenv("ANTHROPIC_API_KEY") != null)
+            return "anthropic";
+        if (System.getenv("OPENAI_API_KEY") != null)
+            return "openai";
+        if (System.getenv("GEMINI_API_KEY") != null)
+            return "google";
         return "openai";
     }
 
-    public LlmService(String provider, String modelName,
-                      java.util.function.Function<String, String> apiKeyResolver) {
+    public LlmService(String provider, String modelName, java.util.function.Function<String, String> apiKeyResolver) {
         this(provider, modelName, apiKeyResolver, null, List.of(), null);
     }
 
     /**
-     * Primary constructor with a dynamic API key resolver.
-     * The resolver is called before each LLM request with the current provider name,
-     * enabling transparent OAuth token refresh mid-session.
+     * Primary constructor with a dynamic API key resolver. The resolver is called before each LLM request with the
+     * current provider name, enabling transparent OAuth token refresh mid-session.
      */
-    public LlmService(String provider, String modelName,
-                      java.util.function.Function<String, String> apiKeyResolver,
-                      String customBaseUrl, List<ProviderFactory> customProviders,
-                      Double budgetLimit) {
-        String initialProvider = provider != null ? provider
-            : defaultProvider(apiKeyResolver != null ? apiKeyResolver.apply(null) : null);
+    public LlmService(String provider, String modelName, java.util.function.Function<String, String> apiKeyResolver,
+                                    String customBaseUrl, List<ProviderFactory> customProviders, Double budgetLimit) {
+        String initialProvider = provider != null
+                                        ? provider
+                                        : defaultProvider(apiKeyResolver != null ? apiKeyResolver.apply(null) : null);
         var providerModel = ModelRegistry.resolveProviderModel(initialProvider, modelName, null);
         this.providerName = providerModel.provider();
         this.modelName = providerModel.model();
@@ -80,45 +83,50 @@ public final class LlmService implements LlmClient {
         this.usage = new UsageTracker(budgetLimit);
     }
 
-    public UsageTracker usage() { return usage; }
+    public UsageTracker usage() {
+        return usage;
+    }
 
-    public long totalInputTokens() { return usage.totalInputTokens(); }
-    public long totalOutputTokens() { return usage.totalOutputTokens(); }
-    public boolean isOverBudget() { return usage.overBudget(); }
+    public long totalInputTokens() {
+        return usage.totalInputTokens();
+    }
 
-    public CompletableFuture<StreamResult> streamMessages(
-            List<Message> messages, List<ai.pijota.tools.Tool> tools,
-            BiConsumer<String, String> onPartial
-    ) {
+    public long totalOutputTokens() {
+        return usage.totalOutputTokens();
+    }
+
+    public boolean isOverBudget() {
+        return usage.overBudget();
+    }
+
+    public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<ai.pijota.tools.Tool> tools,
+                                    BiConsumer<String, String> onPartial) {
         if (usage.overBudget()) {
-            var r = new StreamResult(); r.setContent("[Budget limit exceeded]");
+            var r = new StreamResult();
+            r.setContent("[Budget limit exceeded]");
             return CompletableFuture.completedFuture(r);
         }
         resolveCurrentApiKey();
         var adapted = MessageTransformer.transform(messages, providerName, modelName);
-        var specs = tools.stream()
-            .sorted(java.util.Comparator.comparing(ai.pijota.tools.Tool::name))
-            .map(t -> ToolSpecification.builder()
-                .name(t.name())
-                .description(t.description())
-                .parameters(ToolSchema.objectFromMap(
-                    ai.pijota.tools.ToolManifest.canonicalSchema(t.schema())))
-                .build())
-            .toList();
+        var specs = tools.stream().sorted(java.util.Comparator.comparing(ai.pijota.tools.Tool::name))
+                                        .map(t -> ToolSpecification.builder().name(t.name())
+                                                                        .description(t.description())
+                                                                        .parameters(ToolSchema.objectFromMap(
+                                                                                                        ai.pijota.tools.ToolManifest.canonicalSchema(
+                                                                                                                                        t.schema())))
+                                                                        .build())
+                                        .toList();
         return streamLangChain4j(adapted, specs, onPartial);
     }
 
-    private CompletableFuture<StreamResult> streamLangChain4j(
-            List<Message> messages, List<ToolSpecification> tools,
-            BiConsumer<String, String> onPartial) {
+    private CompletableFuture<StreamResult> streamLangChain4j(List<Message> messages, List<ToolSpecification> tools,
+                                    BiConsumer<String, String> onPartial) {
         return streamLangChain4j(lc4jModel(), messages, tools, onPartial, activeHandle);
     }
 
-    private CompletableFuture<StreamResult> streamLangChain4j(
-            StreamingChatModel model,
-            List<Message> messages, List<ToolSpecification> tools,
-            BiConsumer<String, String> onPartial,
-            AtomicReference<StreamingHandle> handleRef) {
+    private CompletableFuture<StreamResult> streamLangChain4j(StreamingChatModel model, List<Message> messages,
+                                    List<ToolSpecification> tools, BiConsumer<String, String> onPartial,
+                                    AtomicReference<StreamingHandle> handleRef) {
         var future = new CompletableFuture<StreamResult>();
         var result = new StreamResult();
         future.completeOnTimeout(result, 300, TimeUnit.SECONDS);
@@ -136,7 +144,8 @@ public final class LlmService implements LlmClient {
             private int totalChars = 0;
 
             private void traceDelta(String newText) {
-                if (!log.isDebugEnabled()) return;
+                if (!log.isDebugEnabled())
+                    return;
                 long now = System.nanoTime();
                 deltaCount++;
                 int size = newText != null ? newText.length() : 0;
@@ -144,24 +153,28 @@ public final class LlmService implements LlmClient {
                 long sinceStart = (now - streamStartNanos) / 1_000_000;
                 long sinceLast = (now - lastDeltaNanos) / 1_000_000;
                 lastDeltaNanos = now;
-                log.debug("stream delta #{}: {} chars | +{}ms since start | +{}ms since last delta",
-                    deltaCount, size, sinceStart, sinceLast);
-            }
-            private void traceComplete() {
-                if (!log.isDebugEnabled()) return;
-                long totalMs = (System.nanoTime() - streamStartNanos) / 1_000_000;
-                log.debug("stream complete: {} deltas, {} total chars in {}ms (avg {}/delta, avg {}/delta)",
-                    deltaCount, totalChars, totalMs,
-                    deltaCount > 0 ? totalChars / deltaCount : 0,
-                    deltaCount > 0 ? totalMs / deltaCount : 0);
+                log.debug("stream delta #{}: {} chars | +{}ms since start | +{}ms since last delta", deltaCount, size,
+                                                sinceStart, sinceLast);
             }
 
-            @Override public void onPartialResponse(String t) {
+            private void traceComplete() {
+                if (!log.isDebugEnabled())
+                    return;
+                long totalMs = (System.nanoTime() - streamStartNanos) / 1_000_000;
+                log.debug("stream complete: {} deltas, {} total chars in {}ms (avg {}/delta, avg {}/delta)", deltaCount,
+                                                totalChars, totalMs, deltaCount > 0 ? totalChars / deltaCount : 0,
+                                                deltaCount > 0 ? totalMs / deltaCount : 0);
+            }
+
+            @Override
+            public void onPartialResponse(String t) {
                 traceDelta(t);
                 applyPartialContent(result, t);
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
-            @Override public void onPartialResponse(PartialResponse pr, PartialResponseContext ctx) {
+
+            @Override
+            public void onPartialResponse(PartialResponse pr, PartialResponseContext ctx) {
                 if (ctx != null && ctx.streamingHandle() != null && handleRef != null)
                     handleRef.set(ctx.streamingHandle());
                 String t = pr.text();
@@ -171,7 +184,9 @@ public final class LlmService implements LlmClient {
                     onPartial.accept(result.content(), thinkingBuf.toString());
                 }
             }
-            @Override public void onPartialThinking(PartialThinking pt, PartialThinkingContext ctx) {
+
+            @Override
+            public void onPartialThinking(PartialThinking pt, PartialThinkingContext ctx) {
                 if (ctx != null && ctx.streamingHandle() != null && handleRef != null)
                     handleRef.set(ctx.streamingHandle());
                 String ptText = pt.text();
@@ -181,7 +196,9 @@ public final class LlmService implements LlmClient {
                 thinkingBuf.append(ptText);
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
-            @Override public void onCompleteResponse(ChatResponse r) {
+
+            @Override
+            public void onCompleteResponse(ChatResponse r) {
                 traceComplete();
                 var ai = r.aiMessage();
                 if (ai != null) {
@@ -191,23 +208,27 @@ public final class LlmService implements LlmClient {
                         result.setThinking(ai.thinking());
                     if (ai.toolExecutionRequests() != null)
                         result.setToolCalls(ai.toolExecutionRequests().stream()
-                            .map(tc -> new ai.pijota.messages.ToolCall(tc.id(), tc.name(), tc.arguments()))
-                            .toList());
+                                                        .map(tc -> new ai.pijota.messages.ToolCall(tc.id(), tc.name(),
+                                                                                        tc.arguments()))
+                                                        .toList());
                 }
                 if (!thinkingBuf.isEmpty())
                     result.setThinking(thinkingBuf.toString());
                 var u = r.metadata().tokenUsage();
                 if (u != null) {
-                    result.setUsage(new ai.pijota.messages.Usage(
-                        u.inputTokenCount() != null ? u.inputTokenCount() : 0,
-                        u.outputTokenCount() != null ? u.outputTokenCount() : 0));
+                    result.setUsage(new ai.pijota.messages.Usage(u.inputTokenCount() != null ? u.inputTokenCount() : 0,
+                                                    u.outputTokenCount() != null ? u.outputTokenCount() : 0));
                 }
                 usage.add(result.usage());
-                if (handleRef != null) handleRef.set(null);
+                if (handleRef != null)
+                    handleRef.set(null);
                 future.complete(result);
             }
-            @Override public void onError(Throwable e) {
-                if (handleRef != null) handleRef.set(null);
+
+            @Override
+            public void onError(Throwable e) {
+                if (handleRef != null)
+                    handleRef.set(null);
                 future.completeExceptionally(e);
             }
         });
@@ -216,7 +237,8 @@ public final class LlmService implements LlmClient {
     }
 
     private static void applyPartialContent(StreamResult result, String text) {
-        if (text == null || text.isEmpty()) return;
+        if (text == null || text.isEmpty())
+            return;
         String current = result.content();
         if (text.startsWith(current)) {
             result.setContent(text);
@@ -227,7 +249,8 @@ public final class LlmService implements LlmClient {
 
     private String resolveCurrentApiKey() {
         String key = apiKeyResolver.apply(providerName);
-        if (key == null) key = "";
+        if (key == null)
+            key = "";
         if (!key.equals(lastResolvedKey)) {
             modelCache.clear();
             lastResolvedKey = key;
@@ -242,9 +265,9 @@ public final class LlmService implements LlmClient {
         var key = new ModelCacheKey(effectiveProvider, effectiveModel, lastResolvedKey, thinkingLevel);
         return modelCache.computeIfAbsent(key, cacheKey -> {
             var factory = ProviderFactory.resolve(cacheKey.provider(), customProviders);
-            String url = customBaseUrl != null ? customBaseUrl
-                : ProviderCatalog.baseUrl(cacheKey.provider());
-            return factory.create(url, cacheKey.apiKey(), cacheKey.model(), cacheKey.provider(), cacheKey.thinkingLevel());
+            String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(cacheKey.provider());
+            return factory.create(url, cacheKey.apiKey(), cacheKey.model(), cacheKey.provider(),
+                                            cacheKey.thinkingLevel());
         });
     }
 
@@ -261,34 +284,32 @@ public final class LlmService implements LlmClient {
     }
 
     public String summarize(List<Message> toSummarize, String instructions, String previousSummary,
-                            BiConsumer<String, String> onPartial) {
+                                    BiConsumer<String, String> onPartial) {
         return summarize(toSummarize, instructions, previousSummary, onPartial, null, null);
     }
 
     /**
-     * Summarize with optional model override and custom system prompt.
-     * If {@code modelOverride} is non-null, a one-off model instance is created without
-     * affecting the cached model used for the main conversation.
+     * Summarize with optional model override and custom system prompt. If {@code modelOverride} is non-null, a one-off
+     * model instance is created without affecting the cached model used for the main conversation.
      */
     public String summarize(List<Message> toSummarize, String instructions, String previousSummary,
-                            BiConsumer<String, String> onPartial,
-                            String modelOverride, String customSystemPrompt) {
+                                    BiConsumer<String, String> onPartial, String modelOverride,
+                                    String customSystemPrompt) {
         String prompt = Summarizer.buildSummaryPrompt(toSummarize, instructions, previousSummary);
         String effectiveSystemPrompt = customSystemPrompt != null && !customSystemPrompt.isBlank()
-            ? customSystemPrompt
-            : "You are a context summarization assistant. Read the conversation and output only the structured summary requested.";
+                                        ? customSystemPrompt
+                                        : "You are a context summarization assistant. Read the conversation and output only the structured summary requested.";
         try {
             // Always use a fresh model instance, isolated from the main conversation's handle
             var model = (modelOverride != null && !modelOverride.isEmpty())
-                ? lc4jModelForModel(modelOverride)
-                : lc4jModelForModel(modelName);
-            var sysMsg = new ai.pijota.messages.Message.System(java.util.UUID.randomUUID(),
-                java.time.Instant.now(), effectiveSystemPrompt);
+                                            ? lc4jModelForModel(modelOverride)
+                                            : lc4jModelForModel(modelName);
+            var sysMsg = new ai.pijota.messages.Message.System(java.util.UUID.randomUUID(), java.time.Instant.now(),
+                                            effectiveSystemPrompt);
             var userMsg = new ai.pijota.messages.Message.User(prompt);
             var messages = List.<ai.pijota.messages.Message>of(sysMsg, userMsg);
-            var result = streamLangChain4j(model, messages, List.of(),
-                onPartial != null ? onPartial : (_, _) -> {}, null)
-                .get(120, java.util.concurrent.TimeUnit.SECONDS);
+            var result = streamLangChain4j(model, messages, List.of(), onPartial != null ? onPartial : (_, _) -> {},
+                                            null).get(120, java.util.concurrent.TimeUnit.SECONDS);
             return result.content() != null ? result.content().strip() : null;
         } catch (java.util.concurrent.TimeoutException e) {
             log.warn("Summarization timed out after 120s", e);
@@ -307,22 +328,33 @@ public final class LlmService implements LlmClient {
             explicitProvider = requested.substring(0, slash);
             requested = requested.substring(slash + 1);
         }
-        String effectiveProvider = explicitProvider != null ? explicitProvider
-            : requested != null ? ModelRegistry.providerForModel(requested) : providerName;
-        if (effectiveProvider == null || effectiveProvider.isBlank()) effectiveProvider = providerName;
+        String effectiveProvider = explicitProvider != null
+                                        ? explicitProvider
+                                        : requested != null ? ModelRegistry.providerForModel(requested) : providerName;
+        if (effectiveProvider == null || effectiveProvider.isBlank())
+            effectiveProvider = providerName;
         var providerModel = ModelRegistry.resolveProviderModel(effectiveProvider, requested, null);
         effectiveProvider = providerModel.provider();
         String effectiveModel = providerModel.model();
         String key = apiKeyResolver.apply(effectiveProvider);
-        if (key == null) key = "";
+        if (key == null)
+            key = "";
         var factory = ProviderFactory.resolve(effectiveProvider, customProviders);
         String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(effectiveProvider);
         return factory.create(url, key, effectiveModel, effectiveProvider, thinkingLevel);
     }
 
-    public String provider() { return providerName; }
-    public String model() { return modelName; }
-    public String apiKey() { return lastResolvedKey; }
+    public String provider() {
+        return providerName;
+    }
+
+    public String model() {
+        return modelName;
+    }
+
+    public String apiKey() {
+        return lastResolvedKey;
+    }
 
     public boolean streamsWithTools() {
         return !("local".equals(providerName) || "workstation".equals(providerName));
@@ -353,14 +385,17 @@ public final class LlmService implements LlmClient {
             modelChangeCallback.accept(old, this.modelName);
     }
 
-    public ThinkingLevel thinkingLevel() { return thinkingLevel; }
+    public ThinkingLevel thinkingLevel() {
+        return thinkingLevel;
+    }
 
     public void setThinkingLevel(ThinkingLevel level) {
         this.thinkingLevel = level != null ? level : ThinkingLevel.OFF;
         modelCache.clear();
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         modelCache.clear();
         abort();
     }
@@ -374,22 +409,34 @@ public final class LlmService implements LlmClient {
         private int totalOutputTokens;
         private double totalCost;
 
-        UsageTracker(Double budgetLimit) { this.budgetLimit = budgetLimit; }
+        UsageTracker(Double budgetLimit) {
+            this.budgetLimit = budgetLimit;
+        }
 
-        boolean overBudget() { return budgetLimit != null && totalCost >= budgetLimit; }
+        boolean overBudget() {
+            return budgetLimit != null && totalCost >= budgetLimit;
+        }
 
-        int totalInputTokens() { return totalInputTokens; }
-        int totalOutputTokens() { return totalOutputTokens; }
-        double totalCost() { return totalCost; }
+        int totalInputTokens() {
+            return totalInputTokens;
+        }
+
+        int totalOutputTokens() {
+            return totalOutputTokens;
+        }
+
+        double totalCost() {
+            return totalCost;
+        }
 
         void add(ai.pijota.messages.Usage usage) {
-            if (usage == null) return;
+            if (usage == null)
+                return;
             int in = (int) usage.inputTokens();
             int out = (int) usage.outputTokens();
             totalInputTokens += in;
             totalOutputTokens += out;
-            totalCost += (in / 1000.0) * COST_PER_1K_INPUT
-                       + (out / 1000.0) * COST_PER_1K_OUTPUT;
+            totalCost += (in / 1000.0) * COST_PER_1K_INPUT + (out / 1000.0) * COST_PER_1K_OUTPUT;
         }
     }
 }

@@ -20,7 +20,8 @@ final class ToolCallIdNormalizer {
 
     static String unique(String id, String provider, java.util.Set<String> used) {
         String normalized = normalize(id, provider);
-        if (used.add(normalized)) return normalized;
+        if (used.add(normalized))
+            return normalized;
 
         int limit = limit(provider);
         String suffix = "_" + shortHash(id == null ? "" : id);
@@ -38,7 +39,8 @@ final class ToolCallIdNormalizer {
     private static String openAi(String id) {
         String value = id == null ? "" : id;
         int pipe = value.indexOf('|');
-        if (pipe >= 0) value = value.substring(0, pipe);
+        if (pipe >= 0)
+            value = value.substring(0, pipe);
         return constrained(value, 40, false);
     }
 
@@ -47,7 +49,8 @@ final class ToolCallIdNormalizer {
         value = value.replaceAll(strict ? "[^a-zA-Z0-9_-]" : "[\\p{Cntrl}\\s]+", "_");
         value = value.replaceAll("_+", "_");
         value = trimUnderscores(value);
-        if (value.isBlank()) value = "call_" + shortHash(id == null ? "" : id);
+        if (value.isBlank())
+            value = "call_" + shortHash(id == null ? "" : id);
         return truncate(value, limit);
     }
 
@@ -59,8 +62,10 @@ final class ToolCallIdNormalizer {
     private static String trimUnderscores(String value) {
         int start = 0;
         int end = value.length();
-        while (start < end && value.charAt(start) == '_') start++;
-        while (end > start && value.charAt(end - 1) == '_') end--;
+        while (start < end && value.charAt(start) == '_')
+            start++;
+        while (end > start && value.charAt(end - 1) == '_')
+            end--;
         return value.substring(start, end);
     }
 
@@ -70,10 +75,10 @@ final class ToolCallIdNormalizer {
 
     private static String shortHash(String value) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                .digest(value.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             var sb = new StringBuilder();
-            for (int i = 0; i < 4; i++) sb.append(String.format("%02x", digest[i]));
+            for (int i = 0; i < 4; i++)
+                sb.append(String.format("%02x", digest[i]));
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
             return Integer.toHexString(value.hashCode());

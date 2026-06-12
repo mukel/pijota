@@ -20,33 +20,33 @@ final class TuiCommandController {
         String cmd = commandName(input);
         String arg = commandArgs(input, cmd);
         switch (cmd) {
-            case "/help"     -> tui.appendPlain(tui.lines(commands.helpText(), "statusText"));
-            case "/quit"     -> tui.stop();
-            case "/model"    -> handleModel(arg);
+            case "/help" -> tui.appendPlain(tui.lines(commands.helpText(), "statusText"));
+            case "/quit" -> tui.stop();
+            case "/model" -> handleModel(arg);
             case "/settings" -> tui.showSettingsSelector();
-            case "/login"    -> tui.showLoginSelector();
-            case "/logout"   -> tui.showLogoutSelector();
-            case "/refresh"  -> tui.refreshModels();
-            case "/theme"    -> tui.showThemeSelector();
-            case "/undo"     -> tui.undoLastTurn();
-            case "/compact"  -> tui.triggerCompaction(arg);
-            case "/copy"     -> tui.copyLastResponse();
-            case "/hotkeys"  -> tui.showHotkeys();
-            case "/session"  -> tui.showSessionInfo();
-            case "/context"  -> tui.showContext();
-            case "/export"   -> tui.exportSession(input);
-            case "/save"     -> tui.saveSession(input);
-            case "/load"     -> tui.loadSession(input);
+            case "/login" -> tui.showLoginSelector();
+            case "/logout" -> tui.showLogoutSelector();
+            case "/refresh" -> tui.refreshModels();
+            case "/theme" -> tui.showThemeSelector();
+            case "/undo" -> tui.undoLastTurn();
+            case "/compact" -> tui.triggerCompaction(arg);
+            case "/copy" -> tui.copyLastResponse();
+            case "/hotkeys" -> tui.showHotkeys();
+            case "/session" -> tui.showSessionInfo();
+            case "/context" -> tui.showContext();
+            case "/export" -> tui.exportSession(input);
+            case "/save" -> tui.saveSession(input);
+            case "/load" -> tui.loadSession(input);
             case "/sessions" -> tui.showSessionPicker(arg);
-            case "/delete"   -> tui.deleteSession(input);
-            case "/name"     -> renameSession(arg);
-            case "/new"      -> tui.startNewSession();
-            case "/tree"     -> tui.showTree();
-            case "/fork"     -> tui.forkSession(input);
-            case "/clone"    -> tui.cloneSession();
-            case "/transcend"-> tui.handleTranscend(arg);
-            case "/skills"   -> tui.showSkills();
-            case "/whoami"   -> tui.showWhoami();
+            case "/delete" -> tui.deleteSession(input);
+            case "/name" -> renameSession(arg);
+            case "/new" -> tui.startNewSession();
+            case "/tree" -> tui.showTree();
+            case "/fork" -> tui.forkSession(input);
+            case "/clone" -> tui.cloneSession();
+            case "/transcend" -> tui.handleTranscend(arg);
+            case "/skills" -> tui.showSkills();
+            case "/whoami" -> tui.showWhoami();
             default -> handleUnknown(input, cmd);
         }
     }
@@ -57,8 +57,10 @@ final class TuiCommandController {
             return;
         }
         var matches = searchModels(arg);
-        if (matches.isEmpty()) tui.appendError("no models match \"" + arg + "\"");
-        else tui.showModelSelector(matches);
+        if (matches.isEmpty())
+            tui.appendError("no models match \"" + arg + "\"");
+        else
+            tui.showModelSelector(matches);
     }
 
     private void renameSession(String name) {
@@ -66,8 +68,8 @@ final class TuiCommandController {
         try {
             tui.session().setSessionName(tui.sessionName());
             tui.appendStatus(tui.sessionName() != null
-                ? "session named \"" + tui.sessionName() + "\""
-                : "session name cleared");
+                                            ? "session named \"" + tui.sessionName() + "\""
+                                            : "session name cleared");
         } catch (IOException e) {
             tui.appendError("name failed: " + e.getMessage());
         }
@@ -80,7 +82,8 @@ final class TuiCommandController {
         }
 
         SlashCommand extCmd = tui.extensionCommand(cmd);
-        if (tui.runExtensionCommand(extCmd, input, cmd)) return;
+        if (tui.runExtensionCommand(extCmd, input, cmd))
+            return;
         if (extCmd != null) {
             tui.session().prompt(input);
             return;
@@ -109,13 +112,14 @@ final class TuiCommandController {
 
     private static List<ModelInfo> searchModels(String query) {
         String q = query.toLowerCase();
-        return ModelRegistry.KNOWN_MODELS.stream()
-            .filter(m -> SlashCommandRegistry.fuzzyMatch(q, m.id().toLowerCase())
-                || SlashCommandRegistry.fuzzyMatch(q, m.displayName().toLowerCase()))
-            .sorted(java.util.Comparator.comparingInt(m -> Math.min(
-                SlashCommandRegistry.matchScore(q, m.id().toLowerCase()),
-                SlashCommandRegistry.matchScore(q, m.displayName().toLowerCase()))))
-            .limit(15)
-            .toList();
+        return ModelRegistry.KNOWN_MODELS.stream().filter(m -> SlashCommandRegistry.fuzzyMatch(q, m.id().toLowerCase())
+                                        || SlashCommandRegistry.fuzzyMatch(q, m.displayName().toLowerCase()))
+                                        .sorted(java.util.Comparator.comparingInt(m -> Math.min(
+                                                                        SlashCommandRegistry.matchScore(q, m.id()
+                                                                                                        .toLowerCase()),
+                                                                        SlashCommandRegistry.matchScore(q, m
+                                                                                                        .displayName()
+                                                                                                        .toLowerCase()))))
+                                        .limit(15).toList();
     }
 }

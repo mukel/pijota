@@ -20,57 +20,89 @@ public final class GrepTool implements Tool {
     private static final int MAX_OUTPUT_CHARS = 100_000;
     private static final int MAX_CAPTURE_BYTES = 1_000_000;
     private volatile Process currentProcess;
+    private final SearchBackend searchBackend;
+
+    @FunctionalInterface
+    interface SearchBackend {
+        SearchResult search(String pattern, Path searchPath, boolean ignoreCase, boolean literal, String glob,
+                                        int limit, long timeoutSeconds) throws IOException;
+    }
+
+    record SearchResult(String stdout, String stderr, int exitCode, boolean timedOut) {
+        static SearchResult of(String stdout) {
+            return new SearchResult(stdout, "", 0, false);
+        }
+
+        static SearchResult error(int code, String stderr) {
+            return new SearchResult("", stderr, code, false);
+        }
+    }
+
+    public GrepTool() {
+        this.searchBackend = this::processSearch;
+    }
+
+    GrepTool(SearchBackend searchBackend) {
+        this.searchBackend = searchBackend;
+    }
 
     @Override
-    public String name() { return "grep"; }
+    public String name() {
+        return "grep";
+    }
 
     @Override
     public String description() {
         return "Search file contents for a pattern. Returns matching lines with file paths and line numbers. "
-            + "Respects .gitignore. Output is truncated to 100 matches or 100KB. Long lines are truncated.";
+                                        + "Respects .gitignore. Output is truncated to 100 matches or 100KB. Long lines are truncated.";
     }
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "pattern", Map.of("type", "string",
-                    "description", "Search pattern (regex or literal string)"),
-                "path", Map.of("type", "string",
-                    "description", "Directory or file to search (default: current directory)"),
-                "glob", Map.of("type", "string",
-                    "description", "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'"),
-                "ignoreCase", Map.of("type", "boolean",
-                    "description", "Case-insensitive search (default: false)"),
-                "literal", Map.of("type", "boolean",
-                    "description", "Treat pattern as literal string instead of regex (default: false)"),
-                "context", Map.of("type", "integer",
-                    "description", "Number of surrounding lines to show before and after each match (default 0)"),
-                "limit", Map.of("type", "integer",
-                    "description", "Maximum number of matches to return (default: 100)"),
-                "timeout", Map.of("type", "number",
-                    "description", "Timeout in seconds before ripgrep is killed (default 30)")
-            ),
-            "required", List.of("pattern"),
-            "additionalProperties", false
-        );
+        return Map.of("type", "object", "properties", Map.of("pattern",
+                                        Map.of("type", "string", "description",
+                                                                        "Search pattern (regex or literal string)"),
+                                        "path",
+                                        Map.of("type", "string", "description",
+                                                                        "Directory or file to search (default: current directory)"),
+                                        "glob",
+                                        Map.of("type", "string", "description",
+                                                                        "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'"),
+                                        "ignoreCase",
+                                        Map.of("type", "boolean", "description",
+                                                                        "Case-insensitive search (default: false)"),
+                                        "literal",
+                                        Map.of("type", "boolean", "description",
+                                                                        "Treat pattern as literal string instead of regex (default: false)"),
+                                        "context",
+                                        Map.of("type", "integer", "description",
+                                                                        "Number of surrounding lines to show before and after each match (default 0)"),
+                                        "limit",
+                                        Map.of("type", "integer", "description",
+                                                                        "Maximum number of matches to return (default: 100)"),
+                                        "timeout",
+                                        Map.of("type", "number", "description",
+                                                                        "Timeout in seconds before ripgrep is killed (default 30)")),
+                                        "required", List.of("pattern"), "additionalProperties", false);
     }
 
     @Override
-    public boolean defaultEnabled() { return true; }
+    public boolean defaultEnabled() {
+        return true;
+    }
 
     @Override
-    public CompletableFuture<ToolResult> execute(
-            String toolCallId, Map<String, Object> args, String sessionCwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String pattern = Util.getString(args, "pattern");
-                if (pattern == null || pattern.isBlank()) return ToolResult.error("No pattern provided");
+                if (pattern == null || pattern.isBlank())
+                    return ToolResult.error("No pattern provided");
 
                 Path base = Util.resolveDir(sessionCwd);
                 Path searchPath = Util.resolveSearchPath(base, Util.getString(args, "path"));
-                if (!Files.exists(searchPath)) return ToolResult.error("Path not found: " + searchPath);
+                if (!Files.exists(searchPath))
+                    return ToolResult.error("Path not found: " + searchPath);
 
                 boolean isDirectory = Files.isDirectory(searchPath);
                 String glob = Util.coalesce(Util.getString(args, "glob"), Util.getString(args, "include"));
@@ -80,50 +112,30 @@ public final class GrepTool implements Tool {
                 int limit = Math.max(1, Util.getInt(args, "limit", DEFAULT_LIMIT));
                 long timeoutSeconds = Math.max(1, Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS));
 
-                var command = new ArrayList<String>();
-                command.add("rg");
-                command.add("--json");
-                command.add("--line-number");
-                command.add("--color=never");
-                command.add("--hidden");
-                if (ignoreCase) command.add("--ignore-case");
-                if (literal) command.add("--fixed-strings");
-                if (glob != null && !glob.isBlank()) {
-                    command.add("--glob");
-                    command.add(glob);
-                }
-                command.add("--");
-                command.add(pattern);
-                command.add(searchPath.toString());
+                SearchResult result = searchBackend.search(pattern, searchPath, ignoreCase, literal, glob, limit,
+                                                timeoutSeconds);
 
-                var result = ProcessRunner.command(command)
-                    .timeout(Duration.ofSeconds(timeoutSeconds))
-                    .maxOutputBytes(MAX_CAPTURE_BYTES)
-                    .captureStderr(true)
-                    .onStart(p -> currentProcess = p)
-                    .run();
-
-                if (result.timedOut()) return ToolResult.error("ripgrep timed out after "
-                    + timeoutSeconds + " seconds");
+                if (result.timedOut())
+                    return ToolResult.error("ripgrep timed out after " + timeoutSeconds + " seconds");
                 if (result.exitCode() != 0 && result.exitCode() != 1) {
                     String err = result.stderr().strip();
-                    return ToolResult.error(err.isBlank()
-                        ? "ripgrep exited with code " + result.exitCode()
-                        : err);
+                    return ToolResult.error(err.isBlank() ? "ripgrep exited with code " + result.exitCode() : err);
                 }
 
                 var matches = new ArrayList<Match>();
                 boolean limitReached = false;
                 for (String line : result.stdout().split("\\R")) {
                     Match match = parseMatch(line);
-                    if (match == null) continue;
+                    if (match == null)
+                        continue;
                     if (matches.size() >= limit) {
                         limitReached = true;
                         break;
                     }
                     matches.add(match);
                 }
-                if (matches.isEmpty()) return ToolResult.success("No matches found");
+                if (matches.isEmpty())
+                    return ToolResult.success("No matches found");
 
                 var output = new ArrayList<String>();
                 boolean linesTruncated = false;
@@ -131,7 +143,8 @@ public final class GrepTool implements Tool {
                     if (context == 0) {
                         var truncated = truncateLine(match.text());
                         linesTruncated |= truncated.truncated();
-                        output.add(formatPath(searchPath, match.path(), isDirectory) + ":" + match.line() + ": " + truncated.text());
+                        output.add(formatPath(searchPath, match.path(), isDirectory) + ":" + match.line() + ": "
+                                                        + truncated.text());
                     } else {
                         var block = contextBlock(searchPath, match, isDirectory, context);
                         linesTruncated |= block.truncated();
@@ -143,10 +156,11 @@ public final class GrepTool implements Tool {
                 var notices = new ArrayList<String>();
                 var details = new LinkedHashMap<String, Object>();
                 details.put("matchCount", matches.size());
-                if (limitReached) notices.add(limit + " matches limit reached. Use limit=" + (limit * 2)
-                    + " for more, or refine pattern");
-                if (linesTruncated) notices.add("Some lines truncated to " + MAX_LINE_LENGTH
-                    + " chars. Use read to see full lines");
+                if (limitReached)
+                    notices.add(limit + " matches limit reached. Use limit=" + (limit * 2)
+                                                    + " for more, or refine pattern");
+                if (linesTruncated)
+                    notices.add("Some lines truncated to " + MAX_LINE_LENGTH + " chars. Use read to see full lines");
                 if (sb.length() > MAX_OUTPUT_CHARS) {
                     String truncated = Util.truncateHeadTail(sb.toString(), MAX_OUTPUT_CHARS);
                     sb = new StringBuilder(truncated);
@@ -154,20 +168,20 @@ public final class GrepTool implements Tool {
                     details.put("truncated", true);
                     details.put("maxChars", MAX_OUTPUT_CHARS);
                 }
-                if (limitReached) details.put("matchLimitReached", limit);
-                if (linesTruncated) details.put("linesTruncated", true);
-                if (result.outputTruncated()) {
-                    notices.add("ripgrep output capture truncated; refine pattern or path");
-                    details.put("captureTruncated", true);
-                }
-                if (!notices.isEmpty()) sb.append("\n\n[").append(String.join(". ", notices)).append(']');
+                if (limitReached)
+                    details.put("matchLimitReached", limit);
+                if (linesTruncated)
+                    details.put("linesTruncated", true);
+                if (!notices.isEmpty())
+                    sb.append("\n\n[").append(String.join(". ", notices)).append(']');
                 return ToolResult.success(sb.toString(), details);
             } catch (IOException e) {
                 return ToolResult.error("ripgrep error: " + e.getMessage());
             } catch (Exception e) {
                 Thread.currentThread().interrupt();
                 Process p = currentProcess;
-                if (p != null) ProcessRunner.killTree(p);
+                if (p != null)
+                    ProcessRunner.killTree(p);
                 return ToolResult.error("ripgrep interrupted");
             } finally {
                 currentProcess = null;
@@ -180,15 +194,43 @@ public final class GrepTool implements Tool {
         ProcessRunner.abortIfAlive(currentProcess);
     }
 
-    private static Match parseMatch(String raw) {
+    private SearchResult processSearch(String pattern, Path searchPath, boolean ignoreCase, boolean literal,
+                                    String glob, int limit, long timeoutSeconds) throws IOException {
+        var command = new ArrayList<String>();
+        command.add("rg");
+        command.add("--json");
+        command.add("--line-number");
+        command.add("--color=never");
+        command.add("--hidden");
+        if (ignoreCase)
+            command.add("--ignore-case");
+        if (literal)
+            command.add("--fixed-strings");
+        if (glob != null && !glob.isBlank()) {
+            command.add("--glob");
+            command.add(glob);
+        }
+        command.add("--");
+        command.add(pattern);
+        command.add(searchPath.toString());
+
+        var result = ProcessRunner.command(command).timeout(Duration.ofSeconds(timeoutSeconds))
+                                        .maxOutputBytes(MAX_CAPTURE_BYTES).captureStderr(true)
+                                        .onStart(p -> currentProcess = p).run();
+
+        return new SearchResult(result.stdout(), result.stderr(), result.exitCode(), result.timedOut());
+    }
+
+    static Match parseMatch(String raw) {
         try {
             JsonNode root = Util.MAPPER.readTree(raw);
-            if (!"match".equals(root.path("type").asText())) return null;
+            if (!"match".equals(root.path("type").asText()))
+                return null;
             JsonNode data = root.path("data");
             String path = data.path("path").path("text").asText(null);
             int line = data.path("line_number").asInt(-1);
-            String text = data.path("lines").path("text").asText("")
-                .replace("\r\n", "\n").replace("\r", "").replaceAll("\n$", "");
+            String text = data.path("lines").path("text").asText("").replace("\r\n", "\n").replace("\r", "")
+                                            .replaceAll("\n$", "");
             return path == null || line < 1 ? null : new Match(Path.of(path), line, text);
         } catch (Exception ignored) {
             return null;
@@ -196,7 +238,7 @@ public final class GrepTool implements Tool {
     }
 
     private static ContextBlock contextBlock(Path searchPath, Match match, boolean isDirectory, int context)
-            throws IOException {
+                                    throws IOException {
         var fileLines = Files.readAllLines(match.path());
         var out = new ArrayList<String>();
         boolean truncated = false;
@@ -216,28 +258,35 @@ public final class GrepTool implements Tool {
         if (isDirectory) {
             try {
                 Path relative = searchPath.relativize(file);
-                if (!relative.toString().startsWith("..")) return relative.toString().replace('\\', '/');
+                if (!relative.toString().startsWith(".."))
+                    return relative.toString().replace('\\', '/');
             } catch (IllegalArgumentException ignored) {}
         }
         Path name = file.getFileName();
         return name == null ? file.toString() : name.toString();
     }
 
-    private static TruncatedLine truncateLine(String line) {
-        if (line.length() <= MAX_LINE_LENGTH) return new TruncatedLine(line, false);
+    static TruncatedLine truncateLine(String line) {
+        if (line.length() <= MAX_LINE_LENGTH)
+            return new TruncatedLine(line, false);
         return new TruncatedLine(line.substring(0, MAX_LINE_LENGTH - 1) + "…", true);
     }
 
     @Override
     public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
-        if (result.isError()) return ToolResultView.of(result.content());
+        if (result.isError())
+            return ToolResultView.of(result.content());
         Map<String, Object> details = result.details();
         Object mc = details.get("matchCount");
-        if (mc instanceof Number n) return ToolResultView.of(n.intValue() + " match(es)");
+        if (mc instanceof Number n)
+            return ToolResultView.of(n.intValue() + " match(es)");
         return ToolResultView.of(result.content());
     }
 
-    private record Match(Path path, int line, String text) {}
-    private record ContextBlock(List<String> lines, boolean truncated) {}
-    private record TruncatedLine(String text, boolean truncated) {}
+    record Match(Path path, int line, String text) {
+    }
+    private record ContextBlock(List<String> lines, boolean truncated) {
+    }
+    record TruncatedLine(String text, boolean truncated) {
+    }
 }

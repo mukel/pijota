@@ -16,8 +16,15 @@ public final class ContextFilesExtension implements Extension {
         this.cwd = cwd;
     }
 
-    @Override public String name() { return "context-files"; }
-    @Override public String description() { return "Discovers AGENTS.md, CLAUDE.md, and .pijota/CONTEXT.md"; }
+    @Override
+    public String name() {
+        return "context-files";
+    }
+
+    @Override
+    public String description() {
+        return "Discovers AGENTS.md, CLAUDE.md, and .pijota/CONTEXT.md";
+    }
 
     @Override
     public void init(ExtensionAPI api) {
@@ -52,9 +59,8 @@ public final class ContextFilesExtension implements Extension {
                 if (content.length() > 8000) {
                     content = content.substring(0, 8000) + "... (truncated)";
                 }
-                sb.append("--- ").append(filename)
-                    .append(" (from ").append(path.getParent().getFileName()).append(")")
-                    .append(" ---\n").append(content).append('\n');
+                sb.append("--- ").append(filename).append(" (from ").append(path.getParent().getFileName()).append(")")
+                                                .append(" ---\n").append(content).append('\n');
             }
         } catch (IOException ignored) {}
     }

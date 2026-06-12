@@ -21,16 +21,14 @@ final class TreeRenderer {
         this.theme = theme;
     }
 
-    List<String> render(List<Map<String, Object>> treeEntries,
-                        List<Map<String, Object>> branchEntries,
-                        String leafId) {
+    List<String> render(List<Map<String, Object>> treeEntries, List<Map<String, Object>> branchEntries, String leafId) {
         var tree = buildTreeView(treeEntries);
         var activePath = entryIds(branchEntries);
 
         var lines = new ArrayList<String>();
         lines.add(theme.styled("toolLabel", "Conversation Tree"));
-        lines.add(theme.styled("statusText", tree.userCount() + " turns · "
-            + tree.entries().size() + " entries · /fork N"));
+        lines.add(theme.styled("statusText",
+                                        tree.userCount() + " turns · " + tree.entries().size() + " entries · /fork N"));
         lines.add("");
         lines.add(theme.styled("statusText", "turns"));
         var rootTurns = firstUserDescendants(tree.roots(), tree.children());
@@ -38,8 +36,8 @@ final class TreeRenderer {
             lines.add(theme.styled("statusText", "no user turns yet"));
         }
         for (int i = 0; i < rootTurns.size(); i++) {
-            appendTurnNode(lines, rootTurns.get(i), tree.children(), tree.parents(), activePath, leafId, tree.userNumbers(),
-                "", i == rootTurns.size() - 1, 0);
+            appendTurnNode(lines, rootTurns.get(i), tree.children(), tree.parents(), activePath, leafId,
+                                            tree.userNumbers(), "", i == rootTurns.size() - 1, 0);
         }
         return lines;
     }
@@ -53,9 +51,11 @@ final class TreeRenderer {
         int userCount = 0;
         for (var entry : entries) {
             String id = entryId(entry);
-            if (id == null) continue;
+            if (id == null)
+                continue;
             byId.put(id, entry);
-            if (isUserEntry(entry)) userNumbers.put(id, ++userCount);
+            if (isUserEntry(entry))
+                userNumbers.put(id, ++userCount);
         }
         for (var entry : entries) {
             Object pid = entry.get("parentId");
@@ -65,7 +65,8 @@ final class TreeRenderer {
             } else {
                 children.computeIfAbsent(parentId, _ -> new ArrayList<>()).add(entry);
                 String id = entryId(entry);
-                if (id != null) parents.put(id, parentId);
+                if (id != null)
+                    parents.put(id, parentId);
             }
         }
         return new TreeView(entries, roots, children, parents, userNumbers, userCount);
@@ -75,17 +76,16 @@ final class TreeRenderer {
         var ids = new HashSet<String>();
         for (var entry : entries) {
             String id = entryId(entry);
-            if (id != null) ids.add(id);
+            if (id != null)
+                ids.add(id);
         }
         return ids;
     }
 
     private void appendTurnNode(List<String> lines, Map<String, Object> entry,
-                                Map<String, List<Map<String, Object>>> children,
-                                Map<String, String> parents,
-                                Set<String> activePath, String leafId,
-                                Map<String, Integer> userNumbers,
-                                String prefix, boolean last, int depth) {
+                                    Map<String, List<Map<String, Object>>> children, Map<String, String> parents,
+                                    Set<String> activePath, String leafId, Map<String, Integer> userNumbers,
+                                    String prefix, boolean last, int depth) {
         String id = entryId(entry);
         boolean currentTurn = leafId != null && containsBeforeNextUser(entry, children, leafId::equals);
         boolean activeTurn = containsBeforeNextUser(entry, children, activePath::contains);
@@ -95,21 +95,21 @@ final class TreeRenderer {
         String visualPrefix = depth > MAX_TREE_INDENT ? "   ".repeat(MAX_TREE_INDENT) : prefix;
         Integer from = depth > MAX_TREE_INDENT ? forkFrom(id, parents, userNumbers) : null;
         String line = theme.styled("statusText", visualPrefix + connector)
-            + theme.styled(currentTurn ? "toolLabel" : "statusText", marker + " ")
-            + turnLabel(entry, userNumbers.get(id), children, currentTurn, from);
+                                        + theme.styled(currentTurn ? "toolLabel" : "statusText", marker + " ")
+                                        + turnLabel(entry, userNumbers.get(id), children, currentTurn, from);
         lines.add(line);
 
         var childEntries = firstUserDescendants(children.getOrDefault(id, List.of()), children);
         String childPrefix = visualDepth >= MAX_TREE_INDENT ? visualPrefix : prefix + (last ? "   " : "│  ");
         for (int i = 0; i < childEntries.size(); i++) {
-            appendTurnNode(lines, childEntries.get(i), children, parents, activePath, leafId, userNumbers,
-                childPrefix, i == childEntries.size() - 1, depth + 1);
+            appendTurnNode(lines, childEntries.get(i), children, parents, activePath, leafId, userNumbers, childPrefix,
+                                            i == childEntries.size() - 1, depth + 1);
         }
     }
 
     private String turnLabel(Map<String, Object> entry, Integer userNumber,
-                             Map<String, List<Map<String, Object>>> children,
-                             boolean currentTurn, Integer forkFrom) {
+                                    Map<String, List<Map<String, Object>>> children, boolean currentTurn,
+                                    Integer forkFrom) {
         var summary = summarizeTurn(entry, children);
         var label = new StringBuilder();
         String number = userNumber == null ? "?" : String.valueOf(userNumber);
@@ -120,17 +120,18 @@ final class TreeRenderer {
             label.append(theme.styled("statusText", "  · from ")).append(forkFrom);
         }
         if (summary.toolCalls() > 0) {
-            label.append(theme.styled("statusText", "  · ")).append(theme.styled("statusText", summary.toolCalls()
-                + " tool" + (summary.toolCalls() == 1 ? "" : "s")));
+            label.append(theme.styled("statusText", "  · ")).append(theme.styled("statusText",
+                                            summary.toolCalls() + " tool" + (summary.toolCalls() == 1 ? "" : "s")));
         }
         if (summary.errors() > 0) {
-            label.append(theme.styled("toolError", "  · " + summary.errors() + " error"
-                + (summary.errors() == 1 ? "" : "s")));
+            label.append(theme.styled("toolError",
+                                            "  · " + summary.errors() + " error" + (summary.errors() == 1 ? "" : "s")));
         }
         if (summary.compacted() > 0) {
             label.append(theme.styled("statusWarn", "  · compacted"));
         }
-        if (currentTurn) label.append(theme.styled("toolLabel", "  · current"));
+        if (currentTurn)
+            label.append(theme.styled("toolLabel", "  · current"));
         return label.toString();
     }
 
@@ -139,14 +140,15 @@ final class TreeRenderer {
         String parent = parents.get(id);
         while (parent != null && visited.add(parent)) {
             Integer number = userNumbers.get(parent);
-            if (number != null) return number;
+            if (number != null)
+                return number;
             parent = parents.get(parent);
         }
         return null;
     }
 
     private List<Map<String, Object>> firstUserDescendants(List<Map<String, Object>> entries,
-                                                           Map<String, List<Map<String, Object>>> children) {
+                                    Map<String, List<Map<String, Object>>> children) {
         var users = new ArrayList<Map<String, Object>>();
         for (var entry : entries) {
             if (isUserEntry(entry)) {
@@ -158,24 +160,26 @@ final class TreeRenderer {
         return users;
     }
 
-    private TurnSummary summarizeTurn(Map<String, Object> entry,
-                                      Map<String, List<Map<String, Object>>> children) {
+    private TurnSummary summarizeTurn(Map<String, Object> entry, Map<String, List<Map<String, Object>>> children) {
         var tools = new LinkedHashSet<String>();
         var state = new TurnSummaryState();
         summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, tools, state);
-        return new TurnSummary(state.assistant, state.toolCallIds.size(), List.copyOf(tools), state.errors, state.compacted);
+        return new TurnSummary(state.assistant, state.toolCallIds.size(), List.copyOf(tools), state.errors,
+                                        state.compacted);
     }
 
     private void summarizeTurnChildren(List<Map<String, Object>> entries,
-                                       Map<String, List<Map<String, Object>>> children,
-                                       Set<String> tools, TurnSummaryState state) {
+                                    Map<String, List<Map<String, Object>>> children, Set<String> tools,
+                                    TurnSummaryState state) {
         for (var entry : entries) {
-            if (isUserEntry(entry)) continue;
+            if (isUserEntry(entry))
+                continue;
             String type = (String) entry.getOrDefault("type", "message");
             String role = (String) entry.getOrDefault("role", "");
             if ("compaction".equals(type)) {
                 Object compacted = entry.get("compactedCount");
-                if (compacted instanceof Number n) state.compacted += n.intValue();
+                if (compacted instanceof Number n)
+                    state.compacted += n.intValue();
             } else if ("assistant".equals(role)) {
                 Object toolCalls = entry.get("tool_calls");
                 if (toolCalls instanceof List<?> list) {
@@ -187,24 +191,28 @@ final class TreeRenderer {
                     }
                 }
                 String content = (String) entry.get("content");
-                if (content != null && !content.isBlank()) state.assistant = content;
+                if (content != null && !content.isBlank())
+                    state.assistant = content;
             } else if ("tool".equals(role) || "tool_result".equals(role)) {
                 String tool = String.valueOf(entry.getOrDefault("tool_name", "?"));
                 tools.add(tool);
-                if (Boolean.TRUE.equals(entry.get("is_error"))) state.errors++;
+                if (Boolean.TRUE.equals(entry.get("is_error")))
+                    state.errors++;
             }
             summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, tools, state);
         }
     }
 
-    private boolean containsBeforeNextUser(Map<String, Object> entry,
-                                           Map<String, List<Map<String, Object>>> children,
-                                           Predicate<String> predicate) {
+    private boolean containsBeforeNextUser(Map<String, Object> entry, Map<String, List<Map<String, Object>>> children,
+                                    Predicate<String> predicate) {
         String id = entryId(entry);
-        if (id != null && predicate.test(id)) return true;
+        if (id != null && predicate.test(id))
+            return true;
         for (var child : children.getOrDefault(id, List.of())) {
-            if (isUserEntry(child)) continue;
-            if (containsBeforeNextUser(child, children, predicate)) return true;
+            if (isUserEntry(child))
+                continue;
+            if (containsBeforeNextUser(child, children, predicate))
+                return true;
         }
         return false;
     }
@@ -215,24 +223,23 @@ final class TreeRenderer {
     }
 
     private static boolean isUserEntry(Map<String, Object> entry) {
-        return "message".equals(entry.getOrDefault("type", "message"))
-            && "user".equals(entry.getOrDefault("role", ""));
+        return "message".equals(entry.getOrDefault("type", "message")) && "user".equals(entry.getOrDefault("role", ""));
     }
 
     private static String snippet(String content, int max) {
-        if (content == null) return "";
+        if (content == null)
+            return "";
         String s = content.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim();
         return s.length() > max ? s.substring(0, Math.max(0, max - 1)) + "…" : s;
     }
 
-    private record TurnSummary(String assistant, int toolCalls, List<String> tools, int errors, int compacted) {}
+    private record TurnSummary(String assistant, int toolCalls, List<String> tools, int errors, int compacted) {
+    }
 
-    private record TreeView(List<Map<String, Object>> entries,
-                            List<Map<String, Object>> roots,
-                            Map<String, List<Map<String, Object>>> children,
-                            Map<String, String> parents,
-                            Map<String, Integer> userNumbers,
-                            int userCount) {}
+    private record TreeView(List<Map<String, Object>> entries, List<Map<String, Object>> roots,
+                                    Map<String, List<Map<String, Object>>> children, Map<String, String> parents,
+                                    Map<String, Integer> userNumbers, int userCount) {
+    }
 
     private static final class TurnSummaryState {
         String assistant = "";

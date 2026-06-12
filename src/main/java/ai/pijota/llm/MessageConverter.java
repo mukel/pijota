@@ -34,23 +34,20 @@ public final class MessageConverter {
                 case Message.Assistant a -> {
                     if (a.toolCalls() != null && !a.toolCalls().isEmpty()) {
                         if (hasCompleteImmediateToolResults(messages, i)) {
-                            var tcList = a.toolCalls().stream()
-                                .map(tc -> ToolExecutionRequest.builder()
-                                    .id(tc.id()).name(tc.name()).arguments(tc.arguments()).build())
-                                .toList();
+                            var tcList = a.toolCalls().stream().map(tc -> ToolExecutionRequest.builder().id(tc.id())
+                                                            .name(tc.name()).arguments(tc.arguments()).build())
+                                                            .toList();
                             String text = a.content() != null && !a.content().isBlank() ? a.content() : null;
-                            chatMessages.add(AiMessage.builder()
-                                .text(text)
-                                .thinking(nonBlank(a.thinking()))
-                                .toolExecutionRequests(tcList)
-                                .build());
-                            pendingToolResultIds = a.toolCalls().stream()
-                                .map(tc -> tc.id())
-                                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+                            chatMessages.add(AiMessage.builder().text(text).thinking(nonBlank(a.thinking()))
+                                                            .toolExecutionRequests(tcList).build());
+                            pendingToolResultIds = a.toolCalls().stream().map(tc -> tc.id())
+                                                            .collect(java.util.stream.Collectors.toCollection(
+                                                                                            LinkedHashSet::new));
                         } else {
                             pendingToolResultIds = new LinkedHashSet<>();
                             if (hasText(a.content()) || hasText(a.thinking())) {
-                                chatMessages.add(assistantMessage(a.content() != null ? a.content() : "", a.thinking()));
+                                chatMessages.add(assistantMessage(a.content() != null ? a.content() : "",
+                                                                a.thinking()));
                             }
                         }
                     } else {
@@ -60,12 +57,9 @@ public final class MessageConverter {
                 }
                 case Message.ToolResult tr -> {
                     if (pendingToolResultIds.remove(tr.toolCallId())) {
-                        chatMessages.add(ToolExecutionResultMessage.builder()
-                            .id(tr.toolCallId())
-                            .toolName(tr.toolName())
-                            .text(tr.content())
-                            .isError(tr.isError() ? true : null)
-                            .build());
+                        chatMessages.add(ToolExecutionResultMessage.builder().id(tr.toolCallId())
+                                                        .toolName(tr.toolName()).text(tr.content())
+                                                        .isError(tr.isError() ? true : null).build());
                     }
                 }
                 case Message.CompactionSummary cs -> {
@@ -82,10 +76,7 @@ public final class MessageConverter {
     }
 
     private static AiMessage assistantMessage(String text, String thinking) {
-        return AiMessage.builder()
-            .text(text)
-            .thinking(nonBlank(thinking))
-            .build();
+        return AiMessage.builder().text(text).thinking(nonBlank(thinking)).build();
     }
 
     private static String nonBlank(String value) {
@@ -98,13 +89,14 @@ public final class MessageConverter {
 
     private static boolean hasCompleteImmediateToolResults(List<Message> messages, int assistantIndex) {
         var assistant = (Message.Assistant) messages.get(assistantIndex);
-        var ids = assistant.toolCalls().stream()
-            .map(tc -> tc.id())
-            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        var ids = assistant.toolCalls().stream().map(tc -> tc.id())
+                                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         for (int i = assistantIndex + 1; i < messages.size(); i++) {
-            if (!(messages.get(i) instanceof Message.ToolResult tr)) break;
+            if (!(messages.get(i) instanceof Message.ToolResult tr))
+                break;
             ids.remove(tr.toolCallId());
-            if (ids.isEmpty()) return true;
+            if (ids.isEmpty())
+                return true;
         }
         return false;
     }

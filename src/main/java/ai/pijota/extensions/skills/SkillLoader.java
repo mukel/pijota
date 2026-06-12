@@ -16,7 +16,8 @@ public final class SkillLoader {
 
     private SkillLoader() {}
 
-    public record Skill(String name, String description, String content, Path source) {}
+    public record Skill(String name, String description, String content, Path source) {
+    }
 
     public static List<Skill> load(String cwd, List<String> explicitPaths) {
         var skills = new LinkedHashMap<String, Skill>();
@@ -24,14 +25,16 @@ public final class SkillLoader {
         discoverIn(skills, Path.of(cwd, ".pijota", "skills"));
         for (String pathStr : explicitPaths) {
             Path p = Path.of(pathStr);
-            if (!p.isAbsolute()) p = Path.of(cwd).resolve(p);
+            if (!p.isAbsolute())
+                p = Path.of(cwd).resolve(p);
             loadSkill(p).ifPresent(s -> skills.putIfAbsent(s.name(), s));
         }
         return new ArrayList<>(skills.values());
     }
 
     public static String buildPrompt(List<Skill> skills) {
-        if (skills.isEmpty()) return "";
+        if (skills.isEmpty())
+            return "";
         var sb = new StringBuilder();
         sb.append("\n<available_skills>\n");
         sb.append("The following skills provide specialized instructions for specific tasks.\n");
@@ -48,13 +51,12 @@ public final class SkillLoader {
     }
 
     public static Skill findByName(List<Skill> skills, String name) {
-        return skills.stream()
-            .filter(s -> s.name().equalsIgnoreCase(name))
-            .findFirst().orElse(null);
+        return skills.stream().filter(s -> s.name().equalsIgnoreCase(name)).findFirst().orElse(null);
     }
 
     private static void discoverIn(Map<String, Skill> skills, Path dir) {
-        if (!Files.isDirectory(dir)) return;
+        if (!Files.isDirectory(dir))
+            return;
         try (Stream<Path> stream = Files.list(dir)) {
             stream.sorted().forEach(p -> loadSkill(p).ifPresent(s -> skills.putIfAbsent(s.name(), s)));
         } catch (IOException ignored) {}
@@ -64,7 +66,8 @@ public final class SkillLoader {
         try {
             if (Files.isDirectory(path)) {
                 Path skillMd = path.resolve("SKILL.md");
-                if (!Files.isRegularFile(skillMd)) return java.util.Optional.empty();
+                if (!Files.isRegularFile(skillMd))
+                    return java.util.Optional.empty();
                 return loadFromFile(skillMd, path.getFileName().toString());
             }
             if (Files.isRegularFile(path) && path.toString().endsWith(".md")) {
@@ -81,13 +84,19 @@ public final class SkillLoader {
     private static java.util.Optional<Skill> loadFromFile(Path file, String defaultName) throws IOException {
         String raw = Files.readString(file);
         var parsed = parseFrontmatter(raw);
-        String name = parsed.frontmatter().containsKey("name") ? parsed.frontmatter().get("name").toString() : defaultName;
-        String description = parsed.frontmatter().containsKey("description") ? parsed.frontmatter().get("description").toString() : "";
-        if (description.isBlank()) return java.util.Optional.empty();
+        String name = parsed.frontmatter().containsKey("name")
+                                        ? parsed.frontmatter().get("name").toString()
+                                        : defaultName;
+        String description = parsed.frontmatter().containsKey("description")
+                                        ? parsed.frontmatter().get("description").toString()
+                                        : "";
+        if (description.isBlank())
+            return java.util.Optional.empty();
         return java.util.Optional.of(new Skill(name, description, parsed.body(), file));
     }
 
-    record Parsed(Map<String, Object> frontmatter, String body) {}
+    record Parsed(Map<String, Object> frontmatter, String body) {
+    }
 
     static Parsed parseFrontmatter(String raw) {
         var frontmatter = new LinkedHashMap<String, Object>();
@@ -102,7 +111,8 @@ public final class SkillLoader {
                     if (colon > 0) {
                         String key = line.substring(0, colon).trim();
                         String value = line.substring(colon + 1).trim();
-                        if (!key.isEmpty() && !value.isEmpty()) frontmatter.put(key, value);
+                        if (!key.isEmpty() && !value.isEmpty())
+                            frontmatter.put(key, value);
                     }
                 }
             }

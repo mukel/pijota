@@ -10,39 +10,38 @@ import java.util.concurrent.CompletableFuture;
 public final class LsTool implements Tool {
 
     @Override
-    public String name() { return "ls"; }
+    public String name() {
+        return "ls";
+    }
 
     @Override
     public String description() {
         return "List immediate contents of one directory. Do not use for recursive project exploration; "
-            + "use glob for finding files across a codebase. Returns entries sorted alphabetically, "
-            + "with '/' suffix for directories. Includes dotfiles. Output is truncated to 500 entries or 100KB.";
+                                        + "use glob for finding files across a codebase. Returns entries sorted alphabetically, "
+                                        + "with '/' suffix for directories. Includes dotfiles. Output is truncated to 500 entries or 100KB.";
     }
 
     @Override
-    public boolean defaultEnabled() { return true; }
+    public boolean defaultEnabled() {
+        return true;
+    }
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "path", Map.of("type", "string",
-                    "description", "Directory to list (default: current directory)"),
-                "limit", Map.of("type", "integer",
-                    "description", "Maximum number of entries to return (default: 500)")
-            ),
-            "additionalProperties", false
-        );
+        return Map.of("type", "object", "properties", Map.of("path", Map.of("type", "string", "description",
+                                        "Directory to list (default: current directory)"), "limit",
+                                        Map.of("type", "integer", "description",
+                                                                        "Maximum number of entries to return (default: 500)")),
+                                        "additionalProperties", false);
     }
 
     @Override
-    public CompletableFuture<Tool.ToolResult> execute(
-            String toolCallId, Map<String, Object> args, String cwd) {
+    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Map<String, Object> args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String pathStr = Util.resolvePath(args, cwd);
-                if (pathStr == null) pathStr = Util.resolveDir(cwd).toString();
+                if (pathStr == null)
+                    pathStr = Util.resolveDir(cwd).toString();
                 Path path = Path.of(pathStr);
                 int limit = Math.max(1, Util.getInt(args, "limit", 500));
                 if (!Files.isDirectory(path)) {

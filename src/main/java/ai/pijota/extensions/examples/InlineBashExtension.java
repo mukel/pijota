@@ -14,8 +14,15 @@ public final class InlineBashExtension implements Extension {
 
     private static final Pattern INLINE_BASH = Pattern.compile("!\\{([^}]+)\\}");
 
-    @Override public String name() { return "inline-bash"; }
-    @Override public String description() { return "Expands !{command} patterns in user prompts"; }
+    @Override
+    public String name() {
+        return "inline-bash";
+    }
+
+    @Override
+    public String description() {
+        return "Expands !{command} patterns in user prompts";
+    }
 
     @Override
     public void init(ExtensionAPI api) {
@@ -41,7 +48,8 @@ public final class InlineBashExtension implements Extension {
             int lastEnd = 0;
             for (var r : replacements) {
                 int idx = text.indexOf(r.original, lastEnd);
-                if (idx < 0) continue;
+                if (idx < 0)
+                    continue;
                 result.append(text, lastEnd, idx);
                 try {
                     ExecResult exec = runtime.exec(List.of("bash", "-c", r.command));
@@ -62,5 +70,6 @@ public final class InlineBashExtension implements Extension {
         });
     }
 
-    private record Replacement(String original, String command) {}
+    private record Replacement(String original, String command) {
+    }
 }

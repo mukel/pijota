@@ -15,16 +15,27 @@ final class ModelCommandHandler {
 
     interface Host {
         boolean busy();
+
         String provider();
+
         String model();
+
         void appendPlain(List<String> lines);
+
         String styled(String slot, String text);
+
         void redrawPrompt();
+
         void setStatus(String status);
+
         void switchModel(ModelInfo chosen);
+
         TuiSelectors selectors();
+
         PromptEditor promptEditor();
+
         ai.pijota.agent.PijotaSession session();
+
         ai.pijota.config.SettingsManager settings();
     }
 
@@ -61,7 +72,8 @@ final class ModelCommandHandler {
 
     void confirmModelSelection() {
         var selected = host.selectors().<ModelItem>selected(TuiSelectors.Slot.MODEL).orElse(null);
-        if (selected == null) return;
+        if (selected == null)
+            return;
         var chosen = selected.info();
         host.switchModel(chosen);
         host.selectors().deactivate(TuiSelectors.Slot.MODEL);
@@ -76,9 +88,8 @@ final class ModelCommandHandler {
             return;
         }
         var result = ModelRefresher.refresh(host.settings());
-        host.appendPlain(List.of(host.styled("statusText",
-            "refreshed " + result.modelsFound() + " models from "
-                + result.providersChecked() + " provider(s)")));
+        host.appendPlain(List.of(host.styled("statusText", "refreshed " + result.modelsFound() + " models from "
+                                        + result.providersChecked() + " provider(s)")));
         for (String error : result.errors()) {
             host.appendPlain(List.of(host.styled("toolError", "refresh: " + error)));
         }
@@ -92,15 +103,15 @@ final class ModelCommandHandler {
             return;
         }
         var models = availableModels();
-        if (models.size() <= 1) return;
+        if (models.size() <= 1)
+            return;
         var chosen = nextModel(models, direction);
         host.switchModel(chosen);
     }
 
     List<ModelInfo> availableModels() {
-        return ModelRegistry.KNOWN_MODELS.stream()
-            .filter(m -> host.settings() == null || host.settings().resolveApiKey(m.provider()) != null)
-            .toList();
+        return ModelRegistry.KNOWN_MODELS.stream().filter(m -> host.settings() == null
+                                        || host.settings().resolveApiKey(m.provider()) != null).toList();
     }
 
     ModelInfo nextModel(List<ModelInfo> models, int direction) {

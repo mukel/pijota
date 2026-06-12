@@ -18,17 +18,29 @@ import static ai.pijota.util.Util.fmtCount;
 final class SessionCommands {
     interface Host {
         PijotaSession session();
+
         String styled(String slot, String text);
+
         void appendPlain(List<String> lines);
+
         boolean busy();
+
         String sessionName();
+
         void setSessionName(String name);
+
         String provider();
+
         String model();
+
         String cwd();
+
         ThinkingLevel thinkingLevel();
+
         SettingsManager settings();
+
         String tokenStatus();
+
         void refreshSessionName();
     }
 
@@ -39,8 +51,10 @@ final class SessionCommands {
     }
 
     void saveSession(String path) {
-        if (path.startsWith("/save ")) path = path.substring(6).trim();
-        else if (path.startsWith("/save")) path = path.substring(5).trim();
+        if (path.startsWith("/save "))
+            path = path.substring(6).trim();
+        else if (path.startsWith("/save"))
+            path = path.substring(5).trim();
         if (path.isBlank()) {
             String ts = java.time.Instant.now().toString().replace(":", "-").substring(0, 19);
             path = "pijota-session-" + ts + ".jsonl";
@@ -63,15 +77,17 @@ final class SessionCommands {
         lines.add(host.styled("toolLabel", "sessions (" + sessions.size() + ")"));
         for (var item : SessionItem.fromPaths(sessions)) {
             lines.add(host.styled("statusText", "  " + item.description()
-                + host.styled("commandMeta", "  " + item.detailText())));
+                                            + host.styled("commandMeta", "  " + item.detailText())));
         }
         lines.add(host.styled("statusText", "/load <id|path> to resume  /delete <id> to remove"));
         host.appendPlain(lines);
     }
 
     void deleteSession(String spec) {
-        if (spec.startsWith("/delete ")) spec = spec.substring(8).trim();
-        else if (spec.startsWith("/delete")) spec = spec.substring(7).trim();
+        if (spec.startsWith("/delete "))
+            spec = spec.substring(8).trim();
+        else if (spec.startsWith("/delete"))
+            spec = spec.substring(7).trim();
         if (spec.isBlank()) {
             host.appendPlain(List.of(host.styled("toolError", "usage: /delete <id|path>")));
             return;
@@ -94,8 +110,8 @@ final class SessionCommands {
         try {
             host.session().newSession();
             host.setSessionName(null);
-            host.session().consumeSessionWarning().ifPresent(warning ->
-                host.appendPlain(List.of(host.styled("toolError", warning))));
+            host.session().consumeSessionWarning().ifPresent(
+                                            warning -> host.appendPlain(List.of(host.styled("toolError", warning))));
         } catch (Exception e) {
             host.appendPlain(List.of(host.styled("toolError", "session creation failed: " + e.getMessage())));
             return;
@@ -157,14 +173,24 @@ final class SessionCommands {
         long sysChars = 0, userChars = 0, assistantChars = 0, toolChars = 0;
         for (var m : msgs) {
             switch (m) {
-                case Message.System s -> { systems++; sysChars += s.content().length(); }
-                case Message.User u -> { users++; userChars += u.content().length(); }
+                case Message.System s -> {
+                    systems++;
+                    sysChars += s.content().length();
+                }
+                case Message.User u -> {
+                    users++;
+                    userChars += u.content().length();
+                }
                 case Message.Assistant a -> {
                     assistants++;
                     assistantChars += a.content() != null ? a.content().length() : 0;
-                    if (a.thinking() != null) assistantChars += a.thinking().length();
+                    if (a.thinking() != null)
+                        assistantChars += a.thinking().length();
                 }
-                case Message.ToolResult tr -> { tools++; toolChars += tr.content().length(); }
+                case Message.ToolResult tr -> {
+                    tools++;
+                    toolChars += tr.content().length();
+                }
                 case Message.CompactionSummary _ -> compactions++;
                 default -> {}
             }
@@ -172,18 +198,21 @@ final class SessionCommands {
         long totalChars = sysChars + userChars + assistantChars + toolChars;
         int estTokens = (int) Math.ceil(totalChars / 4.0);
         var lines = new ArrayList<String>();
-        lines.add(host.styled("toolLabel", "context  " + msgs.size() + " msgs  " + fmtCount(estTokens)
-            + " est tokens  " + host.tokenStatus()));
+        lines.add(host.styled("toolLabel", "context  " + msgs.size() + " msgs  " + fmtCount(estTokens) + " est tokens  "
+                                        + host.tokenStatus()));
         lines.add(host.styled("statusText", "  auto-compact  "
-            + (host.settings() == null || host.settings().compactionEnabled() ? "on" : "off")));
-        if (systems > 0) lines.add(host.styled("statusText",
-            "  system     " + systems + " msg  " + fmtCount((int) Math.ceil(sysChars / 4.0)) + " est tokens"));
-        lines.add(host.styled("statusText",
-            "  user       " + users + " msgs  " + fmtCount((int) Math.ceil(userChars / 4.0)) + " est tokens"));
-        lines.add(host.styled("statusText",
-            "  assistant  " + assistants + " msgs  " + fmtCount((int) Math.ceil(assistantChars / 4.0)) + " est tokens"));
-        lines.add(host.styled("statusText",
-            "  tool       " + tools + " msgs  " + fmtCount((int) Math.ceil(toolChars / 4.0)) + " est tokens"));
+                                        + (host.settings() == null || host.settings().compactionEnabled()
+                                                                        ? "on"
+                                                                        : "off")));
+        if (systems > 0)
+            lines.add(host.styled("statusText", "  system     " + systems + " msg  "
+                                            + fmtCount((int) Math.ceil(sysChars / 4.0)) + " est tokens"));
+        lines.add(host.styled("statusText", "  user       " + users + " msgs  "
+                                        + fmtCount((int) Math.ceil(userChars / 4.0)) + " est tokens"));
+        lines.add(host.styled("statusText", "  assistant  " + assistants + " msgs  "
+                                        + fmtCount((int) Math.ceil(assistantChars / 4.0)) + " est tokens"));
+        lines.add(host.styled("statusText", "  tool       " + tools + " msgs  "
+                                        + fmtCount((int) Math.ceil(toolChars / 4.0)) + " est tokens"));
         if (compactions > 0) {
             lines.add(host.styled("statusText", "  compactions  " + compactions));
             for (var m : msgs) {
@@ -201,14 +230,16 @@ final class SessionCommands {
 
     void showSessionInfo() {
         host.refreshSessionName();
-        host.appendPlain(List.of(
-            host.styled("toolLabel", "session"),
-            host.styled("statusText", "provider  " + host.provider()),
-            host.styled("statusText", "model    " + host.model()),
-            host.styled("statusText", "cwd      " + host.cwd()),
-            host.styled("statusText", "tokens   " + host.tokenStatus()),
-            host.styled("statusText", "thinking " + host.thinkingLevel().label()),
-            host.styled("statusText", "compact  " + (host.settings() == null || host.settings().compactionEnabled() ? "auto" : "off"))));
+        host.appendPlain(List.of(host.styled("toolLabel", "session"),
+                                        host.styled("statusText", "provider  " + host.provider()),
+                                        host.styled("statusText", "model    " + host.model()),
+                                        host.styled("statusText", "cwd      " + host.cwd()),
+                                        host.styled("statusText", "tokens   " + host.tokenStatus()),
+                                        host.styled("statusText", "thinking " + host.thinkingLevel().label()),
+                                        host.styled("statusText", "compact  " + (host.settings() == null
+                                                                        || host.settings().compactionEnabled()
+                                                                                                        ? "auto"
+                                                                                                        : "off"))));
         if (host.sessionName() != null)
             host.appendPlain(List.of(host.styled("statusText", "name     " + host.sessionName())));
     }

@@ -32,17 +32,10 @@ public final class PijotaSession implements AutoCloseable {
     private boolean disableSession;
     private volatile String sessionWarning;
 
-    public PijotaSession(
-        LlmService llm,
-        ToolRegistry toolRegistry,
-        SessionManager sessionManager,
-        ExtensionRegistry extensionRegistry,
-        String systemPrompt,
-        String cwd,
-        boolean noSession,
-        int contextWindow,
-        AppConfig.CompactionConfig compactionConfig
-    ) throws IOException {
+    public PijotaSession(LlmService llm, ToolRegistry toolRegistry, SessionManager sessionManager,
+                                    ExtensionRegistry extensionRegistry, String systemPrompt, String cwd,
+                                    boolean noSession, int contextWindow, AppConfig.CompactionConfig compactionConfig)
+                                    throws IOException {
         this.sessionManager = sessionManager;
         this.toolRegistry = toolRegistry;
         this.extensionRegistry = extensionRegistry;
@@ -55,27 +48,25 @@ public final class PijotaSession implements AutoCloseable {
         var summaryGen = (CompactionManager.SummaryGenerator) (msgs, instr, prev, onPart) -> {
             var summaryAgent = findSummarizeAgent(cwd);
             if (summaryAgent != null && summaryAgent.systemPrompt() != null) {
-                return llm.summarize(msgs, instr, prev, onPart,
-                    summaryAgent.model(), summaryAgent.systemPrompt());
+                return llm.summarize(msgs, instr, prev, onPart, summaryAgent.model(), summaryAgent.systemPrompt());
             }
             if (summaryAgent != null && summaryAgent.model() != null) {
-                return llm.summarize(msgs, instr, prev, onPart,
-                    summaryAgent.model(), null);
+                return llm.summarize(msgs, instr, prev, onPart, summaryAgent.model(), null);
             }
             return llm.summarize(msgs, instr, prev, onPart);
         };
-        this.agentLoop = AgentLoop.builder(llm, toolRegistry, cwd)
-            .summaryGenerator(summaryGen)
-            .extensionRegistry(extensionRegistry)
-            .contextWindow(contextWindow)
-            .compactionConfig(compactionConfig)
-            .build();
+        this.agentLoop = AgentLoop.builder(llm, toolRegistry, cwd).summaryGenerator(summaryGen)
+                                        .extensionRegistry(extensionRegistry).contextWindow(contextWindow)
+                                        .compactionConfig(compactionConfig).build();
 
         this.agentLoop.addCompactionAppender((summary, count, firstKeptId) -> {
             Path file = this.sessionFile;
             if (!disableSession && file != null) {
-                try { sessionManager.appendCompaction(file, summary, count, firstKeptId); }
-                catch (IOException e) { rememberSessionWarning("compaction save", e); }
+                try {
+                    sessionManager.appendCompaction(file, summary, count, firstKeptId);
+                } catch (IOException e) {
+                    rememberSessionWarning("compaction save", e);
+                }
             }
         });
         this.agentLoop.addSystemPrompt(systemPrompt);
@@ -86,16 +77,22 @@ public final class PijotaSession implements AutoCloseable {
                     if (usage != null) {
                         Path file = this.sessionFile;
                         if (!disableSession && file != null) {
-                            try { sessionManager.appendMessage(file, msg); }
-                            catch (IOException e) { rememberSessionWarning("assistant message save", e); }
+                            try {
+                                sessionManager.appendMessage(file, msg);
+                            } catch (IOException e) {
+                                rememberSessionWarning("assistant message save", e);
+                            }
                         }
                     }
                 }
                 case AgentEvent.ToolResult(Message.ToolResult msg) -> {
                     Path file = this.sessionFile;
                     if (!disableSession && file != null) {
-                        try { sessionManager.appendMessage(file, msg); }
-                        catch (IOException e) { rememberSessionWarning("tool result save", e); }
+                        try {
+                            sessionManager.appendMessage(file, msg);
+                        } catch (IOException e) {
+                            rememberSessionWarning("tool result save", e);
+                        }
                     }
                 }
                 default -> {}
@@ -109,53 +106,106 @@ public final class PijotaSession implements AutoCloseable {
         var userMessage = new Message.User(filtered);
         Path file = this.sessionFile;
         if (!disableSession && file != null) {
-            try { sessionManager.appendMessage(file, userMessage); }
-            catch (IOException e) { rememberSessionWarning("user message save", e); }
+            try {
+                sessionManager.appendMessage(file, userMessage);
+            } catch (IOException e) {
+                rememberSessionWarning("user message save", e);
+            }
         }
         String effectivePrompt = extensionRegistry.fireBeforeAgentStart(agentLoop.messages(), sessionSystemPrompt);
         agentLoop.replaceSystemPrompt(effectivePrompt);
         extensionRegistry.setSystemPrompt(effectivePrompt);
         extensionRegistry.fireAgentStart();
-        return agentLoop.prompt(userMessage)
-            .thenApply(messages -> {
-                extensionRegistry.fireAfterAgentEnd();
-                SelfRespawn.maybeRespawn();
-                String err = SelfRespawn.lastRespawnError();
-                if (err != null) rememberSessionWarning("transcend", new IOException(err));
-                return messages;
-            });
+        return agentLoop.prompt(userMessage).thenApply(messages -> {
+            extensionRegistry.fireAfterAgentEnd();
+            SelfRespawn.maybeRespawn();
+            String err = SelfRespawn.lastRespawnError();
+            if (err != null)
+                rememberSessionWarning("transcend", new IOException(err));
+            return messages;
+        });
     }
 
     // -- Session management --
 
-    public AgentLoop agentLoop() { return agentLoop; }
-    public ExtensionRegistry extensionRegistry() { return extensionRegistry; }
-    public Path sessionFile() { return sessionFile; }
-    public List<Message> messages() { return agentLoop.messages(); }
-    public List<Message.User> userMessages() { return agentLoop.userMessages(); }
-    public String lastAssistantContent() { return agentLoop.lastAssistantContent(); }
-    public Optional<String> undoLastUserTurn() { return agentLoop.undoLastUserTurn(); }
-    public void abort() { agentLoop.abort(); }
-    public void followUp(String message) { agentLoop.followUp(message); }
-    public boolean isBusy() { return agentLoop.isBusy(); }
-    public void stripSystemRemindersFromContext() { agentLoop.stripSystemRemindersFromContext(); }
+    public AgentLoop agentLoop() {
+        return agentLoop;
+    }
+
+    public ExtensionRegistry extensionRegistry() {
+        return extensionRegistry;
+    }
+
+    public Path sessionFile() {
+        return sessionFile;
+    }
+
+    public List<Message> messages() {
+        return agentLoop.messages();
+    }
+
+    public List<Message.User> userMessages() {
+        return agentLoop.userMessages();
+    }
+
+    public String lastAssistantContent() {
+        return agentLoop.lastAssistantContent();
+    }
+
+    public Optional<String> undoLastUserTurn() {
+        return agentLoop.undoLastUserTurn();
+    }
+
+    public void abort() {
+        agentLoop.abort();
+    }
+
+    public void followUp(String message) {
+        agentLoop.followUp(message);
+    }
+
+    public boolean isBusy() {
+        return agentLoop.isBusy();
+    }
+
+    public void stripSystemRemindersFromContext() {
+        agentLoop.stripSystemRemindersFromContext();
+    }
+
     public void fireUserBash(String command, boolean excludeFromContext) {
         extensionRegistry.fireUserBash(command, excludeFromContext);
     }
-    public CompactionManager.CompactionResult compact(String instructions) { return agentLoop.compactWithResult(instructions); }
-    public void setAutoCompactionEnabled(boolean enabled) { agentLoop.setAutoCompactionEnabled(enabled); }
-    public void setContextWindow(long contextWindow) { agentLoop.setContextWindow(contextWindow); }
-    public void setThinkingLevel(ThinkingLevel level) { setThinkingLevel(level, true); }
 
-    public void restoreThinkingLevel(ThinkingLevel level) { setThinkingLevel(level, false); }
+    public CompactionManager.CompactionResult compact(String instructions) {
+        return agentLoop.compactWithResult(instructions);
+    }
+
+    public void setAutoCompactionEnabled(boolean enabled) {
+        agentLoop.setAutoCompactionEnabled(enabled);
+    }
+
+    public void setContextWindow(long contextWindow) {
+        agentLoop.setContextWindow(contextWindow);
+    }
+
+    public void setThinkingLevel(ThinkingLevel level) {
+        setThinkingLevel(level, true);
+    }
+
+    public void restoreThinkingLevel(ThinkingLevel level) {
+        setThinkingLevel(level, false);
+    }
 
     private void setThinkingLevel(ThinkingLevel level, boolean persist) {
         ThinkingLevel effective = level != null ? level : ThinkingLevel.OFF;
         agentLoop.llm().setThinkingLevel(effective);
         Path file = this.sessionFile;
         if (persist && !disableSession && file != null) {
-            try { sessionManager.appendThinkingLevelChange(file, effective.name()); }
-            catch (IOException e) { rememberSessionWarning("thinking level save", e); }
+            try {
+                sessionManager.appendThinkingLevelChange(file, effective.name());
+            } catch (IOException e) {
+                rememberSessionWarning("thinking level save", e);
+            }
         }
     }
 
@@ -175,8 +225,9 @@ public final class PijotaSession implements AutoCloseable {
             try {
                 sessionManager.appendModelChange(file, provider, model, contextWindow);
                 writeCacheMetadata(provider, model, sessionSystemPrompt);
+            } catch (IOException e) {
+                rememberSessionWarning("model change save", e);
             }
-            catch (IOException e) { rememberSessionWarning("model change save", e); }
         }
     }
 
@@ -186,22 +237,27 @@ public final class PijotaSession implements AutoCloseable {
 
     public ThinkingLevel latestThinkingLevel() throws IOException {
         String value = sessionManager.latestThinkingLevel(sessionFile);
-        if (value == null || value.isBlank()) return null;
-        try { return ThinkingLevel.valueOf(value); }
-        catch (IllegalArgumentException e) { return null; }
+        if (value == null || value.isBlank())
+            return null;
+        try {
+            return ThinkingLevel.valueOf(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public void addEventListener(Consumer<AgentEvent> listener) {
         agentLoop.addEventListener(listener);
     }
 
-    public List<Path> listSessions() { return sessionManager.listSessions(cwd); }
+    public List<Path> listSessions() {
+        return sessionManager.listSessions(cwd);
+    }
 
     public List<Path> resumableSessions() {
         Path current = sessionFile;
-        return sessionManager.listSessions(cwd).stream()
-            .filter(path -> current == null || !path.equals(current))
-            .toList();
+        return sessionManager.listSessions(cwd).stream().filter(path -> current == null || !path.equals(current))
+                                        .toList();
     }
 
     public Path resolveSession(String spec) throws IOException {
@@ -220,7 +276,9 @@ public final class PijotaSession implements AutoCloseable {
         return sessionFile != null ? sessionManager.getTreeEntries(sessionFile) : List.of();
     }
 
-    public String leafId() { return sessionManager.leafId(); }
+    public String leafId() {
+        return sessionManager.leafId();
+    }
 
     public Optional<String> consumeSessionWarning() {
         var warning = sessionWarning;
@@ -233,7 +291,8 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public void setSessionName(String name) throws IOException {
-        if (sessionFile == null) throw new IOException("No active session");
+        if (sessionFile == null)
+            throw new IOException("No active session");
         sessionManager.appendSessionInfo(sessionFile, name);
     }
 
@@ -258,12 +317,11 @@ public final class PijotaSession implements AutoCloseable {
         String currentProvider = agentLoop.llm().provider();
         String currentModel = agentLoop.llm().model();
         if (metadata.provider() != null && !metadata.provider().isBlank()
-            && !metadata.provider().equals(currentProvider)) {
+                                        && !metadata.provider().equals(currentProvider)) {
             rememberSessionWarning("[cache] provider changed since session start; LLM server cache may miss");
             return;
         }
-        if (metadata.model() != null && !metadata.model().isBlank()
-            && !metadata.model().equals(currentModel)) {
+        if (metadata.model() != null && !metadata.model().isBlank() && !metadata.model().equals(currentModel)) {
             rememberSessionWarning("[cache] model changed since session start; LLM server cache may miss");
         }
     }
@@ -290,7 +348,9 @@ public final class PijotaSession implements AutoCloseable {
         var msgs = sessionManager.loadMessages(newFile);
         var metadata = sessionManager.latestCacheMetadata(newFile);
         String restoredPrompt = metadata != null && metadata.systemPrompt() != null
-            && !metadata.systemPrompt().isBlank() ? metadata.systemPrompt() : baseSystemPrompt;
+                                        && !metadata.systemPrompt().isBlank()
+                                                                        ? metadata.systemPrompt()
+                                                                        : baseSystemPrompt;
         sessionSystemPrompt = restoredPrompt;
         agentLoop.clearMessages();
         agentLoop.restoreMessages(msgs);
@@ -300,11 +360,11 @@ public final class PijotaSession implements AutoCloseable {
 
     private void writeCacheMetadata(String provider, String model, String systemPrompt) {
         Path file = this.sessionFile;
-        if (disableSession || file == null) return;
+        if (disableSession || file == null)
+            return;
         try {
             var manifest = ToolManifest.snapshot(toolRegistry);
-            sessionManager.appendCacheMetadata(file, systemPrompt, manifest.hash(), manifest.json(),
-                provider, model);
+            sessionManager.appendCacheMetadata(file, systemPrompt, manifest.hash(), manifest.json(), provider, model);
         } catch (Exception e) {
             rememberSessionWarning("cache metadata save", new IOException(e));
         }
@@ -325,8 +385,9 @@ public final class PijotaSession implements AutoCloseable {
 
     public int load(Path file) throws IOException {
         if (this.sessionFile != null && !this.sessionFile.equals(file)) {
-            try { java.nio.file.Files.deleteIfExists(this.sessionFile); }
-            catch (IOException ignored) {}
+            try {
+                java.nio.file.Files.deleteIfExists(this.sessionFile);
+            } catch (IOException ignored) {}
         }
         switchSession(file);
         return agentLoop.messages().size();
@@ -348,14 +409,16 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public Path forkFrom(String entryId) throws IOException {
-        if (sessionFile == null) throw new IOException("No active session");
+        if (sessionFile == null)
+            throw new IOException("No active session");
         Path newFile = sessionManager.forkSession(sessionFile, entryId, cwd);
         switchSession(newFile);
         return newFile;
     }
 
     public Path cloneCurrentBranch() throws IOException {
-        if (sessionFile == null) throw new IOException("No active session");
+        if (sessionFile == null)
+            throw new IOException("No active session");
         Path newFile = sessionManager.migrate(sessionFile, sessionManager.leafId(), cwd);
         switchSession(newFile);
         return newFile;
@@ -369,7 +432,8 @@ public final class PijotaSession implements AutoCloseable {
     private static SubAgent findSummarizeAgent(String cwd) {
         try {
             for (var agent : SubAgent.loadAll(java.nio.file.Path.of(cwd))) {
-                if ("summarize".equals(agent.name())) return agent;
+                if ("summarize".equals(agent.name()))
+                    return agent;
             }
         } catch (Exception ignored) {}
         return null;

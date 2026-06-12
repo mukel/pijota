@@ -14,8 +14,15 @@ public final class GitCheckpointExtension implements Extension {
     private final Map<String, String> checkpoints = new LinkedHashMap<>();
     private final AtomicReference<String> lastEntryId = new AtomicReference<>();
 
-    @Override public String name() { return "git-checkpoint"; }
-    @Override public String description() { return "Creates git stash checkpoints at each turn for code restoration"; }
+    @Override
+    public String name() {
+        return "git-checkpoint";
+    }
+
+    @Override
+    public String description() {
+        return "Creates git stash checkpoints at each turn for code restoration";
+    }
 
     @Override
     public void init(ExtensionAPI api) {

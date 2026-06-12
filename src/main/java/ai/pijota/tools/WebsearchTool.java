@@ -23,42 +23,39 @@ import java.util.regex.Pattern;
 public final class WebsearchTool implements Tool {
     private static final int DEFAULT_NUM_RESULTS = 8;
     private static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        + " (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+                                    + " (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
-    private final HttpClient http = HttpClient.newBuilder()
-        .followRedirects(HttpClient.Redirect.NORMAL)
-        .connectTimeout(Duration.ofSeconds(10))
-        .build();
+    private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
+                                    .connectTimeout(Duration.ofSeconds(10)).build();
 
-    @Override public String name() { return "websearch"; }
+    @Override
+    public String name() {
+        return "websearch";
+    }
 
-    @Override public boolean defaultEnabled() { return true; }
+    @Override
+    public boolean defaultEnabled() {
+        return true;
+    }
 
     @Override
     public String description() {
         return "Search the web using real-time web searches and scrape content from specific URLs. "
-            + "Provides up-to-date information for current events and recent data. "
-            + "Supports configurable result counts. "
-            + "Use this tool for accessing information beyond knowledge cutoff.\n\n"
-            + "Usage notes:\n"
-            + "- Search results include titles, URLs, and snippets\n"
-            + "- Configure numResults for more/fewer results (default 8)\n"
-            + "- Results may be summarized if very large";
+                                        + "Provides up-to-date information for current events and recent data. "
+                                        + "Supports configurable result counts. "
+                                        + "Use this tool for accessing information beyond knowledge cutoff.\n\n"
+                                        + "Usage notes:\n" + "- Search results include titles, URLs, and snippets\n"
+                                        + "- Configure numResults for more/fewer results (default 8)\n"
+                                        + "- Results may be summarized if very large";
     }
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "query", Map.of("type", "string",
-                    "description", "Websearch query"),
-                "numResults", Map.of("type", "integer",
-                    "description", "Number of search results to return (default: 8)")
-            ),
-            "required", List.of("query"),
-            "additionalProperties", false
-        );
+        return Map.of("type", "object", "properties", Map.of("query",
+                                        Map.of("type", "string", "description", "Websearch query"), "numResults",
+                                        Map.of("type", "integer", "description",
+                                                                        "Number of search results to return (default: 8)")),
+                                        "required", List.of("query"), "additionalProperties", false);
     }
 
     @Override
@@ -66,7 +63,8 @@ public final class WebsearchTool implements Tool {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String query = (String) args.get("query");
-                if (query == null || query.isBlank()) return ToolResult.error("No query provided");
+                if (query == null || query.isBlank())
+                    return ToolResult.error("No query provided");
 
                 int numResults = Math.max(1, Util.getInt(args, "numResults", DEFAULT_NUM_RESULTS));
 
@@ -77,7 +75,8 @@ public final class WebsearchTool implements Tool {
                     default -> ddgSearch(query, numResults);
                 };
 
-                if (results.isEmpty()) return ToolResult.success("No search results found for: " + query);
+                if (results.isEmpty())
+                    return ToolResult.success("No search results found for: " + query);
 
                 var sb = new StringBuilder();
                 for (int i = 0; i < results.size(); i++) {
@@ -102,22 +101,18 @@ public final class WebsearchTool implements Tool {
     private List<SearchResult> ddgSearch(String query, int numResults) throws Exception {
         String url = "https://html.duckduckgo.com/html/?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
 
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-            .header("User-Agent", UA)
-            .timeout(Duration.ofSeconds(15))
-            .GET()
-            .build();
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url)).header("User-Agent", UA)
+                                        .timeout(Duration.ofSeconds(15)).GET().build();
 
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
         String html = response.body();
 
         var results = new ArrayList<SearchResult>();
         var resultBlockPattern = Pattern.compile(
-            "<a[^>]*class\\s*=\\s*['\"]result__a['\"][^>]*href\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>\\s*(.*?)\\s*</a>",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-        var snippetPattern = Pattern.compile(
-            "<a[^>]*class\\s*=\\s*['\"]result__snippet['\"][^>]*>(.*?)</a>",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+                                        "<a[^>]*class\\s*=\\s*['\"]result__a['\"][^>]*href\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>\\s*(.*?)\\s*</a>",
+                                        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+        var snippetPattern = Pattern.compile("<a[^>]*class\\s*=\\s*['\"]result__snippet['\"][^>]*>(.*?)</a>",
+                                        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
         var matcher = resultBlockPattern.matcher(html);
         while (matcher.find() && results.size() < numResults) {
@@ -138,11 +133,12 @@ public final class WebsearchTool implements Tool {
 
     private List<SearchResult> exaSearch(String query, int numResults) throws Exception {
         String key = System.getenv("EXA_API_KEY");
-        if (key == null || key.isBlank()) return ddgSearch(query, numResults);
+        if (key == null || key.isBlank())
+            return ddgSearch(query, numResults);
 
         String body = String.format("""
-            {"query":"%s","numResults":%d,"type":"auto","contents":{"text":true}}""",
-            query.replace("\\", "\\\\").replace("\"", "\\\""), numResults);
+                                        {"query":"%s","numResults":%d,"type":"auto","contents":{"text":true}}""",
+                                        query.replace("\\", "\\\\").replace("\"", "\\\""), numResults);
 
         HttpURLConnection conn = (HttpURLConnection) URI.create("https://api.exa.ai/search").toURL().openConnection();
         conn.setRequestMethod("POST");
@@ -153,75 +149,74 @@ public final class WebsearchTool implements Tool {
         conn.setConnectTimeout(10_000);
         conn.setReadTimeout(25_000);
 
-        try (OutputStream os = conn.getOutputStream()) { os.write(body.getBytes(StandardCharsets.UTF_8)); }
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(body.getBytes(StandardCharsets.UTF_8));
+        }
 
         int code = conn.getResponseCode();
         InputStream stream = code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream();
         try {
             String response = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            if (code != 200) return ddgSearch(query, numResults);
+            if (code != 200)
+                return ddgSearch(query, numResults);
 
             JsonNode root = Util.MAPPER.readTree(response);
             var results = new ArrayList<SearchResult>();
             for (JsonNode item : root.path("results")) {
-                results.add(new SearchResult(
-                    item.path("title").asText(""),
-                    item.path("url").asText(""),
-                    item.path("text").asText("")
-                ));
+                results.add(new SearchResult(item.path("title").asText(""), item.path("url").asText(""),
+                                                item.path("text").asText("")));
             }
             return results;
         } finally {
-            try { stream.close(); } catch (IOException ignored) {}
+            try {
+                stream.close();
+            } catch (IOException ignored) {}
             conn.disconnect();
         }
     }
 
     private List<SearchResult> parallelSearch(String query, int numResults) throws Exception {
         String key = System.getenv("PARALLEL_API_KEY");
-        if (key == null || key.isBlank()) return ddgSearch(query, numResults);
+        if (key == null || key.isBlank())
+            return ddgSearch(query, numResults);
 
         String body = String.format("""
-            {"objective":"%s","search_queries":["%s"]}""",
-            query.replace("\\", "\\\\").replace("\"", "\\\""),
-            query.replace("\\", "\\\\").replace("\"", "\\\""));
+                                        {"objective":"%s","search_queries":["%s"]}""",
+                                        query.replace("\\", "\\\\").replace("\"", "\\\""),
+                                        query.replace("\\", "\\\\").replace("\"", "\\\""));
 
-        HttpRequest request = HttpRequest.newBuilder(
-                URI.create("https://api.parallel.ai/api/v1/web_search"))
-            .header("Content-Type", "application/json")
-            .header("Authorization", "Bearer " + key)
-            .header("User-Agent", "opencode")
-            .timeout(Duration.ofSeconds(25))
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build();
+        HttpRequest request = HttpRequest.newBuilder(URI.create("https://api.parallel.ai/api/v1/web_search"))
+                                        .header("Content-Type", "application/json")
+                                        .header("Authorization", "Bearer " + key).header("User-Agent", "opencode")
+                                        .timeout(Duration.ofSeconds(25)).POST(HttpRequest.BodyPublishers.ofString(body))
+                                        .build();
 
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) return ddgSearch(query, numResults);
+        if (response.statusCode() != 200)
+            return ddgSearch(query, numResults);
 
         JsonNode root = Util.MAPPER.readTree(response.body());
         var results = new ArrayList<SearchResult>();
         for (JsonNode item : root.path("results")) {
-            results.add(new SearchResult(
-                item.path("title").asText(""),
-                item.path("url").asText(""),
-                item.path("content").asText(item.path("snippet").asText(""))
-            ));
+            results.add(new SearchResult(item.path("title").asText(""), item.path("url").asText(""),
+                                            item.path("content").asText(item.path("snippet").asText(""))));
         }
         return results;
     }
 
     private static String stripHtml(String html) {
-        return html.replaceAll("(?is)<[^>]+>", "")
-            .replace("&amp;", "&").replace("&lt;", "<")
-            .replace("&gt;", ">").replace("&quot;", "\"")
-            .replace("&nbsp;", " ").replace("&#39;", "'");
+        return html.replaceAll("(?is)<[^>]+>", "").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                                        .replace("&quot;", "\"").replace("&nbsp;", " ").replace("&#39;", "'");
     }
 
     private static String cleanUrl(String url) {
-        if (url.startsWith("//")) return "https:" + url;
-        if (url.startsWith("/")) return "";
+        if (url.startsWith("//"))
+            return "https:" + url;
+        if (url.startsWith("/"))
+            return "";
         return url;
     }
 
-    private record SearchResult(String title, String url, String snippet) {}
+    private record SearchResult(String title, String url, String snippet) {
+    }
 }

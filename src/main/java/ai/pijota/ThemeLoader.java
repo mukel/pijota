@@ -30,34 +30,40 @@ final class ThemeLoader {
         var candidates = new LinkedHashMap<String, Path>();
         if (!args.noThemes()) {
             addThemeDir(candidates, Path.of(System.getProperty("user.home"), ".pijota", "themes"));
-            for (String ref : safeList(settings.config().themes())) addThemeRef(candidates, Path.of(cwd), ref);
+            for (String ref : safeList(settings.config().themes()))
+                addThemeRef(candidates, Path.of(cwd), ref);
         }
-        for (String ref : args.themePaths()) addThemeRef(candidates, Path.of(cwd), ref);
+        for (String ref : args.themePaths())
+            addThemeRef(candidates, Path.of(cwd), ref);
 
-        String selected = !args.themePaths().isEmpty()
-            ? args.themePaths().getLast()
-            : settings.config().theme();
-        if (selected == null || selected.isBlank()) selected = "dark";
+        String selected = !args.themePaths().isEmpty() ? args.themePaths().getLast() : settings.config().theme();
+        if (selected == null || selected.isBlank())
+            selected = "dark";
 
         AnsiTheme builtin = loadBuiltin(selected);
-        if (builtin != null) return builtin;
+        if (builtin != null)
+            return builtin;
 
         Path selectedPath = resolveThemePath(Path.of(cwd), selected);
-        if (selectedPath != null && Files.isRegularFile(selectedPath)) return AnsiTheme.load(selectedPath);
+        if (selectedPath != null && Files.isRegularFile(selectedPath))
+            return AnsiTheme.load(selectedPath);
 
         Path byName = candidates.get(selected);
         if (byName == null && selected.endsWith(".json")) {
             byName = candidates.get(selected.substring(0, selected.length() - 5));
         }
-        if (byName != null) return AnsiTheme.load(byName);
+        if (byName != null)
+            return AnsiTheme.load(byName);
 
         Path legacy = Path.of(System.getProperty("user.home"), ".pijota", "theme.json");
-        if (Files.isRegularFile(legacy)) return AnsiTheme.load(legacy);
+        if (Files.isRegularFile(legacy))
+            return AnsiTheme.load(legacy);
         return AnsiTheme.dark();
     }
 
     private static AnsiTheme loadBuiltin(String name) {
-        if (name == null || name.isBlank()) return null;
+        if (name == null || name.isBlank())
+            return null;
         String normalized = name.toLowerCase().replace('_', '-');
         try {
             return AnsiTheme.loadResource("themes/" + normalized + ".json");
@@ -71,11 +77,15 @@ final class ThemeLoader {
     }
 
     private static void addThemeRef(Map<String, Path> out, Path base, String ref) {
-        if (ref == null || ref.isBlank()) return;
+        if (ref == null || ref.isBlank())
+            return;
         Path path = resolveThemePath(base, ref);
-        if (path == null) return;
-        if (Files.isDirectory(path)) addThemeDir(out, path);
-        else if (Files.isRegularFile(path)) addThemeFile(out, path);
+        if (path == null)
+            return;
+        if (Files.isDirectory(path))
+            addThemeDir(out, path);
+        else if (Files.isRegularFile(path))
+            addThemeFile(out, path);
     }
 
     private static Path resolveThemePath(Path base, String ref) {
@@ -84,10 +94,10 @@ final class ThemeLoader {
     }
 
     private static void addThemeDir(Map<String, Path> out, Path dir) {
-        if (!Files.isDirectory(dir)) return;
+        if (!Files.isDirectory(dir))
+            return;
         try (var stream = Files.list(dir)) {
-            stream.filter(p -> p.getFileName().toString().endsWith(".json"))
-                .forEach(p -> addThemeFile(out, p));
+            stream.filter(p -> p.getFileName().toString().endsWith(".json")).forEach(p -> addThemeFile(out, p));
         } catch (Exception ignored) {}
     }
 
@@ -97,7 +107,8 @@ final class ThemeLoader {
         out.putIfAbsent(name, path);
         try {
             AnsiTheme loaded = AnsiTheme.load(path);
-            if (loaded.name != null && !loaded.name.isBlank()) out.putIfAbsent(loaded.name, path);
+            if (loaded.name != null && !loaded.name.isBlank())
+                out.putIfAbsent(loaded.name, path);
         } catch (Exception ignored) {}
     }
 

@@ -16,15 +16,16 @@ public final class MessageTransformer {
     private MessageTransformer() {}
 
     public static List<Message> transform(List<Message> messages, String targetProvider, String targetModel) {
-        if (messages == null || messages.isEmpty()) return List.of();
+        if (messages == null || messages.isEmpty())
+            return List.of();
         var idMap = new LinkedHashMap<String, String>();
         var usedIds = new HashSet<String>();
         var adapted = new ArrayList<Message>(messages.size());
 
         for (var message : messages) {
             switch (message) {
-                case Message.Assistant assistant -> adapted.add(adaptAssistant(
-                    assistant, targetProvider, targetModel, idMap, usedIds));
+                case Message.Assistant assistant ->
+                    adapted.add(adaptAssistant(assistant, targetProvider, targetModel, idMap, usedIds));
                 case Message.ToolResult result -> adapted.add(adaptToolResult(result, idMap));
                 default -> adapted.add(message);
             }
@@ -33,11 +34,8 @@ public final class MessageTransformer {
         return repairToolSequences(adapted);
     }
 
-    private static Message.Assistant adaptAssistant(Message.Assistant assistant,
-                                                    String targetProvider,
-                                                    String targetModel,
-                                                    Map<String, String> idMap,
-                                                    Set<String> usedIds) {
+    private static Message.Assistant adaptAssistant(Message.Assistant assistant, String targetProvider,
+                                    String targetModel, Map<String, String> idMap, Set<String> usedIds) {
         var calls = assistant.toolCalls();
         boolean sameModel = sameModel(assistant, targetProvider, targetModel);
         assistant = sameModel ? assistant : assistant.withThinking("");
@@ -57,22 +55,25 @@ public final class MessageTransformer {
             normalizedCalls.add(new ToolCall(newId, call.name(), call.arguments()));
         }
 
-        if (!changed) return assistant;
+        if (!changed)
+            return assistant;
         return new Message.Assistant(assistant.id(), assistant.timestamp(), assistant.content(),
-            List.copyOf(normalizedCalls), assistant.thinking(), assistant.sourceProvider(), assistant.sourceModel());
+                                        List.copyOf(normalizedCalls), assistant.thinking(), assistant.sourceProvider(),
+                                        assistant.sourceModel());
     }
 
     private static boolean sameModel(Message.Assistant assistant, String targetProvider, String targetModel) {
         return assistant.sourceProvider() != null && assistant.sourceModel() != null
-            && Objects.equals(assistant.sourceProvider(), targetProvider)
-            && Objects.equals(assistant.sourceModel(), targetModel);
+                                        && Objects.equals(assistant.sourceProvider(), targetProvider)
+                                        && Objects.equals(assistant.sourceModel(), targetModel);
     }
 
     private static Message.ToolResult adaptToolResult(Message.ToolResult result, Map<String, String> idMap) {
         String mapped = idMap.get(result.toolCallId());
-        if (mapped == null || Objects.equals(mapped, result.toolCallId())) return result;
-        return new Message.ToolResult(result.id(), result.timestamp(), mapped, result.toolName(),
-            result.content(), result.isError(), result.details());
+        if (mapped == null || Objects.equals(mapped, result.toolCallId()))
+            return result;
+        return new Message.ToolResult(result.id(), result.timestamp(), mapped, result.toolName(), result.content(),
+                                        result.isError(), result.details());
     }
 
     private static List<Message> repairToolSequences(List<Message> messages) {
@@ -91,7 +92,8 @@ public final class MessageTransformer {
             if (message instanceof Message.Assistant assistant) {
                 var calls = assistant.toolCalls();
                 if (calls != null) {
-                    for (var call : calls) pending.put(call.id(), call.name());
+                    for (var call : calls)
+                        pending.put(call.id(), call.name());
                 }
             }
             repaired.add(message);
@@ -101,14 +103,13 @@ public final class MessageTransformer {
         return List.copyOf(repaired);
     }
 
-    private static void flushSyntheticResults(List<Message> result,
-                                              Map<String, String> pending,
-                                              Set<String> satisfied) {
-        if (pending.isEmpty()) return;
+    private static void flushSyntheticResults(List<Message> result, Map<String, String> pending,
+                                    Set<String> satisfied) {
+        if (pending.isEmpty())
+            return;
         for (var entry : pending.entrySet()) {
             if (!satisfied.contains(entry.getKey())) {
-                result.add(new Message.ToolResult(entry.getKey(), entry.getValue(),
-                    "No result provided", true));
+                result.add(new Message.ToolResult(entry.getKey(), entry.getValue(), "No result provided", true));
             }
         }
         pending.clear();

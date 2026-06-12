@@ -27,10 +27,13 @@ final class DiffRenderer {
         int added = 0;
         int deleted = 0;
         for (var row : rows) {
-            if (row.kind() == DiffAlgorithm.Kind.ADD) added++;
-            if (row.kind() == DiffAlgorithm.Kind.DELETE) deleted++;
+            if (row.kind() == DiffAlgorithm.Kind.ADD)
+                added++;
+            if (row.kind() == DiffAlgorithm.Kind.DELETE)
+                deleted++;
         }
-        if (added == 0 && deleted == 0) return List.of();
+        if (added == 0 && deleted == 0)
+            return List.of();
 
         var highlighter = new SyntaxHighlighter(SyntaxHighlighter.languageForFilename(path), theme);
         var hunks = DiffAlgorithm.hunks(rows, CONTEXT_LINES);
@@ -47,7 +50,8 @@ final class DiffRenderer {
         boolean truncated = false;
 
         for (int h = 0; h < hunks.size(); h++) {
-            if (h > 0) out.add("");
+            if (h > 0)
+                out.add("");
             var hunk = hunks.get(h);
             for (var row : hunk.rows()) {
                 if (rendered >= MAX_RENDERED_ROWS) {
@@ -57,24 +61,23 @@ final class DiffRenderer {
                 out.add(format(row, oldWidth, newWidth, highlighter.highlightLine(row.text()), terminalWidth));
                 rendered++;
             }
-            if (truncated) break;
+            if (truncated)
+                break;
         }
 
         if (truncated) {
             int changed = added + deleted;
-            out.add(theme.styled("diffMeta", "… diff truncated: showing "
-                + MAX_RENDERED_ROWS + " of " + changed + " changed rows"));
+            out.add(theme.styled("diffMeta", "… diff truncated: showing " + MAX_RENDERED_ROWS + " of " + changed
+                                            + " changed rows"));
         }
         return out;
     }
 
     private String header(String action, String path, int added, int deleted, int width) {
         String name = path == null || path.isBlank() ? "diff" : shortenPath(path);
-        String text = theme.styled("diffMeta", "- ")
-            + theme.styled("diffHeader", action + " " + name)
-            + "  "
-            + theme.styled("diffAdd", "+" + added) + " "
-            + theme.styled("diffDelete", "-" + deleted) + " ";
+        String text = theme.styled("diffMeta", "- ") + theme.styled("diffHeader", action + " " + name) + "  "
+                                        + theme.styled("diffAdd", "+" + added) + " "
+                                        + theme.styled("diffDelete", "-" + deleted) + " ";
         int fill = Math.max(5, width - visibleLength(text));
         return text + theme.styled("diffMeta", "-".repeat(fill));
     }
@@ -92,8 +95,7 @@ final class DiffRenderer {
             case DELETE -> "diffDelete";
             case CONTEXT -> "diffContext";
         };
-        String prefix = theme.styled("diffMeta", "  " + oldNo + " " + newNo + " ")
-            + theme.styled(slot, mark) + " ";
+        String prefix = theme.styled("diffMeta", "  " + oldNo + " " + newNo + " ") + theme.styled(slot, mark) + " ";
         String line = prefix + body + (row.kind() == DiffAlgorithm.Kind.CONTEXT ? "" : " ");
         return switch (row.kind()) {
             case ADD -> withBackground("diffAddLine", line);
@@ -104,7 +106,8 @@ final class DiffRenderer {
 
     private String withBackground(String slot, String line) {
         String bg = theme.style(slot);
-        if (bg.isBlank()) return line;
+        if (bg.isBlank())
+            return line;
         var sb = new StringBuilder(bg);
         int last = 0;
         var matcher = ANSI_RESET.matcher(line);
@@ -119,7 +122,8 @@ final class DiffRenderer {
 
     private static String shortenPath(String path) {
         String home = System.getProperty("user.home");
-        if (home != null && path.startsWith(home)) path = "~" + path.substring(home.length());
+        if (home != null && path.startsWith(home))
+            path = "~" + path.substring(home.length());
         return path;
     }
 

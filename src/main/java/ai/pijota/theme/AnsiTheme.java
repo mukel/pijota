@@ -20,53 +20,53 @@ public class AnsiTheme {
     public String name = "custom";
     public boolean enabled = true;
 
-    public String text         = "#d4d4d4";
-    public String heading      = "bold;#00758F";
-    public String bold         = "bold";
-    public String italic       = "italic";
-    public String highlight    = "inverse";
-    public String dim          = "dim";
+    public String text = "#d4d4d4";
+    public String heading = "bold;#00758F";
+    public String bold = "bold";
+    public String italic = "italic";
+    public String highlight = "inverse";
+    public String dim = "dim";
     public String strikethrough = "strikethrough";
 
-    public String codeFence    = "dim;cyan";
-    public String codeBody     = "cyan";
-    public String blockquote   = "dim";
-    public String hr           = "dim";
-    public String inlineCode   = "yellow";
+    public String codeFence = "dim;cyan";
+    public String codeBody = "cyan";
+    public String blockquote = "dim";
+    public String hr = "dim";
+    public String inlineCode = "yellow";
 
-    public String synKeyword   = "bold;yellow";
-    public String synType      = "cyan";
-    public String synString    = "green";
-    public String synNumber    = "magenta";
-    public String synComment   = "dim";
-    public String synFunction  = "bold;cyan";
-    public String synVariable  = "";
-    public String synOperator  = "bright_black";
+    public String synKeyword = "bold;yellow";
+    public String synType = "cyan";
+    public String synString = "green";
+    public String synNumber = "magenta";
+    public String synComment = "dim";
+    public String synFunction = "bold;cyan";
+    public String synVariable = "";
+    public String synOperator = "bright_black";
     public String synPunctuation = "bright_black";
 
-    public String prompt       = "#F29111";
-    public String promptEcho   = "dim";
-    public String toolLabel    = "#F29111";
-    public String toolResult   = "dim";
-    public String toolError    = "red";
-    public String commandMeta  = "dim;#7AA6B8";
-    public String statusText   = "dim";
-    public String statusBar    = "bright_black";
-    public String statusWarn   = "dim;yellow";
-    public String bannerName   = "bold;#00758F";
-    public String bannerMeta   = "dim";
-    public String cwdLine      = "dim;bright_black";
-    public String bashMode      = "#00FF66";
-    public String thinkingText  = "dim;#7AA6B8";
+    public String prompt = "#F29111";
+    public String promptEcho = "dim";
+    public String toolLabel = "#F29111";
+    public String toolResult = "dim";
+    public String toolError = "red";
+    public String commandMeta = "dim;#7AA6B8";
+    public String statusText = "dim";
+    public String statusBar = "bright_black";
+    public String statusWarn = "dim;yellow";
+    public String bannerName = "bold;#00758F";
+    public String bannerMeta = "dim";
+    public String cwdLine = "dim;bright_black";
+    public String bashMode = "#00FF66";
+    public String thinkingText = "dim;#7AA6B8";
     public double thinkingOpacity = 0.72;
 
-    public String diffHeader    = "#7AA6B8";
-    public String diffMeta      = "bright_black";
-    public String diffAdd       = "#73C991";
-    public String diffDelete    = "#E06C75";
-    public String diffContext   = "";
-    public String diffHunk      = "dim;#F29111";
-    public String diffAddLine   = "bg:#08180F";
+    public String diffHeader = "#7AA6B8";
+    public String diffMeta = "bright_black";
+    public String diffAdd = "#73C991";
+    public String diffDelete = "#E06C75";
+    public String diffContext = "";
+    public String diffHunk = "dim;#F29111";
+    public String diffAddLine = "bg:#08180F";
     public String diffDeleteLine = "bg:#1D1411";
 
     public Map<String, String> extra = new HashMap<>();
@@ -122,17 +122,20 @@ public class AnsiTheme {
     private AnsiTheme copy() {
         var t = new AnsiTheme();
         for (var field : AnsiTheme.class.getFields()) {
-            if (Modifier.isStatic(field.getModifiers())) continue;
+            if (Modifier.isStatic(field.getModifiers()))
+                continue;
             try {
                 Object value = field.get(this);
-                if (value instanceof Map<?, ?> map) value = new HashMap<>(map);
+                if (value instanceof Map<?, ?> map)
+                    value = new HashMap<>(map);
                 field.set(t, value);
             } catch (IllegalAccessException ignored) {}
         }
         return t;
     }
 
-    private static String opacitySpec(String spec, String bg, double opacity, String fallbackColor, boolean colorizeStyleOnly) {
+    private static String opacitySpec(String spec, String bg, double opacity, String fallbackColor,
+                                    boolean colorizeStyleOnly) {
         if (spec == null || spec.isBlank()) {
             return colorizeStyleOnly && fallbackColor != null ? blendHex(fallbackColor, bg, opacity) : spec;
         }
@@ -140,7 +143,8 @@ public class AnsiTheme {
         boolean hasForeground = false;
         for (String raw : spec.split(";")) {
             String part = raw.strip();
-            if (part.isEmpty()) continue;
+            if (part.isEmpty())
+                continue;
             String mapped = part;
             if (part.startsWith("#") && part.length() == 7) {
                 mapped = blendHex(part, bg, opacity);
@@ -155,11 +159,13 @@ public class AnsiTheme {
                     hasForeground = true;
                 }
             }
-            if (!out.isEmpty()) out.append(';');
+            if (!out.isEmpty())
+                out.append(';');
             out.append(mapped);
         }
         if (!hasForeground && colorizeStyleOnly && fallbackColor != null) {
-            if (!out.isEmpty()) out.append(';');
+            if (!out.isEmpty())
+                out.append(';');
             out.append(blendHex(fallbackColor, bg, opacity));
         }
         return out.toString();
@@ -167,15 +173,19 @@ public class AnsiTheme {
 
     private static String firstColor(String... specs) {
         for (String spec : specs) {
-            if (spec == null) continue;
+            if (spec == null)
+                continue;
             for (String raw : spec.split(";")) {
                 String part = raw.strip();
-                if (part.startsWith("#") && part.length() == 7) return part;
+                if (part.startsWith("#") && part.length() == 7)
+                    return part;
                 String hex = COLOR_HEX.get(part);
-                if (hex != null) return hex;
+                if (hex != null)
+                    return hex;
                 if (part.startsWith("ansi:")) {
                     hex = ansiHex(part.substring(5));
-                    if (hex != null) return hex;
+                    if (hex != null)
+                        return hex;
                 }
             }
         }
@@ -216,16 +226,19 @@ public class AnsiTheme {
 
     public static AnsiTheme loadResource(String resource) throws IOException {
         try (InputStream in = AnsiTheme.class.getClassLoader().getResourceAsStream(resource)) {
-            if (in == null) throw new IOException("Theme resource not found: " + resource);
+            if (in == null)
+                throw new IOException("Theme resource not found: " + resource);
             return loadRaw(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8), resource);
         }
     }
 
     private static AnsiTheme loadRaw(String raw, String fallbackName) throws IOException {
         JsonNode root = Util.MAPPER.readTree(raw);
-        if (root.has("colors")) return fromPiTheme(root, fallbackName);
+        if (root.has("colors"))
+            return fromPiTheme(root, fallbackName);
         AnsiTheme t = Util.MAPPER.readValue(raw, AnsiTheme.class);
-        if (t.name == null) t.name = fallbackName;
+        if (t.name == null)
+            t.name = fallbackName;
         return t;
     }
 
@@ -238,7 +251,8 @@ public class AnsiTheme {
             varNode.fields().forEachRemaining(e -> vars.put(e.getKey(), colorSpec(e.getValue(), Map.of())));
         }
         JsonNode c = root.get("colors");
-        if (c == null || !c.isObject()) return t;
+        if (c == null || !c.isObject())
+            return t;
 
         t.heading = styledColor(c, vars, "mdHeading", t.heading);
         t.text = color(c, vars, "text", t.text);
@@ -278,40 +292,47 @@ public class AnsiTheme {
         t.diffAddLine = bgColor(c, vars, "toolSuccessBg", t.diffAddLine);
         t.diffDeleteLine = bgColor(c, vars, "toolErrorBg", t.diffDeleteLine);
 
-        addExtra(t, c, vars, "mdLink", "mdLinkUrl", "mdListBullet", "success", "warning",
-            "selectedBg", "userMessageBg", "userMessageText", "customMessageBg", "customMessageText",
-            "customMessageLabel", "toolPendingBg", "toolSuccessBg", "toolErrorBg",
-            "thinkingOff", "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh", "thinkingXhigh");
+        addExtra(t, c, vars, "mdLink", "mdLinkUrl", "mdListBullet", "success", "warning", "selectedBg", "userMessageBg",
+                                        "userMessageText", "customMessageBg", "customMessageText", "customMessageLabel",
+                                        "toolPendingBg", "toolSuccessBg", "toolErrorBg", "thinkingOff",
+                                        "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh",
+                                        "thinkingXhigh");
         return t;
     }
 
     private static void addExtra(AnsiTheme t, JsonNode colors, Map<String, String> vars, String... names) {
-        for (String name : names) t.extra.put(name, color(colors, vars, name, ""));
+        for (String name : names)
+            t.extra.put(name, color(colors, vars, name, ""));
     }
 
     private static String color(JsonNode colors, Map<String, String> vars, String name, String fallback) {
         JsonNode value = colors.get(name);
-        if (value == null || value.isNull()) return fallback;
+        if (value == null || value.isNull())
+            return fallback;
         String spec = colorSpec(value, vars);
         return spec == null ? fallback : spec;
     }
 
     private static String styledColor(JsonNode colors, Map<String, String> vars, String name, String fallback) {
         JsonNode value = colors.get(name);
-        if (value == null || value.isNull()) return fallback;
+        if (value == null || value.isNull())
+            return fallback;
         String spec = colorSpec(value, vars);
-        if (spec == null || spec.isBlank()) return fallback;
+        if (spec == null || spec.isBlank())
+            return fallback;
         String prefix = stylePrefix(fallback);
         return prefix.isEmpty() ? spec : prefix + ";" + spec;
     }
 
     private static String stylePrefix(String spec) {
-        if (spec == null || spec.isBlank()) return "";
+        if (spec == null || spec.isBlank())
+            return "";
         var sb = new StringBuilder();
         for (String part : spec.split(";")) {
             String p = part.strip();
             if (p.equals("bold") || p.equals("dim") || p.equals("italic")) {
-                if (!sb.isEmpty()) sb.append(';');
+                if (!sb.isEmpty())
+                    sb.append(';');
                 sb.append(p);
             }
         }
@@ -320,17 +341,23 @@ public class AnsiTheme {
 
     private static String bgColor(JsonNode colors, Map<String, String> vars, String name, String fallback) {
         String spec = color(colors, vars, name, "");
-        if (spec == null || spec.isBlank()) return fallback;
-        if (spec.startsWith("#")) return "bg:" + spec;
-        if (spec.startsWith("ansi:")) return "bg-" + spec;
+        if (spec == null || spec.isBlank())
+            return fallback;
+        if (spec.startsWith("#"))
+            return "bg:" + spec;
+        if (spec.startsWith("ansi:"))
+            return "bg-" + spec;
         return fallback;
     }
 
     private static String colorSpec(JsonNode value, Map<String, String> vars) {
-        if (value == null || value.isNull()) return "";
-        if (value.isNumber()) return "ansi:" + value.intValue();
+        if (value == null || value.isNull())
+            return "";
+        if (value.isNumber())
+            return "ansi:" + value.intValue();
         String s = value.asText("");
-        if (s.isBlank()) return "";
+        if (s.isBlank())
+            return "";
         return vars.getOrDefault(s, s);
     }
 
@@ -339,7 +366,8 @@ public class AnsiTheme {
     }
 
     public String style(String slotName) {
-        if (slotName == null || slotName.isBlank() || !enabled) return "";
+        if (slotName == null || slotName.isBlank() || !enabled)
+            return "";
         return specToAnsi(slotSpec(slotName));
     }
 
@@ -348,8 +376,10 @@ public class AnsiTheme {
     }
 
     public String styled(String slotName, String text) {
-        if (text == null || text.isEmpty()) return "";
-        if (!enabled) return text;
+        if (text == null || text.isEmpty())
+            return "";
+        if (!enabled)
+            return text;
         String a = specToAnsi(slotSpec(slotName));
         return a.isEmpty() ? text : a + text + "\033[0m";
     }
@@ -357,7 +387,8 @@ public class AnsiTheme {
     private String slotSpec(String name) {
         try {
             var field = AnsiTheme.class.getField(name);
-            if (field.getType() == String.class) return (String) field.get(this);
+            if (field.getType() == String.class)
+                return (String) field.get(this);
         } catch (ReflectiveOperationException ignored) {}
         return extra.getOrDefault(name, "");
     }
@@ -365,37 +396,56 @@ public class AnsiTheme {
     private void setSlotSpec(String name, String spec) {
         try {
             var field = AnsiTheme.class.getField(name);
-            if (field.getType() == String.class) field.set(this, spec);
+            if (field.getType() == String.class)
+                field.set(this, spec);
         } catch (ReflectiveOperationException ignored) {}
     }
 
     // -- internal -------------------------------------
 
     private static String specToAnsi(String spec) {
-        if (spec == null || spec.isBlank()) return "";
+        if (spec == null || spec.isBlank())
+            return "";
         var codes = new java.util.ArrayList<Integer>();
         String hex = null;
         String bgHex = null;
         for (String part : spec.split(";")) {
             part = part.strip();
-            if (part.isEmpty()) continue;
-            if (part.startsWith("bg:#") && part.length() == 10) { bgHex = part.substring(4); continue; }
-            if (part.startsWith("ansi:")) { appendAnsiColor(codes, part.substring(5), false); continue; }
-            if (part.startsWith("bg-ansi:")) { appendAnsiColor(codes, part.substring(8), true); continue; }
-            if (part.startsWith("#") && part.length() == 7) { hex = part.substring(1); continue; }
+            if (part.isEmpty())
+                continue;
+            if (part.startsWith("bg:#") && part.length() == 10) {
+                bgHex = part.substring(4);
+                continue;
+            }
+            if (part.startsWith("ansi:")) {
+                appendAnsiColor(codes, part.substring(5), false);
+                continue;
+            }
+            if (part.startsWith("bg-ansi:")) {
+                appendAnsiColor(codes, part.substring(8), true);
+                continue;
+            }
+            if (part.startsWith("#") && part.length() == 7) {
+                hex = part.substring(1);
+                continue;
+            }
             Integer c = CODE_MAP.get(part);
-            if (c != null) codes.add(c);
+            if (c != null)
+                codes.add(c);
         }
-        if (codes.isEmpty() && hex == null && bgHex == null) return "";
+        if (codes.isEmpty() && hex == null && bgHex == null)
+            return "";
         var sb = new StringBuilder("\033[");
         if (!codes.isEmpty()) {
             for (int i = 0; i < codes.size(); i++) {
-                if (i > 0) sb.append(';');
+                if (i > 0)
+                    sb.append(';');
                 sb.append(codes.get(i));
             }
         }
         if (hex != null) {
-            if (!codes.isEmpty()) sb.append(';');
+            if (!codes.isEmpty())
+                sb.append(';');
             try {
                 int r = Integer.parseInt(hex.substring(0, 2), 16);
                 int g = Integer.parseInt(hex.substring(2, 4), 16);
@@ -404,7 +454,8 @@ public class AnsiTheme {
             } catch (NumberFormatException ignored) {}
         }
         if (bgHex != null) {
-            if (!codes.isEmpty() || hex != null) sb.append(';');
+            if (!codes.isEmpty() || hex != null)
+                sb.append(';');
             try {
                 int r = Integer.parseInt(bgHex.substring(0, 2), 16);
                 int g = Integer.parseInt(bgHex.substring(2, 4), 16);
@@ -427,61 +478,33 @@ public class AnsiTheme {
         } catch (NumberFormatException ignored) {}
     }
 
-    private static final String[] THINKING_SLOTS = {
-        "heading", "bold", "italic", "highlight", "dim", "strikethrough",
-        "codeFence", "codeBody", "blockquote", "hr", "inlineCode",
-        "synKeyword", "synType", "synString", "synNumber", "synComment", "synFunction",
-        "synVariable", "synOperator", "synPunctuation",
-        "toolLabel", "commandMeta", "statusText", "statusWarn", "thinkingText"
-    };
+    private static final String[] THINKING_SLOTS = {"heading", "bold", "italic", "highlight", "dim", "strikethrough",
+            "codeFence", "codeBody", "blockquote", "hr", "inlineCode", "synKeyword", "synType", "synString",
+            "synNumber", "synComment", "synFunction", "synVariable", "synOperator", "synPunctuation", "toolLabel",
+            "commandMeta", "statusText", "statusWarn", "thinkingText"};
 
-    private static final Map<String, Integer> CODE_MAP = Map.ofEntries(
-        Map.entry("bold",       1),
-        Map.entry("dim",        2),
-        Map.entry("italic",     3),
-        Map.entry("underline",  4),
-        Map.entry("inverse",    7),
-        Map.entry("strikethrough", 9),
-        Map.entry("black",     30),
-        Map.entry("red",       31),
-        Map.entry("green",     32),
-        Map.entry("yellow",    33),
-        Map.entry("blue",      34),
-        Map.entry("magenta",   35),
-        Map.entry("cyan",      36),
-        Map.entry("white",     37),
-        Map.entry("default",   39),
-        Map.entry("bright_black",   90),
-        Map.entry("bright_red",     91),
-        Map.entry("bright_green",   92),
-        Map.entry("bright_yellow",  93),
-        Map.entry("bright_blue",    94),
-        Map.entry("bright_magenta", 95),
-        Map.entry("bright_cyan",    96),
-        Map.entry("bright_white",   97)
-    );
+    private static final Map<String, Integer> CODE_MAP = Map.ofEntries(Map.entry("bold", 1), Map.entry("dim", 2),
+                                    Map.entry("italic", 3), Map.entry("underline", 4), Map.entry("inverse", 7),
+                                    Map.entry("strikethrough", 9), Map.entry("black", 30), Map.entry("red", 31),
+                                    Map.entry("green", 32), Map.entry("yellow", 33), Map.entry("blue", 34),
+                                    Map.entry("magenta", 35), Map.entry("cyan", 36), Map.entry("white", 37),
+                                    Map.entry("default", 39), Map.entry("bright_black", 90),
+                                    Map.entry("bright_red", 91), Map.entry("bright_green", 92),
+                                    Map.entry("bright_yellow", 93), Map.entry("bright_blue", 94),
+                                    Map.entry("bright_magenta", 95), Map.entry("bright_cyan", 96),
+                                    Map.entry("bright_white", 97));
 
-    private static final Map<String, String> COLOR_HEX = Map.ofEntries(
-        Map.entry("black", "#000000"),
-        Map.entry("red", "#800000"),
-        Map.entry("green", "#008000"),
-        Map.entry("yellow", "#808000"),
-        Map.entry("blue", "#000080"),
-        Map.entry("magenta", "#800080"),
-        Map.entry("cyan", "#008080"),
-        Map.entry("white", "#c0c0c0"),
-        Map.entry("bright_black", "#808080"),
-        Map.entry("bright_red", "#ff0000"),
-        Map.entry("bright_green", "#00ff00"),
-        Map.entry("bright_yellow", "#ffff00"),
-        Map.entry("bright_blue", "#0000ff"),
-        Map.entry("bright_magenta", "#ff00ff"),
-        Map.entry("bright_cyan", "#00ffff"),
-        Map.entry("bright_white", "#ffffff")
-    );
+    private static final Map<String, String> COLOR_HEX = Map.ofEntries(Map.entry("black", "#000000"),
+                                    Map.entry("red", "#800000"), Map.entry("green", "#008000"),
+                                    Map.entry("yellow", "#808000"), Map.entry("blue", "#000080"),
+                                    Map.entry("magenta", "#800080"), Map.entry("cyan", "#008080"),
+                                    Map.entry("white", "#c0c0c0"), Map.entry("bright_black", "#808080"),
+                                    Map.entry("bright_red", "#ff0000"), Map.entry("bright_green", "#00ff00"),
+                                    Map.entry("bright_yellow", "#ffff00"), Map.entry("bright_blue", "#0000ff"),
+                                    Map.entry("bright_magenta", "#ff00ff"), Map.entry("bright_cyan", "#00ffff"),
+                                    Map.entry("bright_white", "#ffffff"));
 
-    private static final String[] ANSI_HEX = {
-        "#000000", "#800000", "#008000", "#808000", "#000080", "#800080", "#008080", "#c0c0c0",
-        "#808080", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"
-    };
+    private static final String[] ANSI_HEX = {"#000000", "#800000", "#008000", "#808000", "#000080", "#800080",
+            "#008080", "#c0c0c0", "#808080", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff",
+            "#ffffff"};
 }

@@ -18,7 +18,8 @@ final class AnsiWidth {
                 width += 4 - (width % 4);
             } else if (!Character.isISOControl(ch)) {
                 width += charWidth(text, i);
-                if (Character.isHighSurrogate(ch)) i++;
+                if (Character.isHighSurrogate(ch))
+                    i++;
             }
         }
         return width;
@@ -26,23 +27,36 @@ final class AnsiWidth {
 
     private static int charWidth(String text, int index) {
         int cp = text.codePointAt(index);
-        if (cp == 0x200D) return 1;
-        if (cp >= 0x1100 && cp <= 0x115F) return 2;
-        if (cp >= 0x2E80 && cp <= 0xA4CF) return 2;
-        if (cp >= 0xA960 && cp <= 0xA97C) return 2;
-        if (cp >= 0xAC00 && cp <= 0xD7A3) return 2;
-        if (cp >= 0xF900 && cp <= 0xFAFF) return 2;
-        if (cp >= 0xFE10 && cp <= 0xFE6F) return 2;
-        if (cp >= 0xFF01 && cp <= 0xFFE6) return 2;
-        if (cp >= 0x1F000 && cp <= 0x1FAFF) return 2;
-        if (cp >= 0x2300 && cp <= 0x24FF) return 2;
-        if (cp >= 0x2580 && cp <= 0x27BF) return 2;
-        if (cp >= 0x2B00 && cp <= 0x2BFF) return 2;
+        if (cp == 0x200D)
+            return 1;
+        if (cp >= 0x1100 && cp <= 0x115F)
+            return 2;
+        if (cp >= 0x2E80 && cp <= 0xA4CF)
+            return 2;
+        if (cp >= 0xA960 && cp <= 0xA97C)
+            return 2;
+        if (cp >= 0xAC00 && cp <= 0xD7A3)
+            return 2;
+        if (cp >= 0xF900 && cp <= 0xFAFF)
+            return 2;
+        if (cp >= 0xFE10 && cp <= 0xFE6F)
+            return 2;
+        if (cp >= 0xFF01 && cp <= 0xFFE6)
+            return 2;
+        if (cp >= 0x1F000 && cp <= 0x1FAFF)
+            return 2;
+        if (cp >= 0x2300 && cp <= 0x24FF)
+            return 2;
+        if (cp >= 0x2580 && cp <= 0x27BF)
+            return 2;
+        if (cp >= 0x2B00 && cp <= 0x2BFF)
+            return 2;
         return 1;
     }
 
     public static String truncateVisual(String text, int maxWidth) {
-        if (maxWidth <= 0) return "";
+        if (maxWidth <= 0)
+            return "";
         int width = 0;
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
@@ -53,15 +67,18 @@ final class AnsiWidth {
                 width += 4 - (width % 4);
             } else if (!Character.isISOControl(ch)) {
                 width += charWidth(text, i);
-                if (Character.isHighSurrogate(ch)) i++;
+                if (Character.isHighSurrogate(ch))
+                    i++;
             }
-            if (width >= maxWidth) return text.substring(0, i + 1) + "\033[0m";
+            if (width >= maxWidth)
+                return text.substring(0, i + 1) + "\033[0m";
         }
         return text;
     }
 
     public static List<String> wrapPreservingAnsi(String text, int maxWidth) {
-        if (maxWidth <= 0) return List.of("");
+        if (maxWidth <= 0)
+            return List.of("");
         var out = new ArrayList<String>();
         var chunk = new StringBuilder();
         int visible = 0;
@@ -82,22 +99,26 @@ final class AnsiWidth {
                 chunk.append('\t');
                 visible += 4 - (visible % 4);
             } else if (ch == '\n') {
-                if (osc8Url != null) chunk.append("\033]8;;\033\\");
+                if (osc8Url != null)
+                    chunk.append("\033]8;;\033\\");
                 out.add(closeChunk(chunk, sgr.active()));
                 chunk.setLength(0);
                 chunk.append(sgr.ansi());
-                if (osc8Url != null) chunk.append("\033]8;;").append(osc8Url).append("\033\\");
+                if (osc8Url != null)
+                    chunk.append("\033]8;;").append(osc8Url).append("\033\\");
                 visible = 0;
             } else if (Character.isISOControl(ch)) {
                 chunk.append(ch);
             } else {
                 int cw = charWidth(text, i);
                 if (visible > 0 && visible + cw > maxWidth) {
-                    if (osc8Url != null) chunk.append("\033]8;;\033\\");
+                    if (osc8Url != null)
+                        chunk.append("\033]8;;\033\\");
                     out.add(closeChunk(chunk, sgr.active()));
                     chunk.setLength(0);
                     chunk.append(sgr.ansi());
-                    if (osc8Url != null) chunk.append("\033]8;;").append(osc8Url).append("\033\\");
+                    if (osc8Url != null)
+                        chunk.append("\033]8;;").append(osc8Url).append("\033\\");
                     visible = 0;
                 }
                 chunk.append(ch);
@@ -108,13 +129,16 @@ final class AnsiWidth {
                 visible += cw;
             }
         }
-        if (osc8Url != null) chunk.append("\033]8;;\033\\");
-        if (!chunk.isEmpty()) out.add(closeChunk(chunk, sgr.active()));
+        if (osc8Url != null)
+            chunk.append("\033]8;;\033\\");
+        if (!chunk.isEmpty())
+            out.add(closeChunk(chunk, sgr.active()));
         return out.isEmpty() ? List.of("") : out;
     }
 
     private static String updateOsc8(String esc, String current) {
-        if (esc.length() < 6) return current;
+        if (esc.length() < 6)
+            return current;
         if (esc.charAt(0) == 0x1b && esc.charAt(1) == ']' && esc.charAt(2) == '8') {
             String inner = esc.substring(4, esc.length() - 2);
             return inner.length() > 1 ? inner.substring(1) : null;
@@ -128,13 +152,15 @@ final class AnsiWidth {
 
     private static int skipEscape(String text, int escIndex) {
         int i = escIndex + 1;
-        if (i >= text.length()) return escIndex;
+        if (i >= text.length())
+            return escIndex;
         char ch = text.charAt(i);
         if (ch == '[') {
             i++;
             while (i < text.length()) {
                 ch = text.charAt(i);
-                if (ch >= '@' && ch <= '~') return i;
+                if (ch >= '@' && ch <= '~')
+                    return i;
                 i++;
             }
             return text.length() - 1;
@@ -143,8 +169,10 @@ final class AnsiWidth {
             i++;
             while (i < text.length()) {
                 ch = text.charAt(i);
-                if (ch == '\007') return i;
-                if (ch == 0x1b && i + 1 < text.length() && text.charAt(i + 1) == '\\') return i + 1;
+                if (ch == '\007')
+                    return i;
+                if (ch == 0x1b && i + 1 < text.length() && text.charAt(i + 1) == '\\')
+                    return i + 1;
                 i++;
             }
             return text.length() - 1;
@@ -158,7 +186,8 @@ final class AnsiWidth {
         private String bg = "";
 
         void apply(String esc) {
-            if (!esc.startsWith("\033[") || !esc.endsWith("m")) return;
+            if (!esc.startsWith("\033[") || !esc.endsWith("m"))
+                return;
             String raw = esc.substring(2, esc.length() - 1);
             if (raw.isEmpty()) {
                 reset();
@@ -170,7 +199,10 @@ final class AnsiWidth {
                 switch (code) {
                     case 0 -> reset();
                     case 1, 2, 3, 4, 7 -> attrs[code] = true;
-                    case 22 -> { attrs[1] = false; attrs[2] = false; }
+                    case 22 -> {
+                        attrs[1] = false;
+                        attrs[2] = false;
+                    }
                     case 23 -> attrs[3] = false;
                     case 24 -> attrs[4] = false;
                     case 27 -> attrs[7] = false;
@@ -181,8 +213,10 @@ final class AnsiWidth {
                     case 38, 48 -> {
                         String color = readExtendedColor(parts, i);
                         if (!color.isEmpty()) {
-                            if (code == 38) fg = color;
-                            else bg = color;
+                            if (code == 38)
+                                fg = color;
+                            else
+                                bg = color;
                             i += colorAdvance(color);
                         }
                     }
@@ -192,35 +226,44 @@ final class AnsiWidth {
         }
 
         boolean active() {
-            if (!fg.isEmpty() || !bg.isEmpty()) return true;
-            for (boolean attr : attrs) if (attr) return true;
+            if (!fg.isEmpty() || !bg.isEmpty())
+                return true;
+            for (boolean attr : attrs)
+                if (attr)
+                    return true;
             return false;
         }
 
         String ansi() {
-            if (!active()) return "";
+            if (!active())
+                return "";
             var sb = new StringBuilder("\033[");
             boolean first = true;
             for (int i : new int[] {1, 2, 3, 4, 7}) {
-                if (!attrs[i]) continue;
-                if (!first) sb.append(';');
+                if (!attrs[i])
+                    continue;
+                if (!first)
+                    sb.append(';');
                 sb.append(i);
                 first = false;
             }
             if (!fg.isEmpty()) {
-                if (!first) sb.append(';');
+                if (!first)
+                    sb.append(';');
                 sb.append(fg);
                 first = false;
             }
             if (!bg.isEmpty()) {
-                if (!first) sb.append(';');
+                if (!first)
+                    sb.append(';');
                 sb.append(bg);
             }
             return sb.append('m').toString();
         }
 
         private void reset() {
-            for (int i = 0; i < attrs.length; i++) attrs[i] = false;
+            for (int i = 0; i < attrs.length; i++)
+                attrs[i] = false;
             fg = "";
             bg = "";
         }

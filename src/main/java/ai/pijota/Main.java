@@ -34,13 +34,31 @@ public final class Main {
     public static void main(String[] args) {
         try {
             SelfRespawn.storeArgs(args);
-            if (args.length > 0 && "login".equals(args[0])) { login(args); return; }
-            if (args.length > 0 && "logout".equals(args[0])) { logout(args); return; }
+            if (args.length > 0 && "login".equals(args[0])) {
+                login(args);
+                return;
+            }
+            if (args.length > 0 && "logout".equals(args[0])) {
+                logout(args);
+                return;
+            }
             var parsedArgs = ArgParser.parse(args);
-            if (parsedArgs.help()) { ArgParser.printHelp(); return; }
-            if (parsedArgs.version()) { System.out.println("pijota v" + VERSION); return; }
-            if (parsedArgs.listModels()) { listModels(parsedArgs.listModelsFilter()); return; }
-            if (parsedArgs.exportPath() != null) { exportSession(parsedArgs); return; }
+            if (parsedArgs.help()) {
+                ArgParser.printHelp();
+                return;
+            }
+            if (parsedArgs.version()) {
+                System.out.println("pijota v" + VERSION);
+                return;
+            }
+            if (parsedArgs.listModels()) {
+                listModels(parsedArgs.listModelsFilter());
+                return;
+            }
+            if (parsedArgs.exportPath() != null) {
+                exportSession(parsedArgs);
+                return;
+            }
             if (!parsedArgs.worker() && shouldSupervise(parsedArgs)) {
                 System.exit(Supervisor.run(args));
             }
@@ -61,10 +79,12 @@ public final class Main {
         }
 
         if (parsedArgs.print() || !parsedArgs.promptArgs().isEmpty() || stdinRedirected()) {
-            String raw = !parsedArgs.promptArgs().isEmpty()
-                ? String.join(" ", parsedArgs.promptArgs()) : readStdin();
+            String raw = !parsedArgs.promptArgs().isEmpty() ? String.join(" ", parsedArgs.promptArgs()) : readStdin();
             String prompt = FileProcessor.processFileReferences(parsedArgs.fileArgs(), raw);
-            if (prompt == null || prompt.isBlank()) { System.err.println("No prompt."); System.exit(1); }
+            if (prompt == null || prompt.isBlank()) {
+                System.err.println("No prompt.");
+                System.exit(1);
+            }
             int ec = PrintMode.run(prompt, b.session().agentLoop(), parsedArgs.outputMode());
             System.exit(ec);
         }
@@ -76,17 +96,14 @@ public final class Main {
 
         var theme = ThemeLoader.load(b.settings(), parsedArgs, b.cwd());
         var session = b.session();
-        var tui = new AppendOnlyTui(session, theme,
-            b.llm().provider(), b.llm().model(),
-            b.extensions().slashCommands(),
-            b.settings(),
-            b.extensions().skills(),
-            b.extensions()::statusLines,
-            b.extensions().keybindings());
+        var tui = new AppendOnlyTui(session, theme, b.llm().provider(), b.llm().model(), b.extensions().slashCommands(),
+                                        b.settings(), b.extensions().skills(), b.extensions()::statusLines,
+                                        b.extensions().keybindings());
         b.extensions().setTui(tui);
         tui.syncThinkingLevel(b.llm().thinkingLevel());
         b.extensions().ready();
-        if (parsedArgs.resume()) tui.requestSessionPicker();
+        if (parsedArgs.resume())
+            tui.requestSessionPicker();
         try {
             tui.run(VERSION, b.cwd());
         } finally {
@@ -127,15 +144,17 @@ public final class Main {
             System.out.println("Starting OAuth login for " + provider + "...");
             OAuthLogin.TokenResult result;
             if (o.oauthTokenEndpoint() != null && !o.oauthTokenEndpoint().isBlank()) {
-                result = OAuthLogin.loginOpenAI(o.deviceEndpoint(), o.tokenEndpoint(), o.oauthTokenEndpoint(), o.clientId());
+                result = OAuthLogin.loginOpenAI(o.deviceEndpoint(), o.tokenEndpoint(), o.oauthTokenEndpoint(),
+                                                o.clientId());
             } else {
                 result = OAuthLogin.login(o.deviceEndpoint(), o.tokenEndpoint(), o.clientId(), o.scope());
             }
             String tokenUrl = o.oauthTokenEndpoint() != null && !o.oauthTokenEndpoint().isBlank()
-                ? o.oauthTokenEndpoint()
-                : o.tokenEndpoint();
+                                            ? o.oauthTokenEndpoint()
+                                            : o.tokenEndpoint();
             var store = new OAuthTokenStore();
-            store.save(provider, result.accessToken(), result.refreshToken(), result.expiresAt(), result.accountId(), tokenUrl, o.clientId());
+            store.save(provider, result.accessToken(), result.refreshToken(), result.expiresAt(), result.accountId(),
+                                            tokenUrl, o.clientId());
             settings.setDefaultModelForProvider(provider, model);
             System.out.println("Logged in to " + provider + " using default model " + model + ".");
             return;
@@ -175,8 +194,8 @@ public final class Main {
         var models = ModelRegistry.filter(filter);
         System.out.println("Available models:");
         for (var m : models)
-            System.out.printf("  %-45s [%-12s] context: %dK%n",
-                m.provider() + "/" + m.id(), m.provider(), m.contextWindow() / 1024);
+            System.out.printf("  %-45s [%-12s] context: %dK%n", m.provider() + "/" + m.id(), m.provider(),
+                                            m.contextWindow() / 1024);
         System.out.println("\n" + models.size() + " model(s)");
     }
 
@@ -185,16 +204,14 @@ public final class Main {
     }
 
     private static boolean shouldSupervise(Args args) {
-        return !args.agent()
-            && !args.print()
-            && args.promptArgs().isEmpty()
-            && args.outputMode() != Args.OutputMode.RPC
-            && !stdinRedirected();
+        return !args.agent() && !args.print() && args.promptArgs().isEmpty() && args.outputMode() != Args.OutputMode.RPC
+                                        && !stdinRedirected();
     }
 
     private static String readStdin() {
-        try { return new String(System.in.readAllBytes()).strip(); }
-        catch (Exception ignored) {}
+        try {
+            return new String(System.in.readAllBytes()).strip();
+        } catch (Exception ignored) {}
         return null;
     }
 }

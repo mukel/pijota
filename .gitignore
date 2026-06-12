@@ -1,2 +1,25 @@
+# Maven
 target/
+*.class
+*.jar
+!src/**/**.jar
 dependency-reduced-pom.xml
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.nb-gradle/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python / misc
+__pycache__/
+*.pyc
+
+# Pijota local state (generated at runtime)
+.pijota/

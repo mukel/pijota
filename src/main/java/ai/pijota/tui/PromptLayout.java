@@ -17,7 +17,8 @@ public final class PromptLayout {
     }
 
     public void eraseCurrent(PrintWriter out) {
-        if (visualCursorRow > 0) out.print("\033[" + visualCursorRow + "A");
+        if (visualCursorRow > 0)
+            out.print("\033[" + visualCursorRow + "A");
         out.print("\r\033[J");
     }
 
@@ -37,8 +38,10 @@ public final class PromptLayout {
         for (int i = 0; i < regions.size(); i++) {
             var region = regions.get(i);
             int h = region.height(width, snapshot);
-            if (h <= 0) continue;
-            if (height > 1) out.print("\r\n");
+            if (h <= 0)
+                continue;
+            if (height > 1)
+                out.print("\r\n");
             var cursor = region.render(out, width, theme, snapshot);
             if (cursor.visualRow() >= 0) {
                 cursorRow = height + cursor.visualRow();
@@ -52,9 +55,11 @@ public final class PromptLayout {
 
         if (cursorRow >= 0) {
             int rowsUp = renderedHeight - 1 - cursorRow;
-            if (rowsUp > 0) out.print("\033[" + rowsUp + "A");
+            if (rowsUp > 0)
+                out.print("\033[" + rowsUp + "A");
             out.print('\r');
-            if (cursorCol > 0) out.print("\033[" + cursorCol + "C");
+            if (cursorCol > 0)
+                out.print("\033[" + cursorCol + "C");
         }
         out.flush();
     }

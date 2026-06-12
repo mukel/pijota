@@ -9,7 +9,8 @@ final class LineAccumulator {
 
     public List<String> accept(String delta) {
         var lines = new ArrayList<String>();
-        if (delta == null || delta.isEmpty()) return lines;
+        if (delta == null || delta.isEmpty())
+            return lines;
         for (int i = 0; i < delta.length(); i++) {
             char ch = delta.charAt(i);
             if (ch == '\n') {
@@ -23,7 +24,8 @@ final class LineAccumulator {
     }
 
     public Optional<String> flush() {
-        if (partial.isEmpty()) return Optional.empty();
+        if (partial.isEmpty())
+            return Optional.empty();
         String line = stripTrailingCr(partial.toString());
         partial.setLength(0);
         return Optional.of(line);

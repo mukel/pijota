@@ -16,6 +16,8 @@
     { "id": "kimi-k2.6", "provider": "kimi-coding", "displayName": "Kimi K2.6", "contextWindow": 262144 },
     { "id": "deepseek-chat", "provider": "deepseek", "displayName": "DeepSeek Chat", "contextWindow": 128000 },
     { "id": "kimi-k2-thinking", "provider": "kimi-coding", "displayName": "Kimi K2 Thinking", "contextWindow": 262144 },
-    { "id": "mimo-v2.5-pro", "provider": "xiaomi-token-plan-cn", "displayName": "MiMo v2.5 Pro", "contextWindow": 200000 }
+    { "id": "mimo-v2.5-pro", "provider": "xiaomi-token-plan-cn", "displayName": "MiMo v2.5 Pro", "contextWindow": 200000 },
+    { "id": "local-model", "provider": "local", "displayName": "Local Model", "contextWindow": 32768 },
+    { "id": "LFM2.5-8B-A1B-Q8_0.gguf", "provider": "workstation", "displayName": "LFM2.5 8B", "contextWindow": 32768 }
   ]
 }

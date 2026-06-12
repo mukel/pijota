@@ -1,11 +1,7 @@
 package ai.pijota.llm;
 
 public enum ThinkingLevel {
-    OFF("thinking off", 0),
-    MINIMAL("minimal", 1024),
-    LOW("low", 2048),
-    MEDIUM("medium", 8192),
-    HIGH("high", 16384);
+    OFF("thinking off", 0), MINIMAL("minimal", 1024), LOW("low", 2048), MEDIUM("medium", 8192), HIGH("high", 16384);
 
     private final String label;
     private final int budgetTokens;
@@ -15,8 +11,13 @@ public enum ThinkingLevel {
         this.budgetTokens = budgetTokens;
     }
 
-    public String label() { return label; }
-    public int budgetTokens() { return budgetTokens; }
+    public String label() {
+        return label;
+    }
+
+    public int budgetTokens() {
+        return budgetTokens;
+    }
 
     public ThinkingLevel next() {
         return switch (this) {
@@ -29,7 +30,8 @@ public enum ThinkingLevel {
     }
 
     public static ThinkingLevel fromString(String s) {
-        if (s == null || s.isBlank()) return MEDIUM;
+        if (s == null || s.isBlank())
+            return MEDIUM;
         String lower = s.trim().toLowerCase();
         return switch (lower) {
             case "off", "thinking off" -> OFF;
@@ -38,8 +40,11 @@ public enum ThinkingLevel {
             case "medium" -> MEDIUM;
             case "high" -> HIGH;
             default -> {
-                try { yield ThinkingLevel.valueOf(s.trim().toUpperCase()); }
-                catch (IllegalArgumentException e) { yield MEDIUM; }
+                try {
+                    yield ThinkingLevel.valueOf(s.trim().toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    yield MEDIUM;
+                }
             }
         };
     }

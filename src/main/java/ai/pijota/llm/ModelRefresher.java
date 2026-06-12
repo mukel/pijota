@@ -21,7 +21,8 @@ public final class ModelRefresher {
 
     private ModelRefresher() {}
 
-    public record Result(int providersChecked, int modelsFound, List<String> errors) {}
+    public record Result(int providersChecked, int modelsFound, List<String> errors) {
+    }
 
     public static Result refresh(SettingsManager settings) {
         var client = HttpClient.newHttpClient();
@@ -32,8 +33,10 @@ public final class ModelRefresher {
 
         for (var provider : ProviderCatalog.providers()) {
             String token = settings != null ? settings.resolveApiKey(provider.id()) : null;
-            if (token == null) continue;
-            if (!"openai".equals(ProviderCatalog.apiType(provider.id()))) continue;
+            if (token == null)
+                continue;
+            if (!"openai".equals(ProviderCatalog.apiType(provider.id())))
+                continue;
             String accountId = oauth.getAccountId(provider.id());
             boolean oauthToken = accountId != null && !accountId.isBlank();
 
@@ -50,22 +53,15 @@ public final class ModelRefresher {
         return new Result(providersChecked, models.size(), List.copyOf(errors));
     }
 
-    private static List<ModelInfo> fetchOpenAiCompatible(HttpClient client,
-                                                         ProviderCatalog.Provider provider,
-                                                         String token,
-                                                         String accountId,
-                                                         boolean oauthToken) throws Exception {
+    private static List<ModelInfo> fetchOpenAiCompatible(HttpClient client, ProviderCatalog.Provider provider,
+                                    String token, String accountId, boolean oauthToken) throws Exception {
         String baseUrl = oauthToken ? CHATGPT_CODEX_BASE_URL : provider.baseUrl();
-        if (baseUrl == null || baseUrl.isBlank()) return List.of();
+        if (baseUrl == null || baseUrl.isBlank())
+            return List.of();
         String url = baseUrl.replaceAll("/+$", "") + "/models?client_version=" + CLIENT_VERSION;
-        var request = HttpRequest.newBuilder()
-            .uri(URI.create(url))
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer " + token)
-            .header("originator", "pijota")
-            .header("OpenAI-Beta", "responses=experimental")
-            .GET()
-            ;
+        var request = HttpRequest.newBuilder().uri(URI.create(url)).timeout(Duration.ofSeconds(30))
+                                        .header("Authorization", "Bearer " + token).header("originator", "pijota")
+                                        .header("OpenAI-Beta", "responses=experimental").GET();
         if (oauthToken && accountId != null && !accountId.isBlank()) {
             request.header("ChatGPT-Account-Id", accountId);
         }
@@ -80,39 +76,44 @@ public final class ModelRefresher {
             return parseCodexModels(provider.id(), node.get("models"));
         }
         var data = node.get("data");
-        if (data == null || !data.isArray()) return List.of();
+        if (data == null || !data.isArray())
+            return List.of();
 
         var out = new ArrayList<ModelInfo>();
         for (var item : data) {
             var idNode = item.get("id");
-            if (idNode == null || idNode.asText().isBlank()) continue;
+            if (idNode == null || idNode.asText().isBlank())
+                continue;
             String id = idNode.asText();
             out.add(new ModelInfo(id, provider.id(), displayName(id), DEFAULT_CONTEXT_WINDOW));
         }
         return out;
     }
 
-    private static List<ModelInfo> parseCodexModels(String providerId,
-                                                    com.fasterxml.jackson.databind.JsonNode models) {
+    private static List<ModelInfo> parseCodexModels(String providerId, com.fasterxml.jackson.databind.JsonNode models) {
         var out = new ArrayList<ModelInfo>();
         for (var item : models) {
             var slug = item.get("slug");
-            if (slug == null || slug.asText().isBlank()) continue;
-            if (item.has("visibility") && "none".equals(item.get("visibility").asText())) continue;
+            if (slug == null || slug.asText().isBlank())
+                continue;
+            if (item.has("visibility") && "none".equals(item.get("visibility").asText()))
+                continue;
             String id = slug.asText();
             String displayName = item.has("display_name") && !item.get("display_name").asText().isBlank()
-                ? item.get("display_name").asText()
-                : displayName(id);
+                                            ? item.get("display_name").asText()
+                                            : displayName(id);
             long contextWindow = firstLong(item, "context_window", "max_context_window", DEFAULT_CONTEXT_WINDOW);
             out.add(new ModelInfo(id, providerId, displayName, contextWindow));
         }
         return out;
     }
 
-    private static long firstLong(com.fasterxml.jackson.databind.JsonNode node,
-                                  String first, String second, long fallback) {
-        if (node.has(first) && node.get(first).canConvertToLong()) return node.get(first).asLong();
-        if (node.has(second) && node.get(second).canConvertToLong()) return node.get(second).asLong();
+    private static long firstLong(com.fasterxml.jackson.databind.JsonNode node, String first, String second,
+                                    long fallback) {
+        if (node.has(first) && node.get(first).canConvertToLong())
+            return node.get(first).asLong();
+        if (node.has(second) && node.get(second).canConvertToLong())
+            return node.get(second).asLong();
         return fallback;
     }
 
@@ -120,8 +121,10 @@ public final class ModelRefresher {
         var words = id.replace('-', ' ').replace('_', ' ').split("\\s+");
         var out = new StringBuilder();
         for (String word : words) {
-            if (word.isBlank()) continue;
-            if (!out.isEmpty()) out.append(' ');
+            if (word.isBlank())
+                continue;
+            if (!out.isEmpty())
+                out.append(' ');
             out.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
         }
         return out.isEmpty() ? id : out.toString();

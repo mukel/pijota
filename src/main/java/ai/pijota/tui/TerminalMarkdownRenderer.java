@@ -24,9 +24,11 @@ final class TerminalMarkdownRenderer {
     // ---- public API -------------------------------------------
 
     List<StyledLine> render(String markdown, String defaultTextSlot, boolean defaultItalic) {
-        if (markdown == null || markdown.isEmpty()) return List.of();
+        if (markdown == null || markdown.isEmpty())
+            return List.of();
         var table = MarkdownTableRenderer.renderIfTable(markdown, theme, width);
-        if (table.isPresent()) return table.get();
+        if (table.isPresent())
+            return table.get();
         return renderSource(markdown, defaultTextSlot, defaultItalic);
     }
 
@@ -39,40 +41,50 @@ final class TerminalMarkdownRenderer {
     }
 
     private String highlightSourceLine(String line, String defaultTextSlot, boolean defaultItalic) {
-        if (line.isEmpty()) return line;
+        if (line.isEmpty())
+            return line;
         int prefixEnd = markdownPrefixEnd(line);
         String prefix = prefixEnd == 0 ? "" : highlightPrefix(line.substring(0, prefixEnd));
         String body = line.substring(prefixEnd);
-        if (isHeadingPrefix(line, prefixEnd)) return prefix + headingBody(body);
+        if (isHeadingPrefix(line, prefixEnd))
+            return prefix + headingBody(body);
         String highlightedBody = highlightInlineSource(body, defaultTextSlot, defaultItalic);
         return prefix + highlightedBody;
     }
 
     private boolean isHeadingPrefix(String line, int prefixEnd) {
-        if (prefixEnd <= 0) return false;
+        if (prefixEnd <= 0)
+            return false;
         int i = 0;
-        while (i < line.length() && Character.isWhitespace(line.charAt(i))) i++;
+        while (i < line.length() && Character.isWhitespace(line.charAt(i)))
+            i++;
         return i < prefixEnd && line.charAt(i) == '#';
     }
 
     private int markdownPrefixEnd(String line) {
         int i = 0;
-        while (i < line.length() && Character.isWhitespace(line.charAt(i))) i++;
+        while (i < line.length() && Character.isWhitespace(line.charAt(i)))
+            i++;
         String rest = line.substring(i);
         if (rest.startsWith("#")) {
             int n = 0;
-            while (n < rest.length() && rest.charAt(n) == '#') n++;
-            if (n < rest.length() && Character.isWhitespace(rest.charAt(n))) return i + n;
+            while (n < rest.length() && rest.charAt(n) == '#')
+                n++;
+            if (n < rest.length() && Character.isWhitespace(rest.charAt(n)))
+                return i + n;
         }
-        if (rest.startsWith(">")) return i + 1;
-        if (rest.startsWith("- ") || rest.startsWith("* ") || rest.startsWith("+ ")) return i + 1;
+        if (rest.startsWith(">"))
+            return i + 1;
+        if (rest.startsWith("- ") || rest.startsWith("* ") || rest.startsWith("+ "))
+            return i + 1;
         int markerEnd = orderedMarkerEnd(rest);
         return markerEnd > 0 ? i + markerEnd : 0;
     }
 
     private String highlightPrefix(String prefix) {
         int i = 0;
-        while (i < prefix.length() && Character.isWhitespace(prefix.charAt(i))) i++;
+        while (i < prefix.length() && Character.isWhitespace(prefix.charAt(i)))
+            i++;
         String slot = "dim";
         if (i < prefix.length() && Character.isDigit(prefix.charAt(i))) {
             slot = "statusText";
@@ -89,9 +101,12 @@ final class TerminalMarkdownRenderer {
                 appendDefaultStyled(out, plain, defaultTextSlot, defaultItalic);
             }
             int next = appendCheckbox(line, i, out);
-            if (next < 0) next = appendDelimited(line, i, "`", "inlineCode", out);
-            if (next < 0) next = appendDelimited(line, i, "**", "bold", out);
-            if (next < 0) next = appendDelimited(line, i, "~~", "strikethrough", out);
+            if (next < 0)
+                next = appendDelimited(line, i, "`", "inlineCode", out);
+            if (next < 0)
+                next = appendDelimited(line, i, "**", "bold", out);
+            if (next < 0)
+                next = appendDelimited(line, i, "~~", "strikethrough", out);
             if (next >= 0) {
                 i = next;
                 continue;
@@ -104,8 +119,10 @@ final class TerminalMarkdownRenderer {
     }
 
     private int appendCheckbox(String line, int start, StringBuilder out) {
-        if (start + 3 > line.length()) return -1;
-        if (line.charAt(start) != '[' || line.charAt(start + 2) != ']') return -1;
+        if (start + 3 > line.length())
+            return -1;
+        if (line.charAt(start) != '[' || line.charAt(start + 2) != ']')
+            return -1;
         char c = line.charAt(start + 1);
         String slot = switch (c) {
             case 'x', 'X' -> "diffAdd";
@@ -113,7 +130,8 @@ final class TerminalMarkdownRenderer {
             case '~' -> "statusWarn";
             default -> null;
         };
-        if (slot == null) return -1;
+        if (slot == null)
+            return -1;
         out.append(slotStyled(slot, line.substring(start, start + 3)));
         int end = start + 3;
         if (end < line.length() && line.charAt(end) == ' ') {
@@ -124,9 +142,11 @@ final class TerminalMarkdownRenderer {
     }
 
     private int appendDelimited(String line, int start, String delimiter, String slot, StringBuilder out) {
-        if (!line.startsWith(delimiter, start)) return -1;
+        if (!line.startsWith(delimiter, start))
+            return -1;
         int end = line.indexOf(delimiter, start + delimiter.length());
-        if (end < 0) return -1;
+        if (end < 0)
+            return -1;
         out.append(slotStyled("dim", delimiter));
         out.append(slotStyled(slot, line.substring(start + delimiter.length(), end)));
         out.append(slotStyled("dim", delimiter));
@@ -135,8 +155,10 @@ final class TerminalMarkdownRenderer {
 
     private static int orderedMarkerEnd(String text) {
         int i = 0;
-        while (i < text.length() && Character.isDigit(text.charAt(i))) i++;
-        if (i == 0 || i >= text.length() - 1) return -1;
+        while (i < text.length() && Character.isDigit(text.charAt(i)))
+            i++;
+        if (i == 0 || i >= text.length() - 1)
+            return -1;
         char marker = text.charAt(i);
         return (marker == '.' || marker == ')') && Character.isWhitespace(text.charAt(i + 1)) ? i + 1 : -1;
     }
@@ -148,12 +170,14 @@ final class TerminalMarkdownRenderer {
     }
 
     private String slotStyled(String slot, String text) {
-        if (text == null || text.isEmpty()) return "";
+        if (text == null || text.isEmpty())
+            return "";
         return theme.styled(slot, text);
     }
 
     private void appendDefaultStyled(StringBuilder out, StringBuilder plain, String slot, boolean italic) {
-        if (plain.isEmpty()) return;
+        if (plain.isEmpty())
+            return;
         String text = plain.toString();
         plain.setLength(0);
         if (!italic && (slot == null || slot.isBlank())) {
@@ -164,8 +188,10 @@ final class TerminalMarkdownRenderer {
             out.append(text);
             return;
         }
-        if (slot != null && !slot.isBlank()) out.append(theme.style(slot));
-        if (italic) out.append(theme.style("italic"));
+        if (slot != null && !slot.isBlank())
+            out.append(theme.style(slot));
+        if (italic)
+            out.append(theme.style("italic"));
         out.append(text).append(theme.reset());
     }
 

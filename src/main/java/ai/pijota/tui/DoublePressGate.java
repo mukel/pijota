@@ -1,8 +1,8 @@
 package ai.pijota.tui;
 
 /**
- * Simple double-press gate: first invocation arms the gate and returns false;
- * second invocation within the window returns true and disarms.
+ * Simple double-press gate: first invocation arms the gate and returns false; second invocation within the window
+ * returns true and disarms.
  */
 final class DoublePressGate {
     private final long windowMs;
@@ -13,8 +13,8 @@ final class DoublePressGate {
     }
 
     /**
-     * Returns true if triggered (second press within window).
-     * Returns false and arms the gate on first press or if expired.
+     * Returns true if triggered (second press within window). Returns false and arms the gate on first press or if
+     * expired.
      */
     boolean tryFire() {
         long now = System.currentTimeMillis();
@@ -26,5 +26,7 @@ final class DoublePressGate {
         return false;
     }
 
-    void disarm() { armedUntil = 0; }
+    void disarm() {
+        armedUntil = 0;
+    }
 }

@@ -116,8 +116,7 @@ public final class ArgParser {
                         } else {
                             extensionFlags.put(name, "true");
                         }
-                    } else if (arg.startsWith("-")) {
-                    } else if (arg.startsWith("@")) {
+                    } else if (arg.startsWith("-")) {} else if (arg.startsWith("@")) {
                         fileArgs.add(arg.substring(1));
                     } else if (!arg.startsWith("-")) {
                         promptArgs.add(arg);
@@ -126,61 +125,61 @@ public final class ArgParser {
             }
         }
 
-        return new Args(provider, model, apiKey, systemPrompt, appendSystemPrompts,
-            thinkingLevel, outputMode, sessionPath, noSession, noTools, noExtensions, noSkills, noThemes,
-            noContextFiles, noPromptTemplates, enabledTools, extensionPaths, skillPaths, themePaths, promptTemplatePaths,
-            print, resume, continueSession,
-            recoverSession, forkPath, exportPath, listModels, listModelsFilter, help, version, verbose, agent, worker,
-            fileArgs, promptArgs, Map.copyOf(extensionFlags));
+        return new Args(provider, model, apiKey, systemPrompt, appendSystemPrompts, thinkingLevel, outputMode,
+                                        sessionPath, noSession, noTools, noExtensions, noSkills, noThemes,
+                                        noContextFiles, noPromptTemplates, enabledTools, extensionPaths, skillPaths,
+                                        themePaths, promptTemplatePaths, print, resume, continueSession, recoverSession,
+                                        forkPath, exportPath, listModels, listModelsFilter, help, version, verbose,
+                                        agent, worker, fileArgs, promptArgs, Map.copyOf(extensionFlags));
     }
 
     public static void printHelp() {
         System.out.println("""
-            pijota - minimalist Java coding agent
+                                        pijota - minimalist Java coding agent
 
-            USAGE: pijota [OPTIONS] [PROMPT...]
+                                        USAGE: pijota [OPTIONS] [PROMPT...]
 
-            OPTIONS:
-              --provider <name>         LLM provider (openai, anthropic, google, ...)
-              --model, -m <id>          Model name or provider/id shorthand
-              --api-key <key>           API key
-              --system-prompt <text>    Custom system prompt
-              --append-system-prompt <text>  Append to system prompt (repeatable)
-              --thinking <level>        Thinking level (off, low, medium, high)
-              --mode <mode>             Output mode: text, json, rpc
-              --print, -p [prompt]      Non-interactive single-shot mode
-              --session, -s <id>        Session file path or partial UUID
-              --continue, -c            Continue last session
-              --recover               Recover from failed transcendence
-              --resume, -r              Interactive session picker
-              --fork <id>               Fork a session
-              --no-session              Don't save session
-              --tools, -t <names>       Comma-separated tool allowlist
-              --no-tools, -nt           Disable all tools
-              --no-extensions, -ne      Skip extension auto-discovery
-              --no-skills, -ns          Skip skill auto-discovery
-              --extension, -e <path>    Load extension
-              --skill <path>            Load skill
-              --theme <path|name>       Load/select theme (repeatable)
-              --no-themes               Skip theme discovery
-              --no-context-files, -nc    Skip AGENTS.md and CLAUDE.md discovery
-              --no-prompt-templates, -np Skip prompt template auto-discovery
-              --prompt-template <path>   Load prompt template (repeatable)
-              --export <file>           Export session to Markdown
-              --list-models [filter]    List available models
-              --verbose                 Verbose output
-              --help, -h                Show this help
-              --version, -v             Show version
+                                        OPTIONS:
+                                          --provider <name>         LLM provider (openai, anthropic, google, ...)
+                                          --model, -m <id>          Model name or provider/id shorthand
+                                          --api-key <key>           API key
+                                          --system-prompt <text>    Custom system prompt
+                                          --append-system-prompt <text>  Append to system prompt (repeatable)
+                                          --thinking <level>        Thinking level (off, low, medium, high)
+                                          --mode <mode>             Output mode: text, json, rpc
+                                          --print, -p [prompt]      Non-interactive single-shot mode
+                                          --session, -s <id>        Session file path or partial UUID
+                                          --continue, -c            Continue last session
+                                          --recover               Recover from failed transcendence
+                                          --resume, -r              Interactive session picker
+                                          --fork <id>               Fork a session
+                                          --no-session              Don't save session
+                                          --tools, -t <names>       Comma-separated tool allowlist
+                                          --no-tools, -nt           Disable all tools
+                                          --no-extensions, -ne      Skip extension auto-discovery
+                                          --no-skills, -ns          Skip skill auto-discovery
+                                          --extension, -e <path>    Load extension
+                                          --skill <path>            Load skill
+                                          --theme <path|name>       Load/select theme (repeatable)
+                                          --no-themes               Skip theme discovery
+                                          --no-context-files, -nc    Skip AGENTS.md and CLAUDE.md discovery
+                                          --no-prompt-templates, -np Skip prompt template auto-discovery
+                                          --prompt-template <path>   Load prompt template (repeatable)
+                                          --export <file>           Export session to Markdown
+                                          --list-models [filter]    List available models
+                                          --verbose                 Verbose output
+                                          --help, -h                Show this help
+                                          --version, -v             Show version
 
-            EXAMPLES:
-              pijota                                   Start interactive mode
-              pijota -m anthropic/claude-sonnet-4-20250514
-              pijota -p "explain this code"            Single-shot query
-              echo "explain this code" | pijota        Single-shot query from stdin
-              pijota -c                                Continue last session
-              pijota -r                                Pick session interactively
-              pijota --list-models openai              List OpenAI models
-            """);
+                                        EXAMPLES:
+                                          pijota                                   Start interactive mode
+                                          pijota -m anthropic/claude-sonnet-4-20250514
+                                          pijota -p "explain this code"            Single-shot query
+                                          echo "explain this code" | pijota        Single-shot query from stdin
+                                          pijota -c                                Continue last session
+                                          pijota -r                                Pick session interactively
+                                          pijota --list-models openai              List OpenAI models
+                                        """);
     }
 
     private static String nextArg(String[] args, int i) {
@@ -202,7 +201,8 @@ public final class ArgParser {
         var list = new ArrayList<String>();
         for (String part : csv.split(",")) {
             String trimmed = part.trim();
-            if (!trimmed.isEmpty()) list.add(trimmed);
+            if (!trimmed.isEmpty())
+                list.add(trimmed);
         }
         return list;
     }

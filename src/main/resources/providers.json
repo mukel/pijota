@@ -152,6 +152,22 @@
       "baseUrl": "https://token-plan-sgp.xiaomimimo.com/v1",
       "env": ["XIAOMI_TOKEN_PLAN_SGP_API_KEY"],
       "defaultModel": "mimo-v2.5-pro"
+    },
+    {
+      "id": "local",
+      "displayName": "Local LLM",
+      "apiType": "openai",
+      "baseUrl": "http://localhost:17325/v1",
+      "env": [],
+      "defaultModel": "local-model"
+    },
+    {
+      "id": "workstation",
+      "displayName": "Workstation",
+      "apiType": "openai",
+      "baseUrl": "http://workstation.lan:17325/v1",
+      "env": [],
+      "defaultModel": "LFM2.5-8B-A1B-Q8_0.gguf"
     }
   ]
 }

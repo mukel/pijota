@@ -27,13 +27,12 @@ import java.util.List;
 import java.util.Optional;
 
 final class MarkdownTableRenderer {
-    private static final List<Extension> EXTENSIONS = List.of(
-        TablesExtension.create(),
-        StrikethroughExtension.create()
-    );
+    private static final List<Extension> EXTENSIONS = List.of(TablesExtension.create(),
+                                    StrikethroughExtension.create());
     private static final Parser PARSER = Parser.builder().extensions(EXTENSIONS).build();
 
-    private record Cell(String text, TableCell.Alignment alignment) {}
+    private record Cell(String text, TableCell.Alignment alignment) {
+    }
 
     private final AnsiTheme theme;
     private final int width;
@@ -44,7 +43,8 @@ final class MarkdownTableRenderer {
     }
 
     static Optional<List<StyledLine>> renderIfTable(String markdown, AnsiTheme theme, int width) {
-        if (!couldBeTable(markdown)) return Optional.empty();
+        if (!couldBeTable(markdown))
+            return Optional.empty();
         var document = (Document) PARSER.parse(markdown);
         if (!(document.getFirstChild() instanceof TableBlock table) || document.getFirstChild().getNext() != null) {
             return Optional.empty();
@@ -59,7 +59,8 @@ final class MarkdownTableRenderer {
     private List<StyledLine> render(TableBlock table) {
         var rows = tableRows(table);
         int cols = rows.stream().mapToInt(List::size).max().orElse(0);
-        if (cols == 0) return List.of();
+        if (cols == 0)
+            return List.of();
         int[] widths = columnWidths(rows, cols);
         fitWidths(widths);
 
@@ -67,7 +68,8 @@ final class MarkdownTableRenderer {
         out.add(StyledLine.of(""));
         for (int r = 0; r < rows.size(); r++) {
             out.addAll(renderRow(rows.get(r), widths));
-            if (r == 0 && rows.size() > 1) out.add(StyledLine.of(separator(widths)));
+            if (r == 0 && rows.size() > 1)
+                out.add(StyledLine.of(separator(widths)));
         }
         out.add(StyledLine.of(""));
         return out;
@@ -86,7 +88,8 @@ final class MarkdownTableRenderer {
         for (int line = 0; line < height; line++) {
             var sb = new StringBuilder();
             for (int col = 0; col < widths.length; col++) {
-                if (col > 0) sb.append(theme.style("hr")).append(" │ ").append(theme.reset());
+                if (col > 0)
+                    sb.append(theme.style("hr")).append(" │ ").append(theme.reset());
                 String cell = line < wrapped.get(col).size() ? wrapped.get(col).get(line) : "";
                 TableCell.Alignment alignment = col < row.size() ? row.get(col).alignment() : null;
                 sb.append(align(cell, widths[col], alignment));
@@ -114,7 +117,8 @@ final class MarkdownTableRenderer {
         if (node instanceof TableRow row) {
             var cells = new ArrayList<Cell>();
             for (Node child = row.getFirstChild(); child != null; child = child.getNext()) {
-                if (child instanceof TableCell cell) cells.add(renderCell(cell));
+                if (child instanceof TableCell cell)
+                    cells.add(renderCell(cell));
             }
             rows.add(cells);
             return;
@@ -124,8 +128,7 @@ final class MarkdownTableRenderer {
     }
 
     private Cell renderCell(TableCell cell) {
-        String text = cell.isHeader() ? theme.styled("bold", renderInlineChildren(cell))
-                                      : renderInlineChildren(cell);
+        String text = cell.isHeader() ? theme.styled("bold", renderInlineChildren(cell)) : renderInlineChildren(cell);
         return new Cell(text, cell.getAlignment());
     }
 
@@ -138,15 +141,24 @@ final class MarkdownTableRenderer {
     }
 
     private String renderInline(Node node) {
-        if (node instanceof Text text) return applyTextMarks(text.getLiteral());
-        if (node instanceof Code code) return delim("`", "inlineCode", code.getLiteral(), "`");
-        if (node instanceof Emphasis em) return delim("*", "italic", renderInlineChildren(em), "*");
-        if (node instanceof StrongEmphasis strong) return delim("**", "bold", renderInlineChildren(strong), "**");
-        if (node instanceof Strikethrough strike) return delim("~~", "strikethrough", renderInlineChildren(strike), "~~");
-        if (node instanceof Link link) return renderLink(link);
-        if (node instanceof Image image) return renderImage(image);
-        if (node instanceof SoftLineBreak || node instanceof HardLineBreak) return " ";
-        if (node instanceof HtmlInline html) return styled("dim", html.getLiteral());
+        if (node instanceof Text text)
+            return applyTextMarks(text.getLiteral());
+        if (node instanceof Code code)
+            return delim("`", "inlineCode", code.getLiteral(), "`");
+        if (node instanceof Emphasis em)
+            return delim("*", "italic", renderInlineChildren(em), "*");
+        if (node instanceof StrongEmphasis strong)
+            return delim("**", "bold", renderInlineChildren(strong), "**");
+        if (node instanceof Strikethrough strike)
+            return delim("~~", "strikethrough", renderInlineChildren(strike), "~~");
+        if (node instanceof Link link)
+            return renderLink(link);
+        if (node instanceof Image image)
+            return renderImage(image);
+        if (node instanceof SoftLineBreak || node instanceof HardLineBreak)
+            return " ";
+        if (node instanceof HtmlInline html)
+            return styled("dim", html.getLiteral());
         return renderInlineChildren(node);
     }
 
@@ -159,7 +171,8 @@ final class MarkdownTableRenderer {
                 sb.append(styled("text", text.substring(i)));
                 break;
             }
-            if (mark.start() > i) sb.append(styled("text", text.substring(i, mark.start())));
+            if (mark.start() > i)
+                sb.append(styled("text", text.substring(i, mark.start())));
             int contentStart = mark.start() + mark.marker().length();
             int end = text.indexOf(mark.marker(), contentStart);
             if (end < 0) {
@@ -174,14 +187,16 @@ final class MarkdownTableRenderer {
         return sb.toString();
     }
 
-    private record Mark(int start, String marker, String slot) {}
+    private record Mark(int start, String marker, String slot) {
+    }
 
     private static Mark nextMark(String text, int from) {
         Mark best = null;
         for (var mark : List.of(new Mark(text.indexOf("==", from), "==", "highlight"),
-            new Mark(text.indexOf("++", from), "++", "diffAdd"),
-            new Mark(text.indexOf("--", from), "--", "diffDelete"))) {
-            if (mark.start() >= 0 && (best == null || mark.start() < best.start())) best = mark;
+                                        new Mark(text.indexOf("++", from), "++", "diffAdd"),
+                                        new Mark(text.indexOf("--", from), "--", "diffDelete"))) {
+            if (mark.start() >= 0 && (best == null || mark.start() < best.start()))
+                best = mark;
         }
         return best;
     }
@@ -190,7 +205,8 @@ final class MarkdownTableRenderer {
         String text = renderInlineChildren(link);
         String url = link.getDestination();
         String bracketed = styled("dim", "[") + styled("mdLink", text) + styled("dim", "]");
-        if (url == null || url.isBlank() || url.indexOf(' ') >= 0) return bracketed;
+        if (url == null || url.isBlank() || url.indexOf(' ') >= 0)
+            return bracketed;
         String visible = bracketed + styled("dim", "(") + styled("mdLinkUrl", url) + styled("dim", ")");
         return "\033]8;;" + url + "\033\\" + visible + "\033]8;;\033\\";
     }
@@ -200,7 +216,8 @@ final class MarkdownTableRenderer {
         String label = alt.isEmpty() ? "image" : alt;
         String url = image.getDestination() != null ? image.getDestination() : "";
         String visible = styled("dim", "![" + label + "](" + url + ")");
-        if (url.isBlank() || url.indexOf(' ') >= 0) return visible;
+        if (url.isBlank() || url.indexOf(' ') >= 0)
+            return visible;
         return "\033]8;;" + url + "\033\\" + visible + "\033]8;;\033\\";
     }
 
@@ -215,7 +232,8 @@ final class MarkdownTableRenderer {
     private String separator(int[] widths) {
         var out = new StringBuilder();
         for (int i = 0; i < widths.length; i++) {
-            if (i > 0) out.append("─┼─");
+            if (i > 0)
+                out.append("─┼─");
             out.append("─".repeat(widths[i]));
         }
         return theme.styled("hr", out.toString());
@@ -224,10 +242,12 @@ final class MarkdownTableRenderer {
     private void fitWidths(int[] widths) {
         int cols = widths.length;
         int available = Math.max(cols * 5, width - ((cols - 1) * 3));
-        for (int i = 0; i < widths.length; i++) widths[i] = Math.max(3, widths[i]);
+        for (int i = 0; i < widths.length; i++)
+            widths[i] = Math.max(3, widths[i]);
         while (sum(widths) > available) {
             int idx = widest(widths);
-            if (widths[idx] <= 5) break;
+            if (widths[idx] <= 5)
+                break;
             widths[idx]--;
         }
         while (sum(widths) < available) {
@@ -242,21 +262,25 @@ final class MarkdownTableRenderer {
 
     private static int sum(int[] widths) {
         int total = 0;
-        for (int w : widths) total += w;
+        for (int w : widths)
+            total += w;
         return total;
     }
 
     private static int widest(int[] widths) {
         int idx = 0;
         for (int i = 1; i < widths.length; i++)
-            if (widths[i] > widths[idx]) idx = i;
+            if (widths[i] > widths[idx])
+                idx = i;
         return idx;
     }
 
     private static String align(String text, int width, TableCell.Alignment alignment) {
         int pad = width - AnsiWidth.visibleWidth(text);
-        if (pad <= 0) return text;
-        if (alignment == TableCell.Alignment.RIGHT) return spaces(pad) + text;
+        if (pad <= 0)
+            return text;
+        if (alignment == TableCell.Alignment.RIGHT)
+            return spaces(pad) + text;
         if (alignment == TableCell.Alignment.CENTER) {
             int left = pad / 2;
             return spaces(left) + text + spaces(pad - left);
@@ -265,8 +289,10 @@ final class MarkdownTableRenderer {
     }
 
     private static List<String> wrapStyled(String text, int width) {
-        if (text == null || text.isEmpty()) return List.of("");
-        if (AnsiWidth.visibleWidth(text) <= width) return List.of(text);
+        if (text == null || text.isEmpty())
+            return List.of("");
+        if (AnsiWidth.visibleWidth(text) <= width)
+            return List.of(text);
         return AnsiWidth.wrapPreservingAnsi(text, Math.max(1, width));
     }
 

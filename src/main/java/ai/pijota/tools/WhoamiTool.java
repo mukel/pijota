@@ -1,9 +1,7 @@
 package ai.pijota.tools;
 
-import ai.pijota.llm.ModelInfo;
 import ai.pijota.llm.ModelRegistry;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -18,26 +16,23 @@ public final class WhoamiTool implements Tool {
     }
 
     @Override
-    public String name() { return "whoami"; }
+    public String name() {
+        return "whoami";
+    }
 
     @Override
     public String description() {
         return "Get information about the current model being used: its id, provider, display name, and context window size. "
-            + "Use this tool when you need to know which model is currently active, e.g. to verify capabilities or context limits.";
+                                        + "Use this tool when you need to know which model is currently active, e.g. to verify capabilities or context limits.";
     }
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(),
-            "additionalProperties", false
-        );
+        return Map.of("type", "object", "properties", Map.of(), "additionalProperties", false);
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(
-            String toolCallId, Map<String, Object> args, String sessionCwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
             String model = currentModel;
             String provider = currentProvider;
@@ -46,10 +41,8 @@ public final class WhoamiTool implements Tool {
                 return ToolResult.error("Model information not available");
             }
 
-            var info = ModelRegistry.KNOWN_MODELS.stream()
-                .filter(m -> m.id().equalsIgnoreCase(model))
-                .findFirst()
-                .orElse(null);
+            var info = ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model)).findFirst()
+                                            .orElse(null);
 
             var sb = new StringBuilder();
             sb.append("id: ").append(model).append('\n');

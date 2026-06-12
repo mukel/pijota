@@ -126,10 +126,7 @@ final class MessageHistory {
 
     List<Message.User> userMessages() {
         synchronized (messages) {
-            return messages.stream()
-                .filter(m -> m instanceof Message.User)
-                .map(m -> (Message.User) m)
-                .toList();
+            return messages.stream().filter(m -> m instanceof Message.User).map(m -> (Message.User) m).toList();
         }
     }
 }

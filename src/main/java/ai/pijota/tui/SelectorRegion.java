@@ -14,19 +14,24 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
     @Override
     public int height(int width, PromptSnapshot ctx) {
-        if (!selector.active()) return 0;
-        if (selector.total() == 0) return 3;
+        if (!selector.active())
+            return 0;
+        if (selector.total() == 0)
+            return 3;
         int h = 1 + selector.visibleCount() + 1;
         int total = selector.total();
         int start = selector.visibleStart();
-        if (start > 0) h++;
-        if (start + MAX_VISIBLE < total) h++;
+        if (start > 0)
+            h++;
+        if (start + MAX_VISIBLE < total)
+            h++;
         return h;
     }
 
     @Override
     public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
-        if (!selector.active()) return NO_CURSOR;
+        if (!selector.active())
+            return NO_CURSOR;
 
         int sel = selector.selectionIndex();
         int total = selector.total();
@@ -71,15 +76,13 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
             if (i == sel) {
                 out.print(theme.styled("prompt", "› "));
                 out.print(theme.styled("heading", item.titleText()));
-                out.print(theme.styled("statusText",
-                    " ".repeat(Math.max(0, maxTitle - item.titleText().length() + 4))
-                    + AnsiWidth.truncateVisual(detail, detailWidth)));
+                out.print(theme.styled("statusText", " ".repeat(Math.max(0, maxTitle - item.titleText().length() + 4))
+                                                + AnsiWidth.truncateVisual(detail, detailWidth)));
             } else {
                 out.print("  ");
-                out.print(theme.styled("statusText",
-                    item.titleText()
-                    + " ".repeat(Math.max(0, maxTitle - item.titleText().length() + 4))
-                    + AnsiWidth.truncateVisual(detail, detailWidth)));
+                out.print(theme.styled("statusText", item.titleText()
+                                                + " ".repeat(Math.max(0, maxTitle - item.titleText().length() + 4))
+                                                + AnsiWidth.truncateVisual(detail, detailWidth)));
             }
         }
 

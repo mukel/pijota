@@ -17,27 +17,26 @@ public final class ToolRegistry {
 
     public void register(Tool tool) {
         tools.put(tool.name(), tool);
-        if (tool.defaultEnabled()) enabledNames.add(tool.name());
+        if (tool.defaultEnabled())
+            enabledNames.add(tool.name());
     }
 
-    public void enableOnly(Collection<String> names) { enabledNames.clear(); enabledNames.addAll(names); }
+    public void enableOnly(Collection<String> names) {
+        enabledNames.clear();
+        enabledNames.addAll(names);
+    }
 
     public List<Tool> enabledTools() {
         return tools.values().stream().filter(t -> enabledNames.contains(t.name())).toList();
     }
 
     public List<Tool.ToolInfo> allTools() {
-        return tools.values().stream()
-            .map(t -> new Tool.ToolInfo(t.name(), t.description()))
-            .toList();
+        return tools.values().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
     }
 
     public List<Tool.ToolInfo> activeTools() {
-        return enabledTools().stream()
-            .map(t -> new Tool.ToolInfo(t.name(), t.description()))
-            .toList();
+        return enabledTools().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
     }
-
 
     public List<String> enabledToolNames() {
         return enabledTools().stream().map(Tool::name).toList();
@@ -48,29 +47,26 @@ public final class ToolRegistry {
     }
 
     public void abortRunningTools() {
-        for (Tool tool : tools.values()) tool.abort();
+        for (Tool tool : tools.values())
+            tool.abort();
     }
 
-    public CompletableFuture<Tool.ToolResult> execute(
-            String toolCallId, String toolName,
-            Map<String, Object> arguments, String rawArgs, String sessionCwd) {
-        return get(toolName)
-            .flatMap(tool -> {
-                var errors = validateArguments(tool, arguments);
-                if (!errors.isEmpty()) {
-                    return Optional.of(CompletableFuture.completedFuture(
-                        Tool.ToolResult.error(formatValidationError(toolName, errors))));
-                }
-                return Optional.of(tool.execute(toolCallId, arguments, sessionCwd));
-            })
-            .orElseGet(() -> CompletableFuture.completedFuture(
-                Tool.ToolResult.error("Unknown tool: " + toolName)));
+    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, String toolName, Map<String, Object> arguments,
+                                    String rawArgs, String sessionCwd) {
+        return get(toolName).flatMap(tool -> {
+            var errors = validateArguments(tool, arguments);
+            if (!errors.isEmpty()) {
+                return Optional.of(CompletableFuture.completedFuture(
+                                                Tool.ToolResult.error(formatValidationError(toolName, errors))));
+            }
+            return Optional.of(tool.execute(toolCallId, arguments, sessionCwd));
+        }).orElseGet(() -> CompletableFuture.completedFuture(Tool.ToolResult.error("Unknown tool: " + toolName)));
     }
 
     private static String formatValidationError(String toolName, List<String> errors) {
-        var sb = new StringBuilder("Invalid arguments for ")
-            .append(toolName).append(":\n");
-        for (String e : errors) sb.append("- ").append(e).append('\n');
+        var sb = new StringBuilder("Invalid arguments for ").append(toolName).append(":\n");
+        for (String e : errors)
+            sb.append("- ").append(e).append('\n');
         sb.append("Retry with arguments matching the ").append(toolName).append(" schema.");
         return sb.toString();
     }
@@ -79,11 +75,13 @@ public final class ToolRegistry {
         var errors = new ArrayList<String>();
         @SuppressWarnings("unchecked")
         Map<String, Object> schema = (Map<String, Object>) tool.schema();
-        if (schema == null) return errors;
+        if (schema == null)
+            return errors;
 
         @SuppressWarnings("unchecked")
         var properties = (Map<String, Object>) schema.get("properties");
-        if (properties == null) return errors;
+        if (properties == null)
+            return errors;
 
         @SuppressWarnings("unchecked")
         var required = (List<String>) schema.get("required");
@@ -93,19 +91,20 @@ public final class ToolRegistry {
             @SuppressWarnings("unchecked")
             var fieldSchema = (Map<String, Object>) entry.getValue();
             String type = fieldSchema.get("type") instanceof String s ? s : null;
-            if (type == null) continue;
+            if (type == null)
+                continue;
 
             Object value = args.get(field);
             if (value == null || (value instanceof String s && s.isBlank())) {
-                if (required != null && required.contains(field)
-                    && !hasAliasArg(args, field)) {
+                if (required != null && required.contains(field) && !hasAliasArg(args, field)) {
                     errors.add(field + " is required");
                 }
                 continue;
             }
 
             String typeError = checkType(field, value, type);
-            if (typeError != null) errors.add(typeError);
+            if (typeError != null)
+                errors.add(typeError);
         }
         return errors;
     }
@@ -113,19 +112,23 @@ public final class ToolRegistry {
     private static String checkType(String field, Object value, String type) {
         return switch (type) {
             case "string" -> {
-                if (!(value instanceof String)) yield field + ": expected string, got " + describe(value);
+                if (!(value instanceof String))
+                    yield field + ": expected string, got " + describe(value);
                 yield null;
             }
             case "integer", "number" -> {
-                if (!(value instanceof Number)) yield field + ": expected " + type + ", got " + describe(value);
+                if (!(value instanceof Number))
+                    yield field + ": expected " + type + ", got " + describe(value);
                 yield null;
             }
             case "boolean" -> {
-                if (!(value instanceof Boolean)) yield field + ": expected boolean, got " + describe(value);
+                if (!(value instanceof Boolean))
+                    yield field + ": expected boolean, got " + describe(value);
                 yield null;
             }
             case "array" -> {
-                if (!(value instanceof List<?>)) yield field + ": expected array, got " + describe(value);
+                if (!(value instanceof List<?>))
+                    yield field + ": expected array, got " + describe(value);
                 yield null;
             }
             default -> null;
@@ -138,7 +141,7 @@ public final class ToolRegistry {
         }
         if ("edits".equals(field)) {
             return hasStringArg(args, "oldText") && hasStringArg(args, "newText")
-                || hasStringArg(args, "oldString") && hasStringArg(args, "newString");
+                                            || hasStringArg(args, "oldString") && hasStringArg(args, "newString");
         }
         return false;
     }
@@ -148,10 +151,14 @@ public final class ToolRegistry {
     }
 
     private static String describe(Object value) {
-        if (value == null) return "null";
-        if (value instanceof String s) return "string \"" + (s.length() > 40 ? s.substring(0, 40) + "…" : s) + "\"";
-        if (value instanceof Number n) return "number " + n;
-        if (value instanceof Boolean b) return "boolean " + b;
+        if (value == null)
+            return "null";
+        if (value instanceof String s)
+            return "string \"" + (s.length() > 40 ? s.substring(0, 40) + "…" : s) + "\"";
+        if (value instanceof Number n)
+            return "number " + n;
+        if (value instanceof Boolean b)
+            return "boolean " + b;
         return value.getClass().getSimpleName();
     }
 

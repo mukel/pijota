@@ -1,3 +1,4 @@
 package ai.pijota.messages;
 
-public record ToolCall(String id, String name, String arguments) {}
+public record ToolCall(String id, String name, String arguments) {
+}

@@ -8,12 +8,11 @@ import java.util.function.Predicate;
 
 final class TuiSelectors {
     enum Slot {
-        MODEL(ModelItem.class, "models"),
-        SESSION(SessionItem.class, "sessions"),
-        THEME(ThemeItem.class, "themes"),
-        SETTINGS(SettingsItem.class, "settings"),
-        LOGIN(LoginProviderItem.class, "providers"),
-        FORK(ForkMessageItem.class, "fork from");
+        MODEL(ModelItem.class, "models"), SESSION(SessionItem.class, "sessions"), THEME(ThemeItem.class,
+                                        "themes"), SETTINGS(SettingsItem.class, "settings"), LOGIN(
+                                                                        LoginProviderItem.class,
+                                                                        "providers"), FORK(ForkMessageItem.class,
+                                                                                                        "fork from");
 
         private final Class<? extends SelectorItem> itemType;
         private final String title;
@@ -26,8 +25,8 @@ final class TuiSelectors {
 
     private final EnumMap<Slot, SelectorBinding> bindings = new EnumMap<>(Slot.class);
 
-    TuiSelectors(Runnable confirmModel, Runnable confirmSession, Runnable confirmTheme,
-                 Runnable confirmSettings, Runnable confirmLogin, Runnable confirmFork) {
+    TuiSelectors(Runnable confirmModel, Runnable confirmSession, Runnable confirmTheme, Runnable confirmSettings,
+                                    Runnable confirmLogin, Runnable confirmFork) {
         bind(Slot.MODEL, confirmModel);
         bind(Slot.SESSION, confirmSession);
         bind(Slot.THEME, confirmTheme);
@@ -38,17 +37,21 @@ final class TuiSelectors {
 
     List<PromptRegion> regions() {
         var regions = new ArrayList<PromptRegion>();
-        for (var binding : bindings.values()) regions.add(new SelectorRegion<>(binding.selector()));
+        for (var binding : bindings.values())
+            regions.add(new SelectorRegion<>(binding.selector()));
         return regions;
     }
 
     boolean anyActive() {
-        for (var binding : bindings.values()) if (binding.selector().active()) return true;
+        for (var binding : bindings.values())
+            if (binding.selector().active())
+                return true;
         return false;
     }
 
     void deactivateAll() {
-        for (var binding : bindings.values()) binding.selector().deactivate();
+        for (var binding : bindings.values())
+            binding.selector().deactivate();
     }
 
     <T extends SelectorItem> void show(Slot slot, List<T> items) {
@@ -68,7 +71,8 @@ final class TuiSelectors {
 
     <T extends SelectorItem> Optional<T> selected(Slot slot) {
         var selector = selector(slot);
-        if (!selector.active() || selector.total() == 0) return Optional.empty();
+        if (!selector.active() || selector.total() == 0)
+            return Optional.empty();
         return Optional.of(cast(slot, selector.selectedItem()));
     }
 
@@ -83,14 +87,16 @@ final class TuiSelectors {
 
     boolean handle(Key key, Runnable redraw) {
         for (var binding : bindings.values()) {
-            if (handle(key, binding.selector(), binding.onConfirm(), redraw)) return true;
+            if (handle(key, binding.selector(), binding.onConfirm(), redraw))
+                return true;
         }
         return false;
     }
 
     void filter(String text) {
         for (var binding : bindings.values()) {
-            if (binding.selector().active()) binding.selector().filter(text);
+            if (binding.selector().active())
+                binding.selector().filter(text);
         }
     }
 
@@ -116,14 +122,36 @@ final class TuiSelectors {
     }
 
     private static boolean handle(Key key, Selector<?> selector, Runnable onConfirm, Runnable redraw) {
-        if (!selector.active()) return false;
-        if (key == Key.Special.UP)          { selector.selectPrev(); redraw.run(); return true; }
-        if (key == Key.Special.DOWN)        { selector.selectNext(); redraw.run(); return true; }
-        if (key == Key.Special.PG_UP)       { selector.selectPageUp(); redraw.run(); return true; }
-        if (key == Key.Special.PG_DOWN)     { selector.selectPageDown(); redraw.run(); return true; }
-        if (key == Key.Special.ENTER)       { onConfirm.run(); redraw.run(); return true; }
+        if (!selector.active())
+            return false;
+        if (key == Key.Special.UP) {
+            selector.selectPrev();
+            redraw.run();
+            return true;
+        }
+        if (key == Key.Special.DOWN) {
+            selector.selectNext();
+            redraw.run();
+            return true;
+        }
+        if (key == Key.Special.PG_UP) {
+            selector.selectPageUp();
+            redraw.run();
+            return true;
+        }
+        if (key == Key.Special.PG_DOWN) {
+            selector.selectPageDown();
+            redraw.run();
+            return true;
+        }
+        if (key == Key.Special.ENTER) {
+            onConfirm.run();
+            redraw.run();
+            return true;
+        }
         return false;
     }
 
-    private record SelectorBinding(Selector<SelectorItem> selector, Runnable onConfirm) {}
+    private record SelectorBinding(Selector<SelectorItem> selector, Runnable onConfirm) {
+    }
 }

@@ -12,9 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 public final class FauxLlm implements LlmClient {
@@ -43,88 +41,43 @@ public final class FauxLlm implements LlmClient {
         return aborted;
     }
 
-    @Override public String provider() { return provider; }
-    @Override public String model() { return model; }
-    @Override public String apiKey() { return "faux-key"; }
-    @Override public boolean streamsWithTools() { return streamsWithTools; }
-    @Override public void abort() { aborted = true; }
+    @Override
+    public String provider() {
+        return provider;
+    }
 
     @Override
-    public CompletableFuture<StreamResult> streamMessages(
-            List<Message> messages, List<Tool> tools, BiConsumer<String, String> onPartial) {
+    public String model() {
+        return model;
+    }
+
+    @Override
+    public String apiKey() {
+        return "faux-key";
+    }
+
+    @Override
+    public boolean streamsWithTools() {
+        return streamsWithTools;
+    }
+
+    @Override
+    public void abort() {
+        aborted = true;
+    }
+
+    @Override
+    public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
+                                    BiConsumer<String, String> onPartial) {
         requests.add(new Request(List.copyOf(messages), List.copyOf(tools)));
         var response = responses.poll();
         if (response == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("No faux response queued"));
         }
 
-        var result = new StreamResult();
-        var content = new StringBuilder();
-        var thinking = new StringBuilder();
-        for (String delta : response.thinkingDeltas()) {
-            thinking.append(delta);
-            onPartial.accept(content.toString(), thinking.toString());
-        }
-        for (String delta : response.contentDeltas()) {
-            content.append(delta);
-            onPartial.accept(content.toString(), thinking.toString());
-        }
-        result.setContent(content.toString());
-        result.setThinking(thinking.toString());
-        result.setToolCalls(response.toolCalls());
-        result.setUsage(response.usage());
-        return CompletableFuture.completedFuture(result);
-    }
-
-    public record Request(List<Message> messages, List<Tool> tools) {}
-
-    public FauxLlm blockUntilAborted() {
-        enqueue(new Response(List.of(), List.of(), List.of(), null, true));
-        return this;
-    }
-
-    public record Response(
-        List<String> contentDeltas,
-        List<String> thinkingDeltas,
-        List<ToolCall> toolCalls,
-        Usage usage,
-        boolean blockUntilAborted
-    ) {
-        Response(List<String> contentDeltas, List<String> thinkingDeltas,
-                List<ToolCall> toolCalls, Usage usage) {
-            this(contentDeltas, thinkingDeltas, toolCalls, usage, false);
-        }
-        public static Response content(String... deltas) {
-            return new Response(List.of(deltas), List.of(), List.of(), null);
-        }
-
-        public static Response thinkingAndContent(List<String> thinkingDeltas, String... contentDeltas) {
-            return new Response(List.of(contentDeltas), thinkingDeltas, List.of(), null);
-        }
-
-        public static Response toolCall(ToolCall... toolCalls) {
-            return new Response(List.of(), List.of(), List.of(toolCalls), null);
-        }
-    }
-
-    public static final class BlockingResponse extends Response {
-        public BlockingResponse() {
-            super(List.of(), List.of(), List.of(), null);
-        }
-    }
-
-    @Override
-    public CompletableFuture<StreamResult> streamMessages(
-            List<Message> messages, List<Tool> tools, BiConsumer<String, String> onPartial) {
-        requests.add(new Request(List.copyOf(messages), List.copyOf(tools)));
-        var response = responses.poll();
-        if (response == null) {
-            return CompletableFuture.failedFuture(new IllegalStateException("No faux response queued"));
-        }
-
-        if (response instanceof BlockingResponse) {
+        if (response.blockUntilAborted()) {
             var future = new CompletableFuture<StreamResult>();
-            future.completeOnTimeout(new StreamResult(), 2, java.util.concurrent.TimeUnit.SECONDS);
+            future.completeOnTimeout(new StreamResult(), 2, TimeUnit.SECONDS);
             return future;
         }
 
@@ -144,5 +97,32 @@ public final class FauxLlm implements LlmClient {
         result.setToolCalls(response.toolCalls());
         result.setUsage(response.usage());
         return CompletableFuture.completedFuture(result);
+    }
+
+    public record Request(List<Message> messages, List<Tool> tools) {
+    }
+
+    public FauxLlm blockUntilAborted() {
+        enqueue(new Response(List.of(), List.of(), List.of(), null, true));
+        return this;
+    }
+
+    public record Response(List<String> contentDeltas, List<String> thinkingDeltas, List<ToolCall> toolCalls,
+                                    Usage usage, boolean blockUntilAborted) {
+        Response(List<String> contentDeltas, List<String> thinkingDeltas, List<ToolCall> toolCalls, Usage usage) {
+            this(contentDeltas, thinkingDeltas, toolCalls, usage, false);
+        }
+
+        public static Response content(String... deltas) {
+            return new Response(List.of(deltas), List.of(), List.of(), null);
+        }
+
+        public static Response thinkingAndContent(List<String> thinkingDeltas, String... contentDeltas) {
+            return new Response(List.of(contentDeltas), thinkingDeltas, List.of(), null);
+        }
+
+        public static Response toolCall(ToolCall... toolCalls) {
+            return new Response(List.of(), List.of(), List.of(toolCalls), null);
+        }
     }
 }

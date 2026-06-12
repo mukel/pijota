@@ -4,10 +4,8 @@ import java.util.Locale;
 import java.util.Set;
 
 final class StreamProcessor {
-    private static final Set<String> REASONING_PREFIXES = Set.of(
-        "the user ", "user wants ", "user asked ", "i'll ", "i will ",
-        "let me ", "we need ", "need to "
-    );
+    private static final Set<String> REASONING_PREFIXES = Set.of("the user ", "user wants ", "user asked ", "i'll ",
+                                    "i will ", "let me ", "we need ", "need to ");
 
     private boolean suppressSystemReminder;
 
@@ -17,7 +15,8 @@ final class StreamProcessor {
         while (i < line.length()) {
             if (suppressSystemReminder) {
                 int end = line.indexOf("</system-reminder>", i);
-                if (end < 0) return out.toString().stripTrailing();
+                if (end < 0)
+                    return out.toString().stripTrailing();
                 i = end + "</system-reminder>".length();
                 suppressSystemReminder = false;
                 continue;
@@ -36,7 +35,8 @@ final class StreamProcessor {
 
     String stripAndFilter(String line) {
         String cleaned = stripSystemReminders(line);
-        if (isReasoningMetaLine(cleaned.strip())) return null;
+        if (isReasoningMetaLine(cleaned.strip()))
+            return null;
         return cleaned;
     }
 
@@ -45,9 +45,12 @@ final class StreamProcessor {
     }
 
     static boolean isReasoningMetaLine(String line) {
-        if (line.isBlank()) return false;
+        if (line.isBlank())
+            return false;
         String l = line.toLowerCase(Locale.ROOT);
-        for (var prefix : REASONING_PREFIXES) if (l.startsWith(prefix)) return true;
+        for (var prefix : REASONING_PREFIXES)
+            if (l.startsWith(prefix))
+                return true;
         return l.contains("the user seems");
     }
 }
