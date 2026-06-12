@@ -336,4 +336,53 @@ class CodexStreamingChatModelTest {
         assertTrue(body.has("reasoning"));
         assertEquals("high", body.get("reasoning").get("effort").asText());
     }
+
+    @Test
+    void addToolCallSkipsWhenIdIsBlank() throws Exception {
+        var item = Util.MAPPER.readTree("{\"type\":\"function_call\",\"call_id\":\"\",\"name\":\"search\",\"arguments\":\"{}\"}");
+        var toolCalls = new ArrayList<ToolExecutionRequest>();
+        var seen = new HashSet<String>();
+
+        CodexStreamingChatModel.addToolCall(item, toolCalls, seen);
+
+        assertTrue(toolCalls.isEmpty());
+    }
+
+    @Test
+    void addToolCallUsesIdFallback() throws Exception {
+        var item = Util.MAPPER.readTree("{\"type\":\"function_call\",\"id\":\"alt-id\",\"name\":\"search\",\"arguments\":\"{}\"}");
+        var toolCalls = new ArrayList<ToolExecutionRequest>();
+        var seen = new HashSet<String>();
+
+        CodexStreamingChatModel.addToolCall(item, toolCalls, seen);
+
+        assertEquals(1, toolCalls.size());
+        assertEquals("alt-id", toolCalls.get(0).id());
+    }
+
+    @Test
+    void toolsHandlesSpecWithoutParameters() {
+        var spec = ToolSpecification.builder().name("tool-no-params").description("No params").build();
+
+        var result = CodexStreamingChatModel.tools(List.of(spec));
+        assertEquals(1, result.size());
+        assertEquals("tool-no-params", result.get(0).get("name").asText());
+    }
+
+    @Test
+    void inputMessagesSkipsSystemMessages() {
+        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(SystemMessage.from("system"));
+        var result = CodexStreamingChatModel.inputMessages(msgs);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void inputMessagesHandlesAiMessageWithOnlyToolCalls() {
+        var call = ToolExecutionRequest.builder().id("tc1").name("search").arguments("{}").build();
+        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(AiMessage.from(List.of(call)));
+        var result = CodexStreamingChatModel.inputMessages(msgs);
+        assertEquals(1, result.size());
+        assertEquals("function_call", result.get(0).get("type").asText());
+        assertEquals("tc1", result.get(0).get("call_id").asText());
+    }
 }

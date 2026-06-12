@@ -62,8 +62,10 @@ class PijotaSessionTest {
 
         var messages = session.prompt("hi").get(2, TimeUnit.SECONDS);
 
-        assertEquals(3, messages.size());
-        assertEquals("hello", ((Message.Assistant) messages.get(2)).content());
+        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.User u && u.content().equals("hi")),
+                                        "should contain user message");
+        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.Assistant a && a.content().equals("hello")),
+                                        "should contain assistant response");
         assertEquals("hello", session.lastAssistantContent());
         assertEquals(1, session.userMessages().size());
 

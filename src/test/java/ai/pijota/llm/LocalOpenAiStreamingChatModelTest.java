@@ -302,4 +302,54 @@ class LocalOpenAiStreamingChatModelTest {
         assertTrue(body.has("tools"));
         assertEquals("auto", body.get("tool_choice").asText());
     }
+
+    @Test
+    void processDeltaHandlesBothContentAndThinking() throws Exception {
+        var delta = Util.MAPPER.readTree("{\"content\":\"hello\",\"reasoning_content\":\"thinking...\"}");
+        var content = new StringBuilder();
+        var thinking = new StringBuilder();
+        var toolCalls = new HashMap<Integer, LocalOpenAiStreamingChatModel.ToolCallBuilder>();
+
+        var result = LocalOpenAiStreamingChatModel.processDelta(delta, content, thinking, toolCalls);
+
+        assertEquals("hello", result.textDelta());
+        assertEquals("thinking...", result.thinkingDelta());
+        assertEquals("hello", content.toString());
+        assertEquals("thinking...", thinking.toString());
+    }
+
+    @Test
+    void toolsHandlesSpecWithoutParameters() {
+        var spec = ToolSpecification.builder().name("no-params").description("No params").build();
+
+        var result = LocalOpenAiStreamingChatModel.tools(List.of(spec));
+        assertEquals(1, result.size());
+        assertEquals("function", result.get(0).get("type").asText());
+    }
+
+    @Test
+    void collectToolCallsUsesMapSizeWhenNoIndex() throws Exception {
+        var json = Util.MAPPER.readTree("[{\"id\":\"c1\",\"function\":{\"name\":\"search\",\"arguments\":\"{}\"}}]");
+        var out = new HashMap<Integer, LocalOpenAiStreamingChatModel.ToolCallBuilder>();
+
+        LocalOpenAiStreamingChatModel.collectToolCalls(json, out);
+
+        assertEquals(1, out.size());
+        assertNotNull(out.get(0));
+        assertEquals("c1", out.get(0).id);
+    }
+
+    @Test
+    void collectToolCallsHandlesSecondItemAtNextIndex() throws Exception {
+        var json1 = Util.MAPPER.readTree("[{\"index\":0,\"id\":\"c1\",\"function\":{\"name\":\"a\"}}]");
+        var json2 = Util.MAPPER.readTree("[{\"index\":1,\"id\":\"c2\",\"function\":{\"name\":\"b\"}}]");
+        var out = new HashMap<Integer, LocalOpenAiStreamingChatModel.ToolCallBuilder>();
+
+        LocalOpenAiStreamingChatModel.collectToolCalls(json1, out);
+        LocalOpenAiStreamingChatModel.collectToolCalls(json2, out);
+
+        assertEquals(2, out.size());
+        assertEquals("c1", out.get(0).id);
+        assertEquals("c2", out.get(1).id);
+    }
 }

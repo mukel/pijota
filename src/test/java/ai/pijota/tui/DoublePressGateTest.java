@@ -43,26 +43,18 @@ class DoublePressGateTest {
     }
 
     @Test
-    void expiredWindowTreatsAsNewFirstPress() {
-        var gate = new DoublePressGate(1); // 1ms window
+    void expiredWindowTreatsAsNewFirstPress() throws InterruptedException {
+        var gate = new DoublePressGate(50);
         assertFalse(gate.tryFire());
-        try {
-            Thread.sleep(5);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        Thread.sleep(100);
         assertFalse(gate.tryFire());
     }
 
     @Test
-    void zeroMsWindow() {
+    void zeroMsWindow() throws InterruptedException {
         var gate = new DoublePressGate(0);
         assertFalse(gate.tryFire());
-        try {
-            Thread.sleep(1);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        Thread.sleep(10);
         assertFalse(gate.tryFire());
     }
 }

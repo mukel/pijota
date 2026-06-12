@@ -13,12 +13,18 @@ import java.util.Map;
 
 public final class OAuthTokenStore {
     private static final Path CONFIG_HOME = Path.of(System.getProperty("user.home"), ".pijota");
-    private static final Path AUTH_FILE = CONFIG_HOME.resolve("auth.json");
+    private static final Path DEFAULT_AUTH_FILE = CONFIG_HOME.resolve("auth.json");
 
+    private final Path authFile;
     private final Map<String, Entry> tokens;
 
     public OAuthTokenStore() {
-        this.tokens = loadAll();
+        this(DEFAULT_AUTH_FILE);
+    }
+
+    OAuthTokenStore(Path authFile) {
+        this.authFile = authFile;
+        this.tokens = loadAll(authFile);
     }
 
     /**
@@ -82,18 +88,18 @@ public final class OAuthTokenStore {
 
     private void persist() {
         try {
-            Files.createDirectories(CONFIG_HOME);
-            Util.MAPPER.writerWithDefaultPrettyPrinter().writeValue(AUTH_FILE.toFile(), tokens);
+            Files.createDirectories(authFile.getParent());
+            Util.MAPPER.writerWithDefaultPrettyPrinter().writeValue(authFile.toFile(), tokens);
         } catch (IOException ignored) {}
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Entry> loadAll() {
+    private static Map<String, Entry> loadAll(Path authFile) {
         try {
-            if (!Files.exists(AUTH_FILE))
+            if (!Files.exists(authFile))
                 return new HashMap<>();
             var type = Util.MAPPER.getTypeFactory().constructMapType(Map.class, String.class, Entry.class);
-            Map<String, Entry> map = Util.MAPPER.readValue(AUTH_FILE.toFile(), type);
+            Map<String, Entry> map = Util.MAPPER.readValue(authFile.toFile(), type);
             return new HashMap<>(map != null ? map : Collections.emptyMap());
         } catch (Exception e) {
             return new HashMap<>();

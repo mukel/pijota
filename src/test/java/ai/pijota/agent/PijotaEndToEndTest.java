@@ -1,6 +1,5 @@
 package ai.pijota.agent;
 
-import ai.pijota.config.AppConfig;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
@@ -13,7 +12,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -60,9 +58,10 @@ class PijotaEndToEndTest {
         var loadedCount = freshSession.load(saveFile);
         assertTrue(loadedCount >= 3, "loaded " + loadedCount + " messages");
         var messages = freshSession.messages();
-        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.User u && u.content().equals("first question")));
-        assertTrue(
-                                        messages.stream().anyMatch(m -> m instanceof Message.Assistant a && a.content().equals("hello from AI")));
+        assertTrue(messages.stream().anyMatch(
+                                        m -> m instanceof Message.User u && u.content().equals("first question")));
+        assertTrue(messages.stream().anyMatch(
+                                        m -> m instanceof Message.Assistant a && a.content().equals("hello from AI")));
     }
 
     @Test
@@ -73,14 +72,15 @@ class PijotaEndToEndTest {
         var llm = (FauxLlm) session.agentLoop().llm();
 
         llm.enqueue(FauxLlm.Response.toolCall(new ToolCall("tc1", "echo", "{\"text\":\"tool output\"}")))
-                        .enqueue(FauxLlm.Response.content(new Usage(1, 2), "processed tool result"));
+                                        .enqueue(FauxLlm.Response.content(new Usage(1, 2), "processed tool result"));
         session.prompt("call echo").get(2, TimeUnit.SECONDS);
 
         var messages = session.messages();
         assertTrue(messages.size() >= 4, "expected at least 4 messages, got " + messages.size());
-        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.ToolResult tr && tr.content().contains("tool output")),
-                                        "should contain tool result");
-        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.Assistant a && a.content().equals("processed tool result")),
+        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.ToolResult tr
+                                        && tr.content().contains("tool output")), "should contain tool result");
+        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.Assistant a
+                                        && a.content().equals("processed tool result")),
                                         "should contain assistant response after tool");
 
         llm.enqueue(withUsage("follow-up answer"));
@@ -216,8 +216,37 @@ class PijotaEndToEndTest {
         assertEquals("anthropic", cache.provider());
     }
 
+    @Test
+    void listSessionsReturnsKnownSessions() throws Exception {
+        var session = createSession(false);
+        var llm = (FauxLlm) session.agentLoop().llm();
+        llm.enqueue(withUsage("ok"));
+        session.prompt("test").get(2, TimeUnit.SECONDS);
+        session.setSessionName("EndToEnd Session");
+
+        var sessions = session.listSessions();
+        assertFalse(sessions.isEmpty(), "should list at least one session");
+        assertTrue(sessions.stream().anyMatch(p -> p.equals(session.sessionFile())),
+                                        "should find current session in list");
+    }
+
+    @Test
+    void exportSessionProducesMarkdown() throws Exception {
+        var session = createSession(false);
+        var llm = (FauxLlm) session.agentLoop().llm();
+        llm.enqueue(withUsage("AI response"));
+        session.prompt("test question").get(2, TimeUnit.SECONDS);
+
+        var markdown = ai.pijota.agent.SessionExporter.toMarkdown(session.sessionFile());
+        assertNotNull(markdown);
+        assertTrue(markdown.contains("test question"), "export should contain user question");
+        assertTrue(markdown.contains("AI response"), "export should contain assistant response");
+    }
+
     private static Tool echoTool() {
-        return new Tool.ToolDefinition("echo", "Echoes input text", Map.of(), (id, args, cwd) -> CompletableFuture
-                        .completedFuture(Tool.ToolResult.success("Echo: " + args.getOrDefault("text", "")))).toTool();
+        return new Tool.ToolDefinition("echo", "Echoes input text", Map.of(),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(Tool.ToolResult.success(
+                                                                        "Echo: " + args.getOrDefault("text", ""))))
+                                        .toTool();
     }
 }

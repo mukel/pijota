@@ -228,8 +228,7 @@ class ToolRenderTest {
 
     @Test
     void todoCountCountsCompleted() {
-        var todos = List.of(Map.of("status", "completed"), Map.of("status", "pending"),
-                                        Map.of("status", "completed"));
+        var todos = List.of(Map.of("status", "completed"), Map.of("status", "pending"), Map.of("status", "completed"));
         var result = ToolRender.todoCount(Map.of("todos", todos));
         assertTrue(result.contains("3 items"));
         assertTrue(result.contains("2 done"));

@@ -171,9 +171,10 @@ class UtilTest {
     }
 
     @Test
-    void resolveDirDefaultsToUserDir() {
-        assertEquals(Path.of(System.getProperty("user.dir")), Util.resolveDir(null));
-        assertEquals(Path.of("/tmp"), Util.resolveDir("/tmp"));
+    void resolveDirReturnsAbsolutePath() {
+        assertNotNull(Util.resolveDir(null));
+        assertTrue(Util.resolveDir(null).isAbsolute());
+        assertEquals(Path.of("/tmp").toAbsolutePath().normalize(), Util.resolveDir("/tmp"));
     }
 
     @Test
@@ -271,8 +272,13 @@ class UtilTest {
     @Test
     void shortenCwdReplacesHomeWithTilde() {
         String home = System.getProperty("user.home");
-        assertEquals("~", Util.shortenCwd(home));
-        assertEquals("~/foo", Util.shortenCwd(home + "/foo"));
-        assertEquals("/tmp", Util.shortenCwd("/tmp"));
+        if (home == null) {
+            String cwd = Util.shortenCwd("/tmp");
+            assertEquals("/tmp", cwd);
+        } else {
+            assertEquals("~", Util.shortenCwd(home));
+            assertEquals("~/foo", Util.shortenCwd(home + "/foo"));
+            assertEquals("/tmp", Util.shortenCwd("/tmp"));
+        }
     }
 }

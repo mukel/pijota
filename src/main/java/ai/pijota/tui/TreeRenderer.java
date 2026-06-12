@@ -217,16 +217,16 @@ final class TreeRenderer {
         return false;
     }
 
-    private static String entryId(Map<String, Object> entry) {
+    static String entryId(Map<String, Object> entry) {
         Object id = entry.get("id");
         return id instanceof String s ? s : null;
     }
 
-    private static boolean isUserEntry(Map<String, Object> entry) {
+    static boolean isUserEntry(Map<String, Object> entry) {
         return "message".equals(entry.getOrDefault("type", "message")) && "user".equals(entry.getOrDefault("role", ""));
     }
 
-    private static String snippet(String content, int max) {
+    static String snippet(String content, int max) {
         if (content == null)
             return "";
         String s = content.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim();

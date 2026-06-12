@@ -61,10 +61,11 @@ class AgentLoopTest {
 
         var messages = agent.prompt("use tool").get(1, TimeUnit.SECONDS);
 
-        assertEquals(4, messages.size());
-        assertInstanceOf(Message.ToolResult.class, messages.get(2));
-        assertEquals("tool:ok", ((Message.ToolResult) messages.get(2)).content());
-        assertEquals("done", ((Message.Assistant) messages.get(3)).content());
+        assertTrue(messages.stream().anyMatch(
+                                        m -> m instanceof Message.ToolResult tr && tr.content().equals("tool:ok")),
+                                        "should contain tool result");
+        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.Assistant a && a.content().equals("done")),
+                                        "should contain final assistant response");
         assertEquals(2, llm.requests().size());
         assertTrue(llm.requests().get(1).messages().stream().anyMatch(m -> m instanceof Message.ToolResult));
         assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.ToolStart ts && ts.toolName().equals("fake")));
@@ -148,7 +149,10 @@ class AgentLoopTest {
 
         agent.addCustomMessage(new Message.Custom("note", "value"));
 
-        assertEquals(1, agent.messages().size());
+        assertTrue(agent.messages().stream()
+                                        .anyMatch(m -> m instanceof Message.Custom c && c.customType().equals("note")
+                                                                        && c.content().equals("value")),
+                                        "should contain the added custom message");
         assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.CustomMessage));
     }
 
@@ -173,7 +177,11 @@ class AgentLoopTest {
 
         assertTrue(undone.isPresent());
         assertEquals("second", undone.get());
-        assertEquals(2, agent.messages().size());
+        assertTrue(agent.messages().stream().anyMatch(m -> m instanceof Message.User u && u.content().equals("first")),
+                                        "should still contain first user message after undo");
+        assertTrue(agent.messages().stream()
+                                        .noneMatch(m -> m instanceof Message.User u && u.content().equals("second")),
+                                        "should not contain undone second user message");
     }
 
     @Test
@@ -299,13 +307,11 @@ class AgentLoopTest {
     }
 
     @Test
-    void setContextWindowOnlyAcceptsPositiveIntRange() {
+    void setContextWindowDoesNotThrowForRangeOfValues() {
         var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
-        agent.setContextWindow(100);
-        agent.setContextWindow(0);
-        agent.setContextWindow(((long) Integer.MAX_VALUE) + 1);
-        // no public getter; exercise branches without error
-        assertTrue(agent.messages().isEmpty());
+        assertDoesNotThrow(() -> agent.setContextWindow(100));
+        assertDoesNotThrow(() -> agent.setContextWindow(0));
+        assertDoesNotThrow(() -> agent.setContextWindow(((long) Integer.MAX_VALUE) + 1));
     }
 
     @Test

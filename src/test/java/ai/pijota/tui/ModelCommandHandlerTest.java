@@ -140,23 +140,32 @@ class ModelCommandHandlerTest {
 
     @Test
     void cycleModelRefusesWhenBusy() {
-        var handler = new ModelCommandHandler(busyHost("openai", "gpt-4"));
+        var captured = new java.util.ArrayList<String>();
+        var host = busyHost("openai", "gpt-4", captured);
+        var handler = new ModelCommandHandler(host);
         handler.cycleModel(1);
+        assertFalse(captured.isEmpty(), "should capture status message");
     }
 
     @Test
     void showModelSelectorRefusesWhenBusy() {
-        var handler = new ModelCommandHandler(busyHost("openai", "gpt-4"));
+        var captured = new java.util.ArrayList<String>();
+        var host = busyHost("openai", "gpt-4", captured);
+        var handler = new ModelCommandHandler(host);
         handler.showModelSelector();
+        assertTrue(captured.stream().anyMatch(l -> l.contains("unavailable")), "should report unavailable when busy");
     }
 
     @Test
     void showModelSelectorWithEmptyModelsReportsError() {
-        var handler = new ModelCommandHandler(fakeHost("openai", "gpt-4"));
+        var captured = new java.util.ArrayList<String>();
+        var host = capturingHost("openai", "gpt-4", captured);
+        var handler = new ModelCommandHandler(host);
         handler.showModelSelector(List.of());
+        assertTrue(captured.stream().anyMatch(l -> l.contains("no models")), "should report no models for empty list");
     }
 
-    private static ModelCommandHandler.Host busyHost(String provider, String model) {
+    private static ModelCommandHandler.Host busyHost(String provider, String model, List<String> output) {
         return new ModelCommandHandler.Host() {
             @Override
             public boolean busy() {
@@ -174,7 +183,69 @@ class ModelCommandHandlerTest {
             }
 
             @Override
-            public void appendPlain(List<String> lines) {}
+            public void appendPlain(List<String> lines) {
+                output.addAll(lines);
+            }
+
+            @Override
+            public String styled(String slot, String text) {
+                return text;
+            }
+
+            @Override
+            public void redrawPrompt() {}
+
+            @Override
+            public void setStatus(String status) {
+                output.add(status);
+            }
+
+            @Override
+            public void switchModel(ModelInfo chosen) {}
+
+            @Override
+            public TuiSelectors selectors() {
+                return null;
+            }
+
+            @Override
+            public PromptEditor promptEditor() {
+                return null;
+            }
+
+            @Override
+            public ai.pijota.agent.PijotaSession session() {
+                return null;
+            }
+
+            @Override
+            public ai.pijota.config.SettingsManager settings() {
+                return null;
+            }
+        };
+    }
+
+    private static ModelCommandHandler.Host capturingHost(String provider, String model, List<String> output) {
+        return new ModelCommandHandler.Host() {
+            @Override
+            public boolean busy() {
+                return false;
+            }
+
+            @Override
+            public String provider() {
+                return provider;
+            }
+
+            @Override
+            public String model() {
+                return model;
+            }
+
+            @Override
+            public void appendPlain(List<String> lines) {
+                output.addAll(lines);
+            }
 
             @Override
             public String styled(String slot, String text) {

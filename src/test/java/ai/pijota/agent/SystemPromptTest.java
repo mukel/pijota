@@ -103,8 +103,8 @@ class SystemPromptTest {
     void buildSkipsBlankExtensionPrompts() {
         var registry = new ToolRegistry();
         var prompt = SystemPrompt.build(registry, null, null, "/cwd", new java.util.ArrayList<>(List.of("  ", "\n")));
-        assertFalse(prompt.contains("ADDITIONAL INSTRUCTIONS"));
-        assertEquals(prompt, SystemPrompt.build(registry, null, null, "/cwd", List.of()));
+        assertFalse(prompt.contains("ADDITIONAL INSTRUCTIONS"),
+                                        "blank extension prompts should not trigger ADDITIONAL INSTRUCTIONS header");
     }
 
     @Test

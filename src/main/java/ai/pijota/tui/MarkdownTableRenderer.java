@@ -52,7 +52,7 @@ final class MarkdownTableRenderer {
         return Optional.of(new MarkdownTableRenderer(theme, width).render(table));
     }
 
-    private static boolean couldBeTable(String markdown) {
+    static boolean couldBeTable(String markdown) {
         return markdown.indexOf('|') >= 0 && markdown.indexOf('\n') >= 0;
     }
 
@@ -256,18 +256,18 @@ final class MarkdownTableRenderer {
         }
     }
 
-    private static int preferredWidth(String text) {
+    static int preferredWidth(String text) {
         return AnsiWidth.visibleWidth(text);
     }
 
-    private static int sum(int[] widths) {
+    static int sum(int[] widths) {
         int total = 0;
         for (int w : widths)
             total += w;
         return total;
     }
 
-    private static int widest(int[] widths) {
+    static int widest(int[] widths) {
         int idx = 0;
         for (int i = 1; i < widths.length; i++)
             if (widths[i] > widths[idx])
@@ -275,7 +275,7 @@ final class MarkdownTableRenderer {
         return idx;
     }
 
-    private static String align(String text, int width, TableCell.Alignment alignment) {
+    static String align(String text, int width, TableCell.Alignment alignment) {
         int pad = width - AnsiWidth.visibleWidth(text);
         if (pad <= 0)
             return text;
@@ -296,7 +296,7 @@ final class MarkdownTableRenderer {
         return AnsiWidth.wrapPreservingAnsi(text, Math.max(1, width));
     }
 
-    private static String spaces(int count) {
+    static String spaces(int count) {
         return count <= 0 ? "" : " ".repeat(count);
     }
 }

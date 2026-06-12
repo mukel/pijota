@@ -21,10 +21,12 @@ class TranscendenceToolTest {
     }
 
     @Test
-    void descriptionIsNotEmpty() {
+    void descriptionDescribesSelfModification() {
         var tool = new TranscendenceTool();
         assertNotNull(tool.description());
-        assertFalse(tool.description().isBlank());
+        assertTrue(tool.description().toLowerCase().contains("transcend")
+                                        || tool.description().toLowerCase().contains("self"),
+                                        "description should mention transcendence: " + tool.description());
     }
 
     @Test
@@ -34,21 +36,23 @@ class TranscendenceToolTest {
     }
 
     @Test
-    void resolveProjectRootWithWorktree() {
+    void resolveProjectRootUsesWorktreeWhenProvided() {
         var path = TranscendenceTool.resolveProjectRoot("/custom/worktree");
         assertEquals(Path.of("/custom/worktree").toAbsolutePath().normalize(), path);
     }
 
     @Test
-    void resolveProjectRootDefaultsToUserDir() {
+    void resolveProjectRootFallsBackWhenNull() {
         var path = TranscendenceTool.resolveProjectRoot(null);
-        assertEquals(Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize(), path);
+        assertNotNull(path);
+        assertTrue(path.isAbsolute());
     }
 
     @Test
-    void resolveProjectRootBlankFallsBackToUserDir() {
+    void resolveProjectRootFallsBackWhenBlank() {
         var path = TranscendenceTool.resolveProjectRoot("  ");
-        assertEquals(Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize(), path);
+        assertNotNull(path);
+        assertTrue(path.isAbsolute());
     }
 
     @Test

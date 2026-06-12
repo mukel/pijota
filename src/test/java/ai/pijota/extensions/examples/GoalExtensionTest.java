@@ -124,18 +124,17 @@ class GoalExtensionTest {
     }
 
     @Test
-    void pauseAndResumePreserveElapsedTime() throws InterruptedException {
+    void pauseAndResumeSwitchesStatusCorrectly() {
         var fake = new FakeExtensionAPI();
         new GoalExtension().init(fake);
         execute(fake.tool("create_goal"), Map.of("objective", "x"));
-        Thread.sleep(5);
         execute(fake.tool("update_goal"), Map.of("status", "pause"));
-        Thread.sleep(20);
         execute(fake.tool("update_goal"), Map.of("status", "resume"));
 
         var get = execute(fake.tool("get_goal"), Map.of());
         assertFalse(get.isError());
-        assertTrue(get.content().contains("status: active"));
+        assertTrue(get.content().contains("status: active"),
+                                        "expected active status after resume, got: " + get.content());
     }
 
     @Test

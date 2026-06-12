@@ -140,4 +140,35 @@ class TreeRendererTest {
         var lines = renderer.render(entries, entries, "u2");
         assertTrue(lines.stream().anyMatch(l -> l.contains("turns")));
     }
+
+    @Test
+    void entryIdExtractsStringId() {
+        assertEquals("abc-123", TreeRenderer.entryId(Map.of("id", "abc-123")));
+        assertNull(TreeRenderer.entryId(Map.of("id", 42)));
+        assertNull(TreeRenderer.entryId(Map.of()));
+    }
+
+    @Test
+    void isUserEntryDetectsUserMessages() {
+        assertTrue(TreeRenderer.isUserEntry(Map.of("type", "message", "role", "user")));
+        assertFalse(TreeRenderer.isUserEntry(Map.of("type", "message", "role", "assistant")));
+        assertFalse(TreeRenderer.isUserEntry(Map.of("type", "tool_result", "role", "")));
+    }
+
+    @Test
+    void snippetTruncatesLongText() {
+        assertEquals("short", TreeRenderer.snippet("short", 20));
+        assertTrue(TreeRenderer.snippet("very long text here yes", 10).endsWith("…"));
+        assertTrue(TreeRenderer.snippet("very long text here yes", 10).length() <= 10);
+    }
+
+    @Test
+    void snippetHandlesNull() {
+        assertEquals("", TreeRenderer.snippet(null, 10));
+    }
+
+    @Test
+    void snippetCollapsesWhitespace() {
+        assertEquals("a b c", TreeRenderer.snippet("a   b\nc", 20));
+    }
 }
