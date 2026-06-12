@@ -46,6 +46,7 @@ public final class PromptEditor {
     private int historyIndex = -1;
     private String preHistoryText = "";
     private String completionPrefix = "";
+    private String suggestion = "";
 
     public PromptEditor(SlashCommandRegistry commands) {
         this(commands, PromptEditor::defaultFileCompletions);
@@ -71,11 +72,20 @@ public final class PromptEditor {
     }
 
     public synchronized PromptSnapshot snapshot() {
-        return new PromptSnapshot(List.copyOf(lines), row, col, completions, selectedCompletion);
+        return new PromptSnapshot(List.copyOf(lines), row, col, completions, selectedCompletion)
+                                        .withSuggestion(suggestion);
     }
 
     public synchronized String text() {
         return String.join("\n", lines);
+    }
+
+    public synchronized String suggestion() {
+        return suggestion;
+    }
+
+    public synchronized boolean reverseHistoryActive() {
+        return selector.active() && !history.isEmpty() && selector.itemCount() == history.size();
     }
 
     public synchronized void setText(String text) {
@@ -122,6 +132,7 @@ public final class PromptEditor {
                 reset();
                 yield Result.didChange();
             }
+            case CTRL_R -> reverseHistorySearch();
             case CTRL_W -> deleteWordBeforeCursor();
             case ALT_D -> deleteWordAfterCursor();
             case CTRL_LEFT -> wordLeft();
@@ -258,7 +269,22 @@ public final class PromptEditor {
                     selector.deactivate();
                     completions = List.of();
                     selectedCompletion = -1;
+                    suggestion = "";
                     return Result.didChange();
+                }
+                var prefixMatches = matches.stream().filter(m -> m.name().startsWith(text)).toList();
+                if (prefixMatches.size() >= 2) {
+                    String common = commonPrefix(prefixMatches);
+                    if (common.length() > text.length()) {
+                        lines.set(0, common);
+                        col = common.length();
+                        desiredCol = -1;
+                        selector.deactivate();
+                        completions = List.of();
+                        selectedCompletion = -1;
+                        refreshCompletions();
+                        return Result.didChange();
+                    }
                 }
                 selector.setItems(matches);
                 selector.activate(text);
@@ -451,6 +477,10 @@ public final class PromptEditor {
     }
 
     private void refreshCompletions() {
+        if (reverseHistoryActive()) {
+            suggestion = computeSuggestion();
+            return;
+        }
         if (row == 0 && col == lines.getFirst().length()) {
             String text = lines.getFirst();
             completionPrefix = "";
@@ -461,6 +491,7 @@ public final class PromptEditor {
                     selector.filter(text);
                     completions = matches;
                     selectedCompletion = selector.selectionIndex();
+                    suggestion = computeSuggestion();
                     return;
                 }
             }
@@ -468,12 +499,61 @@ public final class PromptEditor {
         } else {
             clearCompletions();
         }
+        suggestion = computeSuggestion();
+    }
+
+    private String computeSuggestion() {
+        if (row != lines.size() - 1 || col != lines.getLast().length())
+            return "";
+        String text = text();
+        if (text.startsWith("/")) {
+            var matches = commands.complete(text);
+            if (matches.isEmpty())
+                return "";
+            String first = matches.getFirst();
+            return first.length() > text.length() ? first : "";
+        }
+        for (int i = history.size() - 1; i >= 0; i--) {
+            String entry = history.get(i);
+            if (entry.regionMatches(true, 0, text, 0, text.length()) && entry.length() > text.length())
+                return entry;
+        }
+        return "";
+    }
+
+    private static String commonPrefix(List<CompletionItem> matches) {
+        if (matches.isEmpty())
+            return "";
+        String prefix = matches.getFirst().name();
+        for (int i = 1; i < matches.size(); i++) {
+            String name = matches.get(i).name();
+            int len = Math.min(prefix.length(), name.length());
+            int common = 0;
+            while (common < len && prefix.charAt(common) == name.charAt(common))
+                common++;
+            prefix = prefix.substring(0, common);
+            if (prefix.isEmpty())
+                break;
+        }
+        return prefix;
+    }
+
+    private Result reverseHistorySearch() {
+        if (history.isEmpty())
+            return Result.unchangedResult();
+        var items = history.reversed().stream().<CompletionItem>map(h -> new CompletionItem(h, "history")).toList();
+        selector.setItems(items);
+        selector.activate("");
+        completions = items;
+        selectedCompletion = 0;
+        return Result.didChange();
     }
 
     void clearCompletions() {
         completions = List.of();
         selectedCompletion = -1;
         completionPrefix = "";
+        suggestion = "";
         selector.setItems(List.of());
         selector.deactivate();
     }

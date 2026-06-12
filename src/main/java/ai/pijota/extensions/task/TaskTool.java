@@ -431,7 +431,7 @@ public final class TaskTool implements Tool {
 
     // --- helpers ---
 
-    private static String formatToolCall(String toolName, String argsJson) {
+    static String formatToolCall(String toolName, String argsJson) {
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> a = Util.MAPPER.readValue(argsJson, Map.class);
@@ -450,7 +450,7 @@ public final class TaskTool implements Tool {
         }
     }
 
-    private static String file(Map<String, Object> a) {
+    static String file(Map<String, Object> a) {
         String p = (String) a.get("path");
         if (p == null)
             p = (String) a.get("filePath");
@@ -462,7 +462,7 @@ public final class TaskTool implements Tool {
         return idx < 0 ? p : p.substring(idx + 1);
     }
 
-    private static String shorten(String s, int max) {
+    static String shorten(String s, int max) {
         if (s == null || s.isBlank())
             return "";
         return s.length() <= max ? s : s.substring(0, max - 1) + "…";
@@ -573,7 +573,7 @@ public final class TaskTool implements Tool {
                                         "Cannot resolve current executable for sub-agent"));
     }
 
-    private static String sanitize(String name) {
+    static String sanitize(String name) {
         return name.replaceAll("[^a-zA-Z0-9._-]", "_");
     }
 
@@ -701,7 +701,7 @@ public final class TaskTool implements Tool {
 
     // --- result types ---
 
-    private record SubAgentResult(String agent, String output, int exitCode, int turns, int toolCount, String logFile,
+    record SubAgentResult(String agent, String output, int exitCode, int turns, int toolCount, String logFile,
                                     String error) {
         String formattedOutput() {
             if (error != null)
@@ -710,7 +710,7 @@ public final class TaskTool implements Tool {
         }
     }
 
-    private static Map<String, Object> detailsForResults(String mode, List<SubAgentResult> results) {
+    static Map<String, Object> detailsForResults(String mode, List<SubAgentResult> results) {
         var out = new LinkedHashMap<String, Object>();
         out.put("mode", mode);
         out.put("resultCount", results.size());

@@ -50,7 +50,7 @@ public final class PermissionGateExtension implements Extension {
         });
     }
 
-    private static boolean isDangerous(String command) {
+    static boolean isDangerous(String command) {
         for (var p : DANGEROUS)
             if (p.matcher(command).find())
                 return true;
@@ -58,7 +58,7 @@ public final class PermissionGateExtension implements Extension {
     }
 
     @SuppressWarnings("unchecked")
-    private static String parseCommand(String argsJson) {
+    static String parseCommand(String argsJson) {
         try {
             var args = (Map<String, Object>) Util.MAPPER.readValue(argsJson, Map.class);
             return (String) args.get("command");

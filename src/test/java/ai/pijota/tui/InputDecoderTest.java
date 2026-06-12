@@ -18,6 +18,7 @@ class InputDecoderTest {
         assertEquals(Key.Special.CTRL_K, InputDecoder.readKey(input(11)));
         assertEquals(Key.Special.CTRL_U, InputDecoder.readKey(input(21)));
         assertEquals(Key.Special.CTRL_W, InputDecoder.readKey(input(23)));
+        assertEquals(Key.Special.CTRL_R, InputDecoder.readKey(input(18)));
     }
 
     @Test

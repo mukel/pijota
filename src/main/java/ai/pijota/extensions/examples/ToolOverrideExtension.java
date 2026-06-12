@@ -88,14 +88,14 @@ public final class ToolOverrideExtension implements Extension {
                                                                         "read-log: no persistent log in this example")));
     }
 
-    private static boolean isBlocked(String path) {
+    static boolean isBlocked(String path) {
         for (var p : BLOCKED)
             if (p.matcher(path).find())
                 return true;
         return false;
     }
 
-    private static int getInt(Map<String, Object> args, String key, int defaultVal) {
+    static int getInt(Map<String, Object> args, String key, int defaultVal) {
         Object v = args.get(key);
         if (v instanceof Number n)
             return n.intValue();

@@ -40,4 +40,16 @@ class SlashCommandRegistryTest {
         assertTrue(help.contains("workspace"));
         assertTrue(help.contains("Enter submit"));
     }
+
+    @Test
+    void helpLinesContainsSameContentAsHelpText() {
+        var lines = registry.helpLines();
+        var help = registry.helpText();
+
+        assertFalse(lines.isEmpty());
+        assertTrue(help.contains(lines.getFirst()));
+        for (String line : lines) {
+            assertTrue(help.contains(line.stripTrailing()), "missing: " + line);
+        }
+    }
 }

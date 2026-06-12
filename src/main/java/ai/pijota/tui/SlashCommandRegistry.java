@@ -51,7 +51,12 @@ final class SlashCommandRegistry {
     }
 
     public String helpText() {
-        var out = new StringBuilder("pijota commands\n");
+        return String.join("\n", helpLines()).stripTrailing();
+    }
+
+    public List<String> helpLines() {
+        var out = new ArrayList<String>();
+        out.add("pijota commands");
         appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/context", "/whoami", "/skills");
         appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/name", "/new", "/delete");
         appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme", "/transcend");
@@ -62,17 +67,19 @@ final class SlashCommandRegistry {
         if (!extensions.isEmpty())
             appendGroup(out, "extensions", extensions.stream().map(CompletionItem::name).toArray(String[]::new));
 
-        out.append("\nkeys\n");
-        out.append("  Enter submit · Ctrl+J newline · Ctrl+G editor · Esc interrupt · Ctrl+C clear/exit\n");
-        out.append("  Ctrl+L model picker · Ctrl+P cycle model · Shift+Tab thinking\n");
-        return out.toString().stripTrailing();
+        out.add("");
+        out.add("keys");
+        out.add("  Enter submit · Ctrl+J newline · Ctrl+G editor · Esc interrupt · Ctrl+C clear/exit");
+        out.add("  Ctrl+L model picker · Ctrl+P cycle model · Shift+Tab thinking");
+        return out;
     }
 
-    private void appendGroup(StringBuilder out, String title, String... names) {
-        out.append('\n').append(title).append('\n');
+    private void appendGroup(List<String> out, String title, String... names) {
+        out.add("");
+        out.add(title);
         int maxLen = java.util.Arrays.stream(names).mapToInt(String::length).max().orElse(0);
         for (String name : names) {
-            command(name).ifPresent(cmd -> out.append(String.format("  %-" + (maxLen + 2) + "s %s%n", cmd.name(),
+            command(name).ifPresent(cmd -> out.add(String.format("  %-" + (maxLen + 2) + "s %s", cmd.name(),
                                             cmd.description())));
         }
     }

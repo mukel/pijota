@@ -4,6 +4,7 @@ target/
 *.jar
 !src/**/**.jar
 dependency-reduced-pom.xml
+*.exec
 
 # IDE
 .idea/

@@ -95,7 +95,7 @@ public final class FilterOutputExtension implements Extension {
         };
     }
 
-    private static String redactString(String text) {
+    static String redactString(String text) {
         if (text == null || text.isBlank())
             return null;
         String result = text;

@@ -55,7 +55,7 @@ public final class RpcMode {
         }
     }
 
-    private static RpcRequest parseRpcRequest(String line) {
+    static RpcRequest parseRpcRequest(String line) {
         try {
             var node = Util.MAPPER.readTree(line);
             String method = node.get("method").asText();
@@ -67,7 +67,7 @@ public final class RpcMode {
         }
     }
 
-    private static String responseContent(List<Message> messages) {
+    static String responseContent(List<Message> messages) {
         var sb = new StringBuilder();
         for (var msg : messages) {
             if (msg instanceof Message.Assistant a && a.content() != null && !a.content().isBlank()) {
@@ -86,6 +86,7 @@ public final class RpcMode {
                                         + ",\"message\":\"" + message + "\"}}\n");
     }
 
-    private record RpcRequest(String method, String id, String params) {
+    // package-visible for testing
+    record RpcRequest(String method, String id, String params) {
     }
 }

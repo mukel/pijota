@@ -10,9 +10,10 @@
 #   make native       build GraalVM native image
 #   make format       apply code formatting
 #   make format-check verify code formatting (read-only)
+#   make coverage   run tests and generate JaCoCo coverage report
 #   make clean        remove build artifacts
 
-.PHONY: build test check jar run fat native clean format format-check
+.PHONY: build test check jar run fat native clean format format-check coverage
 
 MVN  ?= mvn
 ARGS ?=
@@ -53,6 +54,10 @@ format:
 
 format-check:
 	@$(MVN) -q spotless:check
+
+coverage:
+	@$(MVN) -q test jacoco:report
+	@echo "Coverage report: target/site/jacoco/index.html"
 
 # ---- cleanup ----
 

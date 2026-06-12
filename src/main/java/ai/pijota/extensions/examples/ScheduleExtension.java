@@ -365,7 +365,7 @@ public final class ScheduleExtension implements Extension {
 
     // ---- schedule parsing ----
 
-    private static long computeNextRun(String schedule, JobType type) {
+    static long computeNextRun(String schedule, JobType type) {
         return switch (type) {
             case once -> parseRelativeOrIso(schedule);
             case interval -> System.currentTimeMillis() + parseInterval(schedule);
@@ -384,7 +384,7 @@ public final class ScheduleExtension implements Extension {
         }
     }
 
-    private static long parseDuration(String s) {
+    static long parseDuration(String s) {
         s = s.trim();
         if (s.isEmpty())
             return 0;
@@ -404,7 +404,7 @@ public final class ScheduleExtension implements Extension {
         };
     }
 
-    private static long parseInterval(String s) {
+    static long parseInterval(String s) {
         return parseDuration(s);
     }
 
@@ -430,7 +430,7 @@ public final class ScheduleExtension implements Extension {
                                         && matchField(fields[5], dt.getDayOfWeek().getValue() % 7, 0, 6);
     }
 
-    private static boolean matchField(String field, int value, int min, int max) {
+    static boolean matchField(String field, int value, int min, int max) {
         if ("*".equals(field))
             return true;
         for (String part : field.split(",")) {
@@ -452,7 +452,7 @@ public final class ScheduleExtension implements Extension {
         return false;
     }
 
-    private static JobType parseType(String typeStr, String schedule) {
+    static JobType parseType(String typeStr, String schedule) {
         if (typeStr != null) {
             try {
                 return JobType.valueOf(typeStr);

@@ -20,7 +20,7 @@ final class TuiCommandController {
         String cmd = commandName(input);
         String arg = commandArgs(input, cmd);
         switch (cmd) {
-            case "/help" -> tui.appendPlain(tui.lines(commands.helpText(), "statusText"));
+            case "/help" -> tui.showHelpOverlay();
             case "/quit" -> tui.stop();
             case "/model" -> handleModel(arg);
             case "/settings" -> tui.showSettingsSelector();
@@ -31,7 +31,7 @@ final class TuiCommandController {
             case "/undo" -> tui.undoLastTurn();
             case "/compact" -> tui.triggerCompaction(arg);
             case "/copy" -> tui.copyLastResponse();
-            case "/hotkeys" -> tui.showHotkeys();
+            case "/hotkeys" -> tui.showHelpOverlay();
             case "/session" -> tui.showSessionInfo();
             case "/context" -> tui.showContext();
             case "/export" -> tui.exportSession(input);
@@ -102,7 +102,7 @@ final class TuiCommandController {
         }
     }
 
-    private static String commandName(String input) {
+    static String commandName(String input) {
         return input.split("\\s+", 2)[0].toLowerCase();
     }
 

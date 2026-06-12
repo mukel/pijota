@@ -117,7 +117,7 @@ public final class SecurityExtension implements Extension {
         }
     }
 
-    private static String summarize(String command) {
+    static String summarize(String command) {
         return command.length() > 120 ? command.substring(0, 117) + "..." : command;
     }
 }

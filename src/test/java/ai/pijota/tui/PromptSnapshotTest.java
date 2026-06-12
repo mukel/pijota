@@ -89,4 +89,20 @@ class PromptSnapshotTest {
         assertEquals(1, snapshot.completions().size());
         assertEquals(-1, snapshot.selectedCompletion());
     }
+
+    @Test
+    void withSuggestionUpdatesOnlySuggestion() {
+        var original = new PromptSnapshot(List.of("x"), 0, 0, List.of());
+        var updated = original.withSuggestion("xyz");
+        assertEquals("xyz", updated.suggestion());
+        assertNull(original.suggestion());
+    }
+
+    @Test
+    void withHelpOverlayUpdatesOnlyHelpOverlay() {
+        var original = new PromptSnapshot(List.of("x"), 0, 0, List.of());
+        var updated = original.withHelpOverlay(List.of("line1", "line2"));
+        assertEquals(List.of("line1", "line2"), updated.helpOverlay());
+        assertTrue(original.helpOverlay().isEmpty());
+    }
 }

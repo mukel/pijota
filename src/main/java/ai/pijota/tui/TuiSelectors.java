@@ -12,7 +12,8 @@ final class TuiSelectors {
                                         "themes"), SETTINGS(SettingsItem.class, "settings"), LOGIN(
                                                                         LoginProviderItem.class,
                                                                         "providers"), FORK(ForkMessageItem.class,
-                                                                                                        "fork from");
+                                                                                                        "fork from"), PALETTE(CompletionItem.class,
+                                                                                                                                        "command palette");
 
         private final Class<? extends SelectorItem> itemType;
         private final String title;
@@ -26,13 +27,14 @@ final class TuiSelectors {
     private final EnumMap<Slot, SelectorBinding> bindings = new EnumMap<>(Slot.class);
 
     TuiSelectors(Runnable confirmModel, Runnable confirmSession, Runnable confirmTheme, Runnable confirmSettings,
-                                    Runnable confirmLogin, Runnable confirmFork) {
+                                    Runnable confirmLogin, Runnable confirmFork, Runnable confirmPalette) {
         bind(Slot.MODEL, confirmModel);
         bind(Slot.SESSION, confirmSession);
         bind(Slot.THEME, confirmTheme);
         bind(Slot.SETTINGS, confirmSettings);
         bind(Slot.LOGIN, confirmLogin);
         bind(Slot.FORK, confirmFork);
+        bind(Slot.PALETTE, confirmPalette);
     }
 
     List<PromptRegion> regions() {

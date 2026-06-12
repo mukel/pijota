@@ -73,7 +73,7 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
     }
 
     @SuppressWarnings("unchecked")
-    private static List<String> toolsFromMap(Object val) {
+    static List<String> toolsFromMap(Object val) {
         if (val instanceof List<?> list)
             return list.stream().map(Object::toString).toList();
         if (val instanceof String s)
@@ -81,7 +81,7 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
         return List.of();
     }
 
-    private static String string(Map<String, Object> m, String key, String defaultVal) {
+    static String string(Map<String, Object> m, String key, String defaultVal) {
         Object v = m.get(key);
         return v instanceof String s && !s.isBlank() ? s : defaultVal;
     }

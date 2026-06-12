@@ -114,7 +114,7 @@ final class ThemeManager {
         return paths;
     }
 
-    private static String themeName(Path path) {
+    static String themeName(Path path) {
         String name = path.getFileName().toString();
         return name.endsWith(".json") ? name.substring(0, name.length() - 5) : name;
     }

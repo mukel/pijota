@@ -6,7 +6,7 @@ import ai.pijota.theme.AnsiTheme;
 import java.io.PrintWriter;
 
 public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.StatusBar, PromptRegion.Completions,
-                                PromptRegion.Custom {
+                                PromptRegion.HelpOverlay, PromptRegion.Custom {
 
     int height(int width, PromptSnapshot ctx);
 
@@ -31,12 +31,20 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             var lines = visualLines(ctx, width);
             int cursorVisualRow = -1;
             int cursorVisualCol = -1;
+            boolean cursorAtEndOfInput = cursorAtEndOfInput(ctx);
             for (int i = 0; i < lines.size(); i++) {
                 var line = lines.get(i);
                 out.print('\r');
                 out.print("\033[K");
                 out.print(theme.styled(line.prefixSlot(), line.prefix()));
                 out.print(theme.styled("text", line.text()));
+                if (cursorAtEndOfInput && line.logicalRow() == ctx.cursorRow() && ctx.cursorCol() >= line.startCol()
+                                                && ctx.cursorCol() <= line.endCol()) {
+                    String suggestion = ctx.suggestion();
+                    if (suggestion != null && !suggestion.isEmpty()) {
+                        out.print(theme.styled("dim", suggestion));
+                    }
+                }
                 if (line.logicalRow() == ctx.cursorRow() && ctx.cursorCol() >= line.startCol()
                                                 && ctx.cursorCol() <= line.endCol()) {
                     cursorVisualRow = i;
@@ -46,6 +54,14 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                     out.print("\r\n");
             }
             return cursorVisualRow >= 0 ? new CursorPos(cursorVisualRow, cursorVisualCol) : NO_CURSOR;
+        }
+
+        private static boolean cursorAtEndOfInput(PromptSnapshot ctx) {
+            if (ctx.lines().isEmpty())
+                return false;
+            int lastRow = ctx.lines().size() - 1;
+            String lastLine = ctx.lines().get(lastRow);
+            return ctx.cursorRow() == lastRow && ctx.cursorCol() == lastLine.length();
         }
 
         private static java.util.ArrayList<VisLine> visualLines(PromptSnapshot ctx, int width) {
@@ -268,6 +284,46 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             int pad = maxLen - name.length() + 4;
             int detailWidth = Math.max(8, width - maxLen - 8);
             return " ".repeat(Math.max(0, pad)) + AnsiWidth.truncateVisual(desc, detailWidth);
+        }
+    }
+
+    record HelpOverlay() implements PromptRegion {
+        private static final int MAX_HEIGHT = 16;
+
+        @Override
+        public int height(int width, PromptSnapshot ctx) {
+            if (ctx.helpOverlay() == null || ctx.helpOverlay().isEmpty())
+                return 0;
+            return 1 + Math.min(MAX_HEIGHT, ctx.helpOverlay().size()) + 1;
+        }
+
+        @Override
+        public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
+            var lines = ctx.helpOverlay();
+            if (lines == null || lines.isEmpty())
+                return NO_CURSOR;
+
+            out.print('\r');
+            out.print("\033[K");
+            out.print(theme.styled("hr", "help"));
+
+            int visible = Math.min(MAX_HEIGHT, lines.size());
+            for (int i = 0; i < visible; i++) {
+                out.print("\r\n");
+                out.print('\r');
+                out.print("\033[K");
+                out.print(lines.get(i));
+            }
+
+            out.print("\r\n");
+            out.print('\r');
+            out.print("\033[K");
+            out.print(theme.styled("dim", "  Esc or q to close"));
+            if (lines.size() > MAX_HEIGHT) {
+                out.print(theme.styled("dim", " · " + (lines.size() - MAX_HEIGHT) + " more"));
+            }
+
+            return NO_CURSOR;
         }
     }
 

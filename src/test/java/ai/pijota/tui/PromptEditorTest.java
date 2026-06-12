@@ -107,6 +107,71 @@ class PromptEditorTest {
         assertFalse(editor.hasCompletions());
     }
 
+    @Test
+    void suggestsSlashCommandCompletion() {
+        editor.insertText("/sess");
+
+        assertEquals("/sessions", editor.suggestion());
+    }
+
+    @Test
+    void suggestsFromHistory() {
+        editor.insertText("hello world");
+        editor.apply(Key.Special.ENTER);
+        editor.insertText("he");
+
+        assertEquals("hello world", editor.suggestion());
+    }
+
+    @Test
+    void clearsSuggestionWhenCursorMoves() {
+        editor.insertText("/se");
+        assertFalse(editor.suggestion().isEmpty());
+
+        editor.apply(Key.Special.LEFT);
+        assertTrue(editor.suggestion().isEmpty());
+    }
+
+    @Test
+    void tabInsertsCommonPrefixForMultipleSlashCommands() {
+        editor.insertText("/ses");
+        var result = editor.apply(Key.Special.TAB);
+
+        assertTrue(result.changed());
+        assertEquals("/session", editor.text());
+    }
+
+    @Test
+    void ctrlRActivatesReverseHistorySearch() {
+        editor.insertText("first");
+        editor.apply(Key.Special.ENTER);
+        editor.insertText("second");
+        editor.apply(Key.Special.ENTER);
+        editor.setText("");
+
+        var result = editor.apply(Key.Special.CTRL_R);
+
+        assertTrue(result.changed());
+        assertTrue(editor.reverseHistoryActive());
+        assertTrue(editor.hasCompletions());
+    }
+
+    @Test
+    void selectingReverseHistoryItemInsertsIt() {
+        editor.insertText("first");
+        editor.apply(Key.Special.ENTER);
+        editor.insertText("second");
+        editor.apply(Key.Special.ENTER);
+        editor.setText("");
+
+        editor.apply(Key.Special.CTRL_R);
+        var result = editor.apply(Key.Special.ENTER);
+
+        assertTrue(result.changed());
+        assertEquals("second", editor.text());
+        assertFalse(editor.reverseHistoryActive());
+    }
+
     private void assertSnapshot(List<String> lines, int row, int col) {
         var snapshot = editor.snapshot();
         assertEquals(lines, snapshot.lines());

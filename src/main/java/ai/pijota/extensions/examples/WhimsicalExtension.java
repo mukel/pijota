@@ -75,7 +75,7 @@ public final class WhimsicalExtension implements Extension {
         return Emojis.SPARKLES + " " + currentPhrase;
     }
 
-    private static String randomPhrase() {
+    static String randomPhrase() {
         return PHRASES[ThreadLocalRandom.current().nextInt(PHRASES.length)];
     }
 }

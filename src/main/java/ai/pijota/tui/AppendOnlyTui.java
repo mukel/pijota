@@ -177,6 +177,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final TuiSelectors selectors;
     private boolean loginIsLogout;
     private volatile boolean showSessionPickerOnStart;
+    private volatile List<String> currentHelpOverlay = List.of();
     private final AtomicInteger workingFrame = new AtomicInteger();
     private final List<String> pendingFollowUps = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final MessageBrowser messageBrowser;
@@ -496,12 +497,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                                 confirmLogoutSelection();
                                             else
                                                 confirmLoginSelection();
-                                        }, this::confirmForkSelection);
+                                        }, this::confirmForkSelection, this::confirmPaletteSelection);
         var regions = new ArrayList<PromptRegion>();
         regions.add(new PromptRegion.Editor());
         regions.add(new PendingRegion());
         regions.addAll(selectors.regions());
         regions.add(new PromptRegion.Completions());
+        regions.add(new PromptRegion.HelpOverlay());
         regions.add(new PromptRegion.StatusBar());
         var promptLayout = new PromptLayout(regions);
         this.terminalUi = new TerminalCoordinator(terminal, theme, promptLayout);
@@ -583,7 +585,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(lines);
     }
 
-    private static String compactSessionDetail(String detail) {
+    static String compactSessionDetail(String detail) {
         if (detail == null || detail.isBlank())
             return "";
         int uuidStart = detail.lastIndexOf("  ");
@@ -650,6 +652,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     if (handleExtensionKeybinding(key))
                         continue;
+                    if (key == Key.Special.ESC && helpOverlayActive()) {
+                        clearHelpOverlay();
+                        redrawPrompt();
+                        continue;
+                    }
                     if ((key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC) && selectors.anyActive()) {
                         selectors.deactivateAll();
                         clearStatusOverride();
@@ -663,6 +670,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     }
                     if (key == Key.Special.ESC) {
                         handleEsc(false);
+                        continue;
+                    }
+                    if (key instanceof Key.Char c && c.value() == '?' && promptEditor.isEmpty()
+                                                    && !selectors.anyActive() && !dialogs.questionPending()) {
+                        showHelpOverlay();
+                        redrawPrompt();
                         continue;
                     }
                     if (key == Key.Special.CTRL_C) {
@@ -697,7 +710,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     }
                     if (key == Key.Special.CTRL_SHIFT_P) {
-                        cycleModelBackward();
+                        showCommandPalette();
+                        continue;
+                    }
+                    if (helpOverlayActive() && (key == Key.Special.ESC || key == Key.Special.ENTER
+                                                    || (key instanceof Key.Char c && c.value() == 'q'))) {
+                        clearHelpOverlay();
+                        redrawPrompt();
                         continue;
                     }
                     if (selectors.handle(key, this::redrawPrompt))
@@ -795,14 +814,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return true;
     }
 
-    private static boolean isReservedKey(Key key) {
+    static boolean isReservedKey(Key key) {
         return key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C
                                         || key == Key.Special.ENTER || key == Key.Special.NEWLINE
                                         || key == Key.Special.BACKSPACE || key == Key.Special.TAB
                                         || key == Key.Special.PASTE_START;
     }
 
-    private static KeyChord toKeyChord(Key key) {
+    static KeyChord toKeyChord(Key key) {
         if (!(key instanceof Key.Special special))
             return null;
         return switch (special) {
@@ -1302,6 +1321,99 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         modelCommands.cycleModel(-1);
     }
 
+    private void showCommandPalette() {
+        if (busy.get()) {
+            appendPlain(List.of(theme.styled("toolError", "command palette is unavailable while a turn is running")));
+            redrawPrompt();
+            return;
+        }
+        var items = new ArrayList<CompletionItem>();
+        for (var cmd : commands.completeWithDescriptions("")) {
+            items.add(new CompletionItem(cmd.name(), "[cmd] " + cmd.description()));
+        }
+        for (var model : ModelRegistry.KNOWN_MODELS.stream()
+                                        .filter(m -> settings != null && settings.resolveApiKey(m.provider()) != null)
+                                        .sorted(java.util.Comparator.comparing(ModelInfo::id)).toList()) {
+            items.add(new CompletionItem(model.id(), "[model] " + model.provider() + "  "
+                                            + (int) (model.contextWindow() / 1024) + "K"));
+        }
+        for (var theme : themeMgr.discover()) {
+            items.add(new CompletionItem(theme.name(), "[theme] " + (theme.current() ? "current" : theme.path())));
+        }
+        for (var sessionItem : SessionItem.fromPaths(session.resumableSessions())) {
+            items.add(new CompletionItem(sessionItem.name(), "[session] " + sessionItem.detailText()));
+        }
+        selectors.show(TuiSelectors.Slot.PALETTE, items);
+        promptEditor.setText("");
+        redrawPrompt();
+    }
+
+    private void confirmPaletteSelection() {
+        var selected = selectors.<CompletionItem>selected(TuiSelectors.Slot.PALETTE).orElse(null);
+        if (selected == null)
+            return;
+        String name = selected.name();
+        String desc = selected.description();
+        selectors.deactivate(TuiSelectors.Slot.PALETTE);
+        promptEditor.setText("");
+        if (desc.startsWith("[cmd] ")) {
+            commandController.handle(name);
+        } else if (desc.startsWith("[model] ")) {
+            var model = ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equals(name)).findFirst().orElse(null);
+            if (model != null)
+                switchToModel(model);
+            else
+                appendError("model not found: " + name);
+        } else if (desc.startsWith("[theme] ")) {
+            themeMgr.switchTo(name);
+        } else if (desc.startsWith("[session] ")) {
+            loadSession("/load " + name);
+        }
+        redrawPrompt();
+    }
+
+    boolean helpOverlayActive() {
+        return !currentHelpOverlay.isEmpty();
+    }
+
+    void showHelpOverlay() {
+        var lines = new ArrayList<String>();
+        for (String raw : commands.helpLines()) {
+            if (raw.startsWith("  ") && raw.contains("  ")) {
+                int split = raw.indexOf("  ", 2);
+                lines.add(theme.styled("toolLabel", raw.substring(0, split))
+                                                + theme.styled("statusText", raw.substring(split)));
+            } else {
+                lines.add(theme.styled("heading", raw));
+            }
+        }
+        lines.add("");
+        lines.add(theme.styled("heading", "keyboard shortcuts"));
+        String[][] keys = {{"Enter", "submit prompt"}, {"Ctrl+J", "newline"}, {"Tab", "autocomplete"},
+                {"Shift+Tab", "toggle thinking"}, {"Up/Down", "history / navigate"},
+                {"Esc", "interrupt (double-force)"}, {"Ctrl+C", "clear / double to exit"}, {"Ctrl+K", "delete to end"},
+                {"Ctrl+U", "clear line"}, {"Ctrl+W", "delete word"}, {"Ctrl+A/E", "start/end of line"},
+                {"Ctrl+L", "select model"}, {"Ctrl+P", "cycle model forward"}, {"Ctrl+Shift+P", "command palette"},
+                {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"?", "show this help"}};
+        int keyWidth = 0;
+        for (var k : keys)
+            keyWidth = Math.max(keyWidth, AnsiWidth.visibleWidth(k[0]));
+        keyWidth += 2;
+        for (var k : keys) {
+            lines.add(theme.styled("toolLabel", padRight(k[0], keyWidth)) + theme.styled("statusText", k[1]));
+        }
+        for (var binding : extensionKeybindings.values()) {
+            lines.add(theme.styled("toolLabel", padRight(binding.key().toString(), keyWidth))
+                                            + theme.styled("statusText", binding.description()));
+        }
+        currentHelpOverlay = lines;
+        redrawPrompt();
+    }
+
+    private void clearHelpOverlay() {
+        currentHelpOverlay = List.of();
+    }
+
     private void switchToModel(ModelInfo chosen) {
         String key = settings != null ? settings.resolveApiKey(chosen.provider()) : null;
         if (key == null || (key.isBlank() && SettingsManager.requiresApiKey(chosen.provider()))) {
@@ -1442,7 +1554,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(lines);
     }
 
-    private static String padRight(String s, int width) {
+    static String padRight(String s, int width) {
         int w = AnsiWidth.visibleWidth(s);
         return s + " ".repeat(Math.max(0, width - w));
     }
@@ -2011,7 +2123,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return snapshot.withStatus(bar).withWarning(status);
     }
 
-    private static String compactModelName(String provider, String model) {
+    static String compactModelName(String provider, String model) {
         if (provider == null || provider.isBlank())
             return model;
         if (model == null || model.isBlank())
@@ -2037,7 +2149,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                         : PromptSnapshot.PromptState.IDLE;
     }
 
-    private static boolean insidePromptCodeBlock(List<String> lines) {
+    static boolean insidePromptCodeBlock(List<String> lines) {
         String marker = null;
         for (String line : lines) {
             String stripped = line.stripLeading();
@@ -2065,7 +2177,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return seen.size() == raw.size() ? raw : List.copyOf(seen);
     }
 
-    private static boolean showExtensionStatusLine(String line) {
+    static boolean showExtensionStatusLine(String line) {
         if (line == null)
             return false;
         String normalized = line.toLowerCase(java.util.Locale.ROOT);
@@ -2098,11 +2210,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         statusOverrideExpiresAt = 0;
     }
 
-    private static boolean isEditWrite(Message.ToolResult msg) {
+    static boolean isEditWrite(Message.ToolResult msg) {
         return "edit".equals(msg.toolName()) || "write".equals(msg.toolName());
     }
 
-    private static String toolIcon(String toolName, boolean error) {
+    static String toolIcon(String toolName, boolean error) {
         if (error)
             return "✖";
         return switch (toolName) {
@@ -2185,7 +2297,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return tokens;
     }
 
-    private static String gitBranch(String cwd) {
+    static String gitBranch(String cwd) {
         try {
             String out = ProcessRunner.command("git", "branch", "--show-current").workDir(Path.of(cwd))
                                             .timeout(5, TimeUnit.SECONDS).runCapture().strip();
