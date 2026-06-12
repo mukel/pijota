@@ -51,11 +51,7 @@ public final class RegistersSetTool implements Tool {
             output.put("updated", updated);
             output.put("deleted", deleted);
             output.put("rejected", rejected);
-            try {
-                return ToolResult.success(Util.MAPPER.writeValueAsString(output));
-            } catch (Exception e) {
-                return ToolResult.error(e.getMessage());
-            }
+            return ToolResult.success(Util.json(output));
         });
     }
 

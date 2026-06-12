@@ -49,11 +49,7 @@ public final class RegistersGetTool implements Tool {
             var output = new LinkedHashMap<String, Object>();
             output.put("values", registers.get(keys, missing));
             output.put("missing", missing);
-            try {
-                return ToolResult.success(Util.MAPPER.writeValueAsString(output));
-            } catch (Exception e) {
-                return ToolResult.error(e.getMessage());
-            }
+            return ToolResult.success(Util.json(output));
         });
     }
 }

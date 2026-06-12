@@ -1,5 +1,6 @@
 package ai.pijota.util;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -314,5 +315,13 @@ public final class Util {
         var pw = new PrintWriter(sw, true);
         t.printStackTrace(pw);
         return sw.toString();
+    }
+
+    public static String json(Object obj) {
+        try {
+            return MAPPER.writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

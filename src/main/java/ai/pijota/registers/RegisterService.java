@@ -3,6 +3,7 @@ package ai.pijota.registers;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,12 +30,8 @@ public final class RegisterService {
 
     public void replacePersisted(Map<String, String> values) {
         persisted.clear();
-        if (values != null) {
-            for (var entry : values.entrySet()) {
-                if (entry.getKey() != null && entry.getValue() != null)
-                    persisted.put(entry.getKey(), entry.getValue());
-            }
-        }
+        if (values != null)
+            persisted.putAll(values);
     }
 
     public Map<String, String> persistedSnapshot() {
@@ -66,19 +63,16 @@ public final class RegisterService {
 
     public List<String> contains(String query) {
         String pattern = query == null || query.isBlank() ? "*" : query;
-        var keys = new ArrayList<String>();
-        keys.addAll(getters.keySet());
-        for (String key : scratch.keySet()) {
-            if (!keys.contains(key))
-                keys.add(key);
-        }
+        var keys = new LinkedHashSet<>(getters.keySet());
+        keys.addAll(scratch.keySet());
         for (String key : persisted.keySet()) {
-            if (getters.containsKey(key) && !keys.contains(key))
+            if (getters.containsKey(key))
                 keys.add(key);
         }
         keys.removeIf(key -> !matches(pattern, key));
-        Collections.sort(keys);
-        return keys;
+        var sorted = new ArrayList<>(keys);
+        Collections.sort(sorted);
+        return sorted;
     }
 
     public Map<String, String> get(List<String> keys, List<String> missing) {

@@ -178,8 +178,9 @@ public final class SessionManager {
     }
 
     public void appendRegisters(Path sessionFile, Map<String, String> registers) throws IOException {
-        appendEntry(sessionFile, UUID.randomUUID().toString(), "registers", entry -> entry.put("values",
-                                        registers == null ? Map.of() : new LinkedHashMap<>(registers)), false);
+        var values = registers == null ? Map.<String, String>of() : new LinkedHashMap<>(registers);
+        appendEntry(sessionFile, UUID.randomUUID().toString(), "registers", entry -> entry.put("values", values),
+                                        false);
     }
 
     public CacheMetadata latestCacheMetadata(Path sessionFile) throws IOException {

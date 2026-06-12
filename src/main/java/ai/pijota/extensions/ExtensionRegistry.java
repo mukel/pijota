@@ -47,7 +47,7 @@ public final class ExtensionRegistry {
     private final ExtensionAPIImpl api = new ExtensionAPIImpl();
     private final ExtensionRuntimeImpl runtime = new ExtensionRuntimeImpl();
     private ToolRegistry toolRegistry;
-    private RegisterService registerService = new RegisterService(Map.of());
+    private RegisterService registerService;
     private AgentContext agentContext;
     private LlmService llm;
     private UiContext uiContext;
@@ -125,6 +125,8 @@ public final class ExtensionRegistry {
     }
 
     public RegisterService registers() {
+        if (registerService == null)
+            registerService = new RegisterService(Map.of());
         return registerService;
     }
 
