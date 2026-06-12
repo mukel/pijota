@@ -1,6 +1,13 @@
 package ai.pijota.extensions.examples;
 
+import ai.pijota.extensions.ExtensionEvent;
+import ai.pijota.extensions.testkit.FakeExtensionAPI;
+import ai.pijota.extensions.testkit.FakeExtensionRuntime;
+import ai.pijota.messages.Message;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -86,5 +93,92 @@ class FilterOutputExtensionTest {
         var result = FilterOutputExtension.redactString("key: AIzaSyD-1234567890abcdefghijklmnopqrstuvwxyz1234");
         assertNotNull(result);
         assertTrue(result.contains("[REDACTED]"));
+    }
+
+    @Test
+    void initRegistersSlashCommandAndHandlers() {
+        var api = new FakeExtensionAPI();
+        var ext = new FilterOutputExtension();
+        ext.init(api);
+        assertNotNull(api.slashCommand("filter-output"));
+        assertEquals(1, api.listeners("input").size());
+        assertEquals(1, api.listeners("before_provider_request").size());
+    }
+
+    @Test
+    void onReadyReadsFlagAndSetsStatus() {
+        var runtime = new FakeExtensionRuntime();
+        runtime.setFlag("filter-secrets", "false");
+        var ext = new FilterOutputExtension();
+        ext.init(new FakeExtensionAPI(runtime));
+        ext.onReady(runtime);
+        assertTrue(runtime.keyedStatuses().containsKey("filter"));
+    }
+
+    @Test
+    void toggleSlashCommandChangesStatus() {
+        var runtime = new FakeExtensionRuntime();
+        var api = new FakeExtensionAPI(runtime);
+        var ext = new FilterOutputExtension();
+        ext.init(api);
+        ext.onReady(runtime);
+        var before = runtime.keyedStatuses().get("filter");
+        api.slashCommand("filter-output").handler().accept("");
+        var after = runtime.keyedStatuses().get("filter");
+        assertNotEquals(before, after);
+    }
+
+    @Test
+    void onInputRedactsWhenEnabled() {
+        var api = new FakeExtensionAPI();
+        var ext = new FilterOutputExtension();
+        ext.init(api);
+        var result = api.filterInput("my key is sk-abc123def456");
+        assertTrue(result.text().contains("[REDACTED]"));
+    }
+
+    @Test
+    void onInputPassesThroughWhenDisabled() {
+        var runtime = new FakeExtensionRuntime();
+        runtime.setFlag("filter-secrets", "false");
+        var api = new FakeExtensionAPI(runtime);
+        var ext = new FilterOutputExtension();
+        ext.init(api);
+        ext.onReady(runtime);
+        var result = api.filterInput("my key is sk-abc123def456");
+        assertEquals("my key is sk-abc123def456", result.text());
+    }
+
+    @Test
+    void onBeforeProviderRequestRedactsMessages() {
+        var api = new FakeExtensionAPI();
+        var ext = new FilterOutputExtension();
+        ext.init(api);
+        var messages = new ArrayList<Message>();
+        messages.add(new Message.User("my key is sk-abc123def456"));
+        messages.add(new Message.ToolResult("tc", "bash", "my key is sk-abc123def456", false));
+        messages.add(new Message.Assistant("my key is sk-abc123def456", List.of(), null));
+        api.fire("before_provider_request", new ExtensionEvent.BeforeProviderRequest(messages));
+        for (Message m : messages) {
+            String content = switch (m) {
+                case Message.User u -> u.content();
+                case Message.ToolResult r -> r.content();
+                case Message.Assistant a -> a.content();
+                default -> null;
+            };
+            assertNotNull(content);
+            assertTrue(content.contains("[REDACTED]"), content);
+        }
+    }
+
+    @Test
+    void onBeforeProviderRequestSkipsMessagesAlreadyRedacted() {
+        var api = new FakeExtensionAPI();
+        var ext = new FilterOutputExtension();
+        ext.init(api);
+        var messages = new ArrayList<Message>();
+        messages.add(new Message.User("already [REDACTED]"));
+        api.fire("before_provider_request", new ExtensionEvent.BeforeProviderRequest(messages));
+        assertEquals("already [REDACTED]", ((Message.User) messages.get(0)).content());
     }
 }

@@ -5,6 +5,9 @@ import ai.pijota.messages.ToolCall;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -73,5 +76,166 @@ class SessionManagerTest {
         var id = file.getFileName().toString().replace(".jsonl", "");
 
         assertEquals(file, manager.resolveSession("/workspace/project", id.substring(0, 8)));
+    }
+
+    @Test
+    void createSessionWritesHeaderAndCleansStaleTmpFiles() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var parent = tempDir.resolve("workspace_project");
+        Files.createDirectories(parent);
+        Files.writeString(parent.resolve("stale.tmp"), "x");
+
+        var file = manager.createSession("/workspace/project");
+
+        assertTrue(Files.exists(file));
+        assertFalse(Files.exists(parent.resolve("stale.tmp")));
+        var firstLine = Files.readString(file).lines().findFirst().orElseThrow();
+        assertTrue(firstLine.contains("\"type\":\"session\""));
+    }
+
+    @Test
+    void forkSessionCopiesBranchToNewFile() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var source = manager.createSession("/workspace/project");
+        manager.appendMessage(source, new Message.User("hello"));
+        manager.appendMessage(source, new Message.User("world"));
+        var leafId = manager.leafId();
+
+        var forked = manager.forkSession(source, leafId, "/workspace/project");
+
+        assertNotEquals(source, forked);
+        var loaded = manager.loadMessages(forked);
+        assertEquals(2, loaded.size());
+    }
+
+    @Test
+    void migrateCopiesBranchWhenLeafIdProvided() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var source = manager.createSession("/workspace/project");
+        manager.appendMessage(source, new Message.User("hello"));
+        var leafId = manager.leafId();
+
+        var migrated = manager.migrate(source, leafId, "/workspace/project");
+
+        var loaded = manager.loadMessages(migrated);
+        assertEquals(1, loaded.size());
+    }
+
+    @Test
+    void migrateCopiesAllEntriesWhenLeafIdIsNull() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var source = manager.createSession("/workspace/project");
+        manager.appendMessage(source, new Message.User("hello"));
+        manager.appendMessage(source, new Message.User("world"));
+
+        var migrated = manager.migrate(source, null, "/workspace/project");
+
+        var loaded = manager.loadMessages(migrated);
+        assertEquals(2, loaded.size());
+    }
+
+    @Test
+    void latestSessionThrowsWhenNoSessionExists() {
+        var manager = new SessionManager(tempDir);
+        assertThrows(IOException.class, () -> manager.latestSession("/workspace/project", null));
+    }
+
+    @Test
+    void resolveSessionReturnsDirectPathWhenItExists() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var direct = tempDir.resolve("direct.jsonl");
+        Files.writeString(direct, "{\"type\":\"session\"}\n");
+
+        assertEquals(direct, manager.resolveSession("/workspace/project", direct.toString()));
+    }
+
+    @Test
+    void resolveSessionThrowsWhenAmbiguous() throws Exception {
+        var manager = new SessionManager(tempDir);
+        manager.createSession("/workspace/project");
+        manager.createSession("/workspace/project");
+
+        assertThrows(IOException.class, () -> manager.resolveSession("/workspace/project", "a"));
+    }
+
+    @Test
+    void listSessionsReturnsEmptyWhenDirectoryMissing() {
+        var manager = new SessionManager(tempDir);
+        assertTrue(manager.listSessions("/nonexistent/cwd").isEmpty());
+    }
+
+    @Test
+    void saveMessagesPerformsAtomicWriteAndSetsLeafId() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = tempDir.resolve("atomic.jsonl");
+        var messages = List.<Message>of(new Message.User("hello"), new Message.Assistant("hi", List.of(), null));
+
+        manager.saveMessages(file, messages, "/workspace");
+
+        assertTrue(Files.exists(file));
+        assertFalse(Files.exists(Path.of(file.toString() + ".tmp")));
+        assertNotNull(manager.leafId());
+    }
+
+    @Test
+    void loadMessagesReturnsEmptyForMissingFile() throws Exception {
+        var manager = new SessionManager(tempDir);
+        assertTrue(manager.loadMessages(tempDir.resolve("missing.jsonl")).isEmpty());
+    }
+
+    @Test
+    void readAllEntriesIgnoresBadLinesAndSessionHeader() throws Exception {
+        var file = tempDir.resolve("mixed.jsonl");
+        Files.writeString(file, "{\"type\":\"session\",\"id\":\"header\"}\n" + "not valid json\n"
+                                        + "{\"id\":\"entry1\",\"type\":\"message\"}\n");
+
+        var entries = SessionManager.readAllEntries(file);
+
+        assertEquals(1, entries.size());
+        assertEquals("entry1", entries.keySet().iterator().next());
+    }
+
+    @Test
+    void sessionNameReturnsNullForBlankName() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession("/workspace/project");
+        manager.appendSessionInfo(file, "   ");
+
+        assertNull(manager.sessionName(file));
+    }
+
+    @Test
+    void latestModelSelectionIgnoresBlankProviderOrModel() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession("/workspace/project");
+        manager.appendModelChange(file, "", "gpt-test", 1234);
+        manager.appendModelChange(file, "openai", "", 1234);
+
+        assertNull(manager.latestModelSelection(file));
+    }
+
+    @Test
+    void getBranchAndTreeEntries() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession("/workspace/project");
+        manager.appendMessage(file, new Message.User("hello"));
+
+        assertFalse(manager.getBranchEntries(file).isEmpty());
+        assertFalse(manager.getTreeEntries(file).isEmpty());
+    }
+
+    @Test
+    void buildContextWithCompactionAndFirstKeptEntry() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession("/workspace/project");
+        manager.appendMessage(file, new Message.User("before"));
+        manager.appendMessage(file, new Message.User("first kept"));
+        var firstKeptId = manager.leafId();
+        manager.appendMessage(file, new Message.User("after"));
+        manager.appendCompaction(file, "summary", 1, firstKeptId);
+
+        var loaded = manager.loadMessages(file);
+
+        assertTrue(loaded.stream().anyMatch(m -> m instanceof Message.CompactionSummary));
     }
 }

@@ -1,5 +1,6 @@
 package ai.pijota.config;
 
+import ai.pijota.util.Util;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -47,9 +48,51 @@ class OAuthLoginTest {
     }
 
     @Test
-    void authCodeEquality() {
-        var a = new OAuthLogin.AuthCode("c", "v");
-        var b = new OAuthLogin.AuthCode("c", "v");
-        assertEquals(a, b);
+    void urlEncodeEncodesSpaces() {
+        assertEquals("hello+world", OAuthLogin.urlEncode("hello world"));
+    }
+
+    @Test
+    void urlEncodeEncodesSpecialChars() {
+        assertEquals("hello%21", OAuthLogin.urlEncode("hello!"));
+    }
+
+    @Test
+    void urlEncodeHandlesEmptyString() {
+        assertEquals("", OAuthLogin.urlEncode(""));
+    }
+
+    @Test
+    void clickableLinkContainsUrlAndText() {
+        String link = OAuthLogin.clickableLink("https://example.com", "Click here");
+        assertTrue(link.contains("https://example.com"));
+        assertTrue(link.contains("Click here"));
+    }
+
+    @Test
+    void buildTokenResultParsesAllFields() throws Exception {
+        var json = Util.MAPPER.createObjectNode();
+        json.put("access_token", "at-secret");
+        json.put("refresh_token", "rt-secret");
+        json.put("expires_in", 600);
+        json.put("account_id", "acc-42");
+
+        var token = OAuthLogin.buildTokenResult(json, 0L);
+        assertEquals("at-secret", token.accessToken());
+        assertEquals("rt-secret", token.refreshToken());
+        assertEquals(600_000L, token.expiresAt());
+        assertEquals("acc-42", token.accountId());
+    }
+
+    @Test
+    void buildTokenResultDefaultsExpiresIn() throws Exception {
+        var json = Util.MAPPER.createObjectNode();
+        json.put("access_token", "at");
+
+        var token = OAuthLogin.buildTokenResult(json, 100_000L);
+        assertEquals("at", token.accessToken());
+        assertEquals(100_000L + (3600 * 1000L), token.expiresAt());
+        assertNull(token.refreshToken());
+        assertNull(token.accountId());
     }
 }

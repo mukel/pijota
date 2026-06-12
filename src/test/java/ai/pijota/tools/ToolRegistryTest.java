@@ -65,8 +65,8 @@ class ToolRegistryTest {
         r.register(new Tool.ToolDefinition("needsArg", "Needs arg",
                                         Map.of("type", "object", "properties", Map.of("x", Map.of("type", "string")),
                                                                         "required", List.of("x")),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(
-                                                                        Tool.ToolResult.success("ok")))
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
                                         .toTool());
 
         var result = r.execute("tc1", "needsArg", Map.of(), "{}", "/").get(1, TimeUnit.SECONDS);
@@ -242,8 +242,8 @@ class ToolRegistryTest {
 
     private static Tool fakeTool(String name, boolean defaultEnabled) {
         return new Tool.ToolDefinition(name, name + " desc", Map.of("type", "object", "properties", Map.of()),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(
-                                                                        Tool.ToolResult.success("ok")),
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")),
                                         defaultEnabled).toTool();
     }
 }

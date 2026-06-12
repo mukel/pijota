@@ -90,6 +90,13 @@ class SelfRespawnTest {
     }
 
     @Test
+    void backupStatusReportsEmptyBackup() throws IOException {
+        Files.createDirectories(backupJar.getParent());
+        Files.writeString(backupJar, "");
+        assertEquals("empty", SelfRespawn.backupStatus());
+    }
+
+    @Test
     void findJarInReturnsLatestJar() throws IOException {
         Path dir = Files.createTempDirectory("sr-test");
         Path targetDir = dir.resolve("target");
@@ -115,6 +122,11 @@ class SelfRespawnTest {
         Path dir = Files.createTempDirectory("sr-test");
         assertNull(SelfRespawn.findJarIn(dir));
         Files.deleteIfExists(dir);
+    }
+
+    @Test
+    void findJarInReturnsNullForNullProjectDir() {
+        assertNull(SelfRespawn.findJarIn(null));
     }
 
     @Test
@@ -148,6 +160,20 @@ class SelfRespawnTest {
     @Test
     void readRecoverySessionIgnoresMissingFile() {
         assertNull(SelfRespawn.readRecoverySession());
+    }
+
+    @Test
+    void readRecoverySessionReturnsNullForMissingSessionPath() throws IOException {
+        Files.createDirectories(recoveryFile.getParent());
+        Files.writeString(recoveryFile, "/does/not/exist.json");
+        assertNull(SelfRespawn.readRecoverySession());
+    }
+
+    @Test
+    void canRecoverRejectsEmptyFile() throws IOException {
+        Files.createDirectories(recoveryFile.getParent());
+        Files.writeString(recoveryFile, "");
+        assertFalse(SelfRespawn.canRecover());
     }
 
     @Test
@@ -254,6 +280,16 @@ class SelfRespawnTest {
     void preservedArgsHandlesFlagsWithoutValues() {
         SelfRespawn.storeArgs(new String[] {"--verbose"});
         assertEquals(List.of("--verbose"), SelfRespawn.preservedArgs());
+    }
+
+    @Test
+    void preservedArgsSkipsValueOfSkippedFlag() {
+        SelfRespawn.storeArgs(new String[] {"--model", "gpt-4", "--session", "s.json", "--continue"});
+        List<String> preserved = SelfRespawn.preservedArgs();
+        assertTrue(preserved.contains("--model"));
+        assertTrue(preserved.contains("gpt-4"));
+        assertFalse(preserved.contains("s.json"));
+        assertFalse(preserved.contains("--session"));
     }
 
     @Test

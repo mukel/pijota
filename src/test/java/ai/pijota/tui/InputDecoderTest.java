@@ -130,6 +130,16 @@ class InputDecoderTest {
         assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(27, '[')));
     }
 
+    @Test
+    void ctrlXUnknownReturnsUnknown() throws IOException {
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(24, 9)));
+    }
+
+    @Test
+    void escapeWithNoBracketReturnsUnknown() throws IOException {
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(27, 'Z')));
+    }
+
     private static InputDecoder.Input input(int... chars) {
         var it = Arrays.stream(chars).iterator();
         return new InputDecoder.Input() {

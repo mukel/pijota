@@ -43,17 +43,17 @@ class PrintModeTest {
         var loop = loopReturning("hello world");
         int code = PrintMode.run("hi", loop, Args.OutputMode.TEXT);
         assertEquals(0, code);
-        assertEquals("hello world\n", capturedOut.toString());
+        // No newline is printed when usage is null.
+        assertEquals("hello world", capturedOut.toString());
     }
 
     @Test
     void textModeDeltasDoNotReprintCommonPrefix() {
-        var llm = new FauxLlm().enqueue(FauxLlm.Response.thinkingAndContent(java.util.List.of(), "Hello",
-                                        "Hello world"));
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.thinkingAndContent(java.util.List.of(), "Hello", " world"));
         var loop = AgentLoop.builder(llm, new ToolRegistry(), "/tmp").build();
         int code = PrintMode.run("hi", loop, Args.OutputMode.TEXT);
         assertEquals(0, code);
-        assertEquals("Hello world\n", capturedOut.toString());
+        assertEquals("Hello world", capturedOut.toString());
     }
 
     @Test

@@ -123,6 +123,7 @@ class PromptTextBufferTest {
         buffer.end();
         assertEquals(PromptTextBuffer.Effect.CLEAR_COMPLETIONS, buffer.delete());
         assertEquals(List.of("abcd"), buffer.lines());
+        buffer.end();
         assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.delete());
     }
 
@@ -139,7 +140,7 @@ class PromptTextBufferTest {
         assertEquals(0, buffer.row());
         buffer.right();
         buffer.right();
-        assertEquals(0, buffer.col());
+        assertEquals(1, buffer.col());
         assertEquals(1, buffer.row());
         assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.right());
     }
@@ -177,10 +178,10 @@ class PromptTextBufferTest {
         buffer.insertText("one two three");
         buffer.end();
         assertEquals(PromptTextBuffer.Effect.REFRESH_COMPLETIONS, buffer.deleteWordBeforeCursor());
-        assertEquals("one two", buffer.text());
+        assertEquals("one two ", buffer.text());
         buffer.home();
         assertEquals(PromptTextBuffer.Effect.REFRESH_COMPLETIONS, buffer.deleteWordAfterCursor());
-        assertEquals(" two", buffer.text());
+        assertEquals(" two ", buffer.text());
     }
 
     @Test
@@ -214,5 +215,76 @@ class PromptTextBufferTest {
         assertTrue(buffer.isEmpty());
         assertEquals(0, buffer.row());
         assertEquals(0, buffer.col());
+    }
+
+    @Test
+    void backspaceAndDeleteInMiddleOfLine() {
+        var buffer = new PromptTextBuffer();
+        buffer.insertText("abcd");
+        buffer.left();
+        buffer.left();
+        assertEquals(PromptTextBuffer.Effect.REFRESH_COMPLETIONS, buffer.backspace());
+        assertEquals("acd", buffer.text());
+        assertEquals(1, buffer.col());
+        assertEquals(PromptTextBuffer.Effect.REFRESH_COMPLETIONS, buffer.delete());
+        assertEquals("ad", buffer.text());
+    }
+
+    @Test
+    void upDownAtBoundariesAreUnchanged() {
+        var buffer = new PromptTextBuffer();
+        assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.up());
+        buffer.insertText("a");
+        assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.down());
+    }
+
+    @Test
+    void killToEndAtEndOfBufferAndAcrossLines() {
+        var buffer = new PromptTextBuffer();
+        buffer.insertText("ab");
+        buffer.newline();
+        buffer.insertText("cd");
+        buffer.up();
+        buffer.home();
+        assertEquals(PromptTextBuffer.Effect.CLEAR_COMPLETIONS, buffer.killToEnd());
+        assertEquals("", buffer.lines().get(0));
+        assertEquals("cd", buffer.lines().get(1));
+        buffer.down();
+        buffer.end();
+        assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.killToEnd());
+    }
+
+    @Test
+    void deleteWordBeforeAtStartOfLine() {
+        var buffer = new PromptTextBuffer();
+        buffer.insertText("ab");
+        buffer.newline();
+        buffer.insertText("cd");
+        buffer.home();
+        assertEquals(PromptTextBuffer.Effect.CLEAR_COMPLETIONS, buffer.deleteWordBeforeCursor());
+        assertEquals(List.of("abcd"), buffer.lines());
+    }
+
+    @Test
+    void deleteWordBeforeAtTopLeftIsUnchanged() {
+        var buffer = new PromptTextBuffer();
+        assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.deleteWordBeforeCursor());
+    }
+
+    @Test
+    void deleteWordAfterAtEndOfBuffer() {
+        var buffer = new PromptTextBuffer();
+        buffer.insertText("ab");
+        buffer.end();
+        assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.deleteWordAfterCursor());
+    }
+
+    @Test
+    void wordLeftAtTopLeftAndWordRightAtEndAreUnchanged() {
+        var buffer = new PromptTextBuffer();
+        assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.wordLeft());
+        buffer.insertText("ab");
+        buffer.end();
+        assertEquals(PromptTextBuffer.Effect.UNCHANGED, buffer.wordRight());
     }
 }

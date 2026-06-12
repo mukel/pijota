@@ -1,6 +1,8 @@
 package ai.pijota.tui;
 
+import ai.pijota.theme.AnsiTheme;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -188,5 +190,114 @@ class AppendOnlyTuiTest {
         var chord = AppendOnlyTui.toKeyChord(Key.Special.CTRL_K);
         assertTrue(chord.modifiers().contains(ai.pijota.extensions.KeyChord.Modifier.CTRL));
         assertEquals(ai.pijota.extensions.KeyChord.Key.K, chord.key());
+    }
+
+    @Test
+    void toolResultSummaryGrep() {
+        var msg = new ai.pijota.messages.Message.ToolResult("id", "grep", "content", false, Map.of("matchCount", 5));
+        assertEquals("5 match(es)", AppendOnlyTui.toolResultSummary(msg));
+    }
+
+    @Test
+    void toolResultSummaryGlob() {
+        var msg = new ai.pijota.messages.Message.ToolResult("id", "glob", "content", false, Map.of("resultCount", 3));
+        assertEquals("3 result(s)", AppendOnlyTui.toolResultSummary(msg));
+    }
+
+    @Test
+    void toolResultSummaryRead() {
+        var msg = new ai.pijota.messages.Message.ToolResult("id", "read", "content", false, Map.of("totalLines", 100));
+        assertEquals("100 line(s)", AppendOnlyTui.toolResultSummary(msg));
+    }
+
+    @Test
+    void toolResultSummaryError() {
+        var msg = new ai.pijota.messages.Message.ToolResult("id", "bash", "Error message\nline2", true);
+        assertTrue(AppendOnlyTui.toolResultSummary(msg).contains("Error message"));
+    }
+
+    @Test
+    void toolResultSummaryDefault() {
+        var msg = new ai.pijota.messages.Message.ToolResult("id", "unknown", "plain content", false);
+        assertEquals("plain content", AppendOnlyTui.toolResultSummary(msg));
+    }
+
+    @Test
+    void renderTodoLineDone() {
+        var theme = new AnsiTheme();
+        var result = AppendOnlyTui.renderTodoLine("│ [✓] Task done", theme);
+        assertTrue(result.contains("✓"));
+    }
+
+    @Test
+    void renderTodoLineWip() {
+        var theme = new AnsiTheme();
+        var result = AppendOnlyTui.renderTodoLine("│ [~] Working", theme);
+        assertTrue(result.contains("~"));
+    }
+
+    @Test
+    void renderTodoLineCancelled() {
+        var theme = new AnsiTheme();
+        var result = AppendOnlyTui.renderTodoLine("│ [−] Removed", theme);
+        assertTrue(result.contains("−"));
+    }
+
+    @Test
+    void renderTodoLinePlain() {
+        var theme = new AnsiTheme();
+        var result = AppendOnlyTui.renderTodoLine("│ plain text", theme);
+        assertTrue(result.contains("plain text"));
+    }
+
+    @Test
+    void renderToolBodyLineTodowrite() {
+        var theme = new AnsiTheme();
+        var result = AppendOnlyTui.renderToolBodyLine("todowrite", "│ [✓] done", theme);
+        assertTrue(result.contains("✓"));
+    }
+
+    @Test
+    void renderToolBodyLineLink() {
+        var theme = new AnsiTheme();
+        var result = AppendOnlyTui.renderToolBodyLine("bash", "╰→ result", theme);
+        assertTrue(result.contains("╰→"));
+    }
+
+    @Test
+    void renderToolBodyLineTreeNode() {
+        var theme = new AnsiTheme();
+        var result = AppendOnlyTui.renderToolBodyLine("ls", "┴", theme);
+        assertTrue(result.contains("┴"));
+    }
+
+    @Test
+    void thinkingSummaryFormatsTokens() {
+        var theme = new AnsiTheme();
+        var result = AppendOnlyTui.thinkingSummary("hello world", 0, theme);
+        assertTrue(result.contains("thought"));
+        assertTrue(result.contains("tokens"));
+    }
+
+    @Test
+    void pendingHeightZeroWhenEmpty() {
+        var ctx = new PromptSnapshot(List.of(), 0, 0, List.of());
+        assertEquals(0, AppendOnlyTui.pendingHeight(80, ctx));
+    }
+
+    @Test
+    void pendingHeightCountsWrappedLines() {
+        var ctx = new PromptSnapshot(List.of(), 0, 0, List.of())
+                                        .withPendingMessages(List.of("short", "very long message that wraps"));
+        int h = AppendOnlyTui.pendingHeight(15, ctx);
+        assertTrue(h > 2);
+        assertTrue(h <= 10);
+    }
+
+    @Test
+    void pendingHeightSingleMessage() {
+        var ctx = new PromptSnapshot(List.of(), 0, 0, List.of()).withPendingMessages(List.of("hello"));
+        int h = AppendOnlyTui.pendingHeight(100, ctx);
+        assertEquals(1, h);
     }
 }

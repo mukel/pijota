@@ -640,4 +640,34 @@ class GoalExtensionTest {
         @Override
         public void close() {}
     }
+
+    @Test
+    void statusLabelMapsAllStatuses() {
+        assertEquals("active", GoalExtension.statusLabel(GoalState.Status.ACTIVE));
+        assertEquals("paused", GoalExtension.statusLabel(GoalState.Status.PAUSED));
+        assertEquals("complete", GoalExtension.statusLabel(GoalState.Status.COMPLETE));
+        assertEquals("budget-limited", GoalExtension.statusLabel(GoalState.Status.BUDGET_LIMITED));
+        assertEquals("idle", GoalExtension.statusLabel(GoalState.Status.IDLE));
+    }
+
+    @Test
+    void parseObjectiveSplitsOnPipe() {
+        var result = GoalExtension.parseObjective("Do something | when done");
+        assertEquals("Do something", result[0]);
+        assertEquals("when done", result[1]);
+    }
+
+    @Test
+    void parseObjectiveNoCriterion() {
+        var result = GoalExtension.parseObjective("Just an objective");
+        assertEquals("Just an objective", result[0]);
+        assertEquals("", result[1]);
+    }
+
+    @Test
+    void parseObjectiveTrimsWhitespace() {
+        var result = GoalExtension.parseObjective("  goal  |  criterion  ");
+        assertEquals("goal", result[0]);
+        assertEquals("criterion", result[1]);
+    }
 }

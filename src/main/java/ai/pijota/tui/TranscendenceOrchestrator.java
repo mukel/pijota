@@ -56,6 +56,38 @@ final class TranscendenceOrchestrator {
     }
 
     void handle(String args) {
+        var parsed = parseTranscendArgs(args);
+        if (host.busy()) {
+            host.appendPlain(List.of(host.styled("toolError",
+                                            "/transcend is unavailable while a turn is running (Esc Esc to interrupt)")));
+            return;
+        }
+
+        if (parsed.goal() != null) {
+            submitGoal(parsed.goal(), parsed.worktreePath());
+            return;
+        }
+
+        if (parsed.rollback()) {
+            rollback();
+            return;
+        }
+
+        if (parsed.mergeBranch() != null && !parsed.mergeBranch().isEmpty()) {
+            merge(parsed.mergeBranch());
+            return;
+        }
+
+        String effectiveWorktree = parsed.worktreePath() != null
+                                        ? parsed.worktreePath()
+                                        : System.getProperty("user.dir");
+        build(effectiveWorktree, parsed.testMode(), true);
+    }
+
+    record TranscendArgs(boolean testMode, boolean rollback, String worktreePath, String mergeBranch, String goal) {
+    }
+
+    static TranscendArgs parseTranscendArgs(String args) {
         boolean testMode = false;
         boolean rollback = false;
         String worktreePath = null;
@@ -86,30 +118,7 @@ final class TranscendenceOrchestrator {
         }
 
         String goal = goalParts.isEmpty() ? null : stripWrappingQuotes(String.join(" ", goalParts));
-
-        if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError",
-                                            "/transcend is unavailable while a turn is running (Esc Esc to interrupt)")));
-            return;
-        }
-
-        if (goal != null) {
-            submitGoal(goal, worktreePath);
-            return;
-        }
-
-        if (rollback) {
-            rollback();
-            return;
-        }
-
-        if (mergeBranch != null && !mergeBranch.isEmpty()) {
-            merge(mergeBranch);
-            return;
-        }
-
-        String effectiveWorktree = worktreePath != null ? worktreePath : System.getProperty("user.dir");
-        build(effectiveWorktree, testMode, true);
+        return new TranscendArgs(testMode, rollback, worktreePath, mergeBranch, goal);
     }
 
     private void build(String projectRoot, boolean testMode, boolean showHeader) {
@@ -228,7 +237,7 @@ final class TranscendenceOrchestrator {
         return host.styled(slot, icon + " ");
     }
 
-    private static String step(String icon, String label) {
+    static String step(String icon, String label) {
         return icon + " " + label;
     }
 
@@ -467,7 +476,7 @@ final class TranscendenceOrchestrator {
         build(System.getProperty("user.dir"), false, false);
     }
 
-    private static String generateBranch(String goal) {
+    static String generateBranch(String goal) {
         String slug = goal.toLowerCase().replaceAll("[^a-z0-9\\s-]", "").replaceAll("\\s+", "-")
                                         .replaceAll("-{2,}", "-").replaceAll("^-|-$", "");
         if (slug.length() > 30)
@@ -478,7 +487,7 @@ final class TranscendenceOrchestrator {
         return "feat/" + slug + "-" + ts;
     }
 
-    private static String stripWrappingQuotes(String value) {
+    static String stripWrappingQuotes(String value) {
         if (value == null || value.length() < 2)
             return value;
         char first = value.charAt(0);

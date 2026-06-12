@@ -538,12 +538,12 @@ class ExtensionRegistryTest {
 
     @Test
     void fireBeforeAgentStartAppendsPromptContributions() {
-        var ext = new CapturingExtension("x");
         var reg = registry(new FakeAgentContext(), new FakeUiContext());
-        reg.register(ext);
+        reg.register(simple("x", api -> api
+                                        .onBeforeAgentStart((event, _) -> event.systemPrompt().append(" appended"))));
         var prompt = reg.fireBeforeAgentStart(List.of(), "base");
         assertTrue(prompt.contains("base"));
-        assertTrue(prompt.contains("prompt-x"));
+        assertTrue(prompt.contains("appended"));
     }
 
     @Test

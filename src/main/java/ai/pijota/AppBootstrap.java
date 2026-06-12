@@ -25,7 +25,11 @@ final class AppBootstrap {
     }
 
     static Result bootstrap(Args parsedArgs) throws Exception {
-        var settings = new SettingsManager();
+        return bootstrap(parsedArgs, new SettingsManager());
+    }
+
+    // package-visible for tests so callers can inject a SettingsManager backed by a temp directory.
+    static Result bootstrap(Args parsedArgs, SettingsManager settings) throws Exception {
         String cwd = System.getProperty("user.dir");
 
         String apiKey = parsedArgs.apiKey();

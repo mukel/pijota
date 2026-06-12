@@ -1,8 +1,14 @@
 package ai.pijota.extensions.examples;
 
-import java.util.Map;
-
+import ai.pijota.extensions.testkit.FakeExtensionAPI;
+import ai.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -74,5 +80,99 @@ class ToolOverrideExtensionTest {
     @Test
     void getIntWithInvalidString() {
         assertEquals(0, ToolOverrideExtension.getInt(Map.of("x", "not-a-number"), "x", 0));
+    }
+
+    @TempDir
+    Path tempDir;
+
+    FakeExtensionAPI api() {
+        return new FakeExtensionAPI(new FakeExtensionRuntime());
+    }
+
+    @Test
+    void initRegistersReadToolAndSlashCommand() {
+        var api = api();
+        var ext = new ToolOverrideExtension();
+        ext.init(api);
+        assertEquals(1, api.tools().size());
+        assertEquals("read", api.tools().get(0).name());
+        assertNotNull(api.slashCommand("read-log"));
+    }
+
+    @Test
+    void readToolBlocksSensitiveFile() throws Exception {
+        var api = api();
+        var ext = new ToolOverrideExtension();
+        ext.init(api);
+        var tool = api.tools().get(0);
+        var result = tool.execute().execute("tc", Map.of("filePath", ".env"), tempDir.toString()).get(1,
+                                        TimeUnit.SECONDS);
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("Access denied"));
+    }
+
+    @Test
+    void readToolRequiresFilePath() throws Exception {
+        var api = api();
+        var ext = new ToolOverrideExtension();
+        ext.init(api);
+        var tool = api.tools().get(0);
+        var result = tool.execute().execute("tc", Map.of(), tempDir.toString()).get(1, TimeUnit.SECONDS);
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("Missing file path"));
+    }
+
+    @Test
+    void readToolReadsFileWithOffsetAndLimit() throws Exception {
+        var api = api();
+        var ext = new ToolOverrideExtension();
+        ext.init(api);
+        var tool = api.tools().get(0);
+        var file = tempDir.resolve("sample.txt");
+        Files.writeString(file, "line1\nline2\nline3\nline4\n");
+        var result = tool.execute().execute("tc", Map.of("filePath", "sample.txt", "offset", 2, "limit", 2),
+                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        assertFalse(result.isError());
+        assertEquals("line2\nline3", result.content());
+        assertEquals(4, result.details().get("lines"));
+    }
+
+    @Test
+    void readToolTruncatesLargeContent() throws Exception {
+        var api = api();
+        var ext = new ToolOverrideExtension();
+        ext.init(api);
+        var tool = api.tools().get(0);
+        var file = tempDir.resolve("big.txt");
+        Files.writeString(file, "x".repeat(60 * 1024));
+        var result = tool.execute().execute("tc", Map.of("filePath", "big.txt"), tempDir.toString()).get(1,
+                                        TimeUnit.SECONDS);
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("[Output truncated at 50KB]"));
+    }
+
+    @Test
+    void readToolHandlesMissingFile() throws Exception {
+        var api = api();
+        var ext = new ToolOverrideExtension();
+        ext.init(api);
+        var tool = api.tools().get(0);
+        var result = tool.execute().execute("tc", Map.of("filePath", "missing.txt"), tempDir.toString()).get(1,
+                                        TimeUnit.SECONDS);
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void readToolSupportsLegacyPathArg() throws Exception {
+        var api = api();
+        var ext = new ToolOverrideExtension();
+        ext.init(api);
+        var tool = api.tools().get(0);
+        var file = tempDir.resolve("legacy.txt");
+        Files.writeString(file, "content");
+        var result = tool.execute().execute("tc", Map.of("path", "legacy.txt"), tempDir.toString()).get(1,
+                                        TimeUnit.SECONDS);
+        assertFalse(result.isError());
+        assertEquals("content", result.content());
     }
 }

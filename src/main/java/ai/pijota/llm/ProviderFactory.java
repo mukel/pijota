@@ -9,7 +9,7 @@ import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import java.time.Duration;
 import java.util.List;
 
-public sealed interface ProviderFactory {
+public interface ProviderFactory {
 
     StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName,
                                     ThinkingLevel thinkingLevel);

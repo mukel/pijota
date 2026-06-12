@@ -137,4 +137,78 @@ class ModelCommandHandlerTest {
         var next = handler.nextModel(models, 1);
         assertEquals("gemini", next.id());
     }
+
+    @Test
+    void cycleModelRefusesWhenBusy() {
+        var handler = new ModelCommandHandler(busyHost("openai", "gpt-4"));
+        handler.cycleModel(1);
+    }
+
+    @Test
+    void showModelSelectorRefusesWhenBusy() {
+        var handler = new ModelCommandHandler(busyHost("openai", "gpt-4"));
+        handler.showModelSelector();
+    }
+
+    @Test
+    void showModelSelectorWithEmptyModelsReportsError() {
+        var handler = new ModelCommandHandler(fakeHost("openai", "gpt-4"));
+        handler.showModelSelector(List.of());
+    }
+
+    private static ModelCommandHandler.Host busyHost(String provider, String model) {
+        return new ModelCommandHandler.Host() {
+            @Override
+            public boolean busy() {
+                return true;
+            }
+
+            @Override
+            public String provider() {
+                return provider;
+            }
+
+            @Override
+            public String model() {
+                return model;
+            }
+
+            @Override
+            public void appendPlain(List<String> lines) {}
+
+            @Override
+            public String styled(String slot, String text) {
+                return text;
+            }
+
+            @Override
+            public void redrawPrompt() {}
+
+            @Override
+            public void setStatus(String status) {}
+
+            @Override
+            public void switchModel(ModelInfo chosen) {}
+
+            @Override
+            public TuiSelectors selectors() {
+                return null;
+            }
+
+            @Override
+            public PromptEditor promptEditor() {
+                return null;
+            }
+
+            @Override
+            public ai.pijota.agent.PijotaSession session() {
+                return null;
+            }
+
+            @Override
+            public ai.pijota.config.SettingsManager settings() {
+                return null;
+            }
+        };
+    }
 }

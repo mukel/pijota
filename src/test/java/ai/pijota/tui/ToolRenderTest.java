@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -156,5 +157,86 @@ class ToolRenderTest {
                                         "/cwd", true);
         assertTrue(trace.contains("parallel"));
         assertTrue(trace.contains("2 tasks"));
+    }
+
+    @Test
+    void displayPathHandlesNull() {
+        assertEquals(".", ToolRender.displayPath(null, "/tmp"));
+        assertEquals(".", ToolRender.displayPath("", "/tmp"));
+    }
+
+    @Test
+    void displayPathReturnsRelativePath() {
+        var result = ToolRender.displayPath("/tmp/sub/file.txt", "/tmp");
+        assertFalse(result.startsWith("/"));
+    }
+
+    @Test
+    void fileNameExtractsName() {
+        assertEquals("file.txt", ToolRender.fileName("/tmp/sub/file.txt"));
+        assertEquals("", ToolRender.fileName(""));
+        assertEquals("", ToolRender.fileName(null));
+    }
+
+    @Test
+    void optionsBuildsKeyValueString() {
+        assertEquals(" [key1=val1, key2=999]", ToolRender.options(Map.of("key1", "val1", "key2", 999), "key1", "key2"));
+    }
+
+    @Test
+    void optionsSkipsNullsAndBlanks() {
+        assertEquals("", ToolRender.options(Map.of("x", ""), "x"));
+        assertEquals("", ToolRender.options(Map.of(), "missing"));
+    }
+
+    @Test
+    void quoteWrapsInDoubleQuotes() {
+        assertEquals("\"hello\"", ToolRender.quote("hello"));
+        assertEquals("\"\"", ToolRender.quote(null));
+    }
+
+    @Test
+    void oneLineCollapsesNewlines() {
+        assertEquals("a b", ToolRender.oneLine("a\nb"));
+    }
+
+    @Test
+    void questionTextExtractsQuestion() {
+        assertEquals("what is this?", ToolRender.questionText(Map.of("question", "what is this?")));
+        assertEquals("alt text", ToolRender.questionText(Map.of("text", "alt text")));
+    }
+
+    @Test
+    void taskLabelDetectsChain() {
+        var result = ToolRender.taskLabel(Map.of("chain", List.of("step1", "step2")));
+        assertTrue(result.contains("chain"));
+        assertTrue(result.contains("2 steps"));
+    }
+
+    @Test
+    void taskLabelDetectsParallel() {
+        var result = ToolRender.taskLabel(Map.of("tasks", List.of("a", "b", "c")));
+        assertTrue(result.contains("parallel"));
+        assertTrue(result.contains("3 tasks"));
+    }
+
+    @Test
+    void taskDetailShowsStepCount() {
+        assertEquals("2 steps", ToolRender.taskDetail(Map.of("chain", List.of("a", "b"))));
+        assertEquals("3 tasks", ToolRender.taskDetail(Map.of("tasks", List.of("a", "b", "c"))));
+    }
+
+    @Test
+    void todoCountCountsCompleted() {
+        var todos = List.of(Map.of("status", "completed"), Map.of("status", "pending"),
+                                        Map.of("status", "completed"));
+        var result = ToolRender.todoCount(Map.of("todos", todos));
+        assertTrue(result.contains("3 items"));
+        assertTrue(result.contains("2 done"));
+    }
+
+    @Test
+    void todoCountEmptyForMissingTodos() {
+        assertEquals("", ToolRender.todoCount(Map.of()));
     }
 }

@@ -82,8 +82,12 @@ final class CodexStreamingChatModel implements StreamingChatModel {
     }
 
     private ObjectNode requestBody(ChatRequest request) {
+        return buildRequestBody(request, modelName, thinkingLevel);
+    }
+
+    static ObjectNode buildRequestBody(ChatRequest request, String defaultModel, ThinkingLevel level) {
         var body = Util.MAPPER.createObjectNode();
-        body.put("model", request.modelName() != null ? request.modelName() : modelName);
+        body.put("model", request.modelName() != null ? request.modelName() : defaultModel);
         body.put("store", false);
         body.put("stream", true);
         body.put("instructions", systemPrompt(request.messages()));
@@ -92,8 +96,8 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         body.set("include", Util.MAPPER.createArrayNode().add("reasoning.encrypted_content"));
         body.put("tool_choice", "auto");
         body.put("parallel_tool_calls", true);
-        if (thinkingLevel != ThinkingLevel.OFF) {
-            body.set("reasoning", Util.MAPPER.createObjectNode().put("effort", codexThinkingLevel()).put("summary",
+        if (level != ThinkingLevel.OFF) {
+            body.set("reasoning", Util.MAPPER.createObjectNode().put("effort", codexThinkingLevel(level)).put("summary",
                                             "auto"));
         }
         if (request.toolSpecifications() != null && !request.toolSpecifications().isEmpty()) {
@@ -102,7 +106,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         return body;
     }
 
-    private String systemPrompt(List<ChatMessage> messages) {
+    static String systemPrompt(List<ChatMessage> messages) {
         for (var message : messages) {
             if (message instanceof SystemMessage system)
                 return system.text();
@@ -110,7 +114,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         return "You are a helpful assistant.";
     }
 
-    private ArrayNode inputMessages(List<ChatMessage> messages) {
+    static ArrayNode inputMessages(List<ChatMessage> messages) {
         var input = Util.MAPPER.createArrayNode();
         for (var message : messages) {
             if (message instanceof SystemMessage)
@@ -142,13 +146,13 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         return input;
     }
 
-    private String userText(UserMessage user) {
+    static String userText(UserMessage user) {
         if (user.hasSingleText())
             return user.singleText();
         return user.contents().stream().map(Object::toString).reduce((a, b) -> a + "\n" + b).orElse("");
     }
 
-    private ObjectNode messageItem(String type, String role, String text) {
+    static ObjectNode messageItem(String type, String role, String text) {
         var item = Util.MAPPER.createObjectNode();
         item.put("type", type);
         item.put("role", role);
@@ -158,7 +162,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         return item;
     }
 
-    private ArrayNode tools(List<ToolSpecification> specs) {
+    static ArrayNode tools(List<ToolSpecification> specs) {
         var tools = Util.MAPPER.createArrayNode();
         for (var spec : specs) {
             var tool = Util.MAPPER.createObjectNode();
@@ -181,11 +185,6 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         var text = new StringBuilder();
         var toolCalls = new ArrayList<ToolExecutionRequest>();
         var seenToolCalls = new HashSet<String>();
-        long streamStartNanos = System.nanoTime();
-        long lastEventNanos = streamStartNanos;
-        int sseCount = 0;
-        int deltaCount = 0;
-        int totalDeltaChars = 0;
         try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -194,33 +193,9 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                 String data = line.substring(5).trim();
                 if (data.isEmpty() || data.equals("[DONE]"))
                     continue;
-                JsonNode event = Util.MAPPER.readTree(data);
-                String type = event.has("type") ? event.get("type").asText() : "";
-                if (log.isDebugEnabled()) {
-                    sseCount++;
-                    long now = System.nanoTime();
-                    long sinceStart = (now - streamStartNanos) / 1_000_000;
-                    long sinceLast = (now - lastEventNanos) / 1_000_000;
-                    lastEventNanos = now;
-                    log.debug("sse event #{}: type={} | +{}ms since start | +{}ms since last", sseCount, type,
-                                                    sinceStart, sinceLast);
-                }
-                if (type.equals("response.output_text.delta") && event.has("delta")) {
-                    String delta = event.get("delta").asText();
-                    if (log.isDebugEnabled()) {
-                        deltaCount++;
-                        totalDeltaChars += delta.length();
-                        log.debug("  text delta #{}: {} chars (total {} chars)", deltaCount, delta.length(),
-                                                        totalDeltaChars);
-                    }
-                    text.append(delta);
+                String delta = processSseLine(data, text, toolCalls, seenToolCalls);
+                if (delta != null) {
                     handler.onPartialResponse(new PartialResponse(text.toString()), null);
-                } else if (type.equals("response.output_item.done") && event.has("item")) {
-                    addToolCall(event.get("item"), toolCalls, seenToolCalls);
-                } else if (type.equals("response.completed") && event.has("response")) {
-                    collectCompleted(event.get("response"), toolCalls, seenToolCalls);
-                } else if (type.equals("response.failed")) {
-                    throw new IOException(event.toString());
                 }
             }
         }
@@ -228,7 +203,25 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         handler.onCompleteResponse(ChatResponse.builder().aiMessage(ai).tokenUsage(new TokenUsage()).build());
     }
 
-    private void collectCompleted(JsonNode response, List<ToolExecutionRequest> toolCalls,
+    static String processSseLine(String data, StringBuilder text, List<ToolExecutionRequest> toolCalls,
+                                    HashSet<String> seenToolCalls) throws IOException {
+        JsonNode event = Util.MAPPER.readTree(data);
+        String type = event.has("type") ? event.get("type").asText() : "";
+        if (type.equals("response.output_text.delta") && event.has("delta")) {
+            String delta = event.get("delta").asText();
+            text.append(delta);
+            return delta;
+        } else if (type.equals("response.output_item.done") && event.has("item")) {
+            addToolCall(event.get("item"), toolCalls, seenToolCalls);
+        } else if (type.equals("response.completed") && event.has("response")) {
+            collectCompleted(event.get("response"), toolCalls, seenToolCalls);
+        } else if (type.equals("response.failed")) {
+            throw new IOException(event.toString());
+        }
+        return null;
+    }
+
+    static void collectCompleted(JsonNode response, List<ToolExecutionRequest> toolCalls,
                                     HashSet<String> seenToolCalls) {
         var output = response.get("output");
         if (output == null || !output.isArray())
@@ -237,7 +230,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             addToolCall(item, toolCalls, seenToolCalls);
     }
 
-    private void addToolCall(JsonNode item, List<ToolExecutionRequest> toolCalls, HashSet<String> seenToolCalls) {
+    static void addToolCall(JsonNode item, List<ToolExecutionRequest> toolCalls, HashSet<String> seenToolCalls) {
         if (item == null || !"function_call".equals(item.path("type").asText()))
             return;
         String callId = item.path("call_id").asText(item.path("id").asText());
@@ -260,7 +253,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         throw new IllegalStateException("missing ChatGPT account id for " + providerName);
     }
 
-    private static String extractAccountId(String token) {
+    static String extractAccountId(String token) {
         try {
             var parts = token.split("\\.");
             if (parts.length != 3)
@@ -274,12 +267,12 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         }
     }
 
-    private static String padBase64(String value) {
+    static String padBase64(String value) {
         int pad = (4 - value.length() % 4) % 4;
         return value + "=".repeat(pad);
     }
 
-    private static String resolveCodexUrl(String baseUrl) {
+    static String resolveCodexUrl(String baseUrl) {
         String normalized = (baseUrl == null || baseUrl.isBlank() ? DEFAULT_BASE_URL : baseUrl).replaceAll("/+$", "");
         if (normalized.endsWith("/codex/responses"))
             return normalized;
@@ -288,7 +281,9 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         return normalized + "/codex/responses";
     }
 
-    private String codexThinkingLevel() {
+    static String codexThinkingLevel(ThinkingLevel thinkingLevel) {
+        if (thinkingLevel == null)
+            return "none";
         return switch (thinkingLevel) {
             case MINIMAL -> "low";
             case LOW -> "low";
@@ -298,7 +293,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         };
     }
 
-    private static String userAgent() {
+    static String userAgent() {
         return "pijota (" + System.getProperty("os.name") + "; " + System.getProperty("os.arch") + ")";
     }
 }

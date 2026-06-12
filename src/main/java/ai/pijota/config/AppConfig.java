@@ -97,6 +97,12 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                         quietStartup, enabled, maxRetries, retryBaseDelayMs, compaction);
     }
 
+    public AppConfig withSessionDir(String sessionDir) {
+        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
+                                        sessionDir, theme, themes, enabledModels, contextFiles, hideThinking,
+                                        quietStartup, shortenPaths, maxRetries, retryBaseDelayMs, compaction);
+    }
+
     public AppConfig withCompactionEnabled(boolean enabled) {
         var current = compaction != null ? compaction : new CompactionConfig();
         return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,

@@ -159,4 +159,42 @@ class SettingsManagerTest {
         sm.setDefaultModelForProvider("openai", "gpt-4o");
         assertNotNull(recorded[0]);
     }
+
+    @Test
+    void requiresApiKeyForOAuthProvider() {
+        assertTrue(SettingsManager.requiresApiKey("openai-codex"));
+    }
+
+    @Test
+    void resolveApiKeyReturnsEmptyForProviderWithoutKey() {
+        var sm = managerWith(new AppConfig());
+        assertEquals("", sm.resolveApiKey("local"));
+    }
+
+    @Test
+    void resolveApiKeyReturnsStoredKey() {
+        var sm = managerWith(new AppConfig().withApiKey("openai", "sk-stored"));
+        assertEquals("sk-stored", sm.resolveApiKey("openai"));
+    }
+
+    @Test
+    void resolveApiKeyReturnsNullWhenNoKeyAvailable() {
+        var sm = managerWith(new AppConfig());
+        assertNull(sm.resolveApiKey("openai"));
+    }
+
+    @Test
+    void effectiveShellPathFallsBackToShellEnvironmentVariable() {
+        var config = new AppConfig(null, null, null, null, null, null, null, null, null, null, null, false, false,
+                                        false, 3, 2000L, null);
+        var sm = managerWith(config);
+        String expected = System.getenv().getOrDefault("SHELL", "/bin/bash");
+        assertEquals(expected, sm.effectiveShellPath());
+    }
+
+    @Test
+    void apiKeyHintFallsBackToConventionForUnknownProvider() {
+        var sm = managerWith(new AppConfig());
+        assertEquals("MY_PROVIDER_API_KEY", sm.apiKeyHint("my-provider"));
+    }
 }

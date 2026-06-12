@@ -139,10 +139,13 @@ class EditToolTest {
         var path = tempDir.resolve("legacy.txt");
         Files.writeString(path, "foo bar");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "oldText", "foo", "newText", "baz"),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var args = new java.util.HashMap<String, Object>();
+        args.put("path", path.toString());
+        args.put("oldText", "foo");
+        args.put("newText", "baz");
+        var result = new EditTool().execute("tc1", args, tempDir.toString()).get(1, TimeUnit.SECONDS);
 
-        assertFalse(result.isError());
+        assertFalse(result.isError(), result.content());
         assertEquals("baz bar", Files.readString(path));
     }
 
@@ -179,10 +182,10 @@ class EditToolTest {
         Files.writeString(path, "\u2018ello world");
 
         var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "'ello", "newText", "Hello"))), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+                                        List.of(Map.of("oldText", "\u2018ello", "newText", "Hello"))),
+                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
 
-        assertFalse(result.isError());
+        assertFalse(result.isError(), result.content());
         assertEquals("Hello world", Files.readString(path));
     }
 

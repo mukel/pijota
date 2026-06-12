@@ -68,4 +68,13 @@ class ModelRefresherTest {
         var node = mapper.readTree("{\"a\": \"not-a-number\"}");
         assertEquals(100L, ModelRefresher.firstLong(node, "a", "b", 100));
     }
+
+    @Test
+    void refreshWithNullSettingsReturnsEmptyResult() {
+        var result = ModelRefresher.refresh(null);
+        assertNotNull(result);
+        assertEquals(0, result.providersChecked());
+        assertEquals(0, result.modelsFound());
+        assertTrue(result.errors().isEmpty());
+    }
 }

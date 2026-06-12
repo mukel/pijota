@@ -118,6 +118,60 @@ class ThemeManagerTest {
         }
     }
 
+    @Test
+    void switchToExternalThemeInPijotaHome(@TempDir Path tmp) throws Exception {
+        var themesDir = tmp.resolve(".pijota").resolve("themes");
+        Files.createDirectories(themesDir);
+        Files.writeString(themesDir.resolve("custom.json"),
+                                        "{\"name\":\"custom\",\"enabled\":true,\"text\":\"#ffffff\"}");
+
+        String previousHome = System.getProperty("user.home");
+        System.setProperty("user.home", tmp.toString());
+        try {
+            var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+            var manager = new ThemeManager(host);
+            manager.switchTo("custom");
+            assertEquals("custom", host.theme.name);
+            assertTrue(host.statuses.stream().anyMatch(s -> s.contains("switched")),
+                                            "expected status message about switching theme, got " + host.statuses);
+        } finally {
+            System.setProperty("user.home", previousHome);
+        }
+    }
+
+    @Test
+    void switchToPathRelativeResolvesAgainstUserDir(@TempDir Path tmp) throws Exception {
+        var file = tmp.resolve("rel.json");
+        Files.writeString(file, "{\"name\":\"rel\",\"enabled\":true,\"text\":\"#ffffff\"}");
+
+        String previousDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", tmp.toString());
+        try {
+            var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+            var manager = new ThemeManager(host);
+            manager.switchToPath("rel.json");
+            assertEquals("rel", host.theme.name);
+        } finally {
+            System.setProperty("user.dir", previousDir);
+        }
+    }
+
+    @Test
+    void discoverWithoutFileThemesListsBuiltinsOnly(@TempDir Path tmp) {
+        String previousHome = System.getProperty("user.home");
+        System.setProperty("user.home", tmp.toString());
+        try {
+            var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+            var manager = new ThemeManager(host);
+            var items = manager.discover();
+            var names = items.stream().map(ThemeItem::name).toList();
+            assertTrue(names.contains("dark"));
+            assertFalse(names.contains("custom"));
+        } finally {
+            System.setProperty("user.home", previousHome);
+        }
+    }
+
     private static final class FakeHost implements ThemeManager.Host {
         private final java.util.List<String> errors = new java.util.ArrayList<>();
         private final java.util.List<String> statuses = new java.util.ArrayList<>();

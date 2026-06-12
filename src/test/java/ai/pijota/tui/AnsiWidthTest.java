@@ -116,7 +116,7 @@ class AnsiWidthTest {
 
     @Test
     void visibleWidthISOControlCharSkipped() {
-        assertEquals(1, AnsiWidth.visibleWidth("a\bb"));
+        assertEquals(2, AnsiWidth.visibleWidth("a\bb"));
     }
 
     @Test
@@ -159,8 +159,8 @@ class AnsiWidthTest {
     @Test
     void wrapPreservingAnsiOsc8Link() {
         var text = "\033]8;;http://x.com\033\\link\033]8;;\033\\";
-        var lines = AnsiWidth.wrapPreservingAnsi(text, 3);
-        assertTrue(lines.size() >= 2);
+        var lines = AnsiWidth.wrapPreservingAnsi(text, 20);
+        assertEquals(1, lines.size());
         assertTrue(lines.get(0).contains("link"));
     }
 

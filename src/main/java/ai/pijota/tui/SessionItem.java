@@ -59,7 +59,7 @@ public record SessionItem(Path path, String name, String description, long mtime
     }
 
     @SuppressWarnings("unchecked")
-    private static ParsedDescription descriptionFromLine(String line) {
+    static ParsedDescription descriptionFromLine(String line) {
         try {
             Map<String, Object> entry = Util.MAPPER.readValue(line, Map.class);
             if ("session_info".equals(entry.get("type"))) {
@@ -76,14 +76,14 @@ public record SessionItem(Path path, String name, String description, long mtime
         }
     }
 
-    private static String clean(String s) {
+    static String clean(String s) {
         if (s == null || s.isBlank())
             return null;
         return s.replaceAll("(?s)<system-reminder>.*?</system-reminder>", "").replace('\n', ' ').replace('\r', ' ')
                                         .replaceAll("\\s+", " ").trim();
     }
 
-    private static String truncate(String s) {
+    static String truncate(String s) {
         if (s == null || s.length() <= MAX_DESC_LEN)
             return s;
         int cut = MAX_DESC_LEN;
@@ -121,7 +121,7 @@ public record SessionItem(Path path, String name, String description, long mtime
         return age + "  " + date + "  " + shortName;
     }
 
-    private record ParsedDescription(String firstUser, String sessionName) {
+    record ParsedDescription(String firstUser, String sessionName) {
     }
     private record Description(String text, boolean named) {
     }

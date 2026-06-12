@@ -75,7 +75,7 @@ class StreamingMarkdownFormatterTest {
     void tableBufferedUntilSeparatorThenRendered() {
         var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
         formatter.format("| a | b |");
-        formatter.format("| - | - |");
+        formatter.format("|---|---|");
         formatter.format("| 1 | 2 |");
         var flushed = formatter.flush();
 
@@ -88,11 +88,10 @@ class StreamingMarkdownFormatterTest {
     void tableFlushedOnBlankLine() {
         var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
         formatter.format("| a | b |");
-        formatter.format("| - | - |");
+        formatter.format("|---|---|");
         formatter.format("| 1 | 2 |");
-        formatter.format("");
+        var flushed = formatter.format("");
 
-        var flushed = formatter.flush();
         var joined = flushed.stream().map(l -> AnsiStripper.strip(l.text())).toList();
         assertTrue(joined.stream().anyMatch(s -> s.contains("1")));
     }
@@ -111,7 +110,7 @@ class StreamingMarkdownFormatterTest {
     void tildeFenceMarkersWork() {
         var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
         var opening = formatter.format("~~~ruby").getFirst().text();
-        assertEquals("~~~ruby", AnsiStripper.strip(opening));
+        assertEquals("```ruby", AnsiStripper.strip(opening));
     }
 
     @Test
@@ -120,5 +119,57 @@ class StreamingMarkdownFormatterTest {
         var lines = formatter.format("plain");
         assertFalse(lines.isEmpty());
         assertEquals("plain", AnsiStripper.strip(lines.get(0).text()));
+    }
+
+    @Test
+    void codeWithoutHighlighterUsesCodeBodySlot() {
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        formatter.format("```foo");
+        var code = formatter.format("plain code").getFirst().text();
+        formatter.format("```");
+        assertEquals("plain code", AnsiStripper.strip(code));
+        assertTrue(code.contains("\u001B["));
+    }
+
+    @Test
+    void pendingTableHeaderFlushedWhenNextLineIsNotSeparator() {
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        formatter.format("| a | b |");
+        var result = formatter.format("not a separator");
+        var joined = result.stream().map(l -> AnsiStripper.strip(l.text())).toList();
+        assertTrue(joined.stream().anyMatch(s -> s.contains("| a | b |")));
+        assertTrue(joined.stream().anyMatch(s -> s.contains("not a separator")));
+    }
+
+    @Test
+    void tableFlushedWhenLineLeavesTable() {
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        formatter.format("| a | b |");
+        formatter.format("|---|---|");
+        formatter.format("| 1 | 2 |");
+        var result = formatter.format("plain");
+        var joined = result.stream().map(l -> AnsiStripper.strip(l.text())).toList();
+        assertTrue(joined.stream().anyMatch(s -> s.contains("1") && s.contains("2")));
+        assertTrue(joined.stream().anyMatch(s -> s.contains("plain")));
+    }
+
+    @Test
+    void fenceLanguageBlankAndPrefix() {
+        var noLangFormatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        var noLang = noLangFormatter.format("```").getFirst().text();
+        assertEquals("```", AnsiStripper.strip(noLang));
+
+        var prefixedFormatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        var prefixed = prefixedFormatter.format("```language-js").getFirst().text();
+        assertEquals("```language-js", AnsiStripper.strip(prefixed));
+    }
+
+    @Test
+    void invalidTableSeparatorDoesNotFormTable() {
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        formatter.format("| a | b |");
+        var result = formatter.format("| - | - |");
+        var joined = result.stream().map(l -> AnsiStripper.strip(l.text())).toList();
+        assertTrue(joined.stream().anyMatch(s -> s.contains("| a | b |")));
     }
 }

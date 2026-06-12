@@ -313,7 +313,7 @@ public final class ProcessRunner {
             try (var reader = new BufferedReader(
                                             new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
-                while ((line = reader.readLine()) != null && !aborted.get()) {
+                while ((line = reader.readLine()) != null) {
                     try {
                         stdoutLineHandler.accept(line);
                     } catch (Exception ignored) {}

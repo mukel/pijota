@@ -184,6 +184,13 @@ public final class GoalExtension implements Extension {
         api.runtime().setStatus(sb.toString());
     }
 
+    static String[] parseObjective(String objective) {
+        String[] parts = objective.split("\\|", 2);
+        String obj = parts[0].strip();
+        String criterion = parts.length > 1 ? parts[1].strip() : "";
+        return new String[] {obj, criterion};
+    }
+
     private void startOrReplace(String objective) {
         if (objective.length() > MAX_OBJECTIVE_LENGTH) {
             api.runtime().setStatus("Objective too long (max " + MAX_OBJECTIVE_LENGTH + " chars)");
@@ -195,9 +202,9 @@ public final class GoalExtension implements Extension {
             api.runtime().setStatus("Goal already active. Use /goal clear first or /goal pause.");
             return;
         }
-        String[] parts = objective.split("\\|", 2);
-        String obj = parts[0].strip();
-        String criterion = parts.length > 1 ? parts[1].strip() : "";
+        String[] parsed = parseObjective(objective);
+        String obj = parsed[0];
+        String criterion = parsed[1];
         long now = System.currentTimeMillis();
         var llm = api.runtime().llm();
         updateState(s -> GoalState.start(obj, 0, criterion, false, llm.totalInputTokens(), llm.totalOutputTokens(),
@@ -351,7 +358,7 @@ public final class GoalExtension implements Extension {
         return goalState.currentUsage(llm.totalInputTokens(), llm.totalOutputTokens());
     }
 
-    private String statusLabel(GoalState.Status status) {
+    static String statusLabel(GoalState.Status status) {
         return switch (status) {
             case ACTIVE -> "active";
             case PAUSED -> "paused";

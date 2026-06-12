@@ -2,6 +2,10 @@ package ai.pijota.config;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class AppConfigTest {
@@ -80,5 +84,82 @@ class AppConfigTest {
         assertFalse(config.hideThinking());
         assertFalse(config.quietStartup());
         assertFalse(config.shortenPaths());
+    }
+
+    @Test
+    void loadMissingFileReturnsDefaultConfig() throws IOException {
+        Path missing = Files.createTempFile("missing", ".json");
+        Files.deleteIfExists(missing);
+        var config = AppConfig.load(missing);
+        assertEquals("medium", config.thinkingLevel());
+        assertTrue(config.apiKeys().isEmpty());
+    }
+
+    @Test
+    void saveAndLoadRoundTrip() throws IOException {
+        Path file = Files.createTempFile("config", ".json");
+        var original = new AppConfig().withApiKey("openai", "sk-123").withThinkingLevel("high");
+        original.save(file);
+        var loaded = AppConfig.load(file);
+        assertEquals("sk-123", loaded.apiKeys().get("openai"));
+        assertEquals("high", loaded.thinkingLevel());
+        Files.deleteIfExists(file);
+    }
+
+    @Test
+    void loadReadsJsonValues() throws IOException {
+        Path file = Files.createTempFile("config", ".json");
+        Files.writeString(file, """
+                                        {
+                                          "default_provider": "anthropic",
+                                          "default_model": "claude-sonnet",
+                                          "thinking_level": "low",
+                                          "max_retries": 5
+                                        }
+                                        """);
+        var loaded = AppConfig.load(file);
+        assertEquals("anthropic", loaded.defaultProvider());
+        assertEquals("claude-sonnet", loaded.defaultModel());
+        assertEquals("low", loaded.thinkingLevel());
+        assertEquals(5, loaded.maxRetries());
+        Files.deleteIfExists(file);
+    }
+
+    @Test
+    void withDefaultProviderModelUpdatesBothFields() {
+        var config = new AppConfig().withDefaultProviderModel("google", "gemini-2");
+        assertEquals("google", config.defaultProvider());
+        assertEquals("gemini-2", config.defaultModel());
+    }
+
+    @Test
+    void withContextFilesTogglesFlag() {
+        var config = new AppConfig().withContextFiles(false);
+        assertFalse(config.contextFiles());
+    }
+
+    @Test
+    void withHideThinkingTogglesFlag() {
+        var config = new AppConfig().withHideThinking(true);
+        assertTrue(config.hideThinking());
+    }
+
+    @Test
+    void withQuietStartupTogglesFlag() {
+        var config = new AppConfig().withQuietStartup(true);
+        assertTrue(config.quietStartup());
+    }
+
+    @Test
+    void withShortenPathsTogglesFlag() {
+        var config = new AppConfig().withShortenPaths(true);
+        assertTrue(config.shortenPaths());
+    }
+
+    @Test
+    void withCompactionEnabledTogglesFlag() {
+        var config = new AppConfig().withCompactionEnabled(false);
+        assertNotNull(config.compaction());
+        assertFalse(config.compaction().enabled());
     }
 }

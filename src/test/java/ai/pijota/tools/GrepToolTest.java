@@ -238,10 +238,10 @@ class GrepToolTest {
 
     @Test
     void truncatesOutputWhenExceedsMaxChars() throws Exception {
-        var longLine = "b".repeat(2500);
+        var longLine = "b".repeat(600);
         var file = Files.writeString(tempDir.resolve("huge.txt"), longLine + "\n");
         var stdout = new StringBuilder();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 200; i++) {
             stdout.append(String.format("{\"type\":\"match\",\"data\":{\"path\":{\"text\":\"%s\"},"
                                             + "\"line_number\":%d,\"lines\":{\"text\":\"%s\\n\"}}}%n",
                                             file.toString().replace("\\", "\\\\"), i + 1, longLine));
@@ -249,7 +249,7 @@ class GrepToolTest {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult(stdout.toString(), "", 0,
                                         false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "b", "path", tempDir.toString(), "limit", 100),
+        var result = tool.execute("tc1", Map.of("pattern", "b", "path", tempDir.toString(), "limit", 200),
                                         tempDir.toString()).get(1, TimeUnit.SECONDS);
 
         assertFalse(result.isError());

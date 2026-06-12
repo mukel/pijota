@@ -1,14 +1,22 @@
 package ai.pijota.agent;
 
+import ai.pijota.extensions.AgentContext;
+import ai.pijota.extensions.Extension;
+import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionRegistry;
+import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
+import ai.pijota.testkit.FauxLlm;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
@@ -225,7 +233,7 @@ class ToolExecutorTest {
             }
         });
         var history = new MessageHistory();
-        var events = new java.util.ArrayList<AgentEvent>();
+        var events = new ArrayList<AgentEvent>();
         var executor = new ToolExecutor(tools, null, "/cwd", history, events::add, new AtomicBoolean(false));
 
         executor.execute(List.of(new ToolCall("c1", "failing", "{}"))).get();
@@ -233,5 +241,285 @@ class ToolExecutorTest {
         var msg = (Message.ToolResult) history.snapshot().get(0);
         assertTrue(msg.isError());
         assertTrue(msg.content().contains("boom"));
+    }
+
+    @Test
+    void extensionCanBlockToolCall() throws Exception {
+        var tools = new ToolRegistry();
+        tools.register(fastTool("read"));
+        var extensions = new ExtensionRegistry();
+        extensions.register(blockingExtension("blocked by policy"));
+        var history = new MessageHistory();
+        var events = new ArrayList<AgentEvent>();
+        var executor = new ToolExecutor(tools, extensions, "/cwd", history, events::add, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("c1", "read", "{}"))).get();
+
+        assertEquals(1, history.snapshot().size());
+        var msg = (Message.ToolResult) history.snapshot().get(0);
+        assertTrue(msg.isError());
+        assertEquals("blocked by policy", msg.content());
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.ToolResult));
+    }
+
+    @Test
+    void extensionToolExecutionStartAndEndAreFired() throws Exception {
+        var tools = new ToolRegistry();
+        tools.register(fastTool("read"));
+        var extensions = new ExtensionRegistry();
+        extensions.setAgentLoop(fakeAgentContext());
+        var startCount = new AtomicInteger(0);
+        var endCount = new AtomicInteger(0);
+        extensions.register(new Extension() {
+            @Override
+            public String name() {
+                return "listener";
+            }
+
+            @Override
+            public String description() {
+                return "listener";
+            }
+
+            @Override
+            public void init(ExtensionAPI api) {
+                api.onToolExecutionStart((event, ctx) -> startCount.incrementAndGet());
+                api.onToolExecutionEnd((event, ctx) -> endCount.incrementAndGet());
+            }
+        });
+        var history = new MessageHistory();
+        var executor = new ToolExecutor(tools, extensions, "/cwd", history, e -> {}, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("c1", "read", "{}"))).get();
+
+        assertEquals(1, startCount.get());
+        assertEquals(1, endCount.get());
+    }
+
+    @Test
+    void invalidArgumentsProduceValidationError() throws Exception {
+        var tools = new ToolRegistry();
+        tools.register(new Tool.ToolDefinition("needsPath", "Needs path",
+                                        Map.of("type", "object", "properties", Map.of("path", Map.of("type", "string")),
+                                                                        "required", List.of("path")),
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
+                                        .toTool());
+        var history = new MessageHistory();
+        var executor = new ToolExecutor(tools, null, "/cwd", history, e -> {}, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("c1", "needsPath", "{bad json"))).get();
+
+        assertEquals(1, history.snapshot().size());
+        var msg = (Message.ToolResult) history.snapshot().get(0);
+        assertTrue(msg.isError());
+        assertTrue(msg.content().contains("path"));
+    }
+
+    @Test
+    void parallelExecutionContinuesAfterOneToolFails() throws Exception {
+        var tools = new ToolRegistry();
+        tools.register(fastTool("ok"));
+        tools.register(new Tool() {
+            @Override
+            public String name() {
+                return "failing";
+            }
+
+            @Override
+            public String description() {
+                return "fails";
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of();
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+                var f = new CompletableFuture<Tool.ToolResult>();
+                f.completeExceptionally(new RuntimeException("boom"));
+                return f;
+            }
+        });
+        var history = new MessageHistory();
+        var executor = new ToolExecutor(tools, null, "/cwd", history, e -> {}, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("c1", "ok", "{}"), new ToolCall("c2", "failing", "{}"))).get();
+
+        assertEquals(2, history.snapshot().size());
+        var okMsg = history.snapshot().stream().map(m -> (Message.ToolResult) m).filter(m -> "ok".equals(m.toolName()))
+                                        .findFirst().orElseThrow();
+        assertFalse(okMsg.isError());
+        var failMsg = history.snapshot().stream().map(m -> (Message.ToolResult) m)
+                                        .filter(m -> "failing".equals(m.toolName())).findFirst().orElseThrow();
+        assertTrue(failMsg.isError());
+    }
+
+    @Test
+    void sequentialExecutionContinuesAfterOneToolFails() throws Exception {
+        var tools = new ToolRegistry();
+        tools.register(new Tool() {
+            @Override
+            public String name() {
+                return "first";
+            }
+
+            @Override
+            public String description() {
+                return "fails";
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of();
+            }
+
+            @Override
+            public ExecutionMode executionMode() {
+                return ExecutionMode.SEQUENTIAL;
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+                var f = new CompletableFuture<Tool.ToolResult>();
+                f.completeExceptionally(new RuntimeException("boom"));
+                return f;
+            }
+        });
+        tools.register(sequentialTool("second"));
+        var history = new MessageHistory();
+        var executor = new ToolExecutor(tools, null, "/cwd", history, e -> {}, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("c1", "first", "{}"), new ToolCall("c2", "second", "{}"))).get();
+
+        assertEquals(2, history.snapshot().size());
+        var first = (Message.ToolResult) history.snapshot().get(0);
+        assertTrue(first.isError());
+        assertEquals("second", ((Message.ToolResult) history.snapshot().get(1)).toolName());
+    }
+
+    @Test
+    void anySequentialToolForcesSequentialExecution() throws Exception {
+        var tools = new ToolRegistry();
+        var order = new ArrayList<String>();
+        tools.register(new Tool() {
+            @Override
+            public String name() {
+                return "seq";
+            }
+
+            @Override
+            public String description() {
+                return "seq";
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of();
+            }
+
+            @Override
+            public ExecutionMode executionMode() {
+                return ExecutionMode.SEQUENTIAL;
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+                order.add("seq");
+                return CompletableFuture.completedFuture(Tool.ToolResult.success("seq"));
+            }
+        });
+        tools.register(new Tool() {
+            @Override
+            public String name() {
+                return "par";
+            }
+
+            @Override
+            public String description() {
+                return "par";
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of();
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+                order.add("par");
+                return CompletableFuture.completedFuture(Tool.ToolResult.success("par"));
+            }
+        });
+        var history = new MessageHistory();
+        var executor = new ToolExecutor(tools, null, "/cwd", history, e -> {}, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("c1", "seq", "{}"), new ToolCall("c2", "par", "{}"))).get();
+
+        assertEquals(2, history.snapshot().size());
+        assertEquals(List.of("seq", "par"), order);
+    }
+
+    private static Extension blockingExtension(String reason) {
+        return new Extension() {
+            @Override
+            public String name() {
+                return "blocker";
+            }
+
+            @Override
+            public String description() {
+                return "blocks tools";
+            }
+
+            @Override
+            public void init(ExtensionAPI api) {
+                api.onToolCall((event, ctx) -> new ai.pijota.extensions.ExtensionResult.Block(reason));
+            }
+        };
+    }
+
+    private static AgentContext fakeAgentContext() {
+        return new AgentContext() {
+            @Override
+            public LlmClient llm() {
+                return new FauxLlm();
+            }
+
+            @Override
+            public boolean isBusy() {
+                return false;
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
+            }
+
+            @Override
+            public void abort() {}
+
+            @Override
+            public List<Message> messages() {
+                return List.of();
+            }
+
+            @Override
+            public void compact(String instructions) {}
+
+            @Override
+            public void close() {}
+
+            @Override
+            public void sendUserMessage(String content) {}
+
+            @Override
+            public void sendUserMessage(String content, String deliverAs) {}
+
+            @Override
+            public void addCustomMessage(Message.Custom message) {}
+        };
     }
 }

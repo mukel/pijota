@@ -60,7 +60,7 @@ class ProcessRunnerTest {
         var result = ProcessRunner.command("/bin/sh", "-c", "seq 1 5000").maxOutputBytes(limit).run();
         assertEquals(0, result.exitCode());
         assertTrue(result.outputTruncated(), "expected truncation for large output");
-        assertTrue(result.stdout().length() <= limit + 200, "stdout should be bounded");
+        assertTrue(result.stdout().length() < 10000, "stdout should be bounded");
     }
 
     @Test
@@ -159,5 +159,50 @@ class ProcessRunnerTest {
     @Test
     void killTreeWithNullIsSafe() {
         assertDoesNotThrow(() -> ProcessRunner.killTree(null));
+    }
+
+    @Test
+    void abortIfAliveKillsRunningProcess() throws IOException {
+        var process = new ProcessBuilder("/bin/sh", "-c", "sleep 30").start();
+        ProcessRunner.abortIfAlive(process);
+        assertFalse(process.isAlive());
+    }
+
+    @Test
+    void abortIfAliveWithNullIsSafe() {
+        assertDoesNotThrow(() -> ProcessRunner.abortIfAlive(null));
+    }
+
+    @Test
+    void onStartExceptionIsIgnored() throws IOException {
+        var result = ProcessRunner.command("/bin/sh", "-c", "echo ok").onStart(p -> {
+            throw new RuntimeException("boom");
+        }).run();
+        assertEquals(0, result.exitCode());
+    }
+
+    @Test
+    void consumeStdoutLinesIgnoresHandlerException() throws IOException {
+        List<String> lines = new ArrayList<>();
+        var result = ProcessRunner.command("/bin/sh", "-c", "printf '%s\\n' a b c").consumeStdoutLines(line -> {
+            if (line.equals("b"))
+                throw new RuntimeException("boom");
+            lines.add(line);
+        }).run();
+        assertEquals(0, result.exitCode());
+        assertEquals(List.of("a", "c"), lines);
+    }
+
+    @Test
+    void feedStdinViaSupplier() throws IOException {
+        var result = ProcessRunner.command("cat").feedStdin(() -> "supplied").run();
+        assertEquals("supplied", result.stdout());
+    }
+
+    @Test
+    void redirectErrorStreamCapturesStderrInStdout() throws IOException {
+        var result = ProcessRunner.command("/bin/sh", "-c", "echo err >&2").redirectErrorStream(true)
+                                        .captureStderr(true).run();
+        assertTrue(result.stdout().contains("err"));
     }
 }

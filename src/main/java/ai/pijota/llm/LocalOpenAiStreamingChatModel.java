@@ -71,11 +71,15 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
     }
 
     private ObjectNode requestBody(ChatRequest request) {
+        return buildRequestBody(request, modelName, thinkingLevel);
+    }
+
+    static ObjectNode buildRequestBody(ChatRequest request, String defaultModel, ThinkingLevel level) {
         var body = Util.MAPPER.createObjectNode();
-        body.put("model", request.modelName() != null ? request.modelName() : modelName);
+        body.put("model", request.modelName() != null ? request.modelName() : defaultModel);
         body.put("stream", true);
         body.set("messages", messages(request.messages()));
-        boolean enableThinking = thinkingLevel != ThinkingLevel.OFF;
+        boolean enableThinking = level != ThinkingLevel.OFF;
         body.put("enable_thinking", enableThinking);
         body.set("chat_template_kwargs", Util.MAPPER.createObjectNode().put("enable_thinking", enableThinking));
         if (request.toolSpecifications() != null && !request.toolSpecifications().isEmpty()) {
@@ -85,7 +89,7 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         return body;
     }
 
-    private ArrayNode messages(List<ChatMessage> messages) {
+    static ArrayNode messages(List<ChatMessage> messages) {
         var out = Util.MAPPER.createArrayNode();
         for (var message : messages) {
             if (message instanceof SystemMessage system) {
@@ -110,14 +114,14 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         return out;
     }
 
-    private static ObjectNode message(String role, String content) {
+    static ObjectNode message(String role, String content) {
         var item = Util.MAPPER.createObjectNode();
         item.put("role", role);
         item.put("content", content != null ? content : "");
         return item;
     }
 
-    private static ObjectNode toolCall(ToolExecutionRequest call) {
+    static ObjectNode toolCall(ToolExecutionRequest call) {
         var item = Util.MAPPER.createObjectNode();
         item.put("id", call.id());
         item.put("type", "function");
@@ -128,13 +132,13 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         return item;
     }
 
-    private static String userText(UserMessage user) {
+    static String userText(UserMessage user) {
         if (user.hasSingleText())
             return user.singleText();
         return user.contents().stream().map(Object::toString).reduce((a, b) -> a + "\n" + b).orElse("");
     }
 
-    private ArrayNode tools(List<ToolSpecification> specs) {
+    static ArrayNode tools(List<ToolSpecification> specs) {
         var tools = Util.MAPPER.createArrayNode();
         for (var spec : specs) {
             try {
@@ -176,17 +180,11 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
                 JsonNode delta = choices.get(0).get("delta");
                 if (delta == null)
                     continue;
-                String thought = text(delta.get("reasoning_content"));
-                if (!thought.isEmpty()) {
-                    thinking.append(thought);
-                    handler.onPartialThinking(new PartialThinking(thought), null);
-                }
-                String text = text(delta.get("content"));
-                if (!text.isEmpty()) {
-                    content.append(text);
+                var result = processDelta(delta, content, thinking, toolCalls);
+                if (result.thinkingDelta() != null)
+                    handler.onPartialThinking(new PartialThinking(result.thinkingDelta()), null);
+                if (result.textDelta() != null)
                     handler.onPartialResponse(new PartialResponse(content.toString()), null);
-                }
-                collectToolCalls(delta.get("tool_calls"), toolCalls);
             }
         }
 
@@ -200,11 +198,28 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         handler.onCompleteResponse(builder.build());
     }
 
-    private static String text(JsonNode node) {
+    record DeltaResult(String thinkingDelta, String textDelta) {
+    }
+
+    static DeltaResult processDelta(JsonNode delta, StringBuilder content, StringBuilder thinking,
+                                    Map<Integer, ToolCallBuilder> toolCalls) {
+        String thought = text(delta.get("reasoning_content"));
+        if (!thought.isEmpty()) {
+            thinking.append(thought);
+        }
+        String t = text(delta.get("content"));
+        if (!t.isEmpty()) {
+            content.append(t);
+        }
+        collectToolCalls(delta.get("tool_calls"), toolCalls);
+        return new DeltaResult(thought.isEmpty() ? null : thought, t.isEmpty() ? null : t);
+    }
+
+    static String text(JsonNode node) {
         return node != null && !node.isNull() ? node.asText("") : "";
     }
 
-    private static void collectToolCalls(JsonNode calls, Map<Integer, ToolCallBuilder> out) {
+    static void collectToolCalls(JsonNode calls, Map<Integer, ToolCallBuilder> out) {
         if (calls == null || !calls.isArray())
             return;
         for (var call : calls) {
@@ -222,7 +237,7 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         }
     }
 
-    private static TokenUsage usage(JsonNode event, TokenUsage current) {
+    static TokenUsage usage(JsonNode event, TokenUsage current) {
         JsonNode usage = event.get("usage");
         if (usage == null || usage.isNull())
             return current;
@@ -232,12 +247,12 @@ final class LocalOpenAiStreamingChatModel implements StreamingChatModel {
         return new TokenUsage(prompt, completion, total);
     }
 
-    private static String normalizeBaseUrl(String baseUrl) {
+    static String normalizeBaseUrl(String baseUrl) {
         String normalized = baseUrl == null || baseUrl.isBlank() ? "http://localhost:17325/v1" : baseUrl;
         return normalized.replaceAll("/+$", "");
     }
 
-    private static final class ToolCallBuilder {
+    static final class ToolCallBuilder {
         String id;
         String name;
         StringBuilder arguments = new StringBuilder();

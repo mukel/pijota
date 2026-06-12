@@ -91,6 +91,14 @@ class TranscendenceToolTest {
     }
 
     @Test
+    void executeWithUppercaseUnknownActionReturnsError() throws Exception {
+        var tool = new TranscendenceTool();
+        var result = tool.execute("call-1", java.util.Map.of("action", "FOO"), "/cwd").get();
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("Unknown action"));
+    }
+
+    @Test
     void executeWithMissingActionReturnsError() throws Exception {
         var tool = new TranscendenceTool();
         var result = tool.execute("call-1", java.util.Map.of(), "/cwd").get();

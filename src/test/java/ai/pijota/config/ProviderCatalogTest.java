@@ -97,4 +97,30 @@ class ProviderCatalogTest {
         assertNotNull(first.id());
         // baseUrl and apiType are null for some providers (like openai with oauth)
     }
+
+    @Test
+    void headersReturnProviderSpecificValues() {
+        var headers = ProviderCatalog.headers("kimi-coding");
+        assertFalse(headers.isEmpty());
+        assertEquals("KimiCLI/1.5", headers.get("User-Agent"));
+    }
+
+    @Test
+    void oauthReturnsPresentForOAuthProvider() {
+        var oauth = ProviderCatalog.oauth("openai-codex");
+        assertTrue(oauth.isPresent());
+        assertNotNull(oauth.get().clientId());
+        assertNotNull(oauth.get().deviceEndpoint());
+    }
+
+    @Test
+    void oauthReturnsEmptyForApiKeyProvider() {
+        assertTrue(ProviderCatalog.oauth("anthropic").isEmpty());
+    }
+
+    @Test
+    void findIsCaseSensitive() {
+        assertTrue(ProviderCatalog.find("OpenAI").isEmpty());
+        assertTrue(ProviderCatalog.find("openai").isPresent());
+    }
 }

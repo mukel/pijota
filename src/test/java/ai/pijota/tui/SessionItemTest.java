@@ -105,4 +105,82 @@ class SessionItemTest {
         assertTrue(longName.detailText().contains("verylongsessio"));
         assertFalse(longName.detailText().contains("verylongsessionname"));
     }
+
+    @Test
+    void cleanReturnsNullForNull() {
+        assertNull(SessionItem.clean(null));
+    }
+
+    @Test
+    void cleanReturnsNullForBlank() {
+        assertNull(SessionItem.clean("   "));
+    }
+
+    @Test
+    void cleanStripsSystemReminders() {
+        assertEquals("hello world", SessionItem.clean("hello <system-reminder>secret</system-reminder> world"));
+    }
+
+    @Test
+    void cleanReplacesNewlinesWithSpaces() {
+        assertEquals("line1 line2", SessionItem.clean("line1\nline2"));
+    }
+
+    @Test
+    void cleanCollapsesWhitespace() {
+        assertEquals("a b c", SessionItem.clean("a   b    c"));
+    }
+
+    @Test
+    void cleanTrimsLeadingAndTrailingSpace() {
+        assertEquals("text", SessionItem.clean("  text  "));
+    }
+
+    @Test
+    void truncateReturnsShortStringAsIs() {
+        assertEquals("short", SessionItem.truncate("short"));
+    }
+
+    @Test
+    void truncateTruncatesLongStringAtWordBoundary() {
+        String longText = "a".repeat(90);
+        String result = SessionItem.truncate(longText);
+        assertTrue(result.length() <= 81);
+        assertTrue(result.endsWith("…"));
+    }
+
+    @Test
+    void descriptionFromLineParsesUserMessage() {
+        var result = SessionItem.descriptionFromLine(
+                                        "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hello world\"}");
+        assertNotNull(result);
+        assertEquals("hello world", result.firstUser());
+        assertNull(result.sessionName());
+    }
+
+    @Test
+    void descriptionFromLineParsesSessionInfo() {
+        var result = SessionItem.descriptionFromLine("{\"type\":\"session_info\",\"name\":\"My Session\"}");
+        assertNotNull(result);
+        assertNull(result.firstUser());
+        assertEquals("My Session", result.sessionName());
+    }
+
+    @Test
+    void descriptionFromLineReturnsNullForNonMessage() {
+        var result = SessionItem.descriptionFromLine("{\"type\":\"tool_result\"}");
+        assertNull(result);
+    }
+
+    @Test
+    void descriptionFromLineReturnsNullForAssistantMessage() {
+        var result = SessionItem.descriptionFromLine(
+                                        "{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"I am helping\"}");
+        assertNull(result);
+    }
+
+    @Test
+    void descriptionFromLineReturnsNullForInvalidJson() {
+        assertNull(SessionItem.descriptionFromLine("not json"));
+    }
 }

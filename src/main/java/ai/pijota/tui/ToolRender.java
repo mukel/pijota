@@ -73,7 +73,7 @@ final class ToolRender {
         return Util.parseJsonArgs(args.get());
     }
 
-    private static String displayPath(String path, String cwd) {
+    static String displayPath(String path, String cwd) {
         if (path == null || path.isBlank())
             return ".";
         try {
@@ -106,14 +106,14 @@ final class ToolRender {
         return Path.of(path).toAbsolutePath().normalize();
     }
 
-    private static String fileName(String path) {
+    static String fileName(String path) {
         if (path == null || path.isBlank())
             return "";
         Path p = Path.of(path);
         return p.getFileName() != null ? p.getFileName().toString() : path;
     }
 
-    private static String options(Map<String, Object> args, String... keys) {
+    static String options(Map<String, Object> args, String... keys) {
         var parts = new ArrayList<String>();
         for (String key : keys) {
             Object value = args.get(key);
@@ -123,20 +123,20 @@ final class ToolRender {
         return parts.isEmpty() ? "" : " [" + String.join(", ", parts) + "]";
     }
 
-    private static String quote(Object value) {
+    static String quote(Object value) {
         return "\"" + oneLine(value == null ? "" : value.toString()) + "\"";
     }
 
-    private static String oneLine(String value) {
+    static String oneLine(String value) {
         return Util.stripSystemReminders(value).replaceAll("\\R+", " ").strip();
     }
 
-    private static String questionText(Map<String, Object> args) {
+    static String questionText(Map<String, Object> args) {
         Object q = args.get("question") != null ? args.get("question") : args.get("text");
         return q != null ? q.toString() : String.valueOf(args.getOrDefault("questions", ""));
     }
 
-    private static String taskLabel(Map<String, Object> args) {
+    static String taskLabel(Map<String, Object> args) {
         if (args.containsKey("chain") && args.get("chain") instanceof List<?> c)
             return "chain (" + c.size() + " steps)";
         if (args.containsKey("tasks") && args.get("tasks") instanceof List<?> t)
@@ -144,7 +144,7 @@ final class ToolRender {
         return shorten(args.getOrDefault("agent", "").toString(), 40);
     }
 
-    private static String taskDetail(Map<String, Object> args) {
+    static String taskDetail(Map<String, Object> args) {
         if (args.containsKey("chain") && args.get("chain") instanceof List<?> c)
             return c.size() + " steps";
         if (args.containsKey("tasks") && args.get("tasks") instanceof List<?> t)
@@ -152,7 +152,7 @@ final class ToolRender {
         return shorten(args.getOrDefault("agent", "").toString(), 30);
     }
 
-    private static String todoCount(Map<String, Object> args) {
+    static String todoCount(Map<String, Object> args) {
         Object todos = args.get("todos");
         if (todos instanceof List<?> list) {
             long done = list.stream().filter(i -> i instanceof Map<?, ?> m && "completed".equals(m.get("status")))
@@ -162,7 +162,7 @@ final class ToolRender {
         return "";
     }
 
-    private static String shorten(String s, int max) {
+    static String shorten(String s, int max) {
         return Util.truncateWords(s, max);
     }
 }

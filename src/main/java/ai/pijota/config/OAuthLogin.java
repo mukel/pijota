@@ -195,10 +195,14 @@ public final class OAuthLogin {
     }
 
     private static TokenResult buildTokenResult(com.fasterxml.jackson.databind.JsonNode node) {
+        return buildTokenResult(node, System.currentTimeMillis());
+    }
+
+    static TokenResult buildTokenResult(com.fasterxml.jackson.databind.JsonNode node, long nowMs) {
         String accessToken = node.get("access_token").asText();
         String refreshToken = node.has("refresh_token") ? node.get("refresh_token").asText() : null;
         int expiresIn = node.has("expires_in") ? node.get("expires_in").asInt() : 3600;
-        long expiresAt = System.currentTimeMillis() + (expiresIn * 1000L);
+        long expiresAt = nowMs + (expiresIn * 1000L);
         String accountId = node.has("account_id") ? node.get("account_id").asText() : null;
         return new TokenResult(accessToken, refreshToken, expiresAt, accountId);
     }
@@ -207,7 +211,7 @@ public final class OAuthLogin {
         return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    private static String clickableLink(String url, String text) {
+    static String clickableLink(String url, String text) {
         return "\033]8;;" + url + "\033\\" + text + "\033]8;;\033\\";
     }
 }

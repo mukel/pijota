@@ -1969,7 +1969,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 lines.add(String.join(" ", parts));
                 if (rendered != null && !rendered.body().isEmpty()) {
                     for (String line : rendered.body()) {
-                        lines.add(renderToolBodyLine(msg.toolName(), line));
+                        lines.add(renderToolBodyLine(msg.toolName(), line, theme));
                     }
                 }
                 appendPlain(lines);
@@ -2057,9 +2057,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         flushStreamLines();
     }
 
-    private String renderToolBodyLine(String toolName, String line) {
+    static String renderToolBodyLine(String toolName, String line, AnsiTheme theme) {
         if ("todowrite".equals(toolName))
-            return renderTodoLine(line);
+            return renderTodoLine(line, theme);
         if (line.startsWith("╰→")) {
             return theme.styled("statusText", "╰→") + theme.styled("commandMeta", line.substring(2));
         }
@@ -2069,7 +2069,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return theme.styled(bodySlot, line);
     }
 
-    private String renderTodoLine(String line) {
+    static String renderTodoLine(String line, AnsiTheme theme) {
         String slot = null;
         if (line.startsWith("│ [✓]"))
             slot = "diffAdd";
@@ -2091,7 +2091,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return out;
     }
 
-    private String toolResultSummary(Message.ToolResult msg) {
+    static String toolResultSummary(Message.ToolResult msg) {
         if (msg.isError()) {
             String content = msg.content();
             if (content == null || content.isBlank())
@@ -2154,7 +2154,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (!thinkingHeaderShown || thinkingFooterShown)
             return;
         thinkingLines.flush().ifPresent(line -> appendThinking(List.of(line)));
-        appendPlain(List.of(thinkingSummary(lastThinking, thinkingStartedAt), ""));
+        appendPlain(List.of(thinkingSummary(lastThinking, thinkingStartedAt, theme), ""));
         thinkingFooterShown = true;
     }
 
@@ -2162,7 +2162,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return theme.styled("toolLabel", "› thinking") + theme.styled("dim", " · " + thinkingLevel.label());
     }
 
-    private String thinkingSummary(String thinking, long startedAt) {
+    static String thinkingSummary(String thinking, long startedAt, AnsiTheme theme) {
         int tokens = (int) Math.ceil((thinking == null ? 0 : thinking.length()) / 4.0);
         long elapsed = startedAt > 0 ? System.currentTimeMillis() - startedAt : 0;
         return theme.styled("thinkingText", "└ ") + theme.styled("thinkingText", "thought ")
@@ -2443,18 +2443,22 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return ai.pijota.llm.ModelRegistry.resolveContextWindow(provider, model);
     }
 
+    static int pendingHeight(int width, PromptSnapshot ctx) {
+        if (ctx.pendingMessages().isEmpty())
+            return 0;
+        int h = 0;
+        for (String msg : ctx.pendingMessages()) {
+            String line = "queued  " + msg;
+            int vw = AnsiWidth.visibleWidth(line);
+            h += (vw <= 0) ? 1 : (vw + width - 1) / width;
+        }
+        return h;
+    }
+
     private final class PendingRegion implements PromptRegion.Custom {
         @Override
         public int height(int width, PromptSnapshot ctx) {
-            if (ctx.pendingMessages().isEmpty())
-                return 0;
-            int h = 0;
-            for (String msg : ctx.pendingMessages()) {
-                String line = "queued  " + msg;
-                int vw = AnsiWidth.visibleWidth(line);
-                h += (vw <= 0) ? 1 : (vw + width - 1) / width;
-            }
-            return h;
+            return pendingHeight(width, ctx);
         }
 
         @Override

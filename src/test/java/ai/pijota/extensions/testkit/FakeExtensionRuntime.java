@@ -1,0 +1,203 @@
+package ai.pijota.extensions.testkit;
+
+import ai.pijota.extensions.AgentContext;
+import ai.pijota.extensions.ExtensionRuntime;
+import ai.pijota.llm.LlmClient;
+import ai.pijota.messages.Message;
+import ai.pijota.tools.Tool;
+import ai.pijota.tools.ToolRegistry;
+import ai.pijota.util.ProcessRunner;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+
+public class FakeExtensionRuntime implements ExtensionRuntime {
+
+    private Path cwd = Path.of(System.getProperty("user.dir"));
+    private String systemPrompt;
+    private String sessionName;
+    private ToolRegistry toolRegistry;
+    private AgentContext agentContext;
+    private final List<Message> messages = new ArrayList<>();
+    private final Map<String, String> flags = new ConcurrentHashMap<>();
+    private final Map<String, String> keyedStatuses = new ConcurrentSkipListMap<>();
+    private final List<String> statusCalls = new ArrayList<>();
+    private boolean busy;
+    private boolean closed;
+    private boolean aborted;
+    private boolean compacted;
+
+    public void setCwd(Path cwd) {
+        this.cwd = cwd;
+    }
+
+    public void setSystemPrompt(String systemPrompt) {
+        this.systemPrompt = systemPrompt;
+    }
+
+    public void setToolRegistry(ToolRegistry toolRegistry) {
+        this.toolRegistry = toolRegistry;
+    }
+
+    public void setAgentContext(AgentContext agentContext) {
+        this.agentContext = agentContext;
+    }
+
+    public void setBusy(boolean busy) {
+        this.busy = busy;
+    }
+
+    public void setClosed(boolean closed) {
+        this.closed = closed;
+    }
+
+    public List<String> statusCalls() {
+        return List.copyOf(statusCalls);
+    }
+
+    public Map<String, String> keyedStatuses() {
+        return Map.copyOf(keyedStatuses);
+    }
+
+    public boolean aborted() {
+        return aborted;
+    }
+
+    public boolean compacted() {
+        return compacted;
+    }
+
+    @Override
+    public LlmClient llm() {
+        return agentContext != null ? agentContext.llm() : null;
+    }
+
+    @Override
+    public Path cwd() {
+        return cwd;
+    }
+
+    @Override
+    public String systemPrompt() {
+        return systemPrompt;
+    }
+
+    @Override
+    public List<Message> messages() {
+        return agentContext != null ? agentContext.messages() : List.copyOf(messages);
+    }
+
+    @Override
+    public ToolRegistry tools() {
+        return toolRegistry;
+    }
+
+    @Override
+    public List<Tool.ToolInfo> activeTools() {
+        return toolRegistry != null ? toolRegistry.activeTools() : List.of();
+    }
+
+    @Override
+    public void setActiveTools(List<String> toolNames) {
+        if (toolRegistry != null)
+            toolRegistry.enableOnly(toolNames);
+    }
+
+    @Override
+    public List<Tool.ToolInfo> allTools() {
+        return toolRegistry != null ? toolRegistry.allTools() : List.of();
+    }
+
+    @Override
+    public String sessionName() {
+        return sessionName;
+    }
+
+    @Override
+    public void setSessionName(String name) {
+        this.sessionName = name;
+    }
+
+    @Override
+    public boolean isIdle() {
+        return !busy;
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed;
+    }
+
+    @Override
+    public void abort() {
+        aborted = true;
+    }
+
+    @Override
+    public void compact(String instructions) {
+        compacted = true;
+    }
+
+    @Override
+    public void setStatus(String message) {
+        statusCalls.add(message);
+    }
+
+    @Override
+    public void appendStatus(String message) {
+        statusCalls.add("append:" + message);
+    }
+
+    @Override
+    public void setStatus(String key, String message) {
+        if (key == null || key.isBlank())
+            return;
+        if (message == null || message.isBlank())
+            keyedStatuses.remove(key);
+        else
+            keyedStatuses.put(key, message);
+    }
+
+    @Override
+    public void clearStatus(String key) {
+        if (key != null)
+            keyedStatuses.remove(key);
+    }
+
+    @Override
+    public boolean getFlag(String name, boolean defaultValue) {
+        String val = flags.get(name);
+        if (val == null)
+            return defaultValue;
+        return "true".equalsIgnoreCase(val) || "1".equals(val) || "yes".equalsIgnoreCase(val);
+    }
+
+    @Override
+    public Optional<String> getFlag(String name) {
+        return Optional.ofNullable(flags.get(name));
+    }
+
+    public void setFlag(String name, String value) {
+        flags.put(name, value);
+    }
+
+    @Override
+    public ExecResult exec(List<String> command) {
+        try {
+            var result = ProcessRunner.command(command).run();
+            return new ExecResult(result.exitCode(), result.stdout(), result.stderr());
+        } catch (Exception e) {
+            return new ExecResult(-1, "", e.getMessage());
+        }
+    }
+
+    public CompletableFuture<Boolean> confirm(String question) {
+        return CompletableFuture.completedFuture(true);
+    }
+}
