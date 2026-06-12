@@ -10,9 +10,6 @@ import ai.pijota.extensions.ExtensionKeybinding;
 import ai.pijota.extensions.KeyChord;
 import ai.pijota.extensions.UiContext;
 import ai.pijota.config.SettingsManager;
-import ai.pijota.config.OAuthLogin;
-import ai.pijota.config.OAuthTokenStore;
-import ai.pijota.config.ProviderCatalog;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.theme.AnsiTheme;
@@ -66,7 +63,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final SettingsManager settings;
     private final PijotaSession session;
     private FileReferenceResolver fileRefs;
-    private final List<SkillLoader.Skill> skills;
     private long contextWindow;
     private StreamingMarkdownFormatter markdown;
     private StreamingMarkdownFormatter thinkingMarkdown;
@@ -175,7 +171,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final Map<KeyChord, ExtensionKeybinding> extensionKeybindings;
     private final Map<String, Supplier<String>> toolArgsById = new ConcurrentHashMap<>();
     private final TuiSelectors selectors;
-    private boolean loginIsLogout;
     private volatile boolean showSessionPickerOnStart;
     private volatile List<String> currentHelpOverlay = List.of();
     private final AtomicInteger workingFrame = new AtomicInteger();
@@ -183,12 +178,17 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final MessageBrowser messageBrowser;
     private PendingEditManager pendingEdit;
     private final Supplier<List<String>> extensionLinesSupplier;
-    private final ThemeManager themeMgr = new ThemeManager(this);
+    private final ThemeManager themeMgr;
+    private final ThemeCommandHandler themeCommands;
     private final StreamProcessor streamProc = new StreamProcessor();
     private final TranscendenceOrchestrator transcendence;
     private final ShellCommandRunner shellCommands;
     private final SessionCommands sessionCommands;
     private final ModelCommandHandler modelCommands;
+    private final SkillCommandHandler skillCommands;
+    private final SettingsCommandHandler settingsCommands;
+    private final LoginCommandHandler loginCommands;
+    private final CommandPaletteHandler commandPalette;
 
     public void requestSessionPicker() {
         showSessionPickerOnStart = true;
@@ -209,6 +209,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.messageBrowser = new MessageBrowser(promptEditor, session::userMessages);
         this.session = session;
         this.theme = theme;
+        this.provider = provider;
+        this.model = model;
+        this.settings = settings;
+        this.extensionLinesSupplier = extensionLinesSupplier != null ? extensionLinesSupplier : List::of;
         this.dialogs = new DialogHandler(new DialogHandler.Host() {
             @Override
             public void appendPlain(List<String> lines) {
@@ -398,15 +402,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 return settings;
             }
         });
-        this.provider = provider;
-        this.model = model;
-        this.settings = settings;
-        this.skills = skills;
-        this.extensionLinesSupplier = extensionLinesSupplier != null ? extensionLinesSupplier : List::of;
+        this.skillCommands = createSkillCommandHandler(skills);
+        this.settingsCommands = createSettingsCommandHandler();
         this.contextWindow = resolveContextWindow(provider, model);
         this.thinkingTheme = theme.thinking();
         this.markdown = new StreamingMarkdownFormatter(theme);
         this.thinkingMarkdown = new StreamingMarkdownFormatter(thinkingTheme, "thinkingText", true);
+        this.themeMgr = createThemeManager();
+        this.themeCommands = createThemeCommandHandler();
         this.terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build();
         this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
         this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
@@ -492,12 +495,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
         });
         this.selectors = new TuiSelectors(this::confirmModelSelection, this::confirmSessionSelection,
-                                        this::confirmThemeSelection, this::confirmSettingsSelection, () -> {
-                                            if (loginIsLogout)
-                                                confirmLogoutSelection();
-                                            else
-                                                confirmLoginSelection();
-                                        }, this::confirmForkSelection, this::confirmPaletteSelection);
+                                        this::confirmThemeSelection, this::confirmSettingsSelection,
+                                        this::confirmLoginSelection, this::confirmForkSelection,
+                                        this::confirmPaletteSelection);
+        this.loginCommands = createLoginCommandHandler();
+        this.commandPalette = createCommandPaletteHandler();
         var regions = new ArrayList<PromptRegion>();
         regions.add(new PromptRegion.Editor());
         regions.add(new PendingRegion());
@@ -524,6 +526,379 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         SlashCommandTool.setQuestionHandler(this::askQuestions);
         updateWhoamiTool();
         session.addEventListener(this::onEvent);
+    }
+
+    private SkillCommandHandler createSkillCommandHandler(List<SkillLoader.Skill> skills) {
+        return new SkillCommandHandler(new SkillCommandHandler.Host() {
+            @Override
+            public List<SkillLoader.Skill> skills() {
+                return skills;
+            }
+
+            @Override
+            public String styled(String slot, String text) {
+                return theme.styled(slot, text);
+            }
+
+            @Override
+            public void appendPlain(List<String> lines) {
+                AppendOnlyTui.this.appendPlain(lines);
+            }
+
+            @Override
+            public List<String> promptEcho(String text) {
+                return AppendOnlyTui.this.promptEcho(text);
+            }
+
+            @Override
+            public long beginBusy(String phase) {
+                return AppendOnlyTui.this.beginBusy(phase);
+            }
+
+            @Override
+            public void redrawPrompt() {
+                AppendOnlyTui.this.redrawPrompt();
+            }
+
+            @Override
+            public void submitAgentPrompt(String prompt, Runnable after) {
+                agentExecutor.submit(() -> {
+                    try {
+                        session.prompt(prompt).join();
+                    } finally {
+                        after.run();
+                    }
+                });
+            }
+
+            @Override
+            public void endBusy(long generation) {
+                AppendOnlyTui.this.endBusy(generation);
+            }
+
+            @Override
+            public void showSessionWarning() {
+                AppendOnlyTui.this.showSessionWarning();
+            }
+        });
+    }
+
+    private SettingsCommandHandler createSettingsCommandHandler() {
+        return new SettingsCommandHandler(new SettingsCommandHandler.Host() {
+            @Override
+            public boolean settingsAvailable() {
+                return settings != null;
+            }
+
+            @Override
+            public SettingsCommandHandler.SettingsSnapshot settingsSnapshot() {
+                var cfg = settings.config();
+                return new SettingsCommandHandler.SettingsSnapshot(settings.contextFilesEnabled(),
+                                                settings.compactionEnabled(), settings.shortenPathsEnabled(),
+                                                thinkingLevel, cfg.hideThinking(), cfg.quietStartup());
+            }
+
+            @Override
+            public void showSettings(List<SettingsItem> items) {
+                selectors.show(TuiSelectors.Slot.SETTINGS, items);
+            }
+
+            @Override
+            public java.util.Optional<SettingsItem> selectedSetting() {
+                return selectors.selected(TuiSelectors.Slot.SETTINGS);
+            }
+
+            @Override
+            public void refreshSettings(List<SettingsItem> items) {
+                selectors.refresh(TuiSelectors.Slot.SETTINGS, items);
+            }
+
+            @Override
+            public void clearPrompt() {
+                promptEditor.setText("");
+            }
+
+            @Override
+            public void redrawPrompt() {
+                AppendOnlyTui.this.redrawPrompt();
+            }
+
+            @Override
+            public void appendError(String message) {
+                appendPlain(List.of(theme.styled("toolError", message)));
+            }
+
+            @Override
+            public void toggleCompaction() {
+                settings.setCompactionEnabled(!settings.compactionEnabled());
+            }
+
+            @Override
+            public void setAutoCompactionEnabled(boolean enabled) {
+                session.setAutoCompactionEnabled(enabled);
+            }
+
+            @Override
+            public void toggleContextFiles() {
+                settings.setContextFilesEnabled(!settings.contextFilesEnabled());
+            }
+
+            @Override
+            public void toggleShortenPaths() {
+                settings.setShortenPathsEnabled(!settings.shortenPathsEnabled());
+            }
+
+            @Override
+            public ThinkingLevel advanceThinkingLevel() {
+                thinkingLevel = thinkingLevel.next();
+                session.setThinkingLevel(thinkingLevel);
+                settings.setThinkingLevel(thinkingLevel.name());
+                return thinkingLevel;
+            }
+
+            @Override
+            public void toggleHideThinking() {
+                settings.setHideThinking(!settings.config().hideThinking());
+            }
+
+            @Override
+            public void toggleQuietStartup() {
+                settings.setQuietStartup(!settings.config().quietStartup());
+            }
+
+            @Override
+            public void setTransientStatus(String status, long millis) {
+                AppendOnlyTui.this.setTransientStatus(status, millis);
+            }
+        });
+    }
+
+    private ThemeManager createThemeManager() {
+        return new ThemeManager(new ThemeManager.Host() {
+            @Override
+            public AnsiTheme theme() {
+                return AppendOnlyTui.this.theme;
+            }
+
+            @Override
+            public void setTheme(AnsiTheme theme) {
+                AppendOnlyTui.this.setTheme(theme);
+            }
+
+            @Override
+            public void appendError(String message) {
+                AppendOnlyTui.this.appendError(message);
+            }
+
+            @Override
+            public void appendStatus(String message) {
+                AppendOnlyTui.this.appendStatus(message);
+            }
+        });
+    }
+
+    private ThemeCommandHandler createThemeCommandHandler() {
+        return new ThemeCommandHandler(new ThemeCommandHandler.Host() {
+            @Override
+            public List<ThemeItem> discoverThemes() {
+                return themeMgr.discover();
+            }
+
+            @Override
+            public void showThemes(List<ThemeItem> items) {
+                selectors.show(TuiSelectors.Slot.THEME, items);
+            }
+
+            @Override
+            public void selectCurrentTheme() {
+                selectors.<ThemeItem>selectFirst(TuiSelectors.Slot.THEME, ThemeItem::current);
+            }
+
+            @Override
+            public java.util.Optional<ThemeItem> selectedTheme() {
+                return selectors.selected(TuiSelectors.Slot.THEME);
+            }
+
+            @Override
+            public void clearPrompt() {
+                promptEditor.setText("");
+            }
+
+            @Override
+            public void redrawPrompt() {
+                AppendOnlyTui.this.redrawPrompt();
+            }
+
+            @Override
+            public void appendError(String message) {
+                AppendOnlyTui.this.appendError(message);
+            }
+
+            @Override
+            public void switchToTheme(String name) {
+                themeMgr.switchTo(name);
+            }
+
+            @Override
+            public void switchToThemePath(String path) {
+                themeMgr.switchToPath(path);
+            }
+
+            @Override
+            public void deactivateThemeSelector() {
+                selectors.deactivate(TuiSelectors.Slot.THEME);
+            }
+        });
+    }
+
+    private LoginCommandHandler createLoginCommandHandler() {
+        return new LoginCommandHandler(new LoginCommandHandler.Host() {
+            @Override
+            public void showProviders(List<LoginProviderItem> items) {
+                selectors.show(TuiSelectors.Slot.LOGIN, items);
+            }
+
+            @Override
+            public java.util.Optional<LoginProviderItem> selectedProvider() {
+                return selectors.selected(TuiSelectors.Slot.LOGIN);
+            }
+
+            @Override
+            public void deactivateProviderSelector() {
+                selectors.deactivate(TuiSelectors.Slot.LOGIN);
+            }
+
+            @Override
+            public void clearPrompt() {
+                promptEditor.setText("");
+            }
+
+            @Override
+            public void redrawPrompt() {
+                AppendOnlyTui.this.redrawPrompt();
+            }
+
+            @Override
+            public void appendError(String message) {
+                AppendOnlyTui.this.appendError(message);
+            }
+
+            @Override
+            public void appendStatus(String message) {
+                appendPlain(List.of(theme.styled("statusText", message)));
+            }
+
+            @Override
+            public void submitAuthTask(Runnable task) {
+                agentExecutor.submit(task);
+            }
+
+            @Override
+            public void suspendTui() {
+                AppendOnlyTui.this.suspendTui();
+            }
+
+            @Override
+            public void resumeTui() {
+                AppendOnlyTui.this.resumeTui();
+            }
+
+            @Override
+            public void setDefaultModelForProvider(String provider, String model) throws IOException {
+                settings.setDefaultModelForProvider(provider, model);
+            }
+
+            @Override
+            public void removeApiKey(String provider) throws IOException {
+                settings.removeApiKey(provider);
+            }
+        });
+    }
+
+    private CommandPaletteHandler createCommandPaletteHandler() {
+        return new CommandPaletteHandler(new CommandPaletteHandler.Host() {
+            @Override
+            public boolean busy() {
+                return busy.get();
+            }
+
+            @Override
+            public List<CompletionItem> commands() {
+                return AppendOnlyTui.this.commands.completeWithDescriptions("");
+            }
+
+            @Override
+            public List<ModelInfo> availableModels() {
+                return ModelRegistry.KNOWN_MODELS.stream().filter(
+                                                m -> settings != null && settings.resolveApiKey(m.provider()) != null)
+                                                .toList();
+            }
+
+            @Override
+            public java.util.Optional<ModelInfo> model(String id) {
+                return ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equals(id)).findFirst();
+            }
+
+            @Override
+            public List<ThemeItem> themes() {
+                return themeMgr.discover();
+            }
+
+            @Override
+            public List<SessionItem> sessions() {
+                return SessionItem.fromPaths(session.resumableSessions());
+            }
+
+            @Override
+            public void showPalette(List<CompletionItem> items) {
+                selectors.show(TuiSelectors.Slot.PALETTE, items);
+            }
+
+            @Override
+            public java.util.Optional<CompletionItem> selectedPaletteItem() {
+                return selectors.selected(TuiSelectors.Slot.PALETTE);
+            }
+
+            @Override
+            public void deactivatePalette() {
+                selectors.deactivate(TuiSelectors.Slot.PALETTE);
+            }
+
+            @Override
+            public void clearPrompt() {
+                promptEditor.setText("");
+            }
+
+            @Override
+            public void redrawPrompt() {
+                AppendOnlyTui.this.redrawPrompt();
+            }
+
+            @Override
+            public void appendError(String message) {
+                AppendOnlyTui.this.appendError(message);
+            }
+
+            @Override
+            public void handleCommand(String command) {
+                commandController.handle(command);
+            }
+
+            @Override
+            public void switchModel(ModelInfo model) {
+                AppendOnlyTui.this.switchToModel(model);
+            }
+
+            @Override
+            public void switchTheme(String name) {
+                themeMgr.switchTo(name);
+            }
+
+            @Override
+            public void loadSession(String name) {
+                AppendOnlyTui.this.loadSession("/load " + name);
+            }
+        });
     }
 
     public void run(String version, String cwd) {
@@ -706,11 +1081,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     }
                     if (key == Key.Special.CTRL_P) {
-                        cycleModel();
+                        showCommandPalette();
                         continue;
                     }
                     if (key == Key.Special.CTRL_SHIFT_P) {
-                        showCommandPalette();
+                        cycleModel();
                         continue;
                     }
                     if (helpOverlayActive() && (key == Key.Special.ESC || key == Key.Special.ENTER
@@ -1017,47 +1392,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showSkills() {
-        if (skills.isEmpty()) {
-            appendPlain(List.of(theme.styled("statusText", "no skills found")));
-            return;
-        }
-        var lines = new ArrayList<String>();
-        lines.add(theme.styled("toolLabel", "skills (" + skills.size() + ")"));
-        for (var s : skills) {
-            String desc = s.description() != null && !s.description().isBlank() ? "  " + s.description() : "";
-            lines.add(theme.styled("statusText", "  " + s.name()) + theme.styled("commandMeta", desc));
-        }
-        lines.add(theme.styled("statusText", "usage: /skill:<name> [instructions]"));
-        appendPlain(lines);
+        skillCommands.showSkills();
     }
 
     void handleSkillCommand(String input) {
-        String rest = input.substring("/skill:".length());
-        String name = rest;
-        String instructions = "";
-        int space = rest.indexOf(' ');
-        if (space > 0) {
-            name = rest.substring(0, space);
-            instructions = rest.substring(space + 1).trim();
-        }
-        var skill = SkillLoader.findByName(skills, name);
-        if (skill == null) {
-            appendPlain(List.of(theme.styled("toolError", "skill not found: " + name)));
-            return;
-        }
-        String expanded = "# Skill: " + skill.name() + "\n\n" + skill.content()
-                                        + (instructions.isEmpty() ? "" : "\n\n# Instructions\n\n" + instructions);
-        appendPlain(promptEcho(input));
-        long gen = beginBusy("waiting for model");
-        redrawPrompt();
-        agentExecutor.submit(() -> {
-            try {
-                session.prompt(expanded).join();
-            } finally {
-                showSessionWarning();
-                endBusy(gen);
-            }
-        });
+        skillCommands.handleSkillCommand(input);
     }
 
     private void showSessionWarning() {
@@ -1065,195 +1404,31 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showSettingsSelector() {
-        if (settings == null) {
-            appendPlain(List.of(theme.styled("toolError", "settings unavailable")));
-            return;
-        }
-        selectors.show(TuiSelectors.Slot.SETTINGS, settingsItems());
-        promptEditor.setText("");
-        redrawPrompt();
-        return;
-    }
-
-    private List<SettingsItem> settingsItems() {
-        var cfg = settings.config();
-        boolean context = settings.contextFilesEnabled();
-        boolean compact = settings.compactionEnabled();
-        boolean shorten = settings.shortenPathsEnabled();
-        return List.of(new SettingsItem("auto_compact", "Auto-compact", compact ? "on" : "off", compact),
-                                        new SettingsItem("context_files", "Context files", context
-                                                                        ? "on  next session"
-                                                                        : "off  next session", context),
-                                        new SettingsItem("shorten_paths", "Shorten paths", shorten ? "on" : "off",
-                                                                        shorten),
-                                        new SettingsItem("thinking_level", "Thinking", thinkingLevel.label(), true),
-                                        new SettingsItem("hide_thinking", "Hide thinking",
-                                                                        cfg.hideThinking() ? "on" : "off",
-                                                                        cfg.hideThinking()),
-                                        new SettingsItem("quiet_startup", "Quiet startup", cfg.quietStartup()
-                                                                        ? "on  next start"
-                                                                        : "off  next start", cfg.quietStartup()));
+        settingsCommands.showSettingsSelector();
     }
 
     private void confirmSettingsSelection() {
-        var chosen = selectors.<SettingsItem>selected(TuiSelectors.Slot.SETTINGS).orElse(null);
-        if (chosen == null)
-            return;
-        switch (chosen.id()) {
-            case "auto_compact" -> settings.setCompactionEnabled(!settings.compactionEnabled());
-            case "context_files" -> settings.setContextFilesEnabled(!settings.contextFilesEnabled());
-            case "thinking_level" -> {
-                thinkingLevel = thinkingLevel.next();
-                session.setThinkingLevel(thinkingLevel);
-                settings.setThinkingLevel(thinkingLevel.name());
-            }
-            case "hide_thinking" -> settings.setHideThinking(!settings.config().hideThinking());
-            case "quiet_startup" -> settings.setQuietStartup(!settings.config().quietStartup());
-            case "shorten_paths" -> settings.setShortenPathsEnabled(!settings.shortenPathsEnabled());
-            default -> {}
-        }
-        selectors.refresh(TuiSelectors.Slot.SETTINGS, settingsItems());
-        if (chosen.id().equals("auto_compact")) {
-            session.setAutoCompactionEnabled(settings.compactionEnabled());
-        }
-        setTransientStatus(chosen.id().equals("context_files") || chosen.id().equals("quiet_startup")
-                                        ? chosen.titleText() + " updated for next start/session"
-                                        : chosen.titleText() + " updated", 2500);
+        settingsCommands.confirmSettingsSelection();
     }
 
     void showLoginSelector() {
-        var items = new ArrayList<LoginProviderItem>();
-        for (var p : ProviderCatalog.providers()) {
-            if (p.oauth() != null) {
-                items.add(new LoginProviderItem(p.id(), p.displayName(), "OAuth", false));
-            }
-        }
-        if (items.isEmpty()) {
-            appendPlain(List.of(theme.styled("toolError", "no providers support OAuth login")));
-            return;
-        }
-        loginIsLogout = false;
-        selectors.show(TuiSelectors.Slot.LOGIN, items);
-        promptEditor.setText("");
-        redrawPrompt();
+        loginCommands.showLoginSelector();
     }
 
     private void confirmLoginSelection() {
-        var chosen = selectors.<LoginProviderItem>selected(TuiSelectors.Slot.LOGIN).orElse(null);
-        if (chosen == null)
-            return;
-        selectors.deactivate(TuiSelectors.Slot.LOGIN);
-        promptEditor.setText("");
-        redrawPrompt();
-        appendPlain(List.of(theme.styled("statusText", "Starting OAuth login for " + chosen.titleText() + "...")));
-
-        agentExecutor.submit(() -> {
-            try {
-                var oauth = ProviderCatalog.oauth(chosen.id());
-                if (oauth.isEmpty()) {
-                    appendPlain(List.of(theme.styled("toolError", chosen.titleText() + " has no OAuth config")));
-                    return;
-                }
-                var o = oauth.get();
-
-                suspendTui();
-
-                OAuthLogin.TokenResult result;
-                if (o.oauthTokenEndpoint() != null && !o.oauthTokenEndpoint().isBlank()) {
-                    result = OAuthLogin.loginOpenAI(o.deviceEndpoint(), o.tokenEndpoint(), o.oauthTokenEndpoint(),
-                                                    o.clientId());
-                } else {
-                    result = OAuthLogin.login(o.deviceEndpoint(), o.tokenEndpoint(), o.clientId(), o.scope());
-                }
-
-                resumeTui();
-
-                var oauthCfg = oauth.get();
-                String tokenUrl = oauthCfg.oauthTokenEndpoint() != null && !oauthCfg.oauthTokenEndpoint().isBlank()
-                                                ? oauthCfg.oauthTokenEndpoint()
-                                                : oauthCfg.tokenEndpoint();
-                var store = new OAuthTokenStore();
-                store.save(chosen.id(), result.accessToken(), result.refreshToken(), result.expiresAt(),
-                                                result.accountId(), tokenUrl, oauthCfg.clientId());
-                String defaultModel = ModelRegistry.defaultModelForProvider(chosen.id());
-                if (defaultModel != null) {
-                    settings.setDefaultModelForProvider(chosen.id(), defaultModel);
-                }
-                appendPlain(List.of(theme.styled("statusText", System.lineSeparator() + "Logged in to "
-                                                + chosen.titleText() + "  model: "
-                                                + (defaultModel != null ? defaultModel : ""))));
-                redrawPrompt();
-            } catch (Exception e) {
-                if (e instanceof InterruptedException)
-                    Thread.currentThread().interrupt();
-                resumeTui();
-                appendPlain(List.of(theme.styled("toolError",
-                                                "Login failed: " + (e.getMessage() != null
-                                                                                ? e.getMessage()
-                                                                                : e.getClass().getSimpleName()))));
-                redrawPrompt();
-            }
-        });
+        loginCommands.confirmProviderSelection();
     }
 
     void showLogoutSelector() {
-        var store = new ai.pijota.config.OAuthTokenStore();
-        var items = new ArrayList<LoginProviderItem>();
-        for (var p : ProviderCatalog.providers()) {
-            if (p.oauth() != null) {
-                String tok = store.getAccessToken(p.id());
-                items.add(new LoginProviderItem(p.id(), p.displayName(), tok != null ? "logged in" : "not logged in",
-                                                false));
-            }
-        }
-        if (items.isEmpty()) {
-            appendPlain(List.of(theme.styled("toolError", "no providers to log out")));
-            return;
-        }
-        loginIsLogout = true;
-        selectors.show(TuiSelectors.Slot.LOGIN, items);
-        promptEditor.setText("");
-        redrawPrompt();
-    }
-
-    private void confirmLogoutSelection() {
-        var chosen = selectors.<LoginProviderItem>selected(TuiSelectors.Slot.LOGIN).orElse(null);
-        if (chosen == null)
-            return;
-        selectors.deactivate(TuiSelectors.Slot.LOGIN);
-        promptEditor.setText("");
-        redrawPrompt();
-        var store = new OAuthTokenStore();
-        store.remove(chosen.id());
-        try {
-            settings.removeApiKey(chosen.id());
-        } catch (IOException ignored) {}
-        appendPlain(List.of(theme.styled("statusText", "Logged out of " + chosen.titleText())));
+        loginCommands.showLogoutSelector();
     }
 
     void showThemeSelector() {
-        var items = themeMgr.discover();
-        if (items.isEmpty()) {
-            appendPlain(List.of(theme.styled("toolError", "no themes found")));
-            return;
-        }
-        selectors.show(TuiSelectors.Slot.THEME, items);
-        selectors.<ThemeItem>selectFirst(TuiSelectors.Slot.THEME, ThemeItem::current);
-        promptEditor.setText("");
-        redrawPrompt();
+        themeCommands.showThemeSelector();
     }
 
     private void confirmThemeSelection() {
-        var chosen = selectors.<ThemeItem>selected(TuiSelectors.Slot.THEME).orElse(null);
-        if (chosen == null)
-            return;
-        if (chosen.path().isBlank())
-            themeMgr.switchTo(chosen.name());
-        else
-            themeMgr.switchToPath(chosen.path());
-        selectors.deactivate(TuiSelectors.Slot.THEME);
-        promptEditor.setText("");
-        redrawPrompt();
+        themeCommands.confirmThemeSelection();
     }
 
     private CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
@@ -1322,54 +1497,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void showCommandPalette() {
-        if (busy.get()) {
-            appendPlain(List.of(theme.styled("toolError", "command palette is unavailable while a turn is running")));
-            redrawPrompt();
-            return;
-        }
-        var items = new ArrayList<CompletionItem>();
-        for (var cmd : commands.completeWithDescriptions("")) {
-            items.add(new CompletionItem(cmd.name(), "[cmd] " + cmd.description()));
-        }
-        for (var model : ModelRegistry.KNOWN_MODELS.stream()
-                                        .filter(m -> settings != null && settings.resolveApiKey(m.provider()) != null)
-                                        .sorted(java.util.Comparator.comparing(ModelInfo::id)).toList()) {
-            items.add(new CompletionItem(model.id(), "[model] " + model.provider() + "  "
-                                            + (int) (model.contextWindow() / 1024) + "K"));
-        }
-        for (var theme : themeMgr.discover()) {
-            items.add(new CompletionItem(theme.name(), "[theme] " + (theme.current() ? "current" : theme.path())));
-        }
-        for (var sessionItem : SessionItem.fromPaths(session.resumableSessions())) {
-            items.add(new CompletionItem(sessionItem.name(), "[session] " + sessionItem.detailText()));
-        }
-        selectors.show(TuiSelectors.Slot.PALETTE, items);
-        promptEditor.setText("");
-        redrawPrompt();
+        commandPalette.showCommandPalette();
     }
 
     private void confirmPaletteSelection() {
-        var selected = selectors.<CompletionItem>selected(TuiSelectors.Slot.PALETTE).orElse(null);
-        if (selected == null)
-            return;
-        String name = selected.name();
-        String desc = selected.description();
-        selectors.deactivate(TuiSelectors.Slot.PALETTE);
-        promptEditor.setText("");
-        if (desc.startsWith("[cmd] ")) {
-            commandController.handle(name);
-        } else if (desc.startsWith("[model] ")) {
-            var model = ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equals(name)).findFirst().orElse(null);
-            if (model != null)
-                switchToModel(model);
-            else
-                appendError("model not found: " + name);
-        } else if (desc.startsWith("[theme] ")) {
-            themeMgr.switchTo(name);
-        } else if (desc.startsWith("[session] ")) {
-            loadSession("/load " + name);
-        }
-        redrawPrompt();
+        commandPalette.confirmPaletteSelection();
     }
 
     boolean helpOverlayActive() {
@@ -1393,7 +1525,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 {"Shift+Tab", "toggle thinking"}, {"Up/Down", "history / navigate"},
                 {"Esc", "interrupt (double-force)"}, {"Ctrl+C", "clear / double to exit"}, {"Ctrl+K", "delete to end"},
                 {"Ctrl+U", "clear line"}, {"Ctrl+W", "delete word"}, {"Ctrl+A/E", "start/end of line"},
-                {"Ctrl+L", "select model"}, {"Ctrl+P", "cycle model forward"}, {"Ctrl+Shift+P", "command palette"},
+                {"Ctrl+L", "select model"}, {"Ctrl+P", "command palette"}, {"Ctrl+Shift+P", "cycle model forward"},
                 {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"?", "show this help"}};
         int keyWidth = 0;
         for (var k : keys)
@@ -1532,8 +1664,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 {"Shift+Tab", "toggle thinking"}, {"Up/Down", "history / navigate"},
                 {"Esc", "interrupt (double-force)"}, {"Ctrl+C", "clear / double to exit"}, {"Ctrl+K", "delete to end"},
                 {"Ctrl+U", "clear line"}, {"Ctrl+W", "delete word"}, {"Ctrl+A/E", "start/end of line"},
-                {"Ctrl+L", "select model"}, {"Ctrl+P", "cycle model forward"}, {"Ctrl+Shift+P", "cycle model backward"},
-                {"Ctrl+G", "open in editor"},};
+                {"Ctrl+L", "select model"}, {"Ctrl+P", "command palette"}, {"Ctrl+Shift+P", "cycle model forward"},
+                {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"?", "show this help"}};
 
         int keyWidth = 0;
         for (var k : keys)

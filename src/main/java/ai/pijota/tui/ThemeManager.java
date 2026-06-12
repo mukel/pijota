@@ -9,20 +9,30 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class ThemeManager {
-    private final AppendOnlyTui tui;
+    interface Host {
+        AnsiTheme theme();
 
-    ThemeManager(AppendOnlyTui tui) {
-        this.tui = tui;
+        void setTheme(AnsiTheme theme);
+
+        void appendError(String message);
+
+        void appendStatus(String message);
+    }
+
+    private final Host host;
+
+    ThemeManager(Host host) {
+        this.host = host;
     }
 
     List<ThemeItem> discover() {
         var items = new ArrayList<ThemeItem>();
         for (String name : builtinNames()) {
-            items.add(new ThemeItem(name, "", tui.theme().name.equals(name)));
+            items.add(new ThemeItem(name, "", host.theme().name.equals(name)));
         }
         for (Path p : fileThemes()) {
             String name = themeName(p);
-            items.add(new ThemeItem(name, p.toString(), tui.theme().name.equals(name)));
+            items.add(new ThemeItem(name, p.toString(), host.theme().name.equals(name)));
         }
         return items;
     }
@@ -38,7 +48,7 @@ final class ThemeManager {
                     return;
                 }
             } catch (Exception ignored) {}
-            tui.appendError("theme not found: " + name);
+            host.appendError("theme not found: " + name);
         }
     }
 
@@ -51,16 +61,16 @@ final class ThemeManager {
                 var loaded = AnsiTheme.load(path);
                 apply(loaded, loaded.name != null ? loaded.name : path.getFileName().toString());
             } else {
-                tui.appendError("theme not found: " + pathStr);
+                host.appendError("theme not found: " + pathStr);
             }
         } catch (IOException e) {
-            tui.appendError("theme load failed: " + e.getMessage());
+            host.appendError("theme load failed: " + e.getMessage());
         }
     }
 
     private void apply(AnsiTheme loaded, String displayName) {
-        tui.setTheme(loaded);
-        tui.appendStatus("switched to " + displayName);
+        host.setTheme(loaded);
+        host.appendStatus("switched to " + displayName);
     }
 
     private static Path resolveExternal(String name) {
