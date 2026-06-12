@@ -1,5 +1,7 @@
 package ai.pijota.config;
 
+import ai.pijota.util.SelfRespawn;
+
 import java.nio.file.Path;
 import java.util.List;
 
@@ -18,6 +20,11 @@ public final class SettingsManager {
     public SettingsManager(AppConfig config, java.util.function.Consumer<AppConfig> onSave) {
         this.config = config;
         this.onSave = onSave;
+        if (config.projectDir() == null || config.projectDir().isBlank()) {
+            String detected = SelfRespawn.findGitRoot(System.getProperty("user.dir"));
+            this.config = config.withProjectDir(detected);
+            onSave.accept(this.config);
+        }
     }
 
     private static AppConfig loadConfig() {
@@ -80,6 +87,22 @@ public final class SettingsManager {
     public void setShortenPathsEnabled(boolean enabled) {
         config = config.withShortenPaths(enabled);
         save();
+    }
+
+    public String workingAnimation() {
+        return config.workingAnimation() != null ? config.workingAnimation() : "dots";
+    }
+
+    public void setWorkingAnimation(String name) {
+        config = config.withWorkingAnimation(name);
+        save();
+    }
+
+    public String projectDir() {
+        String dir = config.projectDir();
+        if (dir != null && !dir.isBlank())
+            return dir;
+        return SelfRespawn.findGitRoot(System.getProperty("user.dir"));
     }
 
     public Path sessionDir() {

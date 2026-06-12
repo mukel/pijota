@@ -6,8 +6,11 @@ import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public interface ExtensionAPI {
 
@@ -84,6 +87,14 @@ public interface ExtensionAPI {
     void registerStatusLines(java.util.function.Supplier<List<String>> lines);
 
     void registerFooterLines(java.util.function.Supplier<List<String>> lines);
+
+    void registerExceptionHandler(ExceptionHandler handler);
+
+    void register(String key, Supplier<String> getter);
+
+    void register(String key, Supplier<String> getter, Consumer<String> setter);
+
+    Optional<String> registerValue(String key);
 
     void registerSystemPrompt(java.util.function.Supplier<String> prompt);
 

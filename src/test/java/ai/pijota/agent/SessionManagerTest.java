@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -67,6 +68,17 @@ class SessionManagerTest {
         assertNotNull(cache);
         assertEquals("system", cache.systemPrompt());
         assertEquals("hash", cache.toolManifestHash());
+    }
+
+    @Test
+    void appendsAndReadsLatestRegistersFromCurrentBranch() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession("/workspace/project");
+
+        manager.appendRegisters(file, Map.of("extension.goal.mode", "active"));
+        manager.appendRegisters(file, Map.of("extension.goal.mode", "passive", "session.note", "saved"));
+
+        assertEquals(Map.of("extension.goal.mode", "passive", "session.note", "saved"), manager.latestRegisters(file));
     }
 
     @Test

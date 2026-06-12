@@ -12,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class SettingsCommandHandlerTest {
     @Test
     void buildsSettingsItemsFromSnapshot() {
-        var snapshot = new SettingsCommandHandler.SettingsSnapshot(true, false, true, ThinkingLevel.MEDIUM, false,
-                                        true);
+        var snapshot = new SettingsCommandHandler.SettingsSnapshot(true, false, true, ThinkingLevel.MEDIUM, false, true,
+                                        "dots");
 
         var items = SettingsCommandHandler.items(snapshot);
 
@@ -25,8 +25,12 @@ class SettingsCommandHandlerTest {
         assertEquals("on", items.get(2).detailText());
         assertEquals("Thinking", items.get(3).titleText());
         assertEquals("medium", items.get(3).detailText());
+        assertEquals("Hide thinking", items.get(4).titleText());
+        assertEquals("off", items.get(4).detailText());
         assertEquals("Quiet startup", items.get(5).titleText());
         assertEquals("on  next start", items.get(5).detailText());
+        assertEquals("Animation", items.get(6).titleText());
+        assertEquals("dots", items.get(6).detailText());
     }
 
     @Test
@@ -89,6 +93,7 @@ class SettingsCommandHandlerTest {
         ThinkingLevel thinkingLevel = ThinkingLevel.MEDIUM;
         boolean hideThinking;
         boolean quietStartup;
+        String workingAnimation = "dots";
         boolean sessionAutoCompactionEnabled;
         SettingsItem selected;
         String status;
@@ -104,7 +109,8 @@ class SettingsCommandHandlerTest {
         @Override
         public SettingsCommandHandler.SettingsSnapshot settingsSnapshot() {
             return new SettingsCommandHandler.SettingsSnapshot(contextFilesEnabled, compactionEnabled,
-                                            shortenPathsEnabled, thinkingLevel, hideThinking, quietStartup);
+                                            shortenPathsEnabled, thinkingLevel, hideThinking, quietStartup,
+                                            workingAnimation);
         }
 
         @Override
@@ -167,6 +173,11 @@ class SettingsCommandHandlerTest {
         @Override
         public void toggleQuietStartup() {
             quietStartup = !quietStartup;
+        }
+
+        @Override
+        public void toggleWorkingAnimation() {
+            workingAnimation = workingAnimation.equals("dots") ? "moon" : "dots";
         }
 
         @Override

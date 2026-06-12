@@ -45,7 +45,8 @@ public final class SelfRespawn {
 
     public static boolean requestRespawn(Path jar, String mergeBranch, Path mergeWorktree) {
         if (jar == null || !Files.exists(jar)) {
-            System.err.println(LOCK_PREFIX + "requestRespawn: jar is null or missing");
+            System.err.println(LOCK_PREFIX + "requestRespawn: jar not found" + (jar != null ? " at " + jar : "")
+                                            + " — build first: mvn package -Pfat -q");
             return false;
         }
         if (pending.get()) {
@@ -140,8 +141,8 @@ public final class SelfRespawn {
         if (jar == null || !Files.exists(jar)) {
             jar = findJarIn(Path.of(System.getProperty("user.dir")));
             if (jar == null || !Files.exists(jar)) {
-                lastRespawnError = "no jar found for respawn";
-                System.err.println(LOCK_PREFIX + lastRespawnError + " — aborting");
+                lastRespawnError = "no jar found for respawn — rebuild with: mvn package -Pfat -q";
+                System.err.println(LOCK_PREFIX + lastRespawnError);
                 return;
             }
         }
@@ -160,6 +161,16 @@ public final class SelfRespawn {
         } finally {
             respawnInProgress.set(false);
         }
+    }
+
+    public static String findGitRoot(String startDir) {
+        Path dir = Path.of(startDir).toAbsolutePath().normalize();
+        while (dir != null) {
+            if (Files.isDirectory(dir.resolve(".git")))
+                return dir.toString();
+            dir = dir.getParent();
+        }
+        return startDir;
     }
 
     public static Path findCurrentJar() {
@@ -245,7 +256,7 @@ public final class SelfRespawn {
     public static void respawn(Path jar, Path sessionFile, boolean resumeSession, String mergeBranch,
                                     Path mergeWorktree) {
         if (jar == null || !Files.exists(jar)) {
-            lastRespawnError = "jar not found: " + jar;
+            lastRespawnError = "jar not found" + (jar != null ? " at " + jar : "") + " — rebuild: mvn package -Pfat -q";
             System.err.println(LOCK_PREFIX + "respawn aborted: " + lastRespawnError);
             return;
         }
@@ -268,8 +279,10 @@ public final class SelfRespawn {
 
     private static void showRecoveryHint() {
         if (canRollback()) {
-            System.err.println(LOCK_PREFIX + "backup available — recover with:");
+            System.err.println(LOCK_PREFIX + "rollback available — recover with:");
             System.err.println("  java -jar target/pijota-backup.jar --recover");
+        } else {
+            System.err.println(LOCK_PREFIX + "no rollback available — rebuild: mvn package -Pfat -q");
         }
     }
 

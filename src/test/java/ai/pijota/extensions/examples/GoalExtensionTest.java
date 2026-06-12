@@ -5,6 +5,7 @@ import ai.pijota.extensions.ExtensionContext;
 import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.ExtensionResult;
 import ai.pijota.extensions.ExtensionRuntime;
+import ai.pijota.extensions.ExceptionHandler;
 import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.llm.StreamResult;
@@ -16,11 +17,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import ai.pijota.extensions.ExtensionKeybinding;
@@ -420,6 +423,20 @@ class GoalExtensionTest {
 
         @Override
         public void registerFooterLines(Supplier<List<String>> lines) {}
+
+        @Override
+        public void registerExceptionHandler(ExceptionHandler handler) {}
+
+        @Override
+        public void register(String key, Supplier<String> getter) {}
+
+        @Override
+        public void register(String key, Supplier<String> getter, Consumer<String> setter) {}
+
+        @Override
+        public Optional<String> registerValue(String key) {
+            return Optional.empty();
+        }
 
         @Override
         public void registerSystemPrompt(Supplier<String> prompt) {}

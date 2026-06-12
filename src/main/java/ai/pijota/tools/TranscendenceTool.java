@@ -81,7 +81,8 @@ public final class TranscendenceTool implements Tool {
 
     private ToolResult doBuild(Path projectRoot) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
-            return ToolResult.error("No pom.xml found at " + projectRoot);
+            return ToolResult.error("No pom.xml found at " + projectRoot + "\nRecovery: cd " + projectRoot
+                                            + " && mvn package -Pfat -q");
 
         try {
             Path currentJar = SelfRespawn.findCurrentJar();
@@ -94,13 +95,14 @@ public final class TranscendenceTool implements Tool {
         try {
             result = SelfRespawn.buildJar(projectRoot);
         } catch (IOException e) {
-            return ToolResult.error("✕ Transcend failed\n\nBuild error: " + e.getMessage());
+            return ToolResult.error("✕ Transcend failed\n\nBuild error: " + e.getMessage() + "\n\nRecovery: cd "
+                                            + projectRoot + " && mvn package -Pfat -q");
         }
         Path log = writeTranscendLog("build", result.stdout());
 
         if (result.timedOut()) {
             return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build", "Build timed out.",
-                                            log));
+                                            log, "mvn package -Pfat -q"));
         }
 
         var details = new LinkedHashMap<String, Object>();
@@ -110,7 +112,7 @@ public final class TranscendenceTool implements Tool {
 
         if (result.exitCode() != 0) {
             return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
-                                            "Build exited " + result.exitCode() + ".", log));
+                                            "Build exited " + result.exitCode() + ".", log, "mvn package -Pfat -q"));
         }
 
         Path jar = SelfRespawn.findJarIn(projectRoot);
@@ -118,7 +120,8 @@ public final class TranscendenceTool implements Tool {
             details.put("jar", jar.getFileName().toString());
         } else {
             return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
-                                            "Build finished, but no jar was found in target/.", log));
+                                            "Build finished, but no jar was found in target/.", log,
+                                            "mvn package -Pfat -q"));
         }
 
         return ToolResult.success("→ Transcend\n  ✓ preserved current build\n  ✓ compiled new build  "
@@ -127,14 +130,15 @@ public final class TranscendenceTool implements Tool {
 
     private ToolResult doTest(Path projectRoot) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
-            return ToolResult.error("No pom.xml found at " + projectRoot);
+            return ToolResult.error("No pom.xml found at " + projectRoot + "\nRecovery: cd " + projectRoot
+                                            + " && mvn test");
 
         ProcessRunner.Result result = ProcessRunner.command("mvn", "test").workDir(projectRoot)
                                         .redirectErrorStream(true).run();
         Path log = writeTranscendLog("test", result.stdout());
 
         if (result.timedOut()) {
-            return ToolResult.error(failure("✕ tests failed", null, "Tests timed out.", log));
+            return ToolResult.error(failure("✕ tests failed", null, "Tests timed out.", log, "mvn test"));
         }
 
         var details = new LinkedHashMap<String, Object>();
@@ -143,7 +147,8 @@ public final class TranscendenceTool implements Tool {
             details.put("log", log.toString());
 
         if (result.exitCode() != 0) {
-            return ToolResult.error(failure("✕ tests failed", null, "Tests exited " + result.exitCode() + ".", log));
+            return ToolResult.error(failure("✕ tests failed", null, "Tests exited " + result.exitCode() + ".", log,
+                                            "mvn test"));
         }
 
         return ToolResult.success("→ Transcend\n  ✓ tests passed\n\nNext: transcendence action=\"respawn\" with the same worktree.",
@@ -152,7 +157,8 @@ public final class TranscendenceTool implements Tool {
 
     private ToolResult doRespawn(Path projectRoot, String mergeBranch) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
-            return ToolResult.error("No pom.xml found at " + projectRoot);
+            return ToolResult.error("No pom.xml found at " + projectRoot + "\nRecovery: cd " + projectRoot
+                                            + " && mvn package -Pfat -q");
 
         try {
             Path currentJar = SelfRespawn.findCurrentJar();
@@ -165,20 +171,25 @@ public final class TranscendenceTool implements Tool {
         try {
             buildResult = SelfRespawn.buildJar(projectRoot);
         } catch (IOException e) {
-            return ToolResult.error("✕ Transcend failed\n\nBuild error: " + e.getMessage());
+            return ToolResult.error("✕ Transcend failed\n\nBuild error: " + e.getMessage() + "\n\nRecovery: cd "
+                                            + projectRoot + " && mvn package -Pfat -q");
         }
         Path log = writeTranscendLog("build", buildResult.stdout());
 
         if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
-            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build", buildResult.timedOut()
-                                            ? "Build timed out."
-                                            : "Build exited " + buildResult.exitCode() + ".", log));
+            return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
+                                            buildResult.timedOut()
+                                                                            ? "Build timed out."
+                                                                            : "Build exited " + buildResult.exitCode()
+                                                                                                            + ".",
+                                            log, "mvn package -Pfat -q"));
         }
 
         Path jar = SelfRespawn.findJarIn(projectRoot);
         if (jar == null || !Files.exists(jar)) {
             return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
-                                            "Build finished, but no jar was found in target/.", log));
+                                            "Build finished, but no jar was found in target/.", log,
+                                            "mvn package -Pfat -q"));
         }
 
         if (!SelfRespawn.requestRespawn(jar, mergeBranch, projectRoot)) {
@@ -203,7 +214,8 @@ public final class TranscendenceTool implements Tool {
 
     private ToolResult doRollback(Path projectRoot) {
         if (!SelfRespawn.canRollback())
-            return ToolResult.error("No backup jar found. Nothing to rollback to.");
+            return ToolResult.error("No backup jar found. Nothing to rollback to."
+                                            + "\nRecovery: mvn package -Pfat -q && retry transcend");
 
         Path jar = SelfRespawn.findJarIn(projectRoot);
         if (jar == null) {
@@ -216,7 +228,8 @@ public final class TranscendenceTool implements Tool {
         try {
             SelfRespawn.rollback(jar);
         } catch (IOException e) {
-            return ToolResult.error("Rollback failed: " + e.getMessage());
+            return ToolResult.error("Rollback failed: " + e.getMessage() + "\nRecovery: cp target/pijota-backup.jar "
+                                            + jar);
         }
 
         SelfRespawn.requestRespawn(jar);
@@ -224,6 +237,10 @@ public final class TranscendenceTool implements Tool {
     }
 
     static String failure(String step1, String step2, String message, Path log) {
+        return failure(step1, step2, message, log, null);
+    }
+
+    static String failure(String step1, String step2, String message, Path log, String recovery) {
         var sb = new StringBuilder("→ Transcend\n");
         if (step1 != null)
             sb.append("  ").append(step1).append('\n');
@@ -232,6 +249,8 @@ public final class TranscendenceTool implements Tool {
         sb.append("\nStill running previous build.\n").append(message);
         if (log != null)
             sb.append("\nlog: ").append(log);
+        if (recovery != null && !recovery.isBlank())
+            sb.append("\nrecovery: ").append(recovery);
         return sb.toString();
     }
 

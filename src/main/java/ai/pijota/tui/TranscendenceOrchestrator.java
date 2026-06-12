@@ -47,6 +47,10 @@ final class TranscendenceOrchestrator {
         Path sessionFile();
 
         void setStatusOverride(String status);
+
+        String projectDir();
+
+        boolean isGitRepo();
     }
 
     private final Host host;
@@ -56,6 +60,12 @@ final class TranscendenceOrchestrator {
     }
 
     void handle(String args) {
+        if (!host.isGitRepo()) {
+            host.appendPlain(List.of(host.styled("toolError", "not a git repository at " + host.projectDir()), host
+                                            .styled("statusText", "recovery: run from a git repo root, or set project_dir in settings.json"),
+                                            host.styled("statusText", "  e.g. settings include {\"project_dir\": \"/path/to/pijota\"}")));
+            return;
+        }
         var parsed = parseTranscendArgs(args);
         if (host.busy()) {
             host.appendPlain(List.of(host.styled("toolError",
@@ -78,9 +88,7 @@ final class TranscendenceOrchestrator {
             return;
         }
 
-        String effectiveWorktree = parsed.worktreePath() != null
-                                        ? parsed.worktreePath()
-                                        : System.getProperty("user.dir");
+        String effectiveWorktree = parsed.worktreePath() != null ? parsed.worktreePath() : host.projectDir();
         build(effectiveWorktree, parsed.testMode(), true);
     }
 
@@ -124,7 +132,8 @@ final class TranscendenceOrchestrator {
     private void build(String projectRoot, boolean testMode, boolean showHeader) {
         Path root = Path.of(projectRoot);
         if (!Files.exists(root.resolve("pom.xml"))) {
-            host.appendPlain(List.of(host.styled("toolError", "no pom.xml found at " + root)));
+            host.appendPlain(List.of(host.styled("toolError", "no pom.xml found at " + root), host.styled("statusText",
+                                            "recovery: cd " + root + " && mvn package -Pfat -q")));
             return;
         }
 
@@ -141,7 +150,8 @@ final class TranscendenceOrchestrator {
                 SelfRespawn.backupJar(currentJar);
             } catch (Exception e) {
                 appendFailure(List.of(step("✕", "preserve current build")),
-                                                "Cannot preserve current build: " + e.getMessage(), null);
+                                                "Cannot preserve current build: " + e.getMessage(), null,
+                                                "mvn package -Pfat -q");
                 return;
             }
 
@@ -154,7 +164,7 @@ final class TranscendenceOrchestrator {
                 buildResult = SelfRespawn.buildJar(root);
             } catch (Exception e) {
                 appendFailure(List.of(step("✓", "preserved current build"), step("✕", "compile new build")),
-                                                "Build error: " + e.getMessage(), null);
+                                                "Build error: " + e.getMessage(), null, "mvn package -Pfat -q");
                 return;
             }
 
@@ -166,7 +176,7 @@ final class TranscendenceOrchestrator {
                                                                                 ? "Build timed out."
                                                                                 : "Build exited " + buildResult.exitCode()
                                                                                                                 + ".",
-                                                log);
+                                                log, "mvn package -Pfat -q");
                 return;
             }
 
@@ -175,7 +185,7 @@ final class TranscendenceOrchestrator {
                 appendFailure(List.of(step("✓", "preserved current build"), step("✕", "compile new build")),
                                                 "Build finished, but no jar was found in " + root.resolve("target")
                                                                                 + ".",
-                                                log);
+                                                log, "mvn package -Pfat -q");
                 return;
             }
 
@@ -219,7 +229,8 @@ final class TranscendenceOrchestrator {
             String err = SelfRespawn.lastRespawnError();
             if (err != null) {
                 appendFailure(List.of(step("✓", "preserved current build"), step("✓", "compiled new build"),
-                                                step("✕", "restart into new build")), err, log);
+                                                step("✕", "restart into new build")), err, log,
+                                                "java -jar " + jar.getFileName());
             } else {
                 keepBusy = true;
             }
@@ -245,7 +256,7 @@ final class TranscendenceOrchestrator {
         host.appendPlain(List.of(host.styled("toolLabel", "→ Transcend")));
     }
 
-    private void appendFailure(List<String> steps, String message, Path log) {
+    private void appendFailure(List<String> steps, String message, Path log, String recovery) {
         var lines = new ArrayList<String>();
         for (String step : steps) {
             String slot = step.startsWith("✕") ? "toolError" : "statusText";
@@ -256,7 +267,13 @@ final class TranscendenceOrchestrator {
         lines.add(host.styled("toolError", message));
         if (log != null)
             lines.add(host.styled("statusText", "log: " + log));
+        if (recovery != null && !recovery.isBlank())
+            lines.add(host.styled("statusText", "recovery: " + recovery));
         host.appendPlain(lines);
+    }
+
+    private void appendFailure(List<String> steps, String message, Path log) {
+        appendFailure(steps, message, log, null);
     }
 
     private Path writeLog(String label, String output) {
@@ -299,14 +316,19 @@ final class TranscendenceOrchestrator {
                                                         .redirectErrorStream(true).run();
                         if (wtResult.exitCode() != 0) {
                             host.appendPlain(List.of(host.styled("toolError", "worktree creation failed:"),
-                                                            host.styled("toolError", wtResult.stdout().strip())));
+                                                            host.styled("toolError", wtResult.stdout().strip()),
+                                                            host.styled("statusText", "recovery: rm -rf "
+                                                                                            + finalWorktree
+                                                                                            + " && /transcend "
+                                                                                            + goal)));
                             host.endBusy(gen);
                             host.redrawPrompt();
                             return;
                         }
                     } catch (IOException e) {
-                        host.appendPlain(List.of(host.styled("toolError",
-                                                        "worktree creation error: " + e.getMessage())));
+                        host.appendPlain(List.of(host.styled("toolError", "worktree creation error: " + e.getMessage()),
+                                                        host.styled("statusText", "recovery: rm -rf " + finalWorktree
+                                                                                        + " && /transcend " + goal)));
                         host.endBusy(gen);
                         host.redrawPrompt();
                         return;
@@ -365,14 +387,18 @@ final class TranscendenceOrchestrator {
         try {
             buildResult = SelfRespawn.buildJar(root);
         } catch (Exception e) {
-            appendFailure(List.of("✕ compile final build"), "Build error: " + e.getMessage(), null);
+            appendFailure(List.of("✕ compile final build"), "Build error: " + e.getMessage(), null,
+                                            "mvn package -Pfat -q");
             return;
         }
         Path buildLog = writeLog("final-build", buildResult.stdout());
         if (buildResult.exitCode() != 0 || buildResult.timedOut()) {
-            appendFailure(List.of("✕ compile final build"), buildResult.timedOut()
-                                            ? "Build timed out."
-                                            : "Build exited " + buildResult.exitCode() + ".", buildLog);
+            appendFailure(List.of("✕ compile final build"),
+                                            buildResult.timedOut()
+                                                                            ? "Build timed out."
+                                                                            : "Build exited " + buildResult.exitCode()
+                                                                                                            + ".",
+                                            buildLog, "mvn package -Pfat -q");
             return;
         }
         host.appendPlain(List.of(host.styled("statusText", "  ✓ compiled final build")));
@@ -381,15 +407,15 @@ final class TranscendenceOrchestrator {
         try {
             testResult = ProcessRunner.command("mvn", "test").workDir(root).redirectErrorStream(true).run();
         } catch (Exception e) {
-            appendFailure(List.of("✓ compiled final build", "✕ run final tests"), "Test error: " + e.getMessage(),
-                                            null);
+            appendFailure(List.of("✓ compiled final build", "✕ run final tests"), "Test error: " + e.getMessage(), null,
+                                            "mvn test");
             return;
         }
         Path testLog = writeLog("final-test", testResult.stdout());
         if (testResult.exitCode() != 0 || testResult.timedOut()) {
             appendFailure(List.of("✓ compiled final build", "✕ run final tests"), testResult.timedOut()
                                             ? "Tests timed out."
-                                            : "Tests exited " + testResult.exitCode() + ".", testLog);
+                                            : "Tests exited " + testResult.exitCode() + ".", testLog, "mvn test");
             return;
         }
         host.appendPlain(List.of(host.styled("statusText", "  ✓ final tests passed")));
@@ -397,7 +423,8 @@ final class TranscendenceOrchestrator {
         Path jar = SelfRespawn.findJarIn(root);
         if (jar == null || !Files.exists(jar)) {
             appendFailure(List.of("✓ compiled final build", "✓ final tests passed", "✕ find final jar"),
-                                            "Jar not found in " + root.resolve("target") + ".", buildLog);
+                                            "Jar not found in " + root.resolve("target") + ".", buildLog,
+                                            "mvn package -Pfat -q");
             return;
         }
 
@@ -418,23 +445,27 @@ final class TranscendenceOrchestrator {
 
     private void rollback() {
         if (!SelfRespawn.canRollback()) {
-            host.appendPlain(List.of(host.styled("toolError", "no backup jar - nothing to rollback to")));
+            host.appendPlain(List.of(host.styled("toolError", "no backup jar - nothing to rollback to"),
+                                            host.styled("statusText", "recovery: mvn package -Pfat -q && /transcend")));
             return;
         }
 
         Path jar = SelfRespawn.findCurrentJar();
         if (jar == null) {
-            jar = SelfRespawn.findJarIn(Path.of(System.getProperty("user.dir")));
+            jar = SelfRespawn.findJarIn(Path.of(host.projectDir()));
         }
         if (jar == null) {
-            host.appendPlain(List.of(host.styled("toolError", "cannot determine target jar for rollback")));
+            host.appendPlain(List.of(host.styled("toolError", "cannot determine target jar for rollback"), host.styled(
+                                            "statusText",
+                                            "recovery: cp target/pijota-backup.jar target/pijota-$(date +%s).jar")));
             return;
         }
 
         try {
             SelfRespawn.rollback(jar);
         } catch (Exception e) {
-            host.appendPlain(List.of(host.styled("toolError", "rollback failed: " + e.getMessage())));
+            host.appendPlain(List.of(host.styled("toolError", "rollback failed: " + e.getMessage()),
+                                            host.styled("statusText", "recovery: cp target/pijota-backup.jar " + jar)));
             return;
         }
 
@@ -447,7 +478,7 @@ final class TranscendenceOrchestrator {
         host.resumeTui();
         String err = SelfRespawn.lastRespawnError();
         if (err != null)
-            appendFailure(List.of("✓ restored previous build", "✕ restart"), err, null);
+            appendFailure(List.of("✓ restored previous build", "✕ restart"), err, null, "mvn package -Pfat -q");
         host.redrawPrompt();
     }
 
@@ -460,7 +491,9 @@ final class TranscendenceOrchestrator {
         try {
             mergeResult = SelfRespawn.mergeBranch(branch);
         } catch (Exception e) {
-            host.appendPlain(List.of(host.styled("toolError", "merge error: " + e.getMessage())));
+            host.appendPlain(List.of(host.styled("toolError", "merge error: " + e.getMessage()), host.styled(
+                                            "statusText",
+                                            "recovery: git merge --abort && /transcend --merge " + branch)));
             return;
         }
 
@@ -473,7 +506,7 @@ final class TranscendenceOrchestrator {
 
         host.appendPlain(List.of(host.styled("statusText", "  ✓ merge complete")));
         host.redrawPrompt();
-        build(System.getProperty("user.dir"), false, false);
+        build(host.projectDir(), false, false);
     }
 
     static String generateBranch(String goal) {

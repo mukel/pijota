@@ -10,7 +10,11 @@ import ai.pijota.extensions.plan.PlanExtension;
 import ai.pijota.extensions.task.TaskExtension;
 import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ModelRegistry;
+import ai.pijota.registers.RegisterService;
 import ai.pijota.tools.BashTool;
+import ai.pijota.tools.RegistersContainsTool;
+import ai.pijota.tools.RegistersGetTool;
+import ai.pijota.tools.RegistersSetTool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ProcessRunner;
 
@@ -18,6 +22,7 @@ import ai.pijota.util.SelfRespawn;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 
 final class AppBootstrap {
     record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
@@ -58,9 +63,17 @@ final class AppBootstrap {
             }
         }
 
+        var sessions = new SessionManager(settings.sessionDir());
+        Path initialSession = initialSessionPath(parsedArgs, sessions, cwd);
+        var registers = new RegisterService(
+                                        initialSession != null ? sessions.latestRegisters(initialSession) : Map.of());
+
         var tools = parsedArgs.noTools() ? new ToolRegistry() : ToolRegistry.createDefault();
         var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix());
         tools.register(bashTool);
+        tools.register(new RegistersContainsTool(registers));
+        tools.register(new RegistersGetTool(registers));
+        tools.register(new RegistersSetTool(registers));
 
         var llm = new LlmService(provider, model, settings::resolveApiKey);
         String effectiveThinking = parsedArgs.thinkingLevel();
@@ -74,6 +87,7 @@ final class AppBootstrap {
         var ext = new ExtensionRegistry();
         llm.setModelChangeCallback((oldModel, newModel) -> ext.fireModelSelect(newModel, oldModel, "set"));
         ext.setToolRegistry(tools);
+        ext.setRegisterService(registers);
         ext.setCwd(Path.of(cwd));
         ext.setLlm(llm);
         ext.loadServiceLoaderExtensions();
@@ -109,7 +123,6 @@ final class AppBootstrap {
                                         ext.systemPromptContributions());
         ext.setSystemPrompt(systemPrompt);
 
-        var sessions = new SessionManager(settings.sessionDir());
         int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
 
         var session = new PijotaSession(llm, tools, sessions, ext, systemPrompt, cwd, parsedArgs.noSession(),
@@ -151,6 +164,18 @@ final class AppBootstrap {
         mergeTranscendWorktree(parsedArgs);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
+    }
+
+    private static Path initialSessionPath(Args args, SessionManager sessions, String cwd) {
+        try {
+            if (args.sessionPath() != null)
+                return sessions.resolveSession(cwd, args.sessionPath());
+            if (args.recoverSession())
+                return SelfRespawn.readRecoverySession();
+            if (args.continueSession())
+                return sessions.latestSession(cwd, null);
+        } catch (IOException ignored) {}
+        return null;
     }
 
     private static void mergeTranscendWorktree(Args args) {

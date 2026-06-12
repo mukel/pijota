@@ -37,11 +37,14 @@ final class SettingsCommandHandler {
 
         void toggleQuietStartup();
 
+        void toggleWorkingAnimation();
+
         void setTransientStatus(String status, long millis);
     }
 
     record SettingsSnapshot(boolean contextFilesEnabled, boolean compactionEnabled, boolean shortenPathsEnabled,
-                                    ThinkingLevel thinkingLevel, boolean hideThinking, boolean quietStartup) {
+                                    ThinkingLevel thinkingLevel, boolean hideThinking, boolean quietStartup,
+                                    String workingAnimation) {
     }
 
     private final Host host;
@@ -74,6 +77,7 @@ final class SettingsCommandHandler {
             case "hide_thinking" -> host.toggleHideThinking();
             case "quiet_startup" -> host.toggleQuietStartup();
             case "shorten_paths" -> host.toggleShortenPaths();
+            case "animation" -> host.toggleWorkingAnimation();
             default -> {}
         }
         host.refreshSettings(items(host.settingsSnapshot()));
@@ -98,7 +102,8 @@ final class SettingsCommandHandler {
                                                                         snapshot.hideThinking()),
                                         new SettingsItem("quiet_startup", "Quiet startup", snapshot.quietStartup()
                                                                         ? "on  next start"
-                                                                        : "off  next start", snapshot.quietStartup()));
+                                                                        : "off  next start", snapshot.quietStartup()),
+                                        new SettingsItem("animation", "Animation", snapshot.workingAnimation(), true));
     }
 
     static String statusMessage(SettingsItem chosen) {

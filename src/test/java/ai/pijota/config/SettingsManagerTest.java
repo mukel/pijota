@@ -82,8 +82,8 @@ class SettingsManagerTest {
 
     @Test
     void sessionDirCustom() {
-        var config = new AppConfig(null, null, null, null, null, null, "/custom/sessions", null, null, null, null,
-                                        false, false, false, 3, 2000L, null);
+        var config = new AppConfig(null, null, null, null, null, null, "/custom/sessions", null, null, null, null, null,
+                                        false, false, null, false, 3, 2000L, null);
         var sm = managerWith(config);
         assertEquals(Path.of("/custom/sessions"), sm.sessionDir());
     }
@@ -113,8 +113,8 @@ class SettingsManagerTest {
 
     @Test
     void effectiveShellPathUsesConfig() {
-        var config = new AppConfig(null, null, null, null, "/bin/zsh", null, null, null, null, null, null, false, false,
-                                        false, 3, 2000L, null);
+        var config = new AppConfig(null, null, null, null, "/bin/zsh", null, null, null, null, null, null, null, false,
+                                        false, null, false, 3, 2000L, null);
         var sm = managerWith(config);
         assertEquals("/bin/zsh", sm.effectiveShellPath());
     }
@@ -185,8 +185,8 @@ class SettingsManagerTest {
 
     @Test
     void effectiveShellPathFallsBackToShellEnvironmentVariable() {
-        var config = new AppConfig(null, null, null, null, null, null, null, null, null, null, null, false, false,
-                                        false, 3, 2000L, null);
+        var config = new AppConfig(null, null, null, null, null, null, null, null, null, null, null, null, false, false,
+                                        null, false, 3, 2000L, null);
         var sm = managerWith(config);
         String expected = System.getenv().getOrDefault("SHELL", "/bin/bash");
         assertEquals(expected, sm.effectiveShellPath());
@@ -196,5 +196,12 @@ class SettingsManagerTest {
     void apiKeyHintFallsBackToConventionForUnknownProvider() {
         var sm = managerWith(new AppConfig());
         assertEquals("MY_PROVIDER_API_KEY", sm.apiKeyHint("my-provider"));
+    }
+
+    @Test
+    void projectDirUsesExplicitConfig() {
+        var config = new AppConfig().withProjectDir("/explicit/repo");
+        var sm = managerWith(config);
+        assertEquals("/explicit/repo", sm.projectDir());
     }
 }

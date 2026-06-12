@@ -6,6 +6,7 @@ import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.ExtensionKeybinding;
 import ai.pijota.extensions.ExtensionResult;
 import ai.pijota.extensions.ExtensionRuntime;
+import ai.pijota.extensions.ExceptionHandler;
 import ai.pijota.extensions.UiContext;
 import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.messages.Message;
@@ -15,10 +16,12 @@ import ai.pijota.tools.Tool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class FakeExtensionAPI implements ExtensionAPI {
@@ -303,6 +306,20 @@ public class FakeExtensionAPI implements ExtensionAPI {
     public void registerFooterLines(Supplier<List<String>> lines) {
         if (lines != null)
             footerLines.add(lines);
+    }
+
+    @Override
+    public void registerExceptionHandler(ExceptionHandler handler) {}
+
+    @Override
+    public void register(String key, Supplier<String> getter) {}
+
+    @Override
+    public void register(String key, Supplier<String> getter, Consumer<String> setter) {}
+
+    @Override
+    public Optional<String> registerValue(String key) {
+        return Optional.empty();
     }
 
     @Override

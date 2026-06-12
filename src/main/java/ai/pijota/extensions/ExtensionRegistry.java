@@ -5,6 +5,7 @@ import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
+import ai.pijota.registers.RegisterService;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ProcessRunner;
@@ -24,6 +25,8 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public final class ExtensionRegistry {
     private static final Logger log = LoggerFactory.getLogger(ExtensionRegistry.class);
@@ -36,6 +39,7 @@ public final class ExtensionRegistry {
     private final List<java.util.function.Supplier<List<String>>> statusLineProviders = new CopyOnWriteArrayList<>();
     private final List<java.util.function.Supplier<List<String>>> footerLineProviders = new CopyOnWriteArrayList<>();
     private final List<BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender>> messageRenderers = new CopyOnWriteArrayList<>();
+    private final List<ExceptionHandler> exceptionHandlers = new CopyOnWriteArrayList<>();
     private final List<URLClassLoader> extensionClassLoaders = new CopyOnWriteArrayList<>();
     private final Map<String, String> keyedStatuses = new ConcurrentSkipListMap<>();
     private final List<java.util.function.Supplier<String>> systemPromptProviders = new CopyOnWriteArrayList<>();
@@ -43,6 +47,7 @@ public final class ExtensionRegistry {
     private final ExtensionAPIImpl api = new ExtensionAPIImpl();
     private final ExtensionRuntimeImpl runtime = new ExtensionRuntimeImpl();
     private ToolRegistry toolRegistry;
+    private RegisterService registerService = new RegisterService(Map.of());
     private AgentContext agentContext;
     private LlmService llm;
     private UiContext uiContext;
@@ -50,6 +55,7 @@ public final class ExtensionRegistry {
     private String sessionName;
     private String systemPrompt;
     private String currentModel;
+    private String currentExtensionId;
     private Map<String, String> extensionFlags = Map.of();
 
     public ExtensionRegistry() {}
@@ -114,6 +120,14 @@ public final class ExtensionRegistry {
         this.toolRegistry = registry;
     }
 
+    public void setRegisterService(RegisterService registerService) {
+        this.registerService = registerService != null ? registerService : new RegisterService(Map.of());
+    }
+
+    public RegisterService registers() {
+        return registerService;
+    }
+
     public void setAgentLoop(AgentContext loop) {
         this.agentContext = loop;
     }
@@ -144,12 +158,21 @@ public final class ExtensionRegistry {
 
     public void register(Extension ext) {
         extensions.add(ext);
+        currentExtensionId = ext.name();
         try {
             ext.init(api);
         } catch (Exception e) {
             log.warn("Extension {} init failed: {}", ext.name(), e.getMessage());
+        } finally {
+            currentExtensionId = null;
         }
         log.info("Registered extension: {}", ext.name());
+    }
+
+    private String currentExtensionId() {
+        if (currentExtensionId == null || currentExtensionId.isBlank())
+            throw new IllegalStateException("registers can only be declared during extension init");
+        return currentExtensionId;
     }
 
     private void addListener(String event, BiFunction<ExtensionEvent, ExtensionContext, Object> handler) {
@@ -379,6 +402,21 @@ public final class ExtensionRegistry {
         }
     }
 
+    public List<ExceptionHandler> exceptionHandlers() {
+        return List.copyOf(exceptionHandlers);
+    }
+
+    public void dispatchException(Throwable t, UiContext uiContext) {
+        var ctx = new ExtensionContext(uiContext, runtime);
+        for (var handler : exceptionHandlers) {
+            try {
+                handler.onException(t, ctx);
+            } catch (Exception e) {
+                log.warn("Exception handler failed: {}", e.getMessage());
+            }
+        }
+    }
+
     public void cleanup() {
         fire(new ExtensionEvent.SessionShutdown());
         for (var ext : extensions) {
@@ -580,6 +618,27 @@ public final class ExtensionRegistry {
         public void registerFooterLines(java.util.function.Supplier<List<String>> lines) {
             if (lines != null)
                 footerLineProviders.add(lines);
+        }
+
+        @Override
+        public void registerExceptionHandler(ExceptionHandler handler) {
+            if (handler != null)
+                exceptionHandlers.add(handler);
+        }
+
+        @Override
+        public void register(String key, Supplier<String> getter) {
+            registerService.register(currentExtensionId(), key, getter);
+        }
+
+        @Override
+        public void register(String key, Supplier<String> getter, Consumer<String> setter) {
+            registerService.register(currentExtensionId(), key, getter, setter);
+        }
+
+        @Override
+        public Optional<String> registerValue(String key) {
+            return registerService.registerValue(currentExtensionId(), key);
         }
 
         @Override

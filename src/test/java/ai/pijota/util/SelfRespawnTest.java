@@ -9,6 +9,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
@@ -332,5 +333,56 @@ class SelfRespawnTest {
         Path jar = Files.createTempFile("pijota-test", ".jar");
         Files.writeString(jar, content);
         return jar;
+    }
+
+    @Test
+    void findGitRootFindsParentGitDir() throws IOException {
+        Path tmp = Files.createTempDirectory("pijota-gitroot");
+        try {
+            Path gitDir = tmp.resolve(".git");
+            Files.createDirectory(gitDir);
+            Path subDir = Files.createDirectories(tmp.resolve("src/main/java"));
+
+            String root = SelfRespawn.findGitRoot(subDir.toString());
+            assertEquals(tmp.toAbsolutePath().normalize().toString(), root);
+        } finally {
+            deleteRecursive(tmp);
+        }
+    }
+
+    @Test
+    void findGitRootReturnsStartDirWhenNoGitFound() throws IOException {
+        Path tmp = Files.createTempDirectory("pijota-nogit");
+        try {
+            String result = SelfRespawn.findGitRoot(tmp.toString());
+            assertEquals(tmp.toAbsolutePath().normalize().toString(), result);
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
+    }
+
+    @Test
+    void findGitRootReturnsDotGitDir() throws IOException {
+        Path tmp = Files.createTempDirectory("pijota-repo");
+        try {
+            Files.createDirectory(tmp.resolve(".git"));
+            String root = SelfRespawn.findGitRoot(tmp.toString());
+            assertEquals(tmp.toAbsolutePath().normalize().toString(), root);
+        } finally {
+            Files.deleteIfExists(tmp.resolve(".git"));
+            Files.deleteIfExists(tmp);
+        }
+    }
+
+    private static void deleteRecursive(Path path) throws IOException {
+        if (!Files.exists(path))
+            return;
+        try (var stream = Files.walk(path)) {
+            stream.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException ignored) {}
+            });
+        }
     }
 }

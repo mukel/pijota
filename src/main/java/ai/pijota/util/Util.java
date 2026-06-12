@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -305,5 +307,12 @@ public final class Util {
         if (text == null || text.isBlank())
             return "";
         return text.stripTrailing().lines().findFirst().orElse("");
+    }
+
+    public static String stackTrace(Throwable t) {
+        var sw = new StringWriter();
+        var pw = new PrintWriter(sw, true);
+        t.printStackTrace(pw);
+        return sw.toString();
     }
 }

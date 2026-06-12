@@ -126,6 +126,29 @@ class TranscendenceToolTest {
     }
 
     @Test
+    void failureWithRecoveryHint() {
+        var result = TranscendenceTool.failure("step1", "step2", "error message", Path.of("/tmp/log"),
+                                        "mvn package -Pfat -q");
+        assertTrue(result.contains("recovery: mvn package -Pfat -q"));
+        assertTrue(result.contains("step1"));
+        assertTrue(result.contains("error message"));
+    }
+
+    @Test
+    void failureWithNullRecoveryOmitsRecoveryLine() {
+        var result = TranscendenceTool.failure("step1", "step2", "error message", Path.of("/tmp/log"), null);
+        assertTrue(result.contains("step1"));
+        assertTrue(result.contains("error message"));
+        assertFalse(result.contains("recovery:"));
+    }
+
+    @Test
+    void failureWithBlankRecoveryOmitsRecoveryLine() {
+        var result = TranscendenceTool.failure("step1", "step2", "error message", Path.of("/tmp/log"), "  ");
+        assertFalse(result.contains("recovery:"));
+    }
+
+    @Test
     void defaultEnabledIsTrue() {
         assertTrue(new TranscendenceTool().defaultEnabled());
     }

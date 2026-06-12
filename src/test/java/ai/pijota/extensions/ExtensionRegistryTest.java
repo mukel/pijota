@@ -5,6 +5,7 @@ import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
+import ai.pijota.registers.RegisterService;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,21 @@ class ExtensionRegistryTest {
                 init.accept(api);
             }
         };
+    }
+
+    @Test
+    void extensionCanReadPreviousRegisterValueDuringInit() {
+        var registry = new ExtensionRegistry();
+        var registers = new RegisterService(Map.of("extension.goal.mode", "active"));
+        registry.setRegisterService(registers);
+
+        registry.register(simple("goal", api -> {
+            var initial = api.registerValue("extension.goal.mode").orElse("passive");
+            api.register("extension.goal.mode", () -> initial, _ -> {});
+        }));
+
+        assertEquals(Map.of("extension.goal.mode", "active"),
+                                        registers.get(List.of("extension.goal.mode"), new ArrayList<>()));
     }
 
     // ---- fakes ----
@@ -876,5 +892,39 @@ class ExtensionRegistryTest {
         reg.register(simple("cmd", api -> api
                                         .registerSlashCommand(new SlashCommand("/my", "desc", List.of(), _ -> {}))));
         assertEquals("/my", reg.slashCommands().get(0).name());
+    }
+
+    @Test
+    void dispatchExceptionFiresAllHandlersInRegistrationOrder() {
+        var reg = new ExtensionRegistry();
+        var order = new ArrayList<String>();
+        reg.register(simple("h1", api -> api.registerExceptionHandler((t, ctx) -> order.add("h1"))));
+        reg.register(simple("h2", api -> api.registerExceptionHandler((t, ctx) -> order.add("h2"))));
+
+        reg.dispatchException(new RuntimeException("test"), new FakeUiContext());
+
+        assertEquals(List.of("h1", "h2"), order);
+    }
+
+    @Test
+    void dispatchExceptionDoesNotFailOnHandlerException() {
+        var reg = new ExtensionRegistry();
+        var called = new boolean[1];
+        reg.register(simple("bad", api -> api.registerExceptionHandler((t, ctx) -> {
+            throw new RuntimeException("handler failed");
+        })));
+        reg.register(simple("good", api -> api.registerExceptionHandler((t, ctx) -> called[0] = true)));
+
+        assertDoesNotThrow(() -> reg.dispatchException(new RuntimeException("test"), new FakeUiContext()));
+        assertTrue(called[0]);
+    }
+
+    @Test
+    void exceptionHandlersListIsCopy() {
+        var reg = new ExtensionRegistry();
+        reg.register(simple("h", api -> api.registerExceptionHandler((t, ctx) -> {})));
+        var list = reg.exceptionHandlers();
+        assertEquals(1, list.size());
+        assertThrows(UnsupportedOperationException.class, () -> list.add((t, ctx) -> {}));
     }
 }

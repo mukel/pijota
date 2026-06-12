@@ -52,8 +52,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 public final class AppendOnlyTui implements AutoCloseable, UiContext {
-    private static final String[] WORKING_FRAMES = {"●  ●●  ", " ● ●●  ", "  ●●●  ", "  ●● ● ", "  ●●  ●", "  ●● ● ",
-            "  ●●●  ", " ● ●●  "};
+    private static final Map<String, String[]> ANIMATIONS = Map.of("dots",
+                                    new String[] {"●  ●●  ", " ● ●●  ", "  ●●●  ", "  ●● ● ", "  ●●  ●", "  ●● ● ",
+                                            "  ●●●  ", " ● ●●  "},
+                                    "moon", new String[] {"🌑 ", "🌒 ", "🌓 ", "🌔 ", "🌕 ", "🌖 ", "🌗 ", "🌘 "},
+                                    "spinner", new String[] {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"});
+
+    static final List<String> ANIMATION_NAMES = List.copyOf(ANIMATIONS.keySet());
+
+    private static String[] framesFor(String name) {
+        return ANIMATIONS.getOrDefault(name, ANIMATIONS.get("dots"));
+    }
 
     private AnsiTheme theme;
     private String provider;
@@ -174,6 +183,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private volatile boolean showSessionPickerOnStart;
     private volatile List<String> currentHelpOverlay = List.of();
     private final AtomicInteger workingFrame = new AtomicInteger();
+    private volatile String workingAnimation = "dots";
     private final List<String> pendingFollowUps = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final MessageBrowser messageBrowser;
     private PendingEditManager pendingEdit;
@@ -212,6 +222,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.provider = provider;
         this.model = model;
         this.settings = settings;
+        if (settings != null) {
+            this.workingAnimation = settings.workingAnimation();
+        }
         this.extensionLinesSupplier = extensionLinesSupplier != null ? extensionLinesSupplier : List::of;
         this.dialogs = new DialogHandler(new DialogHandler.Host() {
             @Override
@@ -493,6 +506,21 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             public void setStatusOverride(String status) {
                 setStatusOverride(status);
             }
+
+            @Override
+            public String projectDir() {
+                if (settings != null) {
+                    String dir = settings.projectDir();
+                    if (dir != null && !dir.isBlank())
+                        return dir;
+                }
+                return rawCwd;
+            }
+
+            @Override
+            public boolean isGitRepo() {
+                return Files.isDirectory(Path.of(projectDir(), ".git"));
+            }
         });
         this.selectors = new TuiSelectors(this::confirmModelSelection, this::confirmSessionSelection,
                                         this::confirmThemeSelection, this::confirmSettingsSelection,
@@ -595,7 +623,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 var cfg = settings.config();
                 return new SettingsCommandHandler.SettingsSnapshot(settings.contextFilesEnabled(),
                                                 settings.compactionEnabled(), settings.shortenPathsEnabled(),
-                                                thinkingLevel, cfg.hideThinking(), cfg.quietStartup());
+                                                thinkingLevel, cfg.hideThinking(), cfg.quietStartup(),
+                                                workingAnimation);
             }
 
             @Override
@@ -664,6 +693,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             @Override
             public void toggleQuietStartup() {
                 settings.setQuietStartup(!settings.config().quietStartup());
+            }
+
+            @Override
+            public void toggleWorkingAnimation() {
+                AppendOnlyTui.this.toggleWorkingAnimation();
+                settings.setWorkingAnimation(workingAnimation);
             }
 
             @Override
@@ -1156,12 +1191,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 } catch (Exception inner) {
                     if (SelfRespawn.isRespawnInProgress())
                         continue;
+                    dispatchException(inner);
                     clearStatusOverride();
                     redrawPrompt();
                 }
-            } catch (Exception ignored) {
-                running.set(false);
-                break;
+            } catch (Exception e) {
+                dispatchException(e);
+                appendPlain(List.of(theme.styled("toolError", Util.stackTrace(e))));
+                setTransientStatus("Read input error — waiting", 5000);
+                redrawPrompt();
             }
         }
     }
@@ -1183,6 +1221,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             binding.handler().run();
             redrawPrompt();
         } catch (Exception e) {
+            dispatchException(e);
             setStatusOverride("Keybinding error: " + ErrorUtil.message(e));
             redrawPrompt();
         }
@@ -1349,7 +1388,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 resetStreamState();
                 session.prompt(payload).join();
             } catch (CompletionException e) {
+                dispatchException(e.getCause() != null ? e.getCause() : e);
                 setStatusOverride("Error: " + ErrorUtil.message(e.getCause()));
+            } catch (Throwable t) {
+                dispatchException(t);
             } finally {
                 showSessionWarning();
                 endBusy(gen);
@@ -2200,6 +2242,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         thinkingMarkdown.reset();
     }
 
+    private void dispatchException(Throwable t) {
+        appendPlain(List.of(theme.styled("toolError", "Exception: " + ErrorUtil.message(t))));
+        if (session != null && session.extensionRegistry() != null) {
+            session.extensionRegistry().dispatchException(t, this);
+        }
+    }
+
     private void appendFilteredAssistantLine(String line, List<StyledLine> out) {
         String cleaned = streamProc.stripAndFilter(line);
         if (cleaned != null)
@@ -2245,7 +2294,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (!busy.get()) {
             return snapshot.withStatus(tokens).withWarning(status);
         }
-        String frame = WORKING_FRAMES[Math.floorMod(workingFrame.get(), WORKING_FRAMES.length)];
+        String frame = currentFrame();
         int queued = queuedFollowUps.get();
         String bar = tokens + "  " + frame;
         if (busyPhase != null && !busyPhase.isBlank())
@@ -2366,6 +2415,23 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private boolean showThinking() {
         return thinkingLevel != ThinkingLevel.OFF && (settings == null || !settings.config().hideThinking());
+    }
+
+    private String currentFrame() {
+        String[] frames = framesFor(workingAnimation);
+        return frames[Math.floorMod(workingFrame.get(), frames.length)];
+    }
+
+    void setWorkingAnimation(String name) {
+        if (ANIMATIONS.containsKey(name)) {
+            this.workingAnimation = name;
+        }
+    }
+
+    void toggleWorkingAnimation() {
+        int idx = ANIMATION_NAMES.indexOf(workingAnimation);
+        int next = (idx + 1) % ANIMATION_NAMES.size();
+        workingAnimation = ANIMATION_NAMES.get(next);
     }
 
     private void tickWorkingAnimation() {
