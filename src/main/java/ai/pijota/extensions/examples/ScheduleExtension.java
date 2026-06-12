@@ -69,7 +69,7 @@ public final class ScheduleExtension implements Extension {
         this.sessionId = Util.shortUuid();
 
         api.registerTool(new Tool.ToolDefinition("schedule_prompt",
-                                        "Schedule a prompt to execute at a future time or recurring interval. Actions: add, remove, list, enable, disable, update, cleanup.",
+                                        "Schedule a prompt. Actions: add, remove, list, enable, disable, update, cleanup. Use job_id to target remove/enable/disable/update.",
                                         Map.of("type", "object", "properties", Map.of("action", Map.of("type", "string",
                                                                         "description",
                                                                         "add, remove, list, enable, disable, update, or cleanup"),

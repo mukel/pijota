@@ -21,7 +21,7 @@ public final class RegistersContainsTool implements Tool {
 
     @Override
     public String description() {
-        return "Find registers.";
+        return "Find register keys matching a glob query.";
     }
 
     @Override
@@ -36,7 +36,11 @@ public final class RegistersContainsTool implements Tool {
             Object query = args.get("query");
             if (!(query instanceof String s))
                 return ToolResult.error("query must be string");
-            return ToolResult.success(Util.json(Map.of("matches", registers.contains(s))));
+            try {
+                return ToolResult.success(Util.json(Map.of("matches", registers.contains(s))));
+            } catch (Exception e) {
+                return ToolResult.error(e.getMessage());
+            }
         });
     }
 }

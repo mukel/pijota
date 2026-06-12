@@ -22,7 +22,7 @@ class RegistersToolTest {
 
         assertFalse(result.isError());
         assertEquals(List.of("extension.goal.mode"), parse(result.content()).get("matches"));
-        assertEquals("Find registers.", tool.description());
+        assertEquals("Find register keys matching a glob query.", tool.description());
     }
 
     @Test
@@ -37,7 +37,7 @@ class RegistersToolTest {
         var parsed = parse(result.content());
         assertEquals(Map.of("extension.goal.mode", "active"), parsed.get("values"));
         assertEquals(List.of("missing.key"), parsed.get("missing"));
-        assertEquals("Read registers.", tool.description());
+        assertEquals("Read string register values by key.", tool.description());
     }
 
     @Test
@@ -52,7 +52,7 @@ class RegistersToolTest {
         assertEquals(List.of("scratch.plan"), parse(write.content()).get("updated"));
         assertFalse(delete.isError());
         assertEquals(List.of("scratch.plan"), parse(delete.content()).get("deleted"));
-        assertEquals("Write registers.", tool.description());
+        assertEquals("Write string register values. Delete scratch keys.", tool.description());
     }
 
     @Test
@@ -81,7 +81,7 @@ class RegistersToolTest {
         var result = tool.execute("id", Map.of("values", Map.of("scratch.count", 1)), null).get();
 
         assertTrue(result.isError());
-        assertEquals("values must be string map", result.content());
+        assertEquals("register values are always strings, got: Integer", result.content());
     }
 
     @SuppressWarnings("unchecked")

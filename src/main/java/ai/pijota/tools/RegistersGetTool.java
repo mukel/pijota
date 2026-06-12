@@ -23,7 +23,7 @@ public final class RegistersGetTool implements Tool {
 
     @Override
     public String description() {
-        return "Read registers.";
+        return "Read string register values by key.";
     }
 
     @Override
@@ -38,18 +38,22 @@ public final class RegistersGetTool implements Tool {
         return CompletableFuture.supplyAsync(() -> {
             Object raw = args.get("keys");
             if (!(raw instanceof List<?> list))
-                return ToolResult.error("keys must be strings");
+                return ToolResult.error("keys must be string array");
             var keys = new ArrayList<String>();
             for (Object value : list) {
                 if (!(value instanceof String s))
-                    return ToolResult.error("keys must be strings");
+                    return ToolResult.error("keys must be string array");
                 keys.add(s);
             }
-            var missing = new ArrayList<String>();
-            var output = new LinkedHashMap<String, Object>();
-            output.put("values", registers.get(keys, missing));
-            output.put("missing", missing);
-            return ToolResult.success(Util.json(output));
+            try {
+                var missing = new ArrayList<String>();
+                var output = new LinkedHashMap<String, Object>();
+                output.put("values", registers.get(keys, missing));
+                output.put("missing", missing);
+                return ToolResult.success(Util.json(output));
+            } catch (Exception e) {
+                return ToolResult.error(e.getMessage());
+            }
         });
     }
 }

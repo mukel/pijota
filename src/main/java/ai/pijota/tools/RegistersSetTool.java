@@ -23,7 +23,7 @@ public final class RegistersSetTool implements Tool {
 
     @Override
     public String description() {
-        return "Write registers.";
+        return "Write string register values. Delete scratch keys.";
     }
 
     @Override
@@ -37,49 +37,46 @@ public final class RegistersSetTool implements Tool {
     @Override
     public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
-            Map<String, String> values = parseValues(args.get("values"));
-            if (values == null)
-                return ToolResult.error("values must be string map");
-            List<String> delete = parseDelete(args.get("delete"));
-            if (delete == null)
-                return ToolResult.error("delete must be strings");
-            var updated = new ArrayList<String>();
-            var deleted = new ArrayList<String>();
-            var rejected = new LinkedHashMap<String, String>();
-            registers.set(values, delete, updated, deleted, rejected);
-            var output = new LinkedHashMap<String, Object>();
-            output.put("updated", updated);
-            output.put("deleted", deleted);
-            output.put("rejected", rejected);
-            return ToolResult.success(Util.json(output));
+            var values = new LinkedHashMap<String, String>();
+            Object raw = args.get("values");
+            if (raw != null) {
+                if (!(raw instanceof Map<?, ?> map))
+                    return ToolResult.error("values must be {\"key\": \"string\", ...}");
+                for (var entry : map.entrySet()) {
+                    if (!(entry.getKey() instanceof String s))
+                        return ToolResult.error("values keys must be strings");
+                    if (entry.getValue() == null)
+                        return ToolResult.error("values must be {\"key\": \"string\", ...}, null not allowed");
+                    if (!(entry.getValue() instanceof String str))
+                        return ToolResult.error("register values are always strings, got: " + entry.getValue().getClass().getSimpleName());
+                    values.put(s, str);
+                }
+            }
+            List<String> delete = null;
+            raw = args.get("delete");
+            if (raw != null) {
+                if (!(raw instanceof List<?> list))
+                    return ToolResult.error("delete must be [string, ...]");
+                delete = new ArrayList<>();
+                for (Object o : list) {
+                    if (!(o instanceof String s))
+                        return ToolResult.error("delete must be string array");
+                    delete.add(s);
+                }
+            }
+            try {
+                var updated = new ArrayList<String>();
+                var deleted = new ArrayList<String>();
+                var rejected = new LinkedHashMap<String, String>();
+                registers.set(values, delete, updated, deleted, rejected);
+                var output = new LinkedHashMap<String, Object>();
+                output.put("updated", updated);
+                output.put("deleted", deleted);
+                output.put("rejected", rejected);
+                return ToolResult.success(Util.json(output));
+            } catch (Exception e) {
+                return ToolResult.error(e.getMessage());
+            }
         });
-    }
-
-    private static Map<String, String> parseValues(Object raw) {
-        var values = new LinkedHashMap<String, String>();
-        if (raw == null)
-            return values;
-        if (!(raw instanceof Map<?, ?> map))
-            return null;
-        for (var entry : map.entrySet()) {
-            if (!(entry.getKey() instanceof String key) || !(entry.getValue() instanceof String value))
-                return null;
-            values.put(key, value);
-        }
-        return values;
-    }
-
-    private static List<String> parseDelete(Object raw) {
-        var delete = new ArrayList<String>();
-        if (raw == null)
-            return delete;
-        if (!(raw instanceof List<?> list))
-            return null;
-        for (Object value : list) {
-            if (!(value instanceof String s))
-                return null;
-            delete.add(s);
-        }
-        return delete;
     }
 }
