@@ -1,0 +1,166 @@
+package ai.pijota.tools;
+
+import java.nio.charset.StandardCharsets;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class WebfetchToolTest {
+
+    @Test
+    void nameIsWebfetch() {
+        var tool = new WebfetchTool();
+        assertEquals("webfetch", tool.name());
+    }
+
+    @Test
+    void defaultEnabledIsTrue() {
+        assertTrue(new WebfetchTool().defaultEnabled());
+    }
+
+    @Test
+    void acceptHeaderMarkdown() {
+        var header = WebfetchTool.acceptHeader("markdown");
+        assertTrue(header.contains("text/markdown"));
+    }
+
+    @Test
+    void acceptHeaderText() {
+        var header = WebfetchTool.acceptHeader("text");
+        assertTrue(header.contains("text/plain"));
+        assertFalse(header.contains("markdown"));
+    }
+
+    @Test
+    void acceptHeaderHtml() {
+        var header = WebfetchTool.acceptHeader("html");
+        assertTrue(header.contains("text/html"));
+    }
+
+    @Test
+    void htmlToMarkdownConvertsBasicTags() {
+        var html = "<p>Hello</p><p>World</p>";
+        var md = WebfetchTool.htmlToMarkdown(html);
+        assertTrue(md.contains("Hello"));
+        assertTrue(md.contains("World"));
+        assertFalse(md.contains("<p>"));
+    }
+
+    @Test
+    void htmlToMarkdownStripsScripts() {
+        var html = "<script>alert(1)</script>text";
+        var md = WebfetchTool.htmlToMarkdown(html);
+        assertFalse(md.contains("alert"));
+        assertTrue(md.contains("text"));
+    }
+
+    @Test
+    void htmlToMarkdownStripsStyles() {
+        var html = "<style>body{color:red}</style>content";
+        var md = WebfetchTool.htmlToMarkdown(html);
+        assertFalse(md.contains("color"));
+        assertTrue(md.contains("content"));
+    }
+
+    @Test
+    void htmlToMarkdownConvertsLinks() {
+        var html = "<a href=\"https://example.com\">click</a>";
+        var md = WebfetchTool.htmlToMarkdown(html);
+        assertTrue(md.contains("click") || md.contains("example"));
+    }
+
+    @Test
+    void htmlToMarkdownConvertsBold() {
+        var html = "<b>bold</b>";
+        var md = WebfetchTool.htmlToMarkdown(html);
+        assertTrue(md.contains("**bold**") || md.contains("bold"));
+    }
+
+    @Test
+    void htmlToMarkdownDecodesEntities() {
+        var html = "&amp; &lt; &gt;";
+        var md = WebfetchTool.htmlToMarkdown(html);
+        assertTrue(md.contains("&"));
+        assertTrue(md.contains("<"));
+        assertTrue(md.contains(">"));
+    }
+
+    @Test
+    void htmlToTextConvertsBreaks() {
+        var html = "line1<br>line2";
+        var text = WebfetchTool.htmlToText(html);
+        assertTrue(text.contains("\n"));
+    }
+
+    @Test
+    void htmlToTextStripsTags() {
+        var html = "<div>text</div>";
+        var text = WebfetchTool.htmlToText(html);
+        assertFalse(text.contains("<div"));
+        assertTrue(text.contains("text"));
+    }
+
+    @Test
+    void convertContentMarkdownFormatWithHtmlMime() {
+        var content = "<p>Hello</p>";
+        var result = WebfetchTool.convertContent(content, "text/html", "markdown");
+        assertFalse(result.contains("<p>"));
+        assertTrue(result.contains("Hello"));
+    }
+
+    @Test
+    void convertContentTextFormatWithHtmlMime() {
+        var content = "<p>Hello</p>";
+        var result = WebfetchTool.convertContent(content, "text/html", "text");
+        assertFalse(result.contains("<p>"));
+        assertTrue(result.contains("Hello"));
+    }
+
+    @Test
+    void convertContentHtmlFormatPassesThrough() {
+        var content = "<p>raw</p>";
+        var result = WebfetchTool.convertContent(content, "text/html", "html");
+        assertTrue(result.contains("<p>"));
+    }
+
+    @Test
+    void convertContentPlainTextPassesThrough() {
+        var content = "plain text";
+        var result = WebfetchTool.convertContent(content, "text/plain", "markdown");
+        assertEquals("plain text", result);
+    }
+
+    @Test
+    void detectCharsetFromContentType() {
+        var charset = WebfetchTool.detectCharset("text/html; charset=ISO-8859-1", new byte[0]);
+        assertEquals("ISO-8859-1", charset);
+    }
+
+    @Test
+    void detectCharsetDefaultUtf8() {
+        var charset = WebfetchTool.detectCharset("text/html", new byte[0]);
+        assertEquals(StandardCharsets.UTF_8.name(), charset);
+    }
+
+    @Test
+    void detectCharsetWithBom() {
+        var body = new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF, 't', 'e', 'x', 't'};
+        var charset = WebfetchTool.detectCharset("text/plain", body);
+        assertEquals(StandardCharsets.UTF_8.name(), charset);
+    }
+
+    @Test
+    void executeWithNullUrlReturnsError() throws Exception {
+        var tool = new WebfetchTool();
+        var result = tool.execute("call-1", java.util.Map.of(), "/cwd").get();
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void executeWithBlankUrlReturnsError() throws Exception {
+        var tool = new WebfetchTool();
+        var result = tool.execute("call-1", java.util.Map.of("url", "  "), "/cwd").get();
+        assertTrue(result.isError());
+    }
+}

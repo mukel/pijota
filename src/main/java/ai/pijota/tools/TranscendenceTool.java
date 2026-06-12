@@ -72,7 +72,7 @@ public final class TranscendenceTool implements Tool {
         });
     }
 
-    private static Path resolveProjectRoot(String worktree) {
+    static Path resolveProjectRoot(String worktree) {
         if (worktree != null && !worktree.isBlank()) {
             return Path.of(worktree).toAbsolutePath().normalize();
         }
@@ -223,7 +223,7 @@ public final class TranscendenceTool implements Tool {
         return ToolResult.success("→ Transcend\n  ✓ restored previous build\n  ✓ restart queued");
     }
 
-    private static String failure(String step1, String step2, String message, Path log) {
+    static String failure(String step1, String step2, String message, Path log) {
         var sb = new StringBuilder("→ Transcend\n");
         if (step1 != null)
             sb.append("  ").append(step1).append('\n');

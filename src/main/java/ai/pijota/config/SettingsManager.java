@@ -9,12 +9,30 @@ public final class SettingsManager {
     private static final Path SESSION_DIR = CONFIG_HOME.resolve("sessions");
 
     private AppConfig config;
+    private final java.util.function.Consumer<AppConfig> onSave;
 
     public SettingsManager() {
+        this(loadConfig(), SettingsManager::persistConfig);
+    }
+
+    SettingsManager(AppConfig config, java.util.function.Consumer<AppConfig> onSave) {
+        this.config = config;
+        this.onSave = onSave;
+    }
+
+    private static AppConfig loadConfig() {
         try {
-            this.config = AppConfig.load(SETTINGS_FILE);
+            return AppConfig.load(SETTINGS_FILE);
         } catch (Exception e) {
-            this.config = new AppConfig();
+            return new AppConfig();
+        }
+    }
+
+    private static void persistConfig(AppConfig config) {
+        try {
+            config.save(SETTINGS_FILE);
+        } catch (Exception e) {
+            System.err.println("Failed to save settings: " + e.getMessage());
         }
     }
 
@@ -77,27 +95,23 @@ public final class SettingsManager {
     }
 
     public void save() {
-        try {
-            config.save(SETTINGS_FILE);
-        } catch (Exception e) {
-            System.err.println("Failed to save settings: " + e.getMessage());
-        }
+        onSave.accept(config);
     }
 
     public void saveApiKey(String provider, String apiKey, String defaultModel) throws java.io.IOException {
         config = config.withApiKey(provider, apiKey).withDefaultProviderModel(provider, defaultModel);
-        config.save(SETTINGS_FILE);
+        onSave.accept(config);
     }
 
     public void removeApiKey(String provider) throws java.io.IOException {
         config = config.withoutApiKey(provider);
-        config.save(SETTINGS_FILE);
+        onSave.accept(config);
     }
 
     /** Set the default provider/model without storing an API key (for OAuth). */
     public void setDefaultModelForProvider(String provider, String model) throws java.io.IOException {
         config = config.withDefaultProviderModel(provider, model);
-        config.save(SETTINGS_FILE);
+        onSave.accept(config);
     }
 
     public String detectProviderFromEnv() {

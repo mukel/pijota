@@ -108,8 +108,7 @@ public final class ModelRefresher {
         return out;
     }
 
-    private static long firstLong(com.fasterxml.jackson.databind.JsonNode node, String first, String second,
-                                    long fallback) {
+    static long firstLong(com.fasterxml.jackson.databind.JsonNode node, String first, String second, long fallback) {
         if (node.has(first) && node.get(first).canConvertToLong())
             return node.get(first).asLong();
         if (node.has(second) && node.get(second).canConvertToLong())
@@ -117,7 +116,7 @@ public final class ModelRefresher {
         return fallback;
     }
 
-    private static String displayName(String id) {
+    static String displayName(String id) {
         var words = id.replace('-', ' ').replace('_', ' ').split("\\s+");
         var out = new StringBuilder();
         for (String word : words) {

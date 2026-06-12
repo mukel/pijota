@@ -24,11 +24,34 @@ public final class BashTool implements Tool {
     private static final int PREVIEW_TAIL_LINES = 10;
     private final String shellPath;
     private final String shellPrefix;
+    private final CommandExecutor commandExecutor;
     private volatile Process currentProcess;
 
+    @FunctionalInterface
+    interface CommandExecutor {
+        ProcessRunner.Result execute(List<String> command, Path workDir, Duration timeout, int maxOutputBytes,
+                                        boolean redirectErrorStream, java.util.function.Consumer<Process> onStart)
+                                        throws IOException;
+    }
+
     public BashTool(String shellPath, String shellPrefix) {
+        this(shellPath, shellPrefix, defaultExecutor());
+    }
+
+    BashTool(String shellPath, String shellPrefix, CommandExecutor commandExecutor) {
         this.shellPath = shellPath;
         this.shellPrefix = shellPrefix;
+        this.commandExecutor = commandExecutor;
+    }
+
+    private static CommandExecutor defaultExecutor() {
+        return (cmd, dir, timeout, maxBytes, redirectError, onStart) -> {
+            var builder = ProcessRunner.command(cmd).workDir(dir).timeout(timeout).maxOutputBytes(maxBytes)
+                                            .redirectErrorStream(redirectError);
+            if (onStart != null)
+                builder.onStart(onStart);
+            return builder.run();
+        };
     }
 
     @Override
@@ -72,10 +95,9 @@ public final class BashTool implements Tool {
 
                 String fullCmd = shellPrefix != null ? shellPrefix + "\n" + command : command;
 
-                var result = ProcessRunner.command(List.of(shellPath, "-c", fullCmd)).workDir(workdir)
-                                                .timeout(Duration.ofSeconds(timeoutSeconds))
-                                                .maxOutputBytes(MAX_OUTPUT_BYTES).redirectErrorStream(true)
-                                                .onStart(p -> currentProcess = p).run();
+                var result = commandExecutor.execute(List.of(shellPath, "-c", fullCmd), workdir,
+                                                Duration.ofSeconds(timeoutSeconds), MAX_OUTPUT_BYTES, true,
+                                                p -> currentProcess = p);
 
                 String output = result.stdout();
                 var details = new LinkedHashMap<String, Object>();

@@ -124,7 +124,7 @@ public final class WebfetchTool implements Tool {
         });
     }
 
-    private static String acceptHeader(String format) {
+    static String acceptHeader(String format) {
         return switch (format) {
             case "markdown" -> "text/markdown;q=1.0, text/plain;q=0.8, text/html;q=0.7, */*;q=0.1";
             case "text" -> "text/plain;q=1.0, text/html;q=0.8, */*;q=0.1";
@@ -133,7 +133,7 @@ public final class WebfetchTool implements Tool {
         };
     }
 
-    private static String convertContent(String content, String mime, String format) {
+    static String convertContent(String content, String mime, String format) {
         boolean isHtml = mime.contains("html") || content.strip().toLowerCase().startsWith("<!doctype")
                                         || content.strip().toLowerCase().startsWith("<html");
         return switch (format) {
@@ -144,7 +144,7 @@ public final class WebfetchTool implements Tool {
         };
     }
 
-    private static String htmlToMarkdown(String html) {
+    static String htmlToMarkdown(String html) {
         String text = html.replaceAll("(?is)<script[^>]*>.*?</script>", "")
                                         .replaceAll("(?is)<style[^>]*>.*?</style>", "")
                                         .replaceAll("(?is)<noscript[^>]*>.*?</noscript>", "")
@@ -178,7 +178,7 @@ public final class WebfetchTool implements Tool {
         return text;
     }
 
-    private static String htmlToText(String html) {
+    static String htmlToText(String html) {
         String text = html.replaceAll("(?is)<script[^>]*>.*?</script>", "")
                                         .replaceAll("(?is)<style[^>]*>.*?</style>", "")
                                         .replaceAll("(?is)<noscript[^>]*>.*?</noscript>", "");
@@ -192,7 +192,7 @@ public final class WebfetchTool implements Tool {
         return text;
     }
 
-    private static String detectCharset(String contentType, byte[] body) {
+    static String detectCharset(String contentType, byte[] body) {
         var m = Pattern.compile("(?i)charset\\s*=\\s*([^\\s;]+)").matcher(contentType);
         if (m.find()) {
             try {

@@ -204,12 +204,12 @@ public final class WebsearchTool implements Tool {
         return results;
     }
 
-    private static String stripHtml(String html) {
+    static String stripHtml(String html) {
         return html.replaceAll("(?is)<[^>]+>", "").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
                                         .replace("&quot;", "\"").replace("&nbsp;", " ").replace("&#39;", "'");
     }
 
-    private static String cleanUrl(String url) {
+    static String cleanUrl(String url) {
         if (url.startsWith("//"))
             return "https:" + url;
         if (url.startsWith("/"))
