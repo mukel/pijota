@@ -8,37 +8,19 @@ import ai.pijota.tools.Tool;
 import ai.pijota.util.Emojis;
 import ai.pijota.util.Util;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class GoalExtension implements Extension {
 
     private static final String CUSTOM_TYPE = "goal";
     private static final long MAX_OBJECTIVE_LENGTH = 8000;
 
-    private enum Status {
-        ACTIVE, PAUSED, COMPLETE, IDLE, BUDGET_LIMITED
-    }
-
-    record GoalEntry(String objective, String status, long tokenBudget, long inputTokensAtStart,
-                                    long outputTokensAtStart, long startedAtMs) {
-        String toJson() {
-            return Util.MAPPER.createObjectNode().put("objective", objective != null ? objective : "")
-                                            .put("status", status).put("token_budget", tokenBudget)
-                                            .put("input_tokens_at_start", inputTokensAtStart)
-                                            .put("output_tokens_at_start", outputTokensAtStart)
-                                            .put("started_at_ms", startedAtMs).toString();
-        }
-    }
-
-    private volatile Status status = Status.IDLE;
-    private volatile String currentObjective;
-    private volatile long tokenBudget;
-    private volatile long startedAtMs;
-    private volatile long pausedMs;
-    private volatile long inputTokensOnStart;
-    private volatile long outputTokensOnStart;
+    private final AtomicReference<GoalState> state = new AtomicReference<>(GoalState.idle());
+    private volatile long lastContinueMs;
     private ExtensionAPI api;
 
     @Override
@@ -66,6 +48,12 @@ public final class GoalExtension implements Extension {
                                                                         "token_budget",
                                                                         Map.of("type", "integer", "description",
                                                                                                         "Maximum tokens to use before marking budget-limited"),
+                                                                        "completion_criterion",
+                                                                        Map.of("type", "string", "description",
+                                                                                                        "Optional condition that determines when the goal is satisfied"),
+                                                                        "continue_on_idle",
+                                                                        Map.of("type", "boolean", "description",
+                                                                                                        "Whether the agent should continue working when idle"),
                                                                         "replace_existing",
                                                                         Map.of("type", "boolean", "description",
                                                                                                         "Replace current goal even if not complete")),
@@ -73,64 +61,77 @@ public final class GoalExtension implements Extension {
                                         (id, args, cwd) -> CompletableFuture.completedFuture(doCreateGoal(args))));
 
         api.registerTool(new Tool.ToolDefinition("get_goal",
-                                        "Returns the current goal state including objective, status, token budget, and usage.",
+                                        "Returns the current goal state including objective, status, budget, progress, and usage.",
                                         Map.of("type", "object", "properties", Map.of()),
                                         (id, args, cwd) -> CompletableFuture.completedFuture(doGetGoal())));
 
         api.registerTool(new Tool.ToolDefinition("update_goal",
-                                        "Update the goal status. Only supports status: \"complete\".",
+                                        "Update the goal status. Supports status: complete, pause, resume, idle.",
                                         Map.of("type", "object", "properties", Map.of("status", Map.of("type", "string",
                                                                         "description",
-                                                                        "Set to \"complete\" to mark the goal as done")),
+                                                                        "Set to complete, pause, resume, or idle")),
                                                                         "required", List.of("status")),
                                         (id, args, cwd) -> CompletableFuture.completedFuture(doUpdateGoal(args))));
+
+        api.registerTool(new Tool.ToolDefinition("add_goal_progress",
+                                        "Append a progress note or milestone to the current goal.",
+                                        Map.of("type", "object", "properties", Map.of("note", Map.of("type", "string",
+                                                                        "description", "Progress note or milestone")),
+                                                                        "required", List.of("note")),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(doAddProgress(args))));
 
         api.registerStatusLines(this::statusLine);
 
         api.onTurnStart((ev, ctx) -> {
-            if (status == Status.ACTIVE)
-                pausedMs = 0;
+            GoalState current = state.get();
+            if (current.isActive() && current.hasBudget()) {
+                var llm = api.runtime().llm();
+                if (current.wouldExceedBudget(llm.totalInputTokens(), llm.totalOutputTokens())) {
+                    updateState(s -> s.markBudgetLimited(System.currentTimeMillis()));
+                }
+            }
         });
 
         api.onTurnEnd((ev, ctx) -> {
-            if (status != Status.ACTIVE)
+            GoalState current = state.get();
+            if (!current.isActive())
                 return;
-            if (tokenBudget > 0 && currentUsage() >= tokenBudget) {
-                status = Status.BUDGET_LIMITED;
-                saveEntry();
+            var llm = api.runtime().llm();
+            if (current.hasBudget() && current.wouldExceedBudget(llm.totalInputTokens(), llm.totalOutputTokens())) {
+                updateState(s -> s.markBudgetLimited(System.currentTimeMillis()));
                 return;
             }
-            api.sendUserMessage("Continue working on the goal: " + currentObjective, "steer");
+            if (current.continueOnIdle() && api.runtime().isIdle()) {
+                long now = System.currentTimeMillis();
+                if (now - lastContinueMs > 1000) {
+                    lastContinueMs = now;
+                    api.sendUserMessage("Continue working on the goal: " + current.objective(), "steer");
+                }
+            }
         });
 
         api.onSessionReady((ev, ctx) -> loadFromSession());
     }
 
     private void loadFromSession() {
-        for (int i = api.runtime().messages().size() - 1; i >= 0; i--) {
-            Message msg = api.runtime().messages().get(i);
+        GoalState latest = GoalState.idle();
+        for (Message msg : api.runtime().messages()) {
             if (msg instanceof Message.Custom c && CUSTOM_TYPE.equals(c.customType())) {
-                String json = c.content();
-                if (json == null || json.isBlank())
-                    break;
-                try {
-                    var node = Util.MAPPER.readTree(json);
-                    String storedStatus = node.has("status") ? node.get("status").asText() : "";
-                    if ("idle".equals(storedStatus) || "complete".equals(storedStatus))
-                        break;
-                    currentObjective = node.has("objective") ? node.get("objective").asText() : "";
-                    status = parseStatus(storedStatus);
-                    tokenBudget = node.has("token_budget") ? node.get("token_budget").asLong() : 0;
-                    inputTokensOnStart = node.has("input_tokens_at_start")
-                                                    ? node.get("input_tokens_at_start").asLong()
-                                                    : 0;
-                    outputTokensOnStart = node.has("output_tokens_at_start")
-                                                    ? node.get("output_tokens_at_start").asLong()
-                                                    : 0;
-                    startedAtMs = node.has("started_at_ms") ? node.get("started_at_ms").asLong() : 0;
-                } catch (Exception ignored) {}
-                break;
+                latest = GoalState.fromJson(c.content());
             }
+        }
+        state.set(latest);
+    }
+
+    private void updateState(java.util.function.Function<GoalState, GoalState> transform) {
+        GoalState previous;
+        GoalState next;
+        do {
+            previous = state.get();
+            next = transform.apply(previous);
+        } while (!state.compareAndSet(previous, next));
+        if (!previous.equals(next)) {
+            saveEntry(next);
         }
     }
 
@@ -142,23 +143,39 @@ public final class GoalExtension implements Extension {
             showGoal();
             return;
         }
-        switch (trimmed) {
+        switch (trimmed.toLowerCase()) {
             case "pause" -> doPause();
             case "resume" -> doResume();
             case "clear" -> doClear();
-            default -> startOrReplace(trimmed);
+            default -> {
+                if (trimmed.toLowerCase().startsWith("progress ")) {
+                    doAddProgressFromCommand(trimmed.substring(8).strip());
+                } else {
+                    startOrReplace(trimmed);
+                }
+            }
         }
     }
 
     private void showGoal() {
-        if (status == Status.IDLE) {
+        GoalState current = state.get();
+        if (current.status() == GoalState.Status.IDLE) {
             api.runtime().setStatus("No active goal. Use /goal <objective> to create one.");
             return;
         }
-        long elapsed = elapsedMs();
-        long used = currentUsage();
-        api.runtime().setStatus(String.format("%s %s · %s · %s · %s", Emojis.DART, currentObjective, statusLabel(),
-                                        Util.fmtCount(used), Util.formatDuration(elapsed)));
+        long elapsed = current.elapsedMs(System.currentTimeMillis());
+        long used = currentUsage(current);
+        StringBuilder sb = new StringBuilder();
+        sb.append(Emojis.DART).append(' ').append(current.objective());
+        sb.append(" · ").append(statusLabel(current.status()));
+        sb.append(" · ").append(Util.formatDuration(elapsed));
+        if (current.hasBudget())
+            sb.append(" · ").append(Util.fmtCount(used)).append("/").append(Util.fmtCount(current.tokenBudget()));
+        if (!current.completionCriterion().isEmpty())
+            sb.append(" · criterion: ").append(current.completionCriterion());
+        if (!current.progress().isEmpty())
+            sb.append(" · progress: ").append(current.progress().size());
+        api.runtime().setStatus(sb.toString());
     }
 
     private void startOrReplace(String objective) {
@@ -166,50 +183,64 @@ public final class GoalExtension implements Extension {
             api.runtime().setStatus("Objective too long (max " + MAX_OBJECTIVE_LENGTH + " chars)");
             return;
         }
-        if (status == Status.ACTIVE || status == Status.PAUSED || status == Status.BUDGET_LIMITED) {
+        GoalState current = state.get();
+        if (current.status() == GoalState.Status.ACTIVE || current.status() == GoalState.Status.PAUSED
+                                        || current.status() == GoalState.Status.BUDGET_LIMITED) {
             api.runtime().setStatus("Goal already active. Use /goal clear first or /goal pause.");
             return;
         }
-        startGoal(objective, 0);
-        saveEntry();
+        String[] parts = objective.split("\\|", 2);
+        String obj = parts[0].strip();
+        String criterion = parts.length > 1 ? parts[1].strip() : "";
+        long now = System.currentTimeMillis();
+        var llm = api.runtime().llm();
+        updateState(s -> GoalState.start(obj, 0, criterion, false, llm.totalInputTokens(), llm.totalOutputTokens(),
+                                        now));
+        api.runtime().setStatus(Emojis.DART + " Goal: " + obj);
     }
 
     private void doPause() {
-        if (status != Status.ACTIVE) {
+        GoalState current = state.get();
+        if (current.status() != GoalState.Status.ACTIVE && current.status() != GoalState.Status.BUDGET_LIMITED) {
             api.runtime().setStatus("No active goal to pause");
             return;
         }
-        status = Status.PAUSED;
-        pausedMs = System.currentTimeMillis();
-        saveEntry();
-        api.runtime().setStatus(Emojis.PAUSE + " Goal paused: " + currentObjective);
+        updateState(s -> s.pause(System.currentTimeMillis()));
+        api.runtime().setStatus(Emojis.PAUSE + " Goal paused: " + state.get().objective());
     }
 
     private void doResume() {
-        if (status != Status.PAUSED && status != Status.BUDGET_LIMITED) {
+        GoalState current = state.get();
+        if (current.status() != GoalState.Status.PAUSED) {
             api.runtime().setStatus("No paused goal to resume");
             return;
         }
-        if (status == Status.PAUSED && pausedMs > 0)
-            startedAtMs += System.currentTimeMillis() - pausedMs;
-        status = Status.ACTIVE;
-        pausedMs = 0;
-        saveEntry();
-        api.runtime().setStatus(Emojis.PLAY + " Goal resumed: " + currentObjective);
+        updateState(s -> s.resume(System.currentTimeMillis()));
+        api.runtime().setStatus(Emojis.PLAY + " Goal resumed: " + state.get().objective());
     }
 
     private void doClear() {
-        if (status == Status.IDLE) {
+        GoalState current = state.get();
+        if (current.status() == GoalState.Status.IDLE) {
             api.runtime().setStatus("No goal to clear");
             return;
         }
-        status = Status.IDLE;
-        currentObjective = null;
-        tokenBudget = 0;
-        startedAtMs = 0;
-        pausedMs = 0;
-        saveEntry();
+        updateState(GoalState::clear);
         api.runtime().setStatus("Goal cleared");
+    }
+
+    private void doAddProgressFromCommand(String note) {
+        if (note.isBlank()) {
+            api.runtime().setStatus("Usage: /goal progress <note>");
+            return;
+        }
+        GoalState current = state.get();
+        if (current.status() == GoalState.Status.IDLE) {
+            api.runtime().setStatus("No active goal");
+            return;
+        }
+        updateState(s -> s.addProgress(note, System.currentTimeMillis()));
+        api.runtime().setStatus("Progress added");
     }
 
     // ---- model tools ----
@@ -221,86 +252,100 @@ public final class GoalExtension implements Extension {
         if (objective.length() > MAX_OBJECTIVE_LENGTH)
             return Tool.ToolResult.error("objective exceeds " + MAX_OBJECTIVE_LENGTH + " chars");
         boolean replace = Boolean.TRUE.equals(args.get("replace_existing"));
-        if (!replace && (status == Status.ACTIVE || status == Status.PAUSED || status == Status.BUDGET_LIMITED))
+        GoalState current = state.get();
+        if (!replace && !current.isTerminal())
             return Tool.ToolResult.error("Goal already exists. Use replace_existing: true to override.");
         Number budget = (Number) args.get("token_budget");
-        startGoal(objective, budget != null ? Math.max(0, budget.longValue()) : 0);
-        saveEntry();
-        return Tool.ToolResult.success(makeEntry().toJson());
+        long tokenBudget = budget != null ? Math.max(0, budget.longValue()) : 0;
+        String criterion = (String) args.get("completion_criterion");
+        boolean continueOnIdle = Boolean.TRUE.equals(args.get("continue_on_idle"));
+        long now = System.currentTimeMillis();
+        var llm = api.runtime().llm();
+        GoalState next = GoalState.start(objective, tokenBudget, criterion, continueOnIdle, llm.totalInputTokens(),
+                                        llm.totalOutputTokens(), now);
+        updateState(s -> next);
+        return Tool.ToolResult.success(renderGoal(next));
     }
 
     private Tool.ToolResult doGetGoal() {
-        if (status == Status.IDLE)
-            return Tool.ToolResult.success("{\"status\": \"idle\"}");
-        return Tool.ToolResult.success(makeEntry().toJson());
+        return Tool.ToolResult.success(renderGoal(state.get()));
     }
 
     private Tool.ToolResult doUpdateGoal(Map<String, Object> args) {
         String newStatus = (String) args.get("status");
-        if (!"complete".equals(newStatus))
-            return Tool.ToolResult.error("Only status \"complete\" is supported");
-        if (status == Status.IDLE)
-            return Tool.ToolResult.error("No active goal to update");
-        if (status == Status.COMPLETE)
-            return Tool.ToolResult.success("Goal already complete");
-        status = Status.COMPLETE;
-        saveEntry();
-        return Tool.ToolResult.success(String.format("Goal completed: %s\n  used %s\n  elapsed %s", currentObjective,
-                                        Util.fmtCount(currentUsage()), Util.formatDuration(elapsedMs())));
+        if (newStatus == null)
+            return Tool.ToolResult.error("status is required");
+        GoalState current = state.get();
+        long now = System.currentTimeMillis();
+        return switch (newStatus.toLowerCase()) {
+            case "complete" -> {
+                if (current.status() == GoalState.Status.IDLE)
+                    yield Tool.ToolResult.error("No active goal to complete");
+                updateState(s -> s.complete(now));
+                yield Tool.ToolResult.success(renderGoal(state.get()));
+            }
+            case "pause" -> {
+                if (current.status() != GoalState.Status.ACTIVE && current.status() != GoalState.Status.BUDGET_LIMITED)
+                    yield Tool.ToolResult.error("No active goal to pause");
+                updateState(s -> s.pause(now));
+                yield Tool.ToolResult.success(renderGoal(state.get()));
+            }
+            case "resume" -> {
+                if (current.status() != GoalState.Status.PAUSED)
+                    yield Tool.ToolResult.error("No paused goal to resume");
+                updateState(s -> s.resume(now));
+                yield Tool.ToolResult.success(renderGoal(state.get()));
+            }
+            case "idle", "clear" -> {
+                if (current.status() == GoalState.Status.IDLE)
+                    yield Tool.ToolResult.error("No goal to clear");
+                updateState(GoalState::clear);
+                yield Tool.ToolResult.success("Goal cleared");
+            }
+            default -> Tool.ToolResult.error("Unsupported status: " + newStatus);
+        };
+    }
+
+    private Tool.ToolResult doAddProgress(Map<String, Object> args) {
+        String note = (String) args.get("note");
+        if (note == null || note.isBlank())
+            return Tool.ToolResult.error("note is required");
+        GoalState current = state.get();
+        if (current.status() == GoalState.Status.IDLE)
+            return Tool.ToolResult.error("No active goal");
+        long now = System.currentTimeMillis();
+        updateState(s -> s.addProgress(note, now));
+        return Tool.ToolResult.success(renderGoal(state.get()));
     }
 
     // ---- internals ----
 
-    private void startGoal(String objective, long budget) {
-        status = Status.ACTIVE;
-        currentObjective = objective;
-        tokenBudget = budget;
-        startedAtMs = System.currentTimeMillis();
-        pausedMs = 0;
-        var llm = api.runtime().llm();
-        inputTokensOnStart = llm.totalInputTokens();
-        outputTokensOnStart = llm.totalOutputTokens();
-    }
-
-    private GoalEntry makeEntry() {
-        return new GoalEntry(currentObjective, status.name().toLowerCase(), tokenBudget, inputTokensOnStart,
-                                        outputTokensOnStart, startedAtMs);
-    }
-
-    private void saveEntry() {
-        String json = status == Status.IDLE ? "{\"status\":\"idle\"}" : makeEntry().toJson();
+    private void saveEntry(GoalState goalState) {
+        String json = goalState.status() == GoalState.Status.IDLE ? "{\"status\":\"idle\"}" : goalState.toJson();
         api.sendMessage(new Message.Custom(CUSTOM_TYPE, json));
     }
 
     private List<String> statusLine() {
-        if (status != Status.ACTIVE && status != Status.BUDGET_LIMITED)
+        GoalState current = state.get();
+        if (current.status() == GoalState.Status.IDLE)
             return List.of();
-        long elapsed = elapsedMs();
-        long used = currentUsage();
-        String line = String.format("%s %s · %s%s", Emojis.DART, Util.truncate(currentObjective, 60),
-                                        Util.formatDuration(elapsed),
-                                        tokenBudget > 0
-                                                                        ? " · " + Util.fmtCount(used) + "/" + Util
-                                                                                                        .fmtCount(tokenBudget)
-                                                                        : "");
-        return List.of(line);
+        long elapsed = current.elapsedMs(System.currentTimeMillis());
+        long used = currentUsage(current);
+        StringBuilder sb = new StringBuilder();
+        sb.append(Emojis.DART).append(' ').append(Util.truncate(current.objective(), 60));
+        sb.append(" · ").append(statusLabel(current.status()));
+        sb.append(" · ").append(Util.formatDuration(elapsed));
+        if (current.hasBudget())
+            sb.append(" · ").append(Util.fmtCount(used)).append("/").append(Util.fmtCount(current.tokenBudget()));
+        return List.of(sb.toString());
     }
 
-    private long elapsedMs() {
-        if (startedAtMs == 0)
-            return 0;
-        long endMs = (status == Status.PAUSED && pausedMs > 0) ? pausedMs : System.currentTimeMillis();
-        return Math.max(0, endMs - startedAtMs);
-    }
-
-    private long currentUsage() {
+    private long currentUsage(GoalState goalState) {
         var llm = api.runtime().llm();
-        long in = llm.totalInputTokens() - inputTokensOnStart;
-        long out = llm.totalOutputTokens() - outputTokensOnStart;
-        return Math.max(0, in + out);
+        return goalState.currentUsage(llm.totalInputTokens(), llm.totalOutputTokens());
     }
 
-    private String statusLabel() {
+    private String statusLabel(GoalState.Status status) {
         return switch (status) {
             case ACTIVE -> "active";
             case PAUSED -> "paused";
@@ -310,13 +355,24 @@ public final class GoalExtension implements Extension {
         };
     }
 
-    private static Status parseStatus(String s) {
-        return switch (s) {
-            case "active" -> Status.ACTIVE;
-            case "paused" -> Status.PAUSED;
-            case "complete" -> Status.COMPLETE;
-            case "budget-limited", "budget_limited" -> Status.BUDGET_LIMITED;
-            default -> Status.IDLE;
-        };
+    private String renderGoal(GoalState goalState) {
+        if (goalState.status() == GoalState.Status.IDLE)
+            return "status: idle";
+        long elapsed = goalState.elapsedMs(System.currentTimeMillis());
+        long used = currentUsage(goalState);
+        var lines = new ArrayList<String>();
+        lines.add("objective: " + goalState.objective());
+        lines.add("status: " + statusLabel(goalState.status()));
+        lines.add("elapsed: " + Util.formatDuration(elapsed));
+        if (goalState.hasBudget())
+            lines.add("usage: " + Util.fmtCount(used) + "/" + Util.fmtCount(goalState.tokenBudget()));
+        if (!goalState.completionCriterion().isEmpty())
+            lines.add("completion criterion: " + goalState.completionCriterion());
+        if (!goalState.progress().isEmpty()) {
+            lines.add("progress:");
+            for (String entry : goalState.progress())
+                lines.add("  - " + entry);
+        }
+        return String.join("\n", lines);
     }
 }
