@@ -103,6 +103,7 @@ final class AppBootstrap {
         ext.register(new ai.pijota.extensions.examples.WhimsicalExtension());
         ext.register(new ai.pijota.extensions.examples.GoalExtension());
         ext.register(new ai.pijota.extensions.examples.ScheduleExtension());
+        ext.register(new ai.pijota.extensions.mcp.McpExtension());
         ext.setExtensionFlags(parsedArgs.extensionFlags());
         if (!parsedArgs.noSkills())
             ext.register(new ai.pijota.extensions.skills.SkillExtension(parsedArgs.skillPaths()));
