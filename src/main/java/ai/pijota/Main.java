@@ -100,6 +100,7 @@ public final class Main {
                                         b.settings(), b.extensions().skills(), b.extensions()::statusLines,
                                         b.extensions().keybindings());
         b.extensions().setTui(tui);
+        b.extensions().setSuspendResume(tui::suspendTui, tui::resumeTui);
         tui.syncThinkingLevel(b.llm().thinkingLevel());
         b.extensions().ready();
         if (parsedArgs.resume())

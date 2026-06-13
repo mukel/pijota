@@ -25,27 +25,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolExecutorTest {
 
     private static Tool fastTool(String name) {
-        return new Tool() {
-            @Override
-            public String name() {
-                return name;
-            }
-
-            @Override
-            public String description() {
-                return "test tool";
-            }
-
-            @Override
-            public Map<String, Object> schema() {
-                return Map.of();
-            }
-
-            @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
-                return CompletableFuture.completedFuture(Tool.ToolResult.success("ok from " + name));
-            }
-        };
+        return new Tool.ToolDefinition(name, "test tool", Map.of(),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(
+                                                                        Tool.ToolResult.success("ok from " + name)))
+                                        .toTool();
     }
 
     private static Tool sequentialTool(String name) {

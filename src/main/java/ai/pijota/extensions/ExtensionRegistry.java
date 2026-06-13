@@ -56,6 +56,8 @@ public final class ExtensionRegistry {
     private String systemPrompt;
     private String currentModel;
     private String currentExtensionId;
+    private Runnable suspendCallback;
+    private Runnable resumeCallback;
     private Map<String, String> extensionFlags = Map.of();
 
     public ExtensionRegistry() {}
@@ -154,6 +156,11 @@ public final class ExtensionRegistry {
         this.extensionFlags = flags != null ? Map.copyOf(flags) : Map.of();
     }
 
+    public void setSuspendResume(Runnable suspend, Runnable resume) {
+        this.suspendCallback = suspend;
+        this.resumeCallback = resume;
+    }
+
     public ExtensionAPI api() {
         return api;
     }
@@ -192,7 +199,7 @@ public final class ExtensionRegistry {
         for (var handler : handlers) {
             try {
                 handler.apply(event, ctx);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.warn("Event handler error for {}: {}", name, e.getMessage());
             }
         }
@@ -420,11 +427,19 @@ public final class ExtensionRegistry {
     }
 
     public void cleanup() {
-        fire(new ExtensionEvent.SessionShutdown());
+        var event = new ExtensionEvent.SessionShutdown();
+        var ctx = new ExtensionContext(uiContext, runtime);
+        for (var handler : listeners.getOrDefault("session_shutdown", List.of())) {
+            try {
+                handler.apply(event, ctx);
+            } catch (Throwable e) {
+                log.warn("Session shutdown handler error: {}", e.getMessage());
+            }
+        }
         for (var ext : extensions) {
             try {
                 ext.onShutdown(runtime);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.warn("Extension {} onShutdown failed: {}", ext.name(), e.getMessage());
             }
         }
@@ -805,6 +820,23 @@ public final class ExtensionRegistry {
         @Override
         public Optional<String> getFlag(String name) {
             return Optional.ofNullable(extensionFlags != null ? extensionFlags.get(name) : null);
+        }
+
+        @Override
+        public void suspend() {
+            if (suspendCallback != null)
+                suspendCallback.run();
+        }
+
+        @Override
+        public void resume() {
+            if (resumeCallback != null)
+                resumeCallback.run();
+        }
+
+        @Override
+        public UiContext ui() {
+            return uiContext;
         }
     }
 

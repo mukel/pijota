@@ -2,8 +2,10 @@ package ai.pijota.extensions.testkit;
 
 import ai.pijota.extensions.AgentContext;
 import ai.pijota.extensions.ExtensionRuntime;
+import ai.pijota.extensions.UiContext;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
+import ai.pijota.testkit.FauxLlm;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ProcessRunner;
@@ -24,10 +26,14 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
     private String sessionName;
     private ToolRegistry toolRegistry;
     private AgentContext agentContext;
+    private UiContext ui;
+    private LlmClient llm;
+    private final FauxLlm builtinLlm = new FauxLlm();
     private final List<Message> messages = new ArrayList<>();
     private final Map<String, String> flags = new ConcurrentHashMap<>();
     private final Map<String, String> keyedStatuses = new ConcurrentSkipListMap<>();
     private final List<String> statusCalls = new ArrayList<>();
+    private volatile String lastStatus;
     private boolean busy;
     private boolean closed;
     private boolean aborted;
@@ -47,6 +53,25 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
 
     public void setAgentContext(AgentContext agentContext) {
         this.agentContext = agentContext;
+    }
+
+    public void setLlm(LlmClient llm) {
+        this.llm = llm;
+    }
+
+    /** Sets the token counts reported by the built-in LLM used when no explicit LLM or agent context is set. */
+    public FakeExtensionRuntime tokens(long input, long output) {
+        builtinLlm.tokens(input, output);
+        return this;
+    }
+
+    /** Seeds a message into the transcript as if it were already present before the extension loaded. */
+    public void seedMessage(Message message) {
+        messages.add(message);
+    }
+
+    public String lastStatus() {
+        return lastStatus;
     }
 
     public void setBusy(boolean busy) {
@@ -75,7 +100,11 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
 
     @Override
     public LlmClient llm() {
-        return agentContext != null ? agentContext.llm() : null;
+        if (llm != null)
+            return llm;
+        if (agentContext != null)
+            return agentContext.llm();
+        return builtinLlm;
     }
 
     @Override
@@ -91,6 +120,10 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
     @Override
     public List<Message> messages() {
         return agentContext != null ? agentContext.messages() : List.copyOf(messages);
+    }
+
+    void addMessage(Message msg) {
+        messages.add(msg);
     }
 
     @Override
@@ -147,6 +180,7 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
     @Override
     public void setStatus(String message) {
         statusCalls.add(message);
+        lastStatus = message;
     }
 
     @Override
@@ -195,6 +229,21 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
         } catch (Exception e) {
             return new ExecResult(-1, "", e.getMessage());
         }
+    }
+
+    @Override
+    public void suspend() {}
+
+    @Override
+    public void resume() {}
+
+    public void setUi(UiContext ui) {
+        this.ui = ui;
+    }
+
+    @Override
+    public UiContext ui() {
+        return ui;
     }
 
     public CompletableFuture<Boolean> confirm(String question) {

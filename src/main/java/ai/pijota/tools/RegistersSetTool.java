@@ -48,7 +48,8 @@ public final class RegistersSetTool implements Tool {
                     if (entry.getValue() == null)
                         return ToolResult.error("values must be {\"key\": \"string\", ...}, null not allowed");
                     if (!(entry.getValue() instanceof String str))
-                        return ToolResult.error("register values are always strings, got: " + entry.getValue().getClass().getSimpleName());
+                        return ToolResult.error("register values are always strings, got: "
+                                                        + entry.getValue().getClass().getSimpleName());
                     values.put(s, str);
                 }
             }

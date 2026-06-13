@@ -96,7 +96,10 @@ final class ThemeManager {
             java.net.URL dir = AnsiTheme.class.getClassLoader().getResource("themes");
             if (dir != null && "jar".equals(dir.getProtocol())) {
                 String path = dir.getPath();
-                String jarPath = path.substring(5, path.indexOf('!'));
+                int bang = path.indexOf('!');
+                if (bang < 0)
+                    return names;
+                String jarPath = path.substring(5, bang);
                 try (java.util.jar.JarFile jar = new java.util.jar.JarFile(jarPath)) {
                     jar.stream().filter(e -> e.getName().startsWith("themes/") && e.getName().endsWith(".json"))
                                                     .map(e -> e.getName().substring(7, e.getName().length() - 5))

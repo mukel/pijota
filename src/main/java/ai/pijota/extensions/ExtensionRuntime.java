@@ -52,6 +52,14 @@ public interface ExtensionRuntime {
 
     ExecResult exec(List<String> command);
 
+    /** Suspend the TUI (restore terminal to cooked mode) before spawning interactive subprocess. */
+    void suspend();
+
+    /** Resume the TUI (re-enter raw mode) after an interactive subprocess exits. */
+    void resume();
+
+    UiContext ui();
+
     record ExecResult(int exitCode, String stdout, String stderr) {
         public boolean success() {
             return exitCode == 0;

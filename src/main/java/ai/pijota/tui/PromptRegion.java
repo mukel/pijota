@@ -97,6 +97,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 case BUSY -> "◇ ";
                 case ERROR -> "✖ ";
                 case CONTINUATION -> "┃ ";
+                case QUESTION -> "❓ ";
                 case IDLE -> ctx.lines().size() == 1 && ctx.lines().getFirst().isEmpty() ? "› " : "▸ ";
             };
         }
@@ -108,6 +109,8 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 return "toolError";
             if (ctx.promptState() == PromptSnapshot.PromptState.CONTINUATION)
                 return "dim";
+            if (ctx.promptState() == PromptSnapshot.PromptState.QUESTION)
+                return "statusWarn";
             return firstLine.startsWith("!") ? "bashMode" : "prompt";
         }
     }

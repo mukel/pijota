@@ -7,12 +7,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class FakeUiContext implements UiContext {
 
     private final List<String> statuses = new ArrayList<>();
     private final AtomicReference<CompletableFuture<Boolean>> confirmResult = new AtomicReference<>(
                                     CompletableFuture.completedFuture(false));
+    private final List<String> selectTitles = new ArrayList<>();
+    private List<String> lastSelectLabels = List.of();
+    private int selectChoice = -1;
 
     public List<String> statuses() {
         return List.copyOf(statuses);
@@ -20,6 +25,20 @@ public class FakeUiContext implements UiContext {
 
     public void setConfirmResult(boolean result) {
         confirmResult.set(CompletableFuture.completedFuture(result));
+    }
+
+    /** Index that the next {@link #select} call will auto-choose; negative means the user cancels. */
+    public void setSelectChoice(int index) {
+        this.selectChoice = index;
+    }
+
+    public List<String> selectTitles() {
+        return List.copyOf(selectTitles);
+    }
+
+    /** Display labels passed to the most recent {@link #select} call. */
+    public List<String> lastSelectLabels() {
+        return List.copyOf(lastSelectLabels);
     }
 
     @Override
@@ -60,5 +79,13 @@ public class FakeUiContext implements UiContext {
     @Override
     public AnsiTheme theme() {
         return null;
+    }
+
+    @Override
+    public <T> void select(String title, List<T> items, Function<T, String> render, Consumer<T> onChoice) {
+        selectTitles.add(title);
+        lastSelectLabels = items.stream().map(render).toList();
+        if (selectChoice >= 0 && selectChoice < items.size())
+            onChoice.accept(items.get(selectChoice));
     }
 }

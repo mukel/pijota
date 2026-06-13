@@ -117,6 +117,16 @@ public final class PijotaSession implements AutoCloseable {
                         }
                     }
                 }
+                case AgentEvent.CustomMessage(Message.Custom msg) -> {
+                    Path file = this.sessionFile;
+                    if (!disableSession && file != null) {
+                        try {
+                            sessionManager.appendMessage(file, msg);
+                        } catch (IOException e) {
+                            rememberSessionWarning("custom message save", e);
+                        }
+                    }
+                }
                 default -> {}
             }
         });

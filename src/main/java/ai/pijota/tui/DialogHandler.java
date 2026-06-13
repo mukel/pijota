@@ -77,7 +77,7 @@ final class DialogHandler {
             }
         }
         host.appendPlain(lines);
-        host.setStatus("answer (" + questions.size() + ")");
+        host.setStatus("❓ type your answer (Esc to cancel)");
         host.redrawPrompt();
         return future;
     }

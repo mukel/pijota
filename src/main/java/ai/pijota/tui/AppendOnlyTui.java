@@ -92,6 +92,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private volatile String statusOverride;
     private volatile long statusOverrideExpiresAt;
     private final DialogHandler dialogs;
+    private volatile List<String> selectLabels;
+    private volatile String selectTitle;
+    private int selectedIndex;
+    private volatile java.util.function.IntConsumer selectConfirm;
+    private volatile boolean ctrlXPrefix;
 
     @Override
     public void setStatus(String msg) {
@@ -125,6 +130,24 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     public void alert(String message) {
         appendPlain(List.of(theme.styled("toolLabel", "alert"), message));
         redrawPrompt();
+    }
+
+    @Override
+    public <T> void select(String title, List<T> items, java.util.function.Function<T, String> render,
+                                    java.util.function.Consumer<T> onChoice) {
+        var snapshot = List.copyOf(items);
+        selectTitle = title;
+        selectLabels = snapshot.stream().map(render).toList();
+        selectedIndex = 0;
+        selectConfirm = idx -> onChoice.accept(snapshot.get(idx));
+        busy.set(true);
+        redrawPrompt();
+    }
+
+    private void clearSelect() {
+        selectConfirm = null;
+        selectLabels = null;
+        busy.set(false);
     }
 
     @Override
@@ -1013,6 +1036,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         shellCommands.interruptThread();
         agentExecutor.shutdownNow();
         animator.shutdownNow();
+        session.extensionRegistry().cleanup();
         if (SelfRespawn.isRespawnInProgress())
             return;
         try {
@@ -1082,17 +1106,32 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         handleEsc(false);
                         continue;
                     }
-                    if (key instanceof Key.Char c && c.value() == '?' && promptEditor.isEmpty()
-                                                    && !selectors.anyActive() && !dialogs.questionPending()) {
-                        showHelpOverlay();
-                        redrawPrompt();
-                        continue;
-                    }
                     if (key == Key.Special.CTRL_C) {
                         handleCtrlC();
                         continue;
                     }
-                    if (key == Key.Special.OPEN_EDITOR || key == Key.Special.CTRL_G) {
+                    if (key == Key.Special.CTRL_X) {
+                        ctrlXPrefix = true;
+                        setStatusOverride("C-x  m:model  l:sessions  n:new  t:theme  c:compact  e:editor  o:logs  g:transcend");
+                        redrawPrompt();
+                        continue;
+                    }
+                    if (ctrlXPrefix) {
+                        if (key == Key.Special.ESC) {
+                            ctrlXPrefix = false;
+                            clearStatusOverride();
+                            redrawPrompt();
+                            continue;
+                        }
+                        if (handleCtrlXSecond(key)) {
+                            ctrlXPrefix = false;
+                            clearStatusOverride();
+                            continue;
+                        }
+                        ctrlXPrefix = false;
+                        clearStatusOverride();
+                    }
+                    if (key == Key.Special.CTRL_G) {
                         openPromptInEditor();
                         continue;
                     }
@@ -1128,6 +1167,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         clearHelpOverlay();
                         redrawPrompt();
                         continue;
+                    }
+                    if (selectConfirm != null) {
+                        if (handleSelectKey(key))
+                            continue;
                     }
                     if (selectors.handle(key, this::redrawPrompt))
                         continue;
@@ -1204,6 +1247,54 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
+    private boolean handleSelectKey(Key key) {
+        if (key == Key.Special.UP) {
+            selectedIndex = Math.max(0, selectedIndex - 1);
+            redrawPrompt();
+            return true;
+        }
+        if (key == Key.Special.DOWN) {
+            selectedIndex = Math.min(selectLabels.size() - 1, selectedIndex + 1);
+            redrawPrompt();
+            return true;
+        }
+        if (key == Key.Special.ENTER) {
+            int idx = selectedIndex;
+            var confirm = selectConfirm;
+            int count = selectLabels.size();
+            clearSelect();
+            if (confirm != null && idx >= 0 && idx < count)
+                confirm.accept(idx);
+            redrawPrompt();
+            return true;
+        }
+        if (key == Key.Special.ESC) {
+            clearSelect();
+            redrawPrompt();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean handleCtrlXSecond(Key key) {
+        if (!(key instanceof Key.Char c))
+            return false;
+        switch (c.value()) {
+            case 'm', 'M' -> showModelSelector();
+            case 'l', 'L' -> showSessionPicker();
+            case 'n', 'N' -> startNewSession();
+            case 't', 'T' -> showThemeSelector();
+            case 'c', 'C' -> triggerCompaction("");
+            case 'e', 'E' -> openPromptInEditor();
+            case 'o', 'O' -> showLogSelector();
+            case 'g', 'G' -> handleTranscend("");
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private boolean handleExtensionKeybinding(Key key) {
         if (key instanceof Key.Char)
             return false;
@@ -1232,7 +1323,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C
                                         || key == Key.Special.ENTER || key == Key.Special.NEWLINE
                                         || key == Key.Special.BACKSPACE || key == Key.Special.TAB
-                                        || key == Key.Special.PASTE_START;
+                                        || key == Key.Special.PASTE_START || key == Key.Special.CTRL_X;
     }
 
     static KeyChord toKeyChord(Key key) {
@@ -1299,14 +1390,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
-    private void suspendTui() {
+    public void suspendTui() {
         terminal.writer().print("\033[?25h\033[0m\r\n");
         terminal.writer().flush();
         if (originalAttributes != null)
             terminal.setAttributes(originalAttributes);
     }
 
-    private void resumeTui() {
+    public void resumeTui() {
         try {
             originalAttributes = terminal.enterRawMode();
         } catch (Exception ignored) {}
@@ -1419,9 +1510,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     boolean runExtensionCommand(SlashCommand extCmd, String input, String cmd) {
         if (extCmd == null || extCmd.handler() == null)
             return false;
-        suspendTui();
         extCmd.handler().accept(TuiCommandController.commandArgs(input, cmd));
-        resumeTui();
         promptEditor.setText("");
         redrawPrompt();
         return true;
@@ -1467,6 +1556,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     void showThemeSelector() {
         themeCommands.showThemeSelector();
+    }
+
+    private void showLogSelector() {
+        var cmd = extensionCommand("/logs");
+        runExtensionCommand(cmd, "/logs", "/logs");
     }
 
     private void confirmThemeSelection() {
@@ -1555,6 +1649,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         for (String raw : commands.helpLines()) {
             if (raw.startsWith("  ") && raw.contains("  ")) {
                 int split = raw.indexOf("  ", 2);
+                if (split < 0) {
+                    lines.add(theme.styled("statusText", raw));
+                    continue;
+                }
                 lines.add(theme.styled("toolLabel", raw.substring(0, split))
                                                 + theme.styled("statusText", raw.substring(split)));
             } else {
@@ -1568,7 +1666,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 {"Esc", "interrupt (double-force)"}, {"Ctrl+C", "clear / double to exit"}, {"Ctrl+K", "delete to end"},
                 {"Ctrl+U", "clear line"}, {"Ctrl+W", "delete word"}, {"Ctrl+A/E", "start/end of line"},
                 {"Ctrl+L", "select model"}, {"Ctrl+P", "command palette"}, {"Ctrl+Shift+P", "cycle model forward"},
-                {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"?", "show this help"}};
+                {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"/help", "show help"}};
         int keyWidth = 0;
         for (var k : keys)
             keyWidth = Math.max(keyWidth, AnsiWidth.visibleWidth(k[0]));
@@ -1707,7 +1805,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 {"Esc", "interrupt (double-force)"}, {"Ctrl+C", "clear / double to exit"}, {"Ctrl+K", "delete to end"},
                 {"Ctrl+U", "clear line"}, {"Ctrl+W", "delete word"}, {"Ctrl+A/E", "start/end of line"},
                 {"Ctrl+L", "select model"}, {"Ctrl+P", "command palette"}, {"Ctrl+Shift+P", "cycle model forward"},
-                {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"?", "show this help"}};
+                {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"/help", "show help"}};
 
         int keyWidth = 0;
         for (var k : keys)
@@ -2322,6 +2420,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private PromptSnapshot.PromptState promptState(PromptSnapshot snapshot, String status) {
         if (busy.get())
             return PromptSnapshot.PromptState.BUSY;
+        if (dialogs.questionPending())
+            return PromptSnapshot.PromptState.QUESTION;
         if (status != null && (status.startsWith("Error:") || "Interrupted".equals(status))) {
             return PromptSnapshot.PromptState.ERROR;
         }
@@ -2350,12 +2450,34 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private List<String> mergedExtensionLines() {
-        var raw = extensionLinesSupplier.get();
-        raw = raw.stream().filter(AppendOnlyTui::showExtensionStatusLine).toList();
-        if (raw.size() <= 1)
-            return raw;
-        var seen = new java.util.LinkedHashSet<>(raw);
-        return seen.size() == raw.size() ? raw : List.copyOf(seen);
+        var seen = new java.util.LinkedHashSet<String>();
+        for (String raw : extensionLinesSupplier.get()) {
+            if (!showExtensionStatusLine(raw))
+                continue;
+            String sanitized = raw.replace('\n', ' ').replace('\r', ' ');
+            if (!sanitized.isBlank())
+                seen.add(sanitized);
+        }
+        var lines = new ArrayList<>(seen);
+        var labels = selectLabels;
+        if (selectConfirm != null && labels != null && !labels.isEmpty()) {
+            int total = labels.size();
+            int window = Math.min(total, 8);
+            // Scroll the visible window so the highlighted row stays on screen for long lists.
+            int start = Math.max(0, Math.min(selectedIndex - window / 2, total - window));
+            lines.add(theme.styled("hr", selectTitle != null ? selectTitle : "select"));
+            if (start > 0)
+                lines.add(theme.styled("dim", "  ↑ " + start + " more"));
+            for (int i = start; i < start + window; i++) {
+                String prefix = i == selectedIndex ? theme.styled("toolLabel", ">") : " ";
+                lines.add(prefix + " " + labels.get(i));
+            }
+            int below = total - (start + window);
+            if (below > 0)
+                lines.add(theme.styled("dim", "  ↓ " + below + " more"));
+            lines.add(theme.styled("statusText", "  ↑/↓ navigate · Enter select · Esc cancel"));
+        }
+        return List.copyOf(lines);
     }
 
     static boolean showExtensionStatusLine(String line) {

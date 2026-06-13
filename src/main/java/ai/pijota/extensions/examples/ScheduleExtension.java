@@ -2,14 +2,13 @@ package ai.pijota.extensions.examples;
 
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionResult;
+import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.tools.Tool;
 import ai.pijota.util.Emojis;
 import ai.pijota.util.Util;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -26,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 public final class ScheduleExtension implements Extension {
 
-    private static final String STORAGE_FILE = ".pi/schedule-prompts.json";
+    private static final String CUSTOM_TYPE = "schedule";
 
     enum JobType {
         cron, once, interval
@@ -50,7 +49,6 @@ public final class ScheduleExtension implements Extension {
     private final ConcurrentHashMap<String, ScheduledFuture<?>> futures = new ConcurrentHashMap<>();
     private ScheduledExecutorService scheduler;
     private ExtensionAPI api;
-    private Path storagePath;
     private String sessionId;
 
     @Override
@@ -67,6 +65,31 @@ public final class ScheduleExtension implements Extension {
     public void init(ExtensionAPI api) {
         this.api = api;
         this.sessionId = Util.shortUuid();
+
+        api.registerMessageRenderer((msg, ctx) -> {
+            if (!(msg instanceof Message.Custom c) || !CUSTOM_TYPE.equals(c.customType()))
+                return null;
+            int count = 0;
+            var names = new ArrayList<String>();
+            for (String line : c.content().lines().toList()) {
+                if (line.isBlank())
+                    continue;
+                count++;
+                String[] parts = line.split("\t", 11);
+                if (parts.length >= 2) {
+                    String name = parts[1];
+                    String schedule = parts.length > 3 ? parts[3] : "";
+                    String type = parts.length > 2 ? parts[2] : "";
+                    names.add(name + " (" + type + " " + schedule + ")");
+                }
+            }
+            var summary = new ArrayList<String>();
+            if (count > 0)
+                summary.add(String.format("%d job(s)  %s", count, String.join(", ", names)));
+            else
+                summary.add("no jobs");
+            return new ExtensionResult.MessageRender(summary);
+        });
 
         api.registerTool(new Tool.ToolDefinition("schedule_prompt",
                                         "Schedule a prompt. Actions: add, remove, list, enable, disable, update, cleanup. Use job_id to target remove/enable/disable/update.",
@@ -98,13 +121,11 @@ public final class ScheduleExtension implements Extension {
                                         this::handleSlash));
         api.registerStatusLines(this::statusLine);
         api.onSessionReady((_, _) -> start());
-        api.onSessionShutdown((_, _) -> stop());
     }
 
     // ---- lifecycle ----
 
     private void start() {
-        storagePath = api.runtime().cwd().resolve(STORAGE_FILE);
         scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             var t = new Thread(r, "pijota-scheduler");
             t.setDaemon(true);
@@ -118,8 +139,6 @@ public final class ScheduleExtension implements Extension {
             scheduler.shutdownNow();
         futures.values().forEach(f -> f.cancel(false));
         futures.clear();
-        jobs.values().removeIf(j -> !j.enabled);
-        saveJobs();
     }
 
     // ---- tool handler ----
@@ -167,14 +186,22 @@ public final class ScheduleExtension implements Extension {
                                         Map.of("job_id", job.id, "next_run_ms", nextRun));
     }
 
+    private ScheduledJob findJob(String idOrName) {
+        var job = jobs.get(idOrName);
+        if (job != null)
+            return job;
+        return jobs.values().stream().filter(j -> j.name.equals(idOrName)).findFirst().orElse(null);
+    }
+
     private Tool.ToolResult doRemove(Map<String, Object> args) {
         String jobId = (String) args.get("job_id");
         if (jobId == null)
             return Tool.ToolResult.error("job_id is required for remove");
-        var job = jobs.remove(jobId);
+        var job = findJob(jobId);
         if (job == null)
             return Tool.ToolResult.error("Job not found: " + jobId);
-        cancelFuture(jobId);
+        jobs.remove(job.id);
+        cancelFuture(job.id);
         saveJobs();
         return Tool.ToolResult.success("Removed: " + job.name);
     }
@@ -184,11 +211,11 @@ public final class ScheduleExtension implements Extension {
             return Tool.ToolResult.success("No scheduled jobs");
         var sb = new StringBuilder();
         jobs.values().stream().sorted(Comparator.comparingLong(j -> j.nextRunMs)).forEach(j -> sb.append(String.format(
-                                        "%s %s · %s · %s · %s · %d runs\n", j.enabled ? "✓" : "✗", j.name,
+                                        "%s %s · %s · %s · %s · %d runs · id:%s\n", j.enabled ? "✓" : "✗", j.name,
                                         humanSchedule(j.schedule, j.type),
                                         j.nextRunMs > 0 ? "next " + Util.formatRelative(j.nextRunMs) : "",
-                                        j.lastRunMs > 0 ? "last " + Util.formatRelative(j.lastRunMs) : "",
-                                        j.runCount)));
+                                        j.lastRunMs > 0 ? "last " + Util.formatRelative(j.lastRunMs) : "", j.runCount,
+                                        j.id)));
         return Tool.ToolResult.success(sb.toString().strip());
     }
 
@@ -196,13 +223,13 @@ public final class ScheduleExtension implements Extension {
         String jobId = (String) args.get("job_id");
         if (jobId == null)
             return Tool.ToolResult.error("job_id is required");
-        var job = jobs.get(jobId);
+        var job = findJob(jobId);
         if (job == null)
             return Tool.ToolResult.error("Job not found: " + jobId);
         if (job.enabled)
             return Tool.ToolResult.success("Already enabled: " + job.name);
         var updated = job.withEnabled(true);
-        jobs.put(jobId, updated);
+        jobs.put(job.id, updated);
         scheduleJob(updated);
         saveJobs();
         return Tool.ToolResult.success("Enabled: " + job.name);
@@ -212,13 +239,13 @@ public final class ScheduleExtension implements Extension {
         String jobId = (String) args.get("job_id");
         if (jobId == null)
             return Tool.ToolResult.error("job_id is required");
-        var job = jobs.get(jobId);
+        var job = findJob(jobId);
         if (job == null)
             return Tool.ToolResult.error("Job not found: " + jobId);
         if (!job.enabled)
             return Tool.ToolResult.success("Already disabled: " + job.name);
-        cancelFuture(jobId);
-        jobs.put(jobId, job.withEnabled(false));
+        cancelFuture(job.id);
+        jobs.put(job.id, job.withEnabled(false));
         saveJobs();
         return Tool.ToolResult.success("Disabled: " + job.name);
     }
@@ -227,7 +254,7 @@ public final class ScheduleExtension implements Extension {
         String jobId = (String) args.get("job_id");
         if (jobId == null)
             return Tool.ToolResult.error("job_id is required");
-        var job = jobs.get(jobId);
+        var job = findJob(jobId);
         if (job == null)
             return Tool.ToolResult.error("Job not found: " + jobId);
         String newSchedule = (String) args.get("schedule");
@@ -236,9 +263,9 @@ public final class ScheduleExtension implements Extension {
             job = new ScheduledJob(job.id, job.name, job.type, newSchedule, newPrompt != null ? newPrompt : job.prompt,
                                             job.description, job.enabled, job.runCount, job.lastRunMs, job.nextRunMs,
                                             job.lastError, job.sessionId);
-        jobs.put(jobId, job);
+        jobs.put(job.id, job);
         if (job.enabled) {
-            cancelFuture(jobId);
+            cancelFuture(job.id);
             scheduleJob(job);
         }
         saveJobs();
@@ -305,48 +332,59 @@ public final class ScheduleExtension implements Extension {
     // ---- storage ----
 
     private void loadJobs() {
-        if (storagePath == null || !Files.exists(storagePath))
-            return;
-        try {
-            String json = Files.readString(storagePath);
-            if (json.isBlank())
-                return;
-            var arr = Util.MAPPER.readTree(json);
-            if (!arr.isArray())
-                return;
-            for (var node : arr) {
-                String typeStr = node.path("type").asText();
-                String schedule = node.path("schedule").asText();
-                JobType parsedType = parseType(typeStr, schedule);
-                var job = new ScheduledJob(node.path("id").asText(), node.path("name").asText(), parsedType, schedule,
-                                                node.path("prompt").asText(), node.path("description").asText(""),
-                                                node.path("enabled").asBoolean(true), node.path("runCount").asInt(0),
-                                                node.path("lastRunMs").asLong(0), computeNextRun(schedule, parsedType),
-                                                node.path("lastError").asText(""), node.path("sessionId").asText(""));
-                jobs.put(job.id, job);
-                if (job.enabled)
-                    scheduleJob(job);
+        for (Message msg : api.runtime().messages()) {
+            if (msg instanceof Message.Custom c && CUSTOM_TYPE.equals(c.customType())) {
+                try {
+                    for (String line : c.content().lines().toList()) {
+                        if (line.isBlank())
+                            continue;
+                        String[] parts = line.split("\t", 11);
+                        if (parts.length < 10)
+                            continue;
+                        String typeStr = parts[2];
+                        String schedule = parts[3];
+                        JobType parsedType = parseType(typeStr, schedule);
+                        var job = new ScheduledJob(parts[0], parts[1], parsedType, schedule, parts[4], parts[5],
+                                                        !"false".equals(parts[6]), parseInt0(parts[7]),
+                                                        parseLong0(parts[8]), computeNextRun(schedule, parsedType), "",
+                                                        parts.length > 10 ? parts[10] : "");
+                        jobs.put(job.id, job);
+                        if (job.enabled)
+                            scheduleJob(job);
+                    }
+                } catch (Exception e) {
+                    api.runtime().setStatus("Schedule: failed to load jobs");
+                }
             }
-        } catch (IOException e) {
-            api.runtime().setStatus("Schedule: failed to load jobs");
         }
     }
 
     private void saveJobs() {
-        if (storagePath == null)
-            return;
+        var sb = new StringBuilder();
+        for (var job : jobs.values()) {
+            sb.append(String.join("\t", job.id, job.name, job.type.name(), job.schedule, job.prompt,
+                                            job.description != null ? job.description : "", String.valueOf(job.enabled),
+                                            String.valueOf(job.runCount), String.valueOf(job.lastRunMs),
+                                            String.valueOf(job.nextRunMs), job.sessionId != null ? job.sessionId : ""));
+            sb.append('\n');
+        }
+        api.sendMessage(new Message.Custom(CUSTOM_TYPE, sb.toString()));
+    }
+
+    private static int parseInt0(String s) {
         try {
-            var arr = Util.MAPPER.createArrayNode();
-            for (var job : jobs.values()) {
-                arr.add(Util.MAPPER.createObjectNode().put("id", job.id).put("name", job.name)
-                                                .put("type", job.type.name()).put("schedule", job.schedule)
-                                                .put("prompt", job.prompt).put("description", job.description)
-                                                .put("enabled", job.enabled).put("runCount", job.runCount)
-                                                .put("lastRunMs", job.lastRunMs).put("nextRunMs", job.nextRunMs)
-                                                .put("sessionId", job.sessionId != null ? job.sessionId : ""));
-            }
-            Files.writeString(storagePath, Util.MAPPER.writeValueAsString(arr));
-        } catch (IOException ignored) {}
+            return s != null && !s.isBlank() ? Integer.parseInt(s) : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static long parseLong0(String s) {
+        try {
+            return s != null && !s.isBlank() ? Long.parseLong(s) : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     // ---- slash command ----

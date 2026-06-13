@@ -5,7 +5,6 @@ import ai.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -316,7 +315,6 @@ class ScheduleExtensionTest {
 
     @Test
     void saveAndLoadJobs() throws Exception {
-        Files.createDirectories(tempDir.resolve(".pi"));
         var api = api();
         var ext = new ScheduleExtension();
         ext.init(api);
@@ -325,13 +323,10 @@ class ScheduleExtensionTest {
         Map<String, Object> addArgs = Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "persist");
         tool.execute().execute("tc", addArgs, tempDir.toString()).get(1, TimeUnit.SECONDS);
 
-        assertTrue(Files.exists(tempDir.resolve(".pi/schedule-prompts.json")));
-
-        var api2 = api();
         var ext2 = new ScheduleExtension();
-        ext2.init(api2);
-        api2.fire("session_ready", new ai.pijota.extensions.ExtensionEvent.SessionReady());
-        var list = api2.tools().get(0).execute().execute("tc", Map.of("action", "list"), tempDir.toString()).get(1,
+        ext2.init(api);
+        api.fire("session_ready", new ai.pijota.extensions.ExtensionEvent.SessionReady());
+        var list = api.tools().get(0).execute().execute("tc", Map.of("action", "list"), tempDir.toString()).get(1,
                                         TimeUnit.SECONDS);
         assertTrue(list.content().contains("persist"));
     }

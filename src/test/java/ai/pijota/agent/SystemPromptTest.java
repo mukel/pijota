@@ -14,27 +14,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class SystemPromptTest {
 
     private static Tool fakeTool(String name, String description) {
-        return new Tool() {
-            @Override
-            public String name() {
-                return name;
-            }
-
-            @Override
-            public String description() {
-                return description;
-            }
-
-            @Override
-            public Map<String, Object> schema() {
-                return Map.of();
-            }
-
-            @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
-                return CompletableFuture.completedFuture(Tool.ToolResult.success("ok"));
-            }
-        };
+        return new Tool.ToolDefinition(name, description, Map.of(),
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
+                                        .toTool();
     }
 
     @Test

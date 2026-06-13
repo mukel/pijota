@@ -97,6 +97,47 @@ public class FakeExtensionAPI implements ExtensionAPI {
         return List.copyOf(sentUserMessages);
     }
 
+    /** Content of the most recently sent custom message, or empty string if none. */
+    public String lastSentMessage() {
+        return sentMessages.isEmpty() ? "" : sentMessages.getLast().content();
+    }
+
+    /**
+     * Current single-line status, falling back to the first registered status-line supplier. Lets tests assert on what
+     * the user would see without caring whether the extension pushed a status or registered a status line.
+     */
+    public String status() {
+        String pushed = runtime instanceof FakeExtensionRuntime r ? r.lastStatus() : null;
+        if (pushed == null && !statusLines.isEmpty())
+            return String.join("\n", statusLines.getFirst().get());
+        return pushed == null ? "" : pushed;
+    }
+
+    /** Sets the token counts reported by the runtime's LLM (see {@link FakeExtensionRuntime#tokens}). */
+    public FakeExtensionAPI tokens(long input, long output) {
+        if (runtime instanceof FakeExtensionRuntime r)
+            r.tokens(input, output);
+        return this;
+    }
+
+    /** Seeds a message into the transcript as if it predated the extension. */
+    public void seedMessage(Message message) {
+        if (runtime instanceof FakeExtensionRuntime r)
+            r.seedMessage(message);
+    }
+
+    public void fireTurnStart(int turnNumber) {
+        fire("turn_start", new ExtensionEvent.TurnStart(turnNumber));
+    }
+
+    public void fireTurnEnd(int turnNumber) {
+        fire("turn_end", new ExtensionEvent.TurnEnd(turnNumber));
+    }
+
+    public void fireSessionReady() {
+        fire("session_ready", new ExtensionEvent.SessionReady());
+    }
+
     public SlashCommand slashCommand(String name) {
         return slashCommands.stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
     }
@@ -337,6 +378,8 @@ public class FakeExtensionAPI implements ExtensionAPI {
     @Override
     public void sendMessage(Message.Custom custom) {
         sentMessages.add(custom);
+        if (runtime instanceof FakeExtensionRuntime r)
+            r.addMessage(custom);
     }
 
     @Override

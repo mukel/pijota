@@ -24,10 +24,29 @@ public final class FauxLlm implements LlmClient {
     private boolean aborted;
     private String provider = "faux";
     private String model = "faux-model";
+    private long inputTokens;
+    private long outputTokens;
 
     public FauxLlm streamsWithTools(boolean value) {
         this.streamsWithTools = value;
         return this;
+    }
+
+    /** Sets the cumulative token counts reported by {@link #totalInputTokens()} / {@link #totalOutputTokens()}. */
+    public FauxLlm tokens(long input, long output) {
+        this.inputTokens = input;
+        this.outputTokens = output;
+        return this;
+    }
+
+    @Override
+    public long totalInputTokens() {
+        return inputTokens;
+    }
+
+    @Override
+    public long totalOutputTokens() {
+        return outputTokens;
     }
 
     public FauxLlm provider(String value) {

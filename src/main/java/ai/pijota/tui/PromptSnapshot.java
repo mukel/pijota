@@ -7,7 +7,7 @@ record PromptSnapshot(List<String> lines, int cursorRow, int cursorCol, List<Com
                                 List<String> pendingMessages, List<String> extensionLines, PromptState promptState,
                                 String suggestion, List<String> helpOverlay) {
     enum PromptState {
-        IDLE, BUSY, ERROR, CONTINUATION
+        IDLE, BUSY, ERROR, CONTINUATION, QUESTION
     }
 
     public PromptSnapshot(List<String> lines, int cursorRow, int cursorCol, List<CompletionItem> completions,

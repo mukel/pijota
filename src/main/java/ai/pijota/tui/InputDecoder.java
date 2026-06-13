@@ -155,10 +155,7 @@ public final class InputDecoder {
         };
     }
 
-    private static Key readCtrlX(Input in) throws IOException {
-        int next = in.read(500);
-        if (next == 5)
-            return Key.Special.OPEN_EDITOR;
-        return Key.Special.UNKNOWN;
+    private static Key readCtrlX(Input unused) {
+        return Key.Special.CTRL_X;
     }
 }

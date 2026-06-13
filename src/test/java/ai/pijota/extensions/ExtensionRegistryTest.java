@@ -2,10 +2,12 @@ package ai.pijota.extensions;
 
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.extensions.skills.SkillLoader;
+import ai.pijota.extensions.testkit.FakeUiContext;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.registers.RegisterService;
+import ai.pijota.testkit.FauxLlm;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 import org.junit.jupiter.api.Test;
@@ -19,7 +21,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -245,56 +246,6 @@ class ExtensionRegistryTest {
         @Override
         public void addCustomMessage(Message.Custom message) {
             customMessages.add(message);
-        }
-    }
-
-    static class FakeUiContext implements UiContext {
-        final List<String> statuses = new ArrayList<>();
-
-        @Override
-        public void setStatus(String message) {
-            statuses.add(message);
-        }
-
-        @Override
-        public void appendStatus(String message) {
-            statuses.add("append:" + message);
-        }
-
-        @Override
-        public void setStatus(String key, String message) {
-            statuses.add(key + "=" + message);
-        }
-
-        @Override
-        public void clearStatus(String key) {
-            statuses.add("clear:" + key);
-        }
-    }
-
-    static class FakeLlmClient implements LlmClient {
-        @Override
-        public String provider() {
-            return "fake";
-        }
-
-        @Override
-        public String model() {
-            return "fake";
-        }
-
-        @Override
-        public boolean streamsWithTools() {
-            return false;
-        }
-
-        @Override
-        public void abort() {}
-
-        @Override
-        public CompletableFuture<ai.pijota.llm.StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
-                                        BiConsumer<String, String> onPartial) {
-            return CompletableFuture.completedFuture(new ai.pijota.llm.StreamResult());
         }
     }
 
@@ -847,7 +798,7 @@ class ExtensionRegistryTest {
 
     @Test
     void runtimeLlmPrefersAgentContext() {
-        var client = new FakeLlmClient();
+        var client = new FauxLlm();
         var agent = new FakeAgentContext() {
             @Override
             public LlmClient llm() {

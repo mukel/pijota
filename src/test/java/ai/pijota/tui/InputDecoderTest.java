@@ -78,8 +78,8 @@ class InputDecoderTest {
     }
 
     @Test
-    void mapsCtrlXOpenEditor() throws IOException {
-        assertEquals(Key.Special.OPEN_EDITOR, InputDecoder.readKey(input(24, 5)));
+    void mapsCtrlXAsPrefixKey() throws IOException {
+        assertEquals(Key.Special.CTRL_X, InputDecoder.readKey(input(24)));
     }
 
     @Test
@@ -131,8 +131,9 @@ class InputDecoderTest {
     }
 
     @Test
-    void ctrlXUnknownReturnsUnknown() throws IOException {
-        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(24, 9)));
+    void ctrlXReturnsCtrlX() throws IOException {
+        assertEquals(Key.Special.CTRL_X, InputDecoder.readKey(input(24, 5)));
+        assertEquals(Key.Special.CTRL_X, InputDecoder.readKey(input(24, 9)));
     }
 
     @Test

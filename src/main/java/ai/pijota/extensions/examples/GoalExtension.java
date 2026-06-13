@@ -123,7 +123,11 @@ public final class GoalExtension implements Extension {
         GoalState latest = GoalState.idle();
         for (Message msg : api.runtime().messages()) {
             if (msg instanceof Message.Custom c && CUSTOM_TYPE.equals(c.customType())) {
-                latest = GoalState.fromJson(c.content());
+                String json = c.details() != null ? (String) c.details().get("json") : null;
+                if (json != null && !json.isBlank())
+                    latest = GoalState.fromJson(json);
+                else
+                    latest = GoalState.fromJson(c.content());
             }
         }
         state.set(latest);
@@ -334,8 +338,14 @@ public final class GoalExtension implements Extension {
     // ---- internals ----
 
     private void saveEntry(GoalState goalState) {
-        String json = goalState.status() == GoalState.Status.IDLE ? "{\"status\":\"idle\"}" : goalState.toJson();
-        api.sendMessage(new Message.Custom(CUSTOM_TYPE, json));
+        @SuppressWarnings("unchecked")
+        var details = (Map<String, Object>) (Map<?, ?>) Map.of("json",
+                                        goalState.status() == GoalState.Status.IDLE ? null : goalState.toJson());
+        String summary = goalState.status() == GoalState.Status.IDLE
+                                        ? "no goal"
+                                        : statusLabel(goalState.status()) + " · "
+                                                                        + Util.truncate(goalState.objective(), 60);
+        api.sendMessage(new Message.Custom(CUSTOM_TYPE, summary, details));
     }
 
     private List<String> statusLine() {
