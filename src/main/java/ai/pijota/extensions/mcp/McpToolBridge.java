@@ -2,16 +2,14 @@ package ai.pijota.extensions.mcp;
 
 import ai.pijota.tools.Tool;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 import java.time.Duration;
 import java.util.Map;
 
 /**
  * Turns an {@link McpToolDescriptor} into a pijota {@link Tool.ToolDefinition}: it namespaces and sanitizes the name,
- * passes the JSON-Schema through (with a permissive fallback), and wraps {@code tools/call} so the execute lambda
- * returns a {@code ToolResult} mapped from the server's {@code content[]}. All call failures (timeout, crash, server
- * error) are turned into {@code ToolResult.error} so a turn never hangs.
+ * passes the JSON-Schema through (with a permissive fallback), and wraps {@code tools/call} so the execute lambda maps
+ * the client's {@link McpCallResult} to a {@code ToolResult} (bounding its size). All call failures (timeout, crash,
+ * protocol error) are turned into {@code ToolResult.error} so a turn never hangs.
  */
 final class McpToolBridge {
 
@@ -28,8 +26,8 @@ final class McpToolBridge {
         String description = descriptor.description() == null ? "(no description)" : descriptor.description();
         Map<String, Object> schema = normalizeSchema(descriptor.inputSchema());
         String originalName = descriptor.name();
-        Tool.Execute execute = (id, args, cwd) -> client.call(originalName, args, callTimeout)
-                                        .thenApply(McpToolBridge::toResult)
+        Tool.Execute execute = (id, args, cwd) -> client.callTool(originalName, args, callTimeout)
+                                        .thenApply(McpToolBridge::toToolResult)
                                         .exceptionally(ex -> Tool.ToolResult.error("mcp: " + rootMessage(ex)));
         return new Tool.ToolDefinition(name, description, schema, execute);
     }
@@ -63,29 +61,13 @@ final class McpToolBridge {
         return inputSchema;
     }
 
-    /** Maps an MCP {@code tools/call} result ({@code content[]} + {@code isError}) into a pijota {@code ToolResult}. */
-    static Tool.ToolResult toResult(JsonNode result) {
-        if (result == null)
-            return Tool.ToolResult.success("");
-        var sb = new StringBuilder();
-        JsonNode content = result.get("content");
-        if (content != null && content.isArray()) {
-            for (JsonNode part : content) {
-                String type = part.path("type").asText("");
-                if ("text".equals(type)) {
-                    if (sb.length() > 0)
-                        sb.append('\n');
-                    sb.append(part.path("text").asText(""));
-                } else {
-                    if (sb.length() > 0)
-                        sb.append('\n');
-                    sb.append("[").append(type.isBlank() ? "non-text content" : type).append(" omitted]");
-                }
-            }
-        }
-        String text = sb.length() > MAX_CONTENT ? sb.substring(0, MAX_CONTENT) + "\n…[truncated]" : sb.toString();
-        boolean isError = result.path("isError").asBoolean(false);
-        return isError ? Tool.ToolResult.error(text) : Tool.ToolResult.success(text);
+    /**
+     * Wraps an {@link McpCallResult} as a pijota {@code ToolResult}, bounding the text to protect the context window.
+     */
+    static Tool.ToolResult toToolResult(McpCallResult result) {
+        String full = result.text() == null ? "" : result.text();
+        String text = full.length() > MAX_CONTENT ? full.substring(0, MAX_CONTENT) + "\n…[truncated]" : full;
+        return result.isError() ? Tool.ToolResult.error(text) : Tool.ToolResult.success(text);
     }
 
     private static String rootMessage(Throwable ex) {

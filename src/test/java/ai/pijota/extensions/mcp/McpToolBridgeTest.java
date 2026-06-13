@@ -1,9 +1,6 @@
 package ai.pijota.extensions.mcp;
 
 import ai.pijota.tools.Tool;
-import ai.pijota.util.Util;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.Duration;
 import java.util.List;
@@ -15,14 +12,6 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class McpToolBridgeTest {
-
-    private static JsonNode json(String s) {
-        try {
-            return Util.MAPPER.readTree(s);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     @Test
     void namespacesAndSanitizesNames() {
@@ -50,28 +39,19 @@ class McpToolBridgeTest {
     }
 
     @Test
-    void mapsTextContentAndErrorFlag() {
-        var ok = McpToolBridge.toResult(json("{\"content\":[{\"type\":\"text\",\"text\":\"hello\"}]}"));
+    void wrapsTextAndErrorFlag() {
+        var ok = McpToolBridge.toToolResult(new McpCallResult("hello", false));
         assertFalse(ok.isError());
         assertEquals("hello", ok.content());
 
-        var err = McpToolBridge.toResult(
-                                        json("{\"content\":[{\"type\":\"text\",\"text\":\"boom\"}],\"isError\":true}"));
+        var err = McpToolBridge.toToolResult(new McpCallResult("boom", true));
         assertTrue(err.isError());
         assertEquals("boom", err.content());
     }
 
     @Test
-    void summarizesNonTextContent() {
-        var r = McpToolBridge.toResult(json("{\"content\":[{\"type\":\"text\",\"text\":\"a\"},"
-                                        + "{\"type\":\"image\",\"data\":\"...\"}]}"));
-        assertEquals("a\n[image omitted]", r.content());
-    }
-
-    @Test
     void truncatesHugeOutput() {
-        String big = "x".repeat(McpToolBridge.MAX_CONTENT + 1000);
-        var r = McpToolBridge.toResult(json("{\"content\":[{\"type\":\"text\",\"text\":\"" + big + "\"}]}"));
+        var r = McpToolBridge.toToolResult(new McpCallResult("x".repeat(McpToolBridge.MAX_CONTENT + 1000), false));
         assertTrue(r.content().length() <= McpToolBridge.MAX_CONTENT + 32, "should be bounded");
         assertTrue(r.content().endsWith("[truncated]"), r.content().substring(r.content().length() - 20));
     }
@@ -82,5 +62,57 @@ class McpToolBridgeTest {
         Tool.ToolDefinition def = McpToolBridge.toDefinition("srv", desc, null, java.time.Duration.ofSeconds(1));
         assertEquals("mcp__srv__echo", def.name());
         assertEquals("Echo a string", def.description());
+    }
+
+    @Test
+    void nullDescriptionGetsAPlaceholder() {
+        var def = McpToolBridge.toDefinition("srv", new McpToolDescriptor("t", null, Map.of("type", "object")), null,
+                                        Duration.ofSeconds(1));
+        assertEquals("(no description)", def.description());
+    }
+
+    @Test
+    void wrapsNullTextAsEmpty() {
+        assertEquals("", McpToolBridge.toToolResult(new McpCallResult(null, false)).content());
+    }
+
+    @Test
+    void blankNameSegmentsFallBack() {
+        assertEquals("mcp__x__x", McpToolBridge.namespacedName("", ""));
+        assertEquals("mcp__x__echo", McpToolBridge.namespacedName(null, "echo"));
+    }
+
+    @Test
+    void executeBridgesThroughTheClientOnSuccess() throws Exception {
+        var transport = new FakeMcpTransport(List.of(List.of()),
+                                        (t, a) -> FakeMcpTransport.Outcome.result("pong:" + a.path("v").asText("")));
+        var client = new McpClient("srv", transport, Runnable::run);
+        client.connect(Duration.ofSeconds(2));
+        try {
+            var def = McpToolBridge.toDefinition("srv", new McpToolDescriptor("echo", "Echo", Map.of("type", "object")),
+                                            client, Duration.ofSeconds(2));
+            Tool.ToolResult result = def.execute().execute("id-1", Map.of("v", "hi"), null).get(2, TimeUnit.SECONDS);
+            assertFalse(result.isError());
+            assertEquals("pong:hi", result.content());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void executeMapsCallFailureToAToolError() throws Exception {
+        var transport = new FakeMcpTransport(List.of(List.of()), (t, a) -> FakeMcpTransport.Outcome.hang());
+        var client = new McpClient("srv", transport, Runnable::run);
+        client.connect(Duration.ofSeconds(2));
+        try {
+            // short call timeout so the never-answered call maps to a ToolResult.error rather than throwing
+            var def = McpToolBridge.toDefinition("srv", new McpToolDescriptor("hang", "Hang", Map.of("type", "object")),
+                                            client, Duration.ofMillis(150));
+            Tool.ToolResult result = def.execute().execute("id-1", Map.of(), null).get(2, TimeUnit.SECONDS);
+            assertTrue(result.isError());
+            assertTrue(result.content().startsWith("mcp:"), result.content());
+        } finally {
+            client.close();
+        }
     }
 }

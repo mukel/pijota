@@ -108,4 +108,120 @@ class McpExtensionTest {
         f.ext.onShutdown(f.runtime);
         assertTrue(f.transports.getFirst().isClosed(), "server transport should be closed on shutdown");
     }
+
+    @Test
+    void multipleServersRegisterDistinctlyNamespacedTools() {
+        Function<Path, List<McpServerConfig>> loader = cwd -> List.of(
+                                        new McpServerConfig("a", "cmd", List.of(), Map.of(), true),
+                                        new McpServerConfig("b", "cmd", List.of(), Map.of(), true));
+        var f = fixture(loader, (t, a) -> FakeMcpTransport.Outcome.result("ok"), FakeMcpTransport.tool("echo", "Echo"));
+        f.ext.onReady(f.runtime);
+
+        assertTrue(f.registry.get("mcp__a__echo").isPresent());
+        assertTrue(f.registry.get("mcp__b__echo").isPresent(), "same tool name from two servers must not collide");
+        var status = f.api.statusLineSuppliers().getFirst().get();
+        assertTrue(status.stream().anyMatch(l -> l.contains("mcp:a"))
+                                        && status.stream().anyMatch(l -> l.contains("mcp:b")), status.toString());
+        f.ext.onShutdown(f.runtime);
+    }
+
+    @Test
+    void aFailedServerDoesNotBlockTheOthers() {
+        var registry = new ToolRegistry();
+        var runtime = new FakeExtensionRuntime();
+        runtime.setToolRegistry(registry);
+        var api = new FakeExtensionAPI(runtime);
+
+        McpTransport.Factory factory = (cfg, cwd) -> {
+            if (cfg.name().equals("bad"))
+                throw new java.io.IOException("spawn failed");
+            return new FakeMcpTransport(List.of(List.of(FakeMcpTransport.tool("echo", "Echo"))),
+                                            (t, a) -> FakeMcpTransport.Outcome.result("ok"));
+        };
+        Function<Path, List<McpServerConfig>> loader = cwd -> List.of(
+                                        new McpServerConfig("bad", "cmd", List.of(), Map.of(), true),
+                                        new McpServerConfig("good", "cmd", List.of(), Map.of(), true));
+        var ext = new McpExtension(loader, factory);
+        ext.init(api);
+        ext.onReady(runtime);
+
+        assertTrue(registry.get("mcp__good__echo").isPresent(), "healthy server still registers");
+        assertFalse(registry.get("mcp__bad__echo").isPresent(), "failed server registers nothing");
+        api.slashCommand("mcp").handler().accept("");
+        assertTrue(api.lastSentMessage().contains("bad") && api.lastSentMessage().contains("offline"),
+                                        api.lastSentMessage());
+        ext.onShutdown(runtime);
+    }
+
+    @Test
+    void aFailedHandshakeClosesTheTransportInsteadOfLeakingIt() {
+        var registry = new ToolRegistry();
+        var runtime = new FakeExtensionRuntime();
+        runtime.setToolRegistry(registry);
+        var api = new FakeExtensionAPI(runtime);
+
+        var created = new ArrayList<FakeMcpTransport>();
+        McpTransport.Factory factory = (cfg, cwd) -> {
+            var t = new FakeMcpTransport(List.of(List.of(FakeMcpTransport.tool("echo", "Echo"))),
+                                            (x, a) -> FakeMcpTransport.Outcome.result("ok")).failHandshake();
+            created.add(t);
+            return t;
+        };
+        var ext = new McpExtension(oneServer(), factory);
+        ext.init(api);
+        ext.onReady(runtime);
+
+        assertTrue(created.getFirst().isClosed(), "transport must be closed when the handshake fails (no leak)");
+        assertFalse(registry.get("mcp__srv__echo").isPresent());
+        ext.onShutdown(runtime);
+    }
+
+    @Test
+    void mcpToolsAreEnabledEvenWhenTheActiveSetWasRestricted() {
+        var f = fixture(oneServer(), (t, a) -> FakeMcpTransport.Outcome.result("ok"),
+                                        FakeMcpTransport.tool("echo", "Echo"));
+        f.registry.enableOnly(List.of("some-other-tool")); // a restricted active set predates MCP registration
+        f.ext.onReady(f.runtime);
+
+        assertTrue(f.registry.enabledToolNames().contains("mcp__srv__echo"),
+                                        "a freshly registered MCP tool must be enabled, not hidden by enableOnly");
+        f.ext.onShutdown(f.runtime);
+    }
+
+    @Test
+    void reconnectUnknownServerReportsError() {
+        var f = fixture(oneServer(), (t, a) -> FakeMcpTransport.Outcome.result("ok"),
+                                        FakeMcpTransport.tool("echo", "Echo"));
+        f.ext.onReady(f.runtime);
+
+        f.api.slashCommand("mcp").handler().accept("reconnect nope");
+        assertTrue(f.runtime.statusCalls().stream().anyMatch(s -> s.contains("unknown server")),
+                                        f.runtime.statusCalls().toString());
+        f.ext.onShutdown(f.runtime);
+    }
+
+    @Test
+    void reconnectClosesTheOldTransportAndReopens() throws Exception {
+        var f = fixture(oneServer(), (t, a) -> FakeMcpTransport.Outcome.result("ok"),
+                                        FakeMcpTransport.tool("echo", "Echo"));
+        f.ext.onReady(f.runtime);
+        assertEquals(1, f.transports.size());
+
+        f.api.slashCommand("mcp").handler().accept("reconnect srv");
+
+        await(() -> f.transports.size() == 2); // a new transport was opened by the async reconnect
+        assertTrue(f.transports.getFirst().isClosed(), "old transport closed on reconnect");
+        assertTrue(f.registry.get("mcp__srv__echo").isPresent(), "tool still present after reconnect");
+        f.ext.onShutdown(f.runtime);
+    }
+
+    private static void await(java.util.function.BooleanSupplier condition) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 2000;
+        while (System.currentTimeMillis() < deadline) {
+            if (condition.getAsBoolean())
+                return;
+            Thread.sleep(10);
+        }
+        fail("condition not met within timeout");
+    }
 }

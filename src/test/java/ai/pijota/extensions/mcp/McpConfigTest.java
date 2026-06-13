@@ -66,4 +66,43 @@ class McpConfigTest {
         var shared = servers.stream().filter(s -> s.name().equals("shared")).findFirst().orElseThrow();
         assertEquals("project-cmd", shared.command(), "project config overrides global");
     }
+
+    @Test
+    void malformedJsonIsIgnoredNotThrown(@TempDir Path dir) throws Exception {
+        Path bad = write(dir, "bad.json", "{ this is not valid json ");
+        assertDoesNotThrow(() -> McpConfig.load(bad, null, k -> null));
+        assertTrue(McpConfig.load(bad, null, k -> null).isEmpty());
+    }
+
+    @Test
+    void serversWithBlankOrMissingCommandAreSkipped(@TempDir Path dir) throws Exception {
+        Path global = write(dir, "g.json", """
+                                        { "servers": {
+                                          "nocmd": { "args": ["x"] },
+                                          "blank": { "command": "  " },
+                                          "good":  { "command": "run" }
+                                        }}""");
+        var servers = McpConfig.load(global, null, k -> null);
+        assertEquals(List.of("good"), servers.stream().map(McpServerConfig::name).toList());
+    }
+
+    @Test
+    void enabledTrueIsKeptAndCommandAndMultipleVarsExpand(@TempDir Path dir) throws Exception {
+        Path global = write(dir, "g.json", """
+                                        { "servers": {
+                                          "x": { "command": "${BIN}", "args": ["${A}-${B}"], "enabled": true }
+                                        }}""");
+        var servers = McpConfig.load(global, null, Map.of("BIN", "mybin", "A", "1", "B", "2")::get);
+        var x = servers.getFirst();
+        assertEquals("mybin", x.command());
+        assertEquals(List.of("1-2"), x.args());
+    }
+
+    @Test
+    void literalTextWithoutPlaceholdersIsPreserved(@TempDir Path dir) throws Exception {
+        Path global = write(dir, "g.json", """
+                                        { "servers": { "x": { "command": "echo", "args": ["a $b c"] } } }""");
+        var servers = McpConfig.load(global, null, k -> "SHOULD_NOT_BE_USED");
+        assertEquals(List.of("a $b c"), servers.getFirst().args(), "a bare $ without ${} is left untouched");
+    }
 }

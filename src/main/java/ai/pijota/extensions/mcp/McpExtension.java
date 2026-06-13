@@ -121,9 +121,9 @@ public final class McpExtension implements Extension {
     }
 
     private void connect(McpServerConfig cfg, ServerState state, ToolRegistry registry) {
+        McpClient client = null;
         try {
-            var transport = transports.open(cfg, runtime.cwd());
-            var client = new McpClient(cfg.name(), transport, executor);
+            client = new McpClient(cfg.name(), transports.open(cfg, runtime.cwd()), executor);
             client.connect(CONNECT_TIMEOUT);
             List<McpToolDescriptor> tools = client.listTools(LIST_TIMEOUT);
             for (var descriptor : tools) {
@@ -136,6 +136,8 @@ public final class McpExtension implements Extension {
             state.error = null;
             log.info("MCP server {} connected: {} tool(s)", cfg.name(), tools.size());
         } catch (Exception e) {
+            if (client != null)
+                client.close(); // don't leak the process + reader thread when the handshake/listing fails
             state.connected = false;
             state.error = e.getMessage();
             log.warn("MCP server {} failed: {}", cfg.name(), e.getMessage());
@@ -144,9 +146,8 @@ public final class McpExtension implements Extension {
 
     private void handleCommand(String input) {
         String arg = input == null ? "" : input.trim();
-        if (arg.startsWith("reconnect")) {
-            String target = arg.substring("reconnect".length()).trim();
-            reconnect(target);
+        if (arg.equals("reconnect") || arg.startsWith("reconnect ")) {
+            reconnect(arg.substring("reconnect".length()).trim());
             return;
         }
         if (servers.isEmpty()) {

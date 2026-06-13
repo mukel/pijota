@@ -47,7 +47,6 @@ final class McpClient {
     private final AtomicLong nextId = new AtomicLong();
     private final Map<Long, CompletableFuture<JsonNode>> pending = new ConcurrentHashMap<>();
     private volatile boolean closed;
-    private volatile String serverProtocolVersion = PROTOCOL_VERSION;
 
     McpClient(String serverName, McpTransport transport, Executor completionExecutor) {
         this.serverName = serverName;
@@ -60,15 +59,8 @@ final class McpClient {
         Thread.ofVirtual().name("mcp-reader-" + serverName).start(this::readLoop);
         var params = Map.of("protocolVersion", PROTOCOL_VERSION, "capabilities", Map.of(), "clientInfo",
                                         Map.of("name", "pijota", "version", "0.4.0"));
-        JsonNode result = await(request("initialize", params), timeout);
-        JsonNode version = result.get("protocolVersion");
-        if (version != null && version.isTextual())
-            serverProtocolVersion = version.asText();
+        await(request("initialize", params), timeout); // confirm the server initializes before using it
         notify("notifications/initialized", Map.of());
-    }
-
-    String serverProtocolVersion() {
-        return serverProtocolVersion;
     }
 
     /** Lists every tool the server exposes, following {@code nextCursor} pagination. */
@@ -93,12 +85,36 @@ final class McpClient {
         return out;
     }
 
-    /** Invokes {@code tools/call}; the returned future yields the raw {@code result} object (or fails on error). */
-    CompletableFuture<JsonNode> call(String toolName, Map<String, Object> arguments, Duration timeout) {
+    /**
+     * Invokes {@code tools/call} and yields the result as an {@link McpCallResult} (content flattened to text). The
+     * future fails on a protocol error, timeout, or the server dying; a tool-level failure surfaces as a normal result
+     * with {@link McpCallResult#isError()} set.
+     */
+    CompletableFuture<McpCallResult> callTool(String toolName, Map<String, Object> arguments, Duration timeout) {
         var params = new LinkedHashMap<String, Object>();
         params.put("name", toolName);
         params.put("arguments", arguments == null ? Map.of() : arguments);
-        return request("tools/call", params).orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        return request("tools/call", params).orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
+                                        .thenApply(McpClient::toCallResult);
+    }
+
+    /** Flattens an MCP {@code tools/call} result's {@code content[]} into text; non-text parts are summarized. */
+    private static McpCallResult toCallResult(JsonNode result) {
+        if (result == null)
+            return new McpCallResult("", false);
+        var sb = new StringBuilder();
+        JsonNode content = result.get("content");
+        if (content != null && content.isArray()) {
+            for (JsonNode part : content) {
+                if (sb.length() > 0)
+                    sb.append('\n');
+                String type = part.path("type").asText("");
+                sb.append("text".equals(type)
+                                                ? part.path("text").asText("")
+                                                : "[" + (type.isBlank() ? "non-text content" : type) + " omitted]");
+            }
+        }
+        return new McpCallResult(sb.toString(), result.path("isError").asBoolean(false));
     }
 
     boolean alive() {
