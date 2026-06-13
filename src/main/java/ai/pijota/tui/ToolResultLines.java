@@ -1,0 +1,116 @@
+package ai.pijota.tui;
+
+import ai.pijota.messages.Message;
+import ai.pijota.tools.Tool;
+import ai.pijota.theme.AnsiTheme;
+import ai.pijota.util.Util;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
+/**
+ * Builds the styled scrollback lines for a completed tool call: a one-line header (icon, tool name, target detail,
+ * result summary, bash exit code) plus any rendered body lines. Pure given the message, the optional extension-provided
+ * {@link Tool.ToolResultView}, and theming inputs — so the formatting is unit-testable, separate from the TUI's
+ * stateful diff/preview handling which stays in the event loop.
+ */
+final class ToolResultLines {
+
+    private ToolResultLines() {}
+
+    static List<String> compose(Message.ToolResult msg, Tool.ToolResultView rendered, Supplier<String> args,
+                                    AnsiTheme theme, String rawCwd, boolean shortenPaths) {
+        String slot = msg.isError() ? "toolError" : "toolResult";
+        var parts = new ArrayList<String>();
+        parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", toolIcon(msg.toolName(), msg.isError())));
+        parts.add(theme.styled("statusText", msg.toolName()));
+        String detail = ToolRender.detail(msg.toolName(), args, rawCwd, shortenPaths);
+        if (!detail.isBlank())
+            parts.add(theme.styled("statusText", detail));
+        String summary = rendered != null ? rendered.summary() : toolResultSummary(msg);
+        if (!summary.isBlank())
+            parts.add(theme.styled(slot, summary));
+        if ("bash".equals(msg.toolName())) {
+            Map<String, Object> details = msg.details() == null ? Map.of() : msg.details();
+            if (details.get("exitCode") instanceof Number ec)
+                parts.add(theme.styled(ec.intValue() == 0 ? "statusText" : "toolError", "exit " + ec.intValue()));
+        }
+        var lines = new ArrayList<String>();
+        lines.add(String.join(" ", parts));
+        if (rendered != null && !rendered.body().isEmpty())
+            for (String line : rendered.body())
+                lines.add(renderToolBodyLine(msg.toolName(), line, theme));
+        return lines;
+    }
+
+    static String toolIcon(String toolName, boolean error) {
+        if (error)
+            return "✖";
+        return switch (toolName) {
+            case "read" -> "📖";
+            case "write", "edit" -> "✏";
+            case "bash" -> "$";
+            case "grep" -> "🔍";
+            case "glob" -> "📁";
+            case "ls" -> "📂";
+            case "task" -> "⚙";
+            case "question" -> "❓";
+            case "websearch", "webfetch" -> "🌐";
+            case "todowrite" -> "📋";
+            default -> "●";
+        };
+    }
+
+    static String toolResultSummary(Message.ToolResult msg) {
+        if (msg.isError()) {
+            String content = msg.content();
+            if (content == null || content.isBlank())
+                return "";
+            return content.lines().limit(5).reduce("", (a, b) -> a + (a.isEmpty() ? "" : "\n") + b);
+        }
+        Map<String, Object> details = msg.details() == null ? Map.of() : msg.details();
+        return switch (msg.toolName()) {
+            case "grep" -> details.get("matchCount") != null
+                                            ? details.get("matchCount") + " match(es)"
+                                            : Util.firstLine(msg.content());
+            case "glob" -> details.get("resultCount") != null
+                                            ? details.get("resultCount") + " result(s)"
+                                            : Util.firstLine(msg.content());
+            case "read" -> details.get("totalLines") != null
+                                            ? details.get("totalLines") + " line(s)"
+                                            : Util.firstLine(msg.content());
+            case "task" -> details.get("resultCount") != null
+                                            ? details.get("mode") + ": " + details.get("succeeded") + "/"
+                                                                            + details.get("resultCount") + " ok"
+                                            : Util.firstLine(msg.content());
+            default -> Util.firstLine(msg.content());
+        };
+    }
+
+    static String renderToolBodyLine(String toolName, String line, AnsiTheme theme) {
+        if ("todowrite".equals(toolName))
+            return renderTodoLine(line, theme);
+        if (line.startsWith("╰→")) {
+            return theme.styled("statusText", "╰→") + theme.styled("commandMeta", line.substring(2));
+        }
+        if (line.equals("┴") || line.equals("┬"))
+            return theme.styled("statusText", line);
+        String bodySlot = line.startsWith("⋯") ? "commandMeta" : "statusText";
+        return theme.styled(bodySlot, line);
+    }
+
+    static String renderTodoLine(String line, AnsiTheme theme) {
+        String slot = null;
+        if (line.startsWith("│ [✓]"))
+            slot = "diffAdd";
+        else if (line.startsWith("│ [~]"))
+            slot = "statusWarn";
+        else if (line.startsWith("│ [−]"))
+            slot = "toolError";
+        if (slot == null)
+            return theme.styled("statusText", line);
+        return theme.styled("statusText", "│ ") + theme.styled(slot, line.substring(2));
+    }
+}

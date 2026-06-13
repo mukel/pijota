@@ -73,18 +73,18 @@ class AppendOnlyTuiTest {
         var tools = new String[] {"read", "write", "edit", "bash", "grep", "glob", "ls", "task", "question",
                 "websearch", "webfetch", "todowrite"};
         for (var t : tools) {
-            assertFalse(AppendOnlyTui.toolIcon(t, false).isEmpty(), "tool " + t + " should have icon");
+            assertFalse(ToolResultLines.toolIcon(t, false).isEmpty(), "tool " + t + " should have icon");
         }
     }
 
     @Test
     void toolIconErrorReturnsX() {
-        assertEquals("✖", AppendOnlyTui.toolIcon("bash", true));
+        assertEquals("✖", ToolResultLines.toolIcon("bash", true));
     }
 
     @Test
     void toolIconUnknownReturnsDot() {
-        assertEquals("●", AppendOnlyTui.toolIcon("unknown-tool", false));
+        assertEquals("●", ToolResultLines.toolIcon("unknown-tool", false));
     }
 
     @Test
@@ -195,86 +195,86 @@ class AppendOnlyTuiTest {
     @Test
     void toolResultSummaryGrep() {
         var msg = new ai.pijota.messages.Message.ToolResult("id", "grep", "content", false, Map.of("matchCount", 5));
-        assertEquals("5 match(es)", AppendOnlyTui.toolResultSummary(msg));
+        assertEquals("5 match(es)", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void toolResultSummaryGlob() {
         var msg = new ai.pijota.messages.Message.ToolResult("id", "glob", "content", false, Map.of("resultCount", 3));
-        assertEquals("3 result(s)", AppendOnlyTui.toolResultSummary(msg));
+        assertEquals("3 result(s)", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void toolResultSummaryRead() {
         var msg = new ai.pijota.messages.Message.ToolResult("id", "read", "content", false, Map.of("totalLines", 100));
-        assertEquals("100 line(s)", AppendOnlyTui.toolResultSummary(msg));
+        assertEquals("100 line(s)", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void toolResultSummaryError() {
         var msg = new ai.pijota.messages.Message.ToolResult("id", "bash", "Error message\nline2", true);
-        assertTrue(AppendOnlyTui.toolResultSummary(msg).contains("Error message"));
+        assertTrue(ToolResultLines.toolResultSummary(msg).contains("Error message"));
     }
 
     @Test
     void toolResultSummaryDefault() {
         var msg = new ai.pijota.messages.Message.ToolResult("id", "unknown", "plain content", false);
-        assertEquals("plain content", AppendOnlyTui.toolResultSummary(msg));
+        assertEquals("plain content", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void renderTodoLineDone() {
         var theme = new AnsiTheme();
-        var result = AppendOnlyTui.renderTodoLine("│ [✓] Task done", theme);
+        var result = ToolResultLines.renderTodoLine("│ [✓] Task done", theme);
         assertTrue(result.contains("✓"));
     }
 
     @Test
     void renderTodoLineWip() {
         var theme = new AnsiTheme();
-        var result = AppendOnlyTui.renderTodoLine("│ [~] Working", theme);
+        var result = ToolResultLines.renderTodoLine("│ [~] Working", theme);
         assertTrue(result.contains("~"));
     }
 
     @Test
     void renderTodoLineCancelled() {
         var theme = new AnsiTheme();
-        var result = AppendOnlyTui.renderTodoLine("│ [−] Removed", theme);
+        var result = ToolResultLines.renderTodoLine("│ [−] Removed", theme);
         assertTrue(result.contains("−"));
     }
 
     @Test
     void renderTodoLinePlain() {
         var theme = new AnsiTheme();
-        var result = AppendOnlyTui.renderTodoLine("│ plain text", theme);
+        var result = ToolResultLines.renderTodoLine("│ plain text", theme);
         assertTrue(result.contains("plain text"));
     }
 
     @Test
     void renderToolBodyLineTodowrite() {
         var theme = new AnsiTheme();
-        var result = AppendOnlyTui.renderToolBodyLine("todowrite", "│ [✓] done", theme);
+        var result = ToolResultLines.renderToolBodyLine("todowrite", "│ [✓] done", theme);
         assertTrue(result.contains("✓"));
     }
 
     @Test
     void renderToolBodyLineLink() {
         var theme = new AnsiTheme();
-        var result = AppendOnlyTui.renderToolBodyLine("bash", "╰→ result", theme);
+        var result = ToolResultLines.renderToolBodyLine("bash", "╰→ result", theme);
         assertTrue(result.contains("╰→"));
     }
 
     @Test
     void renderToolBodyLineTreeNode() {
         var theme = new AnsiTheme();
-        var result = AppendOnlyTui.renderToolBodyLine("ls", "┴", theme);
+        var result = ToolResultLines.renderToolBodyLine("ls", "┴", theme);
         assertTrue(result.contains("┴"));
     }
 
     @Test
     void thinkingSummaryFormatsTokens() {
         var theme = new AnsiTheme();
-        var result = AppendOnlyTui.thinkingSummary("hello world", 0, theme);
+        var result = StreamRenderer.thinkingSummary("hello world", 0, theme);
         assertTrue(result.contains("thought"));
         assertTrue(result.contains("tokens"));
     }

@@ -125,4 +125,49 @@ class MessageBrowserTest {
         browser.exit();
         assertFalse(browser.isActive());
     }
+
+    @Test
+    void handleKeyNavigatesAndConsumes() {
+        var editor = fakeEditor();
+        var msgs = List.of(new Message.User("a"), new Message.User("b"), new Message.User("c"));
+        var browser = new MessageBrowser(editor, () -> msgs);
+        browser.enter();
+
+        assertTrue(browser.handleKey(Key.Special.UP), "Up is consumed");
+        assertEquals("b", editor.snapshot().lines().get(0));
+        assertTrue(browser.handleKey(Key.Special.DOWN), "Down is consumed");
+        assertEquals("c", editor.snapshot().lines().get(0));
+    }
+
+    @Test
+    void handleKeyEnterAcceptsAndExits() {
+        var editor = fakeEditor();
+        var browser = new MessageBrowser(editor, () -> List.of(new Message.User("keep me")));
+        browser.enter();
+
+        assertTrue(browser.handleKey(Key.Special.ENTER));
+        assertFalse(browser.isActive());
+        assertEquals("keep me", editor.snapshot().lines().get(0), "Enter keeps the browsed text");
+    }
+
+    @Test
+    void handleKeyEscCancelsAndClears() {
+        var editor = fakeEditor();
+        var browser = new MessageBrowser(editor, () -> List.of(new Message.User("x")));
+        browser.enter();
+
+        assertTrue(browser.handleKey(Key.Special.ESC));
+        assertFalse(browser.isActive());
+        assertTrue(editor.snapshot().lines().get(0).isEmpty(), "Esc clears");
+    }
+
+    @Test
+    void handleKeyOtherKeyExitsAndFallsThrough() {
+        var editor = fakeEditor();
+        var browser = new MessageBrowser(editor, () -> List.of(new Message.User("x")));
+        browser.enter();
+
+        assertFalse(browser.handleKey(new Key.Char('z')), "non-nav key is not consumed (falls through to editor)");
+        assertFalse(browser.isActive(), "and exits the browser");
+    }
 }

@@ -20,6 +20,31 @@ final class MessageBrowser {
         return idx >= 0;
     }
 
+    /**
+     * Handles a key while browsing. Up/Down move, Enter accepts (exit), Esc cancels — all consumed (return true). Any
+     * other key exits the browser and is NOT consumed (returns false) so the caller routes it onward to the editor.
+     */
+    boolean handleKey(Key key) {
+        if (key == Key.Special.UP) {
+            prev();
+            return true;
+        }
+        if (key == Key.Special.DOWN) {
+            next();
+            return true;
+        }
+        if (key == Key.Special.ENTER) {
+            exit();
+            return true;
+        }
+        if (key == Key.Special.ESC) {
+            cancel();
+            return true;
+        }
+        exit();
+        return false;
+    }
+
     void enter() {
         messages = userMessagesSupplier.get();
         if (messages.isEmpty())

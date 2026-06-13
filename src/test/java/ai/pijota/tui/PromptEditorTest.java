@@ -74,6 +74,21 @@ class PromptEditorTest {
     }
 
     @Test
+    void handleCompletionKeyNavigatesOpenList() {
+        editor.insertText("/sess");
+        assertTrue(editor.hasCompletions());
+        assertTrue(editor.handleCompletionKey(Key.Special.DOWN), "Down consumed within completions");
+        assertTrue(editor.handleCompletionKey(Key.Special.UP), "Up consumed within completions");
+        assertFalse(editor.handleCompletionKey(new Key.Char('x')), "non-arrow key not consumed");
+    }
+
+    @Test
+    void handleCompletionKeyIgnoredWithoutCompletions() {
+        assertFalse(editor.hasCompletions());
+        assertFalse(editor.handleCompletionKey(Key.Special.DOWN));
+    }
+
+    @Test
     void exposesSlashCommandCompletionsAndSubmitsExactCommand() {
         editor.insertText("/sess");
 

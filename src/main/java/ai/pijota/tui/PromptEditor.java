@@ -269,6 +269,21 @@ public final class PromptEditor {
         return completions.total() > 0;
     }
 
+    /** Handles Up/Down within an open completion list. Returns true if the key was consumed. */
+    public boolean handleCompletionKey(Key key) {
+        if (!hasCompletions())
+            return false;
+        if (key == Key.Special.UP) {
+            selectPrev();
+            return true;
+        }
+        if (key == Key.Special.DOWN) {
+            selectNext();
+            return true;
+        }
+        return false;
+    }
+
     public void selectNext() {
         completions.selectNext();
     }
