@@ -84,6 +84,25 @@ class PromptSelectorTest {
     }
 
     @Test
+    void lineCountMatchesRenderedRowsSoTheRegionReservesEnoughSpace() {
+        var s = new PromptSelector();
+        assertEquals(0, s.lineCount(), "inactive selector occupies no rows");
+
+        // A long list: every option row must be accounted for, not capped (the bug that hid options).
+        var items = IntStream.range(0, 30).mapToObj(i -> "item-" + i).toList();
+        s.show("big", items, i -> {});
+        assertEquals(visible(s).size(), s.lineCount(), "height budget must match the actual rendered rows");
+
+        for (int i = 0; i < 20; i++)
+            s.handleKey(Key.Special.DOWN);
+        assertEquals(visible(s).size(), s.lineCount(), "height stays in sync after scrolling");
+
+        // A short list (no more-markers) must also agree.
+        s.show("two", List.of("a", "b"), i -> {});
+        assertEquals(visible(s).size(), s.lineCount());
+    }
+
+    @Test
     void longListScrollsToKeepHighlightVisibleWithMoreCounts() {
         var s = new PromptSelector();
         var items = IntStream.range(0, 30).mapToObj(i -> "item-" + i).toList();

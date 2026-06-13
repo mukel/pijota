@@ -59,12 +59,17 @@ final class PromptHistory {
         return entries.reversed().stream().map(entry -> new CompletionItem(entry, "history")).toList();
     }
 
+    /**
+     * Ghost-text suffix for the most recent history entry that starts with {@code text}, or empty if none. Returns only
+     * the trailing portion (e.g. {@code "llo world"} for {@code "he"}) because it is rendered dimmed directly after
+     * what the user has typed.
+     */
     String suggestionFor(String text) {
         String prefix = text != null ? text : "";
         for (int i = entries.size() - 1; i >= 0; i--) {
             String entry = entries.get(i);
             if (entry.regionMatches(true, 0, prefix, 0, prefix.length()) && entry.length() > prefix.length())
-                return entry;
+                return entry.substring(prefix.length());
         }
         return "";
     }

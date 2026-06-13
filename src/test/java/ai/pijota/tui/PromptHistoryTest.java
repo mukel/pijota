@@ -39,7 +39,8 @@ class PromptHistoryTest {
         history.add("hello world");
         history.add("hello there");
 
-        assertEquals("hello there", history.suggestionFor("HEL"));
+        // Returns only the suffix past the typed prefix (rendered dimmed after it).
+        assertEquals("lo there", history.suggestionFor("HEL"));
         assertEquals("", history.suggestionFor("missing"));
     }
 }

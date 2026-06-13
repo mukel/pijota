@@ -61,6 +61,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private StreamRenderer streamRenderer;
     private AnsiTheme thinkingTheme;
     private final Terminal terminal;
+    private final PromptLayout promptLayout;
     private final TerminalCoordinator terminalUi;
     private final PromptEditor promptEditor;
     private final ScheduledExecutorService animator = Executors.newSingleThreadScheduledExecutor(
@@ -133,6 +134,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     @Override
+    public void viewer(String title, List<String> lines) {
+        logViewer.show(title, lines);
+        busy.set(true);
+        redrawPrompt(); // redraw sizes the viewport to fit the screen (see fitViewerViewport)
+    }
+
+    @Override
     public void appendStatus(String msg) {
         appendPlain(List.of(theme.styled("statusText", msg)));
     }
@@ -177,6 +185,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final TuiSelectors selectors;
     private volatile boolean showSessionPickerOnStart;
     private final HelpOverlay helpOverlay = new HelpOverlay();
+    private final LogViewer logViewer = new LogViewer();
     private final WorkingAnimation animation = new WorkingAnimation();
     private final FollowUpQueue followUps = new FollowUpQueue();
     private final MessageBrowser messageBrowser;
@@ -525,8 +534,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         regions.addAll(selectors.regions());
         regions.add(new PromptRegion.Completions());
         regions.add(new PromptRegion.HelpOverlay());
+        regions.add(new PromptSelectorRegion(selector));
+        regions.add(new LogViewerRegion(logViewer));
         regions.add(new PromptRegion.StatusBar());
-        var promptLayout = new PromptLayout(regions);
+        this.promptLayout = new PromptLayout(regions);
         this.terminalUi = new TerminalCoordinator(terminal, theme, promptLayout);
         this.streamRenderer = new StreamRenderer(terminalUi::appendLines, theme, thinkingTheme,
                                         () -> terminal.getWidth() - 4, this::showThinking, () -> thinkingLevel.label());
@@ -1053,6 +1064,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     if (dialogs.handlePrompt(key))
                         continue;
+                    if (routeModalKey(logViewer::active, logViewer::handleKey, key))
+                        continue;
+                    // The select picker is modal too: route keys to it before global ESC/etc. so Esc cancels the
+                    // picker (and Ctrl+X o's) rather than triggering a generic escape.
+                    if (routeModalKey(selector::active, selector::handleKey, key))
+                        continue;
                     if (handleExtensionKeybinding(key))
                         continue;
                     if (key == Key.Special.ESC && helpOverlayActive()) {
@@ -1115,14 +1132,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         clearHelpOverlay();
                         redrawPrompt();
                         continue;
-                    }
-                    if (selector.active()) {
-                        if (selector.handleKey(key)) {
-                            if (!selector.active())
-                                busy.set(false);
-                            redrawPrompt();
-                            continue;
-                        }
                     }
                     if (selectors.handle(key, this::redrawPrompt))
                         continue;
@@ -1392,7 +1401,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void handleResize() {
-        redrawPrompt();
+        redrawPrompt(); // re-sizes the viewer viewport via fitViewerViewport
     }
 
     private void cycleThinkingLevel() {
@@ -2093,9 +2102,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             if (!sanitized.isBlank())
                 seen.add(sanitized);
         }
-        var lines = new ArrayList<>(seen);
-        lines.addAll(selector.renderLines(theme));
-        return List.copyOf(lines);
+        return List.copyOf(seen);
     }
 
     static boolean showExtensionStatusLine(String line) {
@@ -2143,10 +2150,42 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             redrawPrompt();
     }
 
+    /**
+     * Routes a key to a modal component (log viewer, select picker) that consumes input while active. Returns true if
+     * the key was consumed; clears {@code busy} when the component closed itself and always redraws after consuming.
+     */
+    private boolean routeModalKey(java.util.function.BooleanSupplier active,
+                                    java.util.function.Predicate<Key> handleKey, Key key) {
+        if (!active.getAsBoolean() || !handleKey.test(key))
+            return false;
+        if (!active.getAsBoolean())
+            busy.set(false);
+        redrawPrompt();
+        return true;
+    }
+
     private void redrawPrompt() {
         if (SelfRespawn.isRespawnInProgress())
             return;
-        terminalUi.redrawPrompt(decorate(promptEditor.snapshot()));
+        var snapshot = decorate(promptEditor.snapshot());
+        if (logViewer.active())
+            logViewer.setViewport(fitViewerViewport(snapshot));
+        terminalUi.redrawPrompt(snapshot);
+    }
+
+    /**
+     * Body rows the log viewer may occupy so the whole prompt frame still fits on screen. The append-only redraw erases
+     * the previous frame by moving the cursor up over it; if a frame is taller than the terminal, its top scrolls off
+     * and can no longer be reached, so stale separators/prompts pile up. We therefore budget the viewer against the
+     * measured height of every other region (plus the top separator and one spare line), recomputed each redraw so it
+     * adapts as the status/extension area grows or shrinks.
+     */
+    private int fitViewerViewport(PromptSnapshot snapshot) {
+        int width = Math.max(20, terminal.getWidth());
+        int others = promptLayout.measuredHeightExcluding(LogViewerRegion.class, width, snapshot);
+        // The viewer region wraps the body in a header + footer (2 rows); keep one spare line so a region whose
+        // height is under-estimated by a row can never push the frame past the bottom of the screen.
+        return Math.max(3, terminal.getHeight() - others - 3);
     }
 
     private String tokenStatus() {

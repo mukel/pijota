@@ -13,6 +13,17 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
     CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx);
     static final CursorPos NO_CURSOR = new CursorPos(-1, -1);
 
+    /** Writes pre-rendered lines as a region body: each cleared to end-of-line, separated by CR/LF. */
+    static void writeLines(PrintWriter out, java.util.List<String> lines) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0)
+                out.print("\r\n");
+            out.print('\r');
+            out.print("\033[K");
+            out.print(lines.get(i));
+        }
+    }
+
     record CursorPos(int visualRow, int visualCol) {
     }
 

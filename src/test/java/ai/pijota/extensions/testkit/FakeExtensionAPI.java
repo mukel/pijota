@@ -37,7 +37,7 @@ public class FakeExtensionAPI implements ExtensionAPI {
     private final List<Supplier<String>> systemPrompts = new ArrayList<>();
     private final List<Supplier<String>> thinkingHeaders = new ArrayList<>();
     private final List<BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender>> renderers = new ArrayList<>();
-    private final Map<String, List<BiFunction<ExtensionEvent, ExtensionContext, Object>>> listeners = new ConcurrentHashMap<>();
+    private final Map<Class<? extends ExtensionEvent>, List<BiFunction<ExtensionEvent, ExtensionContext, Object>>> listeners = new ConcurrentHashMap<>();
     private final List<Message.Custom> sentMessages = new ArrayList<>();
     private final List<String> sentUserMessages = new ArrayList<>();
 
@@ -127,15 +127,15 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     public void fireTurnStart(int turnNumber) {
-        fire("turn_start", new ExtensionEvent.TurnStart(turnNumber));
+        fire(new ExtensionEvent.TurnStart(turnNumber));
     }
 
     public void fireTurnEnd(int turnNumber) {
-        fire("turn_end", new ExtensionEvent.TurnEnd(turnNumber));
+        fire(new ExtensionEvent.TurnEnd(turnNumber));
     }
 
     public void fireSessionReady() {
-        fire("session_ready", new ExtensionEvent.SessionReady());
+        fire(new ExtensionEvent.SessionReady());
     }
 
     public SlashCommand slashCommand(String name) {
@@ -147,13 +147,14 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends ExtensionEvent> List<BiFunction<T, ExtensionContext, Object>> listeners(String name) {
-        return (List<BiFunction<T, ExtensionContext, Object>>) (List<?>) listeners.getOrDefault(name, List.of());
+    public <T extends ExtensionEvent> List<BiFunction<T, ExtensionContext, Object>> listeners(Class<T> eventType) {
+        return (List<BiFunction<T, ExtensionContext, Object>>) (List<?>) listeners.getOrDefault(eventType, List.of());
     }
 
-    public Object fire(String name, ExtensionEvent event) {
+    /** Dispatches an event to its handlers; returns the first non-null result (for decision events) or null. */
+    public Object fire(ExtensionEvent event) {
         var ctx = new ExtensionContext(ui, runtime);
-        for (var handler : listeners.getOrDefault(name, List.of())) {
+        for (var handler : listeners.getOrDefault(event.getClass(), List.of())) {
             Object result = handler.apply(event, ctx);
             if (result != null)
                 return result;
@@ -164,7 +165,7 @@ public class FakeExtensionAPI implements ExtensionAPI {
     public ExtensionResult.InputResult filterInput(String text) {
         var ctx = new ExtensionContext(ui, runtime);
         String current = text;
-        for (var handler : listeners.getOrDefault("input", List.of())) {
+        for (var handler : listeners.getOrDefault(ExtensionEvent.Input.class, List.of())) {
             Object result = handler.apply(new ExtensionEvent.Input(current), ctx);
             if (result instanceof ExtensionResult.InputResult r) {
                 current = r.text();
@@ -175,67 +176,14 @@ public class FakeExtensionAPI implements ExtensionAPI {
         return new ExtensionResult.InputResult(current, false);
     }
 
-    private ExtensionAPI on(String name, BiConsumer<? extends ExtensionEvent, ExtensionContext> handler) {
-        listeners.computeIfAbsent(name, _ -> new CopyOnWriteArrayList<>()).add((e, ctx) -> {
-            ((BiConsumer<ExtensionEvent, ExtensionContext>) handler).accept(e, ctx);
+    @Override
+    @SuppressWarnings("unchecked")
+    public <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, BiConsumer<E, ExtensionContext> handler) {
+        listeners.computeIfAbsent(eventType, _ -> new CopyOnWriteArrayList<>()).add((e, ctx) -> {
+            handler.accept((E) e, ctx);
             return null;
         });
         return this;
-    }
-
-    @Override
-    public ExtensionAPI onSessionStart(BiConsumer<ExtensionEvent.SessionStart, ExtensionContext> handler) {
-        return on("session_start", handler);
-    }
-
-    @Override
-    public ExtensionAPI onSessionReady(BiConsumer<ExtensionEvent.SessionReady, ExtensionContext> handler) {
-        return on("session_ready", handler);
-    }
-
-    @Override
-    public ExtensionAPI onSessionShutdown(BiConsumer<ExtensionEvent.SessionShutdown, ExtensionContext> handler) {
-        return on("session_shutdown", handler);
-    }
-
-    @Override
-    public ExtensionAPI onBeforeAgentStart(BiConsumer<ExtensionEvent.BeforeAgentStart, ExtensionContext> handler) {
-        return on("before_agent_start", handler);
-    }
-
-    @Override
-    public ExtensionAPI onAgentStart(BiConsumer<ExtensionEvent.AgentStart, ExtensionContext> handler) {
-        return on("agent_start", handler);
-    }
-
-    @Override
-    public ExtensionAPI onAgentEnd(BiConsumer<ExtensionEvent.AgentEnd, ExtensionContext> handler) {
-        return on("agent_end", handler);
-    }
-
-    @Override
-    public ExtensionAPI onTurnStart(BiConsumer<ExtensionEvent.TurnStart, ExtensionContext> handler) {
-        return on("turn_start", handler);
-    }
-
-    @Override
-    public ExtensionAPI onTurnEnd(BiConsumer<ExtensionEvent.TurnEnd, ExtensionContext> handler) {
-        return on("turn_end", handler);
-    }
-
-    @Override
-    public ExtensionAPI onMessageStart(BiConsumer<ExtensionEvent.MessageStart, ExtensionContext> handler) {
-        return on("message_start", handler);
-    }
-
-    @Override
-    public ExtensionAPI onMessageUpdate(BiConsumer<ExtensionEvent.MessageUpdate, ExtensionContext> handler) {
-        return on("message_update", handler);
-    }
-
-    @Override
-    public ExtensionAPI onMessageEnd(BiConsumer<ExtensionEvent.MessageEnd, ExtensionContext> handler) {
-        return on("message_end", handler);
     }
 
     @Override
@@ -247,46 +195,10 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     @Override
-    public ExtensionAPI onSessionBeforeCompact(
-                                    BiConsumer<ExtensionEvent.SessionBeforeCompact, ExtensionContext> handler) {
-        return on("session_before_compact", handler);
-    }
-
-    @Override
-    public ExtensionAPI onSessionCompact(BiConsumer<ExtensionEvent.SessionCompact, ExtensionContext> handler) {
-        return on("session_compact", handler);
-    }
-
-    @Override
-    public ExtensionAPI onToolResult(BiConsumer<ExtensionEvent.ToolResult, ExtensionContext> handler) {
-        return on("tool_result", handler);
-    }
-
-    @Override
-    public ExtensionAPI onToolExecutionStart(BiConsumer<ExtensionEvent.ToolExecutionStart, ExtensionContext> handler) {
-        return on("tool_execution_start", handler);
-    }
-
-    @Override
-    public ExtensionAPI onToolExecutionEnd(BiConsumer<ExtensionEvent.ToolExecutionEnd, ExtensionContext> handler) {
-        return on("tool_execution_end", handler);
-    }
-
-    @Override
-    public ExtensionAPI onBeforeProviderRequest(
-                                    BiConsumer<ExtensionEvent.BeforeProviderRequest, ExtensionContext> handler) {
-        return on("before_provider_request", handler);
-    }
-
-    @Override
-    public ExtensionAPI onModelSelect(BiConsumer<ExtensionEvent.ModelSelect, ExtensionContext> handler) {
-        return on("model_select", handler);
-    }
-
-    @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler) {
-        listeners.computeIfAbsent("user_bash", _ -> new CopyOnWriteArrayList<>()).add((BiFunction) handler);
+        listeners.computeIfAbsent(ExtensionEvent.UserBash.class, _ -> new CopyOnWriteArrayList<>())
+                                        .add((BiFunction) handler);
         return this;
     }
 
@@ -294,20 +206,22 @@ public class FakeExtensionAPI implements ExtensionAPI {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public ExtensionAPI onBashToolCall(
                                     BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler) {
-        listeners.computeIfAbsent("bash_tool_call", _ -> new CopyOnWriteArrayList<>()).add((BiFunction) handler);
+        listeners.computeIfAbsent(ExtensionEvent.BashToolCall.class, _ -> new CopyOnWriteArrayList<>())
+                                        .add((BiFunction) handler);
         return this;
     }
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler) {
-        listeners.computeIfAbsent("tool_call", _ -> new CopyOnWriteArrayList<>()).add((BiFunction) handler);
+        listeners.computeIfAbsent(ExtensionEvent.ToolCall.class, _ -> new CopyOnWriteArrayList<>())
+                                        .add((BiFunction) handler);
         return this;
     }
 
     @Override
     public ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler) {
-        listeners.computeIfAbsent("input", _ -> new CopyOnWriteArrayList<>()).add((e, ctx) -> {
+        listeners.computeIfAbsent(ExtensionEvent.Input.class, _ -> new CopyOnWriteArrayList<>()).add((e, ctx) -> {
             if (e instanceof ExtensionEvent.Input input)
                 return handler.apply(input.text(), ctx);
             return null;
@@ -388,7 +302,7 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     @Override
-    public void sendUserMessage(String content, String deliverAs) {
-        sentUserMessages.add(content + "|" + deliverAs);
+    public void sendUserMessage(String content, ai.pijota.extensions.DeliverAs deliverAs) {
+        sentUserMessages.add(content + "|" + deliverAs.wire());
     }
 }

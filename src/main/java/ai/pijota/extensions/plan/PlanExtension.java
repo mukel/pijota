@@ -1,5 +1,7 @@
 package ai.pijota.extensions.plan;
 
+import ai.pijota.extensions.ExtensionEvent;
+
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionKeybinding;
@@ -52,7 +54,7 @@ public final class PlanExtension implements Extension {
             return null;
         });
 
-        api.onBeforeAgentStart((bas, _ctx) -> {
+        api.on(ExtensionEvent.BeforeAgentStart.class, (bas, _ctx) -> {
             if (!planEnabled)
                 return;
             bas.systemPrompt().append("""
@@ -67,7 +69,7 @@ public final class PlanExtension implements Extension {
                                             Do NOT attempt to make changes — just describe what you would do.""");
         });
 
-        api.onSessionStart((_event, _ctx) -> {
+        api.on(ExtensionEvent.SessionStart.class, (_event, _ctx) -> {
             if (runtime.getFlag("plan", false)) {
                 planEnabled = true;
                 runtime.setActiveTools(PLAN_TOOLS);

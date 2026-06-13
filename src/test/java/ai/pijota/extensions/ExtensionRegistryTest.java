@@ -94,28 +94,28 @@ class ExtensionRegistryTest {
             events.add("init");
             api.registerSlashCommand(new SlashCommand("fake-" + name, "fake", List.of(), _ -> {}));
             api.registerKeybinding(new ExtensionKeybinding(new KeyChord(KeyChord.Key.A), "fake", () -> {}));
-            api.onSessionStart((_, _) -> events.add("session_start"));
-            api.onSessionReady((_, _) -> events.add("session_ready"));
-            api.onSessionShutdown((_, _) -> events.add("session_shutdown"));
-            api.onBeforeAgentStart((_, _) -> events.add("before_agent_start"));
-            api.onAgentStart((_, _) -> events.add("agent_start"));
-            api.onAgentEnd((_, _) -> events.add("agent_end"));
-            api.onTurnStart((_, _) -> events.add("turn_start"));
-            api.onTurnEnd((_, _) -> events.add("turn_end"));
-            api.onMessageStart((_, _) -> events.add("message_start"));
-            api.onMessageUpdate((_, _) -> events.add("message_update"));
-            api.onMessageEnd((_, _) -> events.add("message_end"));
+            api.on(ExtensionEvent.SessionStart.class, (_, _) -> events.add("session_start"));
+            api.on(ExtensionEvent.SessionReady.class, (_, _) -> events.add("session_ready"));
+            api.on(ExtensionEvent.SessionShutdown.class, (_, _) -> events.add("session_shutdown"));
+            api.on(ExtensionEvent.BeforeAgentStart.class, (_, _) -> events.add("before_agent_start"));
+            api.on(ExtensionEvent.AgentStart.class, (_, _) -> events.add("agent_start"));
+            api.on(ExtensionEvent.AgentEnd.class, (_, _) -> events.add("agent_end"));
+            api.on(ExtensionEvent.TurnStart.class, (_, _) -> events.add("turn_start"));
+            api.on(ExtensionEvent.TurnEnd.class, (_, _) -> events.add("turn_end"));
+            api.on(ExtensionEvent.MessageStart.class, (_, _) -> events.add("message_start"));
+            api.on(ExtensionEvent.MessageUpdate.class, (_, _) -> events.add("message_update"));
+            api.on(ExtensionEvent.MessageEnd.class, (_, _) -> events.add("message_end"));
             api.onToolCall((tc, _) -> null);
-            api.onToolResult((_, _) -> events.add("tool_result"));
-            api.onToolExecutionStart((_, _) -> events.add("tool_execution_start"));
-            api.onToolExecutionEnd((_, _) -> events.add("tool_execution_end"));
-            api.onBeforeProviderRequest((_, _) -> events.add("before_provider_request"));
-            api.onModelSelect((_, _) -> events.add("model_select"));
+            api.on(ExtensionEvent.ToolResult.class, (_, _) -> events.add("tool_result"));
+            api.on(ExtensionEvent.ToolExecutionStart.class, (_, _) -> events.add("tool_execution_start"));
+            api.on(ExtensionEvent.ToolExecutionEnd.class, (_, _) -> events.add("tool_execution_end"));
+            api.on(ExtensionEvent.BeforeProviderRequest.class, (_, _) -> events.add("before_provider_request"));
+            api.on(ExtensionEvent.ModelSelect.class, (_, _) -> events.add("model_select"));
             api.onUserBash((_, _) -> ExtensionResult.UserBashResult.allow());
             api.onBashToolCall((_, _) -> ExtensionResult.BashToolCallResult.allow());
             api.onInput((text, _) -> new ExtensionResult.InputResult(text, false));
-            api.onSessionBeforeCompact((_, _) -> events.add("session_before_compact"));
-            api.onSessionCompact((_, _) -> events.add("session_compact"));
+            api.on(ExtensionEvent.SessionBeforeCompact.class, (_, _) -> events.add("session_before_compact"));
+            api.on(ExtensionEvent.SessionCompact.class, (_, _) -> events.add("session_compact"));
             api.registerStatusLines(() -> List.of("status-" + name));
             api.registerFooterLines(() -> List.of("footer-" + name));
             api.registerSystemPrompt(() -> "prompt-" + name);
@@ -344,7 +344,7 @@ class ExtensionRegistryTest {
     @Test
     void fireEventHandlerExceptionDoesNotPropagate() {
         var reg = registry(new FakeAgentContext(), new FakeUiContext());
-        reg.register(simple("throws", api -> api.onSessionStart((_, _) -> {
+        reg.register(simple("throws", api -> api.on(ExtensionEvent.SessionStart.class, (_, _) -> {
             throw new RuntimeException("boom");
         })));
         assertDoesNotThrow(() -> reg.fire(new ExtensionEvent.SessionStart(tempDir)));
@@ -506,8 +506,8 @@ class ExtensionRegistryTest {
     @Test
     void fireBeforeAgentStartAppendsPromptContributions() {
         var reg = registry(new FakeAgentContext(), new FakeUiContext());
-        reg.register(simple("x", api -> api
-                                        .onBeforeAgentStart((event, _) -> event.systemPrompt().append(" appended"))));
+        reg.register(simple("x", api -> api.on(ExtensionEvent.BeforeAgentStart.class,
+                                        (event, _) -> event.systemPrompt().append(" appended"))));
         var prompt = reg.fireBeforeAgentStart(List.of(), "base");
         assertTrue(prompt.contains("base"));
         assertTrue(prompt.contains("appended"));
@@ -653,7 +653,7 @@ class ExtensionRegistryTest {
         var reg = registry(agent, new FakeUiContext());
         reg.register(simple("sender", api -> {
             api.sendUserMessage("hello");
-            api.sendUserMessage("hello", "nextTurn");
+            api.sendUserMessage("hello", DeliverAs.NEXT_TURN);
         }));
         assertEquals(List.of("hello", "hello|nextTurn"), agent.sent);
     }

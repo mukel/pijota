@@ -16,6 +16,20 @@ public final class PromptLayout {
         this.regions = List.copyOf(regions);
     }
 
+    /**
+     * Total rows every region of a type <em>other</em> than {@code excluded} would occupy for {@code snapshot}, plus
+     * the one-row top separator. Used to budget a resizable region (the log viewer) so the whole frame fits on screen.
+     */
+    public int measuredHeightExcluding(Class<? extends PromptRegion> excluded, int width, PromptSnapshot snapshot) {
+        int height = 1; // top separator
+        for (var region : regions) {
+            if (excluded.isInstance(region))
+                continue;
+            height += Math.max(0, region.height(width, snapshot));
+        }
+        return height;
+    }
+
     public void eraseCurrent(PrintWriter out) {
         if (visualCursorRow > 0)
             out.print("\033[" + visualCursorRow + "A");

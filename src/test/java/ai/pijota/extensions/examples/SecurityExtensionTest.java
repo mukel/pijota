@@ -50,8 +50,8 @@ class SecurityExtensionTest {
         var ext = new SecurityExtension();
         ext.init(api);
         assertNotNull(api.slashCommand("security"));
-        assertEquals(1, api.listeners("tool_call").size());
-        assertEquals(1, api.listeners("user_bash").size());
+        assertEquals(1, api.listeners(ExtensionEvent.ToolCall.class).size());
+        assertEquals(1, api.listeners(ExtensionEvent.UserBash.class).size());
     }
 
     @Test
@@ -59,8 +59,7 @@ class SecurityExtensionTest {
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();
         ext.init(api);
-        var result = api.fire("tool_call",
-                                        new ExtensionEvent.ToolCall("id", "bash", "{\"command\":\"rm -rf /\"}", true));
+        var result = api.fire(new ExtensionEvent.ToolCall("id", "bash", "{\"command\":\"rm -rf /\"}", true));
         assertInstanceOf(ExtensionResult.Block.class, result);
         assertTrue(((ExtensionResult.Block) result).reason().contains("recursive delete"));
     }
@@ -70,7 +69,7 @@ class SecurityExtensionTest {
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();
         ext.init(api);
-        var result = api.fire("tool_call", new ExtensionEvent.ToolCall("id", "bash", "{\"command\":\"ls -la\"}", true));
+        var result = api.fire(new ExtensionEvent.ToolCall("id", "bash", "{\"command\":\"ls -la\"}", true));
         assertNull(result);
     }
 
@@ -79,7 +78,7 @@ class SecurityExtensionTest {
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();
         ext.init(api);
-        var result = api.fire("tool_call", new ExtensionEvent.ToolCall("id", "read", "{}", true));
+        var result = api.fire(new ExtensionEvent.ToolCall("id", "read", "{}", true));
         assertNull(result);
     }
 
@@ -101,8 +100,7 @@ class SecurityExtensionTest {
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();
         ext.init(api);
-        var result = (ExtensionResult.UserBashResult) api.fire("user_bash",
-                                        new ExtensionEvent.UserBash("rm -rf /", false, null));
+        var result = (ExtensionResult.UserBashResult) api.fire(new ExtensionEvent.UserBash("rm -rf /", false, null));
         assertTrue(result.blocked());
     }
 
@@ -111,8 +109,7 @@ class SecurityExtensionTest {
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();
         ext.init(api);
-        var result = (ExtensionResult.UserBashResult) api.fire("user_bash",
-                                        new ExtensionEvent.UserBash("ls -la", false, null));
+        var result = (ExtensionResult.UserBashResult) api.fire(new ExtensionEvent.UserBash("ls -la", false, null));
         assertFalse(result.blocked());
     }
 
@@ -125,8 +122,7 @@ class SecurityExtensionTest {
         api.setUi(ui);
         var ext = new SecurityExtension();
         ext.init(api);
-        var result = (ExtensionResult.UserBashResult) api.fire("user_bash",
-                                        new ExtensionEvent.UserBash("rm -rf /", false, null));
+        var result = (ExtensionResult.UserBashResult) api.fire(new ExtensionEvent.UserBash("rm -rf /", false, null));
         assertFalse(result.blocked());
     }
 
@@ -139,8 +135,7 @@ class SecurityExtensionTest {
         ext.onReady(runtime);
         api.slashCommand("security").handler().accept("");
         // after toggle, dangerous commands are allowed
-        var result = api.fire("tool_call",
-                                        new ExtensionEvent.ToolCall("id", "bash", "{\"command\":\"rm -rf /\"}", true));
+        var result = api.fire(new ExtensionEvent.ToolCall("id", "bash", "{\"command\":\"rm -rf /\"}", true));
         assertNull(result);
     }
 }

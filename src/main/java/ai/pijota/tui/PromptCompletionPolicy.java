@@ -64,6 +64,12 @@ final class PromptCompletionPolicy {
         return commands.completeWithDescriptions(text);
     }
 
+    /**
+     * Ghost-text suffix for the top command match, rendered dimmed after what the user has typed. Returns only the
+     * trailing portion (e.g. {@code "nscend"} for {@code "/tra"} → {@code "/transcend"}), and only when the match
+     * genuinely extends the typed text as a prefix — fuzzy (non-prefix) matches get no inline suggestion, since
+     * appending their suffix would not read as the completed command.
+     */
     String commandSuggestion(String text) {
         if (text == null || !text.startsWith("/"))
             return "";
@@ -71,7 +77,7 @@ final class PromptCompletionPolicy {
         if (matches.isEmpty())
             return "";
         String first = matches.getFirst();
-        return first.length() > text.length() ? first : "";
+        return first.startsWith(text) && first.length() > text.length() ? first.substring(text.length()) : "";
     }
 
     private static String fileCompletionPrefix(String text) {

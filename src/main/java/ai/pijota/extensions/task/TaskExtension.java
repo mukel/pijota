@@ -6,7 +6,6 @@ import ai.pijota.extensions.HeadlessToolContext;
 import ai.pijota.extensions.UiContext;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
-import ai.pijota.util.ProcessRunner;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -230,43 +229,29 @@ public final class TaskExtension implements Extension {
     }
 
     private void openLogFile(Path file) {
+        List<String> lines;
         try {
-            String strippedFile = stripAnsi(file);
-            api.runtime().suspend();
-            try {
-                ProcessRunner.command(resolvePager(strippedFile)).runInteractive();
-            } finally {
-                api.runtime().resume();
-                try {
-                    Files.deleteIfExists(Path.of(strippedFile));
-                } catch (IOException ignored) {}
-            }
-        } catch (Exception e) {
+            lines = readLogLines(file);
+        } catch (IOException e) {
             api.runtime().setStatus("Cannot open log: " + e.getMessage());
+            return;
+        }
+        UiContext ui = api.runtime().ui();
+        if (ui != null) {
+            ui.viewer(file.getFileName().toString(), lines);
+        } else {
+            // Headless: no interactive viewer — post a tail of the log as a message.
+            int from = Math.max(0, lines.size() - 200);
+            var sb = new StringBuilder(file.getFileName().toString()).append('\n');
+            for (String line : lines.subList(from, lines.size()))
+                sb.append(line).append('\n');
+            api.sendMessage(new Message.Custom("logs", sb.toString()));
         }
     }
 
-    private static String stripAnsi(Path logFile) throws IOException {
-        Path stripped = Files.createTempFile("pijota-log-", ".txt");
-        try (var reader = Files.newBufferedReader(logFile); var writer = Files.newBufferedWriter(stripped)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                int i = 0;
-                while (i < line.length()) {
-                    if (line.charAt(i) == '\033' && i + 1 < line.length() && line.charAt(i + 1) == '[') {
-                        i += 2;
-                        while (i < line.length() && !Character.isLetter(line.charAt(i)))
-                            i++;
-                        i++;
-                    } else {
-                        writer.write(line.charAt(i));
-                        i++;
-                    }
-                }
-                writer.write('\n');
-            }
-        }
-        return stripped.toAbsolutePath().toString();
+    private static List<String> readLogLines(Path file) throws IOException {
+        // Lenient decode: sub-agent logs may contain non-UTF-8 bytes; never fail on a bad byte.
+        return List.of(new String(Files.readAllBytes(file), java.nio.charset.StandardCharsets.UTF_8).split("\n", -1));
     }
 
     private static long modifiedAt(java.nio.file.Path path) {
@@ -277,13 +262,4 @@ public final class TaskExtension implements Extension {
         }
     }
 
-    private static List<String> resolvePager(String path) {
-        String pager = System.getenv("PAGER");
-        if (pager != null && !pager.isBlank()) {
-            var args = new ArrayList<>(List.of(pager.split("\\s+")));
-            args.add(path);
-            return args;
-        }
-        return List.of("less", path);
-    }
 }

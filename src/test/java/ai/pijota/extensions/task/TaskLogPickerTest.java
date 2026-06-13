@@ -17,9 +17,9 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Exercises the {@code /logs} picker against the real {@link TaskExtension} discovery path and the opaque
- * {@code UiContext.select} contract. The user is cancelled (choice = -1) so the test never launches the interactive
- * pager that a real confirmation would spawn.
+ * Exercises the {@code /logs} flow against the real {@link TaskExtension}: discovery, the opaque
+ * {@code UiContext.select} picker, and opening a log in the in-TUI {@code UiContext.viewer} (no external pager, no
+ * process spawn, no terminal suspend), plus the headless static-list fallback.
  */
 class TaskLogPickerTest {
 
@@ -56,7 +56,7 @@ class TaskLogPickerTest {
         var b = writeLog(tag + "-b");
 
         var ui = new FakeUiContext();
-        ui.setSelectChoice(-1); // cancel: no pager is launched
+        ui.setSelectChoice(-1); // cancel
         var fake = init(ui);
 
         fake.slashCommand("logs").handler().accept("");
@@ -65,6 +65,34 @@ class TaskLogPickerTest {
         var labels = ui.lastSelectLabels();
         assertTrue(labels.stream().anyMatch(l -> l.contains(a.getFileName().toString())));
         assertTrue(labels.stream().anyMatch(l -> l.contains(b.getFileName().toString())));
+    }
+
+    @Test
+    void selectingALogOpensTheInTuiViewerWithItsContent() throws Exception {
+        var log = writeLog("viewer-" + System.nanoTime());
+
+        var ui = new FakeUiContext();
+        ui.setSelectChoice(0); // pick the (newest) log → opens the in-TUI viewer, no pager/process
+        var fake = init(ui);
+
+        fake.slashCommand("logs").handler().accept("");
+
+        assertEquals(1, ui.viewerTitles().size(), "selecting a log opens exactly one viewer");
+        assertEquals(log.getFileName().toString(), ui.viewerTitles().getFirst());
+        assertTrue(ui.lastViewerLines().stream().anyMatch(l -> l.contains("log body")),
+                                        ui.lastViewerLines().toString());
+    }
+
+    @Test
+    void logsByIndexOpensViewerDirectly() throws Exception {
+        writeLog("direct-" + System.nanoTime());
+        var ui = new FakeUiContext();
+        var fake = init(ui);
+
+        fake.slashCommand("logs").handler().accept("latest");
+
+        assertEquals(1, ui.viewerTitles().size(), "/logs latest opens the viewer without a selector");
+        assertTrue(ui.selectTitles().isEmpty(), "no picker shown for a direct selection");
     }
 
     @Test

@@ -101,8 +101,8 @@ class FilterOutputExtensionTest {
         var ext = new FilterOutputExtension();
         ext.init(api);
         assertNotNull(api.slashCommand("filter-output"));
-        assertEquals(1, api.listeners("input").size());
-        assertEquals(1, api.listeners("before_provider_request").size());
+        assertEquals(1, api.listeners(ExtensionEvent.Input.class).size());
+        assertEquals(1, api.listeners(ExtensionEvent.BeforeProviderRequest.class).size());
     }
 
     @Test
@@ -158,7 +158,7 @@ class FilterOutputExtensionTest {
         messages.add(new Message.User("my key is sk-abc123def456"));
         messages.add(new Message.ToolResult("tc", "bash", "my key is sk-abc123def456", false));
         messages.add(new Message.Assistant("my key is sk-abc123def456", List.of(), null));
-        api.fire("before_provider_request", new ExtensionEvent.BeforeProviderRequest(messages));
+        api.fire(new ExtensionEvent.BeforeProviderRequest(messages));
         for (Message m : messages) {
             String content = switch (m) {
                 case Message.User u -> u.content();
@@ -178,7 +178,7 @@ class FilterOutputExtensionTest {
         ext.init(api);
         var messages = new ArrayList<Message>();
         messages.add(new Message.User("already [REDACTED]"));
-        api.fire("before_provider_request", new ExtensionEvent.BeforeProviderRequest(messages));
+        api.fire(new ExtensionEvent.BeforeProviderRequest(messages));
         assertEquals("already [REDACTED]", ((Message.User) messages.get(0)).content());
     }
 }

@@ -36,4 +36,7 @@ public interface UiContext {
      * own domain objects — the selector never exposes indices.
      */
     default <T> void select(String title, List<T> items, Function<T, String> render, Consumer<T> onChoice) {}
+
+    /** Opens a modal, scrollable, searchable read-only viewer over {@code lines} (e.g. a sub-agent log). */
+    default void viewer(String title, List<String> lines) {}
 }

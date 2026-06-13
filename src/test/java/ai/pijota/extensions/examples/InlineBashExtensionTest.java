@@ -1,5 +1,7 @@
 package ai.pijota.extensions.examples;
 
+import ai.pijota.extensions.ExtensionEvent;
+
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
 import ai.pijota.extensions.testkit.FakeExtensionRuntime;
 import ai.pijota.extensions.testkit.FakeUiContext;
@@ -26,7 +28,7 @@ class InlineBashExtensionTest {
         var api = new FakeExtensionAPI();
         var ext = new InlineBashExtension();
         ext.init(api);
-        assertEquals(1, api.listeners("input").size());
+        assertEquals(1, api.listeners(ExtensionEvent.Input.class).size());
     }
 
     @Test

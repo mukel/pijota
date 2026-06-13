@@ -18,6 +18,8 @@ public class FakeUiContext implements UiContext {
     private final List<String> selectTitles = new ArrayList<>();
     private List<String> lastSelectLabels = List.of();
     private int selectChoice = -1;
+    private final List<String> viewerTitles = new ArrayList<>();
+    private List<String> lastViewerLines = List.of();
 
     public List<String> statuses() {
         return List.copyOf(statuses);
@@ -87,5 +89,20 @@ public class FakeUiContext implements UiContext {
         lastSelectLabels = items.stream().map(render).toList();
         if (selectChoice >= 0 && selectChoice < items.size())
             onChoice.accept(items.get(selectChoice));
+    }
+
+    @Override
+    public void viewer(String title, List<String> lines) {
+        viewerTitles.add(title);
+        lastViewerLines = List.copyOf(lines);
+    }
+
+    public List<String> viewerTitles() {
+        return List.copyOf(viewerTitles);
+    }
+
+    /** Lines passed to the most recent {@link #viewer} call. */
+    public List<String> lastViewerLines() {
+        return lastViewerLines;
     }
 }

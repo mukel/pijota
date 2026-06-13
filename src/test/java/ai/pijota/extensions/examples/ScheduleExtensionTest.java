@@ -165,7 +165,7 @@ class ScheduleExtensionTest {
         var api = api();
         var ext = new ScheduleExtension();
         ext.init(api);
-        assertDoesNotThrow(() -> api.fire("session_ready", new ai.pijota.extensions.ExtensionEvent.SessionReady()));
+        assertDoesNotThrow(() -> api.fire(new ai.pijota.extensions.ExtensionEvent.SessionReady()));
     }
 
     @Test
@@ -318,14 +318,14 @@ class ScheduleExtensionTest {
         var api = api();
         var ext = new ScheduleExtension();
         ext.init(api);
-        api.fire("session_ready", new ai.pijota.extensions.ExtensionEvent.SessionReady());
+        api.fire(new ai.pijota.extensions.ExtensionEvent.SessionReady());
         var tool = api.tools().get(0);
         Map<String, Object> addArgs = Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "persist");
         tool.execute().execute("tc", addArgs, tempDir.toString()).get(1, TimeUnit.SECONDS);
 
         var ext2 = new ScheduleExtension();
         ext2.init(api);
-        api.fire("session_ready", new ai.pijota.extensions.ExtensionEvent.SessionReady());
+        api.fire(new ai.pijota.extensions.ExtensionEvent.SessionReady());
         var list = api.tools().get(0).execute().execute("tc", Map.of("action", "list"), tempDir.toString()).get(1,
                                         TimeUnit.SECONDS);
         assertTrue(list.content().contains("persist"));

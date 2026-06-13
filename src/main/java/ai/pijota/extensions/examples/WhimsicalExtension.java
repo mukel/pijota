@@ -1,5 +1,7 @@
 package ai.pijota.extensions.examples;
 
+import ai.pijota.extensions.ExtensionEvent;
+
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.modes.SlashCommand;
@@ -52,7 +54,7 @@ public final class WhimsicalExtension implements Extension {
 
         api.registerThinkingHeaderText(() -> enabled && visible ? displayPhrase() + Emojis.ELLIPSIS : null);
 
-        api.onTurnStart((_, _) -> {
+        api.on(ExtensionEvent.TurnStart.class, (_, _) -> {
             if (enabled) {
                 currentPhrase = randomPhrase();
                 lastRotatedMs = System.currentTimeMillis();
@@ -60,7 +62,7 @@ public final class WhimsicalExtension implements Extension {
             }
         });
 
-        api.onTurnEnd((_, _) -> visible = false);
+        api.on(ExtensionEvent.TurnEnd.class, (_, _) -> visible = false);
     }
 
     private void maybeRotate() {

@@ -126,7 +126,8 @@ class PromptEditorTest {
     void suggestsSlashCommandCompletion() {
         editor.insertText("/sess");
 
-        assertEquals("/sessions", editor.suggestion());
+        // Ghost text is the trailing suffix only, rendered dimmed after the typed text ("/sess" + "ions").
+        assertEquals("ions", editor.suggestion());
     }
 
     @Test
@@ -135,7 +136,8 @@ class PromptEditorTest {
         editor.apply(Key.Special.ENTER);
         editor.insertText("he");
 
-        assertEquals("hello world", editor.suggestion());
+        // Suffix only ("he" + "llo world"), so the dimmed ghost text completes the typed prefix.
+        assertEquals("llo world", editor.suggestion());
     }
 
     @Test

@@ -1,5 +1,8 @@
 package ai.pijota.extensions.examples;
 
+import ai.pijota.extensions.ExtensionEvent;
+import ai.pijota.extensions.DeliverAs;
+
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.messages.Message;
@@ -88,7 +91,7 @@ public final class GoalExtension implements Extension {
 
         api.registerStatusLines(this::statusLine);
 
-        api.onTurnStart((ev, ctx) -> {
+        api.on(ExtensionEvent.TurnStart.class, (ev, ctx) -> {
             GoalState current = state.get();
             if (current.isActive() && current.hasBudget()) {
                 var llm = api.runtime().llm();
@@ -98,7 +101,7 @@ public final class GoalExtension implements Extension {
             }
         });
 
-        api.onTurnEnd((ev, ctx) -> {
+        api.on(ExtensionEvent.TurnEnd.class, (ev, ctx) -> {
             GoalState current = state.get();
             if (!current.isActive())
                 return;
@@ -111,12 +114,12 @@ public final class GoalExtension implements Extension {
                 long now = System.currentTimeMillis();
                 if (now - lastContinueMs > 1000) {
                     lastContinueMs = now;
-                    api.sendUserMessage("Continue working on the goal: " + current.objective(), "steer");
+                    api.sendUserMessage("Continue working on the goal: " + current.objective(), DeliverAs.STEER);
                 }
             }
         });
 
-        api.onSessionReady((ev, ctx) -> loadFromSession());
+        api.on(ExtensionEvent.SessionReady.class, (ev, ctx) -> loadFromSession());
     }
 
     private void loadFromSession() {

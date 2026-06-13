@@ -3,6 +3,7 @@ package ai.pijota.agent;
 import ai.pijota.extensions.AgentContext;
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
@@ -266,8 +267,8 @@ class ToolExecutorTest {
 
             @Override
             public void init(ExtensionAPI api) {
-                api.onToolExecutionStart((event, ctx) -> startCount.incrementAndGet());
-                api.onToolExecutionEnd((event, ctx) -> endCount.incrementAndGet());
+                api.on(ExtensionEvent.ToolExecutionStart.class, (event, ctx) -> startCount.incrementAndGet());
+                api.on(ExtensionEvent.ToolExecutionEnd.class, (event, ctx) -> endCount.incrementAndGet());
             }
         });
         var history = new MessageHistory();

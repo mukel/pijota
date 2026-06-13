@@ -14,64 +14,35 @@ import java.util.function.Supplier;
 
 public interface ExtensionAPI {
 
-    // ---- lifecycle events ----
+    // ---- event subscription ----
 
-    ExtensionAPI onSessionStart(BiConsumer<ExtensionEvent.SessionStart, ExtensionContext> handler);
+    /**
+     * Subscribes to events of the given type. The handler receives the typed event and an {@link ExtensionContext}. Use
+     * this for all observe/react ("listener") events — lifecycle, turns, messages, tool execution, provider/model,
+     * compaction. The handler may mutate the event where the event exposes mutators (e.g.
+     * {@link ExtensionEvent.SessionBeforeCompact}); it returns nothing. Returns {@code this} for chaining.
+     *
+     * <p>
+     * Events that <em>decide</em> the outcome of an action (and so return a typed result) have dedicated methods:
+     * {@link #onToolCall}, {@link #onUserBash}, {@link #onBashToolCall}, {@link #onInput}.
+     */
+    <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, BiConsumer<E, ExtensionContext> handler);
 
-    ExtensionAPI onSessionReady(BiConsumer<ExtensionEvent.SessionReady, ExtensionContext> handler);
-
-    ExtensionAPI onSessionShutdown(BiConsumer<ExtensionEvent.SessionShutdown, ExtensionContext> handler);
-
-    ExtensionAPI onBeforeAgentStart(BiConsumer<ExtensionEvent.BeforeAgentStart, ExtensionContext> handler);
-
-    ExtensionAPI onAgentStart(BiConsumer<ExtensionEvent.AgentStart, ExtensionContext> handler);
-
-    ExtensionAPI onAgentEnd(BiConsumer<ExtensionEvent.AgentEnd, ExtensionContext> handler);
-
-    ExtensionAPI onTurnStart(BiConsumer<ExtensionEvent.TurnStart, ExtensionContext> handler);
-
-    ExtensionAPI onTurnEnd(BiConsumer<ExtensionEvent.TurnEnd, ExtensionContext> handler);
-
-    ExtensionAPI onMessageStart(BiConsumer<ExtensionEvent.MessageStart, ExtensionContext> handler);
-
-    ExtensionAPI onMessageUpdate(BiConsumer<ExtensionEvent.MessageUpdate, ExtensionContext> handler);
-
-    ExtensionAPI onMessageEnd(BiConsumer<ExtensionEvent.MessageEnd, ExtensionContext> handler);
-
+    /** Registers a renderer for custom extension messages; the first renderer to produce output wins. */
     ExtensionAPI registerMessageRenderer(BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer);
 
-    // ---- session compact ----
+    // ---- decision events (return a typed result) ----
 
-    ExtensionAPI onSessionBeforeCompact(BiConsumer<ExtensionEvent.SessionBeforeCompact, ExtensionContext> handler);
-
-    ExtensionAPI onSessionCompact(BiConsumer<ExtensionEvent.SessionCompact, ExtensionContext> handler);
-
-    // ---- tool events ----
-
+    /** Decides whether a tool call may proceed; return a {@link ExtensionResult.Block} to veto it. */
     ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler);
 
-    ExtensionAPI onToolResult(BiConsumer<ExtensionEvent.ToolResult, ExtensionContext> handler);
-
-    ExtensionAPI onToolExecutionStart(BiConsumer<ExtensionEvent.ToolExecutionStart, ExtensionContext> handler);
-
-    ExtensionAPI onToolExecutionEnd(BiConsumer<ExtensionEvent.ToolExecutionEnd, ExtensionContext> handler);
-
-    // ---- provider / model ----
-
-    ExtensionAPI onBeforeProviderRequest(BiConsumer<ExtensionEvent.BeforeProviderRequest, ExtensionContext> handler);
-
-    ExtensionAPI onModelSelect(BiConsumer<ExtensionEvent.ModelSelect, ExtensionContext> handler);
-
-    // ---- user bash ----
-
+    /** Decides whether a user-initiated bash command may run. */
     ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler);
 
-    // ---- bash tool call (LLM-initiated) ----
-
+    /** Decides whether an LLM-initiated bash tool call may run. */
     ExtensionAPI onBashToolCall(BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler);
 
-    // ---- input ----
-
+    /** Transforms or consumes raw user input before it is handled. */
     ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler);
 
     // ---- registration ----
@@ -108,11 +79,8 @@ public interface ExtensionAPI {
     /** Send a user message to the agent. Triggers a turn when idle. */
     void sendUserMessage(String content);
 
-    /**
-     * Send a user message with explicit delivery mode. deliverAs: "steer" (processed next turn), "followUp" (after
-     * current turn), "nextTurn" (when idle, same as default).
-     */
-    void sendUserMessage(String content, String deliverAs);
+    /** Send a user message with an explicit {@link DeliverAs} delivery mode. */
+    void sendUserMessage(String content, DeliverAs deliverAs);
 
     ExtensionRuntime runtime();
 }

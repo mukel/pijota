@@ -70,25 +70,45 @@ final class PromptSelector {
         return false;
     }
 
+    /** The scrolled view of the list: a {@code size}-row window starting at {@code start}, with overflow markers. */
+    private record Window(int total, int start, int size, boolean moreAbove, boolean moreBelow) {
+        int below() {
+            return total - (start + size);
+        }
+    }
+
+    private Window window(List<String> current) {
+        int total = current.size();
+        int size = Math.min(total, WINDOW);
+        int start = Math.max(0, Math.min(index - size / 2, total - size));
+        return new Window(total, start, size, start > 0, total - (start + size) > 0);
+    }
+
+    /** Number of terminal rows the rendered selector occupies (title + window + optional more-markers + hint). */
+    int lineCount() {
+        var current = labels;
+        if (onConfirm == null || current == null || current.isEmpty())
+            return 0;
+        var w = window(current);
+        return 1 + w.size() + 1 + (w.moreAbove() ? 1 : 0) + (w.moreBelow() ? 1 : 0);
+    }
+
     /** Lines to render in the prompt area, or empty when inactive. The window scrolls to keep the highlight visible. */
     List<String> renderLines(AnsiTheme theme) {
         var current = labels;
         if (onConfirm == null || current == null || current.isEmpty())
             return List.of();
+        var w = window(current);
         var out = new ArrayList<String>();
-        int total = current.size();
-        int window = Math.min(total, WINDOW);
-        int start = Math.max(0, Math.min(index - window / 2, total - window));
         out.add(theme.styled("hr", title != null ? title : "select"));
-        if (start > 0)
-            out.add(theme.styled("dim", "  ↑ " + start + " more"));
-        for (int i = start; i < start + window; i++) {
+        if (w.moreAbove())
+            out.add(theme.styled("dim", "  ↑ " + w.start() + " more"));
+        for (int i = w.start(); i < w.start() + w.size(); i++) {
             String prefix = i == index ? theme.styled("toolLabel", ">") : " ";
             out.add(prefix + " " + current.get(i));
         }
-        int below = total - (start + window);
-        if (below > 0)
-            out.add(theme.styled("dim", "  ↓ " + below + " more"));
+        if (w.moreBelow())
+            out.add(theme.styled("dim", "  ↓ " + w.below() + " more"));
         out.add(theme.styled("statusText", "  ↑/↓ navigate · Enter select · Esc cancel"));
         return out;
     }

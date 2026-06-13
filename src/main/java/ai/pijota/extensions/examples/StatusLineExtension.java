@@ -1,5 +1,7 @@
 package ai.pijota.extensions.examples;
 
+import ai.pijota.extensions.ExtensionEvent;
+
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 
@@ -19,19 +21,19 @@ public final class StatusLineExtension implements Extension {
     public void init(ExtensionAPI api) {
         var runtime = api.runtime();
 
-        api.onSessionStart((_ev, _ctx) -> {
+        api.on(ExtensionEvent.SessionStart.class, (_ev, _ctx) -> {
             runtime.setStatus("status-demo", "Ready");
         });
 
-        api.onTurnStart((ev, ctx) -> {
+        api.on(ExtensionEvent.TurnStart.class, (ev, ctx) -> {
             runtime.setStatus("status-demo", "Turn " + ev.turnNumber() + "...");
         });
 
-        api.onTurnEnd((ev, _ctx) -> {
+        api.on(ExtensionEvent.TurnEnd.class, (ev, _ctx) -> {
             runtime.setStatus("status-demo", "Turn " + ev.turnNumber() + " complete");
         });
 
-        api.onSessionShutdown((_ev, _ctx) -> {
+        api.on(ExtensionEvent.SessionShutdown.class, (_ev, _ctx) -> {
             runtime.clearStatus("status-demo");
         });
     }
