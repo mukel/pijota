@@ -1,5 +1,6 @@
 package ai.pijota.extensions.mcp;
 
+import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -35,7 +36,7 @@ final class McpConfig {
 
     /** Loads and merges the global ({@code ~/.pijota/mcp.json}) and project configs for {@code cwd}. */
     static List<McpServerConfig> load(Path cwd) {
-        Path global = Path.of(System.getProperty("user.home"), ".pijota", "mcp.json");
+        Path global = PijotaHome.resolve("mcp.json");
         Path project = cwd == null ? null : cwd.resolve(".pijota").resolve("mcp.json");
         return load(global, project, System::getenv);
     }

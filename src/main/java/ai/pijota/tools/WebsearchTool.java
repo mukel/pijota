@@ -34,19 +34,19 @@ public final class WebsearchTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "🌐";
+    }
+
+    @Override
     public boolean defaultEnabled() {
         return true;
     }
 
     @Override
     public String description() {
-        return "Search the web using real-time web searches and scrape content from specific URLs. "
-                                        + "Provides up-to-date information for current events and recent data. "
-                                        + "Supports configurable result counts. "
-                                        + "Use this tool for accessing information beyond knowledge cutoff.\n\n"
-                                        + "Usage notes:\n" + "- Search results include titles, URLs, and snippets\n"
-                                        + "- Configure numResults for more/fewer results (default 8)\n"
-                                        + "- Results may be summarized if very large";
+        return "Search the web for current information beyond the knowledge cutoff. Returns titles, URLs, and "
+                                        + "snippets; optional numResults (default 8); large results may be summarized.";
     }
 
     @Override

@@ -95,6 +95,16 @@ public final class LlmService implements LlmClient {
         return usage.totalOutputTokens();
     }
 
+    @Override
+    public double totalCost() {
+        return usage.totalCost();
+    }
+
+    @Override
+    public Double costBudget() {
+        return usage.budgetLimit();
+    }
+
     public boolean isOverBudget() {
         return usage.overBudget();
     }
@@ -356,10 +366,6 @@ public final class LlmService implements LlmClient {
         return lastResolvedKey;
     }
 
-    public boolean streamsWithTools() {
-        return !("local".equals(providerName) || "workstation".equals(providerName));
-    }
-
     public void setModelName(String name) {
         String old = this.modelName;
         var providerModel = ModelRegistry.resolveProviderModel(this.providerName, name, null);
@@ -427,6 +433,10 @@ public final class LlmService implements LlmClient {
 
         double totalCost() {
             return totalCost;
+        }
+
+        Double budgetLimit() {
+            return budgetLimit;
         }
 
         void add(ai.pijota.messages.Usage usage) {

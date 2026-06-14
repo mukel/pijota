@@ -32,7 +32,6 @@ final class ToolRender {
             case "task" -> "→ Task " + taskLabel(a);
             case "webfetch" -> "→ WebFetch " + shorten(a.getOrDefault("url", "").toString(), 80);
             case "websearch" -> "→ WebSearch " + quote(shorten(a.getOrDefault("query", "").toString(), 80));
-            case "todowrite" -> "→ TodoWrite " + todoCount(a);
             default -> "→ " + toolName;
         };
     }
@@ -150,16 +149,6 @@ final class ToolRender {
         if (args.containsKey("tasks") && args.get("tasks") instanceof List<?> t)
             return t.size() + " tasks";
         return shorten(args.getOrDefault("agent", "").toString(), 30);
-    }
-
-    static String todoCount(Map<String, Object> args) {
-        Object todos = args.get("todos");
-        if (todos instanceof List<?> list) {
-            long done = list.stream().filter(i -> i instanceof Map<?, ?> m && "completed".equals(m.get("status")))
-                                            .count();
-            return "(" + list.size() + " items, " + done + " done)";
-        }
-        return "";
     }
 
     static String shorten(String s, int max) {

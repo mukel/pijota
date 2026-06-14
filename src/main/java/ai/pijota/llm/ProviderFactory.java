@@ -8,6 +8,7 @@ import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 public interface ProviderFactory {
 
@@ -18,6 +19,22 @@ public interface ProviderFactory {
         return false;
     }
 
+    /**
+     * Extra OpenAI request-body params some compatible runtimes need to toggle reasoning (llama.cpp / vLLM / Qwen chat
+     * templates), selected by the provider's declared {@code thinkingFormat}. Standard OpenAI providers declare none
+     * and get an empty map.
+     */
+    static Map<String, Object> thinkingParameters(String thinkingFormat, boolean enabled) {
+        if (thinkingFormat == null)
+            return Map.of();
+        return switch (thinkingFormat) {
+            case "qwen" -> Map.of("enable_thinking", enabled);
+            case "qwen-chat-template" ->
+                Map.of("enable_thinking", enabled, "chat_template_kwargs", Map.of("enable_thinking", enabled));
+            default -> Map.of();
+        };
+    }
+
     record OpenAiCompatible() implements ProviderFactory {
         @Override
         public StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName,
@@ -25,14 +42,16 @@ public interface ProviderFactory {
             if ("openai-codex".equals(providerName)) {
                 return new CodexStreamingChatModel(baseUrl, apiKey, modelName, providerName, thinkingLevel);
             }
-            if ("local".equals(providerName) || "workstation".equals(providerName)) {
-                return new LocalOpenAiStreamingChatModel(baseUrl, apiKey, modelName, thinkingLevel);
-            }
+            boolean thinkingOn = thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF;
+            // Generous request timeout: local models (and long agentic generations) routinely exceed 60s; this
+            // matches the budget the former hand-rolled local client used and the future's completion timeout.
             var builder = OpenAiStreamingChatModel.builder().baseUrl(baseUrl).apiKey(apiKey).modelName(modelName)
-                                            .timeout(Duration.ofSeconds(60));
-            if (thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF) {
+                                            .timeout(Duration.ofMinutes(5));
+            if (thinkingOn)
                 builder.returnThinking(true);
-            }
+            var thinkingParams = thinkingParameters(ProviderCatalog.thinkingFormat(providerName), thinkingOn);
+            if (!thinkingParams.isEmpty())
+                builder.customParameters(thinkingParams);
             return builder.build();
         }
 

@@ -7,6 +7,7 @@ import ai.pijota.llm.ThinkingLevel;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
@@ -94,9 +95,39 @@ class SessionCommandsTest {
         assertFalse(joined.contains("name"));
     }
 
+    @Test
+    void deleteSessionAsksConfirmationAndCancels() {
+        var host = new FakeHost();
+        host.confirmAnswer = false;
+        var sc = new SessionCommands(host);
+
+        sc.deleteSession("/delete abc123");
+
+        assertTrue(host.confirmQuestion.contains("abc123"), host.confirmQuestion);
+        assertTrue(String.join(" ", host.lines).contains("cancelled"));
+    }
+
+    @Test
+    void usageReportShowsTokensCostAndBudget() {
+        var lines = SessionCommands.usageReport(1500, 500, 0.0123, 5.0, (slot, text) -> text);
+        String out = String.join("\n", lines);
+        assertTrue(out.contains("input"), out);
+        assertTrue(out.contains("total"), out);
+        assertTrue(out.contains("$0.0123"), out);
+        assertTrue(out.contains("budget") && out.contains("$5.00"), out);
+    }
+
+    @Test
+    void usageReportOmitsBudgetWhenUnset() {
+        var lines = SessionCommands.usageReport(10, 20, 0.0, null, (slot, text) -> text);
+        assertFalse(String.join("\n", lines).contains("budget"));
+    }
+
     private static final class FakeHost implements SessionCommands.Host {
         boolean busy;
         String sessionName = "test-session";
+        String confirmQuestion;
+        boolean confirmAnswer = true;
         final List<String> lines = new ArrayList<>();
 
         @Override
@@ -161,5 +192,11 @@ class SessionCommandsTest {
 
         @Override
         public void refreshSessionName() {}
+
+        @Override
+        public CompletableFuture<Boolean> confirm(String question) {
+            this.confirmQuestion = question;
+            return CompletableFuture.completedFuture(confirmAnswer);
+        }
     }
 }

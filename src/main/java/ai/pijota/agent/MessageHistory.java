@@ -62,9 +62,32 @@ final class MessageHistory {
         return Collections.unmodifiableList(messages);
     }
 
-    // For compaction and in-package consumers that need in-place mutation
+    /** A fresh, independently-mutable copy taken under the lock — safe to hand to callers and mutate. */
+    List<Message> mutableSnapshot() {
+        synchronized (messages) {
+            return new ArrayList<>(messages);
+        }
+    }
+
+    /**
+     * The live backing list, for the single caller that compacts it in place ({@link CompactionManager}, which
+     * synchronizes on the returned list — the same monitor this class uses). Everyone else takes a copy via
+     * {@link #snapshot()} / {@link #mutableSnapshot()}.
+     */
     List<Message> mutableList() {
         return messages;
+    }
+
+    /** Drops a trailing assistant message left empty by an aborted/incomplete turn (no content, tools, or thinking). */
+    void removeTrailingEmptyAssistant() {
+        synchronized (messages) {
+            if (messages.isEmpty())
+                return;
+            var last = messages.getLast();
+            if (last instanceof Message.Assistant a && a.content().isEmpty() && a.toolCalls().isEmpty()
+                                            && (a.thinking() == null || a.thinking().isBlank()))
+                messages.removeLast();
+        }
     }
 
     void addSystemPrompt(String s) {

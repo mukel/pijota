@@ -1,12 +1,13 @@
 package ai.pijota.config;
 
+import ai.pijota.util.PijotaHome;
 import ai.pijota.util.SelfRespawn;
 
 import java.nio.file.Path;
 import java.util.List;
 
 public final class SettingsManager {
-    private static final Path CONFIG_HOME = Path.of(System.getProperty("user.home"), ".pijota");
+    private static final Path CONFIG_HOME = PijotaHome.dir();
     private static final Path SETTINGS_FILE = CONFIG_HOME.resolve("settings.json");
     private static final Path SESSION_DIR = CONFIG_HOME.resolve("sessions");
 

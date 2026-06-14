@@ -64,6 +64,10 @@ public final class InputDecoder {
             return Key.Special.CTRL_U;
         if (ch == 23)
             return Key.Special.CTRL_W;
+        if (ch == 25)
+            return Key.Special.CTRL_Y;
+        if (ch == 31)
+            return Key.Special.CTRL_UNDERSCORE; // Ctrl+_ / Ctrl+/ — readline/zsh undo
         if (ch == 24)
             return readCtrlX(in);
         if (ch == 9)
@@ -124,6 +128,10 @@ public final class InputDecoder {
             return Key.Special.CTRL_RIGHT;
         if (next == 'd' || next == 'D')
             return Key.Special.ALT_D;
+        if (next == 'y' || next == 'Y')
+            return Key.Special.ALT_Y;
+        if (next == '_')
+            return Key.Special.ALT_UNDERSCORE;
         if (next != '[')
             return Key.Special.UNKNOWN;
 

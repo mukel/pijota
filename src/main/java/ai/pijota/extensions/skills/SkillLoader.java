@@ -1,5 +1,7 @@
 package ai.pijota.extensions.skills;
 
+import ai.pijota.util.PijotaHome;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,7 +23,7 @@ public final class SkillLoader {
 
     public static List<Skill> load(String cwd, List<String> explicitPaths) {
         var skills = new LinkedHashMap<String, Skill>();
-        discoverIn(skills, Path.of(System.getProperty("user.home"), ".pijota", "skills"));
+        discoverIn(skills, PijotaHome.resolve("skills"));
         discoverIn(skills, Path.of(cwd, ".pijota", "skills"));
         for (String pathStr : explicitPaths) {
             Path p = Path.of(pathStr);

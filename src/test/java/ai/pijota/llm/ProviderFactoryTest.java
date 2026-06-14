@@ -1,5 +1,7 @@
 package ai.pijota.llm;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -11,6 +13,24 @@ class ProviderFactoryTest {
         var factory = new ProviderFactory.OpenAiCompatible();
         assertTrue(factory.supports("deepseek"));
         assertTrue(factory.supports("openai"));
+    }
+
+    @Test
+    void localProvidersRouteToTheStandardOpenAiClient() {
+        // formerly hardcoded to a bespoke client by name; now plain OpenAI-compatible (apiType=openai in the catalog)
+        var factory = new ProviderFactory.OpenAiCompatible();
+        assertTrue(factory.supports("local"));
+        assertTrue(factory.supports("workstation"));
+    }
+
+    @Test
+    void thinkingParametersMapByFormat() {
+        assertEquals(Map.of(), ProviderFactory.thinkingParameters(null, true), "standard OpenAI sends no extra params");
+        assertEquals(Map.of("enable_thinking", true), ProviderFactory.thinkingParameters("qwen", true));
+        assertEquals(Map.of("enable_thinking", false), ProviderFactory.thinkingParameters("qwen", false));
+        assertEquals(Map.of("enable_thinking", true, "chat_template_kwargs", Map.of("enable_thinking", true)),
+                                        ProviderFactory.thinkingParameters("qwen-chat-template", true));
+        assertEquals(Map.of(), ProviderFactory.thinkingParameters("unknown-format", true), "unknown format → none");
     }
 
     @Test

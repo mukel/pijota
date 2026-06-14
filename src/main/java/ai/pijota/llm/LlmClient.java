@@ -24,7 +24,15 @@ public interface LlmClient extends AutoCloseable {
         return 0;
     }
 
-    boolean streamsWithTools();
+    /** Estimated cumulative spend this session, in USD. {@code 0} when the client does not track cost. */
+    default double totalCost() {
+        return 0;
+    }
+
+    /** The session cost budget in USD, or {@code null} when none is set. */
+    default Double costBudget() {
+        return null;
+    }
 
     void abort();
 

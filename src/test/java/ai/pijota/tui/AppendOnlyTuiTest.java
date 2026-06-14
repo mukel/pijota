@@ -69,22 +69,10 @@ class AppendOnlyTuiTest {
     }
 
     @Test
-    void toolIconReturnsNonEmptyForAllKnownTools() {
-        var tools = new String[] {"read", "write", "edit", "bash", "grep", "glob", "ls", "task", "question",
-                "websearch", "webfetch", "todowrite"};
-        for (var t : tools) {
-            assertFalse(ToolResultLines.toolIcon(t, false).isEmpty(), "tool " + t + " should have icon");
-        }
-    }
-
-    @Test
-    void toolIconErrorReturnsX() {
-        assertEquals("✖", ToolResultLines.toolIcon("bash", true));
-    }
-
-    @Test
-    void toolIconUnknownReturnsDot() {
-        assertEquals("●", ToolResultLines.toolIcon("unknown-tool", false));
+    void toolsProvideTheirOwnGlyph() {
+        assertEquals("📖", new ai.pijota.tools.ReadTool().glyph());
+        assertEquals("🔍", new ai.pijota.tools.GrepTool().glyph());
+        assertEquals("●", new ai.pijota.tools.WhoamiTool().glyph(), "tools without a custom glyph use the bullet");
     }
 
     @Test
@@ -223,51 +211,25 @@ class AppendOnlyTuiTest {
     }
 
     @Test
-    void renderTodoLineDone() {
+    void renderToolBodyLineColoursChecklistMarkersByContent() {
         var theme = new AnsiTheme();
-        var result = ToolResultLines.renderTodoLine("│ [✓] Task done", theme);
-        assertTrue(result.contains("✓"));
-    }
-
-    @Test
-    void renderTodoLineWip() {
-        var theme = new AnsiTheme();
-        var result = ToolResultLines.renderTodoLine("│ [~] Working", theme);
-        assertTrue(result.contains("~"));
-    }
-
-    @Test
-    void renderTodoLineCancelled() {
-        var theme = new AnsiTheme();
-        var result = ToolResultLines.renderTodoLine("│ [−] Removed", theme);
-        assertTrue(result.contains("−"));
-    }
-
-    @Test
-    void renderTodoLinePlain() {
-        var theme = new AnsiTheme();
-        var result = ToolResultLines.renderTodoLine("│ plain text", theme);
-        assertTrue(result.contains("plain text"));
-    }
-
-    @Test
-    void renderToolBodyLineTodowrite() {
-        var theme = new AnsiTheme();
-        var result = ToolResultLines.renderToolBodyLine("todowrite", "│ [✓] done", theme);
-        assertTrue(result.contains("✓"));
+        assertTrue(ToolResultLines.renderToolBodyLine("│ [✓] Task done", theme).contains("✓"));
+        assertTrue(ToolResultLines.renderToolBodyLine("│ [~] Working", theme).contains("~"));
+        assertTrue(ToolResultLines.renderToolBodyLine("│ [−] Removed", theme).contains("−"));
+        assertTrue(ToolResultLines.renderToolBodyLine("│ plain text", theme).contains("plain text"));
     }
 
     @Test
     void renderToolBodyLineLink() {
         var theme = new AnsiTheme();
-        var result = ToolResultLines.renderToolBodyLine("bash", "╰→ result", theme);
+        var result = ToolResultLines.renderToolBodyLine("╰→ result", theme);
         assertTrue(result.contains("╰→"));
     }
 
     @Test
     void renderToolBodyLineTreeNode() {
         var theme = new AnsiTheme();
-        var result = ToolResultLines.renderToolBodyLine("ls", "┴", theme);
+        var result = ToolResultLines.renderToolBodyLine("┴", theme);
         assertTrue(result.contains("┴"));
     }
 

@@ -74,18 +74,6 @@ class AgentLoopTest {
     }
 
     @Test
-    void omitsToolsFromRequestWhenLlmDoesNotStreamWithTools() throws Exception {
-        var llm = new FauxLlm().streamsWithTools(false).enqueue(FauxLlm.Response.content("ok"));
-        var registry = new ToolRegistry();
-        registry.register(fakeTool());
-        var agent = AgentLoop.builder(llm, registry, "/workspace").build();
-
-        agent.prompt("hi").get(1, TimeUnit.SECONDS);
-
-        assertTrue(llm.requests().getFirst().tools().isEmpty());
-    }
-
-    @Test
     void abortCancelsActiveStreamAndCompletesWithoutException() throws Exception {
         var llm = new FauxLlm().enqueue(FauxLlm.Response.content("partial")).blockUntilAborted();
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();

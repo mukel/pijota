@@ -12,6 +12,7 @@ final class PromptTextBuffer {
     private int row;
     private int col;
     private int desiredCol = -1;
+    private String lastKill = ""; // text removed by the most recent kill op, consumed by the editor's kill ring
 
     PromptTextBuffer() {
         lines.add("");
@@ -179,20 +180,39 @@ final class PromptTextBuffer {
     }
 
     Effect killToEnd() {
+        lastKill = "";
         String line = lines.get(row);
         if (col < line.length()) {
+            lastKill = line.substring(col);
             lines.set(row, line.substring(0, col));
             desiredCol = -1;
             return Effect.CLEAR_COMPLETIONS;
         }
         if (row >= lines.size() - 1)
             return Effect.UNCHANGED;
+        lastKill = "\n" + String.join("\n", lines.subList(row + 1, lines.size()));
         lines.subList(row + 1, lines.size()).clear();
         desiredCol = -1;
         return Effect.CLEAR_COMPLETIONS;
     }
 
+    /** The text removed by the most recent kill op (cleared on read), for the editor's kill ring. */
+    String takeLastKill() {
+        String k = lastKill;
+        lastKill = "";
+        return k;
+    }
+
+    /** Replaces the whole buffer and positions the cursor at (row, col), clamped to bounds. Used by undo/redo. */
+    void restore(String text, int targetRow, int targetCol) {
+        setText(text);
+        row = Math.min(Math.max(targetRow, 0), lines.size() - 1);
+        col = Math.min(Math.max(targetCol, 0), lines.get(row).length());
+        desiredCol = -1;
+    }
+
     Effect deleteWordBeforeCursor() {
+        lastKill = "";
         if (col == 0) {
             if (row == 0)
                 return Effect.UNCHANGED;
@@ -206,6 +226,7 @@ final class PromptTextBuffer {
             start--;
         while (start > 0 && !Character.isWhitespace(line.charAt(start - 1)))
             start--;
+        lastKill = line.substring(start, col);
         lines.set(row, line.substring(0, start) + line.substring(col));
         col = start;
         desiredCol = -1;
@@ -213,6 +234,7 @@ final class PromptTextBuffer {
     }
 
     Effect deleteWordAfterCursor() {
+        lastKill = "";
         String line = lines.get(row);
         if (col >= line.length()) {
             if (row >= lines.size() - 1)
@@ -227,6 +249,7 @@ final class PromptTextBuffer {
             end++;
         while (end < line.length() && !Character.isWhitespace(line.charAt(end)))
             end++;
+        lastKill = line.substring(col, end);
         lines.set(row, line.substring(0, col) + line.substring(end));
         desiredCol = -1;
         return Effect.REFRESH_COMPLETIONS;

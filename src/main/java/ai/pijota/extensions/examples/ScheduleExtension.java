@@ -5,6 +5,7 @@ import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionResult;
+import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.tools.Tool;
@@ -134,6 +135,11 @@ public final class ScheduleExtension implements Extension {
             return t;
         });
         loadJobs();
+    }
+
+    @Override
+    public void onShutdown(ExtensionRuntime runtime) {
+        stop();
     }
 
     private void stop() {

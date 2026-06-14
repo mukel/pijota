@@ -54,7 +54,6 @@ public final class ExtensionRegistry {
     private Path cwd;
     private String sessionName;
     private String systemPrompt;
-    private String currentModel;
     private String currentExtensionId;
     private Runnable suspendCallback;
     private Runnable resumeCallback;
@@ -261,7 +260,6 @@ public final class ExtensionRegistry {
     }
 
     public void fireModelSelect(String model, String previousModel, String source) {
-        currentModel = model;
         fire(new ExtensionEvent.ModelSelect(model, previousModel, source));
     }
 

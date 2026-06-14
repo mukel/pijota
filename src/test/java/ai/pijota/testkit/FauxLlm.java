@@ -20,17 +20,11 @@ import java.util.function.BiConsumer;
 public final class FauxLlm implements LlmClient {
     private final Queue<Response> responses = new ArrayDeque<>();
     private final List<Request> requests = new ArrayList<>();
-    private boolean streamsWithTools = true;
     private boolean aborted;
     private String provider = "faux";
     private String model = "faux-model";
     private long inputTokens;
     private long outputTokens;
-
-    public FauxLlm streamsWithTools(boolean value) {
-        this.streamsWithTools = value;
-        return this;
-    }
 
     /** Sets the cumulative token counts reported by {@link #totalInputTokens()} / {@link #totalOutputTokens()}. */
     public FauxLlm tokens(long input, long output) {
@@ -93,11 +87,6 @@ public final class FauxLlm implements LlmClient {
     @Override
     public String apiKey() {
         return "faux-key";
-    }
-
-    @Override
-    public boolean streamsWithTools() {
-        return streamsWithTools;
     }
 
     @Override

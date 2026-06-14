@@ -26,10 +26,14 @@ public final class SlashCommandTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "❓";
+    }
+
+    @Override
     public String description() {
-        return "Use this tool when you need to ask the user questions during execution. "
-                                        + "This allows you to gather user preferences, clarify ambiguous instructions, "
-                                        + "or get decisions on implementation choices. Prefer questions: [{question, header, options, multiple}].";
+        return "Ask the user a question to gather preferences, clarify instructions, or get a decision. "
+                                        + "Prefer questions: [{question, header, options, multiple}].";
     }
 
     @Override

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public interface UiContext {
     void setStatus(String message);
@@ -39,4 +40,10 @@ public interface UiContext {
 
     /** Opens a modal, scrollable, searchable read-only viewer over {@code lines} (e.g. a sub-agent log). */
     default void viewer(String title, List<String> lines) {}
+
+    /**
+     * Opens a viewer over a live {@code source} re-read periodically — for a still-running sub-agent's log it tails the
+     * output (follow mode), updating as the agent works. {@code source} must be cheap and non-throwing.
+     */
+    default void viewer(String title, Supplier<List<String>> source) {}
 }

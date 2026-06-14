@@ -168,6 +168,9 @@ final class McpClient {
             if (!closed)
                 log.debug("MCP {} read loop ended: {}", serverName, e.getMessage());
         } finally {
+            // The stream ended (server exited/crashed): the client is dead, so alive() must report false and any
+            // pending calls must fail rather than hang.
+            closed = true;
             failAll(new IOException("MCP server " + serverName + " disconnected"));
         }
     }

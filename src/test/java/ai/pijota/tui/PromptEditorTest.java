@@ -189,6 +189,59 @@ class PromptEditorTest {
         assertFalse(editor.reverseHistoryActive());
     }
 
+    @Test
+    void undoRevertsTypedRunAndRedoReappliesIt() {
+        type("abc");
+        assertEquals("abc", editor.text());
+
+        editor.apply(Key.Special.CTRL_UNDERSCORE); // undo — a coalesced typing run reverts at once
+        assertEquals("", editor.text());
+
+        editor.apply(Key.Special.ALT_UNDERSCORE); // redo
+        assertEquals("abc", editor.text());
+    }
+
+    @Test
+    void undoStepsAreSplitByCursorMovement() {
+        type("ab");
+        editor.apply(Key.Special.LEFT);
+        type("c");
+        assertEquals("acb", editor.text());
+
+        editor.apply(Key.Special.CTRL_UNDERSCORE);
+        assertEquals("ab", editor.text()); // only the edit made after the cursor move is undone
+        editor.apply(Key.Special.CTRL_UNDERSCORE);
+        assertEquals("", editor.text());
+    }
+
+    @Test
+    void killedTextIsYankedBackFromTheKillRing() {
+        editor.insertText("hello world");
+        editor.apply(Key.Special.CTRL_W); // kills "world"
+        assertEquals("hello ", editor.text());
+
+        editor.apply(Key.Special.CTRL_Y); // yank it back
+        assertEquals("hello world", editor.text());
+    }
+
+    @Test
+    void yankPopCyclesToOlderKills() {
+        editor.insertText("alpha");
+        editor.apply(Key.Special.CTRL_U); // kills whole buffer -> ring: [alpha]
+        editor.insertText("beta");
+        editor.apply(Key.Special.CTRL_U); // ring: [alpha, beta]
+
+        editor.apply(Key.Special.CTRL_Y); // yanks most recent: "beta"
+        assertEquals("beta", editor.text());
+        editor.apply(Key.Special.ALT_Y); // yank-pop -> previous: "alpha"
+        assertEquals("alpha", editor.text());
+    }
+
+    private void type(String s) {
+        for (char c : s.toCharArray())
+            editor.apply(new Key.Char(c));
+    }
+
     private void assertSnapshot(List<String> lines, int row, int col) {
         var snapshot = editor.snapshot();
         assertEquals(lines, snapshot.lines());

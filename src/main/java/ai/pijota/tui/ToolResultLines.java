@@ -21,10 +21,12 @@ final class ToolResultLines {
     private ToolResultLines() {}
 
     static List<String> compose(Message.ToolResult msg, Tool.ToolResultView rendered, Supplier<String> args,
-                                    AnsiTheme theme, String rawCwd, boolean shortenPaths) {
+                                    AnsiTheme theme, String rawCwd, boolean shortenPaths, long elapsedMs,
+                                    String glyph) {
         String slot = msg.isError() ? "toolError" : "toolResult";
         var parts = new ArrayList<String>();
-        parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", toolIcon(msg.toolName(), msg.isError())));
+        String marker = msg.isError() ? "✖" : glyph; // the tool supplies its glyph; ✖ marks any failure
+        parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", marker));
         parts.add(theme.styled("statusText", msg.toolName()));
         String detail = ToolRender.detail(msg.toolName(), args, rawCwd, shortenPaths);
         if (!detail.isBlank())
@@ -37,30 +39,14 @@ final class ToolResultLines {
             if (details.get("exitCode") instanceof Number ec)
                 parts.add(theme.styled(ec.intValue() == 0 ? "statusText" : "toolError", "exit " + ec.intValue()));
         }
+        if (elapsedMs >= 1000) // sub-second tools are instant; only annotate the ones the user actually waits on
+            parts.add(theme.styled("commandMeta", Util.formatDuration(elapsedMs)));
         var lines = new ArrayList<String>();
         lines.add(String.join(" ", parts));
         if (rendered != null && !rendered.body().isEmpty())
             for (String line : rendered.body())
-                lines.add(renderToolBodyLine(msg.toolName(), line, theme));
+                lines.add(renderToolBodyLine(line, theme));
         return lines;
-    }
-
-    static String toolIcon(String toolName, boolean error) {
-        if (error)
-            return "✖";
-        return switch (toolName) {
-            case "read" -> "📖";
-            case "write", "edit" -> "✏";
-            case "bash" -> "$";
-            case "grep" -> "🔍";
-            case "glob" -> "📁";
-            case "ls" -> "📂";
-            case "task" -> "⚙";
-            case "question" -> "❓";
-            case "websearch", "webfetch" -> "🌐";
-            case "todowrite" -> "📋";
-            default -> "●";
-        };
     }
 
     static String toolResultSummary(Message.ToolResult msg) {
@@ -89,28 +75,22 @@ final class ToolResultLines {
         };
     }
 
-    static String renderToolBodyLine(String toolName, String line, AnsiTheme theme) {
-        if ("todowrite".equals(toolName))
-            return renderTodoLine(line, theme);
-        if (line.startsWith("╰→")) {
+    static String renderToolBodyLine(String line, AnsiTheme theme) {
+        // Checklist items (e.g. from the todo tool) — colour by state marker, keyed on content not tool name.
+        String todoSlot = null;
+        if (line.startsWith("│ [✓]"))
+            todoSlot = "diffAdd";
+        else if (line.startsWith("│ [~]"))
+            todoSlot = "statusWarn";
+        else if (line.startsWith("│ [−]"))
+            todoSlot = "toolError";
+        if (todoSlot != null)
+            return theme.styled("statusText", "│ ") + theme.styled(todoSlot, line.substring(2));
+        if (line.startsWith("╰→"))
             return theme.styled("statusText", "╰→") + theme.styled("commandMeta", line.substring(2));
-        }
         if (line.equals("┴") || line.equals("┬"))
             return theme.styled("statusText", line);
         String bodySlot = line.startsWith("⋯") ? "commandMeta" : "statusText";
         return theme.styled(bodySlot, line);
-    }
-
-    static String renderTodoLine(String line, AnsiTheme theme) {
-        String slot = null;
-        if (line.startsWith("│ [✓]"))
-            slot = "diffAdd";
-        else if (line.startsWith("│ [~]"))
-            slot = "statusWarn";
-        else if (line.startsWith("│ [−]"))
-            slot = "toolError";
-        if (slot == null)
-            return theme.styled("statusText", line);
-        return theme.styled("statusText", "│ ") + theme.styled(slot, line.substring(2));
     }
 }

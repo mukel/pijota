@@ -24,6 +24,16 @@ public final class ReadTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "📖";
+    }
+
+    @Override
+    public boolean hasResultView() {
+        return true;
+    }
+
+    @Override
     public String description() {
         return "Read the contents of a file. Output defaults to 2000 lines and is capped at 50KB. "
                                         + "Lines longer than 2000 chars are truncated. Use offset/limit to read specific ranges.";

@@ -6,6 +6,7 @@ import ai.pijota.extensions.HeadlessToolContext;
 import ai.pijota.extensions.UiContext;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
+import ai.pijota.util.Util;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,79 +21,106 @@ public final class TaskExtension implements Extension {
     private static final int MAX_SUBAGENT_DEPTH = 2;
     private static final long DONE_LINGER_MS = 5000;
 
-    record AgentState(String name, int toolCount, int lines, String state, String lastTool, long doneAt,
-                                    String logFile) {
+    record AgentState(String name, int toolCount, int lines, long tokens, String state, String lastTool, long startedAt,
+                                    long doneAt, String logFile) {
+        static AgentState start(String name) {
+            return new AgentState(name, 0, 0, 0, "running", null, System.currentTimeMillis(), 0, null);
+        }
+
         AgentState withTool(String tool) {
-            return new AgentState(name, toolCount + 1, lines, "running", tool, 0, logFile);
+            return new AgentState(name, toolCount + 1, lines, tokens, "running", tool, startedAt, 0, logFile);
         }
 
         AgentState withLines(int added) {
-            return new AgentState(name, toolCount, lines + added, "running", lastTool, 0, logFile);
+            return new AgentState(name, toolCount, lines + added, tokens, "running", lastTool, startedAt, 0, logFile);
         }
 
-        AgentState done(boolean success) {
-            return new AgentState(name, toolCount, lines, success ? "done" : "failed", lastTool,
+        AgentState withLog(String log) {
+            return new AgentState(name, toolCount, lines, tokens, "running", lastTool, startedAt, 0, log);
+        }
+
+        AgentState done(boolean success, long tokens) {
+            return new AgentState(name, toolCount, lines, tokens, success ? "done" : "failed", lastTool, startedAt,
                                             System.currentTimeMillis(), logFile);
         }
+
+        boolean running() {
+            return "running".equals(state);
+        }
     }
+
+    /** Final per-log summary, kept for {@code /logs} after the live status state is pruned. */
+    private record LogSummary(String agent, boolean success, int toolCount, long tokens) {
+    }
+
     private final ConcurrentHashMap<String, AgentState> agentStates = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, LogSummary> finishedLogs = new ConcurrentHashMap<>(); // by log path
     private final Set<Path> activeLogs = ConcurrentHashMap.newKeySet();
     private ExtensionAPI api;
 
-    private void onActivity(String agent, String line) {
+    void onActivity(String agent, String line) {
         if (line.startsWith("log: ")) {
             String logPath = line.substring(5).strip();
             activeLogs.add(Path.of(logPath));
-            agentStates.compute(agent, (k, v) -> {
-                if (v == null)
-                    return new AgentState(agent, 0, 0, "running", null, 0, logPath);
-                return new AgentState(agent, v.toolCount, v.lines, "running", v.lastTool, 0, logPath);
-            });
+            agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withLog(logPath));
         } else if (line.startsWith("+")) {
             try {
                 int added = Integer.parseInt(line.substring(1));
-                agentStates.compute(agent, (k, v) -> {
-                    if (v == null)
-                        return new AgentState(agent, 0, added, "running", null, 0, null);
-                    return v.withLines(added);
-                });
+                agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withLines(added));
             } catch (NumberFormatException ignored) {}
         } else {
-            agentStates.compute(agent, (k, v) -> {
-                if (v == null)
-                    return new AgentState(agent, 1, 0, "running", line, 0, null);
-                return v.withTool(line);
-            });
+            agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withTool(line));
         }
     }
 
-    private void finished(String agent, boolean success) {
-        agentStates.compute(agent, (k, v) -> {
-            if (v == null)
-                return new AgentState(agent, 0, 0, success ? "done" : "failed", null, System.currentTimeMillis(), null);
-            return v.done(success);
-        });
+    void finished(String agent, boolean success, long tokens) {
+        var state = agentStates.compute(agent,
+                                        (k, v) -> (v == null ? AgentState.start(agent) : v).done(success, tokens));
+        if (state.logFile != null) // remember the final summary so /logs can show it after the live state is pruned
+            finishedLogs.put(state.logFile, new LogSummary(agent, success, state.toolCount, tokens));
     }
 
-    private List<String> statusLines() {
+    List<String> statusLines() {
         pruneDoneStates();
+        if (agentStates.isEmpty())
+            return List.of();
         var lines = new ArrayList<String>();
+        long now = System.currentTimeMillis();
+        // For a multi-agent run (parallel/chain), lead with an aggregate so progress is legible at a glance.
+        if (agentStates.size() > 1) {
+            long done = agentStates.values().stream().filter(s -> !s.running()).count();
+            long running = agentStates.size() - done;
+            long firstStart = agentStates.values().stream().mapToLong(AgentState::startedAt).filter(t -> t > 0).min()
+                                            .orElse(now);
+            lines.add(String.format("⚙ task: %d/%d done · %d running · %s", done, agentStates.size(), running,
+                                            Util.formatDuration(now - firstStart)));
+        }
         for (var state : agentStates.values()) {
-            if ("running".equals(state.state)) {
+            if (state.running()) {
                 String activity = state.lastTool != null ? "  " + state.lastTool : "";
-                lines.add("⏳" + String.format(" task:%-15s%s  running", state.name, activity));
+                String progress = state.lines > 0 ? state.lines + " lines · " : "";
+                lines.add("⏳" + String.format(" task:%-15s%s  running · %s%s", state.name, activity, progress,
+                                                Util.formatDuration(now - state.startedAt)));
             } else if (state.doneAt > 0) {
                 String icon = "done".equals(state.state) ? "✓" : "✗";
-                String summary = String.format(" · %d tools · %d lines", state.toolCount, state.lines);
-                lines.add(icon + String.format(" task:%-15s%s", state.name, summary));
+                lines.add(icon + String.format(" task:%-15s · %d tools · %s tokens · %s", state.name, state.toolCount,
+                                                Util.fmtCount(state.tokens),
+                                                Util.formatDuration(state.doneAt - state.startedAt)));
             }
         }
         return lines;
     }
 
+    /**
+     * Keeps finished agents on screen while any sibling is still running (so a parallel batch stays legible), then
+     * clears the whole batch once they have all finished and the linger window has elapsed since the last one.
+     */
     private void pruneDoneStates() {
-        long cutoff = System.currentTimeMillis() - DONE_LINGER_MS;
-        agentStates.values().removeIf(s -> s.doneAt > 0 && s.doneAt < cutoff);
+        if (agentStates.values().stream().anyMatch(AgentState::running))
+            return;
+        long latestDone = agentStates.values().stream().mapToLong(AgentState::doneAt).max().orElse(0);
+        if (latestDone > 0 && System.currentTimeMillis() - latestDone >= DONE_LINGER_MS)
+            agentStates.values().removeIf(s -> s.doneAt > 0);
     }
 
     // === Extension ===
@@ -206,9 +234,13 @@ public final class TaskExtension implements Extension {
     }
 
     private String logMeta(Path log) {
+        LogSummary done = finishedLogs.get(log.toString());
+        if (done != null)
+            return String.format("%s · %s · %d tools · %s tokens", done.agent, done.success ? "complete" : "failed",
+                                            done.toolCount, Util.fmtCount(done.tokens));
         for (var state : agentStates.values()) {
             if (state.logFile != null && log.toString().equals(state.logFile))
-                return state.name + " · " + state.toolCount + " tools · " + state.lines + " lines · " + state.state;
+                return state.name + " · running · " + state.toolCount + " tools";
         }
         return "";
     }
@@ -229,29 +261,29 @@ public final class TaskExtension implements Extension {
     }
 
     private void openLogFile(Path file) {
-        List<String> lines;
-        try {
-            lines = readLogLines(file);
-        } catch (IOException e) {
-            api.runtime().setStatus("Cannot open log: " + e.getMessage());
-            return;
-        }
         UiContext ui = api.runtime().ui();
         if (ui != null) {
-            ui.viewer(file.getFileName().toString(), lines);
-        } else {
-            // Headless: no interactive viewer — post a tail of the log as a message.
-            int from = Math.max(0, lines.size() - 200);
-            var sb = new StringBuilder(file.getFileName().toString()).append('\n');
-            for (String line : lines.subList(from, lines.size()))
-                sb.append(line).append('\n');
-            api.sendMessage(new Message.Custom("logs", sb.toString()));
+            // Live source: the viewer re-reads it and tails as a still-running sub-agent appends to its log.
+            ui.viewer(file.getFileName().toString(), () -> readLogLines(file));
+            return;
         }
+        // Headless: no interactive viewer — post a tail of the log as a message.
+        List<String> lines = readLogLines(file);
+        int from = Math.max(0, lines.size() - 200);
+        var sb = new StringBuilder(file.getFileName().toString()).append('\n');
+        for (String line : lines.subList(from, lines.size()))
+            sb.append(line).append('\n');
+        api.sendMessage(new Message.Custom("logs", sb.toString()));
     }
 
-    private static List<String> readLogLines(Path file) throws IOException {
-        // Lenient decode: sub-agent logs may contain non-UTF-8 bytes; never fail on a bad byte.
-        return List.of(new String(Files.readAllBytes(file), java.nio.charset.StandardCharsets.UTF_8).split("\n", -1));
+    /** Reads a log's lines, lenient on non-UTF-8 bytes; returns a one-line notice instead of throwing on I/O error. */
+    private static List<String> readLogLines(Path file) {
+        try {
+            return List.of(new String(Files.readAllBytes(file), java.nio.charset.StandardCharsets.UTF_8).split("\n",
+                                            -1));
+        } catch (IOException e) {
+            return List.of("(cannot read log: " + e.getMessage() + ")");
+        }
     }
 
     private static long modifiedAt(java.nio.file.Path path) {

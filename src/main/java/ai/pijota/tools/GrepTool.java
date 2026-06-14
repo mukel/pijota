@@ -52,6 +52,16 @@ public final class GrepTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "🔍";
+    }
+
+    @Override
+    public boolean hasResultView() {
+        return true;
+    }
+
+    @Override
     public String description() {
         return "Search file contents for a pattern. Returns matching lines with file paths and line numbers. "
                                         + "Respects .gitignore. Output is truncated to 100 matches or 100KB. Long lines are truncated.";

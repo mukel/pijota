@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
 import java.util.List;
 
 import static ai.pijota.util.Util.fmtCount;
@@ -42,6 +43,9 @@ final class SessionCommands {
         String tokenStatus();
 
         void refreshSessionName();
+
+        /** Asks the user a yes/no question; completes with the answer when they respond (false on cancel). */
+        CompletableFuture<Boolean> confirm(String question);
     }
 
     private final Host host;
@@ -92,12 +96,19 @@ final class SessionCommands {
             host.appendPlain(List.of(host.styled("toolError", "usage: /delete <id|path>")));
             return;
         }
-        try {
-            host.session().deleteSession(spec);
-            host.appendPlain(List.of(host.styled("statusText", "deleted session: " + spec)));
-        } catch (IOException e) {
-            host.appendPlain(List.of(host.styled("toolError", "delete failed: " + e.getMessage())));
-        }
+        String target = spec;
+        host.confirm("delete session '" + target + "'? this cannot be undone").thenAccept(confirmed -> {
+            if (!confirmed) {
+                host.appendPlain(List.of(host.styled("statusText", "delete cancelled")));
+                return;
+            }
+            try {
+                host.session().deleteSession(target);
+                host.appendPlain(List.of(host.styled("statusText", "deleted session: " + target)));
+            } catch (IOException e) {
+                host.appendPlain(List.of(host.styled("toolError", "delete failed: " + e.getMessage())));
+            }
+        });
     }
 
     void startNewSession() {
@@ -105,8 +116,21 @@ final class SessionCommands {
             host.appendPlain(List.of(host.styled("toolError", "/new is unavailable while a turn is running")));
             return;
         }
-        if (!host.session().messages().isEmpty())
-            host.appendPlain(List.of(host.styled("statusWarn", "starting new session — previous messages discarded")));
+        if (host.session().messages().isEmpty()) {
+            createNewSession();
+            return;
+        }
+        host.confirm("start a new session? the current conversation is cleared (it stays saved on disk)")
+                                        .thenAccept(confirmed -> {
+                                            if (confirmed)
+                                                createNewSession();
+                                            else
+                                                host.appendPlain(List.of(host.styled("statusText",
+                                                                                "kept current session")));
+                                        });
+    }
+
+    private void createNewSession() {
         try {
             host.session().newSession();
             host.setSessionName(null);
@@ -117,6 +141,31 @@ final class SessionCommands {
             return;
         }
         host.appendPlain(List.of(host.styled("statusText", "started new session")));
+    }
+
+    void showUsage() {
+        var session = host.session();
+        if (session == null)
+            return;
+        host.appendPlain(usageReport(session.totalInputTokens(), session.totalOutputTokens(), session.totalCost(),
+                                        session.costBudget(), host::styled));
+    }
+
+    /** Formats the cumulative session-usage block. Pure given the totals and a styler, so it is unit-testable. */
+    static List<String> usageReport(long input, long output, double cost, Double budget,
+                                    java.util.function.BiFunction<String, String, String> styled) {
+        var lines = new ArrayList<String>();
+        lines.add(styled.apply("toolLabel", "usage  (this session)"));
+        lines.add(styled.apply("statusText", "  input   " + fmtCount(input) + " tokens"));
+        lines.add(styled.apply("statusText", "  output  " + fmtCount(output) + " tokens"));
+        lines.add(styled.apply("statusText", "  total   " + fmtCount(input + output) + " tokens"));
+        lines.add(styled.apply("commandMeta", String.format(java.util.Locale.ROOT, "  cost    ~$%.4f est", cost)));
+        if (budget != null && budget > 0) {
+            int pct = (int) Math.round(100.0 * cost / budget);
+            lines.add(styled.apply("commandMeta", String.format(java.util.Locale.ROOT, "  budget  $%.2f / $%.2f (%d%%)",
+                                            cost, budget, pct)));
+        }
+        return lines;
     }
 
     void cloneSession() {

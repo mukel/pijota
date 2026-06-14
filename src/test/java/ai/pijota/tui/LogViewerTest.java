@@ -30,6 +30,43 @@ class LogViewerTest {
     }
 
     @Test
+    void liveSourceTailsAppendedLinesWhileFollowing() {
+        var backing = new ArrayList<>(List.of("a", "b"));
+        var v = new LogViewer();
+        v.showLive("live.log", () -> List.copyOf(backing));
+        v.setViewport(2);
+        assertTrue(visible(v).contains("following"), "live viewer starts in follow mode");
+        assertTrue(visible(v).contains("1-2/2"), visible(v));
+
+        backing.add("c");
+        backing.add("d");
+        v.refresh();
+
+        String out = visible(v);
+        assertTrue(out.contains("c") && out.contains("d"), out);
+        assertTrue(out.contains("3-4/4"), "follow mode pins the view to the new tail: " + out);
+    }
+
+    @Test
+    void scrollingUpDetachesFollowAndEndReattaches() {
+        var backing = new ArrayList<>(IntStream.range(0, 10).mapToObj(i -> "l" + i).toList());
+        var v = new LogViewer();
+        v.showLive("live.log", () -> List.copyOf(backing));
+        v.setViewport(3);
+        assertTrue(visible(v).contains("following"));
+
+        v.handleKey(Key.Special.UP);
+        assertFalse(visible(v).contains("following"), "scrolling up detaches follow");
+
+        backing.add("new");
+        v.refresh(); // must not yank the detached view back to the bottom
+        assertFalse(visible(v).contains("following"));
+
+        v.handleKey(Key.Special.END);
+        assertTrue(visible(v).contains("following"), "End re-attaches follow");
+    }
+
+    @Test
     void inactiveUntilShownAndClosed() {
         var v = new LogViewer();
         assertFalse(v.active());

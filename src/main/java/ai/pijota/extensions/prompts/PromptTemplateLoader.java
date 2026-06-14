@@ -1,5 +1,7 @@
 package ai.pijota.extensions.prompts;
 
+import ai.pijota.util.PijotaHome;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,7 +21,7 @@ public final class PromptTemplateLoader {
     /** Non-recursive scan of *.md files in the prompts directory. */
     public static List<PromptTemplate> load(String cwd, List<String> explicitPaths) {
         var templates = new LinkedHashMap<String, PromptTemplate>();
-        discoverIn(templates, Path.of(System.getProperty("user.home"), ".pijota", "prompts"));
+        discoverIn(templates, PijotaHome.resolve("prompts"));
         discoverIn(templates, Path.of(cwd, ".pijota", "prompts"));
         for (String pathStr : explicitPaths) {
             Path p = Path.of(pathStr);

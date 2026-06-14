@@ -1,5 +1,6 @@
 package ai.pijota.config;
 
+import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -12,7 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class OAuthTokenStore {
-    private static final Path CONFIG_HOME = Path.of(System.getProperty("user.home"), ".pijota");
+    private static final Path CONFIG_HOME = PijotaHome.dir();
     private static final Path DEFAULT_AUTH_FILE = CONFIG_HOME.resolve("auth.json");
 
     private final Path authFile;

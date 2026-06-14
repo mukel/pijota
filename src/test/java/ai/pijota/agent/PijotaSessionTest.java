@@ -203,6 +203,9 @@ class PijotaSessionTest {
     @Test
     void continueLastSessionLoadsLatestOtherThanCurrent() throws Exception {
         var session = createSession(false);
+        var llm = (FauxLlm) session.agentLoop().llm();
+        llm.enqueue(withUsage("ok"));
+        session.prompt("hi").get(2, TimeUnit.SECONDS); // give it real content so it persists past newSession
         var firstFile = session.sessionFile();
         session.newSession();
 

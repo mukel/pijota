@@ -1,5 +1,6 @@
 package ai.pijota.extensions.task;
 
+import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Util;
 
 import java.net.URI;
@@ -104,14 +105,14 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
         agents.addAll(loadMarkdownDir(projectAgents, "project"));
 
         // Legacy Pijota paths
-        Path pijotaUser = Path.of(System.getProperty("user.home"), ".pijota", "agents");
+        Path pijotaUser = PijotaHome.resolve("agents");
         agents.addAll(loadJsonDir(pijotaUser, "user"));
 
         Path pijotaProject = cwd.resolve(".pijota/agents");
         agents.addAll(loadJsonDir(pijotaProject, "project"));
 
         // Apply overrides from config files (later paths win)
-        applyOverrides(agents, Path.of(System.getProperty("user.home"), ".pijota", "subagents.json"));
+        applyOverrides(agents, PijotaHome.resolve("subagents.json"));
         applyOverrides(agents, cwd.resolve(".pijota/subagents.json"));
 
         return agents;

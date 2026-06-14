@@ -322,6 +322,26 @@ public final class PijotaSession implements AutoCloseable {
         return CompactionManager.estimateTokens(agentLoop.messages());
     }
 
+    /** Cumulative input tokens billed this session. */
+    public long totalInputTokens() {
+        return agentLoop.llm().totalInputTokens();
+    }
+
+    /** Cumulative output tokens billed this session. */
+    public long totalOutputTokens() {
+        return agentLoop.llm().totalOutputTokens();
+    }
+
+    /** Estimated cumulative spend this session in USD. */
+    public double totalCost() {
+        return agentLoop.llm().totalCost();
+    }
+
+    /** The session cost budget in USD, or {@code null} if none is set. */
+    public Double costBudget() {
+        return agentLoop.llm().costBudget();
+    }
+
     public void setSessionName(String name) throws IOException {
         if (sessionFile == null)
             throw new IOException("No active session");
@@ -428,11 +448,8 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public int load(Path file) throws IOException {
-        if (this.sessionFile != null && !this.sessionFile.equals(file)) {
-            try {
-                java.nio.file.Files.deleteIfExists(this.sessionFile);
-            } catch (IOException ignored) {}
-        }
+        if (this.sessionFile != null && !this.sessionFile.equals(file))
+            sessionManager.deleteIfEmpty(this.sessionFile); // drop the auto-created session if we never used it
         switchSession(file);
         return agentLoop.messages().size();
     }
@@ -446,9 +463,12 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public Path newSession() throws IOException {
+        Path previous = this.sessionFile;
         Path newFile = sessionManager.createSession(cwd);
         switchSession(newFile);
         refreshCacheMetadata();
+        if (previous != null && !previous.equals(newFile))
+            sessionManager.deleteIfEmpty(previous); // discard the prior session if it was never used
         return newFile;
     }
 
@@ -471,6 +491,8 @@ public final class PijotaSession implements AutoCloseable {
     @Override
     public void close() {
         agentLoop.close();
+        if (!disableSession && sessionFile != null)
+            sessionManager.deleteIfEmpty(sessionFile);
     }
 
     private static SubAgent findSummarizeAgent(String cwd) {

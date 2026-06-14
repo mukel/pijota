@@ -3,6 +3,7 @@ package ai.pijota;
 import ai.pijota.cli.Args;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.theme.AnsiTheme;
+import ai.pijota.util.PijotaHome;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,7 +30,7 @@ final class ThemeLoader {
     private static AnsiTheme resolve(SettingsManager settings, Args args, String cwd) throws Exception {
         var candidates = new LinkedHashMap<String, Path>();
         if (!args.noThemes()) {
-            addThemeDir(candidates, Path.of(System.getProperty("user.home"), ".pijota", "themes"));
+            addThemeDir(candidates, PijotaHome.resolve("themes"));
             for (String ref : safeList(settings.config().themes()))
                 addThemeRef(candidates, Path.of(cwd), ref);
         }
@@ -55,7 +56,7 @@ final class ThemeLoader {
         if (byName != null)
             return AnsiTheme.load(byName);
 
-        Path legacy = Path.of(System.getProperty("user.home"), ".pijota", "theme.json");
+        Path legacy = PijotaHome.resolve("theme.json");
         if (Files.isRegularFile(legacy))
             return AnsiTheme.load(legacy);
         return AnsiTheme.dark();

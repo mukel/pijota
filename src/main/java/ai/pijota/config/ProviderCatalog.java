@@ -45,6 +45,14 @@ public final class ProviderCatalog {
         return find(provider).map(Provider::oauth);
     }
 
+    /**
+     * How this provider expects reasoning to be toggled (e.g. {@code "qwen"} → {@code enable_thinking};
+     * {@code "qwen-chat-template"} → {@code chat_template_kwargs}). {@code null} means standard OpenAI.
+     */
+    public static String thinkingFormat(String provider) {
+        return find(provider).map(Provider::thinkingFormat).orElse(null);
+    }
+
     private static Catalog load() {
         try (InputStream in = ProviderCatalog.class.getResourceAsStream("/providers.json")) {
             if (in == null)
@@ -64,7 +72,8 @@ public final class ProviderCatalog {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Provider(String id, String displayName, String apiType, String baseUrl, List<String> env,
-                                    String defaultModel, Map<String, String> headers, OAuth oauth) {
+                                    String defaultModel, Map<String, String> headers, OAuth oauth,
+                                    String thinkingFormat) {
         public Provider {
             env = env == null ? List.of() : List.copyOf(env);
             headers = headers == null ? Map.of() : Map.copyOf(headers);

@@ -60,6 +60,42 @@ class StreamRendererTest {
     }
 
     @Test
+    void thinkingBodyTextIsRendered() {
+        var sink = new CapturingSink();
+        var r = renderer(sink, true);
+
+        r.streamThinking("first thought\n");
+        r.streamThinking("first thought\nsecond thought");
+        r.streamContent("the answer");
+        r.flush();
+
+        String out = sink.text();
+        assertTrue(out.contains("first thought"), "thinking body line 1 missing: " + out);
+        assertTrue(out.contains("second thought"), "thinking body line 2 missing: " + out);
+    }
+
+    @Test
+    void thinkingBodyRendersWhenBlockClosesNotDeferredToFlush() {
+        var sink = new CapturingSink();
+        var r = renderer(sink, true);
+
+        r.streamThinking("reasoning one\n");
+        r.streamThinking("reasoning one\nreasoning two\n");
+        r.streamContent("answer"); // first content closes the thinking block
+
+        // The thinking body must already be emitted when the block closes — not held buffered until the final flush.
+        String beforeFlush = sink.text();
+        assertTrue(beforeFlush.contains("reasoning one"),
+                                        "thinking body not rendered when block closed: " + beforeFlush);
+        assertTrue(beforeFlush.contains("reasoning two"),
+                                        "thinking body not rendered when block closed: " + beforeFlush);
+
+        r.flush();
+        String out = sink.text();
+        assertTrue(out.indexOf("reasoning one") < out.indexOf("answer"), "thinking must precede the answer: " + out);
+    }
+
+    @Test
     void resetClearsDeltaTrackingSoContentReappears() {
         var sink = new CapturingSink();
         var r = renderer(sink, false);

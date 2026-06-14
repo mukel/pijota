@@ -32,20 +32,19 @@ public final class WebfetchTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "🌐";
+    }
+
+    @Override
     public boolean defaultEnabled() {
         return true;
     }
 
     @Override
     public String description() {
-        return "Fetches content from a specified URL. Takes a URL and optional format as input. "
-                                        + "Fetches the URL content, converts to requested format (markdown by default). "
-                                        + "Use this tool when you need to retrieve and analyze web content.\n\n"
-                                        + "Usage notes:\n" + "- The URL must be a fully-formed valid URL\n"
-                                        + "- HTTP URLs will be automatically upgraded to HTTPS\n"
-                                        + "- Format options: \"markdown\" (default), \"text\", or \"html\"\n"
-                                        + "- This tool is read-only and does not modify any files\n"
-                                        + "- Results may be summarized if the content is very large";
+        return "Fetch content from a URL. Optional format: markdown (default), text, or html. "
+                                        + "HTTP is upgraded to HTTPS; read-only; large content may be summarized.";
     }
 
     @Override

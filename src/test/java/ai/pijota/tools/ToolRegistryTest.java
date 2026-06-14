@@ -240,6 +240,60 @@ class ToolRegistryTest {
         assertFalse(result.isError());
     }
 
+    @Test
+    void unregisterRemovesAndDisablesTheTool() {
+        var r = new ToolRegistry();
+        r.register(fakeTool("keep", true));
+        r.register(fakeTool("drop", true));
+        assertEquals(2, r.enabledTools().size());
+
+        r.unregister("drop");
+        assertTrue(r.get("drop").isEmpty());
+        assertFalse(r.enabledToolNames().contains("drop"));
+        assertEquals(List.of("keep"), r.enabledToolNames());
+        assertDoesNotThrow(() -> r.unregister("never-registered")); // no-op
+    }
+
+    @Test
+    void concurrentRegistrationLosesNoTools() throws Exception {
+        // Reproduces the data race that lost MCP tools when several servers connected on parallel threads:
+        // many threads register into the shared registry at once while another thread reads the enabled set.
+        var r = new ToolRegistry();
+        int n = 500;
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(16);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var done = new java.util.concurrent.CountDownLatch(n);
+        var reads = new AtomicBoolean(true);
+        // a concurrent reader, to surface read/write races too
+        var reader = new Thread(() -> {
+            while (reads.get())
+                r.enabledTools(); // must never throw / corrupt
+        });
+        reader.start();
+        try {
+            for (int i = 0; i < n; i++) {
+                String name = "tool-" + i;
+                pool.execute(() -> {
+                    try {
+                        start.await();
+                        r.register(fakeTool(name, true));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue(done.await(10, TimeUnit.SECONDS), "registrations did not finish");
+        } finally {
+            reads.set(false);
+            reader.join(1000);
+            pool.shutdownNow();
+        }
+        assertEquals(n, r.enabledTools().size(), "every concurrently registered tool must be present");
+    }
+
     private static Tool fakeTool(String name, boolean defaultEnabled) {
         return new Tool.ToolDefinition(name, name + " desc", Map.of("type", "object", "properties", Map.of()),
                                         (id, args, cwd) -> CompletableFuture

@@ -25,7 +25,11 @@ public final class PromptEditor {
     private final PromptTextBuffer buffer = new PromptTextBuffer();
     private final PromptCompletionState completions = new PromptCompletionState();
     private final PromptHistory history = new PromptHistory();
+    private final UndoStack undoStack = new UndoStack();
+    private final KillRing killRing = new KillRing();
     private String suggestion = "";
+    private UndoStack.Snapshot preYank; // buffer state captured before the current yank, for yank-pop replacement
+    private boolean yankActive; // true right after a yank/yank-pop, enabling yank-pop to cycle the ring
 
     public PromptEditor(SlashCommandRegistry commands) {
         this(commands, PromptFileCompletions::complete);
@@ -36,7 +40,8 @@ public final class PromptEditor {
     }
 
     public synchronized Result apply(Key key) {
-        return switch (key) {
+        boolean yankKey = key == Key.Special.CTRL_Y || key == Key.Special.ALT_Y;
+        Result result = switch (key) {
             case Key.Char c -> insert(c.value());
             case Key.Paste p -> {
                 insertText(p.text());
@@ -44,6 +49,9 @@ public final class PromptEditor {
             }
             case Key.Special s -> applySpecial(s);
         };
+        if (!yankKey)
+            yankActive = false; // any non-yank key ends a yank-pop cycle
+        return result;
     }
 
     public synchronized PromptSnapshot snapshot() {
@@ -77,19 +85,18 @@ public final class PromptEditor {
             case RIGHT -> right();
             case UP -> up();
             case DOWN -> down();
-            case HOME -> applyEffect(buffer.home());
-            case END -> applyEffect(buffer.end());
+            case HOME, CTRL_A -> home();
+            case END, CTRL_E -> end();
             case TAB -> complete();
-            case CTRL_A -> applyEffect(buffer.home());
-            case CTRL_E -> applyEffect(buffer.end());
             case CTRL_K -> killToEnd();
-            case CTRL_U -> {
-                reset();
-                yield Result.didChange();
-            }
+            case CTRL_U -> killWholeBuffer();
             case CTRL_R -> reverseHistorySearch();
             case CTRL_W -> deleteWordBeforeCursor();
             case ALT_D -> deleteWordAfterCursor();
+            case CTRL_Y -> yank();
+            case ALT_Y -> yankPop();
+            case CTRL_UNDERSCORE -> undoOp();
+            case ALT_UNDERSCORE -> redoOp();
             case CTRL_LEFT -> wordLeft();
             case CTRL_RIGHT -> wordRight();
             case CTRL_C, CTRL_D -> Result.exitResult();
@@ -99,11 +106,11 @@ public final class PromptEditor {
     }
 
     private Result insert(char ch) {
-        return applyEffect(buffer.insert(ch));
+        return mutating(UndoStack.Kind.TYPING, () -> buffer.insert(ch));
     }
 
     private Result newline() {
-        return applyEffect(buffer.newline());
+        return mutating(UndoStack.Kind.OTHER, buffer::newline);
     }
 
     private Result submit() {
@@ -117,27 +124,122 @@ public final class PromptEditor {
     }
 
     private Result backspace() {
-        return applyEffect(buffer.backspace());
+        return mutating(UndoStack.Kind.DELETING, buffer::backspace);
     }
 
     private Result delete() {
-        return applyEffect(buffer.delete());
+        return mutating(UndoStack.Kind.DELETING, buffer::delete);
     }
 
     private Result left() {
+        undoStack.breakRun();
         return applyEffect(buffer.left());
     }
 
     private Result right() {
+        undoStack.breakRun();
         return applyEffect(buffer.right());
     }
 
     private Result up() {
+        undoStack.breakRun();
         return applyEffect(buffer.up());
     }
 
     private Result down() {
+        undoStack.breakRun();
         return applyEffect(buffer.down());
+    }
+
+    private Result home() {
+        undoStack.breakRun();
+        return applyEffect(buffer.home());
+    }
+
+    private Result end() {
+        undoStack.breakRun();
+        return applyEffect(buffer.end());
+    }
+
+    /**
+     * Runs a text-mutating buffer op, recording its pre-state for undo (coalesced per {@code kind}) when it changes.
+     */
+    private Result mutating(UndoStack.Kind kind, java.util.function.Supplier<PromptTextBuffer.Effect> op) {
+        // Capture the pre-edit snapshot only when this edit starts a new undo step; a coalesced keystroke (the common
+        // case while typing) would discard it, so we avoid the O(n) buffer copy entirely.
+        var before = undoStack.beginsNewStep(kind) ? state() : null;
+        PromptTextBuffer.Effect effect = op.get();
+        if (effect != PromptTextBuffer.Effect.UNCHANGED)
+            undoStack.record(before, kind);
+        return applyEffect(effect);
+    }
+
+    /** Like {@link #mutating} but also pushes the removed text onto the kill ring (each kill is its own undo step). */
+    private Result killing(java.util.function.Supplier<PromptTextBuffer.Effect> op) {
+        var before = state();
+        PromptTextBuffer.Effect effect = op.get();
+        if (effect != PromptTextBuffer.Effect.UNCHANGED) {
+            undoStack.record(before, UndoStack.Kind.OTHER);
+            killRing.add(buffer.takeLastKill());
+        }
+        return applyEffect(effect);
+    }
+
+    private Result killWholeBuffer() {
+        if (buffer.isEmpty())
+            return Result.unchangedResult();
+        undoStack.record(state(), UndoStack.Kind.OTHER);
+        killRing.add(buffer.text());
+        buffer.reset();
+        clearCompletions();
+        return Result.didChange();
+    }
+
+    private Result undoOp() {
+        return undoStack.undo(state()).map(snapshot -> {
+            restore(snapshot);
+            return Result.didChange();
+        }).orElseGet(Result::unchangedResult);
+    }
+
+    private Result redoOp() {
+        return undoStack.redo(state()).map(snapshot -> {
+            restore(snapshot);
+            return Result.didChange();
+        }).orElseGet(Result::unchangedResult);
+    }
+
+    private Result yank() {
+        if (killRing.isEmpty())
+            return Result.unchangedResult();
+        preYank = state();
+        undoStack.record(preYank, UndoStack.Kind.OTHER);
+        buffer.insertText(killRing.yank());
+        clearCompletions();
+        yankActive = true;
+        return Result.didChange();
+    }
+
+    private Result yankPop() {
+        if (!yankActive)
+            return yank(); // first press with no active yank behaves as a plain yank
+        String previous = killRing.yankPop();
+        if (previous == null)
+            return Result.unchangedResult();
+        buffer.restore(preYank.text(), preYank.row(), preYank.col());
+        buffer.insertText(previous);
+        clearCompletions();
+        yankActive = true;
+        return Result.didChange();
+    }
+
+    private UndoStack.Snapshot state() {
+        return new UndoStack.Snapshot(buffer.text(), buffer.row(), buffer.col());
+    }
+
+    private void restore(UndoStack.Snapshot snapshot) {
+        buffer.restore(snapshot.text(), snapshot.row(), snapshot.col());
+        clearCompletions();
     }
 
     private Result applyEffect(PromptTextBuffer.Effect effect) {
@@ -166,6 +268,7 @@ public final class PromptEditor {
         return switch (decision.kind()) {
             case NONE -> Result.unchangedResult();
             case REPLACE -> {
+                undoStack.record(state(), UndoStack.Kind.OTHER);
                 buffer.replaceSingleLine(decision.replacement());
                 completions.clear();
                 if (decision.refreshAfterReplace())
@@ -182,22 +285,24 @@ public final class PromptEditor {
     }
 
     private Result killToEnd() {
-        return applyEffect(buffer.killToEnd());
+        return killing(buffer::killToEnd);
     }
 
     private Result deleteWordBeforeCursor() {
-        return applyEffect(buffer.deleteWordBeforeCursor());
+        return killing(buffer::deleteWordBeforeCursor);
     }
 
     private Result deleteWordAfterCursor() {
-        return applyEffect(buffer.deleteWordAfterCursor());
+        return killing(buffer::deleteWordAfterCursor);
     }
 
     private Result wordLeft() {
+        undoStack.breakRun();
         return applyEffect(buffer.wordLeft());
     }
 
     private Result wordRight() {
+        undoStack.breakRun();
         return applyEffect(buffer.wordRight());
     }
 
@@ -208,6 +313,7 @@ public final class PromptEditor {
             history.add(accepted);
             return Result.submitted(accepted);
         }
+        undoStack.record(state(), UndoStack.Kind.OTHER);
         buffer.replaceSingleLine(accepted);
         clearCompletions();
         return Result.didChange();
@@ -261,8 +367,12 @@ public final class PromptEditor {
         suggestion = "";
     }
 
-    public void insertText(String text) {
-        applyEffect(buffer.insertText(text));
+    public synchronized void insertText(String text) {
+        var before = state();
+        PromptTextBuffer.Effect effect = buffer.insertText(text);
+        if (effect != PromptTextBuffer.Effect.UNCHANGED)
+            undoStack.record(before, UndoStack.Kind.OTHER);
+        applyEffect(effect);
     }
 
     public boolean hasCompletions() {
@@ -314,10 +424,12 @@ public final class PromptEditor {
     private void setTextInternal(String text) {
         buffer.setText(text);
         clearCompletions();
+        undoStack.clear(); // history navigation / programmatic set is a context switch, not an undoable edit
     }
 
     private void reset() {
         buffer.reset();
         clearCompletions();
+        undoStack.clear();
     }
 }

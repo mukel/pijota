@@ -18,6 +18,22 @@ class SessionManagerTest {
     Path tempDir;
 
     @Test
+    void deleteIfEmptyRemovesHeaderOnlySessionsButKeepsConversations() throws Exception {
+        var manager = new SessionManager(tempDir);
+
+        var empty = manager.createSession(tempDir.toString());
+        manager.appendCacheMetadata(empty, "sys", "hash", "{}", "openai", "gpt-4");
+        assertTrue(Files.exists(empty));
+        manager.deleteIfEmpty(empty);
+        assertFalse(Files.exists(empty), "header/metadata-only session should be deleted");
+
+        var used = manager.createSession(tempDir.toString());
+        manager.appendMessage(used, new Message.User("hello"));
+        manager.deleteIfEmpty(used);
+        assertTrue(Files.exists(used), "session with a message must be kept");
+    }
+
+    @Test
     void savesAndLoadsConversationMessagesWithoutSystemPrompts() throws Exception {
         var manager = new SessionManager(tempDir);
         var file = tempDir.resolve("session.jsonl");

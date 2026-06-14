@@ -159,7 +159,8 @@
       "apiType": "openai",
       "baseUrl": "http://localhost:17325/v1",
       "env": [],
-      "defaultModel": "local-model"
+      "defaultModel": "local-model",
+      "thinkingFormat": "qwen-chat-template"
     },
     {
       "id": "workstation",
@@ -167,7 +168,8 @@
       "apiType": "openai",
       "baseUrl": "http://workstation.lan:17325/v1",
       "env": [],
-      "defaultModel": "LFM2.5-8B-A1B-Q8_0.gguf"
+      "defaultModel": "LFM2.5-8B-A1B-Q8_0.gguf",
+      "thinkingFormat": "qwen-chat-template"
     }
   ]
 }

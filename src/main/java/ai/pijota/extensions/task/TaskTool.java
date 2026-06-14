@@ -28,8 +28,14 @@ public final class TaskTool implements Tool {
     private final java.util.function.Supplier<List<String>> enabledToolNames;
     private final java.util.function.Supplier<String> systemPrompt;
     private final java.util.function.BiConsumer<String, String> activityHandler;
-    private final java.util.function.BiConsumer<String, Boolean> finishedHandler;
+    private final FinishHandler finishedHandler;
     private final Path cwd;
+
+    /** Notified when a sub-agent finishes, with its success flag and total token usage. */
+    @FunctionalInterface
+    public interface FinishHandler {
+        void finished(String agent, boolean success, long tokens);
+    }
     private final int depth;
     private final Map<String, List<Map<String, Object>>> chainConfigs;
     private final AtomicInteger logCounter = new AtomicInteger();
@@ -37,8 +43,7 @@ public final class TaskTool implements Tool {
     public TaskTool(List<SubAgent> agents, LlmClient llm, java.util.function.Supplier<List<String>> enabledToolNames,
                                     java.util.function.Supplier<String> systemPrompt,
                                     java.util.function.BiConsumer<String, String> activityHandler,
-                                    java.util.function.BiConsumer<String, Boolean> finishedHandler, Path cwd,
-                                    int depth) {
+                                    FinishHandler finishedHandler, Path cwd, int depth) {
         this.agents = agents;
         this.llm = llm;
         this.enabledToolNames = enabledToolNames;
@@ -53,6 +58,11 @@ public final class TaskTool implements Tool {
     @Override
     public String name() {
         return "task";
+    }
+
+    @Override
+    public String glyph() {
+        return "⚙";
     }
 
     @Override
@@ -358,21 +368,21 @@ public final class TaskTool implements Tool {
             }
 
             if (procResult.timedOut()) {
-                finish(sub.name(), false);
+                finish(sub.name(), false, 0);
                 return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "timed out after 5 minutes" + stderrDetail);
             }
             if (procResult.exitCode() != 0) {
-                finish(sub.name(), false);
+                finish(sub.name(), false, 0);
                 return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "exit code " + procResult.exitCode() + stderrDetail);
             }
-            finish(sub.name(), false);
+            finish(sub.name(), false, 0);
             return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),
                                             "no done event received" + stderrDetail);
 
         } catch (Exception e) {
-            finish(sub.name(), false);
+            finish(sub.name(), false, 0);
             return new SubAgentResult(sub.name(), "", 1, 0, 0, null,
                                             e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
         }
@@ -416,9 +426,10 @@ public final class TaskTool implements Tool {
                     int exitCode = event.get("exitCode") instanceof Number n ? n.intValue() : 0;
                     int turns = event.get("turns") instanceof Number n ? n.intValue() : 0;
                     int tc = event.get("toolCount") instanceof Number n ? n.intValue() : 0;
+                    long tokens = event.get("tokens") instanceof Number n ? n.longValue() : 0;
                     String error = (String) event.get("error");
                     resultHolder[0] = new SubAgentResult(agentName, output, exitCode, turns, tc, logFilePath, error);
-                    finish(agentName, exitCode == 0 && error == null);
+                    finish(agentName, exitCode == 0 && error == null, tokens);
                 }
             }
         } catch (Exception e) {
@@ -473,9 +484,9 @@ public final class TaskTool implements Tool {
             activityHandler.accept(agent, line);
     }
 
-    private void finish(String agent, boolean success) {
+    private void finish(String agent, boolean success, long tokens) {
         if (finishedHandler != null)
-            finishedHandler.accept(agent, success);
+            finishedHandler.finished(agent, success, tokens);
     }
 
     @Override
@@ -728,6 +739,6 @@ public final class TaskTool implements Tool {
 
     Tool.ToolDefinition toDefinition() {
         return new Tool.ToolDefinition(name(), description(), schema(), (id, args, cwd) -> execute(id, args, cwd),
-                                        this::renderResult);
+                                        this::renderResult).withGlyph(glyph());
     }
 }

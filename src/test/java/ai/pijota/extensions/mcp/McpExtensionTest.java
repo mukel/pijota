@@ -189,14 +189,13 @@ class McpExtensionTest {
     }
 
     @Test
-    void reconnectUnknownServerReportsError() {
+    void reconnectUnknownServerReportsError() throws Exception {
         var f = fixture(oneServer(), (t, a) -> FakeMcpTransport.Outcome.result("ok"),
                                         FakeMcpTransport.tool("echo", "Echo"));
         f.ext.onReady(f.runtime);
 
         f.api.slashCommand("mcp").handler().accept("reconnect nope");
-        assertTrue(f.runtime.statusCalls().stream().anyMatch(s -> s.contains("unknown server")),
-                                        f.runtime.statusCalls().toString());
+        await(() -> f.runtime.statusCalls().stream().anyMatch(s -> s.contains("unknown server")));
         f.ext.onShutdown(f.runtime);
     }
 
@@ -209,14 +208,90 @@ class McpExtensionTest {
 
         f.api.slashCommand("mcp").handler().accept("reconnect srv");
 
-        await(() -> f.transports.size() == 2); // a new transport was opened by the async reconnect
+        // wait for the reconnect to fully settle: a new transport opened AND the tool re-registered
+        await(() -> f.transports.size() == 2 && f.registry.get("mcp__srv__echo").isPresent());
         assertTrue(f.transports.getFirst().isClosed(), "old transport closed on reconnect");
-        assertTrue(f.registry.get("mcp__srv__echo").isPresent(), "tool still present after reconnect");
         f.ext.onShutdown(f.runtime);
     }
 
+    @Test
+    void aServerThatDiesMidSessionReadsAsOffline() {
+        var f = fixture(oneServer(), (t, a) -> FakeMcpTransport.Outcome.result("ok"),
+                                        FakeMcpTransport.tool("echo", "Echo"));
+        f.ext.onReady(f.runtime);
+        assertTrue(f.api.statusLineSuppliers().getFirst().get().stream().anyMatch(l -> l.contains("✓")),
+                                        "connected server shows ✓");
+
+        f.transports.getFirst().close(); // simulate the server process dying
+
+        assertTrue(f.api.statusLineSuppliers().getFirst().get().stream().anyMatch(l -> l.contains("✗ offline")),
+                                        "a dead server must report offline, not a stale ✓");
+        f.ext.onShutdown(f.runtime);
+    }
+
+    @Test
+    void disconnectKillsTheServerAndRemovesItsTools() throws Exception {
+        var f = fixture(oneServer(), (t, a) -> FakeMcpTransport.Outcome.result("ok"),
+                                        FakeMcpTransport.tool("echo", "Echo"));
+        f.ext.onReady(f.runtime);
+        assertTrue(f.registry.get("mcp__srv__echo").isPresent());
+
+        f.api.slashCommand("mcp").handler().accept("disconnect srv");
+        await(() -> f.registry.get("mcp__srv__echo").isEmpty());
+        assertTrue(f.transports.getFirst().isClosed(), "server process closed on disconnect");
+        f.ext.onShutdown(f.runtime);
+    }
+
+    @Test
+    void connectBringsBackADisconnectedServer() throws Exception {
+        var f = fixture(oneServer(), (t, a) -> FakeMcpTransport.Outcome.result("ok"),
+                                        FakeMcpTransport.tool("echo", "Echo"));
+        f.ext.onReady(f.runtime);
+        f.api.slashCommand("mcp").handler().accept("disconnect srv");
+        await(() -> f.registry.get("mcp__srv__echo").isEmpty());
+
+        f.api.slashCommand("mcp").handler().accept("connect srv");
+        await(() -> f.registry.get("mcp__srv__echo").isPresent());
+        assertEquals(2, f.transports.size(), "connect opens a fresh transport");
+        f.ext.onShutdown(f.runtime);
+    }
+
+    @Test
+    void reloadAddsRemovesAndRestartsServers() throws Exception {
+        var registry = new ToolRegistry();
+        var runtime = new FakeExtensionRuntime();
+        runtime.setToolRegistry(registry);
+        var api = new FakeExtensionAPI(runtime);
+
+        // mutable config source the reload re-reads
+        var config = new java.util.concurrent.atomic.AtomicReference<List<McpServerConfig>>(
+                                        List.of(server("a", List.of()), server("b", List.of())));
+        McpTransport.Factory factory = (cfg, cwd) -> new FakeMcpTransport(
+                                        List.of(List.of(FakeMcpTransport.tool("echo", "Echo"))),
+                                        (t, a) -> FakeMcpTransport.Outcome.result("ok"));
+        var ext = new McpExtension(cwd -> config.get(), factory);
+        ext.init(api);
+        ext.onReady(runtime);
+        await(() -> registry.get("mcp__a__echo").isPresent() && registry.get("mcp__b__echo").isPresent());
+
+        // drop b, keep a unchanged, change a's args (→ restart), add c
+        config.set(List.of(server("a", List.of("--v2")), server("c", List.of())));
+        api.slashCommand("mcp").handler().accept("reload");
+
+        await(() -> registry.get("mcp__c__echo").isPresent() // added
+                                        && registry.get("mcp__b__echo").isEmpty() // removed
+                                        && registry.get("mcp__a__echo").isPresent()); // restarted (changed)
+        assertTrue(runtime.statusCalls().stream().anyMatch(s -> s.contains("+1 -1 ~1")),
+                                        runtime.statusCalls().toString());
+        ext.onShutdown(runtime);
+    }
+
+    private static McpServerConfig server(String name, List<String> args) {
+        return new McpServerConfig(name, "cmd", args, Map.of(), true);
+    }
+
     private static void await(java.util.function.BooleanSupplier condition) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + 2000;
+        long deadline = System.currentTimeMillis() + 5000;
         while (System.currentTimeMillis() < deadline) {
             if (condition.getAsBoolean())
                 return;

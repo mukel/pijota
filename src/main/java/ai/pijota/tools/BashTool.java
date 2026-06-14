@@ -60,6 +60,16 @@ public final class BashTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "$";
+    }
+
+    @Override
+    public boolean hasResultView() {
+        return true;
+    }
+
+    @Override
     public String description() {
         return "Execute a bash command in the current working directory. Returns stdout and stderr. "
                                         + "Output is truncated at 100KB. Optionally provide a timeout in seconds (default 120s).";

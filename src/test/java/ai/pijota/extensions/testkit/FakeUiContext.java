@@ -97,6 +97,11 @@ public class FakeUiContext implements UiContext {
         lastViewerLines = List.copyOf(lines);
     }
 
+    @Override
+    public void viewer(String title, java.util.function.Supplier<List<String>> source) {
+        viewer(title, source.get()); // capture the live source's current snapshot
+    }
+
     public List<String> viewerTitles() {
         return List.copyOf(viewerTitles);
     }

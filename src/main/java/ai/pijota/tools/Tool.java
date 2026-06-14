@@ -55,19 +55,24 @@ public interface Tool {
     }
 
     record ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
-                                    boolean defaultEnabled, ResultRenderer resultRenderer) {
+                                    boolean defaultEnabled, ResultRenderer resultRenderer, String glyph) {
         public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute) {
-            this(name, description, schema, execute, true, null);
+            this(name, description, schema, execute, true, null, "●");
         }
 
         public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
                                         ResultRenderer resultRenderer) {
-            this(name, description, schema, execute, true, resultRenderer);
+            this(name, description, schema, execute, true, resultRenderer, "●");
         }
 
         public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
                                         boolean defaultEnabled) {
-            this(name, description, schema, execute, defaultEnabled, null);
+            this(name, description, schema, execute, defaultEnabled, null, "●");
+        }
+
+        /** Returns a copy with the given display glyph (the marker shown before the tool in the TUI). */
+        public ToolDefinition withGlyph(String glyph) {
+            return new ToolDefinition(name, description, schema, execute, defaultEnabled, resultRenderer, glyph);
         }
 
         public Tool toTool() {
@@ -102,6 +107,16 @@ public interface Tool {
                     return resultRenderer != null
                                                     ? resultRenderer.render(args, result, cwd)
                                                     : Tool.super.renderResult(args, result, cwd);
+                }
+
+                @Override
+                public boolean hasResultView() {
+                    return resultRenderer != null;
+                }
+
+                @Override
+                public String glyph() {
+                    return glyph;
                 }
             };
         }
@@ -141,5 +156,18 @@ public interface Tool {
             return ToolResultView.of("");
         String first = text.lines().findFirst().orElse(text);
         return ToolResultView.of(first);
+    }
+
+    /**
+     * Whether {@link #renderResult} produces a meaningful custom view (vs. the generic default). The TUI uses this to
+     * decide which tools get their own rendering, without hardcoding tool names.
+     */
+    default boolean hasResultView() {
+        return false;
+    }
+
+    /** The display glyph (emoji or character) shown before this tool in the TUI. Default is a neutral bullet. */
+    default String glyph() {
+        return "●";
     }
 }

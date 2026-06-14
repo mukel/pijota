@@ -7,7 +7,6 @@ import ai.pijota.llm.LlmClient;
 import ai.pijota.llm.StreamResult;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
-import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
@@ -248,10 +247,10 @@ public final class AgentLoop implements AgentContext {
         if (stream != null)
             stream.cancel(true);
         toolRegistry.abortRunningTools();
-        removeStalePartialAssistant();
+        history.removeTrailingEmptyAssistant();
         CompletableFuture<List<Message>> result = activeResult.getAndSet(null);
         if (result != null && !result.isDone())
-            result.complete(new ArrayList<>(history.mutableList()));
+            result.complete(history.mutableSnapshot());
     }
 
     @Override
@@ -284,19 +283,6 @@ public final class AgentLoop implements AgentContext {
         fireEvent(new AgentEvent.CustomMessage(message));
     }
 
-    private void removeStalePartialAssistant() {
-        var msgs = history.mutableList();
-        synchronized (msgs) {
-            if (msgs.isEmpty())
-                return;
-            var last = msgs.get(msgs.size() - 1);
-            if (last instanceof Message.Assistant a && a.content().isEmpty() && a.toolCalls().isEmpty()
-                                            && (a.thinking() == null || a.thinking().isBlank())) {
-                msgs.remove(msgs.size() - 1);
-            }
-        }
-    }
-
     public void addCompactionAppender(CompactionManager.CompactionAppender appender) {
         compaction.setSessionAppender(appender);
     }
@@ -322,12 +308,12 @@ public final class AgentLoop implements AgentContext {
     private void runLoopRecursive(CompletableFuture<List<Message>> result, int turn) {
         if (aborted.get()) {
             fireEvent(new AgentEvent.Error(new RuntimeException("Aborted")));
-            result.complete(new ArrayList<>(history.mutableList()));
+            result.complete(history.mutableSnapshot());
             return;
         }
         if (turn > MAX_TURNS) {
             history.add(new Message.Assistant("[Max turns (" + MAX_TURNS + ") reached. Stopping.]", List.of(), null));
-            result.complete(new ArrayList<>(history.mutableList()));
+            result.complete(history.mutableSnapshot());
             return;
         }
 
@@ -338,7 +324,7 @@ public final class AgentLoop implements AgentContext {
         var requestMessages = history.snapshot();
         String requestProvider = llm.provider();
         String requestModel = llm.model();
-        var toolSpecs = llm.streamsWithTools() ? toolRegistry.enabledTools() : List.<Tool>of();
+        var toolSpecs = toolRegistry.enabledTools();
 
         var partialMsg = new Message.Assistant("", List.of(), null);
         history.add(partialMsg);
@@ -443,7 +429,7 @@ public final class AgentLoop implements AgentContext {
             runLoopRecursive(result, turn + 1);
         } else {
             activeResult.compareAndSet(result, null);
-            result.complete(new ArrayList<>(history.mutableList()));
+            result.complete(history.mutableSnapshot());
         }
     }
 

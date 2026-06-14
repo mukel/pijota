@@ -1,6 +1,7 @@
 package ai.pijota.tui;
 
 import ai.pijota.theme.AnsiTheme;
+import ai.pijota.util.PijotaHome;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -80,10 +81,10 @@ final class ThemeManager {
             path = cwd.resolve(name);
         }
         if (!Files.isRegularFile(path)) {
-            Path pijotaThemes = Path.of(System.getProperty("user.home"), ".pijota", "themes", name + ".json");
+            Path pijotaThemes = PijotaHome.resolve("themes", name + ".json");
             if (Files.isRegularFile(pijotaThemes))
                 return pijotaThemes;
-            Path pijotaTheme = Path.of(System.getProperty("user.home"), ".pijota", "theme.json");
+            Path pijotaTheme = PijotaHome.resolve("theme.json");
             if (Files.isRegularFile(pijotaTheme))
                 return pijotaTheme;
         }
@@ -118,7 +119,7 @@ final class ThemeManager {
 
     private static List<Path> fileThemes() {
         var paths = new ArrayList<Path>();
-        Path dir = Path.of(System.getProperty("user.home"), ".pijota", "themes");
+        Path dir = PijotaHome.resolve("themes");
         if (!Files.isDirectory(dir))
             return paths;
         try (var stream = Files.list(dir)) {

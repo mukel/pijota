@@ -59,6 +59,36 @@ public final class SessionManager {
         return file;
     }
 
+    /**
+     * Deletes a session file that holds no actual conversation — only a header and/or metadata (cache, model, etc.) but
+     * no {@code message} or {@code compaction} entry. Used to avoid littering the sessions directory with the files
+     * created on every launch that the user never typed into. No-op if the file is missing or has content.
+     */
+    public void deleteIfEmpty(Path sessionFile) {
+        if (sessionFile == null || !Files.exists(sessionFile))
+            return;
+        try {
+            lockAndWrite(sessionFile, () -> {
+                boolean hasConversation;
+                try (var lines = Files.lines(sessionFile)) {
+                    hasConversation = lines.anyMatch(line -> {
+                        try {
+                            String type = Util.MAPPER.readTree(line).path("type").asText("");
+                            return "message".equals(type) || "compaction".equals(type);
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    });
+                }
+                if (!hasConversation)
+                    Files.deleteIfExists(sessionFile);
+            });
+        } catch (IOException ignored) {
+            // best effort — a session we cannot read is left in place
+        }
+        writeLocks.remove(sessionFile);
+    }
+
     public Path forkSession(Path sourceFile, String targetEntryId, String cwd) throws IOException {
         String id = UUID.randomUUID().toString();
         Path file = resolveSessionPath(cwd, id);

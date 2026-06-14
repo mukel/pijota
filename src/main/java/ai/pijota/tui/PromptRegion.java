@@ -6,7 +6,7 @@ import ai.pijota.theme.AnsiTheme;
 import java.io.PrintWriter;
 
 public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.StatusBar, PromptRegion.Completions,
-                                PromptRegion.HelpOverlay, PromptRegion.Custom {
+                                PromptRegion.Custom {
 
     int height(int width, PromptSnapshot ctx);
 
@@ -298,46 +298,6 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             int pad = maxLen - name.length() + 4;
             int detailWidth = Math.max(8, width - maxLen - 8);
             return " ".repeat(Math.max(0, pad)) + AnsiWidth.truncateVisual(desc, detailWidth);
-        }
-    }
-
-    record HelpOverlay() implements PromptRegion {
-        private static final int MAX_HEIGHT = 16;
-
-        @Override
-        public int height(int width, PromptSnapshot ctx) {
-            if (ctx.helpOverlay() == null || ctx.helpOverlay().isEmpty())
-                return 0;
-            return 1 + Math.min(MAX_HEIGHT, ctx.helpOverlay().size()) + 1;
-        }
-
-        @Override
-        public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
-            var lines = ctx.helpOverlay();
-            if (lines == null || lines.isEmpty())
-                return NO_CURSOR;
-
-            out.print('\r');
-            out.print("\033[K");
-            out.print(theme.styled("hr", "help"));
-
-            int visible = Math.min(MAX_HEIGHT, lines.size());
-            for (int i = 0; i < visible; i++) {
-                out.print("\r\n");
-                out.print('\r');
-                out.print("\033[K");
-                out.print(lines.get(i));
-            }
-
-            out.print("\r\n");
-            out.print('\r');
-            out.print("\033[K");
-            out.print(theme.styled("dim", "  Esc or q to close"));
-            if (lines.size() > MAX_HEIGHT) {
-                out.print(theme.styled("dim", " · " + (lines.size() - MAX_HEIGHT) + " more"));
-            }
-
-            return NO_CURSOR;
         }
     }
 

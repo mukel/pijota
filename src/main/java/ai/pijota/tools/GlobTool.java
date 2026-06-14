@@ -41,6 +41,11 @@ public final class GlobTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "📁";
+    }
+
+    @Override
     public String description() {
         return "Search for files by glob pattern. Returns matching file paths relative to the search directory. "
                                         + "Respects .gitignore. Output is truncated to 1000 results or 100KB.";

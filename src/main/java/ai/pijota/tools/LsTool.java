@@ -15,6 +15,11 @@ public final class LsTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "📂";
+    }
+
+    @Override
     public String description() {
         return "List immediate contents of one directory. Do not use for recursive project exploration; "
                                         + "use glob for finding files across a codebase. Returns entries sorted alphabetically, "

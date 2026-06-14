@@ -129,7 +129,8 @@ public final class HeadlessAgentRunner {
                 } catch (IOException ignored) {}
             }
 
-            emit(new DoneEvent(finalOutput, 0, turns, toolCount.get(), null));
+            long tokens = llm.totalInputTokens() + llm.totalOutputTokens();
+            emit(new DoneEvent(finalOutput, 0, turns, toolCount.get(), tokens, null));
 
         } catch (Exception e) {
             String msg = e.getMessage();
@@ -148,7 +149,7 @@ public final class HeadlessAgentRunner {
                 } catch (IOException ignored) {}
             }
             try {
-                emit(new DoneEvent("", 1, 0, 0, fullError));
+                emit(new DoneEvent("", 1, 0, 0, 0, fullError));
             } catch (Exception emitEx) {
                 if (writerRef[0] != null) {
                     try {
@@ -227,9 +228,9 @@ public final class HeadlessAgentRunner {
         }
     }
 
-    record DoneEvent(String type, String output, int exitCode, int turns, int toolCount, String error) {
-        DoneEvent(String output, int exitCode, int turns, int toolCount, String error) {
-            this("done", output, exitCode, turns, toolCount, error);
+    record DoneEvent(String type, String output, int exitCode, int turns, int toolCount, long tokens, String error) {
+        DoneEvent(String output, int exitCode, int turns, int toolCount, long tokens, String error) {
+            this("done", output, exitCode, turns, toolCount, tokens, error);
         }
     }
 }

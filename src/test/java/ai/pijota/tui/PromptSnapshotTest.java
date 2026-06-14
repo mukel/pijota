@@ -98,11 +98,4 @@ class PromptSnapshotTest {
         assertNull(original.suggestion());
     }
 
-    @Test
-    void withHelpOverlayUpdatesOnlyHelpOverlay() {
-        var original = new PromptSnapshot(List.of("x"), 0, 0, List.of());
-        var updated = original.withHelpOverlay(List.of("line1", "line2"));
-        assertEquals(List.of("line1", "line2"), updated.helpOverlay());
-        assertTrue(original.helpOverlay().isEmpty());
-    }
 }

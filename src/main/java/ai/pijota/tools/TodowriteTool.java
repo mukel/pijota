@@ -12,30 +12,16 @@ public final class TodowriteTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "📋";
+    }
+
+    @Override
     public String description() {
-        return "Create and maintain a structured task list for the current coding session. "
-                                        + "Tracks progress, organizes multi-step work, and surfaces status to the user.\n\n"
-                                        + "## When to use\n" + "Use proactively when:\n"
-                                        + "- The task requires 3+ distinct steps or actions (not just 3 tool calls for a single conceptual step)\n"
-                                        + "- The work is non-trivial and benefits from planning\n"
-                                        + "- The user provides multiple tasks (numbered or comma-separated) or explicitly asks for a todo list\n"
-                                        + "- New instructions arrive - capture them as todos\n"
-                                        + "- You start a task - mark it `in_progress` (only one at a time) before working\n"
-                                        + "- You finish a task - mark it `completed` and add any follow-ups discovered during the work\n\n"
-                                        + "## When NOT to use\n" + "Skip when:\n"
-                                        + "- The work is a single, straightforward task (or <3 trivial steps)\n"
-                                        + "- The request is purely informational or conversational\n"
-                                        + "- Tracking adds no organizational value\n\n" + "## States\n"
-                                        + "- `pending` - not started\n"
-                                        + "- `in_progress` - actively working (exactly ONE at a time)\n"
-                                        + "- `completed` - finished successfully\n"
-                                        + "- `cancelled` - no longer needed\n\n" + "## Rules\n"
-                                        + "- Update status in real time; don't batch completions\n"
-                                        + "- Mark `completed` only after the required work is actually done, including any required verification. Never based on intent.\n"
-                                        + "- Keep exactly one `in_progress` while work remains\n"
-                                        + "- If blocked or partial, keep it `in_progress` and add a follow-up todo describing the blocker\n"
-                                        + "- Preserve user-provided commands verbatim (flags, args, order)\n"
-                                        + "- Items should be specific and actionable; break large work into smaller steps";
+        return "Maintain a structured todo list for multi-step work. Use it when a task needs 3+ distinct steps "
+                                        + "or the user gives multiple tasks; skip it for single/trivial or purely conversational requests. "
+                                        + "States: pending, in_progress (exactly ONE at a time), completed, cancelled. Update status in "
+                                        + "real time and mark completed only after the work — including any verification — is actually done.";
     }
 
     @Override
@@ -107,5 +93,11 @@ public final class TodowriteTool implements Tool {
         String summary = lines.getLast();
         var body = lines.subList(0, lines.size() - 1).stream().map(line -> "│ " + line).toList();
         return ToolResultView.of(summary, body);
+    }
+
+    /** Wraps this tool as a {@link Tool.ToolDefinition} so it can be registered by an extension (opt-in). */
+    public Tool.ToolDefinition toDefinition() {
+        return new Tool.ToolDefinition(name(), description(), schema(), (id, args, cwd) -> execute(id, args, cwd),
+                                        this::renderResult).withGlyph(glyph());
     }
 }

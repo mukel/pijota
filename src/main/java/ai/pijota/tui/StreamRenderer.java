@@ -91,7 +91,9 @@ final class StreamRenderer {
     void streamThinking(String fullThinking) {
         if (!thinkingHeaderShown) {
             thinkingStartedAt = System.currentTimeMillis();
-            emitPlain(List.of(thinkingHeader()));
+            // Blank line before the header (not after the summary): separates the block from whatever preceded it
+            // while keeping the closing summary flush against the answer that follows.
+            emitPlain(List.of("", thinkingHeader()));
             thinkingHeaderShown = true;
         }
         String delta = deltaPrefix(fullThinking, lastThinking);
@@ -111,16 +113,17 @@ final class StreamRenderer {
         lastContent = fullContent;
     }
 
-    /** Appends a whole block of content at once (used for already-complete, non-streamed messages). */
-    void appendContent(String text) {
-        appendContentLines(contentLines.accept(text));
-    }
-
     void closeThinking() {
         if (!thinkingHeaderShown || thinkingFooterShown)
             return;
         thinkingLines.flush().ifPresent(line -> appendThinking(List.of(line)));
-        emitPlain(List.of(thinkingSummary(lastThinking, thinkingStartedAt, theme), ""));
+        // Flush the thinking markdown buffer now so the thinking body is emitted IN ORDER (before the summary and the
+        // content). Otherwise it stays buffered until the global flush(), which emits content first — pushing the
+        // whole thinking block below the answer where it looks like it never rendered.
+        var tail = thinkingMarkdown.flush();
+        if (!tail.isEmpty())
+            output.appendLines(tail);
+        emitPlain(List.of(thinkingSummary(lastThinking, thinkingStartedAt, theme)));
         thinkingFooterShown = true;
     }
 

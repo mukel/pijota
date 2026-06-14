@@ -151,7 +151,7 @@ class LoginCommandHandlerTest {
 
     private static ProviderCatalog.Provider provider(String id, String name, ProviderCatalog.OAuth oauth) {
         return new ProviderCatalog.Provider(id, name, "responses", "https://example.com", List.of(), null, Map.of(),
-                                        oauth);
+                                        oauth, null);
     }
 
     private static final class FakeProviders implements LoginCommandHandler.ProviderSource {

@@ -19,6 +19,8 @@ class InputDecoderTest {
         assertEquals(Key.Special.CTRL_U, InputDecoder.readKey(input(21)));
         assertEquals(Key.Special.CTRL_W, InputDecoder.readKey(input(23)));
         assertEquals(Key.Special.CTRL_R, InputDecoder.readKey(input(18)));
+        assertEquals(Key.Special.CTRL_Y, InputDecoder.readKey(input(25)));
+        assertEquals(Key.Special.CTRL_UNDERSCORE, InputDecoder.readKey(input(31)));
     }
 
     @Test
@@ -58,6 +60,8 @@ class InputDecoderTest {
     void mapsAltAndCtrlArrowModifiersToNamedKeys() throws IOException {
         assertEquals(Key.Special.ALT_D, InputDecoder.readKey(input(27, 'd')));
         assertEquals(Key.Special.CTRL_RIGHT, InputDecoder.readKey(input(27, 'f')));
+        assertEquals(Key.Special.ALT_Y, InputDecoder.readKey(input(27, 'y')));
+        assertEquals(Key.Special.ALT_UNDERSCORE, InputDecoder.readKey(input(27, '_')));
     }
 
     @Test

@@ -20,6 +20,7 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/sessions", "List saved sessions"),
                                     new CompletionItem("/name", "Set session display name"),
                                     new CompletionItem("/context", "Show token usage breakdown"),
+                                    new CompletionItem("/usage", "Show cumulative tokens and cost"),
                                     new CompletionItem("/undo", "Edit previous message"),
                                     new CompletionItem("/copy", "Copy last assistant response"),
                                     new CompletionItem("/session", "Show session info"),
@@ -57,7 +58,8 @@ final class SlashCommandRegistry {
     public List<String> helpLines() {
         var out = new ArrayList<String>();
         out.add("pijota commands");
-        appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/context", "/whoami", "/skills");
+        appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/context", "/usage", "/whoami",
+                                        "/skills");
         appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/name", "/new", "/delete");
         appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme", "/transcend");
         appendGroup(out, "account", "/login", "/logout", "/refresh", "/hotkeys", "/quit");

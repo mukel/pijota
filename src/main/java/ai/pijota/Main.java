@@ -14,6 +14,7 @@ import ai.pijota.config.ProviderCatalog;
 import ai.pijota.modes.PrintMode;
 import ai.pijota.modes.RpcMode;
 import ai.pijota.tui.AppendOnlyTui;
+import ai.pijota.util.PijotaHome;
 import ai.pijota.util.SelfRespawn;
 
 import java.io.Console;
@@ -119,7 +120,7 @@ public final class Main {
         if (args.sessionPath() != null) {
             sessionFile = Path.of(args.sessionPath());
         } else {
-            var sessionDir = Path.of(System.getProperty("user.home"), ".pijota", "sessions");
+            var sessionDir = PijotaHome.resolve("sessions");
             var sm = new SessionManager(sessionDir);
             var cwd = System.getProperty("user.dir");
             sessionFile = sm.latestSession(cwd, null);

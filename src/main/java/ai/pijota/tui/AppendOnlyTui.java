@@ -129,15 +129,19 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     java.util.function.Consumer<T> onChoice) {
         var snapshot = List.copyOf(items);
         selector.show(title, snapshot.stream().map(render).toList(), idx -> onChoice.accept(snapshot.get(idx)));
-        busy.set(true);
         redrawPrompt();
     }
 
     @Override
     public void viewer(String title, List<String> lines) {
         logViewer.show(title, lines);
-        busy.set(true);
         redrawPrompt(); // redraw sizes the viewport to fit the screen (see fitViewerViewport)
+    }
+
+    @Override
+    public void viewer(String title, java.util.function.Supplier<List<String>> source) {
+        logViewer.showLive(title, source);
+        redrawPrompt();
     }
 
     @Override
@@ -181,10 +185,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final TuiCommandController commandController;
     private final Map<String, SlashCommand> extensionCommands;
     private final Map<KeyChord, ExtensionKeybinding> extensionKeybindings;
-    private final Map<String, Supplier<String>> toolArgsById = new ConcurrentHashMap<>();
+    /**
+     * Per-tool-call state captured at ToolStart, consumed at ToolResult: args for the header + start time for elapsed.
+     */
+    private record ToolInProgress(Supplier<String> args, long startedAtMs) {
+    }
+
+    private final Map<String, ToolInProgress> toolsInProgress = new ConcurrentHashMap<>();
     private final TuiSelectors selectors;
     private volatile boolean showSessionPickerOnStart;
-    private final HelpOverlay helpOverlay = new HelpOverlay();
     private final LogViewer logViewer = new LogViewer();
     private final WorkingAnimation animation = new WorkingAnimation();
     private final FollowUpQueue followUps = new FollowUpQueue();
@@ -349,6 +358,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             @Override
             public String tokenStatus() {
                 return AppendOnlyTui.this.tokenStatus();
+            }
+
+            @Override
+            public CompletableFuture<Boolean> confirm(String question) {
+                return AppendOnlyTui.this.confirm(question);
             }
 
             @Override
@@ -533,7 +547,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         regions.add(new PendingRegion());
         regions.addAll(selectors.regions());
         regions.add(new PromptRegion.Completions());
-        regions.add(new PromptRegion.HelpOverlay());
         regions.add(new PromptSelectorRegion(selector));
         regions.add(new LogViewerRegion(logViewer));
         regions.add(new PromptRegion.StatusBar());
@@ -1072,11 +1085,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     if (handleExtensionKeybinding(key))
                         continue;
-                    if (key == Key.Special.ESC && helpOverlayActive()) {
-                        clearHelpOverlay();
-                        redrawPrompt();
-                        continue;
-                    }
                     if ((key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC) && selectors.anyActive()) {
                         selectors.deactivateAll();
                         clearStatusOverride();
@@ -1125,12 +1133,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                             promptEditor.insertText(p.text());
                             redrawPrompt();
                         }
-                        continue;
-                    }
-                    if (helpOverlayActive() && (key == Key.Special.ESC || key == Key.Special.ENTER
-                                                    || (key instanceof Key.Char c && c.value() == 'q'))) {
-                        clearHelpOverlay();
-                        redrawPrompt();
                         continue;
                     }
                     if (selectors.handle(key, this::redrawPrompt))
@@ -1529,17 +1531,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         commandPalette.confirmPaletteSelection();
     }
 
-    boolean helpOverlayActive() {
-        return helpOverlay.active();
-    }
-
     void showHelpOverlay() {
-        helpOverlay.show(theme, commands.helpLines(), extensionKeybindings.values());
+        // Render help in the scrollable log viewer (one modal viewer for /help and /logs) so the full command list
+        // and shortcuts scroll and fit the terminal, rather than being capped.
+        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values()));
         redrawPrompt();
-    }
-
-    private void clearHelpOverlay() {
-        helpOverlay.clear();
     }
 
     private void switchToModel(ModelInfo chosen) {
@@ -1685,6 +1681,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     static String padRight(String s, int width) {
         int w = AnsiWidth.visibleWidth(s);
         return s + " ".repeat(Math.max(0, width - w));
+    }
+
+    void showUsage() {
+        sessionCommands.showUsage();
     }
 
     void showContext() {
@@ -1882,12 +1882,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 String content = msg.content() == null ? "" : msg.content();
                 if (showThinking() && msg.thinking() != null && !msg.thinking().isBlank())
                     streamRenderer.streamThinking(msg.thinking());
-                if (session.extensionRegistry().hasMessageRenderers()) {
-                    if (usage != null)
-                        renderFinalAssistantMessage(msg, content);
-                    redrawPrompt();
-                    return;
-                }
+                // Assistant messages always stream. Message renderers apply to custom messages (handled by the
+                // CustomMessage case below), and never to assistant content — so they must not disable streaming.
                 redrawPrompt();
                 streamRenderer.streamContent(content);
                 if (usage != null) {
@@ -1899,8 +1895,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case AgentEvent.ToolStart(var name, var toolCallId, var args) -> {
                 streamRenderer.closeThinking();
                 streamRenderer.flush();
-                if (toolCallId != null && args != null)
-                    toolArgsById.put(toolCallId, args);
+                if (toolCallId != null)
+                    toolsInProgress.put(toolCallId, new ToolInProgress(args, System.currentTimeMillis()));
                 pendingEdit.onToolStart(name, args);
                 busyPhase = "tool " + name;
                 if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)
@@ -1915,14 +1911,17 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case AgentEvent.ToolResult(Message.ToolResult msg) -> {
                 streamRenderer.flush();
                 pendingEdit.onToolResult(isEditWrite(msg), msg.isError());
-                Supplier<String> args = msg.toolCallId() != null ? toolArgsById.remove(msg.toolCallId()) : null;
+                ToolInProgress started = msg.toolCallId() != null ? toolsInProgress.remove(msg.toolCallId()) : null;
+                Supplier<String> args = started != null ? started.args() : null;
+                long elapsedMs = started != null ? System.currentTimeMillis() - started.startedAtMs() : 0;
                 Tool.ToolResultView rendered = renderToolResultView(msg);
                 if (isEditWrite(msg) && pendingEdit.hasEditResult() && !pendingEdit.previewShown()) {
                     appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
                                                     pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
                 }
+                String glyph = session.agentLoop().toolRegistry().get(msg.toolName()).map(Tool::glyph).orElse("●");
                 appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
-                                                settings != null && settings.shortenPathsEnabled()));
+                                                settings != null && settings.shortenPathsEnabled(), elapsedMs, glyph));
                 pendingEdit.clear();
             }
             case AgentEvent.Compaction c -> {
@@ -1965,30 +1964,16 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
-    private void renderFinalAssistantMessage(Message.Assistant msg, String content) {
-        var rendered = session.extensionRegistry().renderMessage(msg);
-        if (rendered.isPresent()) {
-            appendPlain(rendered.get());
-        } else if (!content.isEmpty()) {
-            streamRenderer.appendContent(content);
-        }
-        streamRenderer.flush();
-    }
-
     private Tool.ToolResultView renderToolResultView(Message.ToolResult msg) {
-        return switch (msg.toolName()) {
-            case "bash", "task", "todowrite", "read", "grep", "write", "edit" -> {
-                var args = pendingEdit.toolArgs() != null
-                                                ? Util.parseJsonArgs(pendingEdit.toolArgs().get())
-                                                : Map.<String, Object>of();
-                yield session.agentLoop().toolRegistry().get(msg.toolName()).map(tool -> tool.renderResult(args,
-                                                new Tool.ToolResult(msg.content(), msg.isError(), msg.details() == null
-                                                                                ? Map.of()
-                                                                                : msg.details()),
-                                                rawCwd)).orElse(null);
-            }
-            default -> null;
-        };
+        var tool = session.agentLoop().toolRegistry().get(msg.toolName());
+        // A tool gets its own rendering iff it advertises a custom view; no tool names are hardcoded here.
+        if (tool.isEmpty() || !tool.get().hasResultView())
+            return null;
+        var args = pendingEdit.toolArgs() != null
+                                        ? Util.parseJsonArgs(pendingEdit.toolArgs().get())
+                                        : Map.<String, Object>of();
+        return tool.get().renderResult(args, new Tool.ToolResult(msg.content(), msg.isError(),
+                                        msg.details() == null ? Map.of() : msg.details()), rawCwd);
     }
 
     private void dispatchException(Throwable t) {
@@ -2031,7 +2016,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             cwdLine += theme.styled("commandMeta", "  " + thinkingLevel.label());
         }
         snapshot = snapshot.withCwd(cwdLine).withContextPct(tokenPct()).withPendingMessages(followUps.pending())
-                                        .withExtensionLines(mergedExtensionLines()).withHelpOverlay(helpOverlay.lines())
+                                        .withExtensionLines(mergedExtensionLines())
                                         .withPromptState(promptState(snapshot, status));
         if (!busy.get()) {
             return snapshot.withStatus(tokens).withWarning(status);
@@ -2140,6 +2125,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (!running.get() || SelfRespawn.isRespawnInProgress())
             return;
         boolean redraw = false;
+        if (logViewer.active() && logViewer.refreshIfDue()) // repaint only when a live log actually tailed new content
+            redraw = true;
         if (busy.get()) {
             animation.advance();
             redraw = true;
@@ -2152,14 +2139,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     /**
      * Routes a key to a modal component (log viewer, select picker) that consumes input while active. Returns true if
-     * the key was consumed; clears {@code busy} when the component closed itself and always redraws after consuming.
+     * the key was consumed, redrawing afterwards. Modals don't touch {@code busy} — that reflects the agent turn, so
+     * the working spinner shows only while the model is actually running, not while a viewer/picker is open.
      */
     private boolean routeModalKey(java.util.function.BooleanSupplier active,
                                     java.util.function.Predicate<Key> handleKey, Key key) {
         if (!active.getAsBoolean() || !handleKey.test(key))
             return false;
-        if (!active.getAsBoolean())
-            busy.set(false);
         redrawPrompt();
         return true;
     }

@@ -60,26 +60,6 @@ class LlmServiceTest {
     }
 
     @Test
-    void streamsWithToolsForOpenAi() {
-        var service = serviceWithFake(new FakeModel());
-        assertTrue(service.streamsWithTools());
-    }
-
-    @Test
-    void streamsWithToolsFalseForLocal() {
-        var service = new LlmService("local", "local-model", _ -> "", null,
-                                        List.of(new FakeProviderFactory(new FakeModel())), null);
-        assertFalse(service.streamsWithTools());
-    }
-
-    @Test
-    void streamsWithToolsFalseForWorkstation() {
-        var service = new LlmService("workstation", "workstation-model", _ -> "", null,
-                                        List.of(new FakeProviderFactory(new FakeModel())), null);
-        assertFalse(service.streamsWithTools());
-    }
-
-    @Test
     void setModelNameUpdatesModelAndClearsCache() {
         var fake = new FakeModel().withContent("hi");
         var service = serviceWithFake(fake, "anthropic", "claude-opus-4-5-20251101");

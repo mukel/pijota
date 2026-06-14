@@ -20,6 +20,16 @@ public final class WriteTool implements Tool {
     }
 
     @Override
+    public String glyph() {
+        return "✏";
+    }
+
+    @Override
+    public boolean hasResultView() {
+        return true;
+    }
+
+    @Override
     public String description() {
         return "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. "
                                         + "Automatically creates parent directories.";

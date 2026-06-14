@@ -12,41 +12,51 @@ import java.util.concurrent.CompletableFuture;
 
 public final class ToolRegistry {
 
+    // Guarded by this: tools may be registered dynamically and from background threads (e.g. MCP servers connecting in
+    // parallel, or reconnecting) while the agent thread reads the enabled set each turn — so all access is
+    // synchronized.
+    // A LinkedHashMap preserves registration order; the per-turn cost of these short critical sections is negligible.
     private final Map<String, Tool> tools = new LinkedHashMap<>();
     private final Set<String> enabledNames = new HashSet<>();
 
-    public void register(Tool tool) {
+    public synchronized void register(Tool tool) {
         tools.put(tool.name(), tool);
         if (tool.defaultEnabled())
             enabledNames.add(tool.name());
     }
 
-    public void enableOnly(Collection<String> names) {
+    /** Removes a tool (and disables it). No-op if it was never registered. Used for dynamic tools (e.g. MCP). */
+    public synchronized void unregister(String name) {
+        tools.remove(name);
+        enabledNames.remove(name);
+    }
+
+    public synchronized void enableOnly(Collection<String> names) {
         enabledNames.clear();
         enabledNames.addAll(names);
     }
 
-    public List<Tool> enabledTools() {
+    public synchronized List<Tool> enabledTools() {
         return tools.values().stream().filter(t -> enabledNames.contains(t.name())).toList();
     }
 
-    public List<Tool.ToolInfo> allTools() {
+    public synchronized List<Tool.ToolInfo> allTools() {
         return tools.values().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
     }
 
-    public List<Tool.ToolInfo> activeTools() {
+    public synchronized List<Tool.ToolInfo> activeTools() {
         return enabledTools().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
     }
 
-    public List<String> enabledToolNames() {
+    public synchronized List<String> enabledToolNames() {
         return enabledTools().stream().map(Tool::name).toList();
     }
 
-    public Optional<Tool> get(String name) {
+    public synchronized Optional<Tool> get(String name) {
         return Optional.ofNullable(tools.get(name));
     }
 
-    public void abortRunningTools() {
+    public synchronized void abortRunningTools() {
         for (Tool tool : tools.values())
             tool.abort();
     }
@@ -173,7 +183,6 @@ public final class ToolRegistry {
         registry.register(new SlashCommandTool());
         registry.register(new WebfetchTool());
         registry.register(new WebsearchTool());
-        registry.register(new TodowriteTool());
         registry.register(new TranscendenceTool());
         registry.register(new WhoamiTool());
         return registry;

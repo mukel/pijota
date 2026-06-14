@@ -86,15 +86,6 @@ class ToolRenderTest {
     }
 
     @Test
-    void traceTodowrite() {
-        var trace = ToolRender.trace("todowrite",
-                                        () -> "{\"todos\":[{\"content\":\"x\",\"status\":\"pending\",\"priority\":\"high\"}]}",
-                                        "/cwd", true);
-        assertTrue(trace.contains("TodoWrite"));
-        assertTrue(trace.contains("1 items"));
-    }
-
-    @Test
     void traceUnknownTool() {
         var trace = ToolRender.trace("custom_tool", () -> "{\"key\":\"val\"}", "/cwd", true);
         assertEquals("→ custom_tool", trace);
@@ -224,18 +215,5 @@ class ToolRenderTest {
     void taskDetailShowsStepCount() {
         assertEquals("2 steps", ToolRender.taskDetail(Map.of("chain", List.of("a", "b"))));
         assertEquals("3 tasks", ToolRender.taskDetail(Map.of("tasks", List.of("a", "b", "c"))));
-    }
-
-    @Test
-    void todoCountCountsCompleted() {
-        var todos = List.of(Map.of("status", "completed"), Map.of("status", "pending"), Map.of("status", "completed"));
-        var result = ToolRender.todoCount(Map.of("todos", todos));
-        assertTrue(result.contains("3 items"));
-        assertTrue(result.contains("2 done"));
-    }
-
-    @Test
-    void todoCountEmptyForMissingTodos() {
-        assertEquals("", ToolRender.todoCount(Map.of()));
     }
 }

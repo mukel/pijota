@@ -105,6 +105,7 @@ final class AppBootstrap {
         ext.register(new ai.pijota.extensions.examples.ScheduleExtension());
         ext.register(new ai.pijota.extensions.mcp.McpExtension());
         ext.setExtensionFlags(parsedArgs.extensionFlags());
+        ext.register(new ai.pijota.extensions.examples.TodoExtension()); // opt-in (--todo); registered after flags
         if (!parsedArgs.noSkills())
             ext.register(new ai.pijota.extensions.skills.SkillExtension(parsedArgs.skillPaths()));
 
@@ -120,7 +121,7 @@ final class AppBootstrap {
         String appendPrompt = parsedArgs.appendSystemPrompts().isEmpty()
                                         ? null
                                         : String.join("\n", parsedArgs.appendSystemPrompts());
-        String systemPrompt = SystemPrompt.build(tools, parsedArgs.systemPrompt(), appendPrompt, cwd,
+        String systemPrompt = SystemPrompt.build(parsedArgs.systemPrompt(), appendPrompt, cwd,
                                         ext.systemPromptContributions());
         ext.setSystemPrompt(systemPrompt);
 
