@@ -16,6 +16,8 @@ final class TerminalCoordinator implements AutoCloseable {
         }
         record Prompt(PromptSnapshot snapshot) implements UiOp {
         }
+        record Tail(String tail) implements UiOp {
+        }
         record Stop() implements UiOp {
         }
     }
@@ -50,6 +52,11 @@ final class TerminalCoordinator implements AutoCloseable {
 
     public void redrawPrompt(PromptSnapshot snapshot) {
         queue.offer(new UiOp.Prompt(snapshot));
+    }
+
+    /** Requests an in-place repaint of just the live streaming-tail row (falls back to a full frame when needed). */
+    public void updateStreamTail(String tail) {
+        queue.offer(new UiOp.Tail(tail == null ? "" : tail));
     }
 
     public void setTheme(AnsiTheme newTheme) {
@@ -98,31 +105,51 @@ final class TerminalCoordinator implements AutoCloseable {
     private void processBatch(List<UiOp> ops) {
         int width = Math.max(20, terminal.getWidth());
 
+        // Coalesce the whole batch into ONE frame: erase the prompt once, append every committed line in order, then
+        // redraw the prompt once. Rendering each append as its own frame (erase early, redraw prompt only on the last)
+        // briefly leaves the prompt region erased between frames — visible flicker when ops interleave during
+        // streaming. Streaming motion now comes from the live tail, not per-line frame emission, so one frame suffices.
         PromptSnapshot finalSnapshot = prompt;
-        var appends = new ArrayList<UiOp.Append>();
+        var lines = new ArrayList<StyledLine>();
+        boolean fullFrame = false;
+        String tailUpdate = null;
         for (var op : ops) {
             switch (op) {
-                case UiOp.Append append -> appends.add(append);
+                case UiOp.Append append -> {
+                    lines.addAll(append.lines());
+                    fullFrame = true;
+                }
                 case UiOp.Prompt p -> {
                     prompt = p.snapshot();
                     finalSnapshot = p.snapshot();
+                    fullFrame = true;
                 }
+                case UiOp.Tail t -> tailUpdate = t.tail();
                 default -> {}
             }
         }
 
-        if (appends.isEmpty()) {
-            emitFrame(width, finalSnapshot, List.of(), true, true);
+        // A batch of only tail updates repaints the single live-tail row in place — no whole-region blank, so streaming
+        // tokens cost one line instead of a full erase+redraw and never strobe. Falls back to a full frame the first
+        // time the tail appears (no row to overwrite yet) so the geometry is established before in-place updates take
+        // over; any committed line (Append) or prompt change forces a full frame too (correct for wrapping).
+        if (!fullFrame && tailUpdate != null) {
+            // In-place only while the tail still fits one row; once it would wrap, fall back to a (flicker-free) full
+            // repaint that lays it out wrapped, instead of horizontally scrolling a single truncated line.
+            if (layout.canUpdateTailInPlace() && AnsiWidth.visibleWidth(tailUpdate) <= width) {
+                emitTailFrame(width, tailUpdate);
+            } else {
+                prompt = prompt.withStreamTail(tailUpdate);
+                emitFrame(width, prompt, List.of(), true, true);
+            }
             return;
         }
+        emitFrame(width, finalSnapshot, lines, true, true);
+    }
 
-        // Render each Append in its own sync frame for line-by-line streaming.
-        // The first frame erases the prompt area; the last redraws the prompt.
-        for (int i = 0; i < appends.size(); i++) {
-            boolean doErase = (i == 0);
-            boolean doPrompt = (i == appends.size() - 1);
-            emitFrame(width, doPrompt ? finalSnapshot : null, appends.get(i).lines(), doErase, doPrompt);
-        }
+    private void emitTailFrame(int width, String tail) {
+        terminal.writer().print(frameRenderer.renderTailFrame(width, tail, theme));
+        terminal.writer().flush();
     }
 
     private void emitFrame(int width, PromptSnapshot snapshot, List<StyledLine> lines, boolean erase,

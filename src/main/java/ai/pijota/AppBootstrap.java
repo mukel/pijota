@@ -6,6 +6,7 @@ import ai.pijota.agent.SystemPrompt;
 import ai.pijota.cli.Args;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.extensions.ExtensionRegistry;
+import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.extensions.plan.PlanExtension;
 import ai.pijota.extensions.task.TaskExtension;
 import ai.pijota.llm.LlmService;
@@ -16,6 +17,8 @@ import ai.pijota.tools.RegistersContainsTool;
 import ai.pijota.tools.RegistersGetTool;
 import ai.pijota.tools.RegistersSetTool;
 import ai.pijota.tools.ToolRegistry;
+import ai.pijota.tools.TranscendenceTool;
+import ai.pijota.tools.WhoamiTool;
 import ai.pijota.util.ProcessRunner;
 
 import ai.pijota.util.SelfRespawn;
@@ -71,9 +74,19 @@ final class AppBootstrap {
         var tools = parsedArgs.noTools() ? new ToolRegistry() : ToolRegistry.createDefault();
         var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix());
         tools.register(bashTool);
-        tools.register(new RegistersContainsTool(registers));
-        tools.register(new RegistersGetTool(registers));
-        tools.register(new RegistersSetTool(registers));
+        // Niche tools, opt-in to keep the default prompt lean: registers (--registers) and whoami (--whoami).
+        var flags = parsedArgs.extensionFlags();
+        if (flagOn(flags, "registers")) {
+            tools.register(new RegistersContainsTool(registers));
+            tools.register(new RegistersGetTool(registers));
+            tools.register(new RegistersSetTool(registers));
+        }
+        if (flagOn(flags, "whoami"))
+            tools.register(new WhoamiTool());
+        // Transcendence (self-modification) is a built-in, on by default; disable with --no-transcendence.
+        boolean transcendence = !flagOn(flags, "no-transcendence");
+        if (transcendence)
+            tools.register(new TranscendenceTool());
 
         var llm = new LlmService(provider, model, settings::resolveApiKey);
         String effectiveThinking = parsedArgs.thinkingLevel();
@@ -106,6 +119,7 @@ final class AppBootstrap {
         ext.register(new ai.pijota.extensions.mcp.McpExtension());
         ext.setExtensionFlags(parsedArgs.extensionFlags());
         ext.register(new ai.pijota.extensions.examples.TodoExtension()); // opt-in (--todo); registered after flags
+        ext.register(new ai.pijota.extensions.examples.TokenSpeedExtension()); // opt-in (--token-speed)
         if (!parsedArgs.noSkills())
             ext.register(new ai.pijota.extensions.skills.SkillExtension(parsedArgs.skillPaths()));
 
@@ -122,7 +136,7 @@ final class AppBootstrap {
                                         ? null
                                         : String.join("\n", parsedArgs.appendSystemPrompts());
         String systemPrompt = SystemPrompt.build(parsedArgs.systemPrompt(), appendPrompt, cwd,
-                                        ext.systemPromptContributions());
+                                        ext.systemPromptContributions(), transcendence);
         ext.setSystemPrompt(systemPrompt);
 
         int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
@@ -166,6 +180,11 @@ final class AppBootstrap {
         mergeTranscendWorktree(parsedArgs);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
+    }
+
+    /** Whether an opt-in extension flag is truthy (true/1/yes). */
+    private static boolean flagOn(Map<String, String> flags, String name) {
+        return ExtensionRuntime.truthy(flags.get(name));
     }
 
     private static Path initialSessionPath(Args args, SessionManager sessions, String cwd) {

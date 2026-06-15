@@ -183,8 +183,6 @@ public final class ToolRegistry {
         registry.register(new SlashCommandTool());
         registry.register(new WebfetchTool());
         registry.register(new WebsearchTool());
-        registry.register(new TranscendenceTool());
-        registry.register(new WhoamiTool());
         return registry;
     }
 }

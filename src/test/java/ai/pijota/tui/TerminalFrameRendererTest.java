@@ -18,7 +18,8 @@ class TerminalFrameRendererTest {
 
         assertTrue(frame.startsWith(TerminalFrameRenderer.BEGIN_SYNC));
         assertTrue(frame.contains(TerminalFrameRenderer.HIDE_CURSOR));
-        assertTrue(frame.contains("assistant output\r\n"));
+        assertTrue(AnsiStripper.strip(frame).contains("assistant output"));
+        assertTrue(frame.contains("\033[K\r\n"), "committed lines are written then trimmed (write-then-trim)");
         assertTrue(frame.endsWith(TerminalFrameRenderer.END_SYNC));
     }
 

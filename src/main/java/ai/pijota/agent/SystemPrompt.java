@@ -13,13 +13,10 @@ public final class SystemPrompt {
                                     - Follow existing code conventions when making changes.
                                     - Never assume a library is available. Check the codebase first.
 
-                                    TRANSCENDENCE:
-                                    You are capable of self-modification. When the user sets a goal (including via
-                                    /transcend "goal"), implement it by editing source files, using the transcendence
-                                    tool to build and test, and finally respawning to restart with the new code.
-                                    Work autonomously — the user sets the goal and you handle everything: edit source,
-                                    run tests, and respawn without needing step-by-step guidance. After respawn, the
-                                    session resumes where it left off with the new code running.
+                                    %sTOOL USE:
+                                    - Prefer the dedicated tools — read, edit, write, glob, grep, ls — over their shell equivalents (cat, sed, find, grep, ls) run through bash; they are faster and respect .gitignore. Use bash for commands, builds, tests, and git.
+                                    - Find files with glob (by name) and search contents with grep; don't cat or find through the tree.
+                                    - Make every tool call count: pass complete, valid arguments and act on the result rather than re-issuing the same call.
 
                                     EXPLORATION GUIDELINES:
                                     - For codebase overviews, start with glob patterns like '**/*.java', '**/pom.xml', or '**/package.json'.
@@ -34,14 +31,32 @@ public final class SystemPrompt {
                                     - Create parent directories when writing new files; use absolute paths in tool calls.
                                     """;
 
+    private static final String TRANSCENDENCE_SECTION = """
+                                    TRANSCENDENCE:
+                                    You are capable of self-modification. When the user sets a goal (including via
+                                    /transcend "goal"), implement it by editing source files, using the transcendence
+                                    tool to build and test, and finally respawning to restart with the new code.
+                                    Work autonomously — the user sets the goal and you handle everything: edit source,
+                                    run tests, and respawn without needing step-by-step guidance. After respawn, the
+                                    session resumes where it left off with the new code running.
+
+                                    """;
+
     private SystemPrompt() {}
+
+    /** Builds the system prompt with transcendence guidance included (the default for the built-in feature). */
+    public static String build(String customPrompt, String appendPrompt, String cwd, List<String> extensionPrompts) {
+        return build(customPrompt, appendPrompt, cwd, extensionPrompts, true);
+    }
 
     /**
      * Builds the system prompt. Tool names, descriptions and schemas are sent to the model separately in the tool
-     * manifest, so they are deliberately NOT duplicated here.
+     * manifest, so they are deliberately NOT duplicated here. The TRANSCENDENCE section is omitted when the
+     * self-modification feature is disabled ({@code --no-transcendence}).
      */
-    public static String build(String customPrompt, String appendPrompt, String cwd, List<String> extensionPrompts) {
-        var sb = new StringBuilder(BASE_PROMPT);
+    public static String build(String customPrompt, String appendPrompt, String cwd, List<String> extensionPrompts,
+                                    boolean transcendence) {
+        var sb = new StringBuilder(String.format(BASE_PROMPT, transcendence ? TRANSCENDENCE_SECTION : ""));
 
         sb.append("\nENVIRONMENT:\n");
         sb.append("- Working directory: ").append(cwd).append('\n');

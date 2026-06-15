@@ -44,6 +44,13 @@ final class StreamProcessor {
         suppressSystemReminder = false;
     }
 
+    /**
+     * Whether the processor is mid-{@code <system-reminder>} span (carried across lines) — used to skip live preview.
+     */
+    boolean suppressing() {
+        return suppressSystemReminder;
+    }
+
     static boolean isReasoningMetaLine(String line) {
         if (line.isBlank())
             return false;

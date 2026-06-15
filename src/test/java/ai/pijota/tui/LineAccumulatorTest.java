@@ -34,6 +34,20 @@ class LineAccumulatorTest {
     }
 
     @Test
+    void partialViewReturnsBufferedTextWithoutConsumingIt() {
+        var acc = new LineAccumulator();
+
+        assertEquals("", acc.partialView());
+        acc.accept("hel");
+        assertEquals("hel", acc.partialView());
+        assertEquals("hel", acc.partialView()); // non-consuming: still buffered
+        assertEquals(List.of("hello"), acc.accept("lo\nworld"));
+        assertEquals("world", acc.partialView());
+        assertEquals("world", acc.flush().orElseThrow());
+        assertEquals("", acc.partialView());
+    }
+
+    @Test
     void clearDropsBufferedPartialLine() {
         var acc = new LineAccumulator();
 

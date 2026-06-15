@@ -72,6 +72,7 @@ public final class Main {
     }
 
     private static void run(Args parsedArgs) throws Exception {
+        Warmup.start(); // overlap tool class-loading with the Jackson cold-start during bootstrap
         var b = AppBootstrap.bootstrap(parsedArgs);
 
         if (parsedArgs.agent()) {

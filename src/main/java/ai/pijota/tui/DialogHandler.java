@@ -20,9 +20,11 @@ final class DialogHandler {
     }
 
     private final Host host;
-    private CompletableFuture<String> pendingQuestionAnswer;
-    private volatile CompletableFuture<Boolean> pendingConfirm;
-    private volatile CompletableFuture<String> pendingPrompt;
+    // Each dialog kind is an input request opened on the agent/tool thread and settled on the UI thread; PendingInput
+    // owns that cross-thread lifecycle (see its docs) so all three stay correct uniformly.
+    private final PendingInput<Boolean> confirmReq = new PendingInput<>();
+    private final PendingInput<String> promptReq = new PendingInput<>();
+    private final PendingInput<String> questionReq = new PendingInput<>();
     private StringBuilder pendingPromptText = new StringBuilder();
     private String pendingPromptDefault = "";
 
@@ -31,8 +33,7 @@ final class DialogHandler {
     }
 
     CompletableFuture<Boolean> confirm(String question) {
-        var future = new CompletableFuture<Boolean>();
-        pendingConfirm = future;
+        var future = confirmReq.open();
         host.appendPlain(List.of(host.styled("toolLabel", "confirm"), question));
         host.setStatus("confirm (y/n)");
         host.redrawPrompt();
@@ -40,8 +41,7 @@ final class DialogHandler {
     }
 
     CompletableFuture<String> prompt(String question, String defaultValue) {
-        var future = new CompletableFuture<String>();
-        pendingPrompt = future;
+        var future = promptReq.open();
         pendingPromptText = new StringBuilder(defaultValue != null ? defaultValue : "");
         pendingPromptDefault = defaultValue != null ? defaultValue : "";
         host.appendPlain(List.of(host.styled("toolLabel", "prompt"), question));
@@ -51,8 +51,7 @@ final class DialogHandler {
     }
 
     CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
-        var future = new CompletableFuture<String>();
-        pendingQuestionAnswer = future;
+        var future = questionReq.open();
         var lines = new ArrayList<String>();
         lines.add(host.styled("toolLabel", "question"));
         for (int i = 0; i < questions.size(); i++) {
@@ -83,30 +82,27 @@ final class DialogHandler {
     }
 
     boolean handleConfirm(Key key) {
-        var pc = pendingConfirm;
-        if (pc == null || pc.isDone())
+        if (!confirmReq.active())
             return false;
         if (key instanceof Key.Char c) {
             if (c.value() == 'y' || c.value() == 'Y')
-                pc.complete(true);
+                confirmReq.fulfill(true);
             else if (c.value() == 'n' || c.value() == 'N')
-                pc.complete(false);
+                confirmReq.fulfill(false);
             else
                 return true;
         } else if (key == Key.Special.ESC) {
-            pc.complete(false);
+            confirmReq.fulfill(false);
         } else {
             return true;
         }
-        pendingConfirm = null;
         host.clearStatus();
         host.redrawPrompt();
         return true;
     }
 
     boolean handlePrompt(Key key) {
-        var pp = pendingPrompt;
-        if (pp == null || pp.isDone())
+        if (!promptReq.active())
             return false;
         if (key instanceof Key.Char c) {
             pendingPromptText.append(c.value());
@@ -116,12 +112,12 @@ final class DialogHandler {
         return switch (key) {
             case Key.Special.ENTER -> {
                 String result = pendingPromptText.isEmpty() ? pendingPromptDefault : pendingPromptText.toString();
-                pp.complete(result);
+                promptReq.fulfill(result);
                 clearPrompt();
                 yield true;
             }
             case Key.Special.ESC, Key.Special.CTRL_C -> {
-                pp.complete(pendingPromptDefault);
+                promptReq.fulfill(pendingPromptDefault);
                 clearPrompt();
                 yield true;
             }
@@ -137,40 +133,34 @@ final class DialogHandler {
     }
 
     boolean cancelQuestionIfIdle(boolean busy) {
-        var pending = pendingQuestionAnswer;
-        if (busy || pending == null || pending.isDone())
+        if (busy || !questionReq.cancel())
             return false;
-        pending.cancel(true);
-        pendingQuestionAnswer = null;
         host.clearStatus();
         host.redrawPrompt();
         return true;
     }
 
     boolean submitQuestionAnswer(String answer, Runnable echo) {
-        var pending = pendingQuestionAnswer;
-        if (pending == null || pending.isDone())
+        if (!questionReq.active())
             return false;
         echo.run();
-        pending.complete(answer);
-        pendingQuestionAnswer = null;
+        questionReq.fulfill(answer);
         host.clearStatus();
         host.redrawPrompt();
         return true;
     }
 
     String promptStatusLine() {
-        if (pendingPrompt == null || pendingPrompt.isDone())
+        if (!promptReq.active())
             return null;
         return host.styled("statusText", "▶ " + pendingPromptText) + host.styled("highlight", " ");
     }
 
     boolean questionPending() {
-        return pendingQuestionAnswer != null;
+        return questionReq.active();
     }
 
     private void clearPrompt() {
-        pendingPrompt = null;
         pendingPromptText = new StringBuilder();
         host.clearStatus();
         host.redrawPrompt();

@@ -46,7 +46,6 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             for (int i = 0; i < lines.size(); i++) {
                 var line = lines.get(i);
                 out.print('\r');
-                out.print("\033[K");
                 out.print(theme.styled(line.prefixSlot(), line.prefix()));
                 out.print(theme.styled("text", line.text()));
                 if (cursorAtEndOfInput && line.logicalRow() == ctx.cursorRow() && ctx.cursorCol() >= line.startCol()
@@ -61,6 +60,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                     cursorVisualRow = i;
                     cursorVisualCol = line.prefix().length() + ctx.cursorCol() - line.startCol();
                 }
+                out.print("\033[K"); // write-then-trim: clear leftover only after the line's content is drawn
                 if (i < lines.size() - 1)
                     out.print("\r\n");
             }
@@ -131,11 +131,13 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
 
         @Override
         public int height(int width, PromptSnapshot ctx) {
-            String primary = primaryLine(ctx);
             int h = 0;
-            if (primary != null && !primary.isBlank())
-                h += primaryRows(primary, width);
-            if (ctx.warning() != null && !ctx.warning().isBlank())
+            if (hasText(ctx.status()))
+                h += 1; // activity (tokens/spinner/phase): one truncated row — the per-frame spinner can't change
+                        // height
+            if (hasText(ctx.cwd()))
+                h += wrappedRows(ctx.cwd(), width); // workspace info: wrapped, but stable within a turn (no jitter)
+            if (hasText(ctx.warning()))
                 h += warningRows(ctx.warning(), width);
             if (!ctx.extensionLines().isEmpty())
                 h += Math.min(MAX_EXTENSION_LINES, ctx.extensionLines().size());
@@ -146,21 +148,34 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
 
         @Override
         public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
-            String primary = primaryLine(ctx);
-            boolean hasWarning = ctx.warning() != null && !ctx.warning().isBlank();
+            boolean hasStatus = hasText(ctx.status());
+            boolean hasCwd = hasText(ctx.cwd());
+            boolean hasWarning = hasText(ctx.warning());
             boolean hasExtensions = !ctx.extensionLines().isEmpty();
-            if (primary == null && !hasWarning && !hasExtensions)
+            if (!hasStatus && !hasCwd && !hasWarning && !hasExtensions)
                 return NO_CURSOR;
             boolean first = true;
 
-            if (primary != null && !primary.isBlank()) {
-                for (String segment : AnsiWidth.wrapPreservingAnsi(primary, width)) {
+            // Activity line (tokens · spinner · phase): its own short row, truncated to a single line so the per-frame
+            // spinner can never wrap and grow the region — which is what made the prompt jitter up/down.
+            if (hasStatus) {
+                out.print('\r');
+                out.print(theme.styled("statusText", AnsiWidth.truncateVisual(ctx.status(), width)));
+                out.print("\033[K");
+                first = false;
+            }
+
+            // Workspace line (cwd · branch · model · thinking): wrapped, never truncated. Its content is stable within
+            // a
+            // turn, so wrapping it doesn't cause per-frame jitter, and no information is lost.
+            if (hasCwd) {
+                for (String seg : AnsiWidth.wrapPreservingAnsi(ctx.cwd(), width)) {
                     if (!first)
                         out.print("\r\n");
                     else
                         out.print('\r');
+                    out.print(theme.styled("cwdLine", seg));
                     out.print("\033[K");
-                    out.print(theme.styled("cwdLine", segment));
                     first = false;
                 }
             }
@@ -171,8 +186,8 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                         out.print("\r\n");
                     else
                         out.print('\r');
-                    out.print("\033[K");
                     out.print(theme.styled("statusWarn", AnsiWidth.truncateVisual("  " + part, width)));
+                    out.print("\033[K");
                     first = false;
                 }
             }
@@ -184,9 +199,9 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                         out.print("\r\n");
                     else
                         out.print('\r');
-                    out.print("\033[K");
                     out.print(theme.styled("statusText", AnsiWidth.truncateVisual("  " + ctx.extensionLines().get(i),
                                                     width)));
+                    out.print("\033[K");
                     first = false;
                 }
                 int extra = ctx.extensionLines().size() - MAX_EXTENSION_LINES;
@@ -195,31 +210,23 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                         out.print("\r\n");
                     else
                         out.print('\r');
-                    out.print("\033[K");
                     out.print(theme.styled("dim", "  … " + extra + " more"));
+                    out.print("\033[K");
                     first = false;
                 }
             }
             return NO_CURSOR;
         }
 
-        private static String primaryLine(PromptSnapshot ctx) {
-            boolean hasCwd = ctx.cwd() != null && !ctx.cwd().isBlank();
-            boolean hasStatus = ctx.status() != null && !ctx.status().isBlank();
-            if (!hasCwd && !hasStatus)
-                return null;
-            if (!hasCwd)
-                return ctx.status();
-            if (!hasStatus)
-                return ctx.cwd();
-            return ctx.status() + "  " + ctx.cwd();
+        private static boolean hasText(String s) {
+            return s != null && !s.isBlank();
         }
 
-        private static int primaryRows(String line, int width) {
-            width = Math.max(1, width);
+        private static int wrappedRows(String line, int width) {
             int w = AnsiWidth.visibleWidth(line);
             if (w <= 0)
                 return 0;
+            width = Math.max(1, width);
             return (w + width - 1) / width;
         }
 

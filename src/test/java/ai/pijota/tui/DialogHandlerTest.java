@@ -42,8 +42,7 @@ class DialogHandlerTest {
         var handler = new DialogHandler(fakeHost());
         var future = handler.confirm("sure?");
         assertTrue(handler.handleConfirm(new Key.Char('y')));
-        assertTrue(future.isDone());
-        assertTrue(future.getNow(false));
+        assertTrue(future.join());
     }
 
     @Test
@@ -51,7 +50,7 @@ class DialogHandlerTest {
         var handler = new DialogHandler(fakeHost());
         var future = handler.confirm("sure?");
         assertTrue(handler.handleConfirm(new Key.Char('Y')));
-        assertTrue(future.getNow(false));
+        assertTrue(future.join());
     }
 
     @Test
@@ -59,7 +58,7 @@ class DialogHandlerTest {
         var handler = new DialogHandler(fakeHost());
         var future = handler.confirm("sure?");
         assertTrue(handler.handleConfirm(new Key.Char('n')));
-        assertFalse(future.getNow(true));
+        assertFalse(future.join());
     }
 
     @Test
@@ -67,7 +66,7 @@ class DialogHandlerTest {
         var handler = new DialogHandler(fakeHost());
         var future = handler.confirm("sure?");
         assertTrue(handler.handleConfirm(Key.Special.ESC));
-        assertFalse(future.getNow(true));
+        assertFalse(future.join());
     }
 
     @Test
@@ -109,8 +108,7 @@ class DialogHandlerTest {
         var future = handler.prompt("name?", "");
         handler.handlePrompt(new Key.Char('h'));
         handler.handlePrompt(Key.Special.ENTER);
-        assertTrue(future.isDone());
-        assertEquals("h", future.getNow(""));
+        assertEquals("h", future.join());
     }
 
     @Test
@@ -118,7 +116,7 @@ class DialogHandlerTest {
         var handler = new DialogHandler(fakeHost());
         var future = handler.prompt("name?", "unnamed");
         handler.handlePrompt(Key.Special.ENTER);
-        assertEquals("unnamed", future.getNow(""));
+        assertEquals("unnamed", future.join());
     }
 
     @Test
@@ -127,7 +125,7 @@ class DialogHandlerTest {
         var future = handler.prompt("name?", "default");
         handler.handlePrompt(new Key.Char('t'));
         handler.handlePrompt(Key.Special.ESC);
-        assertEquals("default", future.getNow(""));
+        assertEquals("default", future.join());
     }
 
     @Test
@@ -136,7 +134,7 @@ class DialogHandlerTest {
         var future = handler.prompt("name?", "default");
         handler.handlePrompt(new Key.Char('t'));
         handler.handlePrompt(Key.Special.CTRL_C);
-        assertEquals("default", future.getNow(""));
+        assertEquals("default", future.join());
     }
 
     @Test
@@ -169,7 +167,7 @@ class DialogHandlerTest {
         var handler = new DialogHandler(fakeHost());
         var future = handler.prompt("name?", null);
         handler.handlePrompt(Key.Special.ENTER);
-        assertEquals("", future.getNow("x"));
+        assertEquals("", future.join());
     }
 
     @Test
@@ -207,7 +205,7 @@ class DialogHandlerTest {
         var handler = new DialogHandler(fakeHost());
         var future = handler.askQuestions(List.of());
         assertTrue(handler.submitQuestionAnswer("my answer", () -> {}));
-        assertEquals("my answer", future.getNow(""));
+        assertEquals("my answer", future.join());
         assertFalse(handler.questionPending());
     }
 

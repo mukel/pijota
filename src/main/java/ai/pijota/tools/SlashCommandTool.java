@@ -32,8 +32,13 @@ public final class SlashCommandTool implements Tool {
 
     @Override
     public String description() {
-        return "Ask the user a question to gather preferences, clarify instructions, or get a decision. "
-                                        + "Prefer questions: [{question, header, options, multiple}].";
+        return "Ask the user one or more questions and wait for their answer. Use it only when you are genuinely "
+                                        + "blocked on a decision, preference, or missing fact you cannot reasonably infer or look up — not "
+                                        + "for things you can decide yourself, and not to narrate progress. Pass a non-empty `questions` "
+                                        + "array of {question, header, options?, multiple?}: `question` is the full question text (required), "
+                                        + "`header` a 1-3 word label, `options` an optional list of {label, description?} choices, `multiple` "
+                                        + "true to allow picking several. The user can always type a free-text answer instead of choosing an "
+                                        + "option. For a single question you may pass `question`/`header`/`options` at the top level instead.";
     }
 
     @Override

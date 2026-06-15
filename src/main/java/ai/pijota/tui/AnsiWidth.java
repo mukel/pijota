@@ -76,6 +76,38 @@ final class AnsiWidth {
         return text;
     }
 
+    /**
+     * Keeps the <em>trailing</em> {@code maxWidth} visual columns, dropping leading text behind a single-column
+     * ellipsis when it doesn't fit. The result never exceeds {@code maxWidth} columns, so it always fits on one
+     * terminal row — used for the live streaming tail, where the newest characters matter most.
+     */
+    public static String truncateVisualEnd(String text, int maxWidth) {
+        if (maxWidth <= 0)
+            return "";
+        int total = visibleWidth(text);
+        if (total <= maxWidth)
+            return text;
+        int budget = maxWidth - 1; // leave one column for the leading ellipsis
+        int dropped = 0;
+        int i = 0;
+        while (i < text.length() && total - dropped > budget) {
+            char ch = text.charAt(i);
+            if (ch == 0x1b) {
+                i = skipEscape(text, i) + 1;
+                continue;
+            }
+            if (ch == '\t') {
+                dropped += 4 - (dropped % 4);
+            } else if (!Character.isISOControl(ch)) {
+                dropped += charWidth(text, i);
+                if (Character.isHighSurrogate(ch))
+                    i++;
+            }
+            i++;
+        }
+        return "…" + text.substring(i);
+    }
+
     public static List<String> wrapPreservingAnsi(String text, int maxWidth) {
         if (maxWidth <= 0)
             return List.of("");

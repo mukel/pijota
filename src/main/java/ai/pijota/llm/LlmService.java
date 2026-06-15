@@ -39,6 +39,12 @@ public final class LlmService implements LlmClient {
     private volatile java.util.function.BiConsumer<String, String> modelChangeCallback;
 
     private final AtomicReference<StreamingHandle> activeHandle = new AtomicReference<>();
+    private volatile LlmClient.RequestSpeed lastRequestSpeed;
+
+    @Override
+    public LlmClient.RequestSpeed lastRequestSpeed() {
+        return lastRequestSpeed;
+    }
 
     private record ModelCacheKey(String provider, String model, String apiKey, ThinkingLevel thinkingLevel) {
     }
@@ -150,8 +156,14 @@ public final class LlmService implements LlmClient {
             private final StringBuilder thinkingBuf = new StringBuilder();
             private final long streamStartNanos = System.nanoTime();
             private long lastDeltaNanos = streamStartNanos;
+            private long firstTokenNanos = 0; // time-to-first-token: marks the end of prefill / start of decode
             private int deltaCount = 0;
             private int totalChars = 0;
+
+            private void markFirstToken() {
+                if (firstTokenNanos == 0)
+                    firstTokenNanos = System.nanoTime();
+            }
 
             private void traceDelta(String newText) {
                 if (!log.isDebugEnabled())
@@ -178,6 +190,7 @@ public final class LlmService implements LlmClient {
 
             @Override
             public void onPartialResponse(String t) {
+                markFirstToken();
                 traceDelta(t);
                 applyPartialContent(result, t);
                 onPartial.accept(result.content(), thinkingBuf.toString());
@@ -189,6 +202,7 @@ public final class LlmService implements LlmClient {
                     handleRef.set(ctx.streamingHandle());
                 String t = pr.text();
                 if (t != null) {
+                    markFirstToken();
                     traceDelta(t);
                     applyPartialContent(result, t);
                     onPartial.accept(result.content(), thinkingBuf.toString());
@@ -201,6 +215,7 @@ public final class LlmService implements LlmClient {
                     handleRef.set(ctx.streamingHandle());
                 String ptText = pt.text();
                 if (ptText != null) {
+                    markFirstToken();
                     traceDelta(ptText);
                 }
                 thinkingBuf.append(ptText);
@@ -230,9 +245,23 @@ public final class LlmService implements LlmClient {
                                                     u.outputTokenCount() != null ? u.outputTokenCount() : 0));
                 }
                 usage.add(result.usage());
+                recordSpeed(u);
                 if (handleRef != null)
                     handleRef.set(null);
                 future.complete(result);
+            }
+
+            // prefill = input tokens / time-to-first-token; decode = output tokens / generation time.
+            private void recordSpeed(dev.langchain4j.model.output.TokenUsage u) {
+                long completeNanos = System.nanoTime();
+                long ttft = firstTokenNanos == 0 ? completeNanos : firstTokenNanos;
+                double prefillSec = (ttft - streamStartNanos) / 1e9;
+                double decodeSec = (completeNanos - ttft) / 1e9;
+                int in = u != null && u.inputTokenCount() != null ? u.inputTokenCount() : 0;
+                int out = u != null && u.outputTokenCount() != null ? u.outputTokenCount() : 0;
+                double prefill = prefillSec > 0 ? in / prefillSec : 0;
+                double decode = decodeSec > 0 ? out / decodeSec : 0;
+                lastRequestSpeed = new LlmClient.RequestSpeed(prefill, decode);
             }
 
             @Override

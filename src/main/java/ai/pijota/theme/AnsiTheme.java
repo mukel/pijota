@@ -478,10 +478,14 @@ public class AnsiTheme {
         } catch (NumberFormatException ignored) {}
     }
 
-    private static final String[] THINKING_SLOTS = {"heading", "bold", "italic", "highlight", "dim", "strikethrough",
-            "codeFence", "codeBody", "blockquote", "hr", "inlineCode", "synKeyword", "synType", "synString",
-            "synNumber", "synComment", "synFunction", "synVariable", "synOperator", "synPunctuation", "toolLabel",
-            "commandMeta", "statusText", "statusWarn", "thinkingText"};
+    // Every slot the markdown/syntax renderers use for body output, so a thinking block renders exactly like regular
+    // output — just dimmed. "text" (the default body slot, also table-cell text) is included so prose isn't left at
+    // full
+    // brightness; link slots (mdLink/mdLinkUrl) are dimmed via the extra-slot pass in thinking().
+    private static final String[] THINKING_SLOTS = {"text", "heading", "bold", "italic", "highlight", "dim",
+            "strikethrough", "codeFence", "codeBody", "blockquote", "hr", "inlineCode", "synKeyword", "synType",
+            "synString", "synNumber", "synComment", "synFunction", "synVariable", "synOperator", "synPunctuation",
+            "toolLabel", "commandMeta", "statusText", "statusWarn", "thinkingText"};
 
     private static final Map<String, Integer> CODE_MAP = Map.ofEntries(Map.entry("bold", 1), Map.entry("dim", 2),
                                     Map.entry("italic", 3), Map.entry("underline", 4), Map.entry("inverse", 7),

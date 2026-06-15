@@ -128,6 +128,29 @@ class StreamRendererTest {
     }
 
     @Test
+    void contentLiveTailReflectsPartialAndClearsOnCommit() {
+        var r = renderer(new CapturingSink(), false);
+
+        assertTrue(r.contentLiveTail().isEmpty(), "nothing streamed yet");
+        r.streamContent("Hel");
+        assertEquals("Hel", r.contentLiveTail().orElseThrow());
+        r.streamContent("Hello\n"); // the newline commits the line
+        assertTrue(r.contentLiveTail().isEmpty(), "committed line must not preview");
+        r.streamContent("Hello\nWor");
+        assertEquals("Wor", r.contentLiveTail().orElseThrow());
+        r.flush();
+        assertTrue(r.contentLiveTail().isEmpty(), "flush commits the partial");
+    }
+
+    @Test
+    void contentLiveTailSuppressesReasoningMetaLine() {
+        var r = renderer(new CapturingSink(), false);
+
+        r.streamContent("Let me check the code"); // "let me " is a reasoning-meta prefix, dropped on commit
+        assertTrue(r.contentLiveTail().isEmpty(), "reasoning-meta partial must not preview");
+    }
+
+    @Test
     void thinkingIsGatedOutOfFlushWhenHidden() {
         var sink = new CapturingSink();
         var r = renderer(sink, false); // showThinking == false

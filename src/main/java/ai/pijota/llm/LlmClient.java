@@ -34,6 +34,15 @@ public interface LlmClient extends AutoCloseable {
         return null;
     }
 
+    /** Prompt-processing (prefill) and generation (decode) speed of the most recent request. */
+    record RequestSpeed(double prefillTokensPerSec, double decodeTokensPerSec) {
+    }
+
+    /** Speed of the last completed request, or {@code null} if none has completed or it can't be measured. */
+    default RequestSpeed lastRequestSpeed() {
+        return null;
+    }
+
     void abort();
 
     default ThinkingLevel thinkingLevel() {

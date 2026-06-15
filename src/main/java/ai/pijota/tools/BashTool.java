@@ -71,8 +71,10 @@ public final class BashTool implements Tool {
 
     @Override
     public String description() {
-        return "Execute a bash command in the current working directory. Returns stdout and stderr. "
-                                        + "Output is truncated at 100KB. Optionally provide a timeout in seconds (default 120s).";
+        return "Execute a bash command in the current working directory (for builds, tests, git, and other shell "
+                                        + "commands). Returns stdout and stderr; output is truncated at 100KB; optional timeout in seconds "
+                                        + "(default 120s). Do NOT use it to read or search files — use read/grep/glob/ls instead, which are "
+                                        + "faster and respect .gitignore.";
     }
 
     @Override

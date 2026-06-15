@@ -7,6 +7,45 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class StreamingMarkdownFormatterTest {
+
+    @Test
+    void thinkingRendersSameMarkdownStructureAsContentJustDimmed() {
+        var theme = AnsiTheme.dark();
+        var content = new StreamingMarkdownFormatter(theme);
+        var thinking = new StreamingMarkdownFormatter(theme.thinking());
+        content.setWidth(60);
+        thinking.setWidth(60);
+
+        var lines = java.util.List.of("# Heading", "A **bold** word, an *italic* one, and `inline code`.", "```java",
+                                        "int answer = 42;", "```", "| Col A | Col B |", "|-------|-------|",
+                                        "| 1     | 2     |", "");
+        var c = new StringBuilder();
+        var t = new StringBuilder();
+        for (String l : lines) {
+            for (var sl : content.format(l))
+                c.append(sl.text()).append('\n');
+            for (var sl : thinking.format(l))
+                t.append(sl.text()).append('\n');
+        }
+        for (var sl : content.flush())
+            c.append(sl.text()).append('\n');
+        for (var sl : thinking.flush())
+            t.append(sl.text()).append('\n');
+
+        String cRaw = c.toString();
+        String tRaw = t.toString();
+        // Same markdown pipeline → identical structure (heading, bold/italic, syntax-highlighted code, table) once
+        // ANSI is stripped: thinking is rendered "the same way" as content.
+        assertEquals(AnsiStripper.strip(cRaw), AnsiStripper.strip(tRaw),
+                                        "thinking must render the same markdown structure as content");
+        // ...but dimmed: the styled bytes differ while thinking still carries markdown/syntax styling.
+        assertNotEquals(cRaw, tRaw, "thinking output must be styled differently (dimmed)");
+        assertTrue(tRaw.contains("["), "thinking output must still be markdown/syntax styled");
+        String stripped = AnsiStripper.strip(tRaw);
+        assertTrue(stripped.contains("Heading"), stripped);
+        assertTrue(stripped.contains("│"), "table must render with borders: " + stripped);
+    }
+
     @Test
     void rendersCodeFenceMarkersAsStyledVisibleLines() {
         var theme = AnsiTheme.dark();

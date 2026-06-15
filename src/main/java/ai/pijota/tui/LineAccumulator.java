@@ -31,6 +31,11 @@ final class LineAccumulator {
         return Optional.of(line);
     }
 
+    /** The in-progress (not yet newline-terminated) line, without consuming it. Empty when nothing is buffered. */
+    public String partialView() {
+        return partial.isEmpty() ? "" : stripTrailingCr(partial.toString());
+    }
+
     public void clear() {
         partial.setLength(0);
     }

@@ -17,6 +17,14 @@ class SystemPromptTest {
     }
 
     @Test
+    void transcendenceSectionTogglesWithFlag() {
+        assertTrue(SystemPrompt.build(null, null, "/cwd", List.of(), true).contains("TRANSCENDENCE:"));
+        assertFalse(SystemPrompt.build(null, null, "/cwd", List.of(), false).contains("TRANSCENDENCE:"));
+        // the no-flag overload keeps it (built-in, on by default)
+        assertTrue(SystemPrompt.build(null, null, "/cwd", List.of()).contains("TRANSCENDENCE:"));
+    }
+
+    @Test
     void doesNotDuplicateToolListing() {
         // Tool names/descriptions live in the tool manifest, not the system prompt.
         var prompt = SystemPrompt.build(null, null, "/cwd", List.of());

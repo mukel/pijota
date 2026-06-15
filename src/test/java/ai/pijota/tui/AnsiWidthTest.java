@@ -78,6 +78,33 @@ class AnsiWidthTest {
     }
 
     @Test
+    void truncateVisualEndEmptyWhenMaxZeroOrNegative() {
+        assertEquals("", AnsiWidth.truncateVisualEnd("hello", 0));
+        assertEquals("", AnsiWidth.truncateVisualEnd("hello", -1));
+    }
+
+    @Test
+    void truncateVisualEndKeepsShortText() {
+        assertEquals("hello", AnsiWidth.truncateVisualEnd("hello", 10));
+    }
+
+    @Test
+    void truncateVisualEndKeepsTrailingColumnsBehindEllipsis() {
+        var result = AnsiWidth.truncateVisualEnd("hello world", 5);
+        assertTrue(result.startsWith("…"), result);
+        assertTrue(result.endsWith("orld"), result); // trailing 4 columns kept (one column reserved for the ellipsis)
+        // never wider than the budget, so it always fits on one row
+        assertTrue(AnsiWidth.visibleWidth(result) <= 5, "width=" + AnsiWidth.visibleWidth(result));
+    }
+
+    @Test
+    void truncateVisualEndNeverExceedsWidthForCjk() {
+        var result = AnsiWidth.truncateVisualEnd("你好世界你好世界", 5);
+        assertTrue(AnsiWidth.visibleWidth(result) <= 5, "width=" + AnsiWidth.visibleWidth(result));
+        assertTrue(result.startsWith("…"), result);
+    }
+
+    @Test
     void wrapPreservingAnsi_emptyForZeroOrNegativeWidth() {
         assertEquals(List.of(""), AnsiWidth.wrapPreservingAnsi("hello", 0));
     }

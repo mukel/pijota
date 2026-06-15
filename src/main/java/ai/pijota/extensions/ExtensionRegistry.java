@@ -723,7 +723,7 @@ public final class ExtensionRegistry {
             String val = extensionFlags != null ? extensionFlags.get(name) : null;
             if (val == null)
                 return defaultValue;
-            return "true".equalsIgnoreCase(val) || "1".equals(val) || "yes".equalsIgnoreCase(val);
+            return ExtensionRuntime.truthy(val);
         }
 
         @Override

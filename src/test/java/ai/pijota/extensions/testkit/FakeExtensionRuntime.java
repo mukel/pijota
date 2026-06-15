@@ -209,7 +209,7 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
         String val = flags.get(name);
         if (val == null)
             return defaultValue;
-        return "true".equalsIgnoreCase(val) || "1".equals(val) || "yes".equalsIgnoreCase(val);
+        return ai.pijota.extensions.ExtensionRuntime.truthy(val);
     }
 
     @Override

@@ -50,6 +50,11 @@ public interface ExtensionRuntime {
 
     Optional<String> getFlag(String name);
 
+    /** Whether a raw flag value is truthy ({@code true}/{@code 1}/{@code yes}, case-insensitive). */
+    static boolean truthy(String value) {
+        return "true".equalsIgnoreCase(value) || "1".equals(value) || "yes".equalsIgnoreCase(value);
+    }
+
     ExecResult exec(List<String> command);
 
     /** Suspend the TUI (restore terminal to cooked mode) before spawning interactive subprocess. */

@@ -9,7 +9,6 @@ import java.util.List;
 final class TerminalFrameRenderer {
     static final String HIDE_CURSOR = "\033[?25l";
     static final String SHOW_CURSOR = "\033[?25h";
-    static final String CLEAR_LINE = "\r\033[K";
 
     // CSI 2026 / DECSET Synchronized Output — tells the terminal to buffer all
     // writes between BEGIN and END, then apply them as one atomic frame.
@@ -30,14 +29,31 @@ final class TerminalFrameRenderer {
         out.print(HIDE_CURSOR);
         if (erase)
             layout.eraseCurrent(out);
+        // Append committed lines write-then-trim, wrapping them to physical rows ourselves so no terminal auto-wrap can
+        // leave stale content a per-line clear would miss. No frame blanks the region up front, so nothing strobes.
         for (var line : lines) {
-            out.print(CLEAR_LINE);
-            out.print(line.text());
-            out.print("\r\n");
+            for (var physical : AnsiWidth.wrapPreservingAnsi(line.text(), width)) {
+                out.print('\r');
+                out.print(physical);
+                out.print("\033[K\r\n");
+            }
         }
         if (showPrompt && snapshot != null) {
             layout.renderAfterErase(out, width, theme, snapshot);
         }
+        out.print(SHOW_CURSOR);
+        out.print(END_SYNC);
+        out.flush();
+        return buf.toString();
+    }
+
+    /** A frame that repaints only the live-tail row in place (no whole-region erase) — for streaming token repaints. */
+    String renderTailFrame(int width, String tail, AnsiTheme theme) {
+        var buf = new StringWriter();
+        var out = new PrintWriter(buf);
+        out.print(BEGIN_SYNC);
+        out.print(HIDE_CURSOR);
+        layout.renderTailInPlace(out, width, theme, tail);
         out.print(SHOW_CURSOR);
         out.print(END_SYNC);
         out.flush();

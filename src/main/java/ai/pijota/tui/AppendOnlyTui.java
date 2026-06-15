@@ -174,6 +174,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private volatile String busyPhase;
+    // True between the first streamed content token and the turn's end. While set, the live-tail row is reserved (shown
+    // even when momentarily empty between lines) so the prompt region keeps a constant height and doesn't jitter as
+    // lines commit.
+    private volatile boolean streamingContent;
     private final DoublePressGate interruptGate = new DoublePressGate(INTERRUPT_WINDOW_MS);
     private final DoublePressGate exitGate = new DoublePressGate(EXIT_WINDOW_MS);
     private ThinkingLevel thinkingLevel = ThinkingLevel.OFF;
@@ -969,7 +973,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
             terminalUi.start(decorate(promptEditor.snapshot()));
             animator.scheduleAtFixedRate(this::tickWorkingAnimation, 125, 125, TimeUnit.MILLISECONDS);
-            inputThread = Thread.ofPlatform().name("pijota-tui-input").start(this::readInputLoop);
+            inputThread = Thread.ofPlatform().name("pijota-tui-input").uncaughtExceptionHandler((t, e) -> {
+                // Last resort: never leave the terminal in raw mode if the input
+                // thread dies unexpectedly — restore it and unblock shutdown.
+                restoreTerminalState();
+                shutdownLatch.countDown();
+            }).start(this::readInputLoop);
             while (running.get()) {
                 try {
                     shutdownLatch.await(100, TimeUnit.MILLISECONDS);
@@ -1174,10 +1183,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     clearStatusOverride();
                     redrawPrompt();
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                // Throwable, not Exception: an Error such as NoClassDefFoundError (e.g. the jar was rebuilt under a
+                // running instance, so a lazily-loaded class vanished) must not kill the input thread and strand the
+                // terminal in raw mode. Surface it and keep the loop alive so the terminal stays usable and quittable.
                 dispatchException(e);
                 appendPlain(List.of(theme.styled("toolError", Util.stackTrace(e))));
-                setTransientStatus("Read input error — waiting", 5000);
+                setTransientStatus("Error handling input — terminal still active; restart pijota if it persists", 5000);
                 redrawPrompt();
             }
         }
@@ -1873,26 +1885,35 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case AgentEvent.TurnStart _ -> {
                 followUps.clearPending();
                 streamRenderer.reset();
+                streamingContent = false;
                 busyPhase = "waiting for model";
                 redrawPrompt();
             }
             case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
                 if (usage == null)
                     busyPhase = null;
+                streamingContent = usage == null; // reserve the live-tail row for the whole streaming turn
                 String content = msg.content() == null ? "" : msg.content();
+                boolean committed = false;
                 if (showThinking() && msg.thinking() != null && !msg.thinking().isBlank())
-                    streamRenderer.streamThinking(msg.thinking());
+                    committed = streamRenderer.streamThinking(msg.thinking());
                 // Assistant messages always stream. Message renderers apply to custom messages (handled by the
                 // CustomMessage case below), and never to assistant content — so they must not disable streaming.
-                redrawPrompt();
-                streamRenderer.streamContent(content);
+                committed = streamRenderer.streamContent(content) || committed;
                 if (usage != null) {
                     streamRenderer.closeThinking();
                     streamRenderer.flush();
+                    redrawPrompt(); // final frame: clears the now-committed tail, unthrottled
+                } else if (committed) {
+                    // A line just committed: a full redraw keeps the committed line and the region (with the refreshed
+                    // tail) in one consistent frame — otherwise the stale tail makes the prompt jitter up then down.
                     redrawPrompt();
+                } else {
+                    redrawStreamTail(); // live preview of the in-progress line, ~30fps
                 }
             }
             case AgentEvent.ToolStart(var name, var toolCallId, var args) -> {
+                streamingContent = false;
                 streamRenderer.closeThinking();
                 streamRenderer.flush();
                 if (toolCallId != null)
@@ -2017,7 +2038,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
         snapshot = snapshot.withCwd(cwdLine).withContextPct(tokenPct()).withPendingMessages(followUps.pending())
                                         .withExtensionLines(mergedExtensionLines())
-                                        .withPromptState(promptState(snapshot, status));
+                                        .withPromptState(promptState(snapshot, status))
+                                        .withStreamTail(streamingContent ? streamRenderer.liveTail().orElse("") : null);
         if (!busy.get()) {
             return snapshot.withStatus(tokens).withWarning(status);
         }
@@ -2157,6 +2179,24 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (logViewer.active())
             logViewer.setViewport(fitViewerViewport(snapshot));
         terminalUi.redrawPrompt(snapshot);
+    }
+
+    // Coalesces the live streaming-tail repaint to ~30fps. The terminal writer thread already batches enqueued frames;
+    // this just avoids rebuilding a snapshot per token on the event thread. The final, line-committing frame goes
+    // through the unthrottled redrawPrompt(), and the 125ms working-animation tick is a backstop, so nothing is lost.
+    private static final long STREAM_REPAINT_INTERVAL_MS = 33;
+    private long lastStreamRepaintAt;
+
+    private void redrawStreamTail() {
+        long now = System.currentTimeMillis();
+        if (now - lastStreamRepaintAt < STREAM_REPAINT_INTERVAL_MS)
+            return;
+        lastStreamRepaintAt = now;
+        String tail = streamRenderer.liveTail().orElse(null);
+        // Blank tail (between lines) needs no repaint: the just-committed line's append frame already refreshed the
+        // region. Otherwise repaint just the tail row in place — no whole-region erase, so streaming never strobes.
+        if (tail != null && !tail.isBlank())
+            terminalUi.updateStreamTail(tail);
     }
 
     /**

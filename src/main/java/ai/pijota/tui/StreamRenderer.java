@@ -5,6 +5,7 @@ import ai.pijota.util.Util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -30,6 +31,7 @@ final class StreamRenderer {
     private final Supplier<String> thinkingLabel;
 
     private AnsiTheme theme;
+    private AnsiTheme thinkingTheme;
     private final StreamingMarkdownFormatter markdown;
     private final StreamingMarkdownFormatter thinkingMarkdown;
     private final LineAccumulator contentLines = new LineAccumulator();
@@ -48,15 +50,20 @@ final class StreamRenderer {
                                     BooleanSupplier showThinking, Supplier<String> thinkingLabel) {
         this.output = output;
         this.theme = theme;
+        this.thinkingTheme = thinkingTheme;
         this.usableWidth = usableWidth;
         this.showThinking = showThinking;
         this.thinkingLabel = thinkingLabel;
         this.markdown = new StreamingMarkdownFormatter(theme);
-        this.thinkingMarkdown = new StreamingMarkdownFormatter(thinkingTheme, "thinkingText", true);
+        // Thinking renders through the SAME markdown pipeline/config as content (default body slot, no forced italic);
+        // the only difference is the fully-dimmed thinkingTheme, so syntax highlighting, tables, bold/italic etc. all
+        // appear exactly like regular output, just dimmed.
+        this.thinkingMarkdown = new StreamingMarkdownFormatter(thinkingTheme);
     }
 
     void setTheme(AnsiTheme theme, AnsiTheme thinkingTheme) {
         this.theme = theme;
+        this.thinkingTheme = thinkingTheme;
         this.markdown.setTheme(theme);
         this.thinkingMarkdown.setTheme(thinkingTheme);
     }
@@ -87,30 +94,79 @@ final class StreamRenderer {
         thinkingMarkdown.reset();
     }
 
-    /** Streams a thinking update. The caller decides whether thinking should be shown before calling this. */
-    void streamThinking(String fullThinking) {
+    /**
+     * Streams a thinking update. The caller decides whether thinking should be shown before calling this. Returns true
+     * if it changed scrollback this call (emitted the header or committed a completed thinking line) — the caller uses
+     * that to do a full, consistent redraw (otherwise the live thinking tail is repainted in place).
+     */
+    boolean streamThinking(String fullThinking) {
+        boolean changed = false;
         if (!thinkingHeaderShown) {
             thinkingStartedAt = System.currentTimeMillis();
             // Blank line before the header (not after the summary): separates the block from whatever preceded it
             // while keeping the closing summary flush against the answer that follows.
             emitPlain(List.of("", thinkingHeader()));
             thinkingHeaderShown = true;
+            changed = true;
         }
         String delta = deltaPrefix(fullThinking, lastThinking);
-        appendThinking(thinkingLines.accept(delta));
+        var committed = thinkingLines.accept(delta);
+        appendThinking(committed);
         lastThinking = fullThinking;
+        return changed || !committed.isEmpty();
     }
 
-    /** Streams a content update, closing the thinking block on the first non-empty content. */
-    void streamContent(String fullContent) {
+    /**
+     * Streams a content update, closing the thinking block on the first non-empty content. Returns true if it committed
+     * one or more completed lines to scrollback this call (a newline arrived) — the caller uses that to do a full,
+     * consistent redraw so the committed line and the refreshed tail land in the same frame.
+     */
+    boolean streamContent(String fullContent) {
         String delta = deltaPrefix(fullContent, lastContent);
         if (!delta.isEmpty() && !contentStarted) {
             if (thinkingHeaderShown)
                 closeThinking();
             contentStarted = true;
         }
-        appendContentLines(contentLines.accept(delta));
+        var committed = contentLines.accept(delta);
+        appendContentLines(committed);
         lastContent = fullContent;
+        return !committed.isEmpty();
+    }
+
+    /**
+     * The current in-progress content line for live preview at the bottom of the screen, or empty when there is nothing
+     * to preview. This is a non-consuming read: the partial is still committed (markdown-formatted, filtered) on its
+     * terminating newline via {@link #streamContent}/{@link #flush}. The preview is deliberately plain — it skips the
+     * stateful markdown/system-reminder pipeline, so a line may visually reflow when it commits. Suppressed while
+     * inside a {@code <system-reminder>} span or for reasoning-meta lines (both would be stripped on commit anyway).
+     */
+    Optional<String> contentLiveTail() {
+        if (!contentStarted || streamProc.suppressing())
+            return Optional.empty();
+        String partial = contentLines.partialView();
+        int reminder = partial.indexOf("<system-reminder>");
+        if (reminder >= 0)
+            partial = partial.substring(0, reminder);
+        if (partial.isBlank() || StreamProcessor.isReasoningMetaLine(partial.strip()))
+            return Optional.empty();
+        return Optional.of(partial);
+    }
+
+    /**
+     * The in-progress line to preview live at the bottom of the screen, PRE-STYLED: the thinking partial (dimmed, via
+     * the thinking theme) while reasoning, then the content partial (normal). Raw — no markdown — so it appears
+     * instantly and may reflow into formatted/dimmed scrollback when the line commits. Empty when nothing is streaming.
+     */
+    Optional<String> liveTail() {
+        if (contentStarted)
+            return contentLiveTail().map(t -> theme.styled("text", t));
+        if (thinkingHeaderShown && !thinkingFooterShown) {
+            String p = thinkingLines.partialView();
+            if (!p.isBlank() && !StreamProcessor.isReasoningMetaLine(p.strip()))
+                return Optional.of(thinkingTheme.styled("text", p));
+        }
+        return Optional.empty();
     }
 
     void closeThinking() {
