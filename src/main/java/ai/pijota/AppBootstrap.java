@@ -144,6 +144,8 @@ final class AppBootstrap {
         var session = new PijotaSession(llm, tools, sessions, ext, systemPrompt, cwd, parsedArgs.noSession(),
                                         contextWindow, settings.config().compaction());
         ext.setAgentLoop(session.agentLoop());
+        // Generic built-in commands (e.g. /model) usable by every frontend — registered once the session exists.
+        ext.register(new ai.pijota.extensions.examples.CoreCommandsExtension(session, settings));
         boolean loadedSession = false;
         try {
             if (parsedArgs.sessionPath() != null) {

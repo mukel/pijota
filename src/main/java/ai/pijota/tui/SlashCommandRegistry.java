@@ -45,8 +45,13 @@ final class SlashCommandRegistry {
 
     public SlashCommandRegistry(List<SlashCommand> extensionCommands) {
         var list = new ArrayList<CompletionItem>(BUILTIN_COMMANDS);
+        var builtinNames = BUILTIN_COMMANDS.stream().map(CompletionItem::name)
+                                        .collect(java.util.stream.Collectors.toSet());
         for (var ext : extensionCommands) {
-            list.add(new CompletionItem("/" + ext.name(), ext.description()));
+            // A built-in with the same name (e.g. the terminal-native /model) takes precedence here; skip the
+            // generic duplicate so completion lists it once.
+            if (!builtinNames.contains("/" + ext.name()))
+                list.add(new CompletionItem("/" + ext.name(), ext.description()));
         }
         this.commands = List.copyOf(list);
     }

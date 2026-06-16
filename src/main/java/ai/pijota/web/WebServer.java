@@ -1,0 +1,423 @@
+package ai.pijota.web;
+
+import ai.pijota.agent.AgentEvent;
+import ai.pijota.agent.PijotaSession;
+import ai.pijota.llm.LlmClient;
+import ai.pijota.messages.Message;
+import ai.pijota.messages.ToolCall;
+import ai.pijota.modes.SlashCommand;
+import ai.pijota.util.ErrorUtil;
+import ai.pijota.util.Util;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+
+/**
+ * A tiny web frontend for a {@link PijotaSession}: the chat <em>is</em> the conversation, served as a single page. The
+ * agent's {@link AgentEvent} stream is pushed to the browser over Server-Sent Events; the browser POSTs prompts,
+ * interrupts and dialog answers back. Built entirely on the JDK's {@link HttpServer} — no web framework, no extra
+ * dependency.
+ *
+ * <p>
+ * Security: this server lets the browser drive an agent that can run shell commands, so it binds to loopback
+ * ({@code 127.0.0.1}) only and is never exposed on a routable interface. It is a personal, single-user control surface.
+ */
+public final class WebServer implements AutoCloseable {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WebServer.class);
+    private static final long HEARTBEAT_SECONDS = 15; // SSE comment ping; a failed write prunes a closed browser tab
+    private static final long STREAM_COALESCE_MS = 60; // cap streaming-update fan-out; each partial carries full
+                                                       // content
+
+    private volatile long lastStreamAt;
+    private volatile List<String> lastStatusLines = List.of();
+    private volatile String lastStats = "";
+
+    private final PijotaSession session;
+    private final int port;
+    private final LlmClient llm; // current model + usage, read live for the header (same accessors the TUI uses)
+    private final Supplier<List<String>> statusLines; // keyed statuses + registered status/footer lines (TUI parity)
+    private final List<SlashCommand> commands;
+    private final WebUiContext ui;
+    private final Set<SseClient> clients = ConcurrentHashMap.newKeySet();
+    private final ScheduledExecutorService heartbeat = Executors
+                                    .newSingleThreadScheduledExecutor(daemon("pijota-web-hb"));
+
+    private HttpServer http;
+
+    /**
+     * @param commands
+     *            the registered slash commands the browser may run — all frontend-agnostic (extension commands plus
+     *            generic built-ins like {@code /model} from {@code CoreCommandsExtension}). Terminal-bound TUI commands
+     *            are not in this set.
+     */
+    public WebServer(PijotaSession session, int port, LlmClient llm, Supplier<List<String>> statusLines,
+                                    List<SlashCommand> commands) {
+        this.session = session;
+        this.port = port;
+        this.llm = llm;
+        this.statusLines = statusLines;
+        this.commands = List.copyOf(commands);
+        this.ui = new WebUiContext(this::broadcast);
+    }
+
+    /** The agent's interactive-callback surface (confirm/select/prompt) bridged to the browser. */
+    public WebUiContext ui() {
+        return ui;
+    }
+
+    public void start() throws IOException {
+        http = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        http.createContext("/events", this::serveEvents);
+        http.createContext("/prompt", this::handlePrompt);
+        http.createContext("/interrupt", this::handleInterrupt);
+        http.createContext("/answer", this::handleAnswer);
+        http.createContext("/commands", this::handleCommands);
+        http.createContext("/", this::serveIndex); // catch-all: index for "/", 404 otherwise
+        http.setExecutor(Executors.newCachedThreadPool(daemon("pijota-web")));
+        session.addEventListener(this::onEvent);
+        heartbeat.scheduleAtFixedRate(this::ping, HEARTBEAT_SECONDS, HEARTBEAT_SECONDS, TimeUnit.SECONDS);
+        heartbeat.scheduleAtFixedRate(this::pollStats, 1, 1, TimeUnit.SECONDS); // push model/usage on change
+        heartbeat.scheduleAtFixedRate(this::pollStatusLines, 1, 1, TimeUnit.SECONDS); // push keyed/footer status
+                                                                                      // changes
+        http.start();
+        log.info("web ui on http://127.0.0.1:{}", port);
+    }
+
+    @Override
+    public void close() {
+        heartbeat.shutdownNow();
+        if (http != null)
+            http.stop(0);
+        for (SseClient c : clients)
+            c.release();
+    }
+
+    // ---- routes ----
+
+    private void serveIndex(HttpExchange ex) throws IOException {
+        if (!"/".equals(ex.getRequestURI().getPath())) {
+            send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        try (InputStream in = WebServer.class.getResourceAsStream("/web/index.html")) {
+            byte[] html = in.readAllBytes();
+            send(ex, 200, "text/html; charset=utf-8", html);
+        }
+    }
+
+    /** Long-lived SSE connection: replay history, then stream live events until the browser disconnects. */
+    private void serveEvents(HttpExchange ex) throws IOException {
+        ex.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
+        ex.getResponseHeaders().set("Cache-Control", "no-cache");
+        ex.getResponseHeaders().set("Connection", "keep-alive");
+        ex.sendResponseHeaders(200, 0); // 0 => chunked, open-ended
+        SseClient client = new SseClient(ex.getResponseBody());
+        clients.add(client);
+        try {
+            client.write(frame("history", Util.MAPPER.writeValueAsString(history())));
+            client.write(frame("statuslines", Util.MAPPER.writeValueAsString(Map.of("lines", lastStatusLines))));
+            client.write(frame("stats", Util.MAPPER.writeValueAsString(statsMap())));
+            client.await(); // parked until a write fails (disconnect) or the server closes
+        } catch (IOException ignored) {
+            // client went away before/while replaying history
+        } finally {
+            clients.remove(client);
+            ex.close();
+        }
+    }
+
+    private void handlePrompt(HttpExchange ex) throws IOException {
+        if (requirePost(ex))
+            return;
+        String text = strField(readBody(ex), "text");
+        if (text != null && !text.isBlank()) {
+            if (text.stripLeading().startsWith("/"))
+                runCommand(text.strip());
+            else {
+                broadcast("user", Map.of("content", text));
+                if (session.isBusy())
+                    session.followUp(text); // queue onto the running turn, mirroring the TUI
+                else
+                    session.prompt(text).exceptionally(t -> {
+                        broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
+                        return List.of();
+                    });
+            }
+        }
+        send(ex, 204, "text/plain", new byte[0]);
+    }
+
+    private void handleCommands(HttpExchange ex) throws IOException {
+        var list = new ArrayList<Map<String, Object>>();
+        for (SlashCommand c : commands)
+            list.add(Map.of("name", "/" + c.name(), "description", nz(c.description())));
+        send(ex, 200, "application/json; charset=utf-8", Util.MAPPER.writeValueAsBytes(list));
+    }
+
+    /**
+     * Runs an extension slash command. The command line is echoed as a custom note (commands aren't part of the LLM
+     * conversation), and the handler runs off the request thread since some block. Unknown commands report back instead
+     * of being sent to the model.
+     */
+    private void runCommand(String line) {
+        String name = line.split("\\s+", 2)[0].substring(1).toLowerCase(); // drop leading '/'
+        String args = line.length() > name.length() + 1 ? line.substring(name.length() + 1).strip() : "";
+        SlashCommand cmd = commands.stream()
+                                        .filter(c -> c.name().equalsIgnoreCase(name) || c.aliases().stream()
+                                                                        .anyMatch(a -> a.equalsIgnoreCase(name)))
+                                        .findFirst().orElse(null);
+        if (cmd == null) {
+            broadcast("status", Map.of("message", "unknown command: /" + name, "alert", true));
+            return;
+        }
+        broadcast("custom", Map.of("type", "command", "content", line));
+        java.util.concurrent.CompletableFuture.runAsync(() -> cmd.handler().accept(args)).exceptionally(t -> {
+            broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
+            return null;
+        });
+    }
+
+    private void handleInterrupt(HttpExchange ex) throws IOException {
+        if (requirePost(ex))
+            return;
+        session.abort();
+        send(ex, 204, "text/plain", new byte[0]);
+    }
+
+    private void handleAnswer(HttpExchange ex) throws IOException {
+        if (requirePost(ex))
+            return;
+        String body = readBody(ex);
+        ui.resolve(strField(body, "id"), strField(body, "value"));
+        send(ex, 204, "text/plain", new byte[0]);
+    }
+
+    // ---- event fan-out ----
+
+    private void onEvent(AgentEvent event) {
+        switch (event) {
+            case AgentEvent.TurnStart ignored -> broadcast("turn", Map.of("busy", true));
+            case AgentEvent.TurnEnd ignored -> broadcast("turn", Map.of("busy", false));
+            case AgentEvent.MessageStreamStart s -> broadcast("stream_start", Map.of("type", s.messageType()));
+            case AgentEvent.AssistantMessage(Message.Assistant m, var usage) -> {
+                // Fires per token with the FULL accumulated content; coalesce intermediate frames so a long answer
+                // doesn't serialize+push O(n²) bytes on the streaming thread. The final frame (usage != null) always
+                // sends so the browser ends on complete content.
+                boolean isFinal = usage != null;
+                long now = System.currentTimeMillis();
+                if (isFinal || now - lastStreamAt >= STREAM_COALESCE_MS) {
+                    lastStreamAt = now;
+                    broadcast("assistant", assistant(m, isFinal));
+                }
+            }
+            case AgentEvent.ToolStart(var name, var id, var args) ->
+                broadcast("tool", Map.of("id", nz(id), "name", nz(name), "args", nz(args.get())));
+            case AgentEvent.ToolResult(Message.ToolResult r) ->
+                broadcast("tool_result", Map.of("id", nz(r.toolCallId()), "name", nz(r.toolName()), "content",
+                                                nz(r.content()), "isError", r.isError()));
+            case AgentEvent.CustomMessage(Message.Custom c) ->
+                broadcast("custom", Map.of("type", nz(c.customType()), "content", nz(c.content())));
+            case AgentEvent.Error(Throwable t) -> broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
+            case AgentEvent.HistoryChanged ignored -> broadcast("history", history()); // re-render after new/load/undo
+            default -> {
+                // TurnStart/compaction internals/stream deltas have no distinct browser representation here
+            }
+        }
+    }
+
+    /** Serializes the whole conversation so a freshly-connected (or reloaded) browser can render it. */
+    private List<Map<String, Object>> history() {
+        var out = new ArrayList<Map<String, Object>>();
+        for (Message m : session.messages()) {
+            switch (m) {
+                case Message.User u -> out.add(Map.of("role", "user", "content", nz(u.content())));
+                case Message.Assistant a -> {
+                    if (!nz(a.content()).isBlank() || !nz(a.thinking()).isBlank() || !a.toolCalls().isEmpty())
+                        out.add(assistant(a, true));
+                }
+                case Message.ToolResult r -> out.add(Map.of("role", "tool", "id", nz(r.toolCallId()), "name",
+                                                nz(r.toolName()), "content", nz(r.content()), "isError", r.isError()));
+                case Message.Custom c ->
+                    out.add(Map.of("role", "custom", "type", nz(c.customType()), "content", nz(c.content())));
+                default -> {
+                    // System/CompactionSummary are internal context, not shown in the chat transcript
+                }
+            }
+        }
+        return out;
+    }
+
+    private static Map<String, Object> assistant(Message.Assistant m, boolean isFinal) {
+        var tools = new ArrayList<Map<String, Object>>();
+        for (ToolCall tc : m.toolCalls())
+            tools.add(Map.of("id", nz(tc.id()), "name", nz(tc.name()), "args", nz(tc.arguments())));
+        var map = new LinkedHashMap<String, Object>();
+        map.put("role", "assistant");
+        map.put("content", nz(m.content()));
+        map.put("thinking", nz(m.thinking()));
+        map.put("toolCalls", tools);
+        map.put("final", isFinal);
+        return map;
+    }
+
+    private void broadcast(String event, Object data) {
+        if (clients.isEmpty())
+            return;
+        byte[] frame;
+        try {
+            frame = frame(event, Util.MAPPER.writeValueAsString(data)); // build the frame once, not per client
+        } catch (Exception e) {
+            log.warn("web event serialize failed: {}", e.getMessage());
+            return;
+        }
+        for (SseClient c : clients)
+            write(c, frame);
+    }
+
+    /** Writes one prebuilt frame to a client, dropping it if the tab is gone. */
+    private void write(SseClient c, byte[] frame) {
+        try {
+            c.write(frame);
+        } catch (IOException disconnected) {
+            c.release();
+            clients.remove(c);
+        }
+    }
+
+    /** Pushes the aggregated status lines (keyed statuses + status/footer providers) when they change. */
+    private void pollStatusLines() {
+        if (statusLines == null || clients.isEmpty())
+            return;
+        List<String> lines = statusLines.get();
+        if (lines.equals(lastStatusLines))
+            return;
+        lastStatusLines = List.copyOf(lines);
+        broadcast("statuslines", Map.of("lines", lastStatusLines));
+    }
+
+    /** Pushes the current model + usage to the header when it changes (reflects /model switches and accruing cost). */
+    private void pollStats() {
+        if (llm == null || clients.isEmpty())
+            return;
+        Map<String, Object> stats = statsMap();
+        String sig = stats.toString();
+        if (sig.equals(lastStats))
+            return;
+        lastStats = sig;
+        broadcast("stats", stats);
+    }
+
+    private Map<String, Object> statsMap() {
+        if (llm == null)
+            return Map.of();
+        return Map.of("model", nz(llm.provider()) + "/" + nz(llm.model()), "context", session.estimatedContextTokens(),
+                                        "cost", llm.totalCost());
+    }
+
+    private void ping() {
+        for (SseClient c : clients)
+            write(c, PING);
+    }
+
+    // ---- small HTTP helpers ----
+
+    private static boolean requirePost(HttpExchange ex) throws IOException {
+        if ("POST".equalsIgnoreCase(ex.getRequestMethod()))
+            return false;
+        send(ex, 405, "text/plain", "method not allowed".getBytes(StandardCharsets.UTF_8));
+        return true;
+    }
+
+    private static String readBody(HttpExchange ex) throws IOException {
+        try (InputStream in = ex.getRequestBody()) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    /** Pulls one string field out of a small JSON object body; null if absent. Avoids a DTO per endpoint. */
+    private static String strField(String json, String field) {
+        try {
+            var node = Util.MAPPER.readTree(json).get(field);
+            return node == null || node.isNull() ? null : node.asText();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static void send(HttpExchange ex, int code, String contentType, byte[] body) throws IOException {
+        ex.getResponseHeaders().set("Content-Type", contentType);
+        ex.sendResponseHeaders(code, body.length == 0 ? -1 : body.length);
+        if (body.length > 0)
+            try (OutputStream os = ex.getResponseBody()) {
+                os.write(body);
+            }
+    }
+
+    /** Builds an SSE frame; data may not contain a bare newline, so each line gets its own {@code data:} field. */
+    private static byte[] frame(String event, String json) {
+        var sb = new StringBuilder("event: ").append(event).append('\n');
+        for (String line : json.split("\n", -1))
+            sb.append("data: ").append(line).append('\n');
+        sb.append('\n');
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String nz(String s) {
+        return s == null ? "" : s;
+    }
+
+    private static ThreadFactory daemon(String name) {
+        return r -> {
+            Thread t = new Thread(r, name);
+            t.setDaemon(true);
+            return t;
+        };
+    }
+
+    private static final byte[] PING = ": ping\n\n".getBytes(StandardCharsets.UTF_8);
+
+    /** One browser's SSE pipe. Writes are serialized; a failed write means the tab is gone. */
+    private static final class SseClient {
+        private final OutputStream out;
+        private final CountDownLatch closed = new CountDownLatch(1);
+
+        SseClient(OutputStream out) {
+            this.out = out;
+        }
+
+        synchronized void write(byte[] frame) throws IOException {
+            out.write(frame);
+            out.flush();
+        }
+
+        void await() throws IOException {
+            try {
+                closed.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        void release() {
+            closed.countDown();
+        }
+    }
+}

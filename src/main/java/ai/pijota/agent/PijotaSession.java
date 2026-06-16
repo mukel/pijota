@@ -187,7 +187,9 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public Optional<String> undoLastUserTurn() {
-        return agentLoop.undoLastUserTurn();
+        Optional<String> undone = agentLoop.undoLastUserTurn();
+        undone.ifPresent(ignored -> agentLoop.notifyHistoryChanged("undo"));
+        return undone;
     }
 
     public void abort() {
@@ -414,7 +416,7 @@ public final class PijotaSession implements AutoCloseable {
         sessionWarning = message;
     }
 
-    private void switchSession(Path newFile) throws IOException {
+    private void switchSession(Path newFile, String reason) throws IOException {
         this.sessionFile = newFile;
         this.disableSession = false;
         SelfRespawn.setSessionFile(newFile);
@@ -430,6 +432,7 @@ public final class PijotaSession implements AutoCloseable {
         agentLoop.restoreMessages(msgs);
         agentLoop.replaceSystemPrompt(restoredPrompt);
         extensionRegistry.setSystemPrompt(restoredPrompt);
+        agentLoop.notifyHistoryChanged(reason); // let frontends mirroring the transcript re-render
     }
 
     private void saveRegisters() {
@@ -471,7 +474,7 @@ public final class PijotaSession implements AutoCloseable {
     public int load(Path file) throws IOException {
         if (this.sessionFile != null && !this.sessionFile.equals(file))
             sessionManager.deleteIfEmpty(this.sessionFile); // drop the auto-created session if we never used it
-        switchSession(file);
+        switchSession(file, "load");
         return agentLoop.messages().size();
     }
 
@@ -486,7 +489,7 @@ public final class PijotaSession implements AutoCloseable {
     public Path newSession() throws IOException {
         Path previous = this.sessionFile;
         Path newFile = sessionManager.createSession(cwd);
-        switchSession(newFile);
+        switchSession(newFile, "new");
         refreshCacheMetadata();
         if (previous != null && !previous.equals(newFile))
             sessionManager.deleteIfEmpty(previous); // discard the prior session if it was never used
@@ -497,7 +500,7 @@ public final class PijotaSession implements AutoCloseable {
         if (sessionFile == null)
             throw new IOException("No active session");
         Path newFile = sessionManager.forkSession(sessionFile, entryId, cwd);
-        switchSession(newFile);
+        switchSession(newFile, "fork");
         return newFile;
     }
 
@@ -505,7 +508,7 @@ public final class PijotaSession implements AutoCloseable {
         if (sessionFile == null)
             throw new IOException("No active session");
         Path newFile = sessionManager.migrate(sessionFile, sessionManager.leafId(), cwd);
-        switchSession(newFile);
+        switchSession(newFile, "clone");
         return newFile;
     }
 

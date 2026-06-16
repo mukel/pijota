@@ -1,97 +1,39 @@
 package ai.pijota.tui;
 
-import ai.pijota.util.Util;
+import ai.pijota.agent.SessionDescriptor;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * A {@link SelectorItem} wrapper over the generic {@link SessionDescriptor} — the descriptor derives the readable label
+ * (shared by every frontend); this class only adds the terminal selector's presentation.
+ */
 public record SessionItem(Path path, String name, String description, long mtime,
                                 boolean named) implements SelectorItem {
 
-    private static final int MAX_DESC_LEN = 80;
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("MMM d HH:mm")
                                     .withZone(ZoneId.systemDefault());
 
     public static List<SessionItem> fromPaths(List<Path> paths) {
-        var items = new ArrayList<SessionItem>();
-        for (var p : paths) {
-            String name = p.getFileName().toString();
-            if (name.endsWith(".jsonl"))
-                name = name.substring(0, name.length() - 6);
-            var description = readDescription(p);
-            long mtime;
-            try {
-                mtime = Files.getLastModifiedTime(p).toMillis();
-            } catch (IOException e) {
-                mtime = 0;
-            }
-            items.add(new SessionItem(p, name, description.text(), mtime, description.named()));
-        }
-        return items;
+        return SessionDescriptor.describeAll(paths).stream().map(
+                                        d -> new SessionItem(d.path(), d.id(), d.description(), d.mtime(), d.named()))
+                                        .toList();
     }
 
-    private static Description readDescription(Path p) {
-        String firstUser = null;
-        String sessionName = null;
-        try (var lines = Files.lines(p)) {
-            for (var it = lines.iterator(); it.hasNext();) {
-                var parsed = descriptionFromLine(it.next());
-                if (parsed == null)
-                    continue;
-                if (parsed.sessionName() != null)
-                    sessionName = parsed.sessionName();
-                if (firstUser == null && parsed.firstUser() != null)
-                    firstUser = parsed.firstUser();
-            }
-            if (sessionName != null)
-                return new Description(sessionName, true);
-            return new Description(firstUser != null ? firstUser : "(empty)", false);
-        } catch (IOException e) {
-            return new Description("(unreadable)", false);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    static ParsedDescription descriptionFromLine(String line) {
-        try {
-            Map<String, Object> entry = Util.MAPPER.readValue(line, Map.class);
-            if ("session_info".equals(entry.get("type"))) {
-                String name = clean((String) entry.get("name"));
-                return new ParsedDescription(null, name == null ? null : truncate(name));
-            }
-            if (!"message".equals(entry.getOrDefault("type", "message")))
-                return null;
-            if (!"user".equals(entry.getOrDefault("role", "")))
-                return null;
-            return new ParsedDescription(truncate(clean((String) entry.get("content"))), null);
-        } catch (Exception e) {
-            return null;
-        }
+    static SessionDescriptor.ParsedDescription descriptionFromLine(String line) {
+        return SessionDescriptor.parseLine(line);
     }
 
     static String clean(String s) {
-        if (s == null || s.isBlank())
-            return null;
-        return s.replaceAll("(?s)<system-reminder>.*?</system-reminder>", "").replace('\n', ' ').replace('\r', ' ')
-                                        .replaceAll("\\s+", " ").trim();
+        return SessionDescriptor.clean(s);
     }
 
     static String truncate(String s) {
-        if (s == null || s.length() <= MAX_DESC_LEN)
-            return s;
-        int cut = MAX_DESC_LEN;
-        while (cut > MAX_DESC_LEN - 10 && cut > 0 && !Character.isWhitespace(s.charAt(cut)))
-            cut--;
-        if (cut <= MAX_DESC_LEN - 10 || cut <= 0)
-            cut = MAX_DESC_LEN;
-        return s.substring(0, cut) + "…";
+        return SessionDescriptor.truncate(s);
     }
 
     @Override
@@ -119,10 +61,5 @@ public record SessionItem(Path path, String name, String description, long mtime
         String shortName = name.length() > 14 ? name.substring(0, 14) : name;
         String date = mtime > 0 ? DATE.format(Instant.ofEpochMilli(mtime)) : "unknown";
         return age + "  " + date + "  " + shortName;
-    }
-
-    record ParsedDescription(String firstUser, String sessionName) {
-    }
-    private record Description(String text, boolean named) {
     }
 }

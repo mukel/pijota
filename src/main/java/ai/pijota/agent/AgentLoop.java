@@ -450,6 +450,11 @@ public final class AgentLoop implements AgentContext {
         }
     }
 
+    /** Signals that the conversation history was replaced wholesale (load/new/undo/fork) so frontends can re-render. */
+    public void notifyHistoryChanged(String reason) {
+        fireEvent(new AgentEvent.HistoryChanged(reason));
+    }
+
     private <T> CompletableFuture<T> retry(Supplier<CompletableFuture<T>> task) {
         return retry(task, 0);
     }

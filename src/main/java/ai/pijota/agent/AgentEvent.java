@@ -35,6 +35,14 @@ public sealed interface AgentEvent {
     record Compaction(List<Message> compactedMessages, int oldCount, int estimatedChars, int estimatedTokens,
                                     String summary, String reason) implements AgentEvent {
     }
+
+    /**
+     * The conversation history was replaced wholesale (new session, load/resume, undo, fork) — not an incremental
+     * append. Frontends that mirror the transcript should re-render it from {@code session.messages()}. {@code reason}
+     * is a short tag (e.g. {@code "new"}, {@code "load"}, {@code "undo"}, {@code "fork"}).
+     */
+    record HistoryChanged(String reason) implements AgentEvent {
+    }
     record CustomMessage(Message.Custom message) implements AgentEvent {
     }
     record Error(Throwable throwable) implements AgentEvent {

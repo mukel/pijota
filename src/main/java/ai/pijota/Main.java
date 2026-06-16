@@ -16,6 +16,7 @@ import ai.pijota.modes.RpcMode;
 import ai.pijota.telegram.TelegramChat;
 import ai.pijota.telegram.TelegramClient;
 import ai.pijota.telegram.TelegramFrontend;
+import ai.pijota.web.WebServer;
 import ai.pijota.tui.AppendOnlyTui;
 import ai.pijota.util.PijotaHome;
 import ai.pijota.util.SelfRespawn;
@@ -88,6 +89,11 @@ public final class Main {
             return;
         }
 
+        if (parsedArgs.extensionFlags().containsKey("web")) {
+            runWeb(b, parsedArgs.extensionFlags().get("web"));
+            return;
+        }
+
         if (parsedArgs.print() || !parsedArgs.promptArgs().isEmpty() || stdinRedirected()) {
             String raw = !parsedArgs.promptArgs().isEmpty() ? String.join(" ", parsedArgs.promptArgs()) : readStdin();
             String prompt = FileProcessor.processFileReferences(parsedArgs.fileArgs(), raw);
@@ -155,6 +161,39 @@ public final class Main {
         try {
             frontend.run(); // blocks until the process is killed
         } finally {
+            b.extensions().cleanup();
+            session.close();
+        }
+    }
+
+    /**
+     * Runs pijota as a local web app: the browser is the UI. Serves a single-page chat over the JDK's HTTP server,
+     * streaming the agent's events via SSE and reusing the bootstrapped session. Binds loopback only — this control
+     * surface can run shell commands. {@code flagValue} is the {@code --web[=PORT]} value (a port, or "true" for the
+     * default).
+     */
+    private static void runWeb(AppBootstrap.Result b, String flagValue) {
+        int port = 8420;
+        if (flagValue != null && !flagValue.isBlank() && !"true".equals(flagValue)) {
+            try {
+                port = Integer.parseInt(flagValue.trim());
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid --web port '" + flagValue + "'; using " + port + ".");
+            }
+        }
+        var session = b.session();
+        var server = new WebServer(session, port, b.llm(), b.extensions()::statusLines, b.extensions().slashCommands());
+        b.extensions().setTui(server.ui()); // confirm/select/prompt via browser dialogs (UiContext seam)
+        b.extensions().setSuspendResume(() -> {}, () -> {}); // no terminal to suspend
+        b.extensions().ready();
+        try {
+            server.start();
+            System.err.println("[web] pijota web ui on http://127.0.0.1:" + port + " (Ctrl-C to stop)");
+            Thread.currentThread().join(); // block until the process is killed
+        } catch (Exception e) {
+            throw new RuntimeException("web server failed", e);
+        } finally {
+            server.close();
             b.extensions().cleanup();
             session.close();
         }
