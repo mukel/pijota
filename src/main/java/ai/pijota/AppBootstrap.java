@@ -176,6 +176,7 @@ final class AppBootstrap {
             session.checkCacheTarget();
         } else {
             session.refreshCacheMetadata();
+            session.recordInitialModelState();
         }
         mergeTranscendWorktree(parsedArgs);
 

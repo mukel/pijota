@@ -13,6 +13,9 @@ import ai.pijota.llm.ModelRegistry;
 import ai.pijota.config.ProviderCatalog;
 import ai.pijota.modes.PrintMode;
 import ai.pijota.modes.RpcMode;
+import ai.pijota.telegram.TelegramChat;
+import ai.pijota.telegram.TelegramClient;
+import ai.pijota.telegram.TelegramFrontend;
 import ai.pijota.tui.AppendOnlyTui;
 import ai.pijota.util.PijotaHome;
 import ai.pijota.util.SelfRespawn;
@@ -80,6 +83,11 @@ public final class Main {
             System.exit(ec);
         }
 
+        if (parsedArgs.extensionFlags().containsKey("telegram")) {
+            runTelegram(b);
+            return;
+        }
+
         if (parsedArgs.print() || !parsedArgs.promptArgs().isEmpty() || stdinRedirected()) {
             String raw = !parsedArgs.promptArgs().isEmpty() ? String.join(" ", parsedArgs.promptArgs()) : readStdin();
             String prompt = FileProcessor.processFileReferences(parsedArgs.fileArgs(), raw);
@@ -112,6 +120,42 @@ public final class Main {
         } finally {
             b.extensions().cleanup();
             tui.close();
+            session.close();
+        }
+    }
+
+    /**
+     * Runs pijota as a Telegram bot: the chat is the UI. This build serves ONE authorized chat reusing the single
+     * bootstrapped session (correct for a personal bot). True multi-chat needs a session per chat plus de-static-ing
+     * {@code SlashCommandTool}'s question handler. Config via env: {@code TELEGRAM_BOT_TOKEN} and
+     * {@code TELEGRAM_CHAT_ID}.
+     */
+    private static void runTelegram(AppBootstrap.Result b) {
+        String token = System.getenv("TELEGRAM_BOT_TOKEN");
+        if (token == null || token.isBlank()) {
+            System.err.println("Set TELEGRAM_BOT_TOKEN to run the Telegram bot (--telegram).");
+            System.exit(1);
+        }
+        String chatIdEnv = System.getenv("TELEGRAM_CHAT_ID");
+        if (chatIdEnv == null || chatIdEnv.isBlank()) {
+            System.err.println("Set TELEGRAM_CHAT_ID to the chat this bot serves (this build is single-chat).");
+            System.exit(1);
+        }
+        long allowedChat = Long.parseLong(chatIdEnv.trim());
+
+        var client = new TelegramClient(token);
+        var session = b.session();
+        var chat = new TelegramChat(allowedChat, session, client);
+        b.extensions().setTui(chat.ui()); // confirm/select/prompt via inline keyboards (UiContext seam)
+        b.extensions().setSuspendResume(() -> {}, () -> {}); // no terminal to suspend
+        b.extensions().ready();
+
+        System.err.println("[telegram] bot started for chat " + allowedChat + "; polling…");
+        var frontend = new TelegramFrontend(client, chatId -> chat, chatId -> chatId == allowedChat);
+        try {
+            frontend.run(); // blocks until the process is killed
+        } finally {
+            b.extensions().cleanup();
             session.close();
         }
     }

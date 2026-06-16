@@ -21,8 +21,8 @@ final class TerminalFrameRenderer {
         this.layout = layout;
     }
 
-    String renderFrame(int width, PromptSnapshot snapshot, List<StyledLine> lines, boolean erase, boolean showPrompt,
-                                    AnsiTheme theme) {
+    String renderFrame(int width, int height, PromptSnapshot snapshot, List<StyledLine> lines, boolean erase,
+                                    boolean showPrompt, AnsiTheme theme) {
         var buf = new StringWriter();
         var out = new PrintWriter(buf);
         out.print(BEGIN_SYNC);
@@ -39,21 +39,8 @@ final class TerminalFrameRenderer {
             }
         }
         if (showPrompt && snapshot != null) {
-            layout.renderAfterErase(out, width, theme, snapshot);
+            layout.renderAfterErase(out, width, height, theme, snapshot);
         }
-        out.print(SHOW_CURSOR);
-        out.print(END_SYNC);
-        out.flush();
-        return buf.toString();
-    }
-
-    /** A frame that repaints only the live-tail row in place (no whole-region erase) — for streaming token repaints. */
-    String renderTailFrame(int width, String tail, AnsiTheme theme) {
-        var buf = new StringWriter();
-        var out = new PrintWriter(buf);
-        out.print(BEGIN_SYNC);
-        out.print(HIDE_CURSOR);
-        layout.renderTailInPlace(out, width, theme, tail);
         out.print(SHOW_CURSOR);
         out.print(END_SYNC);
         out.flush();

@@ -55,9 +55,15 @@ class PromptLayoutTest {
 
     private static final Pattern CURSOR_UP = Pattern.compile("\\u001B\\[(\\d+)A");
 
+    private static final int TALL = 100; // a terminal tall enough that the tail budget never truncates
+
     private static String render(PromptLayout layout, int width, PromptSnapshot snap) {
+        return render(layout, width, TALL, snap);
+    }
+
+    private static String render(PromptLayout layout, int width, int height, PromptSnapshot snap) {
         var sw = new StringWriter();
-        layout.renderAfterErase(new PrintWriter(sw), width, AnsiTheme.dark(), snap);
+        layout.renderAfterErase(new PrintWriter(sw), width, height, AnsiTheme.dark(), snap);
         return AnsiStripper.strip(sw.toString());
     }
 
@@ -95,16 +101,28 @@ class PromptLayoutTest {
     }
 
     @Test
-    void longStreamTailWrapsCappedToMaxRows() {
+    void longStreamTailWrapsToManyRowsWhenScreenAllows() {
         var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
 
-        render(layout, 80, snapshot());
+        render(layout, 40, TALL, snapshot());
         int plainRows = eraseUpRows(layout);
-        render(layout, 40, snapshot().withStreamTail("x".repeat(500)));
+        render(layout, 40, TALL, snapshot().withStreamTail("x".repeat(500)));
         int longRows = eraseUpRows(layout);
-        // 500 cols at width 40 wraps to 13 rows, capped to the newest MAX_TAIL_ROWS (6)
-        assertEquals(plainRows + 6, longRows, "a long tail wraps but is capped so it can't overflow the frame");
-        assertFalse(layout.canUpdateTailInPlace(), "a wrapped multi-row tail cannot be updated in place");
+        // 500 cols at width 40 wraps to 13 rows; the tall screen has room, so the whole in-progress block is shown.
+        assertEquals(plainRows + 13, longRows, "a long in-progress line streams in full when the screen has room");
+    }
+
+    @Test
+    void longStreamTailCappedToAvailableScreenRowsKeepingNewest() {
+        var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
+
+        // height 10: separator (1) + editor (1) + one spare row leaves a 7-row budget for the tail.
+        render(layout, 40, 10, snapshot());
+        int plainRows = eraseUpRows(layout);
+        render(layout, 40, 10, snapshot().withStreamTail("x".repeat(500)));
+        int longRows = eraseUpRows(layout);
+        // 13 wrapped rows can't fit; capped to the newest 7 so it never pushes the prompt off the bottom.
+        assertEquals(plainRows + 7, longRows, "a tail taller than the screen is capped to the newest rows");
     }
 
     @Test
@@ -122,25 +140,7 @@ class PromptLayoutTest {
     void renderTrimsTrailingRowsAtTheEnd() {
         var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
         var sw = new StringWriter();
-        layout.renderAfterErase(new PrintWriter(sw), 80, AnsiTheme.dark(), snapshot());
+        layout.renderAfterErase(new PrintWriter(sw), 80, TALL, AnsiTheme.dark(), snapshot());
         assertTrue(sw.toString().contains("\033[J"), "redraw trims leftover rows of a shrunk frame at the end");
-    }
-
-    @Test
-    void canUpdateTailInPlaceOnlyAfterATailRowIsDrawn() {
-        var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
-
-        render(layout, 80, snapshot());
-        assertFalse(layout.canUpdateTailInPlace(), "no tail row drawn yet");
-
-        render(layout, 80, snapshot().withStreamTail("hi"));
-        assertTrue(layout.canUpdateTailInPlace(), "a tail row exists, so it can be repainted in place");
-
-        var sw = new StringWriter();
-        layout.renderTailInPlace(new PrintWriter(sw), 80, AnsiTheme.dark(), "hello");
-        String out = sw.toString();
-        assertTrue(out.contains("hello"), out);
-        assertTrue(out.contains("\033[K"), "the tail row is cleared before rewriting");
-        assertFalse(out.contains("\033[J"), "in-place tail must not blank anything");
     }
 }

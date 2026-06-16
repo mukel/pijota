@@ -9,14 +9,10 @@ public final class PromptLayout {
 
     private final List<PromptRegion> regions;
     private PromptSnapshot prompt = new PromptSnapshot(List.of(""), 0, 0, List.of());
-    // The live streaming tail is previewed wrapped, but capped to its newest rows so a long paragraph can't overflow
-    // (and break) the frame; the full text still lands in scrollback once the line commits.
-    private static final int MAX_TAIL_ROWS = 6;
 
     private int renderedHeight;
     private int visualCursorRow;
     private int visualCursorCol;
-    private int tailRows;
 
     public PromptLayout(List<PromptRegion> regions) {
         this.regions = List.copyOf(regions);
@@ -49,32 +45,40 @@ public final class PromptLayout {
         out.print("\r");
     }
 
-    public void renderAfterErase(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot snapshot) {
+    public void renderAfterErase(PrintWriter out, int width, int terminalHeight, AnsiTheme theme,
+                                    PromptSnapshot snapshot) {
         prompt = snapshot;
 
         int height = 0;
         int cursorRow = -1;
         int cursorCol = -1;
 
-        // The model's in-progress line, previewed live above the separator, wrapped across rows exactly as it will
-        // appear once committed (capped to its newest MAX_TAIL_ROWS so a long paragraph can't overflow the frame). A
-        // single-row tail is repainted in place per token (see canUpdateTailInPlace); a wrapped multi-row tail
-        // re-renders via a pure repaint. Rendering it wrapped — rather than a horizontally scrolling single line —
-        // is what keeps long in-progress lines readable.
-        // A non-null tail (even "") reserves the live row for the whole streaming turn — kept at constant height so the
-        // prompt doesn't jitter as lines commit; null means no streaming (idle), so no row. The tail arrives PRE-STYLED
-        // (content normal, thinking dimmed), so it is laid out as-is, not re-styled here.
+        // Measure every region once; the tail budget and the render loop below both need these heights.
+        int[] regionHeights = new int[regions.size()];
+        int regionsTotal = 0;
+        for (int i = 0; i < regions.size(); i++) {
+            regionHeights[i] = Math.max(0, regions.get(i).height(width, snapshot));
+            regionsTotal += regionHeights[i];
+        }
+
+        // The in-progress line is previewed live above the separator, wrapped to physical rows by the SAME routine that
+        // wraps committed lines (wrapPreservingAnsi) and at the same width — so styling, which never changes a glyph's
+        // visible width, can't move a wrap point: committing the line changes only colors, never layout (no reflow).
+        // The preview is capped to the rows left on screen after the separator + prompt regions, keeping the NEWEST
+        // rows, so a long in-progress block streams in full yet can never push the prompt off the bottom. A non-null
+        // tail (even "") reserves the row(s) for the streaming turn so the prompt doesn't jitter as lines commit; null
+        // means idle (no preview). The tail arrives PRE-STYLED with the base slot only (content normal, thinking
+        // dimmed); inline markdown styling and syntax highlighting are deferred to commit.
         String tail = snapshot.streamTail();
-        tailRows = 0;
         if (tail != null) {
+            int tailBudget = Math.max(1, terminalHeight - regionsTotal - 2); // less separator + one spare row
             var rows = AnsiWidth.wrapPreservingAnsi(tail, width);
-            for (int r = Math.max(0, rows.size() - MAX_TAIL_ROWS); r < rows.size(); r++) {
+            for (int r = Math.max(0, rows.size() - tailBudget); r < rows.size(); r++) {
                 // write-then-trim (content, then \033[K) — never blank the row before redrawing it (see eraseCurrent).
                 out.print("\r");
                 out.print(rows.get(r));
                 out.print("\033[K\r\n");
                 height++;
-                tailRows++;
             }
         }
 
@@ -86,13 +90,12 @@ public final class PromptLayout {
         int afterSeparator = height;
 
         for (int i = 0; i < regions.size(); i++) {
-            var region = regions.get(i);
-            int h = region.height(width, snapshot);
+            int h = regionHeights[i];
             if (h <= 0)
                 continue;
             if (height > afterSeparator)
                 out.print("\r\n");
-            var cursor = region.render(out, width, theme, snapshot);
+            var cursor = regions.get(i).render(out, width, theme, snapshot);
             if (cursor.visualRow() >= 0) {
                 cursorRow = height + cursor.visualRow();
                 cursorCol = cursor.visualCol();
@@ -117,34 +120,6 @@ public final class PromptLayout {
             if (cursorCol > 0)
                 out.print("\033[" + cursorCol + "C");
         }
-        out.flush();
-    }
-
-    /**
-     * Whether the live-tail can be repainted in place — only when the last full render drew it as a <em>single</em> row
-     * (region row 0) above the input cursor. A multi-row (wrapped) tail changes the region geometry as it grows, so the
-     * caller must do a full {@link #renderAfterErase} instead; likewise when no tail is shown yet.
-     */
-    public boolean canUpdateTailInPlace() {
-        return tailRows == 1 && visualCursorRow >= 1;
-    }
-
-    /**
-     * Repaints ONLY the live-tail row (region row 0) in place, leaving the separator/editor/status untouched, then
-     * returns the cursor to the input position. The tail is truncated to a single row so it never wraps — clearing it
-     * with one {@code \033[K} is safe. This is what makes high-frequency streaming repaints touch one line instead of
-     * blanking and redrawing the whole region every token.
-     */
-    public void renderTailInPlace(PrintWriter out, int width, AnsiTheme theme, String tail) {
-        // Write the new tail over the old, THEN trim any leftover to the right (\033[K). Clearing the line first
-        // (\r\033[K then write) blanks it for an instant — at streaming speed that strobes on terminals without
-        // synchronized output. Overwriting in place keeps the unchanged prefix steady and only the new suffix appears.
-        out.print("\033[" + visualCursorRow + "A\r");
-        out.print(AnsiWidth.truncateVisualEnd(tail == null ? "" : tail, width)); // pre-styled — laid out as-is
-        out.print("\033[K");
-        out.print("\r\033[" + visualCursorRow + "B");
-        if (visualCursorCol > 0)
-            out.print("\033[" + visualCursorCol + "C");
         out.flush();
     }
 

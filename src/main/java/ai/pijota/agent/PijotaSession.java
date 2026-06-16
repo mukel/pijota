@@ -32,6 +32,7 @@ public final class PijotaSession implements AutoCloseable {
     private final String cwd;
     private boolean disableSession;
     private volatile String sessionWarning;
+    private final long initialContextWindow;
 
     public PijotaSession(LlmService llm, ToolRegistry toolRegistry, SessionManager sessionManager,
                                     ExtensionRegistry extensionRegistry, String systemPrompt, String cwd,
@@ -53,6 +54,7 @@ public final class PijotaSession implements AutoCloseable {
                                     SessionManager sessionManager, ExtensionRegistry extensionRegistry,
                                     String systemPrompt, String cwd, boolean noSession, int contextWindow,
                                     AppConfig.CompactionConfig compactionConfig) throws IOException {
+        this.initialContextWindow = contextWindow;
         this.sessionManager = sessionManager;
         this.toolRegistry = toolRegistry;
         this.extensionRegistry = extensionRegistry;
@@ -358,6 +360,25 @@ public final class PijotaSession implements AutoCloseable {
 
     public void refreshCacheMetadata() {
         writeCacheMetadata(agentLoop.llm().provider(), agentLoop.llm().model(), sessionSystemPrompt);
+    }
+
+    /**
+     * Records the effective model and thinking level into a fresh session so it fully describes itself. Resume (e.g.
+     * after {@code /transcend}) then restores the exact model the conversation was using, instead of re-deriving it
+     * from CLI args + settings.json — which can have drifted since launch.
+     */
+    public void recordInitialModelState() {
+        Path file = this.sessionFile;
+        if (disableSession || file == null)
+            return;
+        var llm = agentLoop.llm();
+        try {
+            sessionManager.appendModelChange(file, llm.provider(), llm.model(), initialContextWindow);
+            if (llm.thinkingLevel() != null)
+                sessionManager.appendThinkingLevelChange(file, llm.thinkingLevel().name());
+        } catch (IOException e) {
+            rememberSessionWarning("initial model state save", e);
+        }
     }
 
     public void checkCacheTarget() throws IOException {

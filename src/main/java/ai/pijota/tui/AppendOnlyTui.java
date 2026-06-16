@@ -45,10 +45,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 public final class AppendOnlyTui implements AutoCloseable, UiContext {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AppendOnlyTui.class);
     private AnsiTheme theme;
     private String provider;
     private String model;
@@ -72,8 +72,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final ExecutorService agentExecutor = Executors
                                     .newSingleThreadExecutor(Thread.ofPlatform().name("pijota-tui-agent").factory());
-    private final AtomicBoolean busy = new AtomicBoolean(false);
-    private final AtomicLong busyGeneration = new AtomicLong(0);
+    private final TurnActivity activity = new TurnActivity();
     private final StatusOverride statusOverride = new StatusOverride();
     private final DialogHandler dialogs;
     private final PromptSelector selector = new PromptSelector();
@@ -173,7 +172,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         running.set(false);
     }
 
-    private volatile String busyPhase;
     // True between the first streamed content token and the turn's end. While set, the live-tail row is reserved (shown
     // even when momentarily empty between lines) so the prompt region keeps a constant height and doesn't jitter as
     // lines commit.
@@ -241,7 +239,59 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             animation.set(settings.workingAnimation());
         }
         this.extensionLinesSupplier = extensionLinesSupplier != null ? extensionLinesSupplier : List::of;
-        this.dialogs = new DialogHandler(new DialogHandler.Host() {
+        this.dialogs = createDialogHandler();
+        this.shellCommands = createShellCommandRunner();
+        this.sessionCommands = createSessionCommands();
+        this.modelCommands = createModelCommandHandler();
+        this.skillCommands = createSkillCommandHandler(skills);
+        this.settingsCommands = createSettingsCommandHandler();
+        this.contextWindow = resolveContextWindow(provider, model);
+        this.thinkingTheme = theme.thinking();
+        this.themeMgr = createThemeManager();
+        this.themeCommands = createThemeCommandHandler();
+        this.terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build();
+        this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
+        this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
+        this.transcendence = createTranscendenceOrchestrator();
+        this.selectors = new TuiSelectors(this::confirmModelSelection, this::confirmSessionSelection,
+                                        this::confirmThemeSelection, this::confirmSettingsSelection,
+                                        this::confirmLoginSelection, this::confirmForkSelection,
+                                        this::confirmPaletteSelection);
+        this.loginCommands = createLoginCommandHandler();
+        this.commandPalette = createCommandPaletteHandler();
+        var regions = new ArrayList<PromptRegion>();
+        regions.add(new PromptRegion.Editor());
+        regions.add(new PendingRegion());
+        regions.addAll(selectors.regions());
+        regions.add(new PromptRegion.Completions());
+        regions.add(new PromptSelectorRegion(selector));
+        regions.add(new LogViewerRegion(logViewer));
+        regions.add(new PromptRegion.StatusBar());
+        this.promptLayout = new PromptLayout(regions);
+        this.terminalUi = new TerminalCoordinator(terminal, theme, promptLayout);
+        this.streamRenderer = new StreamRenderer(terminalUi::appendLines, theme, thinkingTheme,
+                                        () -> terminal.getWidth() - 4, this::showThinking, () -> thinkingLevel.label());
+        this.extensionCommands = new HashMap<>();
+        for (var cmd : extensionCommands) {
+            this.extensionCommands.put("/" + cmd.name(), cmd);
+            for (String alias : cmd.aliases()) {
+                this.extensionCommands.put("/" + alias, cmd);
+            }
+        }
+        this.extensionKeybindings = new HashMap<>();
+        for (var binding : extensionKeybindings) {
+            if (binding != null && binding.key() != null) {
+                this.extensionKeybindings.put(binding.key(), binding);
+            }
+        }
+        this.commandController = new TuiCommandController(this, commands);
+        SlashCommandTool.setQuestionHandler(this::askQuestions);
+        updateWhoamiTool();
+        session.addEventListener(this::onEvent);
+    }
+
+    private DialogHandler createDialogHandler() {
+        return new DialogHandler(new DialogHandler.Host() {
             @Override
             public void appendPlain(List<String> lines) {
                 AppendOnlyTui.this.appendPlain(lines);
@@ -267,7 +317,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 AppendOnlyTui.this.redrawPrompt();
             }
         });
-        this.shellCommands = new ShellCommandRunner(new ShellCommandRunner.Host() {
+    }
+
+    private ShellCommandRunner createShellCommandRunner() {
+        return new ShellCommandRunner(new ShellCommandRunner.Host() {
             @Override
             public List<String> promptEcho(String text) {
                 return AppendOnlyTui.this.promptEcho(text);
@@ -303,7 +356,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 session.fireUserBash(command, noContext);
             }
         });
-        this.sessionCommands = new SessionCommands(new SessionCommands.Host() {
+    }
+
+    private SessionCommands createSessionCommands() {
+        return new SessionCommands(new SessionCommands.Host() {
             @Override
             public PijotaSession session() {
                 return session;
@@ -321,7 +377,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
             @Override
             public boolean busy() {
-                return busy.get();
+                return activity.isBusy();
             }
 
             @Override
@@ -374,10 +430,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 AppendOnlyTui.this.refreshSessionName();
             }
         });
-        this.modelCommands = new ModelCommandHandler(new ModelCommandHandler.Host() {
+    }
+
+    private ModelCommandHandler createModelCommandHandler() {
+        return new ModelCommandHandler(new ModelCommandHandler.Host() {
             @Override
             public boolean busy() {
-                return busy.get();
+                return activity.isBusy();
             }
 
             @Override
@@ -435,19 +494,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 return settings;
             }
         });
-        this.skillCommands = createSkillCommandHandler(skills);
-        this.settingsCommands = createSettingsCommandHandler();
-        this.contextWindow = resolveContextWindow(provider, model);
-        this.thinkingTheme = theme.thinking();
-        this.themeMgr = createThemeManager();
-        this.themeCommands = createThemeCommandHandler();
-        this.terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build();
-        this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
-        this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
-        this.transcendence = new TranscendenceOrchestrator(new TranscendenceOrchestrator.Host() {
+    }
+
+    private TranscendenceOrchestrator createTranscendenceOrchestrator() {
+        return new TranscendenceOrchestrator(new TranscendenceOrchestrator.Host() {
             @Override
             public boolean busy() {
-                return busy.get();
+                return activity.isBusy();
             }
 
             @Override
@@ -540,41 +593,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 return Files.isDirectory(Path.of(projectDir(), ".git"));
             }
         });
-        this.selectors = new TuiSelectors(this::confirmModelSelection, this::confirmSessionSelection,
-                                        this::confirmThemeSelection, this::confirmSettingsSelection,
-                                        this::confirmLoginSelection, this::confirmForkSelection,
-                                        this::confirmPaletteSelection);
-        this.loginCommands = createLoginCommandHandler();
-        this.commandPalette = createCommandPaletteHandler();
-        var regions = new ArrayList<PromptRegion>();
-        regions.add(new PromptRegion.Editor());
-        regions.add(new PendingRegion());
-        regions.addAll(selectors.regions());
-        regions.add(new PromptRegion.Completions());
-        regions.add(new PromptSelectorRegion(selector));
-        regions.add(new LogViewerRegion(logViewer));
-        regions.add(new PromptRegion.StatusBar());
-        this.promptLayout = new PromptLayout(regions);
-        this.terminalUi = new TerminalCoordinator(terminal, theme, promptLayout);
-        this.streamRenderer = new StreamRenderer(terminalUi::appendLines, theme, thinkingTheme,
-                                        () -> terminal.getWidth() - 4, this::showThinking, () -> thinkingLevel.label());
-        this.extensionCommands = new HashMap<>();
-        for (var cmd : extensionCommands) {
-            this.extensionCommands.put("/" + cmd.name(), cmd);
-            for (String alias : cmd.aliases()) {
-                this.extensionCommands.put("/" + alias, cmd);
-            }
-        }
-        this.extensionKeybindings = new HashMap<>();
-        for (var binding : extensionKeybindings) {
-            if (binding != null && binding.key() != null) {
-                this.extensionKeybindings.put(binding.key(), binding);
-            }
-        }
-        this.commandController = new TuiCommandController(this, commands);
-        SlashCommandTool.setQuestionHandler(this::askQuestions);
-        updateWhoamiTool();
-        session.addEventListener(this::onEvent);
     }
 
     private SkillCommandHandler createSkillCommandHandler(List<SkillLoader.Skill> skills) {
@@ -874,7 +892,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return new CommandPaletteHandler(new CommandPaletteHandler.Host() {
             @Override
             public boolean busy() {
-                return busy.get();
+                return activity.isBusy();
             }
 
             @Override
@@ -1151,7 +1169,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     }
                     if (key == Key.Special.UP && (promptEditor.isEmpty() || promptEditor.isInHistory())) {
-                        if (!promptEditor.historyPrev() && !busy.get()) {
+                        if (!promptEditor.historyPrev() && !activity.isBusy()) {
                             messageBrowser.enter();
                         }
                         redrawPrompt();
@@ -1262,9 +1280,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void handleEsc(boolean forceInterrupt) {
-        if (dialogs.cancelQuestionIfIdle(busy.get()))
+        if (dialogs.cancelQuestionIfIdle(activity.isBusy()))
             return;
-        if (!busy.get())
+        if (!activity.isBusy())
             return;
         if (forceInterrupt || interruptGate.tryFire()) {
             interruptGate.disarm();
@@ -1304,7 +1322,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void openPromptInEditor() {
-        if (busy.get()) {
+        if (activity.isBusy()) {
             setTransientStatus("Editor unavailable while busy", 2500);
             redrawPrompt();
             return;
@@ -1361,7 +1379,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         appendPlain(promptEcho(submitted));
-        if (busy.get() && session.isBusy()) {
+        if (activity.isBusy() && session.isBusy()) {
             session.followUp(payload);
             int queued = followUps.add(payload);
             appendPlain(List.of(theme.styled("statusText", "queued follow-up (" + queued + ")")));
@@ -1390,17 +1408,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private long beginBusy(String phase) {
-        busy.set(true);
-        busyPhase = phase;
+        long token = activity.begin(phase);
         interruptGate.disarm();
         clearStatusOverride();
-        return busyGeneration.incrementAndGet();
+        return token;
     }
 
     private void endBusy(long generation) {
-        if (!busyGeneration.compareAndSet(generation, 0))
+        if (!activity.end(generation))
             return;
-        busy.set(false);
         interruptGate.disarm();
         clearStatusOverride();
     }
@@ -1491,7 +1507,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showSessionPicker(String query) {
-        if (busy.get()) {
+        if (activity.isBusy()) {
             appendPlain(List.of(theme.styled("toolError", "/sessions is unavailable while a turn is running")));
             return;
         }
@@ -1628,7 +1644,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void triggerCompaction(String instructions) {
-        if (busy.get()) {
+        if (activity.isBusy()) {
             appendPlain(List.of(theme.styled("toolError", "/compact unavailable while model is responding")));
             return;
         }
@@ -1738,7 +1754,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void loadSession(String input) {
-        if (busy.get()) {
+        if (activity.isBusy()) {
             appendPlain(List.of(theme.styled("toolError", "/load is unavailable while a turn is running")));
             return;
         }
@@ -1791,7 +1807,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void forkSession(String input) {
-        if (busy.get()) {
+        if (activity.isBusy()) {
             appendPlain(List.of(theme.styled("toolError", "/fork is unavailable while a turn is running")));
             return;
         }
@@ -1866,7 +1882,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void undoLastTurn() {
-        if (busy.get()) {
+        if (activity.isBusy()) {
             appendPlain(List.of(theme.styled("toolError", "/undo is unavailable while a turn is running")));
             return;
         }
@@ -1886,12 +1902,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 followUps.clearPending();
                 streamRenderer.reset();
                 streamingContent = false;
-                busyPhase = "waiting for model";
+                activity.setPhase("waiting for model");
                 redrawPrompt();
             }
             case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
                 if (usage == null)
-                    busyPhase = null;
+                    activity.setPhase(null);
                 streamingContent = usage == null; // reserve the live-tail row for the whole streaming turn
                 String content = msg.content() == null ? "" : msg.content();
                 boolean committed = false;
@@ -1919,7 +1935,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 if (toolCallId != null)
                     toolsInProgress.put(toolCallId, new ToolInProgress(args, System.currentTimeMillis()));
                 pendingEdit.onToolStart(name, args);
-                busyPhase = "tool " + name;
+                activity.setPhase("tool " + name);
                 if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)
                                                 && pendingEdit.newText() != null
                                                 && !pendingEdit.oldText().equals(pendingEdit.newText())) {
@@ -2040,14 +2056,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                         .withExtensionLines(mergedExtensionLines())
                                         .withPromptState(promptState(snapshot, status))
                                         .withStreamTail(streamingContent ? streamRenderer.liveTail().orElse("") : null);
-        if (!busy.get()) {
+        if (!activity.isBusy()) {
             return snapshot.withStatus(tokens).withWarning(status);
         }
         String frame = animation.frame();
         int queued = followUps.queuedCount();
         String bar = tokens + "  " + frame;
-        if (busyPhase != null && !busyPhase.isBlank())
-            bar += " " + busyPhase;
+        String phase = activity.phase();
+        if (phase != null && !phase.isBlank())
+            bar += " " + phase;
         if (queued > 0)
             bar += "  queued " + queued;
         return snapshot.withStatus(bar).withWarning(status);
@@ -2069,7 +2086,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private PromptSnapshot.PromptState promptState(PromptSnapshot snapshot, String status) {
-        if (busy.get())
+        if (activity.isBusy())
             return PromptSnapshot.PromptState.BUSY;
         if (dialogs.questionPending())
             return PromptSnapshot.PromptState.QUESTION;
@@ -2144,19 +2161,26 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void tickWorkingAnimation() {
-        if (!running.get() || SelfRespawn.isRespawnInProgress())
-            return;
-        boolean redraw = false;
-        if (logViewer.active() && logViewer.refreshIfDue()) // repaint only when a live log actually tailed new content
-            redraw = true;
-        if (busy.get()) {
-            animation.advance();
-            redraw = true;
+        // scheduleAtFixedRate silently cancels the task forever if it ever throws — a single transient redraw error
+        // would then freeze the working spinner for the rest of the session (the prompt shows a frozen "●●●" while the
+        // turn keeps running). Swallow everything so the next tick still fires.
+        try {
+            if (!running.get() || SelfRespawn.isRespawnInProgress())
+                return;
+            boolean redraw = false;
+            if (logViewer.active() && logViewer.refreshIfDue()) // repaint only when a live log tailed new content
+                redraw = true;
+            if (activity.isBusy()) {
+                animation.advance();
+                redraw = true;
+            }
+            if (statusOverride.expireIfDue())
+                redraw = true;
+            if (redraw)
+                redrawPrompt();
+        } catch (Throwable t) {
+            log.debug("working-animation tick failed (will retry next tick)", t);
         }
-        if (statusOverride.expireIfDue())
-            redraw = true;
-        if (redraw)
-            redrawPrompt();
     }
 
     /**

@@ -78,33 +78,6 @@ class AnsiWidthTest {
     }
 
     @Test
-    void truncateVisualEndEmptyWhenMaxZeroOrNegative() {
-        assertEquals("", AnsiWidth.truncateVisualEnd("hello", 0));
-        assertEquals("", AnsiWidth.truncateVisualEnd("hello", -1));
-    }
-
-    @Test
-    void truncateVisualEndKeepsShortText() {
-        assertEquals("hello", AnsiWidth.truncateVisualEnd("hello", 10));
-    }
-
-    @Test
-    void truncateVisualEndKeepsTrailingColumnsBehindEllipsis() {
-        var result = AnsiWidth.truncateVisualEnd("hello world", 5);
-        assertTrue(result.startsWith("…"), result);
-        assertTrue(result.endsWith("orld"), result); // trailing 4 columns kept (one column reserved for the ellipsis)
-        // never wider than the budget, so it always fits on one row
-        assertTrue(AnsiWidth.visibleWidth(result) <= 5, "width=" + AnsiWidth.visibleWidth(result));
-    }
-
-    @Test
-    void truncateVisualEndNeverExceedsWidthForCjk() {
-        var result = AnsiWidth.truncateVisualEnd("你好世界你好世界", 5);
-        assertTrue(AnsiWidth.visibleWidth(result) <= 5, "width=" + AnsiWidth.visibleWidth(result));
-        assertTrue(result.startsWith("…"), result);
-    }
-
-    @Test
     void wrapPreservingAnsi_emptyForZeroOrNegativeWidth() {
         assertEquals(List.of(""), AnsiWidth.wrapPreservingAnsi("hello", 0));
     }
@@ -181,6 +154,34 @@ class AnsiWidthTest {
     void wrapPreservingAnsiTabBreaksLine() {
         var lines = AnsiWidth.wrapPreservingAnsi("a\tb", 5);
         assertFalse(lines.isEmpty());
+    }
+
+    @Test
+    void wrapPreservingAnsiExpandsTabsToSpaces() {
+        // Tabs must become spaces: a literal tab skips terminal cells without overwriting them, so stale content
+        // (e.g. a separator left by a non-blanking erase) bleeds through tab-indented lines like Go's `\t\t}`.
+        var lines = AnsiWidth.wrapPreservingAnsi("\t\t}", 80);
+        assertEquals(1, lines.size());
+        assertFalse(lines.get(0).contains("\t"));
+        assertEquals("        }", lines.get(0)); // two tabs -> 8 spaces (4-col stops) + brace
+    }
+
+    @Test
+    void stylingDoesNotMoveWrapPoints() {
+        // The live preview is plain; the committed line is styled. Both wrap through wrapPreservingAnsi at the same
+        // width, so committing must change only colors, never layout (no reflow). SGR sequences carry no visible width,
+        // so the styled and plain forms must wrap to the same per-row visible widths.
+        String plain = "the quick brown fox jumps over the lazy dog again and again";
+        String styled = "the \033[1mquick\033[0m brown \033[3mfox\033[0m jumps over the \033[1mlazy\033[0m dog again and again";
+
+        var plainRows = AnsiWidth.wrapPreservingAnsi(plain, 20);
+        var styledRows = AnsiWidth.wrapPreservingAnsi(styled, 20);
+
+        assertEquals(plainRows.size(), styledRows.size(), "same number of wrapped rows");
+        for (int i = 0; i < plainRows.size(); i++) {
+            assertEquals(AnsiWidth.visibleWidth(plainRows.get(i)), AnsiWidth.visibleWidth(styledRows.get(i)),
+                                            "row " + i + " wraps at the same visible width with or without styling");
+        }
     }
 
     @Test
