@@ -46,9 +46,14 @@ public record SessionDescriptor(Path path, String id, String description, boolea
     }
 
     public String relativeAge() {
-        long ago = System.currentTimeMillis() - mtime;
+        return relativeAge(mtime);
+    }
+
+    /** Human-friendly age of a last-modified timestamp ("just now", "5m ago", … / "unknown"). */
+    public static String relativeAge(long mtime) {
         if (mtime <= 0)
             return "unknown";
+        long ago = System.currentTimeMillis() - mtime;
         if (ago < 60_000)
             return "just now";
         if (ago < 3_600_000)

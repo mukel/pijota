@@ -78,6 +78,8 @@ public final class Main {
     private static void run(Args parsedArgs) throws Exception {
         Warmup.start(); // overlap tool class-loading with the Jackson cold-start during bootstrap
         var b = AppBootstrap.bootstrap(parsedArgs);
+        // Each long-running frontend signals SelfRespawn.markStartupHealthy() once it is actually up (not merely
+        // bootstrapped) so the supervisor's auto-rollback also catches a frontend that crashes after bootstrap.
 
         if (parsedArgs.agent()) {
             int ec = HeadlessAgentRunner.run(b.llm(), b.extensions());
@@ -121,6 +123,7 @@ public final class Main {
         b.extensions().ready();
         if (parsedArgs.resume())
             tui.requestSessionPicker();
+        SelfRespawn.markStartupHealthy(); // TUI fully constructed + extensions ready → a healthy startup
         try {
             tui.run(VERSION, b.cwd());
         } finally {
@@ -158,6 +161,7 @@ public final class Main {
 
         System.err.println("[telegram] bot started for chat " + allowedChat + "; polling…");
         var frontend = new TelegramFrontend(client, chatId -> chat, chatId -> chatId == allowedChat);
+        SelfRespawn.markStartupHealthy(); // bot wired up and polling → a healthy startup
         try {
             frontend.run(); // blocks until the process is killed
         } finally {
@@ -188,6 +192,7 @@ public final class Main {
         b.extensions().ready();
         try {
             server.start();
+            SelfRespawn.markStartupHealthy(); // HTTP server is up → a healthy startup
             System.err.println("[web] pijota web ui on http://127.0.0.1:" + port + " (Ctrl-C to stop)");
             Thread.currentThread().join(); // block until the process is killed
         } catch (Exception e) {

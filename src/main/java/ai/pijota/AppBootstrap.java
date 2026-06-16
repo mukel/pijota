@@ -11,11 +11,7 @@ import ai.pijota.extensions.plan.PlanExtension;
 import ai.pijota.extensions.task.TaskExtension;
 import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ModelRegistry;
-import ai.pijota.registers.RegisterService;
 import ai.pijota.tools.BashTool;
-import ai.pijota.tools.RegistersContainsTool;
-import ai.pijota.tools.RegistersGetTool;
-import ai.pijota.tools.RegistersSetTool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.tools.TranscendenceTool;
 import ai.pijota.tools.WhoamiTool;
@@ -67,20 +63,11 @@ final class AppBootstrap {
         }
 
         var sessions = new SessionManager(settings.sessionDir());
-        Path initialSession = initialSessionPath(parsedArgs, sessions, cwd);
-        var registers = new RegisterService(
-                                        initialSession != null ? sessions.latestRegisters(initialSession) : Map.of());
-
         var tools = parsedArgs.noTools() ? new ToolRegistry() : ToolRegistry.createDefault();
         var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix());
         tools.register(bashTool);
-        // Niche tools, opt-in to keep the default prompt lean: registers (--registers) and whoami (--whoami).
+        // Niche tools, opt-in to keep the default prompt lean: whoami (--whoami).
         var flags = parsedArgs.extensionFlags();
-        if (flagOn(flags, "registers")) {
-            tools.register(new RegistersContainsTool(registers));
-            tools.register(new RegistersGetTool(registers));
-            tools.register(new RegistersSetTool(registers));
-        }
         if (flagOn(flags, "whoami"))
             tools.register(new WhoamiTool());
         // Transcendence (self-modification) is a built-in, on by default; disable with --no-transcendence.
@@ -100,7 +87,6 @@ final class AppBootstrap {
         var ext = new ExtensionRegistry();
         llm.setModelChangeCallback((oldModel, newModel) -> ext.fireModelSelect(newModel, oldModel, "set"));
         ext.setToolRegistry(tools);
-        ext.setRegisterService(registers);
         ext.setCwd(Path.of(cwd));
         ext.setLlm(llm);
         ext.loadServiceLoaderExtensions();
@@ -188,18 +174,6 @@ final class AppBootstrap {
     /** Whether an opt-in extension flag is truthy (true/1/yes). */
     private static boolean flagOn(Map<String, String> flags, String name) {
         return ExtensionRuntime.truthy(flags.get(name));
-    }
-
-    private static Path initialSessionPath(Args args, SessionManager sessions, String cwd) {
-        try {
-            if (args.sessionPath() != null)
-                return sessions.resolveSession(cwd, args.sessionPath());
-            if (args.recoverSession())
-                return SelfRespawn.readRecoverySession();
-            if (args.continueSession())
-                return sessions.latestSession(cwd, null);
-        } catch (IOException ignored) {}
-        return null;
     }
 
     private static void mergeTranscendWorktree(Args args) {

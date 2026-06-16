@@ -55,9 +55,54 @@ class SelfRespawnTest {
     void tearDown() throws IOException {
         Files.deleteIfExists(recoveryFile);
         Files.deleteIfExists(restartFile);
+        Files.deleteIfExists(bootingFile);
         if (originalClasspath != null) {
             System.setProperty("java.class.path", originalClasspath);
         }
+    }
+
+    private final Path bootingFile = Path.of("target", ".transcend-booting");
+
+    @Test
+    void bootHealthHandshakeRoundTrips() throws IOException {
+        Files.deleteIfExists(bootingFile);
+        assertFalse(SelfRespawn.isBooting());
+        SelfRespawn.markBooting();
+        assertTrue(SelfRespawn.isBooting(), "supervisor armed the boot check");
+        SelfRespawn.markStartupHealthy();
+        assertFalse(SelfRespawn.isBooting(), "worker signalled a healthy startup");
+    }
+
+    @Test
+    void stripTranscendFlagsDropsMergeAndWorktreeWithValues() {
+        var stripped = SelfRespawn.stripTranscendFlags(List.of("java", "-jar", "x.jar", "--worker", "--session-path",
+                                        "/s", "--transcend-merge-branch", "feat/x", "--transcend-worktree", "/wt"));
+        assertEquals(List.of("java", "-jar", "x.jar", "--worker", "--session-path", "/s"), stripped);
+    }
+
+    @Test
+    void autoRollbackRestoresBackupOverFailedJarAndPreservesSession() throws IOException {
+        Path good = createTempJar("good-build");
+        assertTrue(SelfRespawn.backupJar(good)); // backup = the previous known-good build
+        Path failedJar = Path.of("target", "pijota-failed.jar");
+        Files.writeString(failedJar, "broken-build");
+        try {
+            var cmd = SelfRespawn.autoRollbackCommand(List.of("java", "-jar", failedJar.toString(), "--worker",
+                                            "--session-path", "/s", "--transcend-merge-branch", "feat/x",
+                                            "--transcend-worktree", "/wt"));
+            assertTrue(cmd.isPresent());
+            // the failed jar was overwritten with the good backup, and the session arg survived
+            assertTrue(Files.readString(failedJar).contains("good-build"));
+            assertEquals(List.of("java", "-jar", failedJar.toString(), "--worker", "--session-path", "/s"), cmd.get());
+        } finally {
+            Files.deleteIfExists(failedJar);
+        }
+    }
+
+    @Test
+    void autoRollbackEmptyWithoutBackup() {
+        // no backup jar present (setUp deleted it) → cannot roll back
+        assertTrue(SelfRespawn.autoRollbackCommand(List.of("java", "-jar", "x.jar")).isEmpty());
     }
 
     @Test

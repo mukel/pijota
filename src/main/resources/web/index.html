@@ -3,19 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="pijota — interactive coding agent">
+<meta name="theme-color" content="#0d1117">
 <title>pijota</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" id="hljs-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+<!-- deferred so they load in parallel without blocking first paint; app init waits for DOMContentLoaded -->
+<script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128; --border: #30363d;
     --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --accent-soft: #1f6feb33;
     --user: #1f6feb; --ok: #3fb950; --err: #f85149; --think: #a371f7;
+    --code-bg: #010409; --overlay: #000a; --shadow-color: #0008; --err-text: #ffb4ae; --warn-text: #ffd9a8;
     --radius: 12px; --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --panel: #f6f8fa; --panel-2: #eaeef2; --border: #d0d7de;
+    --text: #1f2328; --muted: #656d76; --accent: #0969da; --accent-soft: #0969da14;
+    --user: #0969da; --ok: #1a7f37; --err: #cf222e; --think: #8250df;
+    --code-bg: #ffffff; --overlay: rgba(31,35,40,.35); --shadow-color: rgba(31,35,40,.18);
+    --err-text: #cf222e; --warn-text: #9a6700;
+  }
+  body { transition: background .2s, color .2s; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); display: flex; flex-direction: column; }
@@ -31,64 +44,138 @@
   .dot.busy { background: var(--accent); animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
   main { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
-  #thread { max-width: 820px; margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 18px; }
-  #thread:empty::before {
-    content: "Ask pijota anything.\A Type / for commands, models, and sessions.";
-    white-space: pre-line; text-align: center; color: var(--muted);
-    margin: 22vh auto 0; font-size: 15px; line-height: 1.9; opacity: .85;
-  }
+  #thread { max-width: 760px; margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 18px; }
+  /* empty conversation: greeting + composer centred in the viewport (drops to the bottom once messages flow) */
+  .greeting { display: none; text-align: center; max-width: 760px; margin: 0 auto 24px; }
+  .greeting .mark { font-size: 30px; font-weight: 700; letter-spacing: .5px; }
+  .greeting .mark b { color: var(--accent); }
+  .greeting .hint { margin-top: 10px; color: var(--muted); font-size: 14px; }
+  body.empty main { display: none; }
+  body.empty .composer { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+  body.empty .greeting { display: block; }
 
-  .msg { display: flex; flex-direction: column; gap: 6px; animation: rise .2s ease; }
-  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  .msg .role { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
-  .bubble { padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); line-height: 1.6; overflow-wrap: anywhere; }
+  /* transient status toasts (ephemeral feedback like "started a new conversation") — never enters the transcript */
+  #toasts { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+  .toast { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 13px; box-shadow: 0 6px 24px var(--shadow-color); max-width: min(520px, 90vw); animation: toastin .18s ease both; }
+  .toast.alert { color: var(--warn-text); border-color: #d2992255; background: #d2992212; }
+  .toast.out { animation: toastout .25s ease forwards; }
+  @keyframes toastin { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+  @keyframes toastout { to { opacity: 0; transform: translateY(-8px); } }
+  @media (prefers-reduced-motion: reduce) { .toast, .toast.out { animation: none; } }
+
+  .msg { display: flex; flex-direction: column; gap: 6px; animation: rise .22s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  /* per-message copy: hover-revealed row under user/assistant messages (always shown on touch, no hover there) */
+  .msg-actions { display: none; gap: 6px; }
+  .msg:hover .msg-actions, .msg:focus-within .msg-actions { display: flex; }
+  @media (hover: none) { .msg-actions { display: flex; } }
+  .msg.user .msg-actions { align-self: flex-end; }
+  .msg-copy, .answer-copy { font-family: var(--sans); font-size: 11px; line-height: 1.4; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; transition: opacity .12s, color .12s, border-color .12s; }
+  .msg-copy:hover, .answer-copy:hover { color: var(--text); border-color: var(--accent); }
+  /* response copy floats at the answer's top-right (reachable, never pinned under the composer like a row below) */
+  .answer { position: relative; }
+  .answer-copy { position: absolute; top: 2px; right: 2px; opacity: 0; }
+  .msg.assistant:hover .answer-copy, .answer-copy:focus-visible { opacity: 1; }
+  @media (hover: none) { .answer-copy { opacity: 1; } }
+  .bubble { padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); line-height: 1.65; overflow-wrap: anywhere; }
   .msg.user { align-items: flex-end; }
-  .msg.user .bubble { background: var(--accent-soft); border-color: #1f6feb55; max-width: 80%; }
-  .msg.assistant .bubble { background: var(--panel); }
-  .msg.error .bubble { border-color: var(--err); color: #ffb4ae; background: #f8514915; }
+  .msg.user .bubble { background: var(--accent-soft); border-color: #1f6feb55; max-width: 82%; border-radius: 16px 16px 4px 16px; }
+  /* assistant messages render flat (no nested box) so code blocks are the only boxed elements */
+  .msg.assistant .bubble { background: transparent; border: none; padding: 0; border-radius: 0; }
+  .msg.error .bubble { border-color: var(--err); color: var(--err-text); background: #f8514915; }
   .msg.custom .bubble { background: transparent; border-style: dashed; color: var(--muted); font-size: 13px; }
 
   /* markdown */
   .bubble p:first-child { margin-top: 0; } .bubble p:last-child { margin-bottom: 0; }
-  .bubble pre { background: #010409; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-family: var(--mono); font-size: 13px; }
+  .bubble pre { position: relative; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px 18px; overflow-x: auto; font-family: var(--mono); font-size: 13px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  /* force a thin, space-reserving classic scrollbar (overrides the OS overlay bar that draws teal over the code) */
+  .bubble pre::-webkit-scrollbar { height: 8px; }
+  .bubble pre::-webkit-scrollbar-track { background: transparent; }
+  .bubble pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+  /* the hljs theme paints its own bg + padding on the code element — neutralize it so the block is one clean fill */
+  .bubble pre code, .bubble pre .hljs { background: transparent; padding: 0; }
+  .copy-btn { position: absolute; top: 6px; right: 6px; padding: 2px 8px; font-size: 11px; font-family: var(--sans); color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; opacity: 0; transition: opacity .15s, color .15s; }
+  .bubble pre:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { color: var(--text); }
   .bubble code { font-family: var(--mono); font-size: 13px; }
   .bubble :not(pre) > code { background: #6e768166; padding: 2px 6px; border-radius: 5px; }
   .bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; }
   .bubble th, .bubble td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
   .bubble th { background: var(--panel-2); }
   .bubble blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--border); color: var(--muted); }
-  .bubble a { color: var(--accent); }
+  .bubble a { color: var(--accent); text-decoration: none; } .bubble a:hover { text-decoration: underline; }
+  .bubble p { margin: .6em 0; }
+  .bubble h1, .bubble h2, .bubble h3, .bubble h4 { line-height: 1.3; margin: 1.1em 0 .5em; font-weight: 600; }
+  .bubble h1 { font-size: 1.4em; } .bubble h2 { font-size: 1.25em; } .bubble h3 { font-size: 1.1em; }
+  .bubble ul, .bubble ol { padding-left: 1.4em; margin: .5em 0; }
+  .bubble li { margin: .25em 0; }
+  .bubble li::marker { color: var(--muted); }
+  .bubble hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
 
   details.think, details.tool { border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); overflow: hidden; }
   details.think { border-color: #a371f733; }
-  details > summary { cursor: pointer; padding: 9px 14px; font-size: 13px; user-select: none; display: flex; align-items: center; gap: 8px; list-style: none; }
+  details.think, details.tool { transition: border-color .15s; }
+  details > summary { cursor: pointer; padding: 9px 14px; font-size: 13px; user-select: none; display: flex; align-items: center; gap: 8px; list-style: none; border-radius: 10px; transition: background .12s; }
+  details > summary:hover { background: var(--accent-soft); }
   details > summary::-webkit-details-marker { display: none; }
   details > summary::before { content: "▸"; color: var(--muted); transition: transform .15s; }
   details[open] > summary::before { transform: rotate(90deg); }
   details.think > summary { color: var(--think); }
   .think .body { padding: 0 14px 12px; color: var(--muted); font-style: italic; white-space: pre-wrap; line-height: 1.55; }
+  /* copy the reasoning straight from the thinking block; revealed on hover/while open, separate from the output copy */
+  .think-copy { margin-left: auto; font-family: var(--sans); font-style: normal; font-size: 11px; line-height: 1.4; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, border-color .12s; }
+  details.think > summary:hover .think-copy, details.think[open] > summary .think-copy { opacity: 1; }
+  .think-copy:hover { color: var(--text); border-color: var(--accent); }
+  @media (hover: none) { .think-copy { opacity: 1; } }
+  /* tactile press feedback shared by every copy button (harmonizes their transitions too) */
+  .copy-btn, .msg-copy, .answer-copy, .think-copy { transition: opacity .12s, color .12s, border-color .12s, transform .1s; }
+  .copy-btn:active, .msg-copy:active, .answer-copy:active, .think-copy:active { transform: scale(.94); }
   .tool .name { font-family: var(--mono); color: var(--accent); }
   .tool .section { padding: 0 14px 12px; }
-  .tool pre { margin: 6px 0 0; background: #010409; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; max-height: 360px; overflow-y: auto; }
+  .tool pre { margin: 6px 0 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; max-height: 360px; overflow-y: auto; }
   .tool.err > summary .name { color: var(--err); }
   .tool .badge { margin-left: auto; font-size: 11px; padding: 1px 8px; border-radius: 20px; background: #3fb95022; color: var(--ok); }
   .tool.err .badge { background: #f8514922; color: var(--err); }
 
-  .composer { flex: none; border-top: 1px solid var(--border); background: var(--panel); padding: 12px 18px; }
-  .composer .inner { max-width: 860px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
-  textarea#input {
-    flex: 1; resize: none; max-height: 200px; min-height: 24px; padding: 11px 14px; border-radius: var(--radius);
-    border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.5; outline: none;
+  /* jump-to-latest, shown only when scrolled up */
+  .scrollbtn {
+    position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%); z-index: 20;
+    width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel);
+    color: var(--text); cursor: pointer; display: none; align-items: center; justify-content: center;
+    font-size: 17px; box-shadow: 0 4px 14px var(--shadow-color); transition: border-color .15s, transform .1s, opacity .2s;
   }
-  textarea#input:focus { border-color: var(--accent); }
-  button.act { border: none; border-radius: var(--radius); padding: 0 18px; height: 46px; font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; background: var(--accent); transition: filter .15s, background .15s; }
-  button.act:hover { filter: brightness(1.1); }
-  button.act.stop { background: var(--err); }
-  button.act:disabled { opacity: .5; cursor: default; }
-  .hint { max-width: 860px; margin: 6px auto 0; color: var(--muted); font-size: 11.5px; }
+  .scrollbtn.show { display: flex; }
+  body.empty .scrollbtn { display: none; } /* nothing to scroll on the hero — never show it there (even with a stale .show) */
+  .scrollbtn:hover { border-color: var(--accent); }
+  .scrollbtn:active { transform: translateX(-50%) scale(.9); }
 
-  .slashmenu { max-width: 860px; margin: 0 auto 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: none; box-shadow: 0 -6px 24px #0006; }
-  .slashmenu.show { display: block; }
+  .composer { flex: none; background: transparent; padding: 6px 18px 18px; }
+  .composer .inner {
+    max-width: 760px; width: 100%; margin: 0 auto; display: flex; gap: 8px; align-items: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 7px 7px 7px 18px;
+    box-shadow: 0 1px 3px var(--shadow-color); transition: border-color .15s, box-shadow .15s;
+  }
+  .composer .inner:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  textarea#input {
+    /* sized to exactly one text line (no vertical padding); the flex row's align-items:center does the centering */
+    flex: 1; resize: none; max-height: 200px; min-height: 22px; padding: 0; display: block;
+    border: none; background: transparent; color: var(--text);
+    font-family: var(--sans); font-size: 15px; line-height: 22px; outline: none;
+  }
+  textarea#input::placeholder { color: var(--muted); }
+  button.act {
+    flex: none; border: none; border-radius: 50%; width: 34px; height: 34px; align-self: flex-end;
+    display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1;
+    cursor: pointer; color: #fff; background: var(--accent); transition: filter .15s, background .15s, transform .1s;
+  }
+  button.act:hover { filter: brightness(1.1); }
+  button.act:active { transform: scale(.92); }
+  button.act.stop { background: var(--err); font-size: 12px; }
+
+  .slashmenu { max-width: 760px; margin: 0 auto 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: none; box-shadow: 0 -6px 24px var(--shadow-color); }
+  .slashmenu.show { display: block; animation: slashIn .16s cubic-bezier(.22,.61,.36,1) both; }
+  @keyframes slashIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .slashmenu.show { animation: none; } }
   .slashmenu .item { padding: 8px 14px; cursor: pointer; display: flex; gap: 12px; align-items: baseline; }
   .slashmenu .item.sel, .slashmenu .item:hover { background: var(--accent-soft); }
   .slashmenu .item .cmd { font-family: var(--mono); color: var(--accent); font-size: 13px; }
@@ -98,28 +185,67 @@
   .stats b { color: var(--text); font-weight: 600; }
   .badges { display: flex; gap: 6px; align-items: center; max-width: 45vw; overflow: hidden; }
   .badge-chip { font-size: 11.5px; padding: 2px 9px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
-  .msg.notice { align-items: center; }
-  .msg.notice .bubble { background: transparent; border-style: dashed; color: var(--muted); font-size: 13px; padding: 7px 14px; }
-  .msg.notice.alert .bubble { color: #ffd9a8; border-color: #d2992255; background: #d2992212; }
+
+  /* theme toggle */
+  .icon-btn { background: none; border: 1px solid transparent; border-radius: 8px; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 4px 8px; transition: color .15s, border-color .15s; }
+  .icon-btn:hover { color: var(--text); border-color: var(--border); }
 
   /* dialog */
-  .overlay { position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; z-index: 50; }
-  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; width: min(440px, 90vw); box-shadow: 0 18px 50px #000a; }
+  .overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 50; animation: overlayIn .14s ease both; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; width: min(440px, 90vw); box-shadow: 0 18px 50px var(--shadow-color); animation: modalIn .2s cubic-bezier(.22,.61,.36,1) both; }
+  @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes modalIn { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .overlay, .modal { animation: none; } }
+  .modal.finder { width: min(560px, 92vw); }
   .modal h3 { margin: 0 0 16px; font-size: 16px; }
-  .modal .opts { display: flex; flex-direction: column; gap: 8px; }
   .modal button, .modal input { font-family: var(--sans); font-size: 14px; }
-  .modal .opt { text-align: left; padding: 10px 14px; border-radius: 9px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); cursor: pointer; }
-  .modal .opt:hover { border-color: var(--accent); }
+  .modal .opt { text-align: left; padding: 10px 14px; border-radius: 9px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); cursor: pointer; transition: border-color .12s, background .12s; }
+  .modal .opt:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .modal .opt:active { transform: scale(.98); }
   .modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
   .modal input { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; }
   .modal input:focus { border-color: var(--accent); }
-
-  .typing { display: inline-flex; gap: 4px; padding: 4px 0; }
-  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
-  .typing span:nth-child(2) { animation-delay: .2s; } .typing span:nth-child(3) { animation-delay: .4s; }
-  @keyframes blink { 0%,80%,100% { opacity: .25; } 40% { opacity: 1; } }
+  /* fuzzy finder (select dialogs) */
+  .finder-list { margin-top: 10px; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+  .finder-item { flex: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .12s; }
+  .finder-item.sel, .finder-item:hover { background: var(--accent-soft); }
+  .finder-empty { padding: 10px 12px; color: var(--muted); font-size: 13px; }
+  .finder-list::-webkit-scrollbar { width: 10px; }
+  .finder-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
   main::-webkit-scrollbar, .tool pre::-webkit-scrollbar { width: 10px; height: 10px; }
   main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+  /* standard thin scrollbars everywhere → consistent, no OS overlay bar bleeding over content */
+  main, .finder-list, .tool pre { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+  /* ---- responsive / touch ---- */
+  /* touch devices have no hover, so reveal-on-hover affordances must stay visible */
+  @media (hover: none) {
+    .copy-btn { opacity: .8; }
+    .scrollbtn { display: none; } /* on touch, flick-to-bottom is natural; avoid an overlapping floating button */
+  }
+  @media (max-width: 640px) {
+    header { gap: 8px; padding: 9px 12px; }
+    .stats { display: none; }          /* model/usage chrome — drop it so the header never overflows on phones */
+    .badges { max-width: 34vw; }
+    #thread { padding: 18px 12px 8px; gap: 14px; }
+    .greeting .mark { font-size: 24px; }
+    .composer { padding: 6px 10px 12px; }
+    .composer .inner { border-radius: 20px; padding: 6px 6px 6px 14px; }
+    textarea#input { font-size: 16px; } /* ≥16px stops iOS Safari from auto-zooming the page on focus */
+    .msg.user .bubble { max-width: 92%; }
+    .overlay { padding-top: 8vh; }
+    .modal { padding: 18px; }
+  }
+  /* honour users who ask for less motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important; }
+    main { scroll-behavior: auto; }
+  }
+  /* visible keyboard focus (mouse clicks stay clean via :focus-visible) */
+  button:focus-visible, .modal input:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
 </style>
 </head>
 <body>
@@ -129,23 +255,73 @@
     <span class="stats" id="stats" title="model · context · cost"></span>
     <span class="spacer"></span>
     <span class="badges" id="badges"></span>
+    <button class="icon-btn" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
   </header>
-  <main id="main"><div id="thread"></div></main>
+  <main id="main"><div id="thread" role="log" aria-live="polite" aria-label="Conversation"></div></main>
+  <div id="toasts" aria-live="polite"></div>
+  <button class="scrollbtn" id="scrollbtn" title="Scroll to latest" aria-label="Scroll to latest">↓</button>
   <div class="composer">
+    <div class="greeting" id="greeting">
+      <div class="mark">pi<b>jota</b></div>
+      <div class="hint">Ask anything · type <code>/</code> for commands · ⌘K / Ctrl-K for the palette</div>
+    </div>
     <div class="slashmenu" id="slash"></div>
     <div class="inner">
-      <textarea id="input" placeholder="Message pijota…  (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
-      <button class="act" id="send">Send</button>
+      <textarea id="input" placeholder="Message pijota…" rows="1" aria-label="Message pijota"></textarea>
+      <button class="act" id="send" title="Send (Enter · Shift+Enter for newline)" aria-label="Send">↑</button>
     </div>
-    <div class="hint" id="hint"></div>
   </div>
 
 <script>
-(() => {
+window.addEventListener("DOMContentLoaded", () => {
   "use strict";
   const $ = s => document.querySelector(s);
   const thread = $("#thread"), main = $("#main"), input = $("#input"), sendBtn = $("#send");
   const conn = $("#conn"), badgesEl = $("#badges"), slash = $("#slash"), statsEl = $("#stats");
+
+  // empty conversation → centered greeting + composer; first message drops it to the bottom (auto-tracked).
+  // The composer glides between the two positions via a FLIP: measure the input's box before and after the
+  // layout flip, then animate the inverse transform back to zero (GPU transform only, no layout thrash).
+  const composerInner = $(".composer .inner");
+  const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let isEmpty = null; // null until first sync, so the initial state doesn't animate
+  function setEmpty(empty) {
+    if (empty === isEmpty) return;
+    const animate = isEmpty !== null && !reduceMotion;
+    const first = animate ? composerInner.getBoundingClientRect().top : 0;
+    document.body.classList.toggle("empty", empty);
+    if (animate) {
+      const dy = first - composerInner.getBoundingClientRect().top;
+      if (dy) composerInner.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }],
+                                    { duration: 420, easing: "cubic-bezier(.22,.61,.36,1)" });
+    }
+    isEmpty = empty;
+  }
+  const trackEmpty = () => setEmpty(thread.childElementCount === 0);
+  new MutationObserver(trackEmpty).observe(thread, { childList: true });
+  trackEmpty();
+  const themeBtn = $("#theme-toggle"), hljsTheme = $("#hljs-theme");
+
+  // ---- theme (light / dark) ----
+  const HLJS = {
+    dark: "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css",
+    light: "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css",
+  };
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    themeBtn.textContent = t === "light" ? "☾" : "☀"; // the mode you'll switch to
+    hljsTheme.href = HLJS[t] || HLJS.dark;
+    // keep the mobile browser chrome in sync with the active theme
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = getComputedStyle(document.body).getPropertyValue("--bg").trim() || meta.content;
+    try { localStorage.setItem("pijota-theme", t); } catch (_) {}
+  }
+  function storedTheme() { try { return localStorage.getItem("pijota-theme"); } catch (_) { return null; } }
+  applyTheme(storedTheme() || (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+  themeBtn.addEventListener("click", () => {
+    applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+    input.focus(); // an action button, not a focus target — return focus to the chat bar
+  });
   let busy = false, live = null;           // live = current streaming assistant bubble
   const toolCards = new Map();             // tool-call id -> {wrap, result placeholder}
   let commands = [], menuItems = [], menuSel = -1;
@@ -153,37 +329,82 @@
 
   // ---- markdown ----
   if (window.marked) marked.setOptions({ breaks: true, gfm: true });
-  function renderMarkdown(el, text) {
+  function renderMarkdown(el, text, settled = true) {
     if (window.marked && window.DOMPurify) {
       el.innerHTML = DOMPurify.sanitize(marked.parse(text || ""));
-      el.querySelectorAll("pre code").forEach(b => { try { hljs.highlightElement(b); } catch (_) {} });
+      // Syntax-highlight + add copy buttons only on a SETTLED render. During streaming the innerHTML is
+      // rebuilt every frame, so highlighting each frame is wasted CPU (and the copy button would flicker);
+      // code shows plain until the message settles, then colorizes once. One pass over <pre> for both.
+      if (settled) el.querySelectorAll("pre").forEach(pre => {
+        const code = pre.querySelector("code");
+        if (code) { try { hljs.highlightElement(code); } catch (_) {} }
+        addCopyButton(pre);
+      });
     } else {
       el.textContent = text || "";        // safe fallback if CDN unavailable
     }
+  }
+  // A "copy" button that writes getText() (read at click time) to the clipboard and flashes "copied".
+  function copyButton(className, getText, title) {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = className; btn.textContent = "copy";
+    if (title) btn.title = title;
+    btn.onclick = () => navigator.clipboard.writeText(getText() || "").then(() => {
+      btn.textContent = "copied"; setTimeout(() => { btn.textContent = "copy"; }, 1200);
+    }, () => {});
+    return btn;
+  }
+  function addCopyButton(pre) {
+    const code = pre.querySelector("code") || pre;
+    pre.appendChild(copyButton("copy-btn", () => code.textContent));
+  }
+  // Hover-revealed "copy" under a user/assistant message. getText() is read at click time so a streaming
+  // assistant message copies whatever has accumulated so far (the raw markdown / typed source, not the DOM).
+  function addMsgCopy(msg, getText) {
+    const bar = document.createElement("div"); bar.className = "msg-actions";
+    bar.appendChild(copyButton("msg-copy", getText, "Copy message"));
+    msg.appendChild(bar);
   }
 
   // ---- scrolling ----
   // run fn, then keep the view pinned to the bottom if it already was (so streaming doesn't fight manual scroll-up)
   function nearBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 120; }
   function withAutoScroll(fn) { const was = nearBottom(); const r = fn(); if (was) main.scrollTop = main.scrollHeight; return r; }
+  const scrollBtn = $("#scrollbtn");
+  main.addEventListener("scroll", () => scrollBtn.classList.toggle("show", !nearBottom()));
+  scrollBtn.addEventListener("click", () => { main.scrollTop = main.scrollHeight; input.focus(); });
+
+  // cyclic keyboard selection over a list of elements (shared by the slash menu and the fuzzy finder): moves the
+  // selection by delta, applies the .sel class, scrolls it into view, and returns the new index.
+  function cycleSelection(items, current, delta) {
+    if (!items.length) return current;
+    const next = (current + delta + items.length) % items.length;
+    items.forEach((el, i) => el.classList.toggle("sel", i === next));
+    items[next].scrollIntoView({ block: "nearest" });
+    return next;
+  }
 
   // ---- message construction ----
   function addMsg(role) {
     const m = document.createElement("div"); m.className = "msg " + role;
-    const r = document.createElement("div"); r.className = "role"; r.textContent = role;
     const b = document.createElement("div"); b.className = "bubble";
-    m.append(r, b); thread.appendChild(m);
+    m.appendChild(b); thread.appendChild(m);
     return { msg: m, bubble: b };
   }
-  function simple(role, text) { withAutoScroll(() => renderMarkdown(addMsg(role).bubble, text)); }
+  function simple(role, text) {
+    const m = addMsg(role);
+    withAutoScroll(() => renderMarkdown(m.bubble, text));
+    if (role === "user") addMsgCopy(m.msg, () => text);
+  }
 
   // discrete extension/command output, inline in the transcript
-  function notice(text, alert) {
-    withAutoScroll(() => {
-      const e = addMsg("notice" + (alert ? " alert" : ""));
-      e.msg.querySelector(".role").remove();
-      e.bubble.textContent = text;
-    });
+  // Ephemeral status feedback as a transient toast (kept OUT of the transcript, so e.g. /new leaves an empty
+  // conversation that returns to the centered hero instead of a lingering "started a new conversation" note).
+  const toasts = $("#toasts");
+  function showToast(text, alert) {
+    const t = document.createElement("div"); t.className = "toast" + (alert ? " alert" : ""); t.textContent = text;
+    toasts.appendChild(t);
+    setTimeout(() => { t.classList.add("out"); setTimeout(() => t.remove(), 260); }, alert ? 4200 : 2600);
   }
 
   // current model + usage in the header (model switches and cost update live)
@@ -221,26 +442,46 @@
 
   function thinkingBlock(parent) {
     const d = document.createElement("details"); d.className = "think";
-    d.innerHTML = '<summary>Thinking</summary><div class="body"></div>';
-    parent.appendChild(d); return d.querySelector(".body");
+    const sum = document.createElement("summary"); sum.textContent = "Thinking";
+    const body = document.createElement("div"); body.className = "body";
+    const copy = copyButton("think-copy", () => body.textContent, "Copy reasoning");
+    copy.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); }); // copy, don't toggle the block
+    // expanding it near the bottom would otherwise leave the revealed reasoning below the fold
+    d.addEventListener("toggle", () => { if (d.open) d.scrollIntoView({ block: "nearest", behavior: "smooth" }); });
+    sum.appendChild(copy);
+    d.append(sum, body);
+    parent.insertBefore(d, parent.firstChild); // reasoning renders ABOVE the answer (conventional), collapsed by default
+    return body;
   }
 
   function assistantBubble() {
     return withAutoScroll(() => {
       const e = addMsg("assistant");
-      const content = document.createElement("div");
-      e.bubble.appendChild(content);
-      return { wrap: e.bubble, content, thinkBody: null, raf: 0 };
+      const answer = document.createElement("div"); answer.className = "answer";
+      const content = document.createElement("div"); answer.appendChild(content);
+      e.bubble.appendChild(answer); // a thinking block, if any, is inserted ABOVE this
+      return { msg: e.msg, wrap: e.bubble, answer, content, thinkBody: null, raf: 0, pending: "" };
     });
   }
 
-  function updateAssistant(b, content, thinking) {
+  function updateAssistant(b, content, thinking, isFinal) {
     if (thinking && thinking.trim()) {
       if (!b.thinkBody) b.thinkBody = thinkingBlock(b.wrap);
       b.thinkBody.textContent = thinking;
     }
+    b.pending = content; // always render the newest content when the frame fires (don't drop a later update)
+    b.final = !!isFinal;
     if (!b.raf) b.raf = requestAnimationFrame(() => {
-      b.raf = 0; withAutoScroll(() => renderMarkdown(b.content, content));
+      b.raf = 0; withAutoScroll(() => renderMarkdown(b.content, b.pending, b.final));
+      // once settled, float a copy at the answer's top-right (innerHTML rewrites b.content, so the button lives
+      // on the sibling .answer wrapper, not inside it). The thinking block carries its own copy above. Skip it when
+      // the answer leads with a code block — that block's own top-right copy is in the same spot (no double button).
+      if (b.final && !b.copied && b.pending.trim()) {
+        const lead = b.content.firstElementChild;
+        if (!lead || lead.tagName !== "PRE")
+          b.answer.appendChild(copyButton("answer-copy", () => b.pending, "Copy response"));
+        b.copied = true;
+      }
     });
   }
 
@@ -286,7 +527,7 @@
     es.addEventListener("assistant", e => {
       const d = JSON.parse(e.data);
       if (!live) live = assistantBubble();
-      updateAssistant(live, d.content, d.thinking);
+      updateAssistant(live, d.content, d.thinking, d.final);
       if (d.final) live = null;
     });
     es.addEventListener("tool", e => { const d = JSON.parse(e.data); toolCard(d.id, d.name, d.args); live = null; });
@@ -299,7 +540,7 @@
     });
     es.addEventListener("agent_error", e => { simple("error", JSON.parse(e.data).message); });
     es.addEventListener("turn", e => setBusy(JSON.parse(e.data).busy));
-    es.addEventListener("status", e => { const d = JSON.parse(e.data); if (d.message) notice(d.message, d.alert); });
+    es.addEventListener("status", e => { const d = JSON.parse(e.data); if (d.message) showToast(d.message, d.alert); });
     es.addEventListener("statuslines", e => renderStatusLines(JSON.parse(e.data).lines || []));
     es.addEventListener("stats", e => renderStats(JSON.parse(e.data)));
     es.addEventListener("viewer", e => showViewer(JSON.parse(e.data)));
@@ -309,7 +550,7 @@
   function replayHistory(m) {
     if (m.role === "assistant") {
       const b = assistantBubble();
-      updateAssistant(b, m.content, m.thinking);
+      updateAssistant(b, m.content, m.thinking, true); // committed message → copy buttons now
       (m.toolCalls || []).forEach(tc => toolCard(tc.id, tc.name, tc.args));
       live = null;
     } else if (m.role === "tool") {
@@ -325,16 +566,63 @@
   function setBusy(b) {
     busy = b;
     conn.classList.toggle("busy", b);
-    sendBtn.textContent = b ? "Stop" : "Send";
+    sendBtn.textContent = b ? "■" : "↑"; // ■ = stop the running turn, ↑ = send
+    sendBtn.title = b ? "Stop" : "Send (Enter · Shift+Enter for newline)";
     sendBtn.classList.toggle("stop", b);
   }
   function autoGrow() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 200) + "px"; }
+  function postJSON(url, data) {
+    const opts = { method: "POST" };
+    if (data !== undefined) { opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(data); }
+    return fetch(url, opts);
+  }
+  function post(text) { postJSON("/prompt", { text }); }
   function send() {
     const text = input.value.trim();
     if (!text) return;
     input.value = ""; autoGrow(); hideMenu();
-    fetch("/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    post(text);
+    input.focus(); // keep the chat bar focused after clicking Send
   }
+
+  // command palette: a fuzzy finder over every command, opened with ⌘K / Ctrl-K
+  function commandPalette() {
+    if (!commands.length || document.querySelector(".overlay")) return;
+    const { modal, close } = openOverlay("finder");
+    const h = document.createElement("h3"); h.textContent = "Run a command"; modal.appendChild(h);
+    const labels = commands.map(c => c.description ? c.name + "  —  " + c.description : c.name);
+    buildFinder(modal, labels, i => { close(); post(commands[i].name); }, close);
+  }
+  // builds the overlay + modal shell and mounts it; callers fill the modal and call close() to dismiss. close()
+  // returns focus to the chat bar explicitly — removing the focused dialog input does NOT reliably fire focusout
+  // in every browser, so the sticky-focus handler can't be relied on to snap focus back on its own.
+  function openOverlay(modalClass) {
+    const overlay = document.createElement("div"); overlay.className = "overlay";
+    const modal = document.createElement("div"); modal.className = "modal" + (modalClass ? " " + modalClass : "");
+    overlay.appendChild(modal); document.body.appendChild(overlay);
+    return { overlay, modal, close: () => { overlay.remove(); refocusChat(); } };
+  }
+  // focus an element once it's mounted and painted (deferred a tick so newly-inserted dialog inputs take focus)
+  function focusSoon(el) { setTimeout(() => el.focus(), 0); }
+  document.addEventListener("keydown", e => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); commandPalette(); }
+  });
+
+  // sticky focus: pull focus back to the chat bar when it lands on nothing interactive — but never while a
+  // dialog is open (its search/input wants focus) or while the user is selecting text in the transcript.
+  function refocusChat() {
+    if (document.querySelector(".overlay")) return;
+    if (window.getSelection && String(window.getSelection())) return;
+    input.focus();
+  }
+  document.addEventListener("focusout", () => setTimeout(() => {
+    const a = document.activeElement;
+    // Hold focus only for real text fields and anything inside an open dialog. Everything else that can grab
+    // focus here — buttons, <summary> toggles, links, or clicked empty space — is transient, so snap the chat
+    // bar back. (refocusChat still bows out while text is being selected.)
+    if (a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.closest(".overlay"))) return;
+    refocusChat();
+  }, 0));
 
   // slash-command menu: shown while the whole input is a single "/token" (no space yet)
   function updateMenu() {
@@ -355,21 +643,17 @@
     slash.classList.add("show");
   }
   function hideMenu() { slash.classList.remove("show"); menuItems = []; menuSel = -1; }
-  function moveSel(d) {
-    if (!menuItems.length) return;
-    menuSel = (menuSel + d + menuItems.length) % menuItems.length;
-    [...slash.children].forEach((el, i) => el.classList.toggle("sel", i === menuSel));
-    slash.children[menuSel].scrollIntoView({ block: "nearest" });
-  }
+  function moveSel(d) { menuSel = cycleSelection([...slash.children], menuSel, d); }
   function completeMenu(i) { input.value = menuItems[i].name + " "; hideMenu(); input.focus(); autoGrow(); }
 
-  sendBtn.addEventListener("click", () => { if (busy) fetch("/interrupt", { method: "POST" }); else send(); });
+  sendBtn.addEventListener("click", () => { if (busy) postJSON("/interrupt"); else send(); });
   input.addEventListener("input", () => { autoGrow(); updateMenu(); });
   input.addEventListener("keydown", e => {
     if (slash.classList.contains("show")) {
       if (e.key === "ArrowDown") { e.preventDefault(); return moveSel(1); }
       if (e.key === "ArrowUp") { e.preventDefault(); return moveSel(-1); }
-      if (e.key === "Tab" || (e.key === "Enter" && menuSel >= 0)) { e.preventDefault(); return completeMenu(menuSel); }
+      if (e.key === "Tab") { e.preventDefault(); return completeMenu(menuSel); } // complete, stay to add args
+      if (e.key === "Enter" && menuSel >= 0) { e.preventDefault(); completeMenu(menuSel); send(); return; } // complete + run
       if (e.key === "Escape") { e.preventDefault(); return hideMenu(); }
     }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
@@ -377,9 +661,8 @@
 
   // ---- dialogs (confirm / prompt / select) ----
   function showDialog(d) {
-    const overlay = document.createElement("div"); overlay.className = "overlay";
-    const modal = document.createElement("div"); modal.className = "modal";
-    const answer = v => { fetch("/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: d.id, value: v }) }); overlay.remove(); };
+    const { modal, close } = openOverlay(d.kind === "select" ? "finder" : "");
+    const answer = v => { postJSON("/answer", { id: d.id, value: v }); close(); };
     const h = document.createElement("h3"); h.textContent = d.question || d.title || ""; modal.appendChild(h);
 
     if (d.kind === "confirm") {
@@ -387,23 +670,70 @@
       const no = button("No", "opt"), yes = button("Yes", "act");
       no.onclick = () => answer("no"); yes.onclick = () => answer("yes");
       row.append(no, yes); modal.appendChild(row);
+      modal.tabIndex = 0; focusSoon(modal);
+      modal.addEventListener("keydown", e => { if (e.key === "Escape") answer("no"); });
     } else if (d.kind === "prompt") {
       const inp = document.createElement("input"); inp.value = d.default || "";
-      inp.addEventListener("keydown", e => { if (e.key === "Enter") answer(inp.value); });
+      inp.addEventListener("keydown", e => {
+        if (e.key === "Enter") answer(inp.value);
+        else if (e.key === "Escape") answer(d.default || ""); // cancel → the default, so the agent never hangs
+      });
       const row = document.createElement("div"); row.className = "row";
       const ok = button("OK", "act"); ok.onclick = () => answer(inp.value);
-      row.append(ok); modal.append(inp, row); setTimeout(() => inp.focus(), 0);
+      row.append(ok); modal.append(inp, row); focusSoon(inp);
     } else if (d.kind === "select") {
-      const opts = document.createElement("div"); opts.className = "opts";
-      (d.options || []).forEach((label, i) => { const b = button(label, "opt"); b.onclick = () => answer(String(i)); opts.appendChild(b); });
-      modal.appendChild(opts);
+      buildFinder(modal, d.options || [], i => answer(String(i)), close);
     }
-    overlay.appendChild(modal); document.body.appendChild(overlay);
   }
   function button(text, cls) { const b = document.createElement("button"); b.className = cls === "act" ? "act" : "opt"; b.textContent = text; return b; }
 
+  // a fuzzy finder: search box + filtered, keyboard-navigable list (↑/↓ move, Enter pick, Esc cancel)
+  function buildFinder(modal, options, onPick, onCancel) {
+    const search = document.createElement("input"); search.placeholder = "Type to filter…";
+    const list = document.createElement("div"); list.className = "finder-list";
+    modal.append(search, list);
+    let matches = [], sel = 0;
+    function render() {
+      const q = search.value.trim().toLowerCase();
+      // score then sort: prefix beats substring (earlier position wins) beats scattered subsequence; ties keep
+      // the original order (e.g. session recency). This pulls "/model" above "/plan"/"/mcp" when typing "model".
+      matches = options.map((label, i) => ({ label, i, score: matchScore(q, label) }))
+                                        .filter(o => o.score < Infinity)
+                                        .sort((a, b) => a.score - b.score || a.i - b.i);
+      sel = 0; list.innerHTML = "";
+      if (!matches.length) { const e = document.createElement("div"); e.className = "finder-empty"; e.textContent = "no matches"; list.appendChild(e); return; }
+      matches.forEach((m, idx) => {
+        const el = document.createElement("div"); el.className = "finder-item" + (idx === 0 ? " sel" : "");
+        el.textContent = m.label;
+        el.onclick = () => onPick(m.i);
+        list.appendChild(el);
+      });
+    }
+    function move(delta) { sel = cycleSelection([...list.querySelectorAll(".finder-item")], sel, delta); }
+    search.addEventListener("input", render);
+    search.addEventListener("keydown", e => {
+      if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+      else if (e.key === "Enter") { e.preventDefault(); if (matches.length) onPick(matches[sel].i); }
+      else if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+    });
+    render(); focusSoon(search);
+  }
+  // rank a label against a (lowercased) query: 0 = prefix, 1+ = substring (earlier position is better),
+  // 1000 = scattered subsequence, Infinity = no match. Empty query matches everything (score 0).
+  function matchScore(q, label) {
+    if (!q) return 0;
+    const t = label.toLowerCase();
+    const idx = t.indexOf(q);
+    if (idx === 0) return 0;
+    if (idx > 0) return 1 + idx / 1000;
+    let qi = 0;
+    for (let ti = 0; ti < t.length && qi < q.length; ti++) if (t[ti] === q[qi]) qi++;
+    return qi === q.length ? 1000 : Infinity;
+  }
+
   autoGrow(); connect(); input.focus();
-})();
+});
 </script>
 </body>
 </html>

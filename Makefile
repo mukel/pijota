@@ -56,7 +56,7 @@ format-check:
 	@$(MVN) -q spotless:check
 
 coverage:
-	@$(MVN) -q test jacoco:report
+	@$(MVN) -q -Pcoverage test jacoco:report
 	@echo "Coverage report: target/site/jacoco/index.html"
 
 # ---- cleanup ----

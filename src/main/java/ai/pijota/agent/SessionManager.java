@@ -207,12 +207,6 @@ public final class SessionManager {
                                         entry -> entry.put("level", level == null ? "OFF" : level), false);
     }
 
-    public void appendRegisters(Path sessionFile, Map<String, String> registers) throws IOException {
-        var values = registers == null ? Map.<String, String>of() : new LinkedHashMap<>(registers);
-        appendEntry(sessionFile, UUID.randomUUID().toString(), "registers", entry -> entry.put("values", values),
-                                        false);
-    }
-
     public CacheMetadata latestCacheMetadata(Path sessionFile) throws IOException {
         if (sessionFile == null || !Files.exists(sessionFile))
             return null;
@@ -271,25 +265,6 @@ public final class SessionManager {
             }
         }
         return level;
-    }
-
-    public Map<String, String> latestRegisters(Path sessionFile) throws IOException {
-        var registers = new LinkedHashMap<String, String>();
-        if (sessionFile == null || !Files.exists(sessionFile))
-            return registers;
-        for (var entry : currentBranchEntries(sessionFile)) {
-            if ("registers".equals(entry.get("type"))) {
-                Object values = entry.get("values");
-                registers.clear();
-                if (values instanceof Map<?, ?> map) {
-                    for (var value : map.entrySet()) {
-                        if (value.getKey() instanceof String key && value.getValue() instanceof String stringValue)
-                            registers.put(key, stringValue);
-                    }
-                }
-            }
-        }
-        return registers;
     }
 
     public void saveMessages(Path file, List<Message> messages, String cwd) throws IOException {

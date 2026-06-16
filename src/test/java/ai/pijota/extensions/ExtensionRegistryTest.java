@@ -6,7 +6,6 @@ import ai.pijota.extensions.testkit.FakeUiContext;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
-import ai.pijota.registers.RegisterService;
 import ai.pijota.testkit.FauxLlm;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
@@ -48,21 +47,6 @@ class ExtensionRegistryTest {
                 init.accept(api);
             }
         };
-    }
-
-    @Test
-    void extensionCanReadPreviousRegisterValueDuringInit() {
-        var registry = new ExtensionRegistry();
-        var registers = new RegisterService(Map.of("extension.goal.mode", "active"));
-        registry.setRegisterService(registers);
-
-        registry.register(simple("goal", api -> {
-            var initial = api.registerValue("extension.goal.mode").orElse("passive");
-            api.register("extension.goal.mode", () -> initial, _ -> {});
-        }));
-
-        assertEquals(Map.of("extension.goal.mode", "active"),
-                                        registers.get(List.of("extension.goal.mode"), new ArrayList<>()));
     }
 
     // ---- fakes ----

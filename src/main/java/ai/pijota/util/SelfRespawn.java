@@ -18,6 +18,9 @@ public final class SelfRespawn {
     static final Path RECOVERY_FILE = Path.of("target", ".transcend-session");
     static final Path RESTART_FILE = Path.of("target", ".transcend-restart");
     static final Path STAGED_JAR = Path.of("target", "pijota-transcend.jar");
+    // Boot-health sentinel: the supervisor creates it before launching a freshly-respawned build; the worker
+    // deletes it once it has started cleanly. If it survives the worker, the new build never came up → roll back.
+    static final Path BOOTING_FILE = Path.of("target", ".transcend-booting");
     static final String LOCK_PREFIX = "[transcend] ";
 
     private static volatile Path activeSessionFile;
@@ -275,6 +278,65 @@ public final class SelfRespawn {
 
     public static boolean isRespawnInProgress() {
         return respawnInProgress.get();
+    }
+
+    // ---- boot-health handshake (supervisor auto-rollback safety net) ----
+
+    /** Arm the boot-health check before launching a freshly-respawned build. */
+    public static void markBooting() {
+        try {
+            Path parent = BOOTING_FILE.getParent();
+            if (parent != null)
+                Files.createDirectories(parent);
+            Files.writeString(BOOTING_FILE, "booting");
+        } catch (IOException ignored) {}
+    }
+
+    /** Signal a healthy startup (the worker calls this once bootstrap succeeds). No-op for non-respawn launches. */
+    public static void markStartupHealthy() {
+        try {
+            Files.deleteIfExists(BOOTING_FILE);
+        } catch (IOException ignored) {}
+    }
+
+    public static boolean isBooting() {
+        return Files.exists(BOOTING_FILE);
+    }
+
+    /**
+     * Builds the command to relaunch the previous (backup) build after a respawned build failed to start: restores the
+     * backup jar over the failed command's jar and drops the transcend merge/worktree flags (the bad build is being
+     * abandoned). The session arg is preserved, so the conversation survives. Empty if there's no backup, no jar in the
+     * command, or the restore fails.
+     */
+    public static Optional<List<String>> autoRollbackCommand(List<String> failedCommand) {
+        if (!canRollback() || failedCommand == null)
+            return Optional.empty();
+        int jarIdx = failedCommand.indexOf("-jar");
+        if (jarIdx < 0 || jarIdx + 1 >= failedCommand.size())
+            return Optional.empty();
+        try {
+            rollback(Path.of(failedCommand.get(jarIdx + 1))); // overwrite the failed jar with the known-good backup
+        } catch (IOException e) {
+            System.err.println(LOCK_PREFIX + "auto-rollback failed: " + e.getMessage());
+            return Optional.empty();
+        }
+        return Optional.of(stripTranscendFlags(failedCommand));
+    }
+
+    /** Removes the {@code --transcend-merge-branch}/{@code --transcend-worktree} flags (and their values). */
+    static List<String> stripTranscendFlags(List<String> command) {
+        var out = new ArrayList<String>(command.size());
+        for (int i = 0; i < command.size(); i++) {
+            String a = command.get(i);
+            if (a.equals("--transcend-merge-branch") || a.equals("--transcend-worktree")) {
+                if (i + 1 < command.size())
+                    i++; // skip the flag's value too
+                continue;
+            }
+            out.add(a);
+        }
+        return out;
     }
 
     private static void showRecoveryHint() {

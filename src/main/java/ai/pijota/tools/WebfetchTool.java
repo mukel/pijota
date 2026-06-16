@@ -143,7 +143,7 @@ public final class WebfetchTool implements Tool {
         };
     }
 
-    static String htmlToMarkdown(String html) {
+    public static String htmlToMarkdown(String html) {
         String text = html.replaceAll("(?is)<script[^>]*>.*?</script>", "")
                                         .replaceAll("(?is)<style[^>]*>.*?</style>", "")
                                         .replaceAll("(?is)<noscript[^>]*>.*?</noscript>", "")

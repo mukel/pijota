@@ -48,7 +48,7 @@ public final class WebServer implements AutoCloseable {
 
     private volatile long lastStreamAt;
     private volatile List<String> lastStatusLines = List.of();
-    private volatile String lastStats = "";
+    private volatile Map<String, Object> lastStats = Map.of();
 
     private final PijotaSession session;
     private final int port;
@@ -119,6 +119,8 @@ public final class WebServer implements AutoCloseable {
         }
         try (InputStream in = WebServer.class.getResourceAsStream("/web/index.html")) {
             byte[] html = in.readAllBytes();
+            // The single-page app is the whole UI; never let a browser serve a stale copy after an upgrade.
+            ex.getResponseHeaders().set("Cache-Control", "no-store");
             send(ex, 200, "text/html; charset=utf-8", html);
         }
     }
@@ -317,11 +319,10 @@ public final class WebServer implements AutoCloseable {
     private void pollStats() {
         if (llm == null || clients.isEmpty())
             return;
-        Map<String, Object> stats = statsMap();
-        String sig = stats.toString();
-        if (sig.equals(lastStats))
+        Map<String, Object> stats = statsMap(); // one builder, shared with the on-connect replay
+        if (stats.equals(lastStats))
             return;
-        lastStats = sig;
+        lastStats = stats;
         broadcast("stats", stats);
     }
 

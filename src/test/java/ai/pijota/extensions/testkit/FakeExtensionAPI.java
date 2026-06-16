@@ -16,12 +16,10 @@ import ai.pijota.tools.Tool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class FakeExtensionAPI implements ExtensionAPI {
@@ -265,17 +263,6 @@ public class FakeExtensionAPI implements ExtensionAPI {
 
     @Override
     public void registerExceptionHandler(ExceptionHandler handler) {}
-
-    @Override
-    public void register(String key, Supplier<String> getter) {}
-
-    @Override
-    public void register(String key, Supplier<String> getter, Consumer<String> setter) {}
-
-    @Override
-    public Optional<String> registerValue(String key) {
-        return Optional.empty();
-    }
 
     @Override
     public void registerSystemPrompt(Supplier<String> prompt) {

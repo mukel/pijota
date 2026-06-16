@@ -64,7 +64,6 @@ public final class PijotaSession implements AutoCloseable {
         this.disableSession = noSession;
         this.sessionFile = noSession ? null : sessionManager.createSession(cwd);
         SelfRespawn.setSessionFile(this.sessionFile);
-        extensionRegistry.registers().setPersistHook(this::saveRegisters);
         CompactionManager.SummaryGenerator summaryGen = null;
         if (llmService != null) {
             summaryGen = (msgs, instr, prev, onPart) -> {
@@ -420,7 +419,6 @@ public final class PijotaSession implements AutoCloseable {
         this.sessionFile = newFile;
         this.disableSession = false;
         SelfRespawn.setSessionFile(newFile);
-        extensionRegistry.registers().replacePersisted(sessionManager.latestRegisters(newFile));
         var msgs = sessionManager.loadMessages(newFile);
         var metadata = sessionManager.latestCacheMetadata(newFile);
         String restoredPrompt = metadata != null && metadata.systemPrompt() != null
@@ -433,17 +431,6 @@ public final class PijotaSession implements AutoCloseable {
         agentLoop.replaceSystemPrompt(restoredPrompt);
         extensionRegistry.setSystemPrompt(restoredPrompt);
         agentLoop.notifyHistoryChanged(reason); // let frontends mirroring the transcript re-render
-    }
-
-    private void saveRegisters() {
-        Path file = this.sessionFile;
-        if (disableSession || file == null)
-            return;
-        try {
-            sessionManager.appendRegisters(file, extensionRegistry.registers().persistedSnapshot());
-        } catch (IOException e) {
-            rememberSessionWarning("register save", e);
-        }
     }
 
     private void writeCacheMetadata(String provider, String model, String systemPrompt) {

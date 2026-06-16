@@ -5,7 +5,6 @@ import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
-import ai.pijota.registers.RegisterService;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ProcessRunner;
@@ -25,8 +24,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public final class ExtensionRegistry {
     private static final Logger log = LoggerFactory.getLogger(ExtensionRegistry.class);
@@ -47,14 +44,12 @@ public final class ExtensionRegistry {
     private final ExtensionAPIImpl api = new ExtensionAPIImpl();
     private final ExtensionRuntimeImpl runtime = new ExtensionRuntimeImpl();
     private ToolRegistry toolRegistry;
-    private RegisterService registerService;
     private AgentContext agentContext;
     private LlmService llm;
     private UiContext uiContext;
     private Path cwd;
     private String sessionName;
     private String systemPrompt;
-    private String currentExtensionId;
     private Runnable suspendCallback;
     private Runnable resumeCallback;
     private Map<String, String> extensionFlags = Map.of();
@@ -121,16 +116,6 @@ public final class ExtensionRegistry {
         this.toolRegistry = registry;
     }
 
-    public void setRegisterService(RegisterService registerService) {
-        this.registerService = registerService != null ? registerService : new RegisterService(Map.of());
-    }
-
-    public RegisterService registers() {
-        if (registerService == null)
-            registerService = new RegisterService(Map.of());
-        return registerService;
-    }
-
     public void setAgentLoop(AgentContext loop) {
         this.agentContext = loop;
     }
@@ -166,21 +151,12 @@ public final class ExtensionRegistry {
 
     public void register(Extension ext) {
         extensions.add(ext);
-        currentExtensionId = ext.name();
         try {
             ext.init(api);
         } catch (Exception e) {
             log.warn("Extension {} init failed: {}", ext.name(), e.getMessage());
-        } finally {
-            currentExtensionId = null;
         }
         log.info("Registered extension: {}", ext.name());
-    }
-
-    private String currentExtensionId() {
-        if (currentExtensionId == null || currentExtensionId.isBlank())
-            throw new IllegalStateException("registers can only be declared during extension init");
-        return currentExtensionId;
     }
 
     private void addListener(Class<? extends ExtensionEvent> eventType,
@@ -550,21 +526,6 @@ public final class ExtensionRegistry {
         public void registerExceptionHandler(ExceptionHandler handler) {
             if (handler != null)
                 exceptionHandlers.add(handler);
-        }
-
-        @Override
-        public void register(String key, Supplier<String> getter) {
-            registerService.register(currentExtensionId(), key, getter);
-        }
-
-        @Override
-        public void register(String key, Supplier<String> getter, Consumer<String> setter) {
-            registerService.register(currentExtensionId(), key, getter, setter);
-        }
-
-        @Override
-        public Optional<String> registerValue(String key) {
-            return registerService.registerValue(currentExtensionId(), key);
         }
 
         @Override

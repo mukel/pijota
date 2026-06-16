@@ -48,16 +48,7 @@ public record SessionItem(Path path, String name, String description, long mtime
 
     @Override
     public String detailText() {
-        long ago = System.currentTimeMillis() - mtime;
-        String age;
-        if (ago < 60_000)
-            age = "just now";
-        else if (ago < 3600_000)
-            age = (ago / 60_000) + "m ago";
-        else if (ago < 86400_000)
-            age = (ago / 3600_000) + "h ago";
-        else
-            age = (ago / 86400_000) + "d ago";
+        String age = SessionDescriptor.relativeAge(mtime); // single source for age formatting
         String shortName = name.length() > 14 ? name.substring(0, 14) : name;
         String date = mtime > 0 ? DATE.format(Instant.ofEpochMilli(mtime)) : "unknown";
         return age + "  " + date + "  " + shortName;
