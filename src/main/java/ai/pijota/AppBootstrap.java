@@ -106,6 +106,7 @@ final class AppBootstrap {
         ext.setExtensionFlags(parsedArgs.extensionFlags());
         ext.register(new ai.pijota.extensions.examples.TodoExtension()); // opt-in (--todo); registered after flags
         ext.register(new ai.pijota.extensions.examples.TokenSpeedExtension()); // opt-in (--token-speed)
+        ext.register(new ai.pijota.extensions.examples.WebBrowseExtension()); // opt-in (--browse)
         if (!parsedArgs.noSkills())
             ext.register(new ai.pijota.extensions.skills.SkillExtension(parsedArgs.skillPaths()));
 

@@ -186,6 +186,9 @@ public final class Main {
             }
         }
         var session = b.session();
+        // The `question` tool relies on the TUI's interactive question handler (SlashCommandTool's static handler,
+        // set only by the TUI). It isn't wired for the browser, so drop it rather than offer a broken affordance.
+        b.tools().unregister("question");
         var server = new WebServer(session, port, b.llm(), b.extensions()::statusLines, b.extensions().slashCommands());
         b.extensions().setTui(server.ui()); // confirm/select/prompt via browser dialogs (UiContext seam)
         b.extensions().setSuspendResume(() -> {}, () -> {}); // no terminal to suspend
