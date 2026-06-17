@@ -54,7 +54,7 @@ public final class InlineBashExtension implements Extension {
                 try {
                     ExecResult exec = runtime.exec(List.of("bash", "-c", r.command));
                     String out = exec.success() ? exec.stdout().strip() : exec.stderr().strip();
-                    result.append(out.isBlank() ? "" : out);
+                    result.append(out);
                 } catch (Exception e) {
                     result.append("[error: ").append(e.getMessage()).append("]");
                 }

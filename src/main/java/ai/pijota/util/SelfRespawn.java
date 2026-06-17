@@ -339,15 +339,6 @@ public final class SelfRespawn {
         return out;
     }
 
-    private static void showRecoveryHint() {
-        if (canRollback()) {
-            System.err.println(LOCK_PREFIX + "rollback available — recover with:");
-            System.err.println("  java -jar target/pijota-backup.jar --recover");
-        } else {
-            System.err.println(LOCK_PREFIX + "no rollback available — rebuild: mvn package -Pfat -q");
-        }
-    }
-
     public static Optional<List<String>> readRestartRequest() {
         if (!Files.exists(RESTART_FILE))
             return Optional.empty();

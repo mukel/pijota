@@ -15,21 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 final class TranscendenceOrchestrator {
-    interface Host {
-        boolean busy();
-
-        void appendPlain(List<String> lines);
-
-        List<String> promptEcho(String text);
-
-        String styled(String slot, String text);
-
-        long beginBusy(String phase);
-
-        void endBusy(long generation);
-
-        void redrawPrompt();
-
+    interface Host extends TuiHost {
         void resetStreamState();
 
         void showSessionWarning();

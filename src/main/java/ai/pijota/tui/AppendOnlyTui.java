@@ -202,6 +202,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final MessageBrowser messageBrowser;
     private PendingEditManager pendingEdit;
     private final Supplier<List<String>> extensionLinesSupplier;
+    private final List<SkillLoader.Skill> skills;
     private final ThemeManager themeMgr;
     private final ThemeCommandHandler themeCommands;
     private final TranscendenceOrchestrator transcendence;
@@ -239,26 +240,28 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             animation.set(settings.workingAnimation());
         }
         this.extensionLinesSupplier = extensionLinesSupplier != null ? extensionLinesSupplier : List::of;
-        this.dialogs = createDialogHandler();
-        this.shellCommands = createShellCommandRunner();
-        this.sessionCommands = createSessionCommands();
-        this.modelCommands = createModelCommandHandler();
-        this.skillCommands = createSkillCommandHandler(skills);
-        this.settingsCommands = createSettingsCommandHandler();
+        this.skills = skills;
+        Host host = new Host();
+        this.dialogs = new DialogHandler(host);
+        this.shellCommands = new ShellCommandRunner(host);
+        this.sessionCommands = new SessionCommands(host);
+        this.modelCommands = new ModelCommandHandler(host);
+        this.skillCommands = new SkillCommandHandler(host);
+        this.settingsCommands = new SettingsCommandHandler(host);
         this.contextWindow = resolveContextWindow(provider, model);
         this.thinkingTheme = theme.thinking();
-        this.themeMgr = createThemeManager();
-        this.themeCommands = createThemeCommandHandler();
+        this.themeMgr = new ThemeManager(host);
+        this.themeCommands = new ThemeCommandHandler(host);
         this.terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build();
         this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
         this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
-        this.transcendence = createTranscendenceOrchestrator();
+        this.transcendence = new TranscendenceOrchestrator(host);
         this.selectors = new TuiSelectors(this::confirmModelSelection, this::confirmSessionSelection,
                                         this::confirmThemeSelection, this::confirmSettingsSelection,
                                         this::confirmLoginSelection, this::confirmForkSelection,
                                         this::confirmPaletteSelection);
-        this.loginCommands = createLoginCommandHandler();
-        this.commandPalette = createCommandPaletteHandler();
+        this.loginCommands = new LoginCommandHandler(host);
+        this.commandPalette = new CommandPaletteHandler(host);
         var regions = new ArrayList<PromptRegion>();
         regions.add(new PromptRegion.Editor());
         regions.add(new PendingRegion());
@@ -290,688 +293,446 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         session.addEventListener(this::onEvent);
     }
 
-    private DialogHandler createDialogHandler() {
-        return new DialogHandler(new DialogHandler.Host() {
-            @Override
-            public void appendPlain(List<String> lines) {
-                AppendOnlyTui.this.appendPlain(lines);
-            }
+    /**
+     * The single adapter backing every command handler's narrow {@link TuiHost}-derived view. It hands the handlers the
+     * TUI's capabilities while keeping the TUI's own methods and fields private: each handler sees only its declared
+     * {@code Host} contract, never this class. Calls that share a name with one of this adapter's own methods are
+     * qualified with {@code AppendOnlyTui.this} so they reach the enclosing TUI rather than recursing.
+     */
+    private final class Host implements DialogHandler.Host, ShellCommandRunner.Host, SessionCommands.Host,
+                                    ModelCommandHandler.Host, TranscendenceOrchestrator.Host, SkillCommandHandler.Host,
+                                    SettingsCommandHandler.Host, ThemeManager.Host, ThemeCommandHandler.Host,
+                                    LoginCommandHandler.Host, CommandPaletteHandler.Host {
 
-            @Override
-            public String styled(String slot, String text) {
-                return AppendOnlyTui.this.theme.styled(slot, text);
-            }
+        // ---- shared primitives (TuiHost) ----
+        @Override
+        public void appendPlain(List<String> lines) {
+            AppendOnlyTui.this.appendPlain(lines);
+        }
 
-            @Override
-            public void setStatus(String status) {
-                setStatusOverride(status);
-            }
+        @Override
+        public void appendError(String message) {
+            AppendOnlyTui.this.appendError(message);
+        }
 
-            @Override
-            public void clearStatus() {
-                clearStatusOverride();
-            }
+        @Override
+        public void appendStatus(String message) {
+            AppendOnlyTui.this.appendStatus(message);
+        }
 
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
-        });
-    }
+        @Override
+        public String styled(String slot, String text) {
+            return theme.styled(slot, text);
+        }
 
-    private ShellCommandRunner createShellCommandRunner() {
-        return new ShellCommandRunner(new ShellCommandRunner.Host() {
-            @Override
-            public List<String> promptEcho(String text) {
-                return AppendOnlyTui.this.promptEcho(text);
-            }
+        @Override
+        public void redrawPrompt() {
+            AppendOnlyTui.this.redrawPrompt();
+        }
 
-            @Override
-            public void appendPlain(List<String> lines) {
-                AppendOnlyTui.this.appendPlain(lines);
-            }
+        @Override
+        public void clearPrompt() {
+            promptEditor.setText("");
+        }
 
-            @Override
-            public String styled(String slot, String text) {
-                return AppendOnlyTui.this.theme.styled(slot, text);
-            }
+        @Override
+        public boolean busy() {
+            return activity.isBusy();
+        }
 
-            @Override
-            public long beginBusy(String phase) {
-                return AppendOnlyTui.this.beginBusy(phase);
-            }
+        @Override
+        public long beginBusy(String phase) {
+            return AppendOnlyTui.this.beginBusy(phase);
+        }
 
-            @Override
-            public void endBusy(long generation) {
-                AppendOnlyTui.this.endBusy(generation);
-            }
+        @Override
+        public void endBusy(long generation) {
+            AppendOnlyTui.this.endBusy(generation);
+        }
 
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
+        @Override
+        public List<String> promptEcho(String text) {
+            return AppendOnlyTui.this.promptEcho(text);
+        }
 
-            @Override
-            public void fireUserBash(String command, boolean noContext) {
-                session.fireUserBash(command, noContext);
-            }
-        });
-    }
+        // ---- status / dialog ----
+        @Override
+        public void setStatus(String status) {
+            AppendOnlyTui.this.setStatusOverride(status);
+        }
 
-    private SessionCommands createSessionCommands() {
-        return new SessionCommands(new SessionCommands.Host() {
-            @Override
-            public PijotaSession session() {
-                return session;
-            }
+        @Override
+        public void clearStatus() {
+            AppendOnlyTui.this.clearStatusOverride();
+        }
 
-            @Override
-            public String styled(String slot, String text) {
-                return theme.styled(slot, text);
-            }
+        @Override
+        public void setStatusOverride(String status) {
+            AppendOnlyTui.this.setStatusOverride(status);
+        }
 
-            @Override
-            public void appendPlain(List<String> lines) {
-                AppendOnlyTui.this.appendPlain(lines);
-            }
+        @Override
+        public void setTransientStatus(String status, long millis) {
+            AppendOnlyTui.this.setTransientStatus(status, millis);
+        }
 
-            @Override
-            public boolean busy() {
-                return activity.isBusy();
-            }
+        // ---- session / runtime accessors ----
+        @Override
+        public PijotaSession session() {
+            return session;
+        }
 
-            @Override
-            public String sessionName() {
-                return AppendOnlyTui.this.sessionName;
-            }
+        @Override
+        public SettingsManager settings() {
+            return settings;
+        }
 
-            @Override
-            public void setSessionName(String name) {
-                sessionName = name;
-            }
+        @Override
+        public String provider() {
+            return provider;
+        }
 
-            @Override
-            public String provider() {
-                return AppendOnlyTui.this.provider;
-            }
+        @Override
+        public String model() {
+            return model;
+        }
 
-            @Override
-            public String model() {
-                return AppendOnlyTui.this.model;
-            }
+        @Override
+        public String cwd() {
+            return cwd;
+        }
 
-            @Override
-            public String cwd() {
-                return AppendOnlyTui.this.cwd;
-            }
+        @Override
+        public ThinkingLevel thinkingLevel() {
+            return thinkingLevel;
+        }
 
-            @Override
-            public ThinkingLevel thinkingLevel() {
-                return AppendOnlyTui.this.thinkingLevel;
-            }
+        @Override
+        public String sessionName() {
+            return sessionName;
+        }
 
-            @Override
-            public SettingsManager settings() {
-                return AppendOnlyTui.this.settings;
-            }
+        @Override
+        public void setSessionName(String name) {
+            sessionName = name;
+        }
 
-            @Override
-            public String tokenStatus() {
-                return AppendOnlyTui.this.tokenStatus();
-            }
+        @Override
+        public void refreshSessionName() {
+            AppendOnlyTui.this.refreshSessionName();
+        }
 
-            @Override
-            public CompletableFuture<Boolean> confirm(String question) {
-                return AppendOnlyTui.this.confirm(question);
-            }
+        @Override
+        public String tokenStatus() {
+            return AppendOnlyTui.this.tokenStatus();
+        }
 
-            @Override
-            public void refreshSessionName() {
-                AppendOnlyTui.this.refreshSessionName();
-            }
-        });
-    }
+        @Override
+        public CompletableFuture<Boolean> confirm(String question) {
+            return AppendOnlyTui.this.confirm(question);
+        }
 
-    private ModelCommandHandler createModelCommandHandler() {
-        return new ModelCommandHandler(new ModelCommandHandler.Host() {
-            @Override
-            public boolean busy() {
-                return activity.isBusy();
-            }
+        @Override
+        public TuiSelectors selectors() {
+            return selectors;
+        }
 
-            @Override
-            public String provider() {
-                return AppendOnlyTui.this.provider;
-            }
+        @Override
+        public PromptEditor promptEditor() {
+            return promptEditor;
+        }
 
-            @Override
-            public String model() {
-                return AppendOnlyTui.this.model;
-            }
+        // ---- shell / agent execution ----
+        @Override
+        public void fireUserBash(String command, boolean noContext) {
+            session.fireUserBash(command, noContext);
+        }
 
-            @Override
-            public void appendPlain(List<String> lines) {
-                AppendOnlyTui.this.appendPlain(lines);
-            }
+        @Override
+        public void submitAgent(Runnable task) {
+            agentExecutor.submit(task);
+        }
 
-            @Override
-            public String styled(String slot, String text) {
-                return theme.styled(slot, text);
-            }
+        @Override
+        public void submitAuthTask(Runnable task) {
+            agentExecutor.submit(task);
+        }
 
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
-
-            @Override
-            public void setStatus(String status) {
-                setStatusOverride(status);
-            }
-
-            @Override
-            public void switchModel(ModelInfo chosen) {
-                AppendOnlyTui.this.switchToModel(chosen);
-            }
-
-            @Override
-            public TuiSelectors selectors() {
-                return selectors;
-            }
-
-            @Override
-            public PromptEditor promptEditor() {
-                return promptEditor;
-            }
-
-            @Override
-            public PijotaSession session() {
-                return session;
-            }
-
-            @Override
-            public SettingsManager settings() {
-                return settings;
-            }
-        });
-    }
-
-    private TranscendenceOrchestrator createTranscendenceOrchestrator() {
-        return new TranscendenceOrchestrator(new TranscendenceOrchestrator.Host() {
-            @Override
-            public boolean busy() {
-                return activity.isBusy();
-            }
-
-            @Override
-            public void appendPlain(List<String> lines) {
-                AppendOnlyTui.this.appendPlain(lines);
-            }
-
-            @Override
-            public List<String> promptEcho(String text) {
-                return AppendOnlyTui.this.promptEcho(text);
-            }
-
-            @Override
-            public String styled(String slot, String text) {
-                return theme.styled(slot, text);
-            }
-
-            @Override
-            public long beginBusy(String phase) {
-                return AppendOnlyTui.this.beginBusy(phase);
-            }
-
-            @Override
-            public void endBusy(long generation) {
-                AppendOnlyTui.this.endBusy(generation);
-            }
-
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
-
-            @Override
-            public void resetStreamState() {
-                streamRenderer.reset();
-            }
-
-            @Override
-            public void showSessionWarning() {
-                AppendOnlyTui.this.showSessionWarning();
-            }
-
-            @Override
-            public void suspendTui() {
-                AppendOnlyTui.this.suspendTui();
-            }
-
-            @Override
-            public void resumeTui() {
-                AppendOnlyTui.this.resumeTui();
-            }
-
-            @Override
-            public void flushTerminal() {
-                terminal.writer().flush();
-            }
-
-            @Override
-            public void submitAgent(Runnable task) {
-                agentExecutor.submit(task);
-            }
-
-            @Override
-            public CompletableFuture<List<Message>> promptSession(String prompt) {
-                return session.prompt(prompt);
-            }
-
-            @Override
-            public Path sessionFile() {
-                return session.sessionFile();
-            }
-
-            @Override
-            public void setStatusOverride(String status) {
-                setStatusOverride(status);
-            }
-
-            @Override
-            public String projectDir() {
-                if (settings != null) {
-                    String dir = settings.projectDir();
-                    if (dir != null && !dir.isBlank())
-                        return dir;
+        @Override
+        public void submitAgentPrompt(String prompt, Runnable after) {
+            agentExecutor.submit(() -> {
+                try {
+                    session.prompt(prompt).join();
+                } finally {
+                    after.run();
                 }
-                return rawCwd;
-            }
-
-            @Override
-            public boolean isGitRepo() {
-                return Files.isDirectory(Path.of(projectDir(), ".git"));
-            }
-        });
-    }
-
-    private SkillCommandHandler createSkillCommandHandler(List<SkillLoader.Skill> skills) {
-        return new SkillCommandHandler(new SkillCommandHandler.Host() {
-            @Override
-            public List<SkillLoader.Skill> skills() {
-                return skills;
-            }
-
-            @Override
-            public String styled(String slot, String text) {
-                return theme.styled(slot, text);
-            }
-
-            @Override
-            public void appendPlain(List<String> lines) {
-                AppendOnlyTui.this.appendPlain(lines);
-            }
-
-            @Override
-            public List<String> promptEcho(String text) {
-                return AppendOnlyTui.this.promptEcho(text);
-            }
-
-            @Override
-            public long beginBusy(String phase) {
-                return AppendOnlyTui.this.beginBusy(phase);
-            }
-
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
-
-            @Override
-            public void submitAgentPrompt(String prompt, Runnable after) {
-                agentExecutor.submit(() -> {
-                    try {
-                        session.prompt(prompt).join();
-                    } finally {
-                        after.run();
-                    }
-                });
-            }
-
-            @Override
-            public void endBusy(long generation) {
-                AppendOnlyTui.this.endBusy(generation);
-            }
-
-            @Override
-            public void showSessionWarning() {
-                AppendOnlyTui.this.showSessionWarning();
-            }
-        });
-    }
-
-    private SettingsCommandHandler createSettingsCommandHandler() {
-        return new SettingsCommandHandler(new SettingsCommandHandler.Host() {
-            @Override
-            public boolean settingsAvailable() {
-                return settings != null;
-            }
-
-            @Override
-            public SettingsCommandHandler.SettingsSnapshot settingsSnapshot() {
-                var cfg = settings.config();
-                return new SettingsCommandHandler.SettingsSnapshot(settings.contextFilesEnabled(),
-                                                settings.compactionEnabled(), settings.shortenPathsEnabled(),
-                                                thinkingLevel, cfg.hideThinking(), cfg.quietStartup(),
-                                                animation.style());
-            }
-
-            @Override
-            public void showSettings(List<SettingsItem> items) {
-                selectors.show(TuiSelectors.Slot.SETTINGS, items);
-            }
-
-            @Override
-            public java.util.Optional<SettingsItem> selectedSetting() {
-                return selectors.selected(TuiSelectors.Slot.SETTINGS);
-            }
-
-            @Override
-            public void refreshSettings(List<SettingsItem> items) {
-                selectors.refresh(TuiSelectors.Slot.SETTINGS, items);
-            }
-
-            @Override
-            public void clearPrompt() {
-                promptEditor.setText("");
-            }
-
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
-
-            @Override
-            public void appendError(String message) {
-                appendPlain(List.of(theme.styled("toolError", message)));
-            }
-
-            @Override
-            public void toggleCompaction() {
-                settings.setCompactionEnabled(!settings.compactionEnabled());
-            }
-
-            @Override
-            public void setAutoCompactionEnabled(boolean enabled) {
-                session.setAutoCompactionEnabled(enabled);
-            }
-
-            @Override
-            public void toggleContextFiles() {
-                settings.setContextFilesEnabled(!settings.contextFilesEnabled());
-            }
-
-            @Override
-            public void toggleShortenPaths() {
-                settings.setShortenPathsEnabled(!settings.shortenPathsEnabled());
-            }
-
-            @Override
-            public ThinkingLevel advanceThinkingLevel() {
-                thinkingLevel = thinkingLevel.next();
-                session.setThinkingLevel(thinkingLevel);
-                settings.setThinkingLevel(thinkingLevel.name());
-                return thinkingLevel;
-            }
-
-            @Override
-            public void toggleHideThinking() {
-                settings.setHideThinking(!settings.config().hideThinking());
-            }
-
-            @Override
-            public void toggleQuietStartup() {
-                settings.setQuietStartup(!settings.config().quietStartup());
-            }
-
-            @Override
-            public void toggleWorkingAnimation() {
-                settings.setWorkingAnimation(animation.toggle());
-            }
-
-            @Override
-            public void setTransientStatus(String status, long millis) {
-                AppendOnlyTui.this.setTransientStatus(status, millis);
-            }
-        });
-    }
-
-    private ThemeManager createThemeManager() {
-        return new ThemeManager(new ThemeManager.Host() {
-            @Override
-            public AnsiTheme theme() {
-                return AppendOnlyTui.this.theme;
-            }
-
-            @Override
-            public void setTheme(AnsiTheme theme) {
-                AppendOnlyTui.this.setTheme(theme);
-            }
-
-            @Override
-            public void appendError(String message) {
-                AppendOnlyTui.this.appendError(message);
-            }
-
-            @Override
-            public void appendStatus(String message) {
-                AppendOnlyTui.this.appendStatus(message);
-            }
-        });
-    }
-
-    private ThemeCommandHandler createThemeCommandHandler() {
-        return new ThemeCommandHandler(new ThemeCommandHandler.Host() {
-            @Override
-            public List<ThemeItem> discoverThemes() {
-                return themeMgr.discover();
-            }
-
-            @Override
-            public void showThemes(List<ThemeItem> items) {
-                selectors.show(TuiSelectors.Slot.THEME, items);
-            }
-
-            @Override
-            public void selectCurrentTheme() {
-                selectors.<ThemeItem>selectFirst(TuiSelectors.Slot.THEME, ThemeItem::current);
-            }
-
-            @Override
-            public java.util.Optional<ThemeItem> selectedTheme() {
-                return selectors.selected(TuiSelectors.Slot.THEME);
-            }
-
-            @Override
-            public void clearPrompt() {
-                promptEditor.setText("");
-            }
-
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
-
-            @Override
-            public void appendError(String message) {
-                AppendOnlyTui.this.appendError(message);
-            }
-
-            @Override
-            public void switchToTheme(String name) {
-                themeMgr.switchTo(name);
-            }
-
-            @Override
-            public void switchToThemePath(String path) {
-                themeMgr.switchToPath(path);
-            }
-
-            @Override
-            public void deactivateThemeSelector() {
-                selectors.deactivate(TuiSelectors.Slot.THEME);
-            }
-        });
-    }
-
-    private LoginCommandHandler createLoginCommandHandler() {
-        return new LoginCommandHandler(new LoginCommandHandler.Host() {
-            @Override
-            public void showProviders(List<LoginProviderItem> items) {
-                selectors.show(TuiSelectors.Slot.LOGIN, items);
-            }
-
-            @Override
-            public java.util.Optional<LoginProviderItem> selectedProvider() {
-                return selectors.selected(TuiSelectors.Slot.LOGIN);
-            }
-
-            @Override
-            public void deactivateProviderSelector() {
-                selectors.deactivate(TuiSelectors.Slot.LOGIN);
-            }
-
-            @Override
-            public void clearPrompt() {
-                promptEditor.setText("");
-            }
-
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
-
-            @Override
-            public void appendError(String message) {
-                AppendOnlyTui.this.appendError(message);
-            }
-
-            @Override
-            public void appendStatus(String message) {
-                appendPlain(List.of(theme.styled("statusText", message)));
-            }
-
-            @Override
-            public void submitAuthTask(Runnable task) {
-                agentExecutor.submit(task);
-            }
-
-            @Override
-            public void suspendTui() {
-                AppendOnlyTui.this.suspendTui();
-            }
-
-            @Override
-            public void resumeTui() {
-                AppendOnlyTui.this.resumeTui();
-            }
-
-            @Override
-            public void setDefaultModelForProvider(String provider, String model) throws IOException {
-                settings.setDefaultModelForProvider(provider, model);
-            }
-
-            @Override
-            public void removeApiKey(String provider) throws IOException {
-                settings.removeApiKey(provider);
-            }
-        });
-    }
-
-    private CommandPaletteHandler createCommandPaletteHandler() {
-        return new CommandPaletteHandler(new CommandPaletteHandler.Host() {
-            @Override
-            public boolean busy() {
-                return activity.isBusy();
-            }
-
-            @Override
-            public List<CompletionItem> commands() {
-                return AppendOnlyTui.this.commands.completeWithDescriptions("");
-            }
-
-            @Override
-            public List<ModelInfo> availableModels() {
-                return ModelRegistry.KNOWN_MODELS.stream().filter(
-                                                m -> settings != null && settings.resolveApiKey(m.provider()) != null)
-                                                .toList();
-            }
-
-            @Override
-            public java.util.Optional<ModelInfo> model(String id) {
-                return ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equals(id)).findFirst();
-            }
-
-            @Override
-            public List<ThemeItem> themes() {
-                return themeMgr.discover();
-            }
-
-            @Override
-            public List<SessionItem> sessions() {
-                return SessionItem.fromPaths(session.resumableSessions());
-            }
-
-            @Override
-            public void showPalette(List<CompletionItem> items) {
-                selectors.show(TuiSelectors.Slot.PALETTE, items);
-            }
-
-            @Override
-            public java.util.Optional<CompletionItem> selectedPaletteItem() {
-                return selectors.selected(TuiSelectors.Slot.PALETTE);
-            }
-
-            @Override
-            public void deactivatePalette() {
-                selectors.deactivate(TuiSelectors.Slot.PALETTE);
-            }
-
-            @Override
-            public void clearPrompt() {
-                promptEditor.setText("");
-            }
-
-            @Override
-            public void redrawPrompt() {
-                AppendOnlyTui.this.redrawPrompt();
-            }
-
-            @Override
-            public void appendError(String message) {
-                AppendOnlyTui.this.appendError(message);
-            }
-
-            @Override
-            public void handleCommand(String command) {
-                commandController.handle(command);
-            }
-
-            @Override
-            public void switchModel(ModelInfo model) {
-                AppendOnlyTui.this.switchToModel(model);
-            }
-
-            @Override
-            public void switchTheme(String name) {
-                themeMgr.switchTo(name);
-            }
-
-            @Override
-            public void loadSession(String name) {
-                AppendOnlyTui.this.loadSession("/load " + name);
-            }
-        });
+            });
+        }
+
+        @Override
+        public CompletableFuture<List<Message>> promptSession(String prompt) {
+            return session.prompt(prompt);
+        }
+
+        // ---- model ----
+        @Override
+        public void switchModel(ModelInfo chosen) {
+            switchToModel(chosen);
+        }
+
+        // ---- transcendence / terminal control ----
+        @Override
+        public void resetStreamState() {
+            streamRenderer.reset();
+        }
+
+        @Override
+        public void showSessionWarning() {
+            AppendOnlyTui.this.showSessionWarning();
+        }
+
+        @Override
+        public void suspendTui() {
+            AppendOnlyTui.this.suspendTui();
+        }
+
+        @Override
+        public void resumeTui() {
+            AppendOnlyTui.this.resumeTui();
+        }
+
+        @Override
+        public void flushTerminal() {
+            terminal.writer().flush();
+        }
+
+        @Override
+        public Path sessionFile() {
+            return session.sessionFile();
+        }
+
+        @Override
+        public String projectDir() {
+            if (settings != null) {
+                String dir = settings.projectDir();
+                if (dir != null && !dir.isBlank())
+                    return dir;
+            }
+            return rawCwd;
+        }
+
+        @Override
+        public boolean isGitRepo() {
+            return Files.isDirectory(Path.of(projectDir(), ".git"));
+        }
+
+        // ---- theme ----
+        @Override
+        public AnsiTheme theme() {
+            return theme;
+        }
+
+        @Override
+        public void setTheme(AnsiTheme newTheme) {
+            AppendOnlyTui.this.setTheme(newTheme);
+        }
+
+        @Override
+        public List<ThemeItem> discoverThemes() {
+            return themeMgr.discover();
+        }
+
+        @Override
+        public List<ThemeItem> themes() {
+            return themeMgr.discover();
+        }
+
+        @Override
+        public void showThemes(List<ThemeItem> items) {
+            selectors.show(TuiSelectors.Slot.THEME, items);
+        }
+
+        @Override
+        public void selectCurrentTheme() {
+            selectors.<ThemeItem>selectFirst(TuiSelectors.Slot.THEME, ThemeItem::current);
+        }
+
+        @Override
+        public java.util.Optional<ThemeItem> selectedTheme() {
+            return selectors.selected(TuiSelectors.Slot.THEME);
+        }
+
+        @Override
+        public void switchToTheme(String name) {
+            themeMgr.switchTo(name);
+        }
+
+        @Override
+        public void switchTheme(String name) {
+            themeMgr.switchTo(name);
+        }
+
+        @Override
+        public void switchToThemePath(String path) {
+            themeMgr.switchToPath(path);
+        }
+
+        @Override
+        public void deactivateThemeSelector() {
+            selectors.deactivate(TuiSelectors.Slot.THEME);
+        }
+
+        // ---- skills ----
+        @Override
+        public List<SkillLoader.Skill> skills() {
+            return skills;
+        }
+
+        // ---- settings ----
+        @Override
+        public boolean settingsAvailable() {
+            return settings != null;
+        }
+
+        @Override
+        public SettingsCommandHandler.SettingsSnapshot settingsSnapshot() {
+            var cfg = settings.config();
+            return new SettingsCommandHandler.SettingsSnapshot(settings.contextFilesEnabled(),
+                                            settings.compactionEnabled(), settings.shortenPathsEnabled(), thinkingLevel,
+                                            cfg.hideThinking(), cfg.quietStartup(), animation.style());
+        }
+
+        @Override
+        public void showSettings(List<SettingsItem> items) {
+            selectors.show(TuiSelectors.Slot.SETTINGS, items);
+        }
+
+        @Override
+        public java.util.Optional<SettingsItem> selectedSetting() {
+            return selectors.selected(TuiSelectors.Slot.SETTINGS);
+        }
+
+        @Override
+        public void refreshSettings(List<SettingsItem> items) {
+            selectors.refresh(TuiSelectors.Slot.SETTINGS, items);
+        }
+
+        @Override
+        public void toggleCompaction() {
+            settings.setCompactionEnabled(!settings.compactionEnabled());
+        }
+
+        @Override
+        public void setAutoCompactionEnabled(boolean enabled) {
+            session.setAutoCompactionEnabled(enabled);
+        }
+
+        @Override
+        public void toggleContextFiles() {
+            settings.setContextFilesEnabled(!settings.contextFilesEnabled());
+        }
+
+        @Override
+        public void toggleShortenPaths() {
+            settings.setShortenPathsEnabled(!settings.shortenPathsEnabled());
+        }
+
+        @Override
+        public ThinkingLevel advanceThinkingLevel() {
+            thinkingLevel = thinkingLevel.next();
+            session.setThinkingLevel(thinkingLevel);
+            settings.setThinkingLevel(thinkingLevel.name());
+            return thinkingLevel;
+        }
+
+        @Override
+        public void toggleHideThinking() {
+            settings.setHideThinking(!settings.config().hideThinking());
+        }
+
+        @Override
+        public void toggleQuietStartup() {
+            settings.setQuietStartup(!settings.config().quietStartup());
+        }
+
+        @Override
+        public void toggleWorkingAnimation() {
+            settings.setWorkingAnimation(animation.toggle());
+        }
+
+        // ---- login ----
+        @Override
+        public void showProviders(List<LoginProviderItem> items) {
+            selectors.show(TuiSelectors.Slot.LOGIN, items);
+        }
+
+        @Override
+        public java.util.Optional<LoginProviderItem> selectedProvider() {
+            return selectors.selected(TuiSelectors.Slot.LOGIN);
+        }
+
+        @Override
+        public void deactivateProviderSelector() {
+            selectors.deactivate(TuiSelectors.Slot.LOGIN);
+        }
+
+        @Override
+        public void setDefaultModelForProvider(String provider, String model) throws IOException {
+            settings.setDefaultModelForProvider(provider, model);
+        }
+
+        @Override
+        public void removeApiKey(String provider) throws IOException {
+            settings.removeApiKey(provider);
+        }
+
+        // ---- command palette ----
+        @Override
+        public List<CompletionItem> commands() {
+            return commands.completeWithDescriptions("");
+        }
+
+        @Override
+        public List<ModelInfo> availableModels() {
+            return ModelRegistry.KNOWN_MODELS.stream().filter(
+                                            m -> settings != null && settings.resolveApiKey(m.provider()) != null)
+                                            .toList();
+        }
+
+        @Override
+        public java.util.Optional<ModelInfo> model(String id) {
+            return ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equals(id)).findFirst();
+        }
+
+        @Override
+        public List<SessionItem> sessions() {
+            return SessionItem.fromPaths(session.resumableSessions());
+        }
+
+        @Override
+        public void showPalette(List<CompletionItem> items) {
+            selectors.show(TuiSelectors.Slot.PALETTE, items);
+        }
+
+        @Override
+        public java.util.Optional<CompletionItem> selectedPaletteItem() {
+            return selectors.selected(TuiSelectors.Slot.PALETTE);
+        }
+
+        @Override
+        public void deactivatePalette() {
+            selectors.deactivate(TuiSelectors.Slot.PALETTE);
+        }
+
+        @Override
+        public void handleCommand(String command) {
+            commandController.handle(command);
+        }
+
+        @Override
+        public void loadSession(String name) {
+            AppendOnlyTui.this.loadSession("/load " + name);
+        }
     }
 
     public void run(String version, String cwd) {
@@ -1547,10 +1308,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         modelCommands.cycleModel(1);
     }
 
-    private void cycleModelBackward() {
-        modelCommands.cycleModel(-1);
-    }
-
     private void showCommandPalette() {
         commandPalette.showCommandPalette();
     }
@@ -2033,10 +1790,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return out;
     }
 
-    List<String> lines(String text, String slot) {
-        return text.lines().map(line -> theme.styled(slot, line)).toList();
-    }
-
     private PromptSnapshot decorate(PromptSnapshot snapshot) {
         String tokens = tokenStatus();
         String status = currentStatusOverride();
@@ -2076,12 +1829,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (model == null || model.isBlank())
             return provider;
         String shortModel = model;
-        for (String prefix : List.of(provider + "-")) {
-            if (shortModel.startsWith(prefix)) {
-                shortModel = shortModel.substring(prefix.length());
-                break;
-            }
-        }
+        String prefix = provider + "-";
+        if (shortModel.startsWith(prefix))
+            shortModel = shortModel.substring(prefix.length());
         return provider + "/" + shortModel;
     }
 

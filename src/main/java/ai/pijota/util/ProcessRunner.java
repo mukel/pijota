@@ -226,7 +226,6 @@ public final class ProcessRunner {
 
     /** Runs a process, captures stdout as a string. Convenience for simple commands. */
     public String runCapture() throws IOException {
-        maxOutputBytes(maxOutputBytes);
         discardStderr();
         return run().stdout();
     }

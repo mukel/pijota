@@ -135,10 +135,6 @@ final class LogViewer {
         return top;
     }
 
-    int total() {
-        return lines.size();
-    }
-
     /** Number of terminal rows the rendered viewer occupies (header + body + footer). */
     int lineCount() {
         return 1 + (lines.isEmpty() ? 1 : visibleRows()) + 1;

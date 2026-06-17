@@ -61,8 +61,7 @@ final class AnsiWidth {
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
             if (ch == 0x1b) {
-                int skipped = skipEscape(text, i);
-                i = skipped;
+                i = skipEscape(text, i);
             } else if (ch == '\t') {
                 width += 4 - (width % 4);
             } else if (!Character.isISOControl(ch)) {

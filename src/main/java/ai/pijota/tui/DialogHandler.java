@@ -7,16 +7,10 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 final class DialogHandler {
-    interface Host {
-        void appendPlain(List<String> lines);
-
-        String styled(String slot, String text);
-
+    interface Host extends TuiHost {
         void setStatus(String status);
 
         void clearStatus();
-
-        void redrawPrompt();
     }
 
     private final Host host;

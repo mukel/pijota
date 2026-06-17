@@ -7,9 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 final class CommandPaletteHandler {
-    interface Host {
-        boolean busy();
-
+    interface Host extends TuiHost {
         List<CompletionItem> commands();
 
         List<ModelInfo> availableModels();
@@ -25,12 +23,6 @@ final class CommandPaletteHandler {
         Optional<CompletionItem> selectedPaletteItem();
 
         void deactivatePalette();
-
-        void clearPrompt();
-
-        void redrawPrompt();
-
-        void appendError(String message);
 
         void handleCommand(String command);
 

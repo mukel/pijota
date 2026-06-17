@@ -103,7 +103,7 @@ public final class BashTool implements Tool {
                     return ToolResult.error("Working directory does not exist: " + workdir);
 
                 // Timeout in SECONDS (pi-compatible)
-                long timeoutSeconds = (long) Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS);
+                long timeoutSeconds = Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS);
 
                 String fullCmd = shellPrefix != null ? shellPrefix + "\n" + command : command;
 
@@ -135,9 +135,7 @@ public final class BashTool implements Tool {
                     } catch (IOException ignored) {}
                 }
 
-                if (result.timedOut())
-                    return new ToolResult(output, true, details);
-                if (result.exitCode() != 0)
+                if (result.timedOut() || result.exitCode() != 0)
                     return new ToolResult(output, true, details);
 
                 if (output.isEmpty())

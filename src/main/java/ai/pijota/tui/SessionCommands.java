@@ -17,14 +17,8 @@ import java.util.List;
 import static ai.pijota.util.Util.fmtCount;
 
 final class SessionCommands {
-    interface Host {
+    interface Host extends TuiHost {
         PijotaSession session();
-
-        String styled(String slot, String text);
-
-        void appendPlain(List<String> lines);
-
-        boolean busy();
 
         String sessionName();
 

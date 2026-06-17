@@ -4,7 +4,6 @@ import java.util.ArrayList;
 
 import ai.pijota.util.Util;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -63,8 +62,6 @@ public final class WriteTool implements Tool {
                                                 + path,
                                                 Map.of("bytes", content.length(), "lines", lineCount, "path",
                                                                                 path.toString()));
-            } catch (IOException e) {
-                return Tool.ToolResult.error("Error writing file: " + e.getMessage());
             } catch (Exception e) {
                 return Tool.ToolResult.error("Error writing file: " + e.getMessage());
             }

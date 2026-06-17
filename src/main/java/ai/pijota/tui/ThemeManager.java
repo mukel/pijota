@@ -10,14 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class ThemeManager {
-    interface Host {
+    interface Host extends TuiHost {
         AnsiTheme theme();
 
         void setTheme(AnsiTheme theme);
-
-        void appendError(String message);
-
-        void appendStatus(String message);
     }
 
     private final Host host;

@@ -117,7 +117,7 @@ public final class FilterOutputExtension implements Extension {
 
         var envMatcher = ENV_SECRET_LINE.matcher(result);
         if (envMatcher.find()) {
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             do {
                 envMatcher.appendReplacement(sb, Matcher.quoteReplacement(envMatcher.group(1) + "=[REDACTED]"));
             } while (envMatcher.find());
@@ -128,7 +128,7 @@ public final class FilterOutputExtension implements Extension {
 
         var secretValMatcher = SECRET_VALUE.matcher(result);
         if (secretValMatcher.find()) {
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             do {
                 String prefix = secretValMatcher.group(1) != null ? secretValMatcher.group(1) : "";
                 String key = secretValMatcher.group(2) != null ? secretValMatcher.group(2) : "";

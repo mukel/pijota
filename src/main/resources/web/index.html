@@ -330,18 +330,30 @@ window.addEventListener("DOMContentLoaded", () => {
   // ---- markdown ----
   if (window.marked) marked.setOptions({ breaks: true, gfm: true });
   function renderMarkdown(el, text, settled = true) {
+    text = text || "";
     if (window.marked && window.DOMPurify) {
-      el.innerHTML = DOMPurify.sanitize(marked.parse(text || ""));
-      // Syntax-highlight + add copy buttons only on a SETTLED render. During streaming the innerHTML is
-      // rebuilt every frame, so highlighting each frame is wasted CPU (and the copy button would flicker);
-      // code shows plain until the message settles, then colorizes once. One pass over <pre> for both.
-      if (settled) el.querySelectorAll("pre").forEach(pre => {
-        const code = pre.querySelector("code");
-        if (code) { try { hljs.highlightElement(code); } catch (_) {} }
-        addCopyButton(pre);
-      });
+      // Reassigning innerHTML rebuilds the DOM and collapses any in-flight text selection, so skip it when the
+      // source text is unchanged. This matters at the stream→final transition: the final frame usually carries the
+      // SAME content as the last streaming frame, and when it lands a frame later (so it doesn't coalesce into the
+      // same rAF) the redundant re-render would wipe a selection the user just started on the finished message.
+      if (el._md !== text) {
+        el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+        el._md = text;
+        el._hl = false;
+      }
+      // Syntax-highlight + add copy buttons only on a SETTLED render, and only once per content. During streaming
+      // the innerHTML is rebuilt every frame, so highlighting each frame is wasted CPU (and the copy button would
+      // flicker); code shows plain until the message settles, then colorizes once. One pass over <pre> for both.
+      if (settled && !el._hl) {
+        el._hl = true;
+        el.querySelectorAll("pre").forEach(pre => {
+          const code = pre.querySelector("code");
+          if (code) { try { hljs.highlightElement(code); } catch (_) {} }
+          addCopyButton(pre);
+        });
+      }
     } else {
-      el.textContent = text || "";        // safe fallback if CDN unavailable
+      el.textContent = text;              // safe fallback if CDN unavailable
     }
   }
   // A "copy" button that writes getText() (read at click time) to the clipboard and flashes "copied".

@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 final class SettingsCommandHandler {
-    interface Host {
+    interface Host extends TuiHost {
         boolean settingsAvailable();
 
         SettingsSnapshot settingsSnapshot();
@@ -16,12 +16,6 @@ final class SettingsCommandHandler {
         Optional<SettingsItem> selectedSetting();
 
         void refreshSettings(List<SettingsItem> items);
-
-        void clearPrompt();
-
-        void redrawPrompt();
-
-        void appendError(String message);
 
         void toggleCompaction();
 

@@ -13,18 +13,10 @@ final class ModelCommandHandler {
 
     private final Host host;
 
-    interface Host {
-        boolean busy();
-
+    interface Host extends TuiHost {
         String provider();
 
         String model();
-
-        void appendPlain(List<String> lines);
-
-        String styled(String slot, String text);
-
-        void redrawPrompt();
 
         void setStatus(String status);
 
@@ -44,13 +36,7 @@ final class ModelCommandHandler {
     }
 
     void showModelSelector() {
-        if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError", "/model is unavailable while a turn is running")));
-            host.redrawPrompt();
-            return;
-        }
-        var models = availableModels();
-        showModelSelector(models);
+        showModelSelector(availableModels());
     }
 
     void showModelSelector(List<ModelInfo> models) {

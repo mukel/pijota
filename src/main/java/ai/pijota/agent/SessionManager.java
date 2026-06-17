@@ -558,10 +558,6 @@ public final class SessionManager {
         }
     }
 
-    private void writeHeader(Path file, String id, String parentEntryId, String cwd) throws IOException {
-        writeHeader(file, id, parentEntryId, cwd, null);
-    }
-
     private void writeHeader(Path file, String id, String parentEntryId, String cwd, Path parentSession)
                                     throws IOException {
         var header = new LinkedHashMap<String, Object>();

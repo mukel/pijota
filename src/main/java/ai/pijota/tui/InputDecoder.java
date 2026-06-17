@@ -69,7 +69,7 @@ public final class InputDecoder {
         if (ch == 31)
             return Key.Special.CTRL_UNDERSCORE; // Ctrl+_ / Ctrl+/ — readline/zsh undo
         if (ch == 24)
-            return readCtrlX(in);
+            return Key.Special.CTRL_X;
         if (ch == 9)
             return Key.Special.TAB;
         if (ch == 10)
@@ -163,7 +163,4 @@ public final class InputDecoder {
         };
     }
 
-    private static Key readCtrlX(Input unused) {
-        return Key.Special.CTRL_X;
-    }
 }

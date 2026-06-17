@@ -10,20 +10,12 @@ import java.util.List;
 import java.util.Optional;
 
 final class LoginCommandHandler {
-    interface Host {
+    interface Host extends TuiHost {
         void showProviders(List<LoginProviderItem> items);
 
         Optional<LoginProviderItem> selectedProvider();
 
         void deactivateProviderSelector();
-
-        void clearPrompt();
-
-        void redrawPrompt();
-
-        void appendError(String message);
-
-        void appendStatus(String message);
 
         void submitAuthTask(Runnable task);
 

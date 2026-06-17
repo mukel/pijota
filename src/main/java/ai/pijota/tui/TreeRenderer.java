@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -161,16 +160,13 @@ final class TreeRenderer {
     }
 
     private TurnSummary summarizeTurn(Map<String, Object> entry, Map<String, List<Map<String, Object>>> children) {
-        var tools = new LinkedHashSet<String>();
         var state = new TurnSummaryState();
-        summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, tools, state);
-        return new TurnSummary(state.assistant, state.toolCallIds.size(), List.copyOf(tools), state.errors,
-                                        state.compacted);
+        summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, state);
+        return new TurnSummary(state.toolCallIds.size(), state.errors, state.compacted);
     }
 
     private void summarizeTurnChildren(List<Map<String, Object>> entries,
-                                    Map<String, List<Map<String, Object>>> children, Set<String> tools,
-                                    TurnSummaryState state) {
+                                    Map<String, List<Map<String, Object>>> children, TurnSummaryState state) {
         for (var entry : entries) {
             if (isUserEntry(entry))
                 continue;
@@ -190,16 +186,11 @@ final class TreeRenderer {
                         }
                     }
                 }
-                String content = (String) entry.get("content");
-                if (content != null && !content.isBlank())
-                    state.assistant = content;
             } else if ("tool".equals(role) || "tool_result".equals(role)) {
-                String tool = String.valueOf(entry.getOrDefault("tool_name", "?"));
-                tools.add(tool);
                 if (Boolean.TRUE.equals(entry.get("is_error")))
                     state.errors++;
             }
-            summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, tools, state);
+            summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, state);
         }
     }
 
@@ -233,7 +224,7 @@ final class TreeRenderer {
         return s.length() > max ? s.substring(0, Math.max(0, max - 1)) + "…" : s;
     }
 
-    private record TurnSummary(String assistant, int toolCalls, List<String> tools, int errors, int compacted) {
+    private record TurnSummary(int toolCalls, int errors, int compacted) {
     }
 
     private record TreeView(List<Map<String, Object>> entries, List<Map<String, Object>> roots,
@@ -242,7 +233,6 @@ final class TreeRenderer {
     }
 
     private static final class TurnSummaryState {
-        String assistant = "";
         final Set<String> toolCallIds = new HashSet<>();
         int errors;
         int compacted;

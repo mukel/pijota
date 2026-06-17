@@ -59,17 +59,7 @@ public final class TruncatedToolExtension implements Extension {
                                                 ExecResult result = runtime.exec(cmd);
                                                 String output = result.stdout();
 
-                                                if (!result.success()) {
-                                                    String err = result.stderr().isBlank()
-                                                                                    ? result.stdout()
-                                                                                    : result.stderr();
-                                                    return CompletableFuture.completedFuture(Tool.ToolResult.success(
-                                                                                    "No matches found",
-                                                                                    Map.of("pattern", pattern, "matchCount",
-                                                                                                                    0)));
-                                                }
-
-                                                if (output.isBlank()) {
+                                                if (!result.success() || output.isBlank()) {
                                                     return CompletableFuture.completedFuture(Tool.ToolResult.success(
                                                                                     "No matches found",
                                                                                     Map.of("pattern", pattern, "matchCount",

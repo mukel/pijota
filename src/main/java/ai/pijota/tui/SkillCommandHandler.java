@@ -6,22 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class SkillCommandHandler {
-    interface Host {
+    interface Host extends TuiHost {
         List<SkillLoader.Skill> skills();
 
-        String styled(String slot, String text);
-
-        void appendPlain(List<String> lines);
-
-        List<String> promptEcho(String text);
-
-        long beginBusy(String phase);
-
-        void redrawPrompt();
-
         void submitAgentPrompt(String prompt, Runnable after);
-
-        void endBusy(long generation);
 
         void showSessionWarning();
     }

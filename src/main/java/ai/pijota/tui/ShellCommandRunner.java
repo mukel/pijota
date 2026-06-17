@@ -6,19 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class ShellCommandRunner {
-    interface Host {
-        List<String> promptEcho(String text);
-
-        void appendPlain(List<String> lines);
-
-        String styled(String slot, String text);
-
-        long beginBusy(String phase);
-
-        void endBusy(long generation);
-
-        void redrawPrompt();
-
+    interface Host extends TuiHost {
         void fireUserBash(String command, boolean noContext);
     }
 

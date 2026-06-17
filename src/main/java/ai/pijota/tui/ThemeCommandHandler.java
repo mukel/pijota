@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 final class ThemeCommandHandler {
-    interface Host {
+    interface Host extends TuiHost {
         List<ThemeItem> discoverThemes();
 
         void showThemes(List<ThemeItem> items);
@@ -12,12 +12,6 @@ final class ThemeCommandHandler {
         void selectCurrentTheme();
 
         Optional<ThemeItem> selectedTheme();
-
-        void clearPrompt();
-
-        void redrawPrompt();
-
-        void appendError(String message);
 
         void switchToTheme(String name);
 

@@ -330,7 +330,7 @@ public final class TaskTool implements Tool {
                 taskJson.put("apiKey", parentApiKey);
             }
 
-            var procArgs = agentCommand();
+            var procArgs = ai.pijota.agent.SubAgentLauncher.agentCommand(cwd.toString());
             procArgs.add("--agent");
             procArgs.add("--no-session");
             if (sub.model() != null && !sub.model().isBlank()) {
@@ -532,56 +532,6 @@ public final class TaskTool implements Tool {
             }
         }
         return ToolResultView.of(summary, body);
-    }
-
-    private String resolveClasspath() {
-        // Use parent's classpath (works for Maven exec and fat JAR)
-        String cp = System.getProperty("java.class.path");
-        if (cp != null && !cp.isBlank())
-            return cp;
-
-        // Fallback: find pijota JAR relative to our own location
-        try {
-            var ourJar = Path.of(TaskTool.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-            if (Files.exists(ourJar) && ourJar.toString().endsWith(".jar")) {
-                return ourJar.toString();
-            }
-            // maybe we're in target/classes (Maven dev mode)
-            var classesDir = ourJar.resolve("..").normalize();
-            if (Files.isDirectory(classesDir) && Files.exists(classesDir.resolve("ai/pijota/Main.class"))) {
-                return classesDir.toString();
-            }
-        } catch (Exception ignored) {}
-
-        // Last resort: try target/classes relative to CWD
-        Path cwdClasses = cwd.resolve("target/classes");
-        if (Files.isDirectory(cwdClasses) && Files.exists(cwdClasses.resolve("ai/pijota/Main.class"))) {
-            return cwdClasses + ":" + System.getProperty("java.class.path", "");
-        }
-        return ".";
-    }
-
-    private List<String> agentCommand() {
-        if (isNativeImage()) {
-            return new ArrayList<>(List.of(currentExecutable()));
-        }
-
-        String javaHome = System.getProperty("java.home");
-        if (javaHome == null || javaHome.isBlank()) {
-            return new ArrayList<>(List.of(currentExecutable()));
-        }
-
-        return new ArrayList<>(List.of(Path.of(javaHome, "bin", "java").toString(), "--enable-preview", "-cp",
-                                        resolveClasspath(), "ai.pijota.Main"));
-    }
-
-    private static boolean isNativeImage() {
-        return System.getProperty("org.graalvm.nativeimage.imagecode") != null;
-    }
-
-    private static String currentExecutable() {
-        return ProcessHandle.current().info().command().orElseThrow(() -> new IllegalStateException(
-                                        "Cannot resolve current executable for sub-agent"));
     }
 
     static String sanitize(String name) {
