@@ -159,6 +159,14 @@ public final class Main {
         b.extensions().setSuspendResume(() -> {}, () -> {}); // no terminal to suspend
         b.extensions().ready();
 
+        try {
+            client.setMyCommands(TelegramChat.COMMANDS); // populate Telegram's native "/" autocomplete menu
+            client.setMyShortDescription("Your pijota coding agent, in chat.");
+            client.setMyDescription("Pijota coding agent. Just type to chat; use /help for commands. "
+                                            + "Long answers arrive as file attachments.");
+        } catch (RuntimeException e) {
+            System.err.println("[telegram] could not register bot metadata: " + e.getMessage());
+        }
         System.err.println("[telegram] bot started for chat " + allowedChat + "; polling…");
         var frontend = new TelegramFrontend(client, chatId -> chat, chatId -> chatId == allowedChat);
         SelfRespawn.markStartupHealthy(); // bot wired up and polling → a healthy startup

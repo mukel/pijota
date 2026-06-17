@@ -78,7 +78,7 @@ class BrowserSessionLiveChromeTest {
     /** Serves {@code html} on loopback, drives a real Chrome to visit it, and returns the extracted markdown. */
     private static String render(String html) throws Exception {
         assumeTrue("1".equals(System.getenv("PIJOTA_BROWSER_IT")), "set PIJOTA_BROWSER_IT=1 to run");
-        assumeTrue(BrowserSession.findChrome(null) != null, "no Chrome/Chromium installed");
+        assumeTrue(CdpBackend.findChrome(null) != null, "no Chrome/Chromium installed");
         HttpServer fixture = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         fixture.createContext("/", ex -> {
             byte[] b = html.getBytes(StandardCharsets.UTF_8);

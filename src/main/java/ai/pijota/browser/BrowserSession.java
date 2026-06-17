@@ -1,91 +1,71 @@
 package ai.pijota.browser;
 
 import ai.pijota.tools.WebfetchTool;
-import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.net.http.WebSocket;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
- * Drives a real (visible) Chrome over the Chrome DevTools Protocol so the model can read JS-rendered pages and search
- * results — the way a person's browser sees the web, not a blocked headless fetch. JDK-only: {@code java.net.http} for
- * the CDP HTTP endpoints + WebSocket, Jackson for JSON-RPC; rendered HTML falls back to the shared
- * {@link WebfetchTool#htmlToMarkdown}.
- *
- * <p>
- * Opaque to callers: they get markdown back from {@link #visit} / {@link #search}; all CDP mechanics and the Chrome
- * process stay inside this class. A dedicated persistent profile under {@code ~/.pijota/browser} is launched lazily
- * (after a confirmation) and reused across calls; a dropped socket is transparently reconnected on the next call. Calls
- * are serialized — one page, one op at a time — so concurrent tool invocations can't race the protocol.
+ * Reads JS-rendered pages and search results the way a person's browser sees them — not a blocked headless fetch — and
+ * returns markdown. The browser protocol is abstracted behind {@link BrowserBackend} ({@link CdpBackend} for Chrome via
+ * the DevTools Protocol; a WebDriver BiDi backend for Firefox/Safari). This class owns the browser-agnostic part: lazy-
+ * load settling, Mozilla Readability ("Firefox reader mode"), the visible-DOM extraction tiers, and markdown conversion
+ * via {@link WebfetchTool#htmlToMarkdown}. Calls are serialized — one page, one op at a time — so concurrent tool
+ * invocations can't race the protocol.
  */
 public final class BrowserSession {
 
-    private static final long CONNECT_TIMEOUT_MS = 15_000;
-    private static final long CALL_TIMEOUT_MS = 30_000;
     private static final long LOAD_TIMEOUT_MS = 25_000;
     private static final long STABILITY_TIMEOUT_MS = 6_000; // cap on the "text stopped growing" settle wait
     private static final int SCROLL_STEPS = 12; // max progressive scrolls to trigger lazy-loaded content
     private static final int VIEW_W = 1365, VIEW_H = 900; // emulated viewport (matches ds4) so layout is deterministic
-    private static final int MAX_HTML = 1_500_000; // cap the rendered DOM pulled back over CDP (fallback path only)
+    private static final int MAX_HTML = 1_500_000; // cap the rendered DOM pulled back (fallback path only)
 
-    private final int port;
-    private final Path profileDir;
-    private final String chromeOverride;
-    private final Consumer<String> log;
-    private final Callable<Boolean> confirmLaunch; // asked once before SPAWNING a visible window (ds4's confirm cb)
-
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-    private final AtomicInteger nextId = new AtomicInteger();
-    private final ConcurrentHashMap<Integer, CompletableFuture<JsonNode>> pending = new ConcurrentHashMap<>();
-    private final AtomicBoolean shutdownHook = new AtomicBoolean();
-
-    private volatile Process chrome; // the Chrome WE launched (null when we attached to an already-running one)
-    private volatile WebSocket pageWs;
-    private volatile boolean connected; // attached + CDP domains enabled (cleared on drop → next call reconnects)
+    private final BrowserBackend backend;
     private volatile boolean cancelled; // tripped by close() to interrupt the in-flight navigate/settle loops
 
-    public BrowserSession(int port, Path profileDir, String chromeOverride, Consumer<String> log,
-                                    Callable<Boolean> confirmLaunch) {
-        this.port = port;
-        this.profileDir = profileDir;
-        this.chromeOverride = chromeOverride;
-        this.log = log != null ? log : msg -> {};
-        this.confirmLaunch = confirmLaunch != null ? confirmLaunch : () -> true;
+    public BrowserSession(BrowserBackend backend) {
+        this.backend = backend;
     }
 
-    /** Attached, CDP-enabled, and the Chrome we launched (if any) is still alive. */
-    private boolean ready() {
-        return connected && pageWs != null && (chrome == null || chrome.isAlive());
+    /** Convenience constructor for the default Chrome/CDP backend (with the Readability init script + ds4 viewport). */
+    public BrowserSession(int port, Path profileDir, String chromeOverride, Consumer<String> log,
+                                    Callable<Boolean> confirmLaunch) {
+        this(new CdpBackend(port, profileDir, chromeOverride, log, confirmLaunch, VIEW_W, VIEW_H,
+                                        List.of(READABILITY_JS)));
+    }
+
+    /**
+     * Builds a session for the named browser: {@code chrome} (default, via the DevTools Protocol) or {@code firefox} /
+     * {@code safari} (via WebDriver BiDi). {@code binaryOverride} is the Chrome binary for chrome, the driver path for
+     * the BiDi browsers (or null → resolved from {@code PIJOTA_GECKODRIVER}/{@code PIJOTA_SAFARIDRIVER}/{@code PATH}).
+     */
+    public static BrowserSession create(String browser, int port, Path profileDir, String binaryOverride,
+                                    Consumer<String> log, Callable<Boolean> confirmLaunch) {
+        String b = browser == null || browser.isBlank() ? "chrome" : browser.strip().toLowerCase();
+        List<String> initScripts = List.of(READABILITY_JS);
+        return switch (b) {
+            case "chrome", "chromium", "edge" ->
+                new BrowserSession(port, profileDir, binaryOverride, log, confirmLaunch);
+            case "firefox" -> new BrowserSession(BiDiBackends.firefox(port, binaryOverride, log, confirmLaunch, VIEW_W,
+                                            VIEW_H, initScripts));
+            case "safari" -> new BrowserSession(BiDiBackends.safari(port, binaryOverride, log, confirmLaunch, VIEW_W,
+                                            VIEW_H, initScripts));
+            default ->
+                throw new IllegalArgumentException("unknown browser '" + browser + "' (use chrome|firefox|safari)");
+        };
     }
 
     /** Navigates to a URL in the real browser and returns the rendered page as markdown. */
     public synchronized String visit(String url) throws Exception {
         cancelled = false;
-        ensureReady();
+        backend.start();
         navigate(normalizeUrl(url));
         dismissConsent();
         loadSettle();
@@ -116,7 +96,7 @@ public final class BrowserSession {
     /** Runs a Google search in the real browser and returns the result links (+ a text snapshot) as markdown. */
     public synchronized String search(String query) throws Exception {
         cancelled = false;
-        ensureReady();
+        backend.start();
         navigate(googleSearchUrl(query));
         dismissConsent();
         loadSettle();
@@ -126,108 +106,12 @@ public final class BrowserSession {
         return "# Search: " + query + "\n\n" + body;
     }
 
-    // ---- CDP lifecycle -------------------------------------------------------------------------------------
-
-    private void ensureReady() throws Exception {
-        if (ready())
-            return;
-        // Reuse a DevTools already on the port (a stale pijota-Chrome from a crashed run, or one launched earlier
-        // whose socket merely dropped) instead of spawning a duplicate. Only confirm + spawn when nothing is there.
-        if (!devtoolsAlive()) {
-            if (!Boolean.TRUE.equals(confirmLaunch.call()))
-                throw new IllegalStateException("browser launch declined");
-            launchChrome();
-            waitForDevtools();
-        }
-        connect(pageWsUrl());
-        call("Page.enable", null);
-        call("Runtime.enable", null);
-        ObjectNode metrics = Util.MAPPER.createObjectNode();
-        metrics.put("width", VIEW_W);
-        metrics.put("height", VIEW_H);
-        metrics.put("deviceScaleFactor", 1);
-        metrics.put("mobile", false);
-        call("Emulation.setDeviceMetricsOverride", metrics); // deterministic viewport for visibility-based extraction
-        if (!READABILITY_JS.isBlank()) {
-            ObjectNode reader = Util.MAPPER.createObjectNode();
-            reader.put("source", READABILITY_JS);
-            call("Page.addScriptToEvaluateOnNewDocument", reader); // define Readability on every page for reader mode
-        }
-        connected = true;
-    }
-
-    private boolean devtoolsAlive() {
-        try {
-            return httpGet("/json/version") != null;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private void launchChrome() throws Exception {
-        Path bin = findChrome(chromeOverride);
-        if (bin == null)
-            throw new IllegalStateException("Chrome/Chromium not found. Set PIJOTA_CHROME=/path/to/chrome (or --chrome=...).");
-        Files.createDirectories(profileDir);
-        var cmd = new ArrayList<>(List.of(bin.toString(), "--remote-debugging-port=" + port,
-                                        "--remote-debugging-address=127.0.0.1", "--remote-allow-origins=*",
-                                        "--user-data-dir=" + profileDir, "--no-first-run", "--no-default-browser-check",
-                                        "--disable-sync", "--mute-audio", "--disable-features=Translate",
-                                        "--password-store=basic", // avoid an OS keyring/keychain unlock prompt blocking
-                                                                  // startup
-                                        "about:blank"));
-        if (System.getProperty("os.name", "").toLowerCase().contains("mac"))
-            cmd.add(1, "--use-mock-keychain");
-        if ("root".equals(System.getProperty("user.name")))
-            cmd.add(1, "--no-sandbox");
-        log.accept("launching " + bin.getFileName() + " (debug port " + port + ", profile " + profileDir + ")");
-        chrome = new ProcessBuilder(cmd).redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                                        .redirectError(ProcessBuilder.Redirect.DISCARD).start();
-        // Kill the Chrome we launched even if the JVM is terminated before onShutdown runs (SIGTERM); one hook/session.
-        if (shutdownHook.compareAndSet(false, true))
-            Runtime.getRuntime().addShutdownHook(new Thread(this::killLaunchedChrome, "pijota-browser-shutdown"));
-    }
-
-    private void waitForDevtools() throws Exception {
-        long deadline = System.nanoTime() + CONNECT_TIMEOUT_MS * 1_000_000L;
-        while (before(deadline)) {
-            if (devtoolsAlive())
-                return;
-            Thread.sleep(150);
-        }
-        throw new IllegalStateException("Chrome DevTools did not come up on port " + port);
-    }
-
-    /** The WebSocket URL of a usable page target — reusing an existing one, else opening a fresh tab. */
-    private String pageWsUrl() throws Exception {
-        String list = httpGet("/json");
-        if (list != null)
-            for (JsonNode t : Util.MAPPER.readTree(list))
-                if ("page".equals(t.path("type").asText()) && !t.path("webSocketDebuggerUrl").asText().isBlank())
-                    return t.path("webSocketDebuggerUrl").asText();
-        // no usable page target (e.g. the tab was closed) → open one (PUT for modern Chrome, GET for older)
-        String created = httpNewTab();
-        String ws = created == null ? "" : Util.MAPPER.readTree(created).path("webSocketDebuggerUrl").asText();
-        if (ws.isBlank())
-            throw new IllegalStateException("could not open a browser tab on port " + port);
-        return ws;
-    }
-
-    private void connect(String wsUrl) throws Exception {
-        pageWs = http.newWebSocketBuilder().buildAsync(URI.create(wsUrl), new Listener()).get(CONNECT_TIMEOUT_MS,
-                                        TimeUnit.MILLISECONDS);
-    }
-
+    /** Issues the navigation through the backend, then waits for the new document to commit + finish loading. */
     private void navigate(String url) throws Exception {
         String prev = currentUrl();
-        ObjectNode p = Util.MAPPER.createObjectNode();
-        p.put("url", url);
-        JsonNode nav = call("Page.navigate", p);
-        String navErr = str(nav.path("errorText"));
-        if (!navErr.isBlank() && !"net::ERR_ABORTED".equals(navErr)) // ERR_ABORTED is normal on redirects/downloads
-            throw new IOException("could not load " + url + " (" + navErr + ")");
-        // Page.navigate returns when navigation STARTS; wait for the new document to actually commit + finish so we
-        // never extract the previous page (the URL changing off `prev` marks the new document, redirects included).
+        backend.navigate(url);
+        // navigate returns when navigation STARTS; wait for the new document to actually commit + finish so we never
+        // extract the previous page (the URL changing off `prev` marks the new document, redirects included).
         long deadline = System.nanoTime() + LOAD_TIMEOUT_MS * 1_000_000L;
         while (before(deadline) && !cancelled) {
             String href = str(evaluate("location.href"));
@@ -277,183 +161,21 @@ public final class BrowserSession {
         } catch (Exception ignored) {}
     }
 
-    // ---- CDP JSON-RPC --------------------------------------------------------------------------------------
-
     private String fullDomHtml() throws Exception {
         return str(evaluate("document.documentElement.outerHTML.slice(0," + MAX_HTML + ")"));
     }
 
     private JsonNode evaluate(String js) throws Exception {
-        ObjectNode p = Util.MAPPER.createObjectNode();
-        p.put("expression", js);
-        p.put("returnByValue", true);
-        p.put("awaitPromise", true);
-        return call("Runtime.evaluate", p).path("result").path("value");
-    }
-
-    private JsonNode call(String method, ObjectNode params) throws Exception {
-        WebSocket ws = pageWs;
-        if (ws == null)
-            throw new IllegalStateException("browser not connected");
-        int id = nextId.incrementAndGet();
-        var fut = new CompletableFuture<JsonNode>();
-        pending.put(id, fut);
-        try {
-            ObjectNode req = Util.MAPPER.createObjectNode();
-            req.put("id", id);
-            req.put("method", method);
-            if (params != null)
-                req.set("params", params);
-            ws.sendText(Util.MAPPER.writeValueAsString(req), true);
-            // Poll so close() (which trips `cancelled` + fails pending) aborts within ~200ms instead of the full
-            // timeout, and so a genuinely unresponsive socket forces a reconnect rather than cascading stalls.
-            long deadline = System.nanoTime() + CALL_TIMEOUT_MS * 1_000_000L;
-            while (true) {
-                if (cancelled)
-                    throw new IllegalStateException("browser session closed");
-                try {
-                    return fut.get(200, TimeUnit.MILLISECONDS);
-                } catch (TimeoutException te) {
-                    if (!before(deadline)) {
-                        connected = false; // unresponsive socket → reconnect on the next call
-                        throw te;
-                    }
-                }
-            }
-        } finally {
-            pending.remove(id);
-        }
-    }
-
-    /** Routes an incoming CDP frame to the waiting caller; events (no {@code id}) are ignored (we poll, not react). */
-    void handleMessage(String json) {
-        try {
-            JsonNode n = Util.MAPPER.readTree(json);
-            if (!n.hasNonNull("id"))
-                return;
-            CompletableFuture<JsonNode> fut = pending.remove(n.get("id").asInt());
-            if (fut == null)
-                return;
-            if (n.has("error"))
-                fut.completeExceptionally(new IllegalStateException("CDP error: " + n.get("error").toString()));
-            else
-                fut.complete(n.path("result"));
-        } catch (Exception ignored) {}
-    }
-
-    /** Registers a pending request slot (test seam for the JSON-RPC routing). */
-    CompletableFuture<JsonNode> awaitId(int id) {
-        var fut = new CompletableFuture<JsonNode>();
-        pending.put(id, fut);
-        return fut;
-    }
-
-    private final class Listener implements WebSocket.Listener {
-        private final StringBuilder buf = new StringBuilder();
-
-        @Override
-        public void onOpen(WebSocket ws) {
-            ws.request(1);
-        }
-
-        @Override
-        public CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
-            buf.append(data);
-            if (last) {
-                String msg = buf.toString();
-                buf.setLength(0);
-                handleMessage(msg);
-            }
-            ws.request(1);
-            return null;
-        }
-
-        @Override
-        public void onError(WebSocket ws, Throwable error) {
-            drop(ws, error);
-        }
-
-        @Override
-        public CompletionStage<?> onClose(WebSocket ws, int statusCode, String reason) {
-            drop(ws, new IllegalStateException("CDP socket closed")); // crash / closed tab → reconnect next call
-            return null;
-        }
-
-        private void drop(WebSocket ws, Throwable t) {
-            if (ws == pageWs) // ignore stale events from a socket we already replaced on reconnect
-                connected = false;
-            failPending(t);
-        }
-    }
-
-    /** Completes-and-removes every in-flight request atomically (so a request registered concurrently can't hang). */
-    private void failPending(Throwable t) {
-        for (Integer id : pending.keySet()) {
-            CompletableFuture<JsonNode> f = pending.remove(id);
-            if (f != null)
-                f.completeExceptionally(t);
-        }
+        return backend.evaluate(js);
     }
 
     /**
-     * Closes the socket and terminates the Chrome this session launched. Intentionally NOT synchronized: it trips
-     * {@link #cancelled} and fails any in-flight request so a call mid-navigate aborts promptly rather than making
-     * shutdown wait out the call timeout.
+     * Closes the backend (socket + any launched browser). Intentionally NOT synchronized: it trips {@link #cancelled}
+     * so a call mid-navigate aborts promptly rather than making shutdown wait out the call timeout.
      */
     public void close() {
         cancelled = true;
-        connected = false;
-        WebSocket ws = pageWs;
-        pageWs = null;
-        if (ws != null)
-            try {
-                ws.sendClose(WebSocket.NORMAL_CLOSURE, "bye");
-            } catch (Exception ignored) {}
-        failPending(new IllegalStateException("session closed"));
-        killLaunchedChrome();
-    }
-
-    private void killLaunchedChrome() {
-        Process p = chrome;
-        chrome = null;
-        if (p == null || !p.isAlive())
-            return;
-        // Take down the whole tree: Chrome's renderer/GPU/zygote children would otherwise be orphaned by a forced
-        // kill of the parent alone.
-        p.descendants().forEach(ProcessHandle::destroy);
-        p.destroy();
-        try {
-            if (!p.waitFor(3, TimeUnit.SECONDS)) {
-                p.descendants().forEach(ProcessHandle::destroyForcibly);
-                p.destroyForcibly();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            p.destroyForcibly();
-        }
-    }
-
-    // ---- HTTP helpers --------------------------------------------------------------------------------------
-
-    /** Sends a DevTools HTTP request; returns the body on 200, else null. */
-    private String send(HttpRequest req) throws Exception {
-        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-        return resp.statusCode() == 200 ? resp.body() : null;
-    }
-
-    private String httpGet(String path) throws Exception {
-        return send(HttpRequest.newBuilder(uri(path)).timeout(Duration.ofSeconds(3)).GET().build());
-    }
-
-    /** Opens a fresh tab via {@code /json/new} (PUT for modern Chrome; GET for older builds). */
-    private String httpNewTab() throws Exception {
-        String body = send(HttpRequest.newBuilder(uri("/json/new?about:blank")).timeout(Duration.ofSeconds(5))
-                                        .PUT(HttpRequest.BodyPublishers.noBody()).build());
-        return body != null ? body : httpGet("/json/new?about:blank");
-    }
-
-    private URI uri(String path) {
-        return URI.create("http://127.0.0.1:" + port + path);
+        backend.close();
     }
 
     private String currentUrl() {
@@ -487,32 +209,6 @@ public final class BrowserSession {
         return u;
     }
 
-    /** Resolves the Chrome/Chromium binary: explicit override → common install paths → {@code PATH}. */
-    static Path findChrome(String override) {
-        if (override != null && !override.isBlank())
-            return Path.of(override);
-        var candidates = new ArrayList<Path>();
-        for (String p : List.of("/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/usr/bin/chromium",
-                                        "/usr/bin/chromium-browser", "/snap/bin/chromium", "/opt/google/chrome/chrome",
-                                        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-                                        "/Applications/Chromium.app/Contents/MacOS/Chromium"))
-            candidates.add(Path.of(p));
-        String path = System.getenv("PATH");
-        if (path != null)
-            for (String dir : path.split(java.io.File.pathSeparator))
-                for (String name : List.of("google-chrome-stable", "google-chrome", "chromium", "chromium-browser",
-                                                "chrome"))
-                    candidates.add(Path.of(dir, name));
-        return firstExecutable(candidates, Files::isExecutable);
-    }
-
-    static Path firstExecutable(List<Path> candidates, Predicate<Path> isExecutable) {
-        for (Path p : candidates)
-            if (isExecutable.test(p))
-                return p;
-        return null;
-    }
-
     // ---- injected extraction / consent scripts -----------------------------------------------------------
 
     private static String loadResource(String path) {
@@ -524,8 +220,8 @@ public final class BrowserSession {
     }
 
     // The injected JS lives as raw resources under src/main/resources/browser/ (alongside the vendored Mozilla
-    // Readability.js — the engine behind Firefox Reader View, Apache-2.0). Readability is injected once per page
-    // (Page.addScriptToEvaluateOnNewDocument in ensureReady); reader.js then runs it on a clone of the rendered DOM.
+    // Readability.js — the engine behind Firefox Reader View, Apache-2.0). Readability is injected once per page (as an
+    // init script the backend applies on every new document); reader.js then runs it on a clone of the rendered DOM.
     private static final String READABILITY_JS = loadResource("/browser/Readability.js");
     private static final String READER_EXTRACT_JS = loadResource("/browser/reader.js");
     private static final String PAGE_EXTRACT_JS = loadResource("/browser/extract-page.js");

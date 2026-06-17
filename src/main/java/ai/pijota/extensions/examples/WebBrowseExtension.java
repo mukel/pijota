@@ -27,6 +27,7 @@ public final class WebBrowseExtension implements Extension {
 
     private ExtensionAPI api;
     private BrowserSession session;
+    private String browser = "chrome"; // selected browser, for the launch-confirmation message
 
     @Override
     public String name() {
@@ -35,7 +36,8 @@ public final class WebBrowseExtension implements Extension {
 
     @Override
     public String description() {
-        return "Opt-in web browsing via a real Chrome (web_google_search, web_visit_page). Enable with --browse.";
+        return "Opt-in web browsing via a real browser (web_google_search, web_visit_page). Enable with --browse; "
+                                        + "pick the browser with --browser=chrome|firefox|safari.";
     }
 
     @Override
@@ -50,10 +52,21 @@ public final class WebBrowseExtension implements Extension {
             try {
                 port = Integer.parseInt(portFlag.get().trim());
             } catch (NumberFormatException ignored) {}
-        Path profile = Path.of(System.getProperty("user.home"), ".pijota", "browser");
-        String chrome = rt.getFlag("chrome").orElse(System.getenv("PIJOTA_CHROME"));
-        this.session = new BrowserSession(port, profile, chrome, msg -> rt.setStatus("browse", "🌐 " + msg),
-                                        this::confirmLaunch);
+        String flag = rt.getFlag("browser").orElse(System.getenv("PIJOTA_BROWSER")); // chrome (default)|firefox|safari
+        this.browser = flag == null || flag.isBlank() ? "chrome" : flag.strip().toLowerCase();
+        Path profile = Path.of(System.getProperty("user.home"), ".pijota", "browser", browser);
+        String binary = rt.getFlag("chrome").orElse(rt.getFlag("driver").orElse(System.getenv("PIJOTA_CHROME")));
+        try {
+            this.session = BrowserSession.create(browser, port, profile, binary,
+                                            msg -> rt.setStatus("browse", "🌐 " + msg), this::confirmLaunch);
+        } catch (RuntimeException e) {
+            // e.g. the selected browser's WebDriver isn't installed → disable browsing rather than fail startup. Print
+            // to the console too: the extension status line isn't visible in the Telegram/web frontends, so otherwise
+            // the failure looks silent (the browse tools just never appear).
+            System.err.println("[browse] disabled for --browser=" + browser + ": " + e.getMessage());
+            rt.setStatus("browse", "🌐 browse disabled: " + e.getMessage());
+            return;
+        }
 
         api.registerTool(new Tool.ToolDefinition("web_google_search",
                                         "Search the web (Google) in a real browser and return the top result links as markdown. "
@@ -96,8 +109,14 @@ public final class WebBrowseExtension implements Extension {
     }
 
     private boolean confirmLaunch() {
+        String label = switch (browser) {
+            case "firefox" -> "Firefox";
+            case "safari" -> "Safari";
+            default -> "Chrome";
+        };
         try {
-            return Boolean.TRUE.equals(api.runtime().ui().confirm("Open a Chrome window for pijota to browse the web?")
+            return Boolean.TRUE.equals(api.runtime().ui()
+                                            .confirm("Open a " + label + " window for pijota to browse the web?")
                                             .get(120, TimeUnit.SECONDS));
         } catch (Exception e) {
             return false;

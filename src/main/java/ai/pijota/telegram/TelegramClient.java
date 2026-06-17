@@ -22,6 +22,7 @@ import java.util.stream.Stream;
  * camelCase records with no annotations. Blocking and thread-confined to the caller's poll loop.
  */
 public final class TelegramClient implements TelegramApi {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TelegramClient.class);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60); // must exceed the long-poll timeout
 
     // Telegram speaks snake_case and sends many fields we ignore; this mapper translates both ways and never throws on
@@ -48,12 +49,50 @@ public final class TelegramClient implements TelegramApi {
     }
 
     public long sendMessage(long chatId, String text, InlineKeyboard keyboard) {
-        return call("sendMessage", new SendMessageReq(chatId, text, keyboard)).path("message_id").asLong();
+        return call("sendMessage", new SendMessageReq(chatId, text, keyboard, null, null)).path("message_id").asLong();
+    }
+
+    /**
+     * Sends an answer rendered as Telegram HTML ({@code parse_mode=HTML}); returns the new message id. An optional
+     * inline keyboard (e.g. a Stop button) rides along. Link previews are suppressed so URL-heavy answers stay compact.
+     */
+    public long sendHtml(long chatId, String html, InlineKeyboard keyboard) {
+        return call("sendMessage", new SendMessageReq(chatId, html, keyboard, "HTML", NO_PREVIEW)).path("message_id")
+                                        .asLong();
     }
 
     /** Rewrites an already-sent message — used to "stream" by coalescing partial answers into one edited message. */
     public void editMessageText(long chatId, long messageId, String text) {
-        call("editMessageText", new EditMessageReq(chatId, messageId, text));
+        call("editMessageText", new EditMessageReq(chatId, messageId, text, null, null, null));
+    }
+
+    /**
+     * Rewrites a message, rendering the new body as Telegram HTML. The {@code keyboard} is replaced wholesale — pass
+     * {@code null} to drop the inline keyboard (Telegram removes it when {@code reply_markup} is absent).
+     */
+    public void editHtml(long chatId, long messageId, String html, InlineKeyboard keyboard) {
+        call("editMessageText", new EditMessageReq(chatId, messageId, html, "HTML", keyboard, NO_PREVIEW));
+    }
+
+    /** Sets the long description shown on the bot's profile / empty-chat screen. */
+    public void setMyDescription(String description) {
+        call("setMyDescription", new DescriptionReq(description));
+    }
+
+    /** Sets the short description shown under the bot's name. */
+    public void setMyShortDescription(String shortDescription) {
+        call("setMyShortDescription", new ShortDescriptionReq(shortDescription));
+    }
+
+    /** Adds or clears (empty emoji) the bot's reaction on a message. Best-effort UX signal. */
+    public void setReaction(long chatId, long messageId, String emoji) {
+        var reaction = emoji == null ? List.<Reaction>of() : List.of(new Reaction("emoji", emoji));
+        call("setMessageReaction", new ReactionReq(chatId, messageId, reaction));
+    }
+
+    /** Registers the bot's command list so Telegram offers native {@code /} autocomplete. */
+    public void setMyCommands(List<BotCommand> commands) {
+        call("setMyCommands", new SetCommandsReq(commands));
     }
 
     /** Acknowledges a button tap so Telegram stops showing the loading spinner on the button. */
@@ -66,7 +105,21 @@ public final class TelegramClient implements TelegramApi {
         call("sendChatAction", new ChatActionReq(chatId, action));
     }
 
+    /** Uploads {@code content} as a file attachment (multipart). Returns the new message id. */
+    public long sendDocument(long chatId, String filename, byte[] content, String caption) {
+        var request = HttpRequest.newBuilder(URI.create(base + "/sendDocument")).timeout(REQUEST_TIMEOUT)
+                                        .header("Content-Type", "multipart/form-data; boundary=" + BOUNDARY)
+                                        .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody(BOUNDARY, chatId,
+                                                                        filename, content, caption)))
+                                        .build();
+        return dispatch("sendDocument", request).path("message_id").asLong();
+    }
+
     // ---- transport ----
+
+    // A fixed multipart boundary. ponytail: assumes uploaded content never contains this exact marker — true for the
+    // Markdown/log payloads we attach; a content-derived boundary would be the upgrade if that ever stops holding.
+    private static final String BOUNDARY = "----pijotaFormBoundary8x2KqzRm";
 
     private JsonNode call(String method, Object payload) {
         try {
@@ -74,18 +127,79 @@ public final class TelegramClient implements TelegramApi {
                                             .header("Content-Type", "application/json")
                                             .POST(HttpRequest.BodyPublishers.ofString(TG.writeValueAsString(payload)))
                                             .build();
-            var response = http.send(request, BodyHandlers.ofString());
-            JsonNode root = TG.readTree(response.body());
-            if (!root.path("ok").asBoolean()) {
-                throw new TelegramException(root.path("description").asText("telegram error " + response.statusCode()));
+            return dispatch(method, request);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new TelegramException("telegram payload encode failed: " + method, e);
+        }
+    }
+
+    private static final int MAX_RETRIES = 2;
+    private static final long MAX_RETRY_SLEEP_MS = 30_000;
+
+    private JsonNode dispatch(String method, HttpRequest request) {
+        for (int attempt = 0;; attempt++) {
+            JsonNode root = sendOnce(method, request);
+            if (root.path("ok").asBoolean())
+                return root.path("result");
+            long retryAfter = retryAfterSeconds(root);
+            if (retryAfter > 0 && attempt < MAX_RETRIES) {
+                log.warn("telegram {} rate-limited; retrying in {}s", method, retryAfter);
+                sleep(Math.min(retryAfter * 1000, MAX_RETRY_SLEEP_MS));
+                continue;
             }
-            return root.path("result");
+            throw new TelegramException(root.path("description").asText("telegram error"));
+        }
+    }
+
+    private JsonNode sendOnce(String method, HttpRequest request) {
+        try {
+            return TG.readTree(http.send(request, BodyHandlers.ofString()).body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new TelegramException("telegram call interrupted: " + method, e);
         } catch (java.io.IOException e) {
             throw new TelegramException("telegram call failed: " + method + ": " + e.getMessage(), e);
         }
+    }
+
+    /** The {@code retry_after} seconds Telegram asks for on a 429 response, or 0 if this isn't a rate-limit error. */
+    static long retryAfterSeconds(JsonNode root) {
+        if (root.path("error_code").asInt() != 429)
+            return 0;
+        return Math.max(0, root.path("parameters").path("retry_after").asLong(0));
+    }
+
+    private static void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Builds a {@code multipart/form-data} body carrying {@code chat_id}, an optional caption, and the file part. */
+    static byte[] multipartBody(String boundary, long chatId, String filename, byte[] content, String caption) {
+        var out = new java.io.ByteArrayOutputStream();
+        writeField(out, boundary, "chat_id", Long.toString(chatId));
+        if (caption != null && !caption.isBlank())
+            writeField(out, boundary, "caption", caption);
+        writeBytes(out, "--" + boundary + "\r\n");
+        writeBytes(out, "Content-Disposition: form-data; name=\"document\"; filename=\"" + filename + "\"\r\n");
+        writeBytes(out, "Content-Type: application/octet-stream\r\n\r\n");
+        out.writeBytes(content);
+        writeBytes(out, "\r\n--" + boundary + "--\r\n");
+        return out.toByteArray();
+    }
+
+    private static void writeField(java.io.ByteArrayOutputStream out, String boundary, String name, String value) {
+        writeBytes(out, "--" + boundary + "\r\n");
+        writeBytes(out, "Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n");
+        writeBytes(out, value);
+        writeBytes(out, "\r\n");
+    }
+
+    private static void writeBytes(java.io.ByteArrayOutputStream out, String s) {
+        out.writeBytes(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     static List<Update> updatesFrom(JsonNode resultArray) {
@@ -104,6 +218,10 @@ public final class TelegramClient implements TelegramApi {
     }
 
     public record CallbackQuery(String id, TgMessage message, String data) {
+    }
+
+    /** A bot command shown in Telegram's {@code /} menu. {@code command} is the bare word, no leading slash. */
+    public record BotCommand(String command, String description) {
     }
 
     // ---- outgoing DTOs ----
@@ -131,10 +249,32 @@ public final class TelegramClient implements TelegramApi {
     private record GetUpdatesReq(long offset, int timeout) {
     }
 
-    private record SendMessageReq(long chatId, String text, InlineKeyboard replyMarkup) {
+    private static final LinkPreviewOptions NO_PREVIEW = new LinkPreviewOptions(true);
+
+    private record LinkPreviewOptions(boolean isDisabled) {
     }
 
-    private record EditMessageReq(long chatId, long messageId, String text) {
+    private record SendMessageReq(long chatId, String text, InlineKeyboard replyMarkup, String parseMode,
+                                    LinkPreviewOptions linkPreviewOptions) {
+    }
+
+    private record EditMessageReq(long chatId, long messageId, String text, String parseMode,
+                                    InlineKeyboard replyMarkup, LinkPreviewOptions linkPreviewOptions) {
+    }
+
+    private record SetCommandsReq(List<BotCommand> commands) {
+    }
+
+    private record DescriptionReq(String description) {
+    }
+
+    private record ShortDescriptionReq(String shortDescription) {
+    }
+
+    private record Reaction(String type, String emoji) {
+    }
+
+    private record ReactionReq(long chatId, long messageId, List<Reaction> reaction) {
     }
 
     private record CallbackAnswerReq(String callbackQueryId) {
