@@ -154,7 +154,7 @@ public final class Main {
 
         var client = new TelegramClient(token);
         var session = b.session();
-        var chat = new TelegramChat(allowedChat, session, client);
+        var chat = new TelegramChat(allowedChat, session, client, b.settings());
         b.extensions().setTui(chat.ui()); // confirm/select/prompt via inline keyboards (UiContext seam)
         b.extensions().setSuspendResume(() -> {}, () -> {}); // no terminal to suspend
         b.extensions().ready();

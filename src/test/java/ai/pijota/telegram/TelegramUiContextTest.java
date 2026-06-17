@@ -18,7 +18,11 @@ class TelegramUiContextTest {
         record Sent(long chatId, String text, InlineKeyboard keyboard) {
         }
 
+        record Edit(long messageId, String text) {
+        }
+
         final List<Sent> sent = new ArrayList<>();
+        final List<Edit> edits = new ArrayList<>();
         private final AtomicLong nextId = new AtomicLong(100);
 
         @Override
@@ -38,7 +42,9 @@ class TelegramUiContextTest {
         }
 
         @Override
-        public void editMessageText(long chatId, long messageId, String text) {}
+        public void editMessageText(long chatId, long messageId, String text) {
+            edits.add(new Edit(messageId, text));
+        }
 
         @Override
         public void answerCallback(String callbackQueryId) {}
@@ -61,6 +67,25 @@ class TelegramUiContextTest {
         assertTrue(ui.resolve(keyboardMsgId, "yes"));
         assertTrue(answer.isDone());
         assertTrue(answer.join());
+
+        // The tap is acknowledged: the keyboard message is rewritten to show the choice (and, with no reply_markup on
+        // the edit, the buttons are dropped) — so the user doesn't see a dead keyboard that looks like nothing
+        // happened.
+        assertEquals(1, api.edits.size());
+        assertEquals(keyboardMsgId, api.edits.get(0).messageId());
+        assertTrue(api.edits.get(0).text().contains("Delete it?"), api.edits.get(0).text());
+        assertTrue(api.edits.get(0).text().contains("✅ Yes"), api.edits.get(0).text());
+    }
+
+    @Test
+    void selectTapEchoesTheChosenLabel() {
+        var api = new FakeApi();
+        var ui = new TelegramUiContext(7, api);
+        ui.select("Pick a model", List.of("gpt", "claude"), s -> s.toUpperCase(), s -> {});
+
+        ui.resolve(100, "1"); // index 1 = "claude" → label "CLAUDE"
+        assertEquals(1, api.edits.size());
+        assertTrue(api.edits.get(0).text().contains("✅ CLAUDE"), api.edits.get(0).text());
     }
 
     @Test

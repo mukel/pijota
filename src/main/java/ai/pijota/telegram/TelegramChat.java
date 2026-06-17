@@ -40,11 +40,6 @@ public final class TelegramChat implements ChatHandler {
     private static final TelegramClient.InlineKeyboard STOP_BUTTON = TelegramClient.InlineKeyboard
                                     .row(TelegramClient.InlineKeyboard.button("⏹ Stop", ABORT_DATA));
 
-    // Reactions on the user's own message as a lightweight progress signal (must be from Telegram's allowed emoji set).
-    private static final String REACT_WORKING = "👀"; // accepted, turn running
-    private static final String REACT_DONE = "👍"; // turn finished
-    private static final String REACT_QUEUED = "✍"; // queued onto a running turn
-
     /** The bot's command menu — registered with Telegram for {@code /} autocomplete and the source of {@code /help}. */
     public static final List<TelegramClient.BotCommand> COMMANDS = List.of(
                                     new TelegramClient.BotCommand("stop", "Interrupt the running turn"),

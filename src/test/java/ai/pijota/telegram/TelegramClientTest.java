@@ -5,6 +5,7 @@ import ai.pijota.telegram.TelegramClient.Update;
 
 import org.junit.jupiter.api.Test;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Verifies the snake_case wire mapping (the only fiddly part) with canned payloads — no network needed. */
@@ -62,5 +63,40 @@ class TelegramClientTest {
         var kb = InlineKeyboard.column(InlineKeyboard.button("A", "a"), InlineKeyboard.button("B", "b"));
         assertEquals(2, kb.inlineKeyboard().size(), "each choice on its own row");
         assertEquals(1, kb.inlineKeyboard().get(0).size());
+    }
+
+    @Test
+    void multipartBodyCarriesFieldsFilenameAndContent() {
+        byte[] body = TelegramClient.multipartBody("BOUND", 1234, "answer.md", "# Title\nbody".getBytes(UTF_8), "cap");
+        String s = new String(body, UTF_8);
+
+        assertTrue(s.contains("--BOUND\r\n"), "uses the boundary");
+        assertTrue(s.contains("name=\"chat_id\"\r\n\r\n1234"), "carries chat_id");
+        assertTrue(s.contains("name=\"caption\"\r\n\r\ncap"), "carries caption");
+        assertTrue(s.contains("name=\"document\"; filename=\"answer.md\""), "names the file");
+        assertTrue(s.contains("# Title\nbody"), "includes the content");
+        assertTrue(s.endsWith("--BOUND--\r\n"), "closes the multipart envelope");
+    }
+
+    @Test
+    void multipartBodyOmitsBlankCaption() {
+        byte[] body = TelegramClient.multipartBody("B", 1, "f.txt", "x".getBytes(UTF_8), null);
+        assertFalse(new String(body, UTF_8).contains("name=\"caption\""), "no caption part when none given");
+    }
+
+    @Test
+    void retryAfterIsReadFromA429() throws Exception {
+        var node = TelegramClient.TG.readTree("{\"ok\":false,\"error_code\":429,\"parameters\":{\"retry_after\":7}}");
+        assertEquals(7, TelegramClient.retryAfterSeconds(node));
+    }
+
+    @Test
+    void retryAfterIsZeroForNon429Errors() throws Exception {
+        var badRequest = TelegramClient.TG.readTree("{\"ok\":false,\"error_code\":400,\"description\":\"nope\"}");
+        assertEquals(0, TelegramClient.retryAfterSeconds(badRequest));
+        var ok = TelegramClient.TG.readTree("{\"ok\":true,\"result\":{}}");
+        assertEquals(0, TelegramClient.retryAfterSeconds(ok));
+        var noParams = TelegramClient.TG.readTree("{\"ok\":false,\"error_code\":429}");
+        assertEquals(0, TelegramClient.retryAfterSeconds(noParams), "429 without parameters → 0");
     }
 }
