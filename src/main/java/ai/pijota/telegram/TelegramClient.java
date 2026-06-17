@@ -84,12 +84,6 @@ public final class TelegramClient implements TelegramApi {
         call("setMyShortDescription", new ShortDescriptionReq(shortDescription));
     }
 
-    /** Adds or clears (empty emoji) the bot's reaction on a message. Best-effort UX signal. */
-    public void setReaction(long chatId, long messageId, String emoji) {
-        var reaction = emoji == null ? List.<Reaction>of() : List.of(new Reaction("emoji", emoji));
-        call("setMessageReaction", new ReactionReq(chatId, messageId, reaction));
-    }
-
     /** Registers the bot's command list so Telegram offers native {@code /} autocomplete. */
     public void setMyCommands(List<BotCommand> commands) {
         call("setMyCommands", new SetCommandsReq(commands));
@@ -269,12 +263,6 @@ public final class TelegramClient implements TelegramApi {
     }
 
     private record ShortDescriptionReq(String shortDescription) {
-    }
-
-    private record Reaction(String type, String emoji) {
-    }
-
-    private record ReactionReq(long chatId, long messageId, List<Reaction> reaction) {
     }
 
     private record CallbackAnswerReq(String callbackQueryId) {

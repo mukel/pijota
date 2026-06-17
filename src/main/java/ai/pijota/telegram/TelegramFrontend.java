@@ -57,7 +57,7 @@ public final class TelegramFrontend {
         if (update.message() != null && update.message().text() != null && update.message().chat() != null) {
             long chatId = update.message().chat().id();
             if (allow.test(chatId))
-                chatFor(chatId).onText(update.message().messageId(), update.message().text());
+                chatFor(chatId).onText(update.message().text());
         } else if (update.callbackQuery() != null && update.callbackQuery().message() != null
                                         && update.callbackQuery().message().chat() != null) {
             long chatId = update.callbackQuery().message().chat().id();

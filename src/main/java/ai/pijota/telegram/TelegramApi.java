@@ -41,8 +41,4 @@ public interface TelegramApi {
     default long sendDocument(long chatId, String filename, byte[] content, String caption) {
         return 0; // fakes that don't exercise uploads ignore them
     }
-
-    default void setReaction(long chatId, long messageId, String emoji) {
-        // no-op for fakes
-    }
 }

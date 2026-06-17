@@ -5,7 +5,7 @@ package ai.pijota.telegram;
  * {@link TelegramFrontend}'s routing testable without a real {@code PijotaSession}.
  */
 public interface ChatHandler {
-    void onText(long messageId, String text);
+    void onText(String text);
 
     void onCallback(TelegramClient.CallbackQuery callback);
 }

@@ -20,12 +20,10 @@ class TelegramFrontendTest {
     /** Records routed input so dispatch can be asserted without a real session. */
     private static final class RecordingChat implements ChatHandler {
         final List<String> texts = new ArrayList<>();
-        final List<Long> msgIds = new ArrayList<>();
         final List<String> taps = new ArrayList<>();
 
         @Override
-        public void onText(long messageId, String text) {
-            msgIds.add(messageId);
+        public void onText(String text) {
             texts.add(text);
         }
 
@@ -88,7 +86,6 @@ class TelegramFrontendTest {
         f.handle(textUpdate(3, 200, "hi from another chat"));
 
         assertEquals(List.of("hello"), chats.get(100L).texts);
-        assertEquals(List.of(10L), chats.get(100L).msgIds, "the message id is threaded through to the handler");
         assertEquals(List.of("yes"), chats.get(100L).taps);
         assertEquals(List.of("hi from another chat"), chats.get(200L).texts);
     }

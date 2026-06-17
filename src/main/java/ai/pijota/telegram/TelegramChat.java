@@ -83,26 +83,23 @@ public final class TelegramChat implements ChatHandler {
 
     /** A text message arrived in this chat. */
     @Override
-    public void onText(long messageId, String text) {
+    public void onText(String text) {
         if (ui.offerReply(text))
             return; // it was the answer to a pending prompt(), not a new turn
         if (text.strip().startsWith("/") && handleCommand(text.strip()))
             return; // a slash command (handled before busy/followUp so /stop can interrupt a running turn)
         if (session.isBusy()) {
-            session.followUp(text); // queue it onto the running turn (mirrors the TUI)
-            react(messageId, REACT_QUEUED); // ✍ so the user knows it was accepted, not ignored
+            session.followUp(text); // queue it onto the running turn (mirrors the TUI, which queues silently)
             return;
         }
-        tg.sendChatAction(chatId, "typing");
+        tg.sendChatAction(chatId, "typing"); // "typing…" + the streamed reply are the progress signal
         streamMessageId = null;
         lastSentText = "";
         streamedProse = false;
-        react(messageId, REACT_WORKING); // 👀 acknowledge we're on it
-        session.prompt(text).whenComplete((msgs, t) -> react(messageId, t == null ? REACT_DONE : null))
-                                        .exceptionally(t -> {
-                                            tg.sendMessage(chatId, "❌ " + ErrorUtil.message(t));
-                                            return List.of();
-                                        });
+        session.prompt(text).exceptionally(t -> {
+            tg.sendMessage(chatId, "❌ " + ErrorUtil.message(t));
+            return List.of();
+        });
     }
 
     /**
@@ -203,19 +200,6 @@ public final class TelegramChat implements ChatHandler {
     /** A short {@code ": <why>"} suffix for a tool failure, or "" when the tool gave no detail. */
     static String reason(String content) {
         return content == null || content.isBlank() ? "" : ": " + clip(content, 200);
-    }
-
-    /**
-     * Best-effort reaction on a message ({@code emoji == null} clears it); never lets a reaction failure break a turn.
-     */
-    private void react(long messageId, String emoji) {
-        if (messageId == 0)
-            return;
-        try {
-            tg.setReaction(chatId, messageId, emoji);
-        } catch (RuntimeException e) {
-            log.debug("telegram reaction failed: {}", e.getMessage());
-        }
     }
 
     /** True if no turn is in flight; otherwise tells the user to {@code /stop} first and returns false. */
