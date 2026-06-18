@@ -2,6 +2,9 @@ package ai.pijota;
 
 import ai.pijota.util.SelfRespawn;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -9,6 +12,8 @@ import java.util.Arrays;
 import java.util.List;
 
 final class Supervisor {
+    private static final Logger logger = LoggerFactory.getLogger(Supervisor.class);
+
     private Supervisor() {}
 
     static int run(String[] originalArgs) throws IOException, InterruptedException {
@@ -38,8 +43,8 @@ final class Supervisor {
             if (respawned && exitCode != 0 && !rolledBack && SelfRespawn.isBooting()) {
                 var rollback = SelfRespawn.autoRollbackCommand(command);
                 if (rollback.isPresent()) {
-                    System.err.println("[transcend] new build failed to start (exit " + exitCode
-                                                    + ") — rolled back to the previous build; session preserved.");
+                    logger.warn("New build failed to start (exit {}) — rolled back to the previous build; session preserved",
+                                                    exitCode);
                     command = rollback.get();
                     rolledBack = true; // respawned is already true here; the rollback relaunch is armed next loop
                     SelfRespawn.markStartupHealthy(); // reset the sentinel before relaunching the good build

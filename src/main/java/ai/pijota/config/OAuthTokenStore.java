@@ -5,6 +5,10 @@ import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class OAuthTokenStore {
+    private static final Logger logger = LoggerFactory.getLogger(OAuthTokenStore.class);
     private static final Path CONFIG_HOME = PijotaHome.dir();
     private static final Path DEFAULT_AUTH_FILE = CONFIG_HOME.resolve("auth.json");
 
@@ -83,6 +88,7 @@ public final class OAuthTokenStore {
             }
             return null;
         } catch (Exception e) {
+            logger.warn("OAuth token refresh failed for {}: {}", provider, e.getMessage());
             return null;
         }
     }
@@ -91,7 +97,9 @@ public final class OAuthTokenStore {
         try {
             Files.createDirectories(authFile.getParent());
             Util.MAPPER.writerWithDefaultPrettyPrinter().writeValue(authFile.toFile(), tokens);
-        } catch (IOException ignored) {}
+        } catch (IOException e) {
+            logger.warn("Failed to persist auth tokens: {}", e.getMessage());
+        }
     }
 
     @SuppressWarnings("unchecked")

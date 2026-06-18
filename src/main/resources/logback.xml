@@ -1,0 +1,20 @@
+<configuration>
+    <!-- Rolling file appender: the primary log sink for Pijota -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${user.home}/.pijota/logs/pijota.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${user.home}/.pijota/logs/pijota.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>3</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- File is the sole sink: full diagnostics go here, while user-facing text is owned by CliErrorReporter /
+         System.out. A stderr console appender would double-print (CliErrorReporter already writes to stderr) and
+         dump stack traces over the otherwise-clean terminal. -->
+    <root level="INFO">
+        <appender-ref ref="FILE" />
+    </root>
+</configuration>

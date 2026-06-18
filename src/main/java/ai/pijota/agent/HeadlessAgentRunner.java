@@ -7,6 +7,10 @@ import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.Util;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -20,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class HeadlessAgentRunner {
+    private static final Logger logger = LoggerFactory.getLogger(HeadlessAgentRunner.class);
 
     private HeadlessAgentRunner() {}
 
@@ -139,9 +144,8 @@ public final class HeadlessAgentRunner {
             var sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
             String fullError = msg + "\n" + sw;
-            System.err.println("--- PJ ERROR ---");
-            System.err.println(fullError);
-            System.err.flush();
+            logger.error("Headless agent run failed: {}", fullError);
+            System.err.println("ERROR: " + msg);
             if (writerRef[0] != null) {
                 try {
                     writerRef[0].write("\n--- ERROR ---\n" + fullError + "\n");
@@ -151,6 +155,7 @@ public final class HeadlessAgentRunner {
             try {
                 emit(new DoneEvent("", 1, 0, 0, 0, fullError));
             } catch (Exception emitEx) {
+                logger.error("Failed to emit headless agent error event", emitEx);
                 if (writerRef[0] != null) {
                     try {
                         writerRef[0].write("\n--- EMIT FAILED ---\n" + emitEx + "\n");

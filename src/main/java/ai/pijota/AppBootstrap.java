@@ -19,11 +19,16 @@ import ai.pijota.util.ProcessRunner;
 
 import ai.pijota.util.SelfRespawn;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 
 final class AppBootstrap {
+    private static final Logger logger = LoggerFactory.getLogger(AppBootstrap.class);
+
     record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
                                     SessionManager sessions, SettingsManager settings, Args args, String cwd) {
     }
@@ -57,8 +62,7 @@ final class AppBootstrap {
         }
         if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
             if (!parsedArgs.agent()) {
-                System.err.println("No API key. Set " + settings.apiKeyHint(provider) + ".");
-                System.exit(1);
+                throw new IllegalStateException("No API key. Set " + settings.apiKeyHint(provider) + ".");
             }
         }
 
@@ -151,7 +155,7 @@ final class AppBootstrap {
                     loadedSession = true;
                     SelfRespawn.clearRecoveryFile();
                 } else {
-                    System.err.println("No recovery session found — starting fresh.");
+                    logger.warn("No recovery session found — starting fresh");
                 }
             } else if (parsedArgs.continueSession()) {
                 session.continueLastSession();
@@ -160,7 +164,7 @@ final class AppBootstrap {
                 loadedSession = true;
             }
         } catch (IOException e) {
-            System.err.println("[transcend] failed to load session: " + e.getMessage() + " — starting fresh.");
+            logger.warn("Failed to load session ({}); starting fresh", e.getMessage());
         }
         ext.fire(new ai.pijota.extensions.ExtensionEvent.SessionStart(session.sessionFile()));
         if (loadedSession) {
@@ -189,8 +193,7 @@ final class AppBootstrap {
             if (branch != null && !branch.isBlank()) {
                 var merge = SelfRespawn.mergeBranch(branch.strip());
                 if (merge.exitCode() != 0) {
-                    System.err.println("[transcend] automatic merge failed:");
-                    System.err.println(merge.stdout().strip());
+                    logger.warn("Automatic merge failed:\n{}", merge.stdout().strip());
                     return;
                 }
             }
@@ -203,7 +206,7 @@ final class AppBootstrap {
                                                 .redirectErrorStream(true).run();
             }
         } catch (Exception e) {
-            System.err.println("[transcend] automatic merge failed: " + e.getMessage());
+            logger.warn("Automatic merge failed", e);
         }
     }
 
@@ -213,8 +216,7 @@ final class AppBootstrap {
             return;
         var resolved = ModelRegistry.resolve(selection, settings);
         if (resolved == null) {
-            System.err.println("[session] cannot restore model " + selection.provider() + "/" + selection.model()
-                                            + " — missing API key");
+            logger.warn("Cannot restore model {}/{} — missing API key", selection.provider(), selection.model());
             return;
         }
         session.restoreModel(resolved.provider(), resolved.model(), resolved.apiKey(), resolved.contextWindow());
@@ -230,8 +232,7 @@ final class AppBootstrap {
         var diff = ProcessRunner.command("git", "diff", "--binary", "HEAD").workDir(worktree).redirectErrorStream(true)
                                         .maxOutputBytes(10 * 1024 * 1024).run();
         if (diff.exitCode() != 0) {
-            System.err.println("[transcend] failed to collect worktree diff:");
-            System.err.println(diff.stdout().strip());
+            logger.warn("Failed to collect worktree diff:\n{}", diff.stdout().strip());
             return false;
         }
         if (diff.stdout().isBlank())
@@ -240,8 +241,7 @@ final class AppBootstrap {
         var apply = ProcessRunner.command("git", "apply", "--3way", "--whitespace=nowarn").feedStdin(diff.stdout())
                                         .redirectErrorStream(true).maxOutputBytes(10 * 1024 * 1024).run();
         if (apply.exitCode() != 0) {
-            System.err.println("[transcend] failed to apply worktree changes:");
-            System.err.println(apply.stdout().strip());
+            logger.warn("Failed to apply worktree changes:\n{}", apply.stdout().strip());
             return false;
         }
         return true;

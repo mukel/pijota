@@ -269,6 +269,9 @@ public final class Util {
         return java.util.UUID.randomUUID().toString().replace("-", "").substring(0, Math.min(len, 32));
     }
 
+    /** Tool names whose {@code command} argument is a shell command (the {@code bash} tool and tmux's runner). */
+    public static final java.util.Set<String> SHELL_TOOL_NAMES = java.util.Set.of("bash", "tmux_bash");
+
     @SuppressWarnings("unchecked")
     public static String parseBashArgs(String argsJson) {
         try {

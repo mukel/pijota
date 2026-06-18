@@ -105,6 +105,36 @@ class WebServerTest {
     }
 
     @Test
+    void servesVendoredLibrariesLocally() throws Exception {
+        withServer((ts, client, base) -> {
+            var js = client.send(HttpRequest.newBuilder(URI.create(base + "/vendor/marked.min.js")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, js.statusCode());
+            assertTrue(js.headers().firstValue("Content-Type").orElse("").contains("javascript"));
+            assertFalse(js.body().isBlank());
+
+            var css = client.send(HttpRequest.newBuilder(URI.create(base + "/vendor/github-dark.min.css")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, css.statusCode());
+            assertTrue(css.headers().firstValue("Content-Type").orElse("").contains("css"));
+
+            var missing = client.send(HttpRequest.newBuilder(URI.create(base + "/vendor/nope.js")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(404, missing.statusCode());
+        });
+    }
+
+    @Test
+    void spaReferencesLocalVendorNotCdn() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertTrue(resp.body().contains("/vendor/marked.min.js"), "SPA should load libs locally");
+            assertFalse(resp.body().contains("cdn.jsdelivr"), "UI must not depend on a CDN");
+        });
+    }
+
+    @Test
     void unknownPathReturns404() throws Exception {
         withServer((ts, client, base) -> {
             var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/does-not-exist")).build(),

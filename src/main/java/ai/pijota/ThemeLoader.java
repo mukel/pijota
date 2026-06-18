@@ -5,6 +5,9 @@ import ai.pijota.config.SettingsManager;
 import ai.pijota.theme.AnsiTheme;
 import ai.pijota.util.PijotaHome;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -12,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 
 final class ThemeLoader {
+    private static final Logger logger = LoggerFactory.getLogger(ThemeLoader.class);
+
     private ThemeLoader() {}
 
     static AnsiTheme load(SettingsManager settings, Args args, String cwd) {
@@ -19,7 +24,7 @@ final class ThemeLoader {
         try {
             theme = resolve(settings, args, cwd);
         } catch (Exception e) {
-            System.err.println("Theme load failed: " + e.getMessage());
+            logger.warn("Theme load failed: {}", e.getMessage());
         }
         if (System.getenv("NO_COLOR") != null) {
             theme.enabled = false;

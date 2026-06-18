@@ -140,6 +140,11 @@ public class FakeExtensionAPI implements ExtensionAPI {
         fire(new ExtensionEvent.SessionReady());
     }
 
+    /** Fires a tool call carrying a {@code {"command": ...}} body — the shape the bash/tmux guards inspect. */
+    public Object fireToolCall(String tool, String command) {
+        return fire(new ExtensionEvent.ToolCall("id", tool, "{\"command\":\"" + command + "\"}", true));
+    }
+
     public SlashCommand slashCommand(String name) {
         return slashCommands.stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
     }

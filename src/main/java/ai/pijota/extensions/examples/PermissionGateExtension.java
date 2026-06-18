@@ -27,8 +27,7 @@ public final class PermissionGateExtension implements Extension {
     @Override
     public void init(ExtensionAPI api) {
         api.onToolCall((tc, ctx) -> {
-            if (!"bash".equals(tc.toolName()) && !"tmux_bash".equals(tc.toolName())) // tmux_bash also runs shell
-                                                                                     // commands
+            if (!Util.SHELL_TOOL_NAMES.contains(tc.toolName()))
                 return null;
             String command = parseCommand(tc.arguments());
             if (command == null || !isDangerous(command))

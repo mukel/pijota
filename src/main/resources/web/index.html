@@ -6,12 +6,12 @@
 <meta name="description" content="pijota — interactive coding agent">
 <meta name="theme-color" content="#0d1117">
 <title>pijota</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="stylesheet" id="hljs-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
-<!-- deferred so they load in parallel without blocking first paint; app init waits for DOMContentLoaded -->
-<script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+<link rel="stylesheet" id="hljs-theme" href="/vendor/github-dark.min.css">
+<!-- vendored locally (see web/vendor/) so the UI renders offline with no CDN; deferred so they load in parallel
+     without blocking first paint; app init waits for DOMContentLoaded -->
+<script defer src="/vendor/marked.min.js"></script>
+<script defer src="/vendor/highlight.min.js"></script>
+<script defer src="/vendor/purify.min.js"></script>
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128; --border: #30363d;
@@ -317,8 +317,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // ---- theme (light / dark) ----
   const HLJS = {
-    dark: "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css",
-    light: "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css",
+    dark: "/vendor/github-dark.min.css",
+    light: "/vendor/github.min.css",
   };
   function applyTheme(t) {
     document.documentElement.dataset.theme = t;

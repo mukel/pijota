@@ -3,10 +3,14 @@ package ai.pijota.config;
 import ai.pijota.util.PijotaHome;
 import ai.pijota.util.SelfRespawn;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.nio.file.Path;
 import java.util.List;
 
 public final class SettingsManager {
+    private static final Logger logger = LoggerFactory.getLogger(SettingsManager.class);
     private static final Path CONFIG_HOME = PijotaHome.dir();
     private static final Path SETTINGS_FILE = CONFIG_HOME.resolve("settings.json");
     private static final Path SESSION_DIR = CONFIG_HOME.resolve("sessions");
@@ -40,7 +44,7 @@ public final class SettingsManager {
         try {
             config.save(SETTINGS_FILE);
         } catch (Exception e) {
-            System.err.println("Failed to save settings: " + e.getMessage());
+            logger.warn("Failed to save settings: {}", e.getMessage());
         }
     }
 

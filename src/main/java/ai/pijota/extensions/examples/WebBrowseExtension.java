@@ -8,6 +8,9 @@ import ai.pijota.tools.Tool;
 import ai.pijota.util.Env;
 import ai.pijota.util.Util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.nio.file.Path;
@@ -25,6 +28,7 @@ import java.util.concurrent.TimeUnit;
  * session, and closed on shutdown.
  */
 public final class WebBrowseExtension implements Extension {
+    private static final Logger logger = LoggerFactory.getLogger(WebBrowseExtension.class);
 
     private static final int DEFAULT_PORT = 9333;
 
@@ -62,10 +66,11 @@ public final class WebBrowseExtension implements Extension {
             this.session = BrowserSession.create(browser, debugPort(rt), profile, binary,
                                             msg -> rt.setStatus("browse", "🌐 " + msg), this::confirmLaunch);
         } catch (RuntimeException e) {
-            // e.g. the selected browser's WebDriver isn't installed → disable browsing rather than fail startup. Print
-            // to the console too: the extension status line isn't visible in the Telegram/web frontends, so otherwise
+            // e.g. the selected browser's WebDriver isn't installed → disable browsing rather than fail startup. Log
+            // and surface via status: the extension status line isn't visible in the Telegram/web frontends, so
+            // otherwise
             // the failure looks silent (the browse tools just never appear).
-            System.err.println("[browse] disabled for --browse=" + browser + ": " + e.getMessage());
+            logger.warn("Browse disabled for --browse={}: {}", browser, e.getMessage());
             rt.setStatus("browse", "🌐 browse disabled: " + e.getMessage());
             return;
         }

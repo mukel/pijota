@@ -1,5 +1,8 @@
 package ai.pijota.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -13,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class SelfRespawn {
+    private static final Logger logger = LoggerFactory.getLogger(SelfRespawn.class);
 
     static final Path BACKUP_JAR = Path.of("target", "pijota-backup.jar");
     static final Path RECOVERY_FILE = Path.of("target", ".transcend-session");
@@ -21,7 +25,6 @@ public final class SelfRespawn {
     // Boot-health sentinel: the supervisor creates it before launching a freshly-respawned build; the worker
     // deletes it once it has started cleanly. If it survives the worker, the new build never came up → roll back.
     static final Path BOOTING_FILE = Path.of("target", ".transcend-booting");
-    static final String LOCK_PREFIX = "[transcend] ";
 
     private static volatile Path activeSessionFile;
     private static volatile String[] originalArgs;
@@ -48,19 +51,19 @@ public final class SelfRespawn {
 
     public static boolean requestRespawn(Path jar, String mergeBranch, Path mergeWorktree) {
         if (jar == null || !Files.exists(jar)) {
-            System.err.println(LOCK_PREFIX + "requestRespawn: jar not found" + (jar != null ? " at " + jar : "")
-                                            + " — build first: mvn package -Pfat -q");
+            logger.warn("requestRespawn: jar not found{} — build first: mvn package -Pfat -q",
+                                            jar != null ? " at " + jar : "");
             return false;
         }
         if (pending.get()) {
-            System.err.println(LOCK_PREFIX + "respawn already pending — skipping duplicate request");
+            logger.warn("respawn already pending — skipping duplicate request");
             return false;
         }
         Path launchJar;
         try {
             launchJar = stageLaunchJar(jar, mergeWorktree);
         } catch (IOException e) {
-            System.err.println(LOCK_PREFIX + "failed to stage respawn jar: " + e.getMessage());
+            logger.warn("failed to stage respawn jar: {}", e.getMessage());
             return false;
         }
         pendingJar.set(launchJar);
@@ -145,7 +148,7 @@ public final class SelfRespawn {
             jar = findJarIn(Path.of(System.getProperty("user.dir")));
             if (jar == null || !Files.exists(jar)) {
                 lastRespawnError = "no jar found for respawn — rebuild with: mvn package -Pfat -q";
-                System.err.println(LOCK_PREFIX + lastRespawnError);
+                logger.warn(lastRespawnError);
                 return;
             }
         }
@@ -260,7 +263,7 @@ public final class SelfRespawn {
                                     Path mergeWorktree) {
         if (jar == null || !Files.exists(jar)) {
             lastRespawnError = "jar not found" + (jar != null ? " at " + jar : "") + " — rebuild: mvn package -Pfat -q";
-            System.err.println(LOCK_PREFIX + "respawn aborted: " + lastRespawnError);
+            logger.warn("respawn aborted: {}", lastRespawnError);
             return;
         }
         List<String> cmd = buildCommand(jar, sessionFile, resumeSession, mergeBranch, mergeWorktree);
@@ -272,7 +275,7 @@ public final class SelfRespawn {
         } catch (IOException e) {
             respawnInProgress.set(false);
             lastRespawnError = "respawn failed: " + e.getMessage();
-            System.err.println(LOCK_PREFIX + lastRespawnError);
+            logger.warn(lastRespawnError);
         }
     }
 
@@ -318,7 +321,7 @@ public final class SelfRespawn {
         try {
             rollback(Path.of(failedCommand.get(jarIdx + 1))); // overwrite the failed jar with the known-good backup
         } catch (IOException e) {
-            System.err.println(LOCK_PREFIX + "auto-rollback failed: " + e.getMessage());
+            logger.warn("auto-rollback failed: {}", e.getMessage());
             return Optional.empty();
         }
         return Optional.of(stripTranscendFlags(failedCommand));
@@ -357,7 +360,7 @@ public final class SelfRespawn {
             }
             return Optional.of(command);
         } catch (Exception e) {
-            System.err.println(LOCK_PREFIX + "failed to read restart request: " + e.getMessage());
+            logger.warn("failed to read restart request: {}", e.getMessage());
             return Optional.empty();
         }
     }

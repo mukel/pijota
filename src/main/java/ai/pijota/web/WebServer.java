@@ -138,6 +138,7 @@ public final class WebServer implements AutoCloseable {
         http.createContext("/interrupt", this::handleInterrupt);
         http.createContext("/answer", this::handleAnswer);
         http.createContext("/commands", this::handleCommands);
+        http.createContext("/vendor/", this::serveVendor); // version-pinned UI libs, served locally (no CDN)
         http.createContext("/", this::serveIndex); // catch-all: index for "/", 404 otherwise
         http.setExecutor(Executors.newCachedThreadPool(daemon("pijota-web")));
         session.addEventListener(this::onEvent);
@@ -170,6 +171,29 @@ public final class WebServer implements AutoCloseable {
             // The single-page app is the whole UI; never let a browser serve a stale copy after an upgrade.
             ex.getResponseHeaders().set("Cache-Control", "no-store");
             send(ex, 200, "text/html; charset=utf-8", html);
+        }
+    }
+
+    /** Serves the version-pinned vendored UI libraries (marked / highlight.js / DOMPurify) from the classpath. */
+    private void serveVendor(HttpExchange ex) throws IOException {
+        String name = ex.getRequestURI().getPath().substring("/vendor/".length());
+        if (name.isEmpty() || name.indexOf('/') >= 0 || name.contains("..")) { // flat whitelist — no path traversal
+            send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        try (InputStream in = WebServer.class.getResourceAsStream("/web/vendor/" + name)) {
+            if (in == null) {
+                send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            String type = name.endsWith(".css")
+                                            ? "text/css; charset=utf-8"
+                                            : name.endsWith(".js")
+                                                                            ? "text/javascript; charset=utf-8"
+                                                                            : "application/octet-stream";
+            ex.getResponseHeaders().set("Cache-Control", "max-age=86400"); // pinned; refetch daily, hard-reload after
+                                                                           // update
+            send(ex, 200, type, in.readAllBytes());
         }
     }
 

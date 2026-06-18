@@ -70,7 +70,7 @@ class SecurityExtensionTest {
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();
         ext.init(api);
-        var result = api.fire(new ExtensionEvent.ToolCall("id", "tmux_bash", "{\"command\":\"rm -rf /\"}", true));
+        var result = api.fireToolCall("tmux_bash", "rm -rf /");
         assertInstanceOf(ExtensionResult.Block.class, result);
         assertTrue(((ExtensionResult.Block) result).reason().contains("recursive delete"));
     }

@@ -1,9 +1,9 @@
 package ai.pijota.extensions.tmux;
 
 import ai.pijota.extensions.ExtensionEvent;
-import ai.pijota.extensions.UiContext;
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
 import ai.pijota.extensions.testkit.FakeExtensionRuntime;
+import ai.pijota.extensions.testkit.FakeUiContext;
 import ai.pijota.tools.Tool;
 
 import org.junit.jupiter.api.Test;
@@ -15,7 +15,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,34 +40,40 @@ class TmuxExtensionTest {
         return tmp.resolve("123e4567-1234-1234-1234-123456789012.tmux.json");
     }
 
-    private TmuxClient fakeClient() {
-        return new TmuxClient((command, timeout) -> {
-            commands.add(String.join(" ", command));
-            String first = command.get(0);
-            String second = command.size() > 1 ? command.get(1) : "";
-            String stdout = "";
-            int exit = 0;
+    /** Canonical tmux responses (records every command, tracks kills); shared by fakeClient() and fakeClientWith(). */
+    private final TmuxClient.CommandRunner canonical = (command, timeout) -> {
+        commands.add(String.join(" ", command));
+        String first = command.get(0);
+        String second = command.size() > 1 ? command.get(1) : "";
+        String stdout = "";
+        int exit = 0;
 
-            if ("tmux".equals(first) && "-V".equals(second)) {
-                stdout = "tmux 3.4";
-            } else if ("tmux".equals(first) && "new-session".equals(second)) {
-                stdout = "";
-            } else if ("tmux".equals(first) && "list-panes".equals(second)) {
-                stdout = "%0\t1234\tpane-0";
-            } else if ("tmux".equals(first) && "capture-pane".equals(second)) {
-                stdout = "captured output";
-            } else if ("tmux".equals(first) && "list-sessions".equals(second)) {
-                stdout = "pijota-123e4567-server\t$0";
-            } else if ("tmux".equals(first) && "kill-session".equals(second)) {
-                killed.add(command.get(command.size() - 1));
-            } else if ("tmux".equals(first) && "kill-pane".equals(second)) {
-                killed.add(command.get(command.size() - 1));
-            } else if ("tmux".equals(first) && "send-keys".equals(second)) {
-                stdout = "";
-            } else if ("tmux".equals(first) && "has-session".equals(second)) {
-                exit = 0;
+        if ("tmux".equals(first) && "-V".equals(second)) {
+            stdout = "tmux 3.4";
+        } else if ("tmux".equals(first) && "list-panes".equals(second)) {
+            stdout = "%0\t1234\tpane-0";
+        } else if ("tmux".equals(first) && "capture-pane".equals(second)) {
+            stdout = "captured output";
+        } else if ("tmux".equals(first) && "list-sessions".equals(second)) {
+            stdout = "pijota-123e4567-server\t$0";
+        } else if ("tmux".equals(first) && ("kill-session".equals(second) || "kill-pane".equals(second))) {
+            killed.add(command.get(command.size() - 1));
+        }
+        return new TmuxClient.Result(exit, stdout, "");
+    };
+
+    private TmuxClient fakeClient() {
+        return new TmuxClient(canonical);
+    }
+
+    /** The canonical fake, except the given verb (command[1]) returns {@code override}. Collapses one-off stubs. */
+    private TmuxClient fakeClientWith(String verb, TmuxClient.Result override) {
+        return new TmuxClient((command, timeout) -> {
+            if (verb.equals(command.size() > 1 ? command.get(1) : "")) {
+                commands.add(String.join(" ", command));
+                return override;
             }
-            return new TmuxClient.Result(exit, stdout, "");
+            return canonical.run(command, timeout);
         });
     }
 
@@ -78,22 +83,29 @@ class TmuxExtensionTest {
         });
     }
 
-    private record Setup(FakeExtensionAPI api, TmuxExtension ext) {
+    private record Setup(FakeExtensionAPI api, TmuxExtension ext, FakeExtensionRuntime runtime) {
     }
 
     private FakeExtensionAPI init(TmuxClient client) {
         return initWithExt(client).api();
     }
 
-    private Setup initWithExt(TmuxClient client) {
+    /** Construct + init the extension on a fresh runtime (cwd /tmp); fires no session events yet. */
+    private Setup buildExt(TmuxClient client) {
         var runtime = new FakeExtensionRuntime();
         runtime.setCwd(Path.of("/tmp"));
         var api = new FakeExtensionAPI(runtime);
         var ext = new TmuxExtension(client);
         ext.init(api);
-        api.fire(new ExtensionEvent.SessionStart(sessionPath())); // sidecar lands in the per-test temp dir
-        api.fireSessionReady();
-        return new Setup(api, ext);
+        return new Setup(api, ext, runtime);
+    }
+
+    /** buildExt + the usual SessionStart (sidecar lands in the temp dir) + SessionReady. */
+    private Setup initWithExt(TmuxClient client) {
+        var setup = buildExt(client);
+        setup.api().fire(new ExtensionEvent.SessionStart(sessionPath()));
+        setup.api().fireSessionReady();
+        return setup;
     }
 
     private Tool.ToolResult runTool(FakeExtensionAPI api, String toolName, Map<String, Object> args) throws Exception {
@@ -308,6 +320,15 @@ class TmuxExtensionTest {
     }
 
     @Test
+    void killingTheLastSessionRemovesTheSidecar() throws Exception {
+        var setup = initWithExt(fakeClient());
+        runTool(setup.api(), "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        assertTrue(Files.exists(sidecar()));
+        runTool(setup.api(), "tmux_kill", Map.of("target", "server", "confirm", true));
+        assertFalse(Files.exists(sidecar()), "the sidecar should be deleted once no sessions remain");
+    }
+
+    @Test
     void tmuxKillRejectsUnmanagedTarget() throws Exception {
         var client = fakeClient();
         var api = init(client);
@@ -357,6 +378,16 @@ class TmuxExtensionTest {
         assertEquals(1, probes, "liveness should be cached within the TTL, not re-probed on every status poll");
     }
 
+    @Test
+    void tmuxAvailabilityIsProbedOnce() throws Exception {
+        var api = init(fakeClient());
+        runTool(api, "tmux_bash", Map.of("command", "echo 1", "name", "a"));
+        runTool(api, "tmux_capture", Map.of("target", "a"));
+        runTool(api, "tmux_list", Map.of());
+        long probes = commands.stream().filter(c -> c.equals("tmux -V")).count();
+        assertEquals(1, probes, "tmux availability is fixed per process — it should be memoized, not re-probed");
+    }
+
     // ---- state persistence ----
 
     @Test
@@ -391,14 +422,7 @@ class TmuxExtensionTest {
     @Test
     void loadPrunesSessionsThatNoLongerExist() throws Exception {
         // tmux reports the persisted session as gone (e.g. after a reboot) → it's dropped, not shown as a tombstone
-        var client = new TmuxClient((command, timeout) -> {
-            String joined = String.join(" ", command);
-            if (joined.startsWith("tmux -V"))
-                return new TmuxClient.Result(0, "tmux 3.4", "");
-            if (joined.startsWith("tmux has-session"))
-                return new TmuxClient.Result(1, "", "session not found");
-            return new TmuxClient.Result(0, "", "");
-        });
+        var client = fakeClientWith("has-session", new TmuxClient.Result(1, "", "session not found"));
         Files.writeString(sidecar(), stateJson(new TmuxSession("id", "pijota-123e4567-dead", "dead", "cmd", "", "", 0,
                                         false, true)));
         var setup = initWithExt(client);
@@ -527,14 +551,10 @@ class TmuxExtensionTest {
 
     @Test
     void sessionPrefixFallsBackToRandomWhenPathIsNull() throws Exception {
-        var runtime = new FakeExtensionRuntime();
-        runtime.setCwd(Path.of("/tmp"));
-        var api = new FakeExtensionAPI(runtime);
-        var ext = new TmuxExtension(fakeClient());
-        ext.init(api);
-        api.fire(new ExtensionEvent.SessionStart(null));
-        api.fireSessionReady();
-        var result = runTool(api, "tmux_bash", Map.of("command", "echo hi"));
+        var setup = buildExt(fakeClient());
+        setup.api().fire(new ExtensionEvent.SessionStart(null));
+        setup.api().fireSessionReady();
+        var result = runTool(setup.api(), "tmux_bash", Map.of("command", "echo hi"));
         assertFalse(result.isError());
         String tmuxName = (String) result.details().get("tmux_name");
         assertNotNull(tmuxName);
@@ -557,16 +577,7 @@ class TmuxExtensionTest {
 
     @Test
     void tmuxBashReportsNewSessionFailure() throws Exception {
-        var client = new TmuxClient((command, timeout) -> {
-            String joined = String.join(" ", command);
-            if (joined.startsWith("tmux -V"))
-                return new TmuxClient.Result(0, "tmux 3.4", "");
-            if (joined.startsWith("tmux new-session"))
-                return new TmuxClient.Result(1, "", "session exists");
-            if (joined.startsWith("tmux list-panes"))
-                return new TmuxClient.Result(0, "%0\t1234\tpane", "");
-            return new TmuxClient.Result(0, "", "");
-        });
+        var client = fakeClientWith("new-session", new TmuxClient.Result(1, "", "session exists"));
         var api = init(client);
         var result = runTool(api, "tmux_bash", Map.of("command", "echo hi"));
         assertTrue(result.isError());
@@ -591,20 +602,8 @@ class TmuxExtensionTest {
 
     @Test
     void tmuxSendResolvesFriendlyNameToSessionWhenPaneMissing() throws Exception {
-        var client = new TmuxClient((command, timeout) -> {
-            String joined = String.join(" ", command);
-            if (joined.startsWith("tmux -V"))
-                return new TmuxClient.Result(0, "tmux 3.4", "");
-            if (joined.startsWith("tmux list-panes"))
-                return new TmuxClient.Result(0, "", "");
-            if (joined.startsWith("tmux new-session"))
-                return new TmuxClient.Result(0, "", "");
-            if (joined.startsWith("tmux send-keys")) {
-                commands.add(joined);
-                return new TmuxClient.Result(0, "", "");
-            }
-            return new TmuxClient.Result(0, "", "");
-        });
+        var client = fakeClientWith("list-panes", new TmuxClient.Result(0, "", "")); // no pane → resolve to session
+                                                                                     // name
         var api = init(client);
         runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
         commands.clear();
@@ -626,14 +625,7 @@ class TmuxExtensionTest {
 
     @Test
     void tmuxSendReportsSendKeysFailure() throws Exception {
-        var client = new TmuxClient((command, timeout) -> {
-            String joined = String.join(" ", command);
-            if (joined.startsWith("tmux -V"))
-                return new TmuxClient.Result(0, "tmux 3.4", "");
-            if (joined.startsWith("tmux send-keys"))
-                return new TmuxClient.Result(1, "", "target not found");
-            return new TmuxClient.Result(0, "%0\t1234\tpane", "");
-        });
+        var client = fakeClientWith("send-keys", new TmuxClient.Result(1, "", "target not found"));
         var api = init(client);
         runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
         var result = runTool(api, "tmux_send", Map.of("target", "server", "keys", "x"));
@@ -653,14 +645,7 @@ class TmuxExtensionTest {
 
     @Test
     void tmuxCaptureReturnsNoOutputForBlankPane() throws Exception {
-        var client = new TmuxClient((command, timeout) -> {
-            String joined = String.join(" ", command);
-            if (joined.startsWith("tmux -V"))
-                return new TmuxClient.Result(0, "tmux 3.4", "");
-            if (joined.startsWith("tmux capture-pane"))
-                return new TmuxClient.Result(0, "", "");
-            return new TmuxClient.Result(0, "%0\t1234\tpane", "");
-        });
+        var client = fakeClientWith("capture-pane", new TmuxClient.Result(0, "", ""));
         var api = init(client);
         runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
         var result = runTool(api, "tmux_capture", Map.of("target", "server"));
@@ -670,14 +655,7 @@ class TmuxExtensionTest {
 
     @Test
     void tmuxCaptureReportsCapturePaneFailure() throws Exception {
-        var client = new TmuxClient((command, timeout) -> {
-            String joined = String.join(" ", command);
-            if (joined.startsWith("tmux -V"))
-                return new TmuxClient.Result(0, "tmux 3.4", "");
-            if (joined.startsWith("tmux capture-pane"))
-                return new TmuxClient.Result(1, "", "no such pane");
-            return new TmuxClient.Result(0, "%0\t1234\tpane", "");
-        });
+        var client = fakeClientWith("capture-pane", new TmuxClient.Result(1, "", "no such pane"));
         var api = init(client);
         runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
         var result = runTool(api, "tmux_capture", Map.of("target", "server"));
@@ -696,14 +674,7 @@ class TmuxExtensionTest {
 
     @Test
     void tmuxListPanesReportsFailure() throws Exception {
-        var client = new TmuxClient((command, timeout) -> {
-            String joined = String.join(" ", command);
-            if (joined.startsWith("tmux -V"))
-                return new TmuxClient.Result(0, "tmux 3.4", "");
-            if (joined.startsWith("tmux list-panes"))
-                return new TmuxClient.Result(1, "", "no such session");
-            return new TmuxClient.Result(0, "", "");
-        });
+        var client = fakeClientWith("list-panes", new TmuxClient.Result(1, "", "no such session"));
         var api = init(client);
         var result = runTool(api, "tmux_list", Map.of("scope", "panes", "session", "pijota-123e4567-server"));
         assertTrue(result.isError());
@@ -720,45 +691,27 @@ class TmuxExtensionTest {
 
     @Test
     void tmuxKillWithUiConfirmation() throws Exception {
-        var runtime = new FakeExtensionRuntime();
-        runtime.setCwd(Path.of("/tmp"));
-        runtime.setUi(new UiContext() {
-            @Override
-            public void setStatus(String message) {}
-
-            @Override
-            public CompletableFuture<Boolean> confirm(String question) {
-                return CompletableFuture.completedFuture(true);
-            }
-        });
-        var api = new FakeExtensionAPI(runtime);
-        var ext = new TmuxExtension(fakeClient());
-        ext.init(api);
-        api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/123e4567-1234-1234-1234-123456789012.jsonl")));
-        api.fireSessionReady();
-
-        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
-        var result = runTool(api, "tmux_kill", Map.of("target", "server")); // no explicit confirm
+        var setup = initWithExt(fakeClient());
+        var ui = new FakeUiContext();
+        ui.setConfirmResult(true);
+        setup.runtime().setUi(ui);
+        runTool(setup.api(), "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        var result = runTool(setup.api(), "tmux_kill", Map.of("target", "server")); // no explicit confirm → prompts
         assertFalse(result.isError());
         assertTrue(killed.contains("pijota-123e4567-server"));
     }
 
     @Test
     void sessionPrefixHandlesFilenameWithoutExtensionAndShortNames() throws Exception {
-        var runtime = new FakeExtensionRuntime();
-        runtime.setCwd(Path.of("/tmp"));
-        var api = new FakeExtensionAPI(runtime);
-        var ext = new TmuxExtension(fakeClient());
-        ext.init(api);
-        api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/my-session")));
-        api.fireSessionReady();
-
-        runTool(api, "tmux_bash", Map.of("command", "echo hi"));
+        var setup = buildExt(fakeClient());
+        setup.api().fire(new ExtensionEvent.SessionStart(Path.of("/sessions/my-session")));
+        setup.api().fireSessionReady();
+        runTool(setup.api(), "tmux_bash", Map.of("command", "echo hi"));
         assertTrue(commands.stream().anyMatch(c -> c.contains("pijota-my-sessi-")), commands::toString);
 
         commands.clear();
-        api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/ab")));
-        runTool(api, "tmux_bash", Map.of("command", "echo hi"));
+        setup.api().fire(new ExtensionEvent.SessionStart(Path.of("/sessions/ab")));
+        runTool(setup.api(), "tmux_bash", Map.of("command", "echo hi"));
         assertTrue(commands.stream().anyMatch(c -> c.contains("pijota-ab-")), commands::toString);
     }
 

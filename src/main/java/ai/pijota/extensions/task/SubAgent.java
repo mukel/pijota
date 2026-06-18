@@ -3,6 +3,9 @@ package ai.pijota.extensions.task;
 import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.FileSystems;
@@ -21,6 +24,7 @@ import java.util.Map;
  */
 public record SubAgent(String name, String description, String systemPrompt, List<String> tools, String model,
                                 String source) {
+    private static final Logger logger = LoggerFactory.getLogger(SubAgent.class);
     public static SubAgent loadMarkdown(Path file, String source) {
         try {
             String content = Files.readString(file);
@@ -145,8 +149,7 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
                 }
             }
         } catch (Exception e) {
-            System.err.println("[pijota] failed to load sub-agent overrides from " + configFile + ": "
-                                            + e.getMessage());
+            logger.warn("Failed to load sub-agent overrides from {}: {}", configFile, e.getMessage());
         }
     }
 

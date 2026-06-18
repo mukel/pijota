@@ -46,6 +46,7 @@ public final class TmuxExtension implements Extension {
     private volatile String sessionPrefix;
     private volatile Path stateFile; // sidecar persistence; null when the session has no file (no persistence)
     private volatile long lastAliveRefresh;
+    private volatile Boolean tmuxAvailable; // memoized: tmux's presence is fixed for the process lifetime
 
     public TmuxExtension() {
         this(new TmuxClient());
@@ -142,7 +143,7 @@ public final class TmuxExtension implements Extension {
     // ---- tools ----
 
     private Tool.ToolResult tmuxBash(Map<String, Object> args, String cwd) {
-        if (!client.hasTmux())
+        if (!hasTmux())
             return Tool.ToolResult.error("tmux is not installed");
 
         String command = Util.getString(args, "command");
@@ -176,7 +177,7 @@ public final class TmuxExtension implements Extension {
     }
 
     private Tool.ToolResult tmuxSend(Map<String, Object> args) {
-        if (!client.hasTmux())
+        if (!hasTmux())
             return Tool.ToolResult.error("tmux is not installed");
 
         String target = resolveTarget(Util.getString(args, "target"));
@@ -196,7 +197,7 @@ public final class TmuxExtension implements Extension {
     }
 
     private Tool.ToolResult tmuxCapture(Map<String, Object> args) {
-        if (!client.hasTmux())
+        if (!hasTmux())
             return Tool.ToolResult.error("tmux is not installed");
 
         String target = resolveTarget(Util.getString(args, "target"));
@@ -217,7 +218,7 @@ public final class TmuxExtension implements Extension {
     }
 
     private Tool.ToolResult tmuxList(Map<String, Object> args) {
-        if (!client.hasTmux())
+        if (!hasTmux())
             return Tool.ToolResult.error("tmux is not installed");
 
         String scope = Util.getString(args, "scope", "sessions");
@@ -235,7 +236,7 @@ public final class TmuxExtension implements Extension {
     }
 
     private Tool.ToolResult tmuxKill(Map<String, Object> args) {
-        if (!client.hasTmux())
+        if (!hasTmux())
             return Tool.ToolResult.error("tmux is not installed");
 
         String target = Util.getString(args, "target");
@@ -348,12 +349,20 @@ public final class TmuxExtension implements Extension {
         }
     }
 
+    /** Whether tmux is installed — memoized, since it can't change within a single process. */
+    private boolean hasTmux() {
+        Boolean cached = tmuxAvailable;
+        if (cached == null)
+            tmuxAvailable = cached = client.hasTmux();
+        return cached;
+    }
+
     private void refreshAlive(boolean force) {
         long now = System.currentTimeMillis();
         if (!force && now - lastAliveRefresh < ALIVE_TTL_MS)
             return; // serve cached liveness — statusLines() polls this roughly once a second
         lastAliveRefresh = now;
-        if (!client.hasTmux())
+        if (!hasTmux())
             return;
         for (var entry : sessions.entrySet()) {
             var session = entry.getValue();
@@ -463,6 +472,6 @@ public final class TmuxExtension implements Extension {
     }
 
     private void note(String text) {
-        api.sendMessage(new Message.Custom(CUSTOM_TYPE + "-note", text));
+        api.sendMessage(new Message.Custom(CUSTOM_TYPE, text));
     }
 }

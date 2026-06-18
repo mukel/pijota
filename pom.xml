@@ -20,6 +20,12 @@
     <junit.version>6.0.0</junit.version>
     <langchain4j.version>1.15.1</langchain4j.version>
     <slf4j.version>2.0.18</slf4j.version>
+    <logback.version>1.5.18</logback.version>
+
+    <!-- web-UI libraries downloaded into the build (not committed); see web/vendor/README.md -->
+    <marked.version>12.0.0</marked.version>
+    <dompurify.version>3.0.9</dompurify.version>
+    <highlightjs.version>11.9.0</highlightjs.version>
   </properties>
 
   <dependencyManagement>
@@ -96,9 +102,9 @@
       <version>${slf4j.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-simple</artifactId>
-      <version>${slf4j.version}</version>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
     </dependency>
 
     <!-- Testing -->
@@ -136,6 +142,81 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.4</version>
+      </plugin>
+      <!-- Fetch the web-UI libraries into the build (web/vendor/ stays free of minified blobs). They land on the
+           classpath under /web/vendor/ so WebServer serves them locally (offline-capable, no CDN). Pinned + sha512
+           verified; cached after first download, so rebuilds work offline. Runs before tests (generate-resources). -->
+      <plugin>
+        <groupId>com.googlecode.maven-download-plugin</groupId>
+        <artifactId>download-maven-plugin</artifactId>
+        <version>1.13.0</version>
+        <executions>
+          <execution>
+            <id>vendor-marked</id>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <url>https://cdn.jsdelivr.net/npm/marked@${marked.version}/marked.min.js</url>
+              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
+              <outputFileName>marked.min.js</outputFileName>
+              <sha512>b6383c23677a162d0e046cf572c9abed17c8e2eba961a09f2ff46a8554534b8d91306c1f06c8f00469a1ce123e7b674f9b27b0f1c164a319d5906bc00c32ef6e</sha512>
+            </configuration>
+          </execution>
+          <execution>
+            <id>vendor-dompurify</id>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <url>https://cdn.jsdelivr.net/npm/dompurify@${dompurify.version}/dist/purify.min.js</url>
+              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
+              <outputFileName>purify.min.js</outputFileName>
+              <sha512>f7e8a500e79763cab2d9bc3f879d4c9a588d347bddca14e92c896a0e65690f6eb3f158d526c509b64e6b85b0c852f6220fe1291a802ed314daecc859a211508c</sha512>
+            </configuration>
+          </execution>
+          <execution>
+            <id>vendor-highlight-js</id>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <url>https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@${highlightjs.version}/build/highlight.min.js</url>
+              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
+              <outputFileName>highlight.min.js</outputFileName>
+              <sha512>0fd814cb1aa36bb841b645a93d61adf707db7da30656df609f20af61afa3a23c303c72c2cd49b98bcae993bbc3ef035e7bd6c0df9798223a1b60f690b8a4b531</sha512>
+            </configuration>
+          </execution>
+          <execution>
+            <id>vendor-hljs-theme-dark</id>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <url>https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@${highlightjs.version}/build/styles/github-dark.min.css</url>
+              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
+              <outputFileName>github-dark.min.css</outputFileName>
+              <sha512>acefa89514e471fdf4e03401c525b1967f095c2cd31e52a721d9cc53062f41af7f25de1c41a36422d2148fa6789ef5b576a2b448a5cb6e7f61e0ac194cdb40cb</sha512>
+            </configuration>
+          </execution>
+          <execution>
+            <id>vendor-hljs-theme-light</id>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <url>https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@${highlightjs.version}/build/styles/github.min.css</url>
+              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
+              <outputFileName>github.min.css</outputFileName>
+              <sha512>d1a3d0cb2799ad68fdb02038e949665a028e3f49948a92d0e8e657bbc97821c0260f6bb7d443c4cbd55c20cbe5ed2a0068a7bc6cb5d9858a0c684fe29fe81c80</sha512>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
@@ -250,7 +331,8 @@
                 <buildArg>--no-fallback</buildArg>
                 <buildArg>--enable-url-protocols=https</buildArg>
                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
-                <buildArg>--initialize-at-build-time=com.fasterxml.jackson,org.slf4j,dev.langchain4j.model.anthropic</buildArg>
+                <buildArg>--initialize-at-build-time=com.fasterxml.jackson,dev.langchain4j.model.anthropic</buildArg>
+                <buildArg>--initialize-at-run-time=ai.pijota,org.slf4j,ch.qos.logback</buildArg>
               </buildArgs>
             </configuration>
             <executions>

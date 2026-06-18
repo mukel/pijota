@@ -4,6 +4,7 @@ import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.AgentLoop;
 import ai.pijota.cli.Args;
 import ai.pijota.messages.Message;
+import ai.pijota.util.CliErrorReporter;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
@@ -25,14 +26,11 @@ public final class PrintMode {
             return 0;
         } catch (ExecutionException e) {
             Throwable cause = ErrorUtil.unwrap(e);
-            if (!(cause instanceof InterruptedException)) {
-                System.err.println("Error: " + cause.getMessage());
-                return 1;
-            }
-            return 1;
+            if (cause instanceof InterruptedException)
+                return 1; // interrupted (e.g. Ctrl-C) — exit quietly
+            return CliErrorReporter.fatal("Print mode failed", cause);
         } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            return 1;
+            return CliErrorReporter.fatal("Print mode failed", e);
         }
     }
 
