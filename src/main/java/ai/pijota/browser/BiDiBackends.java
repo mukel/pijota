@@ -1,5 +1,6 @@
 package ai.pijota.browser;
 
+import ai.pijota.util.Env;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -23,7 +24,7 @@ final class BiDiBackends {
 
     static BiDiBackend firefox(int port, String driverOverride, Consumer<String> log, Callable<Boolean> confirm,
                                     int viewportW, int viewportH, List<String> initScripts) {
-        Path driver = resolveDriver(driverOverride, "PIJOTA_GECKODRIVER", "geckodriver");
+        Path driver = resolveDriver(driverOverride, "pijota.browse.geckodriver", "PIJOTA_GECKODRIVER", "geckodriver");
         List<String> cmd = List.of(driver.toString(), "--port", Integer.toString(port));
         ObjectNode caps = Util.MAPPER.createObjectNode();
         caps.put("browserName", "firefox");
@@ -35,20 +36,24 @@ final class BiDiBackends {
 
     static BiDiBackend safari(int port, String driverOverride, Consumer<String> log, Callable<Boolean> confirm,
                                     int viewportW, int viewportH, List<String> initScripts) {
-        Path driver = resolveDriver(driverOverride, "PIJOTA_SAFARIDRIVER", "safaridriver", "/usr/bin/safaridriver");
+        Path driver = resolveDriver(driverOverride, "pijota.browse.safaridriver", "PIJOTA_SAFARIDRIVER", "safaridriver",
+                                        "/usr/bin/safaridriver");
         List<String> cmd = List.of(driver.toString(), "-p", Integer.toString(port));
         ObjectNode caps = Util.MAPPER.createObjectNode();
         caps.put("browserName", "safari"); // Safari uses the user's default profile; BiDi needs Safari 18+
         return new BiDiBackend(cmd, port, caps, log, confirm, viewportW, viewportH, initScripts);
     }
 
-    /** Resolves a WebDriver binary: explicit override → {@code envVar} → {@code PATH} → fixed fallbacks. */
-    static Path resolveDriver(String override, String envVar, String name, String... extraCandidates) {
+    /**
+     * Resolves a WebDriver binary: explicit override → {@code -DsysProp}/{@code envVar} → {@code PATH} → fixed
+     * fallbacks.
+     */
+    static Path resolveDriver(String override, String sysProp, String envVar, String name, String... extraCandidates) {
         if (override != null && !override.isBlank())
             return Path.of(override);
-        String env = System.getenv(envVar);
-        if (env != null && !env.isBlank())
-            return Path.of(env);
+        String configured = Env.get(sysProp, envVar);
+        if (configured != null)
+            return Path.of(configured);
         var candidates = new ArrayList<Path>();
         String path = System.getenv("PATH");
         if (path != null)
@@ -58,8 +63,8 @@ final class BiDiBackends {
             candidates.add(Path.of(c));
         Path found = CdpBackend.firstExecutable(candidates, Files::isExecutable);
         if (found == null)
-            throw new IllegalStateException(name + " not found. Install it or set " + envVar + "=/path/to/" + name
-                                            + ".");
+            throw new IllegalStateException(name + " not found. Install it or set " + envVar + " / -D" + sysProp
+                                            + "=/path/to/" + name + ".");
         return found;
     }
 }

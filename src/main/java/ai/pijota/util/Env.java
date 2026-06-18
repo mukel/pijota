@@ -1,0 +1,21 @@
+package ai.pijota.util;
+
+/**
+ * Resolves pijota's own configuration that may come from the environment. Convention: every {@code PIJOTA_*}
+ * environment variable has a matching {@code -Dpijota.*} system property that <b>overrides</b> it (the property wins),
+ * so the same setting can be passed either way — e.g. {@code PIJOTA_GECKODRIVER} ⟷ {@code -Dpijota.browse.geckodriver}.
+ * Blank values count as unset. (External/standard variables — API keys, {@code NO_COLOR}, {@code EDITOR},
+ * {@code SHELL}, {@code PATH} — are not pijota's to remap and are read directly.)
+ */
+public final class Env {
+    private Env() {}
+
+    /** The {@code -D<sysProp>} system property if set, else the {@code <envVar>} environment variable, else null. */
+    public static String get(String sysProp, String envVar) {
+        String prop = System.getProperty(sysProp);
+        if (prop != null && !prop.isBlank())
+            return prop;
+        String env = System.getenv(envVar);
+        return env != null && !env.isBlank() ? env : null;
+    }
+}

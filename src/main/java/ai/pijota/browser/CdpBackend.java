@@ -135,7 +135,7 @@ public final class CdpBackend implements BrowserBackend {
     private void launchChrome() throws Exception {
         Path bin = findChrome(chromeOverride);
         if (bin == null)
-            throw new IllegalStateException("Chrome/Chromium not found. Set PIJOTA_CHROME=/path/to/chrome (or --chrome=...).");
+            throw new IllegalStateException("Chrome/Chromium not found. Install it or set PIJOTA_BROWSER_BIN=/path/to/chrome.");
         Files.createDirectories(profileDir);
         var cmd = new ArrayList<>(List.of(bin.toString(), "--remote-debugging-port=" + port,
                                         "--remote-debugging-address=127.0.0.1", "--remote-allow-origins=*",

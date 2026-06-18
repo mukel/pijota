@@ -52,6 +52,20 @@ class WebBrowseExtensionTest {
     }
 
     @Test
+    void browseValueEnablesAndSelectsTheEngine() throws Exception {
+        try (FakeChrome fake = new FakeChrome()) {
+            var rt = new FakeExtensionRuntime();
+            rt.setFlag("browse", "chrome"); // --browse=chrome: the value both enables and picks the engine
+            rt.setFlag("browse-port", String.valueOf(fake.port()));
+            var api = apiWith(rt);
+
+            assertEquals(2, api.tools().size(), "--browse=chrome must enable the browse tools");
+            var visit = api.tool("web_visit_page").toTool().execute("c", Map.of("url", "https://x"), ".").join();
+            assertFalse(visit.isError());
+        }
+    }
+
+    @Test
     void toolsRunAgainstTheBrowserAndReturnMarkdown() throws Exception {
         try (FakeChrome fake = new FakeChrome()) {
             var rt = new FakeExtensionRuntime();

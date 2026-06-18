@@ -75,6 +75,6 @@ class BiDiBackendTest {
     @Test
     void resolveDriverHonorsTheExplicitOverride() {
         assertEquals(java.nio.file.Path.of("/opt/geckodriver"), BiDiBackends.resolveDriver("/opt/geckodriver",
-                                        "PIJOTA_GECKODRIVER", "geckodriver"));
+                                        "pijota.browse.geckodriver", "PIJOTA_GECKODRIVER", "geckodriver"));
     }
 }

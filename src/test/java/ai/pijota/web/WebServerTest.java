@@ -40,10 +40,55 @@ class WebServerTest {
     private void withServer(ServerTest body) throws Exception {
         var ts = TestSession.in(tempDir).build();
         int port = freePort();
-        try (var server = new WebServer(ts.session(), port, ts.llm(), List::of, List.of())) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of())) {
             server.start();
             body.run(ts, HttpClient.newHttpClient(), "http://127.0.0.1:" + port);
         }
+    }
+
+    @Test
+    void parseAddressDefaultsToLoopbackAndDefaultPort() {
+        for (String bare : new String[] {null, "", "true"}) {
+            var a = WebServer.parseAddress(bare);
+            assertEquals("127.0.0.1", a.host());
+            assertEquals(WebServer.DEFAULT_PORT, a.port());
+            assertTrue(a.isLoopback());
+        }
+    }
+
+    @Test
+    void parseAddressBarePortKeepsLoopback() {
+        var a = WebServer.parseAddress("9000");
+        assertEquals("127.0.0.1", a.host());
+        assertEquals(9000, a.port());
+        assertTrue(a.isLoopback());
+    }
+
+    @Test
+    void parseAddressHostPortBindsTheGivenHost() {
+        var a = WebServer.parseAddress("0.0.0.0:9000");
+        assertEquals("0.0.0.0", a.host());
+        assertEquals(9000, a.port());
+        assertFalse(a.isLoopback(), "0.0.0.0 is not loopback → triggers the exposure warning");
+    }
+
+    @Test
+    void parseAddressBareHostUsesDefaultPort() {
+        var a = WebServer.parseAddress("0.0.0.0");
+        assertEquals("0.0.0.0", a.host());
+        assertEquals(WebServer.DEFAULT_PORT, a.port());
+    }
+
+    @Test
+    void parseAddressLocalhostIsLoopback() {
+        assertTrue(WebServer.parseAddress("localhost:9000").isLoopback());
+    }
+
+    @Test
+    void parseAddressInvalidPortFallsBackToDefault() {
+        var a = WebServer.parseAddress("0.0.0.0:notaport");
+        assertEquals("0.0.0.0", a.host());
+        assertEquals(WebServer.DEFAULT_PORT, a.port());
     }
 
     @Test

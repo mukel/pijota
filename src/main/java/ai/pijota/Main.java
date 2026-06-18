@@ -185,26 +185,25 @@ public final class Main {
      * default).
      */
     private static void runWeb(AppBootstrap.Result b, String flagValue) {
-        int port = 8420;
-        if (flagValue != null && !flagValue.isBlank() && !"true".equals(flagValue)) {
-            try {
-                port = Integer.parseInt(flagValue.trim());
-            } catch (NumberFormatException e) {
-                System.err.println("Invalid --web port '" + flagValue + "'; using " + port + ".");
-            }
-        }
+        var addr = WebServer.parseAddress(flagValue); // --web[=HOST:PORT]; loopback + default port otherwise
         var session = b.session();
         // The `question` tool relies on the TUI's interactive question handler (SlashCommandTool's static handler,
         // set only by the TUI). It isn't wired for the browser, so drop it rather than offer a broken affordance.
         b.tools().unregister("question");
-        var server = new WebServer(session, port, b.llm(), b.extensions()::statusLines, b.extensions().slashCommands());
+        var server = new WebServer(session, addr.host(), addr.port(), b.llm(), b.extensions()::statusLines,
+                                        b.extensions().slashCommands());
         b.extensions().setTui(server.ui()); // confirm/select/prompt via browser dialogs (UiContext seam)
         b.extensions().setSuspendResume(() -> {}, () -> {}); // no terminal to suspend
         b.extensions().ready();
         try {
             server.start();
             SelfRespawn.markStartupHealthy(); // HTTP server is up → a healthy startup
-            System.err.println("[web] pijota web ui on http://127.0.0.1:" + port + " (Ctrl-C to stop)");
+            if (!addr.isLoopback())
+                System.err.println("[web] WARNING: bound to " + addr.host()
+                                                + " — the web UI can run shell commands, so anyone who can reach this "
+                                                + "address controls this machine. Put authentication / a firewall in front.");
+            System.err.println("[web] pijota web ui on http://" + addr.host() + ":" + addr.port()
+                                            + " (Ctrl-C to stop)");
             Thread.currentThread().join(); // block until the process is killed
         } catch (Exception e) {
             throw new RuntimeException("web server failed", e);

@@ -100,7 +100,7 @@ class BrowserSessionLiveFirefoxTest {
 
     private static boolean geckodriverAvailable() {
         try {
-            BiDiBackends.resolveDriver(null, "PIJOTA_GECKODRIVER", "geckodriver");
+            BiDiBackends.resolveDriver(null, "pijota.browse.geckodriver", "PIJOTA_GECKODRIVER", "geckodriver");
             return true;
         } catch (RuntimeException e) {
             return false;

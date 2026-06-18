@@ -87,6 +87,10 @@ public class FakeExtensionAPI implements ExtensionAPI {
         return List.copyOf(thinkingHeaders);
     }
 
+    public List<BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender>> renderers() {
+        return List.copyOf(renderers);
+    }
+
     public List<Message.Custom> sentMessages() {
         return List.copyOf(sentMessages);
     }

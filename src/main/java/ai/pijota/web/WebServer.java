@@ -50,7 +50,11 @@ public final class WebServer implements AutoCloseable {
     private volatile List<String> lastStatusLines = List.of();
     private volatile Map<String, Object> lastStats = Map.of();
 
+    public static final int DEFAULT_PORT = 8420;
+    public static final String DEFAULT_HOST = "127.0.0.1";
+
     private final PijotaSession session;
+    private final String host;
     private final int port;
     private final LlmClient llm; // current model + usage, read live for the header (same accessors the TUI uses)
     private final Supplier<List<String>> statusLines; // keyed statuses + registered status/footer lines (TUI parity)
@@ -68,14 +72,58 @@ public final class WebServer implements AutoCloseable {
      *            generic built-ins like {@code /model} from {@code CoreCommandsExtension}). Terminal-bound TUI commands
      *            are not in this set.
      */
-    public WebServer(PijotaSession session, int port, LlmClient llm, Supplier<List<String>> statusLines,
+    public WebServer(PijotaSession session, String host, int port, LlmClient llm, Supplier<List<String>> statusLines,
                                     List<SlashCommand> commands) {
         this.session = session;
+        this.host = host == null || host.isBlank() ? DEFAULT_HOST : host;
         this.port = port;
         this.llm = llm;
         this.statusLines = statusLines;
         this.commands = List.copyOf(commands);
         this.ui = new WebUiContext(this::broadcast);
+    }
+
+    /**
+     * Parses the {@code --web[=HOST:PORT]} flag value into a bind address. Forms: empty/{@code "true"} → loopback +
+     * default port; a bare number → that port on loopback; {@code HOST:PORT} → that host and port; a bare host → that
+     * host on the default port. Invalid ports fall back to the default. The host defaults to loopback so the
+     * shell-capable UI is never accidentally exposed.
+     */
+    public static Address parseAddress(String flagValue) {
+        String host = DEFAULT_HOST;
+        int port = DEFAULT_PORT;
+        if (flagValue != null && !flagValue.isBlank() && !"true".equals(flagValue)) {
+            String value = flagValue.trim();
+            int colon = value.lastIndexOf(':');
+            if (colon >= 0) { // HOST:PORT (or :PORT)
+                String h = value.substring(0, colon).trim();
+                if (!h.isEmpty())
+                    host = h;
+                port = parsePort(value.substring(colon + 1), port);
+            } else if (value.chars().allMatch(Character::isDigit)) { // bare PORT
+                port = parsePort(value, port);
+            } else { // bare HOST
+                host = value;
+            }
+        }
+        return new Address(host, port);
+    }
+
+    private static int parsePort(String text, int fallback) {
+        try {
+            int p = Integer.parseInt(text.trim());
+            return p > 0 && p <= 65535 ? p : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /** A resolved web bind address. {@link #isLoopback()} gates the "exposed UI" warning. */
+    public record Address(String host, int port) {
+        public boolean isLoopback() {
+            return host.equals("127.0.0.1") || host.equalsIgnoreCase("localhost") || host.equals("::1")
+                                            || host.equals("[::1]");
+        }
     }
 
     /** The agent's interactive-callback surface (confirm/select/prompt) bridged to the browser. */
@@ -84,7 +132,7 @@ public final class WebServer implements AutoCloseable {
     }
 
     public void start() throws IOException {
-        http = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        http = HttpServer.create(new InetSocketAddress(host, port), 0);
         http.createContext("/events", this::serveEvents);
         http.createContext("/prompt", this::handlePrompt);
         http.createContext("/interrupt", this::handleInterrupt);
@@ -98,7 +146,7 @@ public final class WebServer implements AutoCloseable {
         heartbeat.scheduleAtFixedRate(this::pollStatusLines, 1, 1, TimeUnit.SECONDS); // push keyed/footer status
                                                                                       // changes
         http.start();
-        log.info("web ui on http://127.0.0.1:{}", port);
+        log.info("web ui on http://{}:{}", host, port);
     }
 
     @Override

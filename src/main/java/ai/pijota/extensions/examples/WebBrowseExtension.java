@@ -5,8 +5,11 @@ import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.tools.Tool;
+import ai.pijota.util.Env;
 import ai.pijota.util.Util;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -37,33 +40,32 @@ public final class WebBrowseExtension implements Extension {
     @Override
     public String description() {
         return "Opt-in web browsing via a real browser (web_google_search, web_visit_page). Enable with --browse; "
-                                        + "pick the browser with --browser=chrome|firefox|safari.";
+                                        + "select the engine with --browse=chrome|firefox|safari (default chrome).";
     }
 
     @Override
     public void init(ExtensionAPI api) {
         ExtensionRuntime rt = api.runtime();
-        if (!rt.getFlag("browse", false))
+        if (rt.getFlag("browse").isEmpty()) // present (bare or =engine) → enabled; the value, if any, selects the
+                                            // engine
             return;
         this.api = api;
-        int port = DEFAULT_PORT;
-        var portFlag = rt.getFlag("browse-port");
-        if (portFlag.isPresent())
-            try {
-                port = Integer.parseInt(portFlag.get().trim());
-            } catch (NumberFormatException ignored) {}
-        String flag = rt.getFlag("browser").orElse(System.getenv("PIJOTA_BROWSER")); // chrome (default)|firefox|safari
-        this.browser = flag == null || flag.isBlank() ? "chrome" : flag.strip().toLowerCase();
+        // --browse[=chrome|firefox|safari]: the flag's value selects the engine; a bare --browse falls back to the
+        // PIJOTA_BROWSER env var, then chrome.
+        String engine = rt.getFlag("browse").filter(v -> !v.isBlank() && !v.equals("true"))
+                                        .orElse(Env.get("pijota.browse.engine", "PIJOTA_BROWSER"));
+        this.browser = engine == null || engine.isBlank() ? "chrome" : engine.strip().toLowerCase();
         Path profile = Path.of(System.getProperty("user.home"), ".pijota", "browser", browser);
-        String binary = rt.getFlag("chrome").orElse(rt.getFlag("driver").orElse(System.getenv("PIJOTA_CHROME")));
+        String binary = Env.get("pijota.browse.bin", "PIJOTA_BROWSER_BIN"); // optional path override; else
+                                                                            // auto-detected
         try {
-            this.session = BrowserSession.create(browser, port, profile, binary,
+            this.session = BrowserSession.create(browser, debugPort(rt), profile, binary,
                                             msg -> rt.setStatus("browse", "🌐 " + msg), this::confirmLaunch);
         } catch (RuntimeException e) {
             // e.g. the selected browser's WebDriver isn't installed → disable browsing rather than fail startup. Print
             // to the console too: the extension status line isn't visible in the Telegram/web frontends, so otherwise
             // the failure looks silent (the browse tools just never appear).
-            System.err.println("[browse] disabled for --browser=" + browser + ": " + e.getMessage());
+            System.err.println("[browse] disabled for --browse=" + browser + ": " + e.getMessage());
             rt.setStatus("browse", "🌐 browse disabled: " + e.getMessage());
             return;
         }
@@ -87,6 +89,24 @@ public final class WebBrowseExtension implements Extension {
     public void onShutdown(ExtensionRuntime runtime) {
         if (session != null)
             session.close();
+    }
+
+    /**
+     * The browser's remote-debugging port. A free port is auto-picked so the user never has to think about it; the
+     * undocumented {@code browse-port} override pins a specific one — used by tests to attach to a fake browser, and to
+     * attach to an already-running instance.
+     */
+    private static int debugPort(ExtensionRuntime rt) {
+        var override = rt.getFlag("browse-port");
+        if (override.isPresent())
+            try {
+                return Integer.parseInt(override.get().trim());
+            } catch (NumberFormatException ignored) {}
+        try (var socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        } catch (IOException e) {
+            return DEFAULT_PORT;
+        }
     }
 
     /** Runs a browser action on a worker thread; the session confirms + launches Chrome lazily on first use. */
