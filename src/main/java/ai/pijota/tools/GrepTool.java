@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,6 +15,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public final class GrepTool implements Tool {
+    /** Shared "ripgrep is missing" guidance, also surfaced by the {@code rg} extension tool. */
+    public static final String RG_NOT_FOUND = "ripgrep (rg) not found on PATH — install it: https://github.com/BurntSushi/ripgrep";
     private static final int DEFAULT_LIMIT = 100;
     private static final long DEFAULT_TIMEOUT_SECONDS = 30;
     private static final int MAX_LINE_LENGTH = 500;
@@ -69,31 +72,15 @@ public final class GrepTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("pattern",
-                                        Map.of("type", "string", "description",
-                                                                        "Search pattern (regex or literal string)"),
-                                        "path",
-                                        Map.of("type", "string", "description",
-                                                                        "Directory or file to search (default: current directory)"),
-                                        "glob",
-                                        Map.of("type", "string", "description",
-                                                                        "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'"),
-                                        "ignoreCase",
-                                        Map.of("type", "boolean", "description",
-                                                                        "Case-insensitive search (default: false)"),
-                                        "literal",
-                                        Map.of("type", "boolean", "description",
-                                                                        "Treat pattern as literal string instead of regex (default: false)"),
-                                        "context",
-                                        Map.of("type", "integer", "description",
-                                                                        "Number of surrounding lines to show before and after each match (default 0)"),
-                                        "limit",
-                                        Map.of("type", "integer", "description",
-                                                                        "Maximum number of matches to return (default: 100)"),
-                                        "timeout",
-                                        Map.of("type", "number", "description",
-                                                                        "Timeout in seconds before ripgrep is killed (default 30)")),
-                                        "required", List.of("pattern"), "additionalProperties", false);
+        return ToolSchema.object().str("pattern", "Search pattern (regex or literal string)", true)
+                                        .str("path", "Directory or file to search (default: current directory)")
+                                        .str("glob", "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'")
+                                        .bool("ignoreCase", "Case-insensitive search (default: false)")
+                                        .bool("literal", "Treat pattern as literal string instead of regex (default: false)")
+                                        .integer("context", "Number of surrounding lines to show before and after each match (default 0)")
+                                        .integer("limit", "Maximum number of matches to return (default: 100)")
+                                        .number("timeout", "Timeout in seconds before ripgrep is killed (default 30)")
+                                        .build();
     }
 
     @Override
@@ -186,6 +173,8 @@ public final class GrepTool implements Tool {
                     sb.append("\n\n[").append(String.join(". ", notices)).append(']');
                 return ToolResult.success(sb.toString(), details);
             } catch (IOException e) {
+                if (ProcessRunner.isCommandNotFound(e))
+                    return ToolResult.error(RG_NOT_FOUND);
                 return ToolResult.error("ripgrep error: " + e.getMessage());
             } catch (Exception e) {
                 Thread.currentThread().interrupt();

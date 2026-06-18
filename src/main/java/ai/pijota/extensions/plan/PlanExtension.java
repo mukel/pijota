@@ -11,7 +11,6 @@ import ai.pijota.modes.SlashCommand;
 import ai.pijota.util.Util;
 
 import java.util.List;
-import java.util.Map;
 
 public final class PlanExtension implements Extension {
     private static final List<String> PLAN_TOOLS = List.of("read", "bash", "grep", "glob", "ls", "question");
@@ -47,7 +46,7 @@ public final class PlanExtension implements Extension {
                 return null;
             if (!"bash".equals(tc.toolName()))
                 return null;
-            String command = parseCommand(tc.arguments());
+            String command = Util.parseBashArgs(tc.arguments());
             if (command != null && !PlanUtils.isSafeCommand(command)) {
                 return new ExtensionResult.Block("Plan mode: destructive command blocked. /plan to exit.");
             }
@@ -86,13 +85,4 @@ public final class PlanExtension implements Extension {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static String parseCommand(String argsJson) {
-        try {
-            Map<String, Object> args = Util.MAPPER.readValue(argsJson, Map.class);
-            return (String) args.get("command");
-        } catch (Exception e) {
-            return null;
-        }
-    }
 }

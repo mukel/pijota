@@ -6,8 +6,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WriteToolTest {
@@ -18,8 +18,8 @@ class WriteToolTest {
     void createsFileAndReturnsByteAndLineCounts() throws Exception {
         var path = tempDir.resolve("output.txt");
 
-        var result = new WriteTool().execute("tc1", Map.of("path", path.toString(), "content", "hello\nworld"),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(new WriteTool(), Map.of("path", path.toString(), "content", "hello\nworld"),
+                                        tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(Files.exists(path));
@@ -35,8 +35,7 @@ class WriteToolTest {
         var path = tempDir.resolve("existing.txt");
         Files.writeString(path, "old content");
 
-        new WriteTool().execute("tc1", Map.of("path", path.toString(), "content", "new content"), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        run(new WriteTool(), Map.of("path", path.toString(), "content", "new content"), tempDir.toString());
 
         assertEquals("new content", Files.readString(path));
     }
@@ -45,8 +44,7 @@ class WriteToolTest {
     void createsParentDirectories() throws Exception {
         var path = tempDir.resolve("nested/dir/file.txt");
 
-        new WriteTool().execute("tc1", Map.of("path", path.toString(), "content", "data"), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        run(new WriteTool(), Map.of("path", path.toString(), "content", "data"), tempDir.toString());
 
         assertEquals("data", Files.readString(path));
     }

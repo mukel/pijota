@@ -1,6 +1,9 @@
 package ai.pijota.agent;
 
 import ai.pijota.config.AppConfig;
+import ai.pijota.extensions.Extension;
+import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.messages.Usage;
@@ -13,8 +16,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -359,6 +364,79 @@ class AgentLoopTest {
         var messages = agent.prompt("hello").get(1, TimeUnit.SECONDS);
 
         assertEquals("hi", ((Message.Assistant) messages.get(1)).content());
+    }
+
+    // ---- resilience: failures reach the extension handlers, the user, and never hang/crash the loop ----
+
+    private static ExtensionRegistry registryWithExceptionHandler(Consumer<Throwable> onException) {
+        var registry = new ExtensionRegistry();
+        registry.register(new Extension() {
+            @Override
+            public String name() {
+                return "test-exception-handler";
+            }
+
+            @Override
+            public String description() {
+                return "records loop failures";
+            }
+
+            @Override
+            public void init(ExtensionAPI api) {
+                api.registerExceptionHandler((t, ctx) -> onException.accept(t));
+            }
+        });
+        return registry;
+    }
+
+    @Test
+    void providerFailureIsDispatchedToExtensionHandlersReportedAndCompletesTheTurn() {
+        var captured = new ArrayList<Throwable>();
+        var registry = registryWithExceptionHandler(captured::add);
+        var llm = new FauxLlm().enqueueError(new RuntimeException("provider rejected the request"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").extensionRegistry(registry).build();
+        var events = recordEvents(agent);
+
+        var future = agent.prompt("hi");
+
+        assertThrows(ExecutionException.class, () -> future.get(2, TimeUnit.SECONDS),
+                                        "the turn must complete, not hang");
+        assertEquals(1, captured.size(), "the failure must reach the registered exception handler");
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.Error),
+                                        "the user is told via AgentEvent.Error");
+        assertFalse(agent.isBusy(), "a failed turn must clear busy state");
+    }
+
+    @Test
+    void synchronousProviderFailureNeitherEscapesPromptNorHangs() {
+        var captured = new ArrayList<Throwable>();
+        var registry = registryWithExceptionHandler(captured::add);
+        // a provider that throws on the calling thread (bad config / NPE building the request) instead of failing async
+        var llm = new FauxLlm().throwOnStream(new RuntimeException("synchronous boom"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").extensionRegistry(registry).build();
+
+        var future = assertDoesNotThrow(() -> agent.prompt("hi"), "prompt() must not throw synchronously");
+
+        assertThrows(ExecutionException.class, () -> future.get(2, TimeUnit.SECONDS),
+                                        "the turn must complete, not hang");
+        assertEquals(1, captured.size());
+        assertFalse(agent.isBusy());
+    }
+
+    @Test
+    void aThrowingExceptionHandlerCannotTurnAFailureIntoACrash() {
+        var registry = registryWithExceptionHandler(t -> {
+            throw new RuntimeException("misbehaving handler");
+        });
+        var llm = new FauxLlm().enqueueError(new RuntimeException("provider rejected the request"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").extensionRegistry(registry).build();
+        var events = recordEvents(agent);
+
+        var future = agent.prompt("hi");
+
+        assertThrows(ExecutionException.class, () -> future.get(2, TimeUnit.SECONDS));
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.Error), "still reported to the user");
+        assertFalse(agent.isBusy());
     }
 
     private static List<AgentEvent> recordEvents(AgentLoop agent) {

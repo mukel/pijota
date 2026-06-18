@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
 import java.util.concurrent.CompletableFuture;
 
@@ -33,11 +34,8 @@ public final class LsTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("path", Map.of("type", "string", "description",
-                                        "Directory to list (default: current directory)"), "limit",
-                                        Map.of("type", "integer", "description",
-                                                                        "Maximum number of entries to return (default: 500)")),
-                                        "additionalProperties", false);
+        return ToolSchema.object().str("path", "Directory to list (default: current directory)")
+                                        .integer("limit", "Maximum number of entries to return (default: 500)").build();
     }
 
     @Override

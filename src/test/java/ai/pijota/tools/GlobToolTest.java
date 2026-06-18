@@ -6,8 +6,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class GlobToolTest {
@@ -22,8 +22,7 @@ class GlobToolTest {
         var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
                                         limit));
 
-        var result = tool.execute("tc1", Map.of("pattern", "*.java", "path", tempDir.toString()), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "*.java", "path", tempDir.toString()), tempDir.toString());
 
         assertFalse(result.isError(), "unexpected error: " + result.content());
         assertTrue(result.content().contains("hello.java"), "result: " + result.content());
@@ -35,20 +34,18 @@ class GlobToolTest {
         var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
                                         limit));
 
-        var result = tool.execute("tc1", Map.of("pattern", "*.cpp", "path", tempDir.toString()), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "*.cpp", "path", tempDir.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("No files found"));
     }
 
     @Test
-    void missingPatternReportsError() throws Exception {
+    void missingPatternReportsError() {
         var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
                                         limit));
 
-        var result = tool.execute("tc1", Map.of("path", tempDir.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(tool, Map.of("path", tempDir.toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("No pattern"));
@@ -63,12 +60,12 @@ class GlobToolTest {
     }
 
     @Test
-    void reportsPathNotFound() throws Exception {
+    void reportsPathNotFound() {
         var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
                                         limit));
 
-        var result = tool.execute("tc1", Map.of("pattern", "*.java", "path", tempDir.resolve("missing").toString()),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "*.java", "path", tempDir.resolve("missing").toString()),
+                                        tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("Path not found"));
@@ -82,8 +79,7 @@ class GlobToolTest {
         var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
                                         limit));
 
-        var result = tool.execute("tc1", Map.of("pattern", "*.java", "path", tempDir.toString(), "limit", 1),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "*.java", "path", tempDir.toString(), "limit", 1), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("results limit reached"));
@@ -98,8 +94,7 @@ class GlobToolTest {
         var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
                                         limit));
 
-        var result = tool.execute("tc1", Map.of("pattern", "**/*.java", "path", tempDir.toString()), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "**/*.java", "path", tempDir.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("sub/c.java"));

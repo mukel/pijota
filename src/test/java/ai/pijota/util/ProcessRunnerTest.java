@@ -205,4 +205,21 @@ class ProcessRunnerTest {
                                         .captureStderr(true).run();
         assertTrue(result.stdout().contains("err"));
     }
+
+    @Test
+    void missingBinaryThrowsIOExceptionClassifiedAsCommandNotFound() {
+        var ex = assertThrows(IOException.class,
+                                        () -> ProcessRunner.command("pijota-definitely-no-such-binary-xyz").run());
+        assertTrue(ProcessRunner.isCommandNotFound(ex), ex.getMessage());
+    }
+
+    @Test
+    void isCommandNotFoundMatchesTheJvmMessageAndRejectsEverythingElse() {
+        assertTrue(ProcessRunner.isCommandNotFound(new IOException(
+                                        "Cannot run program \"rg\": error=2, No such file or directory")));
+        assertFalse(ProcessRunner.isCommandNotFound(new IOException("Stream closed")),
+                                        "a real I/O error is not 'not found'");
+        assertFalse(ProcessRunner.isCommandNotFound(new RuntimeException("error=2")), "only IOException counts");
+        assertFalse(ProcessRunner.isCommandNotFound(null));
+    }
 }

@@ -49,6 +49,20 @@ public final class ProcessRunner {
         return new ProcessRunner(args);
     }
 
+    /**
+     * True when the throwable is the "executable not on PATH" failure {@link ProcessBuilder#start()} raises for a
+     * missing binary (JVM: {@code Cannot run program "x": error=2, No such file or directory}). Lets callers turn the
+     * raw, locale-tinged JVM message into an actionable "x not found — install it" message, and distinguish a missing
+     * tool from a tool that ran and exited non-zero.
+     */
+    public static boolean isCommandNotFound(Throwable e) {
+        if (!(e instanceof IOException))
+            return false;
+        String message = e.getMessage();
+        return message != null && (message.contains("Cannot run program") || message.contains("error=2")
+                                        || message.contains("No such file or directory"));
+    }
+
     public ProcessRunner workDir(Path dir) {
         this.workDir = dir;
         return this;

@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -51,11 +52,9 @@ public final class WebsearchTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("query",
-                                        Map.of("type", "string", "description", "Websearch query"), "numResults",
-                                        Map.of("type", "integer", "description",
-                                                                        "Number of search results to return (default: 8)")),
-                                        "required", List.of("query"), "additionalProperties", false);
+        return ToolSchema.object().str("query", "Websearch query", true)
+                                        .integer("numResults", "Number of search results to return (default: 8)")
+                                        .build();
     }
 
     @Override

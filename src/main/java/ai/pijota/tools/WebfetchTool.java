@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
 
 import java.io.IOException;
@@ -10,7 +11,6 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
@@ -49,15 +49,9 @@ public final class WebfetchTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("url",
-                                        Map.of("type", "string", "description", "The URL to fetch content from"),
-                                        "format",
-                                        Map.of("type", "string", "description",
-                                                                        "The format to return content in (text, markdown, html). Default: markdown"),
-                                        "timeout",
-                                        Map.of("type", "number", "description",
-                                                                        "Optional timeout in seconds (max 120)")),
-                                        "required", List.of("url"), "additionalProperties", false);
+        return ToolSchema.object().str("url", "The URL to fetch content from", true).str("format",
+                                        "The format to return content in (text, markdown, html). Default: markdown")
+                                        .number("timeout", "Optional timeout in seconds (max 120)").build();
     }
 
     @Override

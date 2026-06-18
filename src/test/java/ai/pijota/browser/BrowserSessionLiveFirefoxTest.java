@@ -1,6 +1,7 @@
 package ai.pijota.browser;
 
 import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -22,6 +23,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * unit tests can't do — in particular the {@code script.addPreloadScript} Readability injection and
  * {@code setViewport}.
  */
+@Tag("live")
 class BrowserSessionLiveFirefoxTest {
 
     private static final String PAGE = """

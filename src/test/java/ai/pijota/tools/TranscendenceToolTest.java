@@ -4,6 +4,7 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TranscendenceToolTest {
@@ -87,41 +88,40 @@ class TranscendenceToolTest {
     }
 
     @Test
-    void executeWithUnknownActionReturnsError() throws Exception {
+    void executeWithUnknownActionReturnsError() {
         var tool = new TranscendenceTool();
-        var result = tool.execute("call-1", java.util.Map.of("action", "invalid"), "/cwd").get();
+        var result = run(tool, java.util.Map.of("action", "invalid"), "/cwd");
         assertTrue(result.isError());
         assertTrue(result.content().contains("Unknown action"));
     }
 
     @Test
-    void executeWithUppercaseUnknownActionReturnsError() throws Exception {
+    void executeWithUppercaseUnknownActionReturnsError() {
         var tool = new TranscendenceTool();
-        var result = tool.execute("call-1", java.util.Map.of("action", "FOO"), "/cwd").get();
+        var result = run(tool, java.util.Map.of("action", "FOO"), "/cwd");
         assertTrue(result.isError());
         assertTrue(result.content().contains("Unknown action"));
     }
 
     @Test
-    void executeWithMissingActionReturnsError() throws Exception {
+    void executeWithMissingActionReturnsError() {
         var tool = new TranscendenceTool();
-        var result = tool.execute("call-1", java.util.Map.of(), "/cwd").get();
+        var result = run(tool, java.util.Map.of(), "/cwd");
         assertTrue(result.isError());
         assertTrue(result.content().contains("Missing required field"));
     }
 
     @Test
-    void executeWithBlankActionReturnsError() throws Exception {
+    void executeWithBlankActionReturnsError() {
         var tool = new TranscendenceTool();
-        var result = tool.execute("call-1", java.util.Map.of("action", "  "), "/cwd").get();
+        var result = run(tool, java.util.Map.of("action", "  "), "/cwd");
         assertTrue(result.isError());
     }
 
     @Test
-    void buildWithoutPomXmlReturnsError() throws Exception {
+    void buildWithoutPomXmlReturnsError() {
         var tool = new TranscendenceTool();
-        var result = tool.execute("call-1", java.util.Map.of("action", "build", "worktree", "/tmp/no-pom-here"), "/cwd")
-                                        .get();
+        var result = run(tool, java.util.Map.of("action", "build", "worktree", "/tmp/no-pom-here"), "/cwd");
         assertTrue(result.isError() || result.content().contains("No pom.xml"));
     }
 

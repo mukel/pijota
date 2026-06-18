@@ -306,6 +306,16 @@ public final class AgentLoop implements AgentContext {
     }
 
     private void runLoopRecursive(CompletableFuture<List<Message>> result, int turn) {
+        // Any synchronous failure in a turn (extension hooks, history ops, a provider that throws on the calling
+        // thread, compaction) is contained here so it can never escape prompt() or leave the turn future hanging.
+        try {
+            runTurn(result, turn);
+        } catch (Throwable t) {
+            failTurn(result, t);
+        }
+    }
+
+    private void runTurn(CompletableFuture<List<Message>> result, int turn) {
         if (aborted.get()) {
             fireEvent(new AgentEvent.Error(new RuntimeException("Aborted")));
             result.complete(history.mutableSnapshot());
@@ -388,27 +398,25 @@ public final class AgentLoop implements AgentContext {
                 runAutoCompaction("auto");
                 runLoopRecursive(result, turn + 1);
             }).exceptionally(ex -> {
-                if (!isActive(result))
-                    return null;
-                log.warn("Tool execution chain failed", ex);
-                result.completeExceptionally(ex);
+                failTurn(result, ex);
                 return null;
             });
         }).exceptionally(ex -> {
-            activeStream.set(null);
-            if (!isActive(result))
-                return null;
-            if (ErrorUtil.isContextOverflow(ex)) {
-                log.warn("Context overflow, compacting and retrying");
-                history.remove(history.size() - 1);
-                runManualCompaction("overflow — compacted to recover from context limit");
-                runLoopRecursive(result, turn);
-                return null;
+            try {
+                activeStream.set(null);
+                if (!isActive(result))
+                    return null;
+                if (ErrorUtil.isContextOverflow(ex)) {
+                    log.warn("Context overflow, compacting and retrying");
+                    history.remove(history.size() - 1);
+                    runManualCompaction("overflow — compacted to recover from context limit");
+                    runLoopRecursive(result, turn);
+                    return null;
+                }
+                failTurn(result, ex);
+            } catch (Throwable t) {
+                failTurn(result, t); // even the recovery path must not leave the turn hanging
             }
-            String message = ErrorUtil.message(ex);
-            log.warn("LLM streaming error: {}", message);
-            fireEvent(new AgentEvent.Error(new RuntimeException(message)));
-            result.completeExceptionally(new RuntimeException(message));
             return null;
         });
     }
@@ -448,6 +456,31 @@ public final class AgentLoop implements AgentContext {
                 log.warn("Event listener error", e);
             }
         }
+    }
+
+    /**
+     * Terminal handler for a failed turn: hands the cause to the extension exception handlers
+     * ({@code registerExceptionHandler}), reports it to the user via {@link AgentEvent.Error}, and completes the turn
+     * future exceptionally so it can never hang. A no-op when the turn was aborted or superseded by a newer one — those
+     * paths own completion. Resilient: a misbehaving handler or listener can't turn a failure into a crash.
+     */
+    private void failTurn(CompletableFuture<List<Message>> result, Throwable ex) {
+        activeStream.set(null);
+        if (!isActive(result))
+            return;
+        Throwable cause = ErrorUtil.unwrap(ex);
+        String message = ErrorUtil.message(cause);
+        log.warn("Agent turn failed: {}", message, cause);
+        if (extensionRegistry != null) {
+            try {
+                extensionRegistry.dispatchException(cause);
+            } catch (Exception e) {
+                log.warn("Exception handler dispatch failed", e);
+            }
+        }
+        fireEvent(new AgentEvent.Error(new RuntimeException(message)));
+        activeResult.compareAndSet(result, null);
+        result.completeExceptionally(new RuntimeException(message));
     }
 
     /** Signals that the conversation history was replaced wholesale (load/new/undo/fork) so frontends can re-render. */

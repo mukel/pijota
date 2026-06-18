@@ -1,6 +1,7 @@
 package ai.pijota.browser;
 
 import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * launches a visible browser, so it runs only when {@code PIJOTA_BROWSER_IT=1} and Chrome is present — the
  * deterministic {@link BrowserSessionCdpTest} covers the orchestration in the normal suite.
  */
+@Tag("live")
 class BrowserSessionLiveChromeTest {
 
     /** Short, non-article page → Readability declines → the visible-only DOM walk (tier 2) handles it. */

@@ -153,13 +153,8 @@ public final class CdpBackend implements BrowserBackend {
     }
 
     private void waitForDevtools() throws Exception {
-        long deadline = System.nanoTime() + CONNECT_TIMEOUT_MS * 1_000_000L;
-        while (System.nanoTime() < deadline) {
-            if (devtoolsAlive())
-                return;
-            Thread.sleep(150);
-        }
-        throw new IllegalStateException("Chrome DevTools did not come up on port " + port);
+        chrome.awaitReady(this::devtoolsAlive, CONNECT_TIMEOUT_MS, "Chrome DevTools (port " + port + ")",
+                                        "the port may be in use or the profile locked");
     }
 
     /** The WebSocket URL of a usable page target — reusing an existing one, else opening a fresh tab. */

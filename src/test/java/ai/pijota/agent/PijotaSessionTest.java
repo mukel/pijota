@@ -1,12 +1,9 @@
 package ai.pijota.agent;
 
 import ai.pijota.config.AppConfig;
-import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
-import ai.pijota.messages.Usage;
 import ai.pijota.testkit.FauxLlm;
-import ai.pijota.tools.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -14,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
+import static ai.pijota.testkit.FauxLlm.Response.contentWithUsage;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PijotaSessionTest {
@@ -26,17 +24,13 @@ class PijotaSessionTest {
     }
 
     private PijotaSession createSession(boolean noSession, int contextWindow,
-                                    AppConfig.CompactionConfig compactionConfig) throws Exception {
-        var llm = new FauxLlm();
-        var tools = new ToolRegistry();
-        var sessionManager = new SessionManager(tempDir);
-        var extensions = new ExtensionRegistry();
-        return new PijotaSession(llm, tools, sessionManager, extensions, "system prompt", tempDir.toString(), noSession,
-                                        contextWindow, compactionConfig);
-    }
-
-    private static FauxLlm.Response withUsage(String content) {
-        return FauxLlm.Response.content(new Usage(1, 1), content);
+                                    AppConfig.CompactionConfig compactionConfig) {
+        var builder = TestSession.in(tempDir).contextWindow(contextWindow);
+        if (noSession)
+            builder.noSession();
+        if (compactionConfig != null)
+            builder.compaction(compactionConfig);
+        return builder.build().session();
     }
 
     @Test
@@ -58,7 +52,7 @@ class PijotaSessionTest {
     void promptRunsAgentAndSavesMessages() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("hello"));
+        llm.enqueue(contentWithUsage("hello"));
 
         var messages = session.prompt("hi").get(2, TimeUnit.SECONDS);
 
@@ -78,7 +72,7 @@ class PijotaSessionTest {
     void followUpMessageRunsAdditionalTurn() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("first")).enqueue(withUsage("second"));
+        llm.enqueue(contentWithUsage("first")).enqueue(contentWithUsage("second"));
 
         session.followUp("follow this");
         var messages = session.prompt("hi").get(3, TimeUnit.SECONDS);
@@ -151,7 +145,7 @@ class PijotaSessionTest {
     void estimatedContextTokensIsPositiveAfterPrompt() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("ok"));
+        llm.enqueue(contentWithUsage("ok"));
 
         session.prompt("hi").get(2, TimeUnit.SECONDS);
 
@@ -162,7 +156,7 @@ class PijotaSessionTest {
     void compactReturnsResult() throws Exception {
         var session = createSession(false, 1000, new AppConfig.CompactionConfig(true, 100, 1));
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("a1"));
+        llm.enqueue(contentWithUsage("a1"));
         session.prompt("small").get(2, TimeUnit.SECONDS);
         // Add enough messages so compact can drop some while keeping recent ones
         session.agentLoop().sendUserMessage("old1");
@@ -178,7 +172,7 @@ class PijotaSessionTest {
     void saveAndLoadMessages() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("ok"));
+        llm.enqueue(contentWithUsage("ok"));
         session.prompt("hi").get(2, TimeUnit.SECONDS);
 
         var saveFile = tempDir.resolve("saved.jsonl");
@@ -204,7 +198,7 @@ class PijotaSessionTest {
     void continueLastSessionLoadsLatestOtherThanCurrent() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("ok"));
+        llm.enqueue(contentWithUsage("ok"));
         session.prompt("hi").get(2, TimeUnit.SECONDS); // give it real content so it persists past newSession
         var firstFile = session.sessionFile();
         session.newSession();
@@ -219,7 +213,7 @@ class PijotaSessionTest {
     void forkFromCreatesNewBranchSession() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("ok"));
+        llm.enqueue(contentWithUsage("ok"));
         session.prompt("hi").get(2, TimeUnit.SECONDS);
         var original = session.sessionFile();
         var entryId = session.leafId();
@@ -236,7 +230,7 @@ class PijotaSessionTest {
     void cloneCurrentBranchCreatesNewSession() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("ok"));
+        llm.enqueue(contentWithUsage("ok"));
         session.prompt("hi").get(2, TimeUnit.SECONDS);
         var original = session.sessionFile();
 
@@ -263,7 +257,7 @@ class PijotaSessionTest {
     void undoLastUserTurnRemovesLastUserAndFollowingMessages() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("a1")).enqueue(withUsage("a2"));
+        llm.enqueue(contentWithUsage("a1")).enqueue(contentWithUsage("a2"));
         session.prompt("first").get(2, TimeUnit.SECONDS);
         session.prompt("second").get(2, TimeUnit.SECONDS);
 

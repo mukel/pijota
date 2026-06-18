@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.SelfRespawn;
 
@@ -8,11 +9,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public final class TranscendenceTool implements Tool {
+
+    private static final String MVN_NOT_FOUND = "✕ Transcend failed\n\nMaven (mvn) not found on PATH — "
+                                    + "install Maven (https://maven.apache.org) or add it to PATH.";
 
     @Override
     public String name() {
@@ -31,14 +34,11 @@ public final class TranscendenceTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("action", Map.of("type", "string", "description",
-                                        "Action: 'build', 'test', 'respawn', or 'rollback'"), "worktree",
-                                        Map.of("type", "string", "description",
-                                                                        "Optional path to git worktree. If set, operates on that worktree instead of current directory."),
-                                        "mergeBranch",
-                                        Map.of("type", "string", "description",
-                                                                        "Optional branch to merge into the original checkout after successful respawn. Use with action='respawn'.")),
-                                        "required", List.of("action"), "additionalProperties", false);
+        return ToolSchema.object().str("action", "Action: 'build', 'test', 'respawn', or 'rollback'", true).str(
+                                        "worktree",
+                                        "Optional path to git worktree. If set, operates on that worktree instead of current directory.")
+                                        .str("mergeBranch", "Optional branch to merge into the original checkout after successful respawn. Use with action='respawn'.")
+                                        .build();
     }
 
     @Override
@@ -95,6 +95,8 @@ public final class TranscendenceTool implements Tool {
         try {
             result = SelfRespawn.buildJar(projectRoot);
         } catch (IOException e) {
+            if (ProcessRunner.isCommandNotFound(e))
+                return ToolResult.error(MVN_NOT_FOUND);
             return ToolResult.error("✕ Transcend failed\n\nBuild error: " + e.getMessage() + "\n\nRecovery: cd "
                                             + projectRoot + " && mvn package -Pfat -q");
         }
@@ -133,8 +135,14 @@ public final class TranscendenceTool implements Tool {
             return ToolResult.error("No pom.xml found at " + projectRoot + "\nRecovery: cd " + projectRoot
                                             + " && mvn test");
 
-        ProcessRunner.Result result = ProcessRunner.command("mvn", "test").workDir(projectRoot)
-                                        .redirectErrorStream(true).run();
+        ProcessRunner.Result result;
+        try {
+            result = ProcessRunner.command("mvn", "test").workDir(projectRoot).redirectErrorStream(true).run();
+        } catch (IOException e) {
+            if (ProcessRunner.isCommandNotFound(e))
+                return ToolResult.error(MVN_NOT_FOUND);
+            throw e;
+        }
         Path log = writeTranscendLog("test", result.stdout());
 
         if (result.timedOut()) {
@@ -171,6 +179,8 @@ public final class TranscendenceTool implements Tool {
         try {
             buildResult = SelfRespawn.buildJar(projectRoot);
         } catch (IOException e) {
+            if (ProcessRunner.isCommandNotFound(e))
+                return ToolResult.error(MVN_NOT_FOUND);
             return ToolResult.error("✕ Transcend failed\n\nBuild error: " + e.getMessage() + "\n\nRecovery: cd "
                                             + projectRoot + " && mvn package -Pfat -q");
         }

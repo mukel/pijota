@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TodowriteToolTest {
@@ -23,12 +24,12 @@ class TodowriteToolTest {
     }
 
     @Test
-    void executeWithTodosRendersList() throws Exception {
+    void executeWithTodosRendersList() {
         var tool = new TodowriteTool();
         var todos = List.of(Map.of("content", "task A", "status", "completed", "priority", "high"),
                                         Map.of("content", "task B", "status", "in_progress", "priority", "medium"),
                                         Map.of("content", "task C", "status", "pending", "priority", "low"));
-        var result = tool.execute("call-1", Map.of("todos", todos), "/cwd").get();
+        var result = run(tool, Map.of("todos", todos), "/cwd");
         assertFalse(result.isError());
         assertTrue(result.content().contains("[✓] task A"));
         assertTrue(result.content().contains("[~] task B"));
@@ -37,34 +38,34 @@ class TodowriteToolTest {
     }
 
     @Test
-    void executeWithCancelledTodo() throws Exception {
+    void executeWithCancelledTodo() {
         var tool = new TodowriteTool();
         var todos = List.of(Map.of("content", "cancelled task", "status", "cancelled", "priority", "low"));
-        var result = tool.execute("call-1", Map.of("todos", todos), "/cwd").get();
+        var result = run(tool, Map.of("todos", todos), "/cwd");
         assertTrue(result.content().contains("[−]"));
     }
 
     @Test
-    void executeWithInvalidTodosReturnsError() throws Exception {
+    void executeWithInvalidTodosReturnsError() {
         var tool = new TodowriteTool();
-        var result = tool.execute("call-1", Map.of("todos", "not-a-list"), "/cwd").get();
+        var result = run(tool, Map.of("todos", "not-a-list"), "/cwd");
         assertTrue(result.isError());
         assertTrue(result.content().contains("must be an array"));
     }
 
     @Test
-    void executeWithEmptyListReportsZero() throws Exception {
+    void executeWithEmptyListReportsZero() {
         var tool = new TodowriteTool();
-        var result = tool.execute("call-1", Map.of("todos", List.of()), "/cwd").get();
+        var result = run(tool, Map.of("todos", List.of()), "/cwd");
         assertFalse(result.isError());
         assertTrue(result.content().contains("0 todos (0 completed)"));
     }
 
     @Test
-    void executeSkipsNonMapItems() throws Exception {
+    void executeSkipsNonMapItems() {
         var tool = new TodowriteTool();
         var todos = List.of(Map.of("content", "a", "status", "completed", "priority", "high"), "not-a-map");
-        var result = tool.execute("call-1", Map.of("todos", todos), "/cwd").get();
+        var result = run(tool, Map.of("todos", todos), "/cwd");
         assertFalse(result.isError());
         assertTrue(result.content().contains("1 todos (1 completed)"));
     }

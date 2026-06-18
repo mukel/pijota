@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.DiffAlgorithm;
 import ai.pijota.util.Util;
 
@@ -40,21 +41,13 @@ public final class EditTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("path", Map.of("type", "string", "description",
-                                        "Path to the file to edit (relative or absolute)"), "edits",
-                                        Map.of("type", "array", "description",
-                                                                        "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
-                                                                        "items",
-                                                                        Map.of("type", "object", "properties", Map.of(
-                                                                                                        "oldText",
-                                                                                                        Map.of("type", "string", "description",
-                                                                                                                                        "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."),
-                                                                                                        "newText",
-                                                                                                        Map.of("type", "string", "description",
-                                                                                                                                        "Replacement text for this targeted edit.")),
-                                                                                                        "required",
-                                                                                                        List.of("oldText", "newText")))),
-                                        "required", List.of("path", "edits"), "additionalProperties", false);
+        var editItem = ToolSchema.object().str("oldText",
+                                        "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.",
+                                        true).str("newText", "Replacement text for this targeted edit.", true)
+                                        .buildOpen();
+        return ToolSchema.object().str("path", "Path to the file to edit (relative or absolute)", true).array("edits",
+                                        "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
+                                        true, editItem).build();
     }
 
     @Override

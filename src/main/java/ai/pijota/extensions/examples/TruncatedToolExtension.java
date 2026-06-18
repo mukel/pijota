@@ -5,8 +5,11 @@ import java.util.ArrayList;
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionRuntime.ExecResult;
+import ai.pijota.tools.GrepTool;
 import ai.pijota.tools.Tool;
+import ai.pijota.util.ProcessRunner;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -59,7 +62,26 @@ public final class TruncatedToolExtension implements Extension {
                                                 ExecResult result = runtime.exec(cmd);
                                                 String output = result.stdout();
 
-                                                if (!result.success() || output.isBlank()) {
+                                                // rg exit codes: 0 = matches, 1 = no matches, >=2 = error; our exec()
+                                                // returns -1 when the spawn itself failed (e.g. ripgrep not installed).
+                                                // Only 0/1 are real searches — anything else is a failure, not "no
+                                                // matches".
+                                                if (result.exitCode() < 0 || result.exitCode() >= 2) {
+                                                    String stderr = result.stderr() == null
+                                                                                    ? ""
+                                                                                    : result.stderr().strip();
+                                                    // exec() folds a missing-binary IOException into stderr; classify
+                                                    // it
+                                                    // with the same predicate the throwing callers use.
+                                                    String reason = stderr.isBlank() || ProcessRunner.isCommandNotFound(
+                                                                                    new IOException(stderr))
+                                                                                                                    ? GrepTool.RG_NOT_FOUND
+                                                                                                                    : stderr;
+                                                    return CompletableFuture.completedFuture(Tool.ToolResult.error(
+                                                                                    "rg search failed: " + reason));
+                                                }
+
+                                                if (output.isBlank()) {
                                                     return CompletableFuture.completedFuture(Tool.ToolResult.success(
                                                                                     "No matches found",
                                                                                     Map.of("pattern", pattern, "matchCount",

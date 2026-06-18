@@ -6,8 +6,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class GrepToolTest {
@@ -91,19 +91,33 @@ class GrepToolTest {
     void reportsNoPatternAsError() throws Exception {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult("", "", 0, false));
 
-        var result = tool.execute("tc1", Map.of("path", tempDir.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(tool, Map.of("path", tempDir.toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("No pattern"));
     }
 
     @Test
+    void missingRipgrepReturnsAnActionableInstallMessage() {
+        // backend throws the JVM "binary not on PATH" IOException, as the real ripgrep spawn would
+        var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> {
+            throw new java.io.IOException("Cannot run program \"rg\": error=2, No such file or directory");
+        });
+
+        var result = run(tool, Map.of("pattern", "x"), tempDir.toString());
+
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("ripgrep") && result.content().toLowerCase().contains("not found"),
+                                        result.content());
+        // the confusing raw JVM string is not leaked to the user
+        assertFalse(result.content().contains("error=2"), result.content());
+    }
+
+    @Test
     void reportsBlankPatternAsError() throws Exception {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult("", "", 0, false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "   ", "path", tempDir.toString()), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "   ", "path", tempDir.toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("No pattern"));
@@ -114,8 +128,7 @@ class GrepToolTest {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult("", "", 0, false));
         var missing = tempDir.resolve("does-not-exist");
 
-        var result = tool.execute("tc1", Map.of("pattern", "x", "path", missing.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "x", "path", missing.toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("Path not found"));
@@ -125,8 +138,7 @@ class GrepToolTest {
     void reportsRipgrepErrorExitCodeWithStderr() throws Exception {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult("", "bad arg", 2, false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "x", "path", tempDir.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "x", "path", tempDir.toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("bad arg"));
@@ -136,8 +148,7 @@ class GrepToolTest {
     void reportsRipgrepErrorExitCodeWithBlankStderr() throws Exception {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult("", "", 2, false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "x", "path", tempDir.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "x", "path", tempDir.toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("ripgrep exited with code 2"));
@@ -147,8 +158,7 @@ class GrepToolTest {
     void reportsTimedOut() throws Exception {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult("", "", 0, true));
 
-        var result = tool.execute("tc1", Map.of("pattern", "x", "path", tempDir.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "x", "path", tempDir.toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("timed out"));
@@ -158,8 +168,7 @@ class GrepToolTest {
     void reportsEmptyMatchesAsSuccess() throws Exception {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult("", "", 0, false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "needle", "path", tempDir.toString()), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "needle", "path", tempDir.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertEquals("No matches found", result.content());
@@ -173,8 +182,7 @@ class GrepToolTest {
                                         file.toString().replace("\\", "\\\\"));
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult(json, "", 0, false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "needle", "path", tempDir.toString()), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "needle", "path", tempDir.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("needle here"));
@@ -194,8 +202,7 @@ class GrepToolTest {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult(stdout.toString(), "", 0,
                                         false));
 
-        var result = tool.execute("tc1", Map.of("pattern", ".", "path", tempDir.toString(), "limit", 2),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", ".", "path", tempDir.toString(), "limit", 2), tempDir.toString());
 
         assertFalse(result.isError());
         assertEquals(2, result.details().get("matchCount"));
@@ -210,8 +217,8 @@ class GrepToolTest {
                                         file.toString().replace("\\", "\\\\"));
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult(json, "", 0, false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "needle", "path", tempDir.toString(), "context", 1),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "needle", "path", tempDir.toString(), "context", 1),
+                                        tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("before"));
@@ -228,8 +235,7 @@ class GrepToolTest {
                                         file.toString().replace("\\", "\\\\"), longLine);
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult(json, "", 0, false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "a", "path", tempDir.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "a", "path", tempDir.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("truncated to 500 chars"));
@@ -249,8 +255,7 @@ class GrepToolTest {
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> new GrepTool.SearchResult(stdout.toString(), "", 0,
                                         false));
 
-        var result = tool.execute("tc1", Map.of("pattern", "b", "path", tempDir.toString(), "limit", 200),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(tool, Map.of("pattern", "b", "path", tempDir.toString(), "limit", 200), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("Output truncated"));

@@ -1,5 +1,7 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -26,19 +28,11 @@ public final class TodowriteTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("todos", Map.of("type", "array", "description",
-                                        "The updated todo list", "items",
-                                        Map.of("type", "object", "properties", Map.of("content", Map.of("type",
-                                                                        "string", "description", "Brief description of the task"),
-                                                                        "status",
-                                                                        Map.of("type", "string", "description",
-                                                                                                        "Current status of the task: pending, in_progress, completed, cancelled"),
-                                                                        "priority",
-                                                                        Map.of("type", "string", "description",
-                                                                                                        "Priority level of the task: high, medium, low")),
-                                                                        "required",
-                                                                        List.of("content", "status", "priority")))),
-                                        "required", List.of("todos"), "additionalProperties", false);
+        var todoItem = ToolSchema.object().str("content", "Brief description of the task", true).str("status",
+                                        "Current status of the task: pending, in_progress, completed, cancelled", true)
+                                        .str("priority", "Priority level of the task: high, medium, low", true)
+                                        .buildOpen();
+        return ToolSchema.object().array("todos", "The updated todo list", true, todoItem).build();
     }
 
     @Override

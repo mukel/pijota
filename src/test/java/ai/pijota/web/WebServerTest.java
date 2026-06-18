@@ -1,0 +1,140 @@
+package ai.pijota.web;
+
+import ai.pijota.agent.TestSession;
+import ai.pijota.testkit.Await;
+import ai.pijota.testkit.FauxLlm;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Boots the real {@code --web} server on a loopback port (no browser, no network) and drives it over HTTP: the static
+ * SPA route, the catch-all 404, POST-only guarding, the SSE event stream, and a full prompt → agent → broadcast
+ * round-trip against a faux LLM. Uses {@link TestSession} for a real session.
+ */
+class WebServerTest {
+
+    @TempDir
+    Path tempDir;
+
+    private interface ServerTest {
+        void run(TestSession session, HttpClient client, String base) throws Exception;
+    }
+
+    private void withServer(ServerTest body) throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        int port = freePort();
+        try (var server = new WebServer(ts.session(), port, ts.llm(), List::of, List.of())) {
+            server.start();
+            body.run(ts, HttpClient.newHttpClient(), "http://127.0.0.1:" + port);
+        }
+    }
+
+    @Test
+    void servesSinglePageAppAtRoot() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, resp.statusCode());
+            assertTrue(resp.body().toLowerCase().contains("<html") || resp.body().toLowerCase().contains("<!doctype"),
+                                            "root should serve the SPA html");
+            // never let a browser cache a stale SPA after an upgrade
+            assertEquals("no-store", resp.headers().firstValue("Cache-Control").orElse(""));
+        });
+    }
+
+    @Test
+    void unknownPathReturns404() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/does-not-exist")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(404, resp.statusCode());
+        });
+    }
+
+    @Test
+    void promptEndpointRejectsNonPost() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt")).GET().build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(405, resp.statusCode());
+        });
+    }
+
+    @Test
+    void eventsStreamReplaysHistoryFrame() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofInputStream());
+            assertEquals(200, resp.statusCode());
+            assertTrue(resp.headers().firstValue("Content-Type").orElse("").contains("text/event-stream"));
+            // serveEvents writes history/statuslines/stats frames immediately, then parks; read until we see history.
+            String frames = readUntil(resp.body(), "event: history", Duration.ofSeconds(5));
+            assertTrue(frames.contains("event: history"), frames);
+        });
+    }
+
+    @Test
+    void promptDrivesTheAgentAndStoresTheAnswer() throws Exception {
+        withServer((ts, client, base) -> {
+            ts.llm().enqueue(FauxLlm.Response.contentWithUsage("hi from the agent"));
+
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"hello server\"}"))
+                                            .build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, resp.statusCode());
+
+            // the handler fires the turn in the background; the faux LLM answers immediately
+            Await.until(() -> "hi from the agent".equals(ts.session().lastAssistantContent()), Duration.ofSeconds(5),
+                                            "agent never produced the answer");
+            assertEquals(1, ts.session().userMessages().size());
+            assertEquals("hello server", ts.session().userMessages().getFirst().content());
+        });
+    }
+
+    /** Reads from a (possibly open-ended) stream on a daemon thread until the marker appears or the timeout elapses. */
+    private static String readUntil(InputStream in, String marker, Duration timeout) throws Exception {
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
+            var sb = new StringBuilder();
+            var buf = new byte[2048];
+            try {
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    sb.append(new String(buf, 0, n, StandardCharsets.UTF_8));
+                    if (sb.indexOf(marker) >= 0)
+                        break;
+                }
+            } catch (IOException ignored) {
+                // stream closed (server shutdown) — return what we have
+            }
+            return sb.toString();
+        });
+        try {
+            return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            return ""; // marker never arrived; caller asserts
+        }
+    }
+
+    private static int freePort() throws IOException {
+        try (var socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+}

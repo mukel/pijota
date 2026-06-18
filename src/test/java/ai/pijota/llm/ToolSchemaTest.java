@@ -113,4 +113,58 @@ class ToolSchemaTest {
         var elem = ToolSchema.elementFromMap(Map.of("type", "boolean"));
         assertNotNull(elem);
     }
+
+    @Test
+    void builder_closedObjectWithRequiredAndTypes() {
+        var schema = ToolSchema.object().str("path", "the path", true).integer("limit", "max lines")
+                                        .number("timeout", "seconds").bool("force", "overwrite").build();
+
+        assertEquals("object", schema.get("type"));
+        assertEquals(false, schema.get("additionalProperties"));
+        assertEquals(List.of("path"), schema.get("required"));
+        @SuppressWarnings("unchecked")
+        var props = (Map<String, Object>) schema.get("properties");
+        assertEquals(Map.of("type", "string", "description", "the path"), props.get("path"));
+        assertEquals(Map.of("type", "integer", "description", "max lines"), props.get("limit"));
+        assertEquals(Map.of("type", "number", "description", "seconds"), props.get("timeout"));
+        assertEquals(Map.of("type", "boolean", "description", "overwrite"), props.get("force"));
+    }
+
+    @Test
+    void builder_requiredKeptInDeclarationOrderAndOmittedWhenEmpty() {
+        assertEquals(List.of("a", "b"), ToolSchema.object().str("a", "x", true).str("b", "y", true).build()
+                                        .get("required"));
+        assertFalse(ToolSchema.object().str("a", "x").build().containsKey("required"));
+    }
+
+    @Test
+    void builder_openObjectOmitsAdditionalProperties() {
+        var open = ToolSchema.object().str("a", "x").build();
+        assertTrue(open.containsKey("additionalProperties"));
+        assertFalse(ToolSchema.object().str("a", "x").buildOpen().containsKey("additionalProperties"));
+    }
+
+    @Test
+    void builder_nullDescriptionOmitsDescriptionKey() {
+        @SuppressWarnings("unchecked")
+        var props = (Map<String, Object>) ToolSchema.object().bool("flag", null).build().get("properties");
+        assertEquals(Map.of("type", "boolean"), props.get("flag"));
+    }
+
+    @Test
+    void builder_arrayDescriptionOptionalAndItemsPreserved() {
+        var items = Map.<String, Object>of("type", "string");
+        @SuppressWarnings("unchecked")
+        var props = (Map<String, Object>) ToolSchema.object().array("withDesc", "a list", true, items)
+                                        .array("noDesc", null, false, items).build().get("properties");
+        assertEquals(Map.of("type", "array", "description", "a list", "items", items), props.get("withDesc"));
+        assertEquals(Map.of("type", "array", "items", items), props.get("noDesc"));
+    }
+
+    @Test
+    void builder_outputRoundTripsThroughObjectFromMap() {
+        var obj = ToolSchema.objectFromMap(ToolSchema.object().str("path", "the path", true).build());
+        assertEquals(List.of("path"), obj.required());
+        assertFalse(obj.additionalProperties());
+    }
 }

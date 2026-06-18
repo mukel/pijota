@@ -2,7 +2,8 @@
 #
 # Usage:
 #   make build        compile only
-#   make test         run unit tests
+#   make test         run unit tests (live browser tests self-skip without PIJOTA_BROWSER_IT)
+#   make test-live    run ONLY the @Tag("live") browser tests (sets PIJOTA_BROWSER_IT=1; needs Chrome/geckodriver)
 #   make check        format-check + test (CI)
 #   make run          build and launch (use ARGS="--help" to pass flags)
 #   make jar          build thin jar
@@ -13,7 +14,7 @@
 #   make coverage   run tests and generate JaCoCo coverage report
 #   make clean        remove build artifacts
 
-.PHONY: build test check jar run fat native clean format format-check coverage
+.PHONY: build test test-live check jar run fat native clean format format-check coverage
 
 MVN  ?= mvn
 ARGS ?=
@@ -25,6 +26,10 @@ build:
 
 test:
 	@$(MVN) -q test
+
+# Live, opt-in browser tests (tagged @Tag("live")); needs Chrome and/or geckodriver on the machine.
+test-live:
+	@PIJOTA_BROWSER_IT=1 $(MVN) -q test -Dgroups=live
 
 check: format-check test
 

@@ -2,6 +2,7 @@ package ai.pijota.tools;
 
 import java.util.ArrayList;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 
@@ -79,10 +80,8 @@ public final class BashTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("command",
-                                        Map.of("type", "string", "description", "Shell command to execute"), "timeout",
-                                        Map.of("type", "number", "description", "Timeout in seconds (optional)")),
-                                        "required", List.of("command"), "additionalProperties", false);
+        return ToolSchema.object().str("command", "Shell command to execute", true)
+                                        .number("timeout", "Timeout in seconds (optional)").build();
     }
 
     @Override
@@ -142,6 +141,9 @@ public final class BashTool implements Tool {
                     return ToolResult.success("(no output)", details);
                 return ToolResult.success(output, details);
             } catch (IOException e) {
+                if (ProcessRunner.isCommandNotFound(e))
+                    return ToolResult.error("Bash error: the configured shell could not be started — check shell_path / $SHELL ("
+                                                    + e.getMessage() + ")");
                 return ToolResult.error("Bash error: " + e.getMessage());
             } catch (Exception e) {
                 Thread.currentThread().interrupt();

@@ -42,11 +42,43 @@ class TelegramHtmlTest {
     }
 
     @Test
-    void tableFallsBackToMonospaceBlock() {
+    void narrowTableStaysAMonospaceGrid() {
         String out = TelegramHtml.toHtml("| a | b |\n|---|---|\n| 1 | 2 |");
         assertTrue(out.startsWith("<pre>") && out.endsWith("</pre>"), out);
         assertTrue(out.contains("a | b"), out);
         assertTrue(out.contains("1 | 2"), out);
+    }
+
+    @Test
+    void wideTwoColumnTableRendersAsVerticalRecords() {
+        // a monospace grid this wide is a horizontally-scrolling "raw file" on a phone — render it vertically instead
+        String md = """
+                                        | Repo | Description |
+                                        |------|-------------|
+                                        | google-research/timesfm | Time Series Foundation Model by Google Research |
+                                        | n0-computer/iroh | Modular networking stack in Rust |""";
+        String out = TelegramHtml.toHtml(md);
+
+        assertFalse(out.contains("<pre>"), "a wide table must not be a monospace block: " + out);
+        assertFalse(out.contains("|"), "no leftover ASCII pipes: " + out);
+        assertTrue(out.contains("<b>google-research/timesfm</b>"), out);
+        assertTrue(out.contains("Time Series Foundation Model by Google Research"), out);
+        assertTrue(out.contains("<b>n0-computer/iroh</b>"), out);
+    }
+
+    @Test
+    void wideMultiColumnTableLabelsEachCellWithItsHeader() {
+        String md = """
+                                        | Tool | Language | Notes |
+                                        |------|----------|-------|
+                                        | ripgrep | Rust | very fast recursive search across large trees |
+                                        | fd | Rust | friendly find replacement with sensible defaults |""";
+        String out = TelegramHtml.toHtml(md);
+
+        assertFalse(out.contains("<pre>"), out);
+        assertTrue(out.contains("<b>ripgrep</b>"), out);
+        assertTrue(out.contains("Language: Rust"), out);
+        assertTrue(out.contains("Notes: very fast recursive search across large trees"), out);
     }
 
     @Test

@@ -6,8 +6,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ReadToolTest {
@@ -19,8 +19,7 @@ class ReadToolTest {
         var file = tempDir.resolve("test.txt");
         Files.writeString(file, "line1\nline2\nline3");
 
-        var result = new ReadTool().execute("tc1", Map.of("path", file.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", file.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("line1"));
@@ -36,8 +35,7 @@ class ReadToolTest {
             sb.append("line").append(i).append('\n');
         Files.writeString(file, sb.toString());
 
-        var result = new ReadTool().execute("tc1", Map.of("path", file.toString(), "offset", 5, "limit", 3),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", file.toString(), "offset", 5, "limit", 3), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("line5"));
@@ -46,8 +44,7 @@ class ReadToolTest {
 
     @Test
     void reportsMissingFileAsError() throws Exception {
-        var result = new ReadTool().execute("tc1", Map.of("path", tempDir.resolve("nonexistent").toString()),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", tempDir.resolve("nonexistent").toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("not found"));
@@ -55,16 +52,15 @@ class ReadToolTest {
 
     @Test
     void reportsDirectoryAsError() throws Exception {
-        var result = new ReadTool().execute("tc1", Map.of("path", tempDir.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", tempDir.toString()), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("directory"));
     }
 
     @Test
-    void rejectsMissingPath() throws Exception {
-        var result = new ReadTool().execute("tc1", Map.of(), tempDir.toString()).get(1, TimeUnit.SECONDS);
+    void rejectsMissingPath() {
+        var result = run(new ReadTool(), Map.of(), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("No path"));
@@ -75,8 +71,7 @@ class ReadToolTest {
         var file = tempDir.resolve("short.txt");
         Files.writeString(file, "one\ntwo");
 
-        var result = new ReadTool().execute("tc1", Map.of("path", file.toString(), "offset", 10), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", file.toString(), "offset", 10), tempDir.toString());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("beyond end"));
@@ -86,8 +81,7 @@ class ReadToolTest {
     void emptyFileReturnsZeroTotalLines() throws Exception {
         var file = Files.createFile(tempDir.resolve("empty.txt"));
 
-        var result = new ReadTool().execute("tc1", Map.of("path", file.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", file.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertEquals("", result.content());
@@ -99,8 +93,7 @@ class ReadToolTest {
         var file = tempDir.resolve("lines.txt");
         Files.writeString(file, "a\nb\nc");
 
-        var result = new ReadTool().execute("tc1", Map.of("path", file.toString(), "limit", 0), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", file.toString(), "limit", 0), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("more lines in file"));
@@ -114,8 +107,7 @@ class ReadToolTest {
         var line = "x".repeat(2500);
         Files.writeString(file, line);
 
-        var result = new ReadTool().execute("tc1", Map.of("path", file.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", file.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("(line truncated to 2000 chars)"));
@@ -129,8 +121,7 @@ class ReadToolTest {
             lines.add("x".repeat(2000));
         Files.write(file, lines);
 
-        var result = new ReadTool().execute("tc1", Map.of("path", file.toString()), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = run(new ReadTool(), Map.of("path", file.toString()), tempDir.toString());
 
         assertFalse(result.isError());
         assertTrue((Boolean) result.details().get("truncated"));

@@ -1,7 +1,15 @@
 package ai.pijota.extensions.examples;
 
+import ai.pijota.extensions.ExtensionRuntime.ExecResult;
+import ai.pijota.extensions.testkit.FakeExtensionAPI;
+import ai.pijota.extensions.testkit.FakeExtensionRuntime;
+import ai.pijota.tools.Tool;
+
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
+
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TruncatedToolExtensionTest {
@@ -16,5 +24,47 @@ class TruncatedToolExtensionTest {
     void descriptionIsNotEmpty() {
         var ext = new TruncatedToolExtension();
         assertNotNull(ext.description());
+    }
+
+    /** Registers the extension's "rg" tool against a runtime whose exec() returns a canned ExecResult. */
+    private Tool rgToolWithExec(int exitCode, String stdout, String stderr) {
+        var runtime = new FakeExtensionRuntime();
+        runtime.setExecStub(cmd -> new ExecResult(exitCode, stdout, stderr));
+        var api = new FakeExtensionAPI(runtime);
+        new TruncatedToolExtension().init(api);
+        return api.tool("rg").toTool();
+    }
+
+    @Test
+    void missingRipgrepIsAnErrorNotAFalseNoMatches() {
+        // exec() returns -1 when the spawn itself failed (ripgrep not installed)
+        var tool = rgToolWithExec(-1, "", "Cannot run program \"rg\": error=2, No such file or directory");
+
+        var result = run(tool, Map.of("pattern", "x"));
+
+        assertTrue(result.isError(), "a missing rg must surface as an error, not 'No matches found'");
+        assertTrue(result.content().toLowerCase().contains("not found")
+                                        || result.content().contains("rg search failed"), result.content());
+    }
+
+    @Test
+    void exitCodeOneIsReportedAsNoMatches() {
+        // ripgrep convention: exit 1 == ran fine, found nothing
+        var tool = rgToolWithExec(1, "", "");
+
+        var result = run(tool, Map.of("pattern", "x"));
+
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("No matches"), result.content());
+    }
+
+    @Test
+    void matchesAreReturned() {
+        var tool = rgToolWithExec(0, "file.txt:1:the hit\n", "");
+
+        var result = run(tool, Map.of("pattern", "hit"));
+
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("the hit"), result.content());
     }
 }

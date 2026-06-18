@@ -7,8 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EditToolTest {
@@ -20,9 +20,8 @@ class EditToolTest {
         var path = tempDir.resolve("f.txt");
         Files.writeString(path, "hello world\n");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "hello", "newText", "hi"))), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "hello", "newText", "hi"))), tempDir);
 
         assertFalse(result.isError());
         assertEquals("hi world\n", Files.readString(path));
@@ -34,8 +33,7 @@ class EditToolTest {
         Files.writeString(path, "alpha beta gamma");
 
         var edits = List.of(Map.of("oldText", "alpha", "newText", "A"), Map.of("oldText", "gamma", "newText", "C"));
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits", edits), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits", edits), tempDir);
 
         assertFalse(result.isError());
         assertEquals("A beta C", Files.readString(path));
@@ -46,9 +44,8 @@ class EditToolTest {
         var path = tempDir.resolve("dup.txt");
         Files.writeString(path, "abc abc abc");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "abc ", "newText", "xyz "))), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "abc ", "newText", "xyz "))), tempDir);
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("unique") || result.content().contains("matches"),
@@ -61,8 +58,7 @@ class EditToolTest {
         Files.writeString(path, "abcdef");
 
         var edits = List.of(Map.of("oldText", "abc", "newText", "x"), Map.of("oldText", "cde", "newText", "y"));
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits", edits), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits", edits), tempDir);
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("overlap"));
@@ -73,17 +69,15 @@ class EditToolTest {
         var path = tempDir.resolve("e.txt");
         Files.writeString(path, "text");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "", "newText", "replacement"))), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "", "newText", "replacement"))), tempDir);
 
         assertTrue(result.isError());
     }
 
     @Test
-    void rejectsMissingPath() throws Exception {
-        var result = new EditTool().execute("tc1", Map.of("edits", List.of(Map.of("oldText", "a", "newText", "b"))),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+    void rejectsMissingPath() {
+        var result = run(new EditTool(), Map.of("edits", List.of(Map.of("oldText", "a", "newText", "b"))), tempDir);
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("No path"));
@@ -96,9 +90,8 @@ class EditToolTest {
         var file = path.toFile();
         file.setWritable(false);
         try {
-            var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                            List.of(Map.of("oldText", "hello", "newText", "hi"))), tempDir.toString())
-                                            .get(1, TimeUnit.SECONDS);
+            var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                            List.of(Map.of("oldText", "hello", "newText", "hi"))), tempDir);
 
             assertTrue(result.isError());
             assertTrue(result.content().contains("Cannot read/write"));
@@ -112,9 +105,8 @@ class EditToolTest {
         var path = tempDir.resolve("crlf.txt");
         Files.writeString(path, "old\r\nsecond\r\n");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "old", "newText", "new"))), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "old", "newText", "new"))), tempDir);
 
         assertFalse(result.isError());
         assertEquals("new\r\nsecond\r\n", Files.readString(path));
@@ -123,14 +115,13 @@ class EditToolTest {
     @Test
     void stripsBomBeforeMatching() throws Exception {
         var path = tempDir.resolve("bom.txt");
-        Files.writeString(path, "\uFEFFhello world");
+        Files.writeString(path, "﻿hello world");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "hello", "newText", "hi"))), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "hello", "newText", "hi"))), tempDir);
 
         assertFalse(result.isError());
-        assertFalse(Files.readString(path).startsWith("\uFEFF"));
+        assertFalse(Files.readString(path).startsWith("﻿"));
         assertEquals("hi world", Files.readString(path));
     }
 
@@ -143,7 +134,7 @@ class EditToolTest {
         args.put("path", path.toString());
         args.put("oldText", "foo");
         args.put("newText", "baz");
-        var result = new EditTool().execute("tc1", args, tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), args, tempDir);
 
         assertFalse(result.isError(), result.content());
         assertEquals("baz bar", Files.readString(path));
@@ -154,10 +145,8 @@ class EditToolTest {
         var path = tempDir.resolve("json.txt");
         Files.writeString(path, "hello");
 
-        var result = new EditTool().execute("tc1",
-                                        Map.of("path", path.toString(), "edits",
-                                                                        "[{\"oldText\":\"hello\",\"newText\":\"hi\"}]"),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        "[{\"oldText\":\"hello\",\"newText\":\"hi\"}]"), tempDir);
 
         assertFalse(result.isError());
         assertEquals("hi", Files.readString(path));
@@ -168,9 +157,8 @@ class EditToolTest {
         var path = tempDir.resolve("ws.txt");
         Files.writeString(path, "hello \nworld");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "hello ", "newText", "hi"))), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "hello ", "newText", "hi"))), tempDir);
 
         assertFalse(result.isError());
         assertEquals("hi\nworld", Files.readString(path));
@@ -179,11 +167,10 @@ class EditToolTest {
     @Test
     void unicodeNormalizationFuzzyMatch() throws Exception {
         var path = tempDir.resolve("uni.txt");
-        Files.writeString(path, "\u2018ello world");
+        Files.writeString(path, "‘ello world");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "\u2018ello", "newText", "Hello"))),
-                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "‘ello", "newText", "Hello"))), tempDir);
 
         assertFalse(result.isError(), result.content());
         assertEquals("Hello world", Files.readString(path));
@@ -194,9 +181,8 @@ class EditToolTest {
         var path = tempDir.resolve("same.txt");
         Files.writeString(path, "hello");
 
-        var result = new EditTool().execute("tc1", Map.of("path", path.toString(), "edits",
-                                        List.of(Map.of("oldText", "hello", "newText", "hello"))), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "hello", "newText", "hello"))), tempDir);
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("No changes"));

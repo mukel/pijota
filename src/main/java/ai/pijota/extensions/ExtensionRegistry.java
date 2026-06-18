@@ -400,6 +400,15 @@ public final class ExtensionRegistry {
         }
     }
 
+    /**
+     * Dispatches to the registered exception handlers using the registry's active UI — for callers like the agent loop
+     * that have no {@link UiContext} of their own. Frontends that hold one should prefer
+     * {@link #dispatchException(Throwable, UiContext)}.
+     */
+    public void dispatchException(Throwable t) {
+        dispatchException(t, uiContext);
+    }
+
     public void cleanup() {
         var event = new ExtensionEvent.SessionShutdown();
         var ctx = new ExtensionContext(uiContext, runtime);

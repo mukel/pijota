@@ -8,11 +8,94 @@ import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchemaElement;
 import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public final class ToolSchema {
     private ToolSchema() {}
+
+    /** Starts a fluent JSON-schema object builder (replaces hand-built nested {@code Map.of(...)} schemas). */
+    public static Builder object() {
+        return new Builder();
+    }
+
+    /**
+     * Fluent builder for JSON-schema {@code object} fragments used by tool {@code schema()} methods. Emits the same
+     * {@code Map<String, Object>} shape the tools used to hand-build, so {@code ToolManifest}/{@code objectFromMap}
+     * keep working unchanged.
+     */
+    public static final class Builder {
+        private final Map<String, Object> properties = new LinkedHashMap<>();
+        private final List<String> required = new ArrayList<>();
+
+        private Builder() {}
+
+        public Builder str(String name, String description) {
+            return add(name, false, scalar("string", description));
+        }
+
+        public Builder str(String name, String description, boolean required) {
+            return add(name, required, scalar("string", description));
+        }
+
+        public Builder integer(String name, String description) {
+            return add(name, false, scalar("integer", description));
+        }
+
+        public Builder number(String name, String description) {
+            return add(name, false, scalar("number", description));
+        }
+
+        public Builder bool(String name, String description) {
+            return add(name, false, scalar("boolean", description));
+        }
+
+        /**
+         * Adds an array property. A null {@code description} omits the description key (some nested arrays lack one).
+         */
+        public Builder array(String name, String description, boolean required, Map<String, Object> items) {
+            var m = new LinkedHashMap<String, Object>();
+            m.put("type", "array");
+            if (description != null)
+                m.put("description", description);
+            m.put("items", items);
+            return add(name, required, m);
+        }
+
+        private Builder add(String name, boolean required, Map<String, Object> schema) {
+            properties.put(name, schema);
+            if (required)
+                this.required.add(name);
+            return this;
+        }
+
+        /** Builds a closed object schema (with {@code additionalProperties: false}) — the standard top-level form. */
+        public Map<String, Object> build() {
+            return build(true);
+        }
+
+        /** Builds an open object schema (no {@code additionalProperties} key) — used for some nested array items. */
+        public Map<String, Object> buildOpen() {
+            return build(false);
+        }
+
+        private Map<String, Object> build(boolean closed) {
+            var m = new LinkedHashMap<String, Object>();
+            m.put("type", "object");
+            m.put("properties", new LinkedHashMap<>(properties));
+            if (!required.isEmpty())
+                m.put("required", List.copyOf(required));
+            if (closed)
+                m.put("additionalProperties", false);
+            return m;
+        }
+
+        private static Map<String, Object> scalar(String type, String description) {
+            return description == null ? Map.of("type", type) : Map.of("type", type, "description", description);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     public static JsonObjectSchema objectFromMap(Map<String, Object> schema) {

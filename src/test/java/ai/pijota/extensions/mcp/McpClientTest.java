@@ -1,5 +1,6 @@
 package ai.pijota.extensions.mcp;
 
+import ai.pijota.testkit.Await;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -132,7 +133,7 @@ class McpClientTest {
 
         transport.inject("{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"sampling/createMessage\",\"params\":{}}");
 
-        await(() -> transport.sent().stream().anyMatch(l -> l.contains("\"id\":99") && l.contains("-32601")));
+        Await.until(() -> transport.sent().stream().anyMatch(l -> l.contains("\"id\":99") && l.contains("-32601")));
         String reply = transport.sent().stream().filter(l -> l.contains("\"id\":99")).reduce("", (a, b) -> b);
         assertTrue(reply.contains("-32601"), reply);
         assertFalse(reply.contains("\"method\""), "a reply must not carry a method: " + reply);
@@ -175,13 +176,4 @@ class McpClientTest {
         assertFalse(client.alive());
     }
 
-    private static void await(java.util.function.BooleanSupplier condition) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + 2000;
-        while (System.currentTimeMillis() < deadline) {
-            if (condition.getAsBoolean())
-                return;
-            Thread.sleep(10);
-        }
-        fail("condition not met within timeout");
-    }
 }

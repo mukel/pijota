@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
 
 import java.io.IOException;
@@ -7,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -41,13 +41,9 @@ public final class ReadTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("path", Map.of("type", "string", "description",
-                                        "Path to the file to read (relative or absolute)"), "offset",
-                                        Map.of("type", "integer", "description",
-                                                                        "Line number to start reading from (1-indexed)"),
-                                        "limit",
-                                        Map.of("type", "integer", "description", "Maximum number of lines to read")),
-                                        "required", List.of("path"), "additionalProperties", false);
+        return ToolSchema.object().str("path", "Path to the file to read (relative or absolute)", true)
+                                        .integer("offset", "Line number to start reading from (1-indexed)")
+                                        .integer("limit", "Maximum number of lines to read").build();
     }
 
     @Override

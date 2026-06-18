@@ -30,6 +30,7 @@ import org.commonmark.parser.Parser;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 /**
  * Renders the agent's Markdown into the small subset of HTML that Telegram's {@code parse_mode=HTML} accepts
@@ -59,6 +60,11 @@ final class TelegramHtml {
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
+    /** Wraps {@code content} in a Telegram HTML element, e.g. {@code wrap("b", "hi")} → {@code "<b>hi</b>"}. */
+    private static String wrap(String tag, String content) {
+        return "<" + tag + ">" + content + "</" + tag + ">";
+    }
+
     // ---- block level ----
 
     private static void renderBlocks(Node parent, StringBuilder sb) {
@@ -69,14 +75,14 @@ final class TelegramHtml {
     private static void renderBlock(Node node, StringBuilder sb) {
         switch (node) {
             case Paragraph p -> sb.append(inline(p)).append("\n\n");
-            case Heading h -> sb.append("<b>").append(inline(h)).append("</b>\n\n");
-            case FencedCodeBlock c -> sb.append("<pre>").append(escape(c.getLiteral())).append("</pre>\n\n");
-            case IndentedCodeBlock c -> sb.append("<pre>").append(escape(c.getLiteral())).append("</pre>\n\n");
+            case Heading h -> sb.append(wrap("b", inline(h))).append("\n\n");
+            case FencedCodeBlock c -> sb.append(wrap("pre", escape(c.getLiteral()))).append("\n\n");
+            case IndentedCodeBlock c -> sb.append(wrap("pre", escape(c.getLiteral()))).append("\n\n");
             case ThematicBreak ignored -> sb.append("──────\n\n");
             case BlockQuote q -> {
                 var inner = new StringBuilder();
                 renderBlocks(q, inner);
-                sb.append("<blockquote>").append(inner.toString().strip()).append("</blockquote>\n\n");
+                sb.append(wrap("blockquote", inner.toString().strip())).append("\n\n");
             }
             case BulletList list -> renderList(list, sb, null);
             case OrderedList list -> renderList(list, sb, list.getMarkerStartNumber());
@@ -95,6 +101,11 @@ final class TelegramHtml {
         sb.append('\n');
     }
 
+    // A monospace <pre> grid wider than a phone's line turns into a horizontally-scrolling "raw file" in Telegram, so
+    // wider tables are rendered as a vertical list of records instead. ponytail: a fixed char threshold, not the
+    // viewport (Telegram doesn't expose it) — tuned for mobile, where readability matters most.
+    private static final int MAX_PRE_TABLE_WIDTH = 40;
+
     private static void renderTable(TableBlock table, StringBuilder sb) {
         var rows = new ArrayList<List<String>>();
         collectRows(table, rows);
@@ -106,6 +117,14 @@ final class TelegramHtml {
             for (int i = 0; i < row.size(); i++)
                 widths[i] = Math.max(widths[i], row.get(i).length());
 
+        int gridWidth = (cols - 1) * 3 + IntStream.of(widths).sum(); // the cells plus the " | " separators
+        if (gridWidth > MAX_PRE_TABLE_WIDTH)
+            renderTableAsRecords(rows, sb);
+        else
+            renderGridTable(rows, widths, sb);
+    }
+
+    private static void renderGridTable(List<List<String>> rows, int[] widths, StringBuilder sb) {
         sb.append("<pre>");
         for (int r = 0; r < rows.size(); r++) {
             sb.append(escape(padJoin(rows.get(r), widths))).append('\n');
@@ -113,6 +132,32 @@ final class TelegramHtml {
                 sb.append(escape(separator(widths))).append('\n');
         }
         sb.append("</pre>\n\n");
+    }
+
+    /**
+     * Renders a too-wide table as a vertical list of records, which wraps cleanly on a phone. Each data row becomes a
+     * block titled by its first cell (bolded); a two-column table shows the second cell on its own line, while a table
+     * with three or more columns labels each remaining cell with its header ({@code Header: value}).
+     */
+    private static void renderTableAsRecords(List<List<String>> rows, StringBuilder sb) {
+        List<String> header = rows.get(0);
+        boolean labelled = header.size() > 2; // a 2-column value is self-explanatory; 3+ columns get a "Header: " label
+        for (int r = 1; r < rows.size(); r++) {
+            List<String> row = rows.get(r);
+            if (row.isEmpty())
+                continue;
+            sb.append(wrap("b", escape(row.get(0)))).append('\n');
+            for (int i = 1; i < row.size(); i++) {
+                String value = row.get(i);
+                if (value.isBlank())
+                    continue;
+                String label = labelled && i < header.size() && !header.get(i).isBlank()
+                                                ? escape(header.get(i)) + ": "
+                                                : "";
+                sb.append(label).append(escape(value)).append('\n');
+            }
+            sb.append('\n');
+        }
     }
 
     private static String padJoin(List<String> row, int[] widths) {
@@ -161,10 +206,10 @@ final class TelegramHtml {
     private static String renderInline(Node node) {
         return switch (node) {
             case Text t -> escape(t.getLiteral());
-            case StrongEmphasis ignored -> "<b>" + inline(node) + "</b>";
-            case Emphasis ignored -> "<i>" + inline(node) + "</i>";
-            case Strikethrough ignored -> "<s>" + inline(node) + "</s>";
-            case Code c -> "<code>" + escape(c.getLiteral()) + "</code>";
+            case StrongEmphasis ignored -> wrap("b", inline(node));
+            case Emphasis ignored -> wrap("i", inline(node));
+            case Strikethrough ignored -> wrap("s", inline(node));
+            case Code c -> wrap("code", escape(c.getLiteral()));
             case Link l -> renderLink(l.getDestination(), inline(l));
             case Image img -> {
                 String alt = inline(img).strip();

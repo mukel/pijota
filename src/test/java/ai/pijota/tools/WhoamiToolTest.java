@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WhoamiToolTest {
@@ -29,15 +30,15 @@ class WhoamiToolTest {
     }
 
     @Test
-    void executeWithoutModelInfoReturnsError() throws Exception {
+    void executeWithoutModelInfoReturnsError() {
         var tool = new WhoamiTool();
-        var result = tool.execute("call-1", Map.of(), "/cwd").get();
+        var result = run(tool, Map.of(), "/cwd");
         assertTrue(result.isError());
         assertTrue(result.content().contains("not available"));
     }
 
     @Test
-    void executeWithModelInfoReturnsDetails() throws Exception {
+    void executeWithModelInfoReturnsDetails() {
         var oldModels = ai.pijota.llm.ModelRegistry.KNOWN_MODELS;
         try {
             ai.pijota.llm.ModelRegistry.KNOWN_MODELS = java.util.List
@@ -45,7 +46,7 @@ class WhoamiToolTest {
 
             var tool = new WhoamiTool();
             tool.setModelInfo("openai", "gpt-4o");
-            var result = tool.execute("call-1", Map.of(), "/cwd").get();
+            var result = run(tool, Map.of(), "/cwd");
 
             assertFalse(result.isError());
             assertTrue(result.content().contains("gpt-4o"));

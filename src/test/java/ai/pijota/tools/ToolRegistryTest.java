@@ -1,5 +1,7 @@
 package ai.pijota.tools;
 
+import ai.pijota.testkit.TestTools;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,8 +16,8 @@ class ToolRegistryTest {
     @Test
     void enabledToolsRespectsDefaultAndExplicitEnable() {
         var r = new ToolRegistry();
-        r.register(fakeTool("always", true));
-        r.register(fakeTool("offline", false));
+        r.register(TestTools.fake("always", true));
+        r.register(TestTools.fake("offline", false));
 
         var enabled = r.enabledTools();
         assertEquals(1, enabled.size());
@@ -25,8 +27,8 @@ class ToolRegistryTest {
     @Test
     void enableOnlyLimitsActiveSet() {
         var r = new ToolRegistry();
-        r.register(fakeTool("a", true));
-        r.register(fakeTool("b", true));
+        r.register(TestTools.fake("a", true));
+        r.register(TestTools.fake("b", true));
 
         r.enableOnly(List.of("a"));
 
@@ -78,8 +80,8 @@ class ToolRegistryTest {
     @Test
     void allToolsAndActiveTools() {
         var r = new ToolRegistry();
-        r.register(fakeTool("a", true));
-        r.register(fakeTool("b", false));
+        r.register(TestTools.fake("a", true));
+        r.register(TestTools.fake("b", false));
 
         assertEquals(2, r.allTools().size());
         assertEquals(1, r.activeTools().size());
@@ -89,8 +91,8 @@ class ToolRegistryTest {
     @Test
     void enabledToolNames() {
         var r = new ToolRegistry();
-        r.register(fakeTool("x", true));
-        r.register(fakeTool("y", false));
+        r.register(TestTools.fake("x", true));
+        r.register(TestTools.fake("y", false));
 
         assertEquals(List.of("x"), r.enabledToolNames());
     }
@@ -98,7 +100,7 @@ class ToolRegistryTest {
     @Test
     void getReturnsToolWhenRegistered() {
         var r = new ToolRegistry();
-        r.register(fakeTool("z", true));
+        r.register(TestTools.fake("z", true));
 
         assertTrue(r.get("z").isPresent());
         assertEquals("z", r.get("z").get().name());
@@ -243,8 +245,8 @@ class ToolRegistryTest {
     @Test
     void unregisterRemovesAndDisablesTheTool() {
         var r = new ToolRegistry();
-        r.register(fakeTool("keep", true));
-        r.register(fakeTool("drop", true));
+        r.register(TestTools.fake("keep", true));
+        r.register(TestTools.fake("drop", true));
         assertEquals(2, r.enabledTools().size());
 
         r.unregister("drop");
@@ -276,7 +278,7 @@ class ToolRegistryTest {
                 pool.execute(() -> {
                     try {
                         start.await();
-                        r.register(fakeTool(name, true));
+                        r.register(TestTools.fake(name, true));
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     } finally {
@@ -292,12 +294,5 @@ class ToolRegistryTest {
             pool.shutdownNow();
         }
         assertEquals(n, r.enabledTools().size(), "every concurrently registered tool must be present");
-    }
-
-    private static Tool fakeTool(String name, boolean defaultEnabled) {
-        return new Tool.ToolDefinition(name, name + " desc", Map.of("type", "object", "properties", Map.of()),
-                                        (id, args, cwd) -> CompletableFuture
-                                                                        .completedFuture(Tool.ToolResult.success("ok")),
-                                        defaultEnabled).toTool();
     }
 }

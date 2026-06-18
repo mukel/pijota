@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -15,6 +16,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * echoes a line back (send/receive/alive), and {@code true} exits immediately (receive→null at EOF). Skipped on
  * Windows.
  */
+@Tag("integration")
 class StdioTransportTest {
 
     private static final boolean UNIX = !System.getProperty("os.name", "").toLowerCase().contains("win");

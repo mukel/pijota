@@ -5,8 +5,6 @@ import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionResult;
 import ai.pijota.util.Util;
 
-import java.io.IOException;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 public final class PermissionGateExtension implements Extension {
@@ -57,13 +55,7 @@ public final class PermissionGateExtension implements Extension {
         return false;
     }
 
-    @SuppressWarnings("unchecked")
     static String parseCommand(String argsJson) {
-        try {
-            var args = (Map<String, Object>) Util.MAPPER.readValue(argsJson, Map.class);
-            return (String) args.get("command");
-        } catch (IOException e) {
-            return null;
-        }
+        return Util.parseBashArgs(argsJson);
     }
 }

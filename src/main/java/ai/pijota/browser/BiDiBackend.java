@@ -177,17 +177,15 @@ public final class BiDiBackend implements BrowserBackend {
     }
 
     private void waitForDriver() throws Exception {
-        long deadline = System.nanoTime() + DRIVER_TIMEOUT_MS * 1_000_000L;
-        while (System.nanoTime() < deadline) {
-            try {
-                if (httpGet("/status") != null)
-                    return;
-            } catch (Exception ignored) {
-                // driver not up yet
-            }
-            Thread.sleep(150);
+        driver.awaitReady(this::driverResponding, DRIVER_TIMEOUT_MS, "WebDriver (port " + driverPort + ")", null);
+    }
+
+    private boolean driverResponding() {
+        try {
+            return httpGet("/status") != null;
+        } catch (Exception e) {
+            return false; // driver not up yet
         }
-        throw new IllegalStateException("WebDriver did not come up on port " + driverPort);
     }
 
     /** POSTs {@code /session} requesting a BiDi websocket and returns the parsed response. */

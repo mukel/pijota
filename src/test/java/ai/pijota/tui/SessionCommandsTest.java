@@ -1,19 +1,26 @@
 package ai.pijota.tui;
 
 import ai.pijota.agent.PijotaSession;
+import ai.pijota.agent.TestSession;
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.llm.ThinkingLevel;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class SessionCommandsTest {
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void startNewSessionRefusedWhenBusy() {
@@ -123,16 +130,83 @@ class SessionCommandsTest {
         assertFalse(String.join("\n", lines).contains("budget"));
     }
 
+    // ---- session()-backed commands, driven through a real PijotaSession ----
+
+    private FakeHost hostWith(boolean persisted) {
+        var host = new FakeHost();
+        host.session = persisted
+                                        ? TestSession.in(tempDir).build().session()
+                                        : TestSession.in(tempDir).noSession().build().session();
+        return host;
+    }
+
+    @Test
+    void startNewSessionWithEmptyTranscriptCreatesImmediately() {
+        var host = hostWith(true);
+
+        new SessionCommands(host).startNewSession();
+
+        assertTrue(String.join(" ", host.lines).contains("started new session"), host.lines.toString());
+    }
+
+    @Test
+    void saveSessionWritesToTheGivenPath() {
+        var host = hostWith(true);
+        Path out = tempDir.resolve("saved.jsonl");
+
+        new SessionCommands(host).saveSession("/save " + out);
+
+        assertTrue(Files.exists(out));
+        assertTrue(String.join(" ", host.lines).contains("session saved to"), host.lines.toString());
+    }
+
+    @Test
+    void showUsageReportsCumulativeTokens() {
+        var host = hostWith(true);
+
+        new SessionCommands(host).showUsage();
+
+        assertTrue(String.join("\n", host.lines).contains("usage"), host.lines.toString());
+    }
+
+    @Test
+    void showContextSummarizesTheTranscript() {
+        var host = hostWith(true);
+
+        new SessionCommands(host).showContext();
+
+        assertTrue(String.join(" ", host.lines).contains("context"), host.lines.toString());
+    }
+
+    @Test
+    void copyLastResponseReportsWhenNothingToCopy() {
+        var host = hostWith(true);
+
+        new SessionCommands(host).copyLastResponse();
+
+        assertTrue(String.join(" ", host.lines).contains("no assistant response"), host.lines.toString());
+    }
+
+    @Test
+    void cloneSessionWithoutAnActiveFileReportsNoSession() {
+        var host = hostWith(false); // --no-session => sessionFile() is null
+
+        new SessionCommands(host).cloneSession();
+
+        assertTrue(String.join(" ", host.lines).contains("no active session"), host.lines.toString());
+    }
+
     private static final class FakeHost implements SessionCommands.Host {
         boolean busy;
         String sessionName = "test-session";
         String confirmQuestion;
         boolean confirmAnswer = true;
+        PijotaSession session; // null unless a test wires a real session
         final List<String> lines = new ArrayList<>();
 
         @Override
         public PijotaSession session() {
-            return null;
+            return session;
         }
 
         @Override

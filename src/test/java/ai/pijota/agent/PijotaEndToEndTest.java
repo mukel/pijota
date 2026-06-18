@@ -1,12 +1,10 @@
 package ai.pijota.agent;
 
-import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.messages.Usage;
 import ai.pijota.testkit.FauxLlm;
 import ai.pijota.tools.Tool;
-import ai.pijota.tools.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -16,6 +14,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static ai.pijota.testkit.FauxLlm.Response.contentWithUsage;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PijotaEndToEndTest {
@@ -23,17 +22,11 @@ class PijotaEndToEndTest {
     @TempDir
     Path tempDir;
 
-    private PijotaSession createSession(boolean noSession) throws Exception {
-        var llm = new FauxLlm();
-        var tools = new ToolRegistry();
-        var sessionManager = new SessionManager(tempDir);
-        var extensions = new ExtensionRegistry();
-        return new PijotaSession(llm, tools, sessionManager, extensions, "system prompt", tempDir.toString(), noSession,
-                                        0, null);
-    }
-
-    private static FauxLlm.Response withUsage(String content) {
-        return FauxLlm.Response.content(new Usage(1, 1), content);
+    private PijotaSession createSession(boolean noSession) {
+        var builder = TestSession.in(tempDir);
+        if (noSession)
+            builder.noSession();
+        return builder.build().session();
     }
 
     @Test
@@ -42,7 +35,7 @@ class PijotaEndToEndTest {
         var llm = (FauxLlm) session.agentLoop().llm();
         session.setSessionName("Lifecycle Test");
 
-        llm.enqueue(withUsage("hello from AI")).enqueue(withUsage("second response"));
+        llm.enqueue(contentWithUsage("hello from AI")).enqueue(contentWithUsage("second response"));
         session.prompt("first question").get(2, TimeUnit.SECONDS);
         session.prompt("second question").get(2, TimeUnit.SECONDS);
 
@@ -83,7 +76,7 @@ class PijotaEndToEndTest {
                                         && a.content().equals("processed tool result")),
                                         "should contain assistant response after tool");
 
-        llm.enqueue(withUsage("follow-up answer"));
+        llm.enqueue(contentWithUsage("follow-up answer"));
         session.prompt("follow up").get(2, TimeUnit.SECONDS);
         assertEquals(2, session.userMessages().size());
         assertEquals("follow up", session.userMessages().get(1).content());
@@ -93,11 +86,11 @@ class PijotaEndToEndTest {
     void multipleTurnsWithSaveAndReloadPreservesAllMessages() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("a1"));
+        llm.enqueue(contentWithUsage("a1"));
         session.prompt("q1").get(2, TimeUnit.SECONDS);
-        llm.enqueue(withUsage("a2"));
+        llm.enqueue(contentWithUsage("a2"));
         session.prompt("q2").get(2, TimeUnit.SECONDS);
-        llm.enqueue(withUsage("a3"));
+        llm.enqueue(contentWithUsage("a3"));
         session.prompt("q3").get(2, TimeUnit.SECONDS);
 
         assertEquals(3, session.userMessages().size());
@@ -119,11 +112,11 @@ class PijotaEndToEndTest {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
 
-        llm.enqueue(withUsage("a1"));
+        llm.enqueue(contentWithUsage("a1"));
         session.prompt("keep").get(2, TimeUnit.SECONDS);
-        llm.enqueue(withUsage("a2"));
+        llm.enqueue(contentWithUsage("a2"));
         session.prompt("middle").get(2, TimeUnit.SECONDS);
-        llm.enqueue(withUsage("a3"));
+        llm.enqueue(contentWithUsage("a3"));
         session.prompt("last").get(2, TimeUnit.SECONDS);
 
         assertTrue(session.messages().size() >= 6);
@@ -146,7 +139,7 @@ class PijotaEndToEndTest {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
         session.setSessionName("Named Session");
-        llm.enqueue(withUsage("ok"));
+        llm.enqueue(contentWithUsage("ok"));
         session.prompt("hi").get(2, TimeUnit.SECONDS);
 
         var file = session.sessionFile();
@@ -159,7 +152,7 @@ class PijotaEndToEndTest {
     void newSessionClearsMessagesAndStartsClean() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("old answer"));
+        llm.enqueue(contentWithUsage("old answer"));
         session.prompt("old question").get(2, TimeUnit.SECONDS);
 
         int beforeCount = session.messages().size();
@@ -168,7 +161,7 @@ class PijotaEndToEndTest {
 
         assertTrue(session.userMessages().isEmpty(), "user messages should be empty after new session");
 
-        llm.enqueue(withUsage("new answer"));
+        llm.enqueue(contentWithUsage("new answer"));
         session.prompt("new question").get(2, TimeUnit.SECONDS);
 
         assertEquals(1, session.userMessages().size());
@@ -182,7 +175,7 @@ class PijotaEndToEndTest {
         llm.enqueue(FauxLlm.Response.content(new Usage(1, 1), "a1"));
         session.prompt("q1").get(2, TimeUnit.SECONDS);
 
-        llm.enqueueError("temporary server error").enqueue(withUsage("recovery"));
+        llm.enqueueError("temporary server error").enqueue(contentWithUsage("recovery"));
         session.prompt("q2").get(5, TimeUnit.SECONDS);
 
         assertEquals(2, session.userMessages().size());
@@ -195,7 +188,7 @@ class PijotaEndToEndTest {
         long initialTokens = session.estimatedContextTokens();
 
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("hello world " + "x".repeat(500)));
+        llm.enqueue(contentWithUsage("hello world " + "x".repeat(500)));
         session.prompt("test question " + "y".repeat(500)).get(2, TimeUnit.SECONDS);
 
         long afterTokens = session.estimatedContextTokens();
@@ -220,7 +213,7 @@ class PijotaEndToEndTest {
     void listSessionsReturnsKnownSessions() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("ok"));
+        llm.enqueue(contentWithUsage("ok"));
         session.prompt("test").get(2, TimeUnit.SECONDS);
         session.setSessionName("EndToEnd Session");
 
@@ -234,7 +227,7 @@ class PijotaEndToEndTest {
     void exportSessionProducesMarkdown() throws Exception {
         var session = createSession(false);
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(withUsage("AI response"));
+        llm.enqueue(contentWithUsage("AI response"));
         session.prompt("test question").get(2, TimeUnit.SECONDS);
 
         var markdown = ai.pijota.agent.SessionExporter.toMarkdown(session.sessionFile());

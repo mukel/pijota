@@ -1,5 +1,7 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,40 +45,17 @@ public final class SlashCommandTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("question", Map.of("type", "string", "description",
-                                        "Single question to ask. Alias for questions[0].question"), "text",
-                                        Map.of("type", "string", "description",
-                                                                        "Single question to ask. Alias for question"),
-                                        "header",
-                                        Map.of("type", "string", "description",
-                                                                        "Very short label for a single question"),
-                                        "options",
-                                        Map.of("type", "array", "description", "Options for a single question", "items",
-                                                                        optionSchema()),
-                                        "multiple",
-                                        Map.of("type", "boolean", "description",
-                                                                        "Allow selecting multiple options for a single question"),
-                                        "questions",
-                                        Map.of("type", "array", "description",
-                                                                        "Questions to ask. Preferred form for one or more questions.",
-                                                                        "items",
-                                                                        Map.of("type", "object", "properties", Map.of(
-                                                                                                        "question",
-                                                                                                        Map.of("type", "string", "description",
-                                                                                                                                        "Complete question"),
-                                                                                                        "text",
-                                                                                                        Map.of("type", "string", "description",
-                                                                                                                                        "Alias for question"),
-                                                                                                        "header",
-                                                                                                        Map.of("type", "string", "description",
-                                                                                                                                        "Very short label"),
-                                                                                                        "options",
-                                                                                                        Map.of("type", "array", "items", optionSchema()),
-                                                                                                        "multiple",
-                                                                                                        Map.of("type", "boolean")),
-                                                                                                        "additionalProperties",
-                                                                                                        false))),
-                                        "additionalProperties", false);
+        var questionItem = ToolSchema.object().str("question", "Complete question").str("text", "Alias for question")
+                                        .str("header", "Very short label").array("options", null, false, optionSchema())
+                                        .bool("multiple", null).build();
+        return ToolSchema.object().str("question", "Single question to ask. Alias for questions[0].question")
+                                        .str("text", "Single question to ask. Alias for question")
+                                        .str("header", "Very short label for a single question")
+                                        .array("options", "Options for a single question", false, optionSchema())
+                                        .bool("multiple", "Allow selecting multiple options for a single question")
+                                        .array("questions", "Questions to ask. Preferred form for one or more questions.",
+                                                                        false, questionItem)
+                                        .build();
     }
 
     @Override
@@ -139,10 +118,8 @@ public final class SlashCommandTool implements Tool {
     }
 
     private static Map<String, Object> optionSchema() {
-        return Map.of("type", "object", "properties", Map.of("label",
-                                        Map.of("type", "string", "description", "Short option label"), "description",
-                                        Map.of("type", "string", "description", "What this option means")), "required",
-                                        List.of("label"));
+        return ToolSchema.object().str("label", "Short option label", true).str("description", "What this option means")
+                                        .buildOpen();
     }
 
     private static List<?> normalizeQuestions(Map<String, Object> args) {

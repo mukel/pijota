@@ -2,12 +2,12 @@ package ai.pijota.tools;
 
 import java.util.ArrayList;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -36,10 +36,8 @@ public final class WriteTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("path", Map.of("type", "string", "description",
-                                        "Path to the file to write (relative or absolute)"), "content",
-                                        Map.of("type", "string", "description", "Content to write to the file")),
-                                        "required", List.of("path", "content"), "additionalProperties", false);
+        return ToolSchema.object().str("path", "Path to the file to write (relative or absolute)", true)
+                                        .str("content", "Content to write to the file", true).build();
     }
 
     @Override

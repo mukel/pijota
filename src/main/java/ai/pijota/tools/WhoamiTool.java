@@ -1,6 +1,7 @@
 package ai.pijota.tools;
 
 import ai.pijota.llm.ModelRegistry;
+import ai.pijota.llm.ToolSchema;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -28,7 +29,7 @@ public final class WhoamiTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of(), "additionalProperties", false);
+        return ToolSchema.object().build();
     }
 
     @Override

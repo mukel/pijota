@@ -38,6 +38,12 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
     private boolean closed;
     private boolean aborted;
     private boolean compacted;
+    private java.util.function.Function<List<String>, ExecResult> execStub;
+
+    /** Stubs {@link #exec} so tests can simulate a missing/erroring binary without shelling out. */
+    public void setExecStub(java.util.function.Function<List<String>, ExecResult> stub) {
+        this.execStub = stub;
+    }
 
     public void setCwd(Path cwd) {
         this.cwd = cwd;
@@ -223,6 +229,8 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
 
     @Override
     public ExecResult exec(List<String> command) {
+        if (execStub != null)
+            return execStub.apply(command);
         try {
             var result = ProcessRunner.command(command).run();
             return new ExecResult(result.exitCode(), result.stdout(), result.stderr());

@@ -1,5 +1,6 @@
 package ai.pijota.extensions.mcp;
 
+import ai.pijota.testkit.Await;
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
 import ai.pijota.extensions.testkit.FakeExtensionRuntime;
 import ai.pijota.extensions.testkit.FakeUiContext;
@@ -195,7 +196,7 @@ class McpExtensionTest {
         f.ext.onReady(f.runtime);
 
         f.api.slashCommand("mcp").handler().accept("reconnect nope");
-        await(() -> f.runtime.statusCalls().stream().anyMatch(s -> s.contains("unknown server")));
+        Await.until(() -> f.runtime.statusCalls().stream().anyMatch(s -> s.contains("unknown server")));
         f.ext.onShutdown(f.runtime);
     }
 
@@ -209,7 +210,7 @@ class McpExtensionTest {
         f.api.slashCommand("mcp").handler().accept("reconnect srv");
 
         // wait for the reconnect to fully settle: a new transport opened AND the tool re-registered
-        await(() -> f.transports.size() == 2 && f.registry.get("mcp__srv__echo").isPresent());
+        Await.until(() -> f.transports.size() == 2 && f.registry.get("mcp__srv__echo").isPresent());
         assertTrue(f.transports.getFirst().isClosed(), "old transport closed on reconnect");
         f.ext.onShutdown(f.runtime);
     }
@@ -237,7 +238,7 @@ class McpExtensionTest {
         assertTrue(f.registry.get("mcp__srv__echo").isPresent());
 
         f.api.slashCommand("mcp").handler().accept("disconnect srv");
-        await(() -> f.registry.get("mcp__srv__echo").isEmpty());
+        Await.until(() -> f.registry.get("mcp__srv__echo").isEmpty());
         assertTrue(f.transports.getFirst().isClosed(), "server process closed on disconnect");
         f.ext.onShutdown(f.runtime);
     }
@@ -248,10 +249,10 @@ class McpExtensionTest {
                                         FakeMcpTransport.tool("echo", "Echo"));
         f.ext.onReady(f.runtime);
         f.api.slashCommand("mcp").handler().accept("disconnect srv");
-        await(() -> f.registry.get("mcp__srv__echo").isEmpty());
+        Await.until(() -> f.registry.get("mcp__srv__echo").isEmpty());
 
         f.api.slashCommand("mcp").handler().accept("connect srv");
-        await(() -> f.registry.get("mcp__srv__echo").isPresent());
+        Await.until(() -> f.registry.get("mcp__srv__echo").isPresent());
         assertEquals(2, f.transports.size(), "connect opens a fresh transport");
         f.ext.onShutdown(f.runtime);
     }
@@ -272,13 +273,13 @@ class McpExtensionTest {
         var ext = new McpExtension(cwd -> config.get(), factory);
         ext.init(api);
         ext.onReady(runtime);
-        await(() -> registry.get("mcp__a__echo").isPresent() && registry.get("mcp__b__echo").isPresent());
+        Await.until(() -> registry.get("mcp__a__echo").isPresent() && registry.get("mcp__b__echo").isPresent());
 
         // drop b, keep a unchanged, change a's args (→ restart), add c
         config.set(List.of(server("a", List.of("--v2")), server("c", List.of())));
         api.slashCommand("mcp").handler().accept("reload");
 
-        await(() -> registry.get("mcp__c__echo").isPresent() // added
+        Await.until(() -> registry.get("mcp__c__echo").isPresent() // added
                                         && registry.get("mcp__b__echo").isEmpty() // removed
                                         && registry.get("mcp__a__echo").isPresent()); // restarted (changed)
         assertTrue(runtime.statusCalls().stream().anyMatch(s -> s.contains("+1 -1 ~1")),
@@ -290,13 +291,4 @@ class McpExtensionTest {
         return new McpServerConfig(name, "cmd", args, Map.of(), true);
     }
 
-    private static void await(java.util.function.BooleanSupplier condition) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + 5000;
-        while (System.currentTimeMillis() < deadline) {
-            if (condition.getAsBoolean())
-                return;
-            Thread.sleep(10);
-        }
-        fail("condition not met within timeout");
-    }
 }

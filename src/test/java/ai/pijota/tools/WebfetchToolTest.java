@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
 
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WebfetchToolTest {
@@ -187,23 +188,23 @@ class WebfetchToolTest {
     }
 
     @Test
-    void executeWithNullUrlReturnsError() throws Exception {
+    void executeWithNullUrlReturnsError() {
         var tool = new WebfetchTool();
-        var result = tool.execute("call-1", java.util.Map.of(), "/cwd").get();
+        var result = run(tool, java.util.Map.of(), "/cwd");
         assertTrue(result.isError());
     }
 
     @Test
-    void executeWithBlankUrlReturnsError() throws Exception {
+    void executeWithBlankUrlReturnsError() {
         var tool = new WebfetchTool();
-        var result = tool.execute("call-1", java.util.Map.of("url", "  "), "/cwd").get();
+        var result = run(tool, java.util.Map.of("url", "  "), "/cwd");
         assertTrue(result.isError());
     }
 
     @Test
-    void executeWithInvalidUrlReturnsError() throws Exception {
+    void executeWithInvalidUrlReturnsError() {
         var tool = new WebfetchTool();
-        var result = tool.execute("call-1", java.util.Map.of("url", "not a url"), "/cwd").get();
+        var result = run(tool, java.util.Map.of("url", "not a url"), "/cwd");
         assertTrue(result.isError());
     }
 }

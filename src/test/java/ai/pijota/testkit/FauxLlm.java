@@ -21,10 +21,20 @@ public final class FauxLlm implements LlmClient {
     private final Queue<Response> responses = new ArrayDeque<>();
     private final List<Request> requests = new ArrayList<>();
     private boolean aborted;
+    private RuntimeException streamThrows;
     private String provider = "faux";
     private String model = "faux-model";
     private long inputTokens;
     private long outputTokens;
+
+    /**
+     * Makes {@link #streamMessages} throw synchronously (a provider that fails on the calling thread), rather than
+     * returning a failed future — to exercise the agent loop's synchronous-failure resilience.
+     */
+    public FauxLlm throwOnStream(RuntimeException error) {
+        this.streamThrows = error;
+        return this;
+    }
 
     /** Sets the cumulative token counts reported by {@link #totalInputTokens()} / {@link #totalOutputTokens()}. */
     public FauxLlm tokens(long input, long output) {
@@ -108,6 +118,8 @@ public final class FauxLlm implements LlmClient {
     @Override
     public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
                                     BiConsumer<String, String> onPartial) {
+        if (streamThrows != null)
+            throw streamThrows;
         requests.add(new Request(List.copyOf(messages), List.copyOf(tools)));
         var response = responses.poll();
         if (response == null) {
@@ -167,6 +179,14 @@ public final class FauxLlm implements LlmClient {
 
         public static Response content(Usage usage, String... deltas) {
             return new Response(List.of(deltas), List.of(), List.of(), usage, null, false);
+        }
+
+        /**
+         * A single-content response carrying a nominal non-zero {@link Usage} (1 token in, 1 out) — the common "this
+         * turn consumed some tokens" case for agent/session tests.
+         */
+        public static Response contentWithUsage(String content) {
+            return content(new Usage(1, 1), content);
         }
 
         public static Response thinkingAndContent(List<String> thinkingDeltas, String... contentDeltas) {

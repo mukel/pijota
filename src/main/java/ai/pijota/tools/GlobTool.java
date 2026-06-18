@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 
@@ -58,18 +59,12 @@ public final class GlobTool implements Tool {
 
     @Override
     public Map<String, Object> schema() {
-        return Map.of("type", "object", "properties", Map.of("pattern", Map.of("type", "string", "description",
-                                        "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'"),
-                                        "path",
-                                        Map.of("type", "string", "description",
-                                                                        "Directory to search in (default: current directory)"),
-                                        "limit",
-                                        Map.of("type", "integer", "description",
-                                                                        "Maximum number of results (default: 1000)"),
-                                        "timeout",
-                                        Map.of("type", "number", "description",
-                                                                        "Timeout in seconds before file search is killed (default 30)")),
-                                        "required", List.of("pattern"), "additionalProperties", false);
+        return ToolSchema.object().str("pattern",
+                                        "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'",
+                                        true).str("path", "Directory to search in (default: current directory)")
+                                        .integer("limit", "Maximum number of results (default: 1000)")
+                                        .number("timeout", "Timeout in seconds before file search is killed (default 30)")
+                                        .build();
     }
 
     @Override
