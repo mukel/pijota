@@ -188,4 +188,59 @@ class TmuxClientTest {
         assertEquals(-1, result.exitCode());
         assertEquals("generic failure", result.stderr());
     }
+
+    @Test
+    void sendKeysPropagatesStderrOnFailure() {
+        var client = fakeClient(1, "", "target not found");
+        var result = client.sendKeys("%0", "x", true);
+        assertFalse(result.success());
+        assertTrue(result.stderr().contains("target not found"));
+    }
+
+    @Test
+    void capturePanePropagatesStderrOnFailure() {
+        var client = fakeClient(1, "", "no such pane");
+        var result = client.capturePane("%0", 10);
+        assertFalse(result.success());
+        assertTrue(result.stderr().contains("no such pane"));
+    }
+
+    @Test
+    void capturePaneClampsLargeLineCount() {
+        var client = fakeClient(0, "x", "");
+        client.capturePane("%0", 20_000);
+        assertEquals(List.of("tmux", "capture-pane", "-t", "%0", "-p", "-S", "-10000"), commands.getLast());
+    }
+
+    @Test
+    void listSessionsPropagatesFailure() {
+        var client = fakeClient(1, "", "server not found");
+        var result = client.listSessions();
+        assertFalse(result.success());
+        assertTrue(result.stderr().contains("server not found"));
+    }
+
+    @Test
+    void listPanesPropagatesFailure() {
+        var client = fakeClient(1, "", "no such session");
+        var result = client.listPanes("missing");
+        assertFalse(result.success());
+        assertTrue(result.stderr().contains("no such session"));
+    }
+
+    @Test
+    void killSessionPropagatesStderrOnFailure() {
+        var client = fakeClient(1, "", "session not found");
+        var result = client.killSession("missing");
+        assertFalse(result.success());
+        assertTrue(result.stderr().contains("session not found"));
+    }
+
+    @Test
+    void killPanePropagatesStderrOnFailure() {
+        var client = fakeClient(1, "", "pane not found");
+        var result = client.killPane("%99");
+        assertFalse(result.success());
+        assertTrue(result.stderr().contains("pane not found"));
+    }
 }

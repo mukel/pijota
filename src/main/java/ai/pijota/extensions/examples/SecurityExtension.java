@@ -55,7 +55,8 @@ public final class SecurityExtension implements Extension {
         api.onToolCall((tc, ctx) -> {
             if (!enabled)
                 return null;
-            if (!"bash".equals(tc.toolName()))
+            if (!"bash".equals(tc.toolName()) && !"tmux_bash".equals(tc.toolName())) // tmux_bash also runs shell
+                                                                                     // commands
                 return null;
             String command = Util.parseBashArgs(tc.arguments());
             if (command == null)

@@ -65,6 +65,17 @@ class SecurityExtensionTest {
     }
 
     @Test
+    void toolCallBlocksDangerousTmuxBashCommand() {
+        // tmux_bash runs shell commands too, so the same guard must cover it (not just the bash tool)
+        var api = new FakeExtensionAPI();
+        var ext = new SecurityExtension();
+        ext.init(api);
+        var result = api.fire(new ExtensionEvent.ToolCall("id", "tmux_bash", "{\"command\":\"rm -rf /\"}", true));
+        assertInstanceOf(ExtensionResult.Block.class, result);
+        assertTrue(((ExtensionResult.Block) result).reason().contains("recursive delete"));
+    }
+
+    @Test
     void toolCallAllowsSafeBashCommand() {
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();

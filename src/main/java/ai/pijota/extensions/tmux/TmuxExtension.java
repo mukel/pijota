@@ -2,9 +2,7 @@ package ai.pijota.extensions.tmux;
 
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
-import ai.pijota.extensions.ExtensionContext;
 import ai.pijota.extensions.ExtensionEvent;
-import ai.pijota.extensions.ExtensionResult;
 import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.extensions.UiContext;
 import ai.pijota.llm.ToolSchema;
@@ -14,8 +12,10 @@ import ai.pijota.tools.Tool;
 import ai.pijota.util.Emojis;
 import ai.pijota.util.Util;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -32,16 +32,20 @@ import java.util.regex.Pattern;
 public final class TmuxExtension implements Extension {
 
     private static final String CUSTOM_TYPE = "tmux";
-    private static final Pattern SAFE_NAME = Pattern.compile("^[a-zA-Z0-9._-]+$");
     private static final Pattern FORBIDDEN_KEYS = Pattern.compile("[\\p{Cntrl}]");
     private static final int MAX_OUTPUT_LINES = 1000;
     private static final int MAX_STATUS_NAMES = 3;
+    private static final long ALIVE_TTL_MS = 2000; // cap `tmux has-session` probes — the status line polls this ~1×/s
 
     private final TmuxClient client;
     private final Map<String, TmuxSession> sessions = new ConcurrentHashMap<>();
     private final AtomicInteger sequence = new AtomicInteger(0);
+    private final Object createLock = new Object(); // serialize name reservation + session creation across parallel
+                                                    // calls
     private ExtensionAPI api;
     private volatile String sessionPrefix;
+    private volatile Path stateFile; // sidecar persistence; null when the session has no file (no persistence)
+    private volatile long lastAliveRefresh;
 
     public TmuxExtension() {
         this(new TmuxClient());
@@ -66,14 +70,16 @@ public final class TmuxExtension implements Extension {
         this.api = api;
 
         api.on(ExtensionEvent.SessionStart.class, (ev, _ctx) -> {
-            String fileName = ev.sessionPath() != null ? ev.sessionPath().getFileName().toString() : null;
+            Path path = ev.sessionPath();
+            String fileName = path != null ? path.getFileName().toString() : null;
             String base = fileName != null ? fileName.replaceFirst("\\.[^.]+$", "") : Util.shortUuid(8);
             this.sessionPrefix = "pijota-" + base.substring(0, Math.min(base.length(), 8));
+            // State lives in a sidecar next to the session file, not in the transcript: it's machine-local
+            // bookkeeping (tmux names only mean anything on this host) and a hint validated against live tmux on load.
+            this.stateFile = path != null ? path.resolveSibling(base + ".tmux.json") : null;
         });
 
         api.on(ExtensionEvent.SessionReady.class, (_, _ctx) -> loadState());
-
-        api.registerMessageRenderer(this::renderCustomMessage);
 
         api.registerTool(new Tool.ToolDefinition("tmux_bash",
                                         "Run a shell command in a new detached tmux pane and return immediately. "
@@ -106,12 +112,10 @@ public final class TmuxExtension implements Extension {
                                                                         .build(),
                                         (id, args, cwd) -> CompletableFuture.completedFuture(tmuxList(args))));
 
-        api.registerTool(new Tool.ToolDefinition("tmux_kill", "Kill a tmux session or pane managed by Pijota.",
-                                        ToolSchema.object().str("target", "Friendly name or tmux target", true).bool(
-                                                                        "confirm",
-                                                                        "Confirmation already obtained (default false)")
-                                                                        .build(),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxKill(args, false))));
+        api.registerTool(new Tool.ToolDefinition("tmux_kill", "Kill a Pijota-managed tmux session.", ToolSchema.object()
+                                        .str("target", "Friendly name of a managed session (see tmux_list)", true)
+                                        .bool("confirm", "Skip the kill confirmation prompt (default false)").build(),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxKill(args))));
 
         api.registerSlashCommand(new SlashCommand("tmux-list", "List supervised tmux sessions", List.of(),
                                         _args -> note(listText())));
@@ -146,24 +150,29 @@ public final class TmuxExtension implements Extension {
             return Tool.ToolResult.error("command is required");
 
         Path workdir = resolveWorkdir(args, cwd);
-        String friendlyName = uniqueFriendlyName(Util.getString(args, "name", generateName(command)));
-        String tmuxName = tmuxName(friendlyName);
         boolean cleanup = Boolean.TRUE.equals(args.get("cleanup_on_exit"));
 
-        var result = client.newSession(tmuxName, workdir, command);
-        if (!result.success())
-            return Tool.ToolResult.error("tmux new-session failed: " + result.stderr());
+        // Reserve the name, create the tmux session, and record it as one atomic step: tools run in parallel, so two
+        // concurrent tmux_bash calls could otherwise pick the same name and collide / leak an untracked session.
+        synchronized (createLock) {
+            String friendlyName = uniqueFriendlyName(Util.getString(args, "name", generateName(command)));
+            String tmuxName = tmuxName(friendlyName);
 
-        String paneId = findFirstPane(tmuxName);
-        var session = new TmuxSession(Util.shortUuid(8), tmuxName, friendlyName, command,
-                                        workdir != null ? workdir.toString() : cwd, paneId, System.currentTimeMillis(),
-                                        cleanup);
-        sessions.put(friendlyName, session);
-        saveState();
+            var result = client.newSession(tmuxName, workdir, command);
+            if (!result.success())
+                return Tool.ToolResult.error("tmux new-session failed: " + result.stderr());
 
-        Map<String, Object> details = Map.<String, Object>of("name", friendlyName, "tmux_name", tmuxName, "pane",
-                                        paneId != null ? paneId : "", "command", command);
-        return Tool.ToolResult.success("Started tmux session \"" + friendlyName + "\"", details);
+            String paneId = findFirstPane(tmuxName);
+            var session = new TmuxSession(Util.shortUuid(8), tmuxName, friendlyName, command,
+                                            workdir != null ? workdir.toString() : cwd, paneId,
+                                            System.currentTimeMillis(), cleanup);
+            sessions.put(friendlyName, session);
+            saveState();
+
+            Map<String, Object> details = Map.<String, Object>of("name", friendlyName, "tmux_name", tmuxName, "pane",
+                                            paneId != null ? paneId : "", "command", command);
+            return Tool.ToolResult.success("Started tmux session \"" + friendlyName + "\"", details);
+        }
     }
 
     private Tool.ToolResult tmuxSend(Map<String, Object> args) {
@@ -222,11 +231,10 @@ public final class TmuxExtension implements Extension {
             return Tool.ToolResult.success(result.stdout().isBlank() ? "(no panes)" : result.stdout());
         }
 
-        refreshAlive();
         return Tool.ToolResult.success(listText());
     }
 
-    private Tool.ToolResult tmuxKill(Map<String, Object> args, boolean fromSlash) {
+    private Tool.ToolResult tmuxKill(Map<String, Object> args) {
         if (!client.hasTmux())
             return Tool.ToolResult.error("tmux is not installed");
 
@@ -234,24 +242,23 @@ public final class TmuxExtension implements Extension {
         if (target == null)
             return Tool.ToolResult.error("target is required");
 
-        var session = sessions.values().stream().filter(s -> s.friendlyName().equals(target)).findFirst().orElse(null);
-        String tmuxTarget = session != null ? session.tmuxName() : target;
+        // Only kill sessions Pijota started — a raw tmux target could be the user's own session/window.
+        var session = sessions.get(target);
+        if (session == null)
+            return Tool.ToolResult.error("unknown session \"" + target
+                                            + "\" — only Pijota-managed sessions can be killed (see tmux_list)");
 
-        if (fromSlash) {
-            boolean ok = uiConfirm("Kill tmux session " + tmuxTarget + "?");
-            if (!ok)
-                return Tool.ToolResult.success("Cancelled");
-        }
+        if (!Boolean.TRUE.equals(args.get("confirm"))
+                                        && !uiConfirm("Kill tmux session " + session.friendlyName() + "?"))
+            return Tool.ToolResult.success("Cancelled");
 
-        var result = client.killSession(tmuxTarget);
+        var result = client.killSession(session.tmuxName());
         if (!result.success() && !result.stderr().contains("session not found"))
             return Tool.ToolResult.error("tmux kill-session failed: " + result.stderr());
 
-        if (session != null) {
-            sessions.put(session.friendlyName(), session.withAlive(false));
-            saveState();
-        }
-        return Tool.ToolResult.success("Killed " + tmuxTarget);
+        sessions.remove(session.friendlyName()); // stop tracking + drop it from the list/status
+        saveState();
+        return Tool.ToolResult.success("Killed " + session.friendlyName());
     }
 
     // ---- slash commands ----
@@ -296,77 +303,69 @@ public final class TmuxExtension implements Extension {
 
     // ---- state persistence ----
 
+    /** Best-effort: write the sidecar atomically (or delete it once empty). A failure here never breaks the caller. */
     private void saveState() {
-        var sb = new StringBuilder();
-        for (var session : sessions.values()) {
-            sb.append(String.join("\t", session.id(), session.tmuxName(), session.friendlyName(), session.command(),
-                                            session.workdir() != null ? session.workdir() : "",
-                                            session.paneId() != null ? session.paneId() : "",
-                                            String.valueOf(session.createdAt()), String.valueOf(session.autoCleanup()),
-                                            String.valueOf(session.alive())));
-            sb.append('\n');
+        if (stateFile == null)
+            return;
+        try {
+            if (sessions.isEmpty()) {
+                Files.deleteIfExists(stateFile);
+                return;
+            }
+            Path tmp = stateFile.resolveSibling(stateFile.getFileName() + ".tmp");
+            Files.writeString(tmp, Util.MAPPER.writeValueAsString(List.copyOf(sessions.values())));
+            Files.move(tmp, stateFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (Exception e) {
+            // disk full / unwritable dir / atomic-move unsupported → keep running with in-memory state only
         }
-        api.sendMessage(new Message.Custom(CUSTOM_TYPE, sb.toString()));
     }
 
     private void loadState() {
         sessions.clear();
-        List<Message> messages = api.runtime().messages();
-        if (messages == null)
+        if (stateFile == null)
             return;
-        for (int i = messages.size() - 1; i >= 0; i--) {
-            Message msg = messages.get(i);
-            if (msg instanceof Message.Custom c && CUSTOM_TYPE.equals(c.customType())) {
-                for (String line : c.content().lines().toList()) {
-                    if (line.isBlank())
-                        continue;
-                    String[] parts = line.split("\t", 9);
-                    if (parts.length < 8)
-                        continue;
-                    var session = new TmuxSession(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5],
-                                                    parseLong(parts[6]), Boolean.parseBoolean(parts[7]));
-                    sessions.putIfAbsent(session.friendlyName(), session);
-                }
-                refreshAlive();
-                return;
-            }
+        String json;
+        try {
+            json = Files.readString(stateFile);
+        } catch (IOException e) {
+            return; // no prior state (or unreadable) — start fresh
+        }
+        for (TmuxSession session : parseSessions(json)) // tolerates corrupt/legacy content (→ nothing)
+            sessions.putIfAbsent(session.friendlyName(), session);
+        refreshAlive(true); // the sidecar is only a hint — reconcile it against what tmux actually reports
+        if (sessions.values().removeIf(s -> !s.alive())) // drop tombstones (e.g. everything died over a reboot)
+            saveState();
+    }
+
+    /** Parses a persisted session snapshot; tolerates blank/legacy/corrupt content by returning nothing. */
+    private static List<TmuxSession> parseSessions(String json) {
+        if (json == null || json.isBlank())
+            return List.of();
+        try {
+            return List.of(Util.MAPPER.readValue(json, TmuxSession[].class));
+        } catch (Exception e) {
+            return List.of();
         }
     }
 
-    private void refreshAlive() {
+    private void refreshAlive(boolean force) {
+        long now = System.currentTimeMillis();
+        if (!force && now - lastAliveRefresh < ALIVE_TTL_MS)
+            return; // serve cached liveness — statusLines() polls this roughly once a second
+        lastAliveRefresh = now;
         if (!client.hasTmux())
             return;
         for (var entry : sessions.entrySet()) {
             var session = entry.getValue();
             boolean alive = client.sessionExists(session.tmuxName());
-            if (alive != session.alive()) {
+            if (alive != session.alive())
                 entry.setValue(session.withAlive(alive));
-            }
         }
     }
 
-    // ---- rendering ----
-
-    private ExtensionResult.MessageRender renderCustomMessage(Message msg, ExtensionContext ctx) {
-        if (!(msg instanceof Message.Custom c) || !CUSTOM_TYPE.equals(c.customType()))
-            return null;
-        var lines = new ArrayList<String>();
-        for (String line : c.content().lines().toList()) {
-            if (line.isBlank())
-                continue;
-            String[] parts = line.split("\t", 9);
-            if (parts.length >= 3) {
-                boolean alive = parts.length >= 9 && Boolean.parseBoolean(parts[8]);
-                lines.add((alive ? "▣" : "□") + " " + parts[2] + " — " + parts[3]);
-            }
-        }
-        if (lines.isEmpty())
-            return new ExtensionResult.MessageRender(List.of("no tmux sessions"));
-        return new ExtensionResult.MessageRender(lines);
-    }
-
-    private List<String> statusLines() {
-        refreshAlive();
+    // package-private: also exercised directly by the throttle test
+    List<String> statusLines() {
+        refreshAlive(false);
         var alive = sessions.values().stream().filter(TmuxSession::alive)
                                         .sorted(Comparator.comparing(TmuxSession::createdAt)).toList();
         if (alive.isEmpty())
@@ -379,7 +378,7 @@ public final class TmuxExtension implements Extension {
     }
 
     private String listText() {
-        refreshAlive();
+        refreshAlive(true);
         if (sessions.isEmpty())
             return "No supervised tmux sessions.";
         var sb = new StringBuilder();
@@ -465,13 +464,5 @@ public final class TmuxExtension implements Extension {
 
     private void note(String text) {
         api.sendMessage(new Message.Custom(CUSTOM_TYPE + "-note", text));
-    }
-
-    private static long parseLong(String s) {
-        try {
-            return s != null && !s.isBlank() ? Long.parseLong(s) : 0;
-        } catch (NumberFormatException e) {
-            return 0;
-        }
     }
 }

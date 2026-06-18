@@ -1,19 +1,21 @@
 package ai.pijota.extensions.tmux;
 
-import ai.pijota.extensions.ExtensionContext;
 import ai.pijota.extensions.ExtensionEvent;
+import ai.pijota.extensions.UiContext;
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
 import ai.pijota.extensions.testkit.FakeExtensionRuntime;
-import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,8 +24,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TmuxExtensionTest {
 
+    private static final String SESSION_FILE = "123e4567-1234-1234-1234-123456789012.jsonl";
+
+    @TempDir
+    Path tmp;
+
     private final List<String> killed = new ArrayList<>();
     private final List<String> commands = new ArrayList<>();
+
+    private Path sessionPath() {
+        return tmp.resolve(SESSION_FILE);
+    }
+
+    /** The sidecar TmuxExtension writes for {@link #SESSION_FILE} (sibling, base name + ".tmux.json"). */
+    private Path sidecar() {
+        return tmp.resolve("123e4567-1234-1234-1234-123456789012.tmux.json");
+    }
 
     private TmuxClient fakeClient() {
         return new TmuxClient((command, timeout) -> {
@@ -75,13 +91,22 @@ class TmuxExtensionTest {
         var api = new FakeExtensionAPI(runtime);
         var ext = new TmuxExtension(client);
         ext.init(api);
-        api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/123e4567-1234-1234-1234-123456789012.jsonl")));
+        api.fire(new ExtensionEvent.SessionStart(sessionPath())); // sidecar lands in the per-test temp dir
         api.fireSessionReady();
         return new Setup(api, ext);
     }
 
     private Tool.ToolResult runTool(FakeExtensionAPI api, String toolName, Map<String, Object> args) throws Exception {
         return api.tool(toolName).execute().execute("id", args, "/tmp").get();
+    }
+
+    /** Builds a persisted-state snapshot the way saveState() does, for seeding reload/render tests. */
+    private static String stateJson(TmuxSession... sessions) {
+        try {
+            return ai.pijota.util.Util.MAPPER.writeValueAsString(List.of(sessions));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // ---- registration ----
@@ -99,7 +124,6 @@ class TmuxExtensionTest {
         assertNotNull(api.slashCommand("tmux-capture"));
         assertNotNull(api.slashCommand("supervise"));
         assertFalse(api.statusLineSuppliers().isEmpty());
-        assertFalse(api.renderers().isEmpty());
     }
 
     // ---- tmux_bash ----
@@ -276,18 +300,32 @@ class TmuxExtensionTest {
         var client = fakeClient();
         var api = init(client);
         runTool(api, "tmux_bash", Map.of("command", "npm run dev", "name", "server"));
-        var result = runTool(api, "tmux_kill", Map.of("target", "server"));
+        var result = runTool(api, "tmux_kill", Map.of("target", "server", "confirm", true));
         assertFalse(result.isError());
         assertTrue(killed.contains("pijota-123e4567-server"));
+        // killed sessions are pruned from the list, not left lingering as dead entries
+        assertFalse(runTool(api, "tmux_list", Map.of()).content().contains("server"));
     }
 
     @Test
-    void tmuxKillAcceptsRawTarget() throws Exception {
+    void tmuxKillRejectsUnmanagedTarget() throws Exception {
         var client = fakeClient();
         var api = init(client);
-        var result = runTool(api, "tmux_kill", Map.of("target", "some-other-session"));
+        // a raw target Pijota never started could be the user's own session — refuse it
+        var result = runTool(api, "tmux_kill", Map.of("target", "some-other-session", "confirm", true));
+        assertTrue(result.isError());
+        assertTrue(killed.isEmpty());
+    }
+
+    @Test
+    void tmuxKillWithoutConfirmCancelsWhenNoUi() throws Exception {
+        var client = fakeClient();
+        var api = init(client);
+        runTool(api, "tmux_bash", Map.of("command", "npm run dev", "name", "server"));
+        var result = runTool(api, "tmux_kill", Map.of("target", "server")); // no confirm, no UI → cancelled
         assertFalse(result.isError());
-        assertTrue(killed.contains("some-other-session"));
+        assertTrue(result.content().contains("Cancelled"));
+        assertTrue(killed.isEmpty());
     }
 
     @Test
@@ -302,8 +340,21 @@ class TmuxExtensionTest {
         });
         var api = init(client);
         runTool(api, "tmux_bash", Map.of("command", "npm run dev", "name", "server"));
-        var result = runTool(api, "tmux_kill", Map.of("target", "server"));
+        var result = runTool(api, "tmux_kill", Map.of("target", "server", "confirm", true));
         assertFalse(result.isError());
+    }
+
+    @Test
+    void livenessProbeIsThrottledAcrossStatusPolls() throws Exception {
+        var client = fakeClient();
+        var setup = initWithExt(client);
+        runTool(setup.api(), "tmux_bash", Map.of("command", "npm run dev", "name", "server"));
+        commands.clear();
+        // the status line polls ~once a second; back-to-back calls must not spawn a has-session probe each time
+        for (int i = 0; i < 5; i++)
+            setup.ext().statusLines();
+        long probes = commands.stream().filter(c -> c.contains("has-session")).count();
+        assertEquals(1, probes, "liveness should be cached within the TTL, not re-probed on every status poll");
     }
 
     // ---- state persistence ----
@@ -311,50 +362,62 @@ class TmuxExtensionTest {
     @Test
     void statePersistsAcrossReload() throws Exception {
         var client = fakeClient();
-        var api = init(client);
-        runTool(api, "tmux_bash", Map.of("command", "npm run dev", "name", "server"));
+        var setup1 = initWithExt(client);
+        runTool(setup1.api(), "tmux_bash", Map.of("command", "npm run dev", "name", "server"));
 
-        var runtime2 = new FakeExtensionRuntime();
-        runtime2.setCwd(Path.of("/tmp"));
-        runtime2.seedMessage(new Message.Custom("tmux", api.lastSentMessage()));
-        var api2 = new FakeExtensionAPI(runtime2);
-        var ext2 = new TmuxExtension(client);
-        ext2.init(api2);
-        api2.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/123e4567-1234-1234-1234-123456789012.jsonl")));
-        api2.fireSessionReady();
-
-        var result = runTool(api2, "tmux_list", Map.of());
+        // a fresh extension on the SAME session path reads the sidecar the first one wrote
+        var setup2 = initWithExt(client);
+        var result = runTool(setup2.api(), "tmux_list", Map.of());
         assertFalse(result.isError());
         assertTrue(result.content().contains("server"));
     }
 
     @Test
-    void stateLoadIgnoresMalformedLines() throws Exception {
-        var runtime = new FakeExtensionRuntime();
-        runtime.setCwd(Path.of("/tmp"));
-        runtime.seedMessage(new Message.Custom("tmux", "bad-line\n"));
-        var api = new FakeExtensionAPI(runtime);
-        var ext = new TmuxExtension(fakeClient());
-        ext.init(api);
-        api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/123e4567-1234-1234-1234-123456789012.jsonl")));
-        api.fireSessionReady();
-
-        var result = runTool(api, "tmux_list", Map.of());
+    void loadToleratesCorruptSidecar() throws Exception {
+        Files.writeString(sidecar(), "not json {{{"); // a torn/garbage file must not break startup
+        var setup = initWithExt(fakeClient());
+        var result = runTool(setup.api(), "tmux_list", Map.of());
         assertFalse(result.isError());
         assertTrue(result.content().contains("No supervised"));
     }
 
     @Test
-    void stateSurvivesEmptyCustomMessage() throws Exception {
-        var runtime = new FakeExtensionRuntime();
-        runtime.setCwd(Path.of("/tmp"));
-        runtime.seedMessage(new Message.Custom("tmux", ""));
-        var api = new FakeExtensionAPI(runtime);
-        var ext = new TmuxExtension(fakeClient());
-        ext.init(api);
-        api.fireSessionReady();
-        var result = runTool(api, "tmux_list", Map.of());
+    void loadToleratesEmptySidecar() throws Exception {
+        Files.writeString(sidecar(), "");
+        var setup = initWithExt(fakeClient());
+        assertFalse(runTool(setup.api(), "tmux_list", Map.of()).isError());
+    }
+
+    @Test
+    void loadPrunesSessionsThatNoLongerExist() throws Exception {
+        // tmux reports the persisted session as gone (e.g. after a reboot) → it's dropped, not shown as a tombstone
+        var client = new TmuxClient((command, timeout) -> {
+            String joined = String.join(" ", command);
+            if (joined.startsWith("tmux -V"))
+                return new TmuxClient.Result(0, "tmux 3.4", "");
+            if (joined.startsWith("tmux has-session"))
+                return new TmuxClient.Result(1, "", "session not found");
+            return new TmuxClient.Result(0, "", "");
+        });
+        Files.writeString(sidecar(), stateJson(new TmuxSession("id", "pijota-123e4567-dead", "dead", "cmd", "", "", 0,
+                                        false, true)));
+        var setup = initWithExt(client);
+        var result = runTool(setup.api(), "tmux_list", Map.of());
+        assertTrue(result.content().contains("No supervised"), result::content);
+    }
+
+    @Test
+    void statePersistsCommandsWithTabsAndNewlines() throws Exception {
+        var client = fakeClient();
+        var setup1 = initWithExt(client);
+        // a tab/newline in the command would have corrupted a tab-and-line delimited format; JSON escapes it
+        runTool(setup1.api(), "tmux_bash", Map.of("command", "echo a\tb\nrun", "name", "weird"));
+
+        var setup2 = initWithExt(client); // reload from the sidecar
+        var result = runTool(setup2.api(), "tmux_list", Map.of());
         assertFalse(result.isError());
+        assertTrue(result.content().contains("weird"), result::content); // the session survived intact
+        assertTrue(result.content().contains("echo a"), result::content); // the command was preserved
     }
 
     // ---- status lines ----
@@ -405,35 +468,6 @@ class TmuxExtensionTest {
         runTool(setup.api(), "tmux_bash", Map.of("command", "echo hi", "name", "keeper"));
         setup.ext().onShutdown(setup.api().runtime());
         assertFalse(killed.contains("pijota-123e4567-keeper"));
-    }
-
-    // ---- message renderer ----
-
-    @Test
-    void messageRendererFormatsSessionList() throws Exception {
-        var api = init(fakeClient());
-        runTool(api, "tmux_bash", Map.of("command", "npm run dev", "name", "server"));
-        var custom = api.sentMessages().stream().filter(m -> "tmux".equals(m.customType())).findFirst().orElseThrow();
-        for (var renderer : api.renderers()) {
-            var rendered = renderer.apply(custom, null);
-            if (rendered != null) {
-                assertTrue(rendered.lines().stream().anyMatch(l -> l.contains("server")), rendered::toString);
-                return;
-            }
-        }
-    }
-
-    @Test
-    void messageRendererHandlesEmptyState() {
-        var api = init(fakeClient());
-        var custom = new Message.Custom("tmux", "\n");
-        for (var renderer : api.renderers()) {
-            var rendered = renderer.apply(custom, new ExtensionContext(null, api.runtime()));
-            if (rendered != null) {
-                assertEquals(List.of("no tmux sessions"), rendered.lines());
-                return;
-            }
-        }
     }
 
     // ---- slash commands ----
@@ -517,5 +551,231 @@ class TmuxExtensionTest {
         assertTrue(runTool(api, "tmux_capture", Map.of("target", "s")).isError());
         assertTrue(runTool(api, "tmux_list", Map.of()).isError());
         assertTrue(runTool(api, "tmux_kill", Map.of("target", "s")).isError());
+    }
+
+    // ---- additional coverage ----
+
+    @Test
+    void tmuxBashReportsNewSessionFailure() throws Exception {
+        var client = new TmuxClient((command, timeout) -> {
+            String joined = String.join(" ", command);
+            if (joined.startsWith("tmux -V"))
+                return new TmuxClient.Result(0, "tmux 3.4", "");
+            if (joined.startsWith("tmux new-session"))
+                return new TmuxClient.Result(1, "", "session exists");
+            if (joined.startsWith("tmux list-panes"))
+                return new TmuxClient.Result(0, "%0\t1234\tpane", "");
+            return new TmuxClient.Result(0, "", "");
+        });
+        var api = init(client);
+        var result = runTool(api, "tmux_bash", Map.of("command", "echo hi"));
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("tmux new-session failed"));
+    }
+
+    @Test
+    void tmuxBashDefaultsWorkdirToRuntimeCwd() throws Exception {
+        var api = init(fakeClient());
+        runTool(api, "tmux_bash", Map.of("command", "echo hi"));
+        assertTrue(commands.stream().anyMatch(c -> c.startsWith("tmux new-session") && c.contains("-c /tmp")),
+                                        commands::toString);
+    }
+
+    @Test
+    void tmuxBashSanitizesBlankNameToSession() throws Exception {
+        var api = init(fakeClient());
+        var result = runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "!!!"));
+        assertFalse(result.isError());
+        assertEquals("session", result.details().get("name"));
+    }
+
+    @Test
+    void tmuxSendResolvesFriendlyNameToSessionWhenPaneMissing() throws Exception {
+        var client = new TmuxClient((command, timeout) -> {
+            String joined = String.join(" ", command);
+            if (joined.startsWith("tmux -V"))
+                return new TmuxClient.Result(0, "tmux 3.4", "");
+            if (joined.startsWith("tmux list-panes"))
+                return new TmuxClient.Result(0, "", "");
+            if (joined.startsWith("tmux new-session"))
+                return new TmuxClient.Result(0, "", "");
+            if (joined.startsWith("tmux send-keys")) {
+                commands.add(joined);
+                return new TmuxClient.Result(0, "", "");
+            }
+            return new TmuxClient.Result(0, "", "");
+        });
+        var api = init(client);
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        commands.clear();
+        var result = runTool(api, "tmux_send", Map.of("target", "server", "keys", "x"));
+        assertFalse(result.isError());
+        assertTrue(commands.stream().anyMatch(c -> c.contains("send-keys -t pijota-123e4567-server x Enter")),
+                                        commands::toString);
+    }
+
+    @Test
+    void tmuxSendHonorsEnterFalse() throws Exception {
+        var api = init(fakeClient());
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        commands.clear();
+        var result = runTool(api, "tmux_send", Map.of("target", "server", "keys", "x", "enter", false));
+        assertFalse(result.isError());
+        assertEquals("tmux send-keys -t %0 x", commands.getLast());
+    }
+
+    @Test
+    void tmuxSendReportsSendKeysFailure() throws Exception {
+        var client = new TmuxClient((command, timeout) -> {
+            String joined = String.join(" ", command);
+            if (joined.startsWith("tmux -V"))
+                return new TmuxClient.Result(0, "tmux 3.4", "");
+            if (joined.startsWith("tmux send-keys"))
+                return new TmuxClient.Result(1, "", "target not found");
+            return new TmuxClient.Result(0, "%0\t1234\tpane", "");
+        });
+        var api = init(client);
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        var result = runTool(api, "tmux_send", Map.of("target", "server", "keys", "x"));
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("send-keys failed"));
+    }
+
+    @Test
+    void tmuxCaptureResolvesFriendlyNameToPaneId() throws Exception {
+        var api = init(fakeClient());
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        commands.clear();
+        var result = runTool(api, "tmux_capture", Map.of("target", "server"));
+        assertFalse(result.isError());
+        assertTrue(commands.stream().anyMatch(c -> c.contains("capture-pane -t %0")), commands::toString);
+    }
+
+    @Test
+    void tmuxCaptureReturnsNoOutputForBlankPane() throws Exception {
+        var client = new TmuxClient((command, timeout) -> {
+            String joined = String.join(" ", command);
+            if (joined.startsWith("tmux -V"))
+                return new TmuxClient.Result(0, "tmux 3.4", "");
+            if (joined.startsWith("tmux capture-pane"))
+                return new TmuxClient.Result(0, "", "");
+            return new TmuxClient.Result(0, "%0\t1234\tpane", "");
+        });
+        var api = init(client);
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        var result = runTool(api, "tmux_capture", Map.of("target", "server"));
+        assertFalse(result.isError());
+        assertEquals("(no output)", result.content());
+    }
+
+    @Test
+    void tmuxCaptureReportsCapturePaneFailure() throws Exception {
+        var client = new TmuxClient((command, timeout) -> {
+            String joined = String.join(" ", command);
+            if (joined.startsWith("tmux -V"))
+                return new TmuxClient.Result(0, "tmux 3.4", "");
+            if (joined.startsWith("tmux capture-pane"))
+                return new TmuxClient.Result(1, "", "no such pane");
+            return new TmuxClient.Result(0, "%0\t1234\tpane", "");
+        });
+        var api = init(client);
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        var result = runTool(api, "tmux_capture", Map.of("target", "server"));
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("capture-pane failed"));
+    }
+
+    @Test
+    void tmuxCaptureDefaultLinesIs100() throws Exception {
+        var api = init(fakeClient());
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        commands.clear();
+        runTool(api, "tmux_capture", Map.of("target", "server"));
+        assertTrue(commands.stream().anyMatch(c -> c.contains("-S -100")), commands::toString);
+    }
+
+    @Test
+    void tmuxListPanesReportsFailure() throws Exception {
+        var client = new TmuxClient((command, timeout) -> {
+            String joined = String.join(" ", command);
+            if (joined.startsWith("tmux -V"))
+                return new TmuxClient.Result(0, "tmux 3.4", "");
+            if (joined.startsWith("tmux list-panes"))
+                return new TmuxClient.Result(1, "", "no such session");
+            return new TmuxClient.Result(0, "", "");
+        });
+        var api = init(client);
+        var result = runTool(api, "tmux_list", Map.of("scope", "panes", "session", "pijota-123e4567-server"));
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("list-panes failed"));
+    }
+
+    @Test
+    void tmuxListSessionsEmpty() throws Exception {
+        var api = init(fakeClient());
+        var result = runTool(api, "tmux_list", Map.of());
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("No supervised"));
+    }
+
+    @Test
+    void tmuxKillWithUiConfirmation() throws Exception {
+        var runtime = new FakeExtensionRuntime();
+        runtime.setCwd(Path.of("/tmp"));
+        runtime.setUi(new UiContext() {
+            @Override
+            public void setStatus(String message) {}
+
+            @Override
+            public CompletableFuture<Boolean> confirm(String question) {
+                return CompletableFuture.completedFuture(true);
+            }
+        });
+        var api = new FakeExtensionAPI(runtime);
+        var ext = new TmuxExtension(fakeClient());
+        ext.init(api);
+        api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/123e4567-1234-1234-1234-123456789012.jsonl")));
+        api.fireSessionReady();
+
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        var result = runTool(api, "tmux_kill", Map.of("target", "server")); // no explicit confirm
+        assertFalse(result.isError());
+        assertTrue(killed.contains("pijota-123e4567-server"));
+    }
+
+    @Test
+    void sessionPrefixHandlesFilenameWithoutExtensionAndShortNames() throws Exception {
+        var runtime = new FakeExtensionRuntime();
+        runtime.setCwd(Path.of("/tmp"));
+        var api = new FakeExtensionAPI(runtime);
+        var ext = new TmuxExtension(fakeClient());
+        ext.init(api);
+        api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/my-session")));
+        api.fireSessionReady();
+
+        runTool(api, "tmux_bash", Map.of("command", "echo hi"));
+        assertTrue(commands.stream().anyMatch(c -> c.contains("pijota-my-sessi-")), commands::toString);
+
+        commands.clear();
+        api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/ab")));
+        runTool(api, "tmux_bash", Map.of("command", "echo hi"));
+        assertTrue(commands.stream().anyMatch(c -> c.contains("pijota-ab-")), commands::toString);
+    }
+
+    @Test
+    void slashSendExecutesTool() throws Exception {
+        var api = init(fakeClient());
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        commands.clear();
+        api.slashCommand("tmux-send").handler().accept("server ls");
+        assertTrue(commands.stream().anyMatch(c -> c.contains("send-keys -t %0 ls Enter")), commands::toString);
+    }
+
+    @Test
+    void slashCaptureExecutesTool() throws Exception {
+        var api = init(fakeClient());
+        runTool(api, "tmux_bash", Map.of("command", "echo hi", "name", "server"));
+        api.slashCommand("tmux-capture").handler().accept("server");
+        assertTrue(api.lastSentMessage().contains("captured output"));
     }
 }
