@@ -199,12 +199,15 @@
 
   /* dialog */
   .overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 50; animation: overlayIn .14s ease both; }
-  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; width: min(440px, 90vw); box-shadow: 0 18px 50px var(--shadow-color); animation: modalIn .2s cubic-bezier(.22,.61,.36,1) both; }
+  .modal { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; width: min(440px, 90vw); box-shadow: 0 18px 50px var(--shadow-color); animation: modalIn .2s cubic-bezier(.22,.61,.36,1) both; }
+  .modal-close { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; padding: 0; border: none; border-radius: 8px; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; transition: color .12s, background .12s; }
+  .modal-close:hover { color: var(--text); background: var(--panel-2); }
+  .modal-close:active { transform: scale(.9); }
   @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes modalIn { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .overlay, .modal { animation: none; } }
   .modal.finder { width: min(560px, 92vw); }
-  .modal h3 { margin: 0 0 16px; font-size: 16px; }
+  .modal h3 { margin: 0 0 16px; padding-right: 28px; font-size: 16px; }
   .modal button, .modal input { font-family: var(--sans); font-size: 14px; }
   .modal .opt { text-align: left; padding: 10px 14px; border-radius: 9px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); cursor: pointer; transition: border-color .12s, background .12s; }
   .modal .opt:hover { border-color: var(--accent); background: var(--accent-soft); }
@@ -610,7 +613,9 @@ window.addEventListener("DOMContentLoaded", () => {
   // command palette: a fuzzy finder over every command, opened with ⌘K / Ctrl-K
   function commandPalette() {
     if (!commands.length || document.querySelector(".overlay")) return;
-    const { modal, close } = openOverlay("finder");
+    const { overlay, modal, close } = openOverlay("finder");
+    overlay.addEventListener("click", e => { if (e.target === overlay) close(); }); // tap backdrop to dismiss (mobile)
+    modal.appendChild(closeButton(close));
     const h = document.createElement("h3"); h.textContent = "Run a command"; modal.appendChild(h);
     const labels = commands.map(c => c.description ? c.name + "  —  " + c.description : c.name);
     buildFinder(modal, labels, i => { close(); post(commands[i].name); }, close);
@@ -686,8 +691,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // ---- dialogs (confirm / prompt / select) ----
   function showDialog(d) {
-    const { modal, close } = openOverlay(d.kind === "select" ? "finder" : "");
+    const { overlay, modal, close } = openOverlay(d.kind === "select" ? "finder" : "");
     const answer = v => { postJSON("/answer", { id: d.id, value: v }); close(); };
+    // mobile has no Esc: tapping the dimmed backdrop cancels. confirm/prompt resolve to a safe default so the agent
+    // never hangs; select just dismisses without switching.
+    const cancel = d.kind === "confirm" ? () => answer("no")
+                 : d.kind === "prompt" ? () => answer(d.default || "")
+                 : close;
+    overlay.addEventListener("click", e => { if (e.target === overlay) cancel(); });
+    modal.appendChild(closeButton(cancel));
     const h = document.createElement("h3"); h.textContent = d.question || d.title || ""; modal.appendChild(h);
 
     if (d.kind === "confirm") {
@@ -707,10 +719,15 @@ window.addEventListener("DOMContentLoaded", () => {
       const ok = button("OK", "act"); ok.onclick = () => answer(inp.value);
       row.append(ok); modal.append(inp, row); focusSoon(inp);
     } else if (d.kind === "select") {
-      buildFinder(modal, d.options || [], i => answer(String(i)), close);
+      buildFinder(modal, d.options || [], i => answer(String(i)), cancel);
     }
   }
   function button(text, cls) { const b = document.createElement("button"); b.className = cls === "act" ? "act" : "opt"; b.textContent = text; return b; }
+  // a small ✕ pinned to the modal's top-right — the standard, keyboard-clear way to dismiss a dialog (mobile has no Esc)
+  function closeButton(onClose) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "modal-close";
+    b.textContent = "✕"; b.setAttribute("aria-label", "Close"); b.onclick = onClose; return b;
+  }
 
   // a fuzzy finder: search box + filtered, keyboard-navigable list (↑/↓ move, Enter pick, Esc cancel)
   function buildFinder(modal, options, onPick, onCancel) {
