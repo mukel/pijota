@@ -6,6 +6,9 @@ target/
 dependency-reduced-pom.xml
 *.exec
 
+# PGO profile from `make native-pgo-instrument` (regenerated; git add -f a curated one to commit)
+default.iprof
+
 # IDE
 .idea/
 *.iml

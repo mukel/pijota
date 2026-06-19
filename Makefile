@@ -8,13 +8,14 @@
 #   make run          build and launch (use ARGS="--help" to pass flags)
 #   make jar          build thin jar
 #   make fat          build fat jar (single uber-jar)
-#   make native       build GraalVM native image
+#   make native       build GraalVM native image (size-optimized, portable -march=compatibility)
+#   make native-pgo-instrument / native-pgo-build   profile-guided optimized native image (2 phases)
 #   make format       apply code formatting
 #   make format-check verify code formatting (read-only)
 #   make coverage   run tests and generate JaCoCo coverage report
 #   make clean        remove build artifacts
 
-.PHONY: build test test-live check jar run fat native clean format format-check coverage
+.PHONY: build test test-live check jar run fat native native-pgo-instrument native-pgo-build clean format format-check coverage
 
 MVN  ?= mvn
 ARGS ?=
@@ -28,8 +29,9 @@ test:
 	@$(MVN) -q test
 
 # Live, opt-in browser tests (tagged @Tag("live")); needs Chrome and/or geckodriver on the machine.
+# fastSettle=false so the real browser gets production settle/consent timings (the fast profile is for FakeChrome).
 test-live:
-	@PIJOTA_BROWSER_IT=1 $(MVN) -q test -Dgroups=live
+	@PIJOTA_BROWSER_IT=1 $(MVN) -q test -Dgroups=live -Dpijota.browser.fastSettle=false
 
 check: format-check test
 
@@ -43,6 +45,21 @@ fat:
 
 native:
 	@$(MVN) -q -DskipTests -Pnative package
+
+# Profile-Guided Optimization (Oracle GraalVM) — typically 10-30% faster/smaller. Two phases:
+#   1) make native-pgo-instrument   build an instrumented binary
+#   2) run REAL, representative pijota sessions (a coding session, not just --help) → writes default.iprof on exit
+#   3) make native-pgo-build         rebuild optimized using the collected profile
+# Profile quality drives the gains: the more your profiling run resembles real use, the better.
+native-pgo-instrument:
+	@$(MVN) -q -DskipTests -Pnative -Dpgo.arg=--pgo-instrument package
+	@echo "Instrumented ./target/pijota built. Run representative sessions (it writes default.iprof on exit),"
+	@echo "then: make native-pgo-build"
+
+native-pgo-build:
+	@test -f default.iprof || { echo "default.iprof not found — run the instrumented binary first (native-pgo-instrument)"; exit 1; }
+	@$(MVN) -q -DskipTests -Pnative "-Dpgo.arg=--pgo=$(CURDIR)/default.iprof" package
+	@echo "PGO-optimized native image: target/pijota"
 
 # ---- launch ----
 

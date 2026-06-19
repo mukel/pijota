@@ -8,7 +8,6 @@
       { "pattern": "simplelogger\\.properties" },
       { "pattern": "themes/.*\\.json" },
       { "pattern": "agents/.*\\.md" },
-      { "pattern": ".*/.*tiktoken$" },
       { "pattern": "META-INF/services/.*" },
       { "pattern": "META-INF/jline/.*" },
       { "pattern": "META-INF/native-image/.*" }

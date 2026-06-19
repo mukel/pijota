@@ -15,12 +15,21 @@
     <maven.compiler.release>25</maven.compiler.release>
 
     <commonmark.version>0.28.0</commonmark.version>
-    <jackson.version>2.21.4</jackson.version>
-    <jline.version>4.1.3</jline.version>
-    <junit.version>6.0.0</junit.version>
-    <langchain4j.version>1.15.1</langchain4j.version>
+    <jackson.version>2.22.0</jackson.version>
+    <jline.version>4.2.1</jline.version>
+    <junit.version>6.1.0</junit.version>
+    <langchain4j.version>1.16.3</langchain4j.version>
     <slf4j.version>2.0.18</slf4j.version>
-    <logback.version>1.5.18</logback.version>
+    <!-- 2.1.0 is alpha-only; staying on the latest stable -->
+    <logback.version>1.5.34</logback.version>
+
+    <!-- Collapse BrowserSession's settle/consent waits for the test suite (overridable: make test-live sets false so
+         the real-browser @Tag("live") tests keep production timings). -->
+    <pijota.browser.fastSettle>true</pijota.browser.fastSettle>
+
+    <!-- PGO hook for the native build (Oracle GraalVM). Default duplicates no-fallback (a harmless no-op); the
+         native-pgo-* make targets override it with the pgo-instrument / pgo=profile flags. See the Makefile. -->
+    <pgo.arg>--no-fallback</pgo.arg>
 
     <!-- web-UI libraries downloaded into the build (not committed); see web/vendor/README.md -->
     <marked.version>12.0.0</marked.version>
@@ -49,6 +58,14 @@
     <dependency>
       <groupId>dev.langchain4j</groupId>
       <artifactId>langchain4j-open-ai</artifactId>
+      <exclusions>
+        <!-- jtokkit bundles ~7MB of .tiktoken BPE vocab; pijota never tokenizes locally (token counts come from
+             the API response, and context estimation uses CompactionManager), so it is dead weight. -->
+        <exclusion>
+          <groupId>com.knuddels</groupId>
+          <artifactId>jtokkit</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>dev.langchain4j</groupId>
@@ -119,12 +136,10 @@
   <build>
     <plugins>
       <plugin>
+        <!-- Reads the maven.compiler.release property automatically; no <configuration> needed. -->
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.14.1</version>
-        <configuration>
-          <release>${maven.compiler.release}</release>
-        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -142,6 +157,18 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.4</version>
+        <configuration>
+          <!-- Run test classes across 4 reused JVMs (sweet spot on this suite: ~19s vs ~27s serial; more forks lose
+               to JVM-startup overhead). Safe here — tests use ephemeral ports and per-JVM system properties. -->
+          <forkCount>4</forkCount>
+          <reuseForks>true</reuseForks>
+          <!-- Collapse BrowserSession's settle/consent waits (no protocol event to react to) against the instantly-
+               ready FakeChrome; the load wait itself is event-driven. Cuts ~30s off the suite. Test-only: the
+               packaged/native build skips tests, so this never reaches a production artifact. -->
+          <systemPropertyVariables>
+            <pijota.browser.fastSettle>${pijota.browser.fastSettle}</pijota.browser.fastSettle>
+          </systemPropertyVariables>
+        </configuration>
       </plugin>
       <!-- Fetch the web-UI libraries into the build (web/vendor/ stays free of minified blobs). They land on the
            classpath under /web/vendor/ so WebServer serves them locally (offline-capable, no CDN). Pinned + sha512
@@ -150,6 +177,10 @@
         <groupId>com.googlecode.maven-download-plugin</groupId>
         <artifactId>download-maven-plugin</artifactId>
         <version>1.13.0</version>
+        <!-- Shared across all executions; each one only sets its url + filename + sha512. -->
+        <configuration>
+          <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
+        </configuration>
         <executions>
           <execution>
             <id>vendor-marked</id>
@@ -159,7 +190,6 @@
             <phase>generate-resources</phase>
             <configuration>
               <url>https://cdn.jsdelivr.net/npm/marked@${marked.version}/marked.min.js</url>
-              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
               <outputFileName>marked.min.js</outputFileName>
               <sha512>b6383c23677a162d0e046cf572c9abed17c8e2eba961a09f2ff46a8554534b8d91306c1f06c8f00469a1ce123e7b674f9b27b0f1c164a319d5906bc00c32ef6e</sha512>
             </configuration>
@@ -172,7 +202,6 @@
             <phase>generate-resources</phase>
             <configuration>
               <url>https://cdn.jsdelivr.net/npm/dompurify@${dompurify.version}/dist/purify.min.js</url>
-              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
               <outputFileName>purify.min.js</outputFileName>
               <sha512>f7e8a500e79763cab2d9bc3f879d4c9a588d347bddca14e92c896a0e65690f6eb3f158d526c509b64e6b85b0c852f6220fe1291a802ed314daecc859a211508c</sha512>
             </configuration>
@@ -185,7 +214,6 @@
             <phase>generate-resources</phase>
             <configuration>
               <url>https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@${highlightjs.version}/build/highlight.min.js</url>
-              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
               <outputFileName>highlight.min.js</outputFileName>
               <sha512>0fd814cb1aa36bb841b645a93d61adf707db7da30656df609f20af61afa3a23c303c72c2cd49b98bcae993bbc3ef035e7bd6c0df9798223a1b60f690b8a4b531</sha512>
             </configuration>
@@ -198,7 +226,6 @@
             <phase>generate-resources</phase>
             <configuration>
               <url>https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@${highlightjs.version}/build/styles/github-dark.min.css</url>
-              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
               <outputFileName>github-dark.min.css</outputFileName>
               <sha512>acefa89514e471fdf4e03401c525b1967f095c2cd31e52a721d9cc53062f41af7f25de1c41a36422d2148fa6789ef5b576a2b448a5cb6e7f61e0ac194cdb40cb</sha512>
             </configuration>
@@ -211,7 +238,6 @@
             <phase>generate-resources</phase>
             <configuration>
               <url>https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@${highlightjs.version}/build/styles/github.min.css</url>
-              <outputDirectory>${project.build.outputDirectory}/web/vendor</outputDirectory>
               <outputFileName>github.min.css</outputFileName>
               <sha512>d1a3d0cb2799ad68fdb02038e949665a028e3f49948a92d0e8e657bbc97821c0260f6bb7d443c4cbd55c20cbe5ed2a0068a7bc6cb5d9858a0c684fe29fe81c80</sha512>
             </configuration>
@@ -221,7 +247,7 @@
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
-        <version>2.44.4</version>
+        <version>3.7.0</version>
         <configuration>
           <java>
             <eclipse>
@@ -259,7 +285,7 @@
           <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.14</version>
+            <version>0.8.15</version>
             <executions>
               <execution>
                 <id>prepare-agent</id>
@@ -321,16 +347,27 @@
           <plugin>
             <groupId>org.graalvm.buildtools</groupId>
             <artifactId>native-maven-plugin</artifactId>
-            <version>0.11.0</version>
+            <version>1.1.2</version>
             <extensions>true</extensions>
             <configuration>
               <imageName>pijota</imageName>
               <mainClass>ai.pijota.Main</mainClass>
               <buildArgs>
-                <buildArg>--enable-preview</buildArg>
                 <buildArg>--no-fallback</buildArg>
+                <buildArg>-Os</buildArg>
+                <!-- optimize for binary size (default is -O2, tuned for speed) -->
+                <!-- Portable distribution: target a baseline CPU instead of the build host's (default targets the
+                     build machine → the binary may SIGILL on older/other CPUs). For a fully static-except-libc binary
+                     (portable across Linux distros) also add -H:+StaticExecutableWithDynamicLibC — that needs the
+                     static zlib (libz.a) installed on the build machine, which isn't present here. -->
+                <buildArg>-march=compatibility</buildArg>
+                <buildArg>${pgo.arg}</buildArg>
+                <!-- no-op by default; set by `make native-pgo-*` (see Makefile) -->
                 <buildArg>--enable-url-protocols=https</buildArg>
                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                <!-- Jackson must be build-time-initialized: a build-time-initialized object (the anthropic model /
+                     static ObjectMappers) holds an ObjectMapper in the image heap, which fails if Jackson is left to
+                     default run-time init. This is the documented Jackson-on-native approach, not gratuitous. -->
                 <buildArg>--initialize-at-build-time=com.fasterxml.jackson,dev.langchain4j.model.anthropic</buildArg>
                 <buildArg>--initialize-at-run-time=ai.pijota,org.slf4j,ch.qos.logback</buildArg>
               </buildArgs>
@@ -344,6 +381,27 @@
                 <phase>package</phase>
               </execution>
             </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <!-- Fully standalone (no libc dependency) static binary. Use with -Pnative (see `make native-static`). Requires a
+           musl toolchain + musl-built zlib on PATH; `make setup-musl` provisions them. musl (not glibc) because static
+           glibc breaks DNS/getaddrinfo, which this networking agent needs. The buildArgs here merge with the native
+           profile's. -->
+      <id>static</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <configuration>
+              <buildArgs combine.children="append">
+                <buildArg>--static</buildArg>
+                <buildArg>--libc=musl</buildArg>
+              </buildArgs>
+            </configuration>
           </plugin>
         </plugins>
       </build>
