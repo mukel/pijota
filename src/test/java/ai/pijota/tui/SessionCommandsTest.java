@@ -130,6 +130,26 @@ class SessionCommandsTest {
         assertFalse(String.join("\n", lines).contains("budget"));
     }
 
+    @Test
+    void usageReportIncludesRateLineWhenProvided() {
+        var lines = SessionCommands.usageReport(10, 20, 0.0, null, "  rate    $5.00 in / $25.00 out per 1M  (x)",
+                                        (slot, text) -> text);
+        assertTrue(String.join("\n", lines).contains("$5.00 in / $25.00 out"));
+    }
+
+    @Test
+    void rateLineShowsCatalogRatesForKnownModel() {
+        String line = SessionCommands.rateLine("anthropic", "claude-opus-4-5-20251101", false);
+        assertTrue(line.contains("$5.00 in / $25.00 out per 1M"), line);
+        assertTrue(line.contains("claude-opus-4-5-20251101"), line);
+    }
+
+    @Test
+    void rateLineReportsUnknownForUnpricedModel() {
+        String line = SessionCommands.rateLine("openai-codex", "gpt-5.4", false);
+        assertTrue(line.contains("unknown for gpt-5.4"), line);
+    }
+
     // ---- session()-backed commands, driven through a real PijotaSession ----
 
     private FakeHost hostWith(boolean persisted) {

@@ -111,6 +111,11 @@ public final class LlmService implements LlmClient {
         return usage.budgetLimit();
     }
 
+    @Override
+    public boolean hasUnpricedUsage() {
+        return usage.hasUnpricedUsage();
+    }
+
     public boolean isOverBudget() {
         return usage.overBudget();
     }
@@ -244,7 +249,7 @@ public final class LlmService implements LlmClient {
                     result.setUsage(new ai.pijota.messages.Usage(u.inputTokenCount() != null ? u.inputTokenCount() : 0,
                                                     u.outputTokenCount() != null ? u.outputTokenCount() : 0));
                 }
-                usage.add(result.usage());
+                usage.add(result.usage(), ModelRegistry.pricingFor(providerName, modelName));
                 recordSpeed(u);
                 if (handleRef != null)
                     handleRef.set(null);
@@ -427,13 +432,11 @@ public final class LlmService implements LlmClient {
     }
 
     static final class UsageTracker {
-        private static final double COST_PER_1K_INPUT = 0.0025;
-        private static final double COST_PER_1K_OUTPUT = 0.01;
-
         private final Double budgetLimit;
         private int totalInputTokens;
         private int totalOutputTokens;
         private double totalCost;
+        private boolean hasUnpricedUsage;
 
         UsageTracker(Double budgetLimit) {
             this.budgetLimit = budgetLimit;
@@ -459,14 +462,22 @@ public final class LlmService implements LlmClient {
             return budgetLimit;
         }
 
-        void add(ai.pijota.messages.Usage usage) {
+        /** Whether any recorded usage ran on a model with unknown pricing (so {@link #totalCost} understates spend). */
+        boolean hasUnpricedUsage() {
+            return hasUnpricedUsage;
+        }
+
+        void add(ai.pijota.messages.Usage usage, ModelRegistry.Pricing pricing) {
             if (usage == null)
                 return;
             int in = (int) usage.inputTokens();
             int out = (int) usage.outputTokens();
             totalInputTokens += in;
             totalOutputTokens += out;
-            totalCost += (in / 1000.0) * COST_PER_1K_INPUT + (out / 1000.0) * COST_PER_1K_OUTPUT;
+            if (pricing != null)
+                totalCost += (in / 1_000_000.0) * pricing.inputPerMTok() + (out / 1_000_000.0) * pricing.outputPerMTok();
+            else if (in > 0 || out > 0)
+                hasUnpricedUsage = true;
         }
     }
 }

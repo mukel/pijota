@@ -66,6 +66,22 @@ public final class ModelRegistry {
                                         .map(ModelInfo::contextWindow).orElse(DEFAULT_CONTEXT_WINDOW);
     }
 
+    /** Per-million-token USD rates for a catalog model, or {@code null} when the model's pricing is unknown. */
+    public record Pricing(double inputPerMTok, double outputPerMTok) {}
+
+    /** Looks up pricing for the given model, preferring a provider match; {@code null} if the rate is unknown. */
+    public static Pricing pricingFor(String provider, String model) {
+        if (model == null)
+            return null;
+        return KNOWN_MODELS.stream()
+                                        .filter(m -> m.id().equalsIgnoreCase(model)
+                                                                        && (provider == null
+                                                                                        || provider.equalsIgnoreCase(m.provider())))
+                                        .filter(m -> m.inputCostPerMTok() != null && m.outputCostPerMTok() != null)
+                                        .findFirst()
+                                        .map(m -> new Pricing(m.inputCostPerMTok(), m.outputCostPerMTok())).orElse(null);
+    }
+
     public static long resolveContextWindow(SessionManager.ModelSelection selection) {
         if (selection == null)
             return DEFAULT_CONTEXT_WINDOW;

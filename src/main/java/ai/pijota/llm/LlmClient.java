@@ -34,6 +34,11 @@ public interface LlmClient extends AutoCloseable {
         return null;
     }
 
+    /** Whether some usage ran on a model with unknown pricing, so {@link #totalCost} understates the real spend. */
+    default boolean hasUnpricedUsage() {
+        return false;
+    }
+
     /** Prompt-processing (prefill) and generation (decode) speed of the most recent request. */
     record RequestSpeed(double prefillTokensPerSec, double decodeTokensPerSec) {
     }

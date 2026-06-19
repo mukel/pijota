@@ -7,6 +7,35 @@ import static org.junit.jupiter.api.Assertions.*;
 class TaskToolTest {
 
     @Test
+    void subAgentModelPrefersPerAgentOverride() {
+        var sub = new SubAgent("a", "d", "p", java.util.List.of(), "claude-haiku-4-5", "builtin");
+        assertEquals("claude-haiku-4-5", TaskTool.subAgentModel(sub));
+    }
+
+    @Test
+    void subAgentModelFallsBackToGlobalRoutingProperty() {
+        var sub = new SubAgent("a", "d", "p", java.util.List.of(), null, "builtin");
+        String prev = System.getProperty("pijota.subagent.model");
+        System.setProperty("pijota.subagent.model", "gpt-5.4-mini");
+        try {
+            assertEquals("gpt-5.4-mini", TaskTool.subAgentModel(sub));
+        } finally {
+            if (prev == null)
+                System.clearProperty("pijota.subagent.model");
+            else
+                System.setProperty("pijota.subagent.model", prev);
+        }
+    }
+
+    @Test
+    void subAgentModelNullInheritsParent() {
+        var sub = new SubAgent("a", "d", "p", java.util.List.of(), null, "builtin");
+        // No per-agent override and no routing property set → inherit parent (null).
+        if (ai.pijota.util.Env.get("pijota.subagent.model", "PIJOTA_SUBAGENT_MODEL") == null)
+            assertNull(TaskTool.subAgentModel(sub));
+    }
+
+    @Test
     void formatToolCallRead() {
         var result = TaskTool.formatToolCall("read", "{\"filePath\":\"file.txt\"}");
         assertTrue(result.contains("Read") || result.contains("read"), "should indicate read: " + result);

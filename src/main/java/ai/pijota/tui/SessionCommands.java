@@ -142,11 +142,29 @@ final class SessionCommands {
         if (session == null)
             return;
         host.appendPlain(usageReport(session.totalInputTokens(), session.totalOutputTokens(), session.totalCost(),
-                                        session.costBudget(), host::styled));
+                                        session.costBudget(),
+                                        rateLine(session.provider(), session.model(), session.hasUnpricedUsage()),
+                                        host::styled));
+    }
+
+    /** The {@code /usage} per-model rate line: the catalog's $/1M rates for the active model, or "unknown". */
+    static String rateLine(String provider, String model, boolean hasUnpriced) {
+        var pricing = ai.pijota.llm.ModelRegistry.pricingFor(provider, model);
+        if (pricing == null) {
+            return "  rate    unknown for " + (model != null ? model : "current model");
+        }
+        String line = String.format(java.util.Locale.ROOT, "  rate    $%.2f in / $%.2f out per 1M  (%s)",
+                                        pricing.inputPerMTok(), pricing.outputPerMTok(), model);
+        return hasUnpriced ? line + " — some usage on unpriced models" : line;
+    }
+
+    static List<String> usageReport(long input, long output, double cost, Double budget,
+                                    java.util.function.BiFunction<String, String, String> styled) {
+        return usageReport(input, output, cost, budget, null, styled);
     }
 
     /** Formats the cumulative session-usage block. Pure given the totals and a styler, so it is unit-testable. */
-    static List<String> usageReport(long input, long output, double cost, Double budget,
+    static List<String> usageReport(long input, long output, double cost, Double budget, String rateLine,
                                     java.util.function.BiFunction<String, String, String> styled) {
         var lines = new ArrayList<String>();
         lines.add(styled.apply("toolLabel", "usage  (this session)"));
@@ -154,6 +172,8 @@ final class SessionCommands {
         lines.add(styled.apply("statusText", "  output  " + fmtCount(output) + " tokens"));
         lines.add(styled.apply("statusText", "  total   " + fmtCount(input + output) + " tokens"));
         lines.add(styled.apply("commandMeta", String.format(java.util.Locale.ROOT, "  cost    ~$%.4f est", cost)));
+        if (rateLine != null)
+            lines.add(styled.apply("commandMeta", rateLine));
         if (budget != null && budget > 0) {
             int pct = (int) Math.round(100.0 * cost / budget);
             lines.add(styled.apply("commandMeta", String.format(java.util.Locale.ROOT, "  budget  $%.2f / $%.2f (%d%%)",

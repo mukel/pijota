@@ -321,6 +321,21 @@ public final class PijotaSession implements AutoCloseable {
         return agentLoop.llm().costBudget();
     }
 
+    /** Whether some usage ran on a model with unknown pricing, so {@link #totalCost} understates the real spend. */
+    public boolean hasUnpricedUsage() {
+        return agentLoop.llm().hasUnpricedUsage();
+    }
+
+    /** The active provider id (e.g. {@code anthropic}). */
+    public String provider() {
+        return agentLoop.llm().provider();
+    }
+
+    /** The active model id. */
+    public String model() {
+        return agentLoop.llm().model();
+    }
+
     public void setSessionName(String name) throws IOException {
         if (sessionFile == null)
             throw new IOException("No active session");

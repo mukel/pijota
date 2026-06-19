@@ -290,6 +290,17 @@ public final class TaskTool implements Tool {
         return runAgent(sub, task, cwd.toString());
     }
 
+    /**
+     * The model a sub-agent should run on, or {@code null} to inherit the parent's. A per-agent {@code model:} override
+     * wins; otherwise {@code -Dpijota.subagent.model} / {@code PIJOTA_SUBAGENT_MODEL} routes all sub-agents to a single
+     * (typically cheaper) model. The model must be reachable with the current provider's credentials.
+     */
+    static String subAgentModel(SubAgent sub) {
+        if (sub.model() != null && !sub.model().isBlank())
+            return sub.model();
+        return ai.pijota.util.Env.get("pijota.subagent.model", "PIJOTA_SUBAGENT_MODEL");
+    }
+
     private SubAgentResult runAgent(SubAgent sub, String task, String workDir) {
         Path logFile;
         BufferedWriter logWriter;
@@ -321,9 +332,12 @@ public final class TaskTool implements Tool {
             taskJson.put("parentLogs", true);
             String p = llm.provider();
             String m = llm.model();
+            // Model routing: a per-agent override wins; otherwise an optional global sub-agent model lets the main
+            // loop stay on a strong model while sub-agents run on a cheaper one; otherwise inherit the parent model.
+            String subModel = subAgentModel(sub);
             if (p != null)
                 taskJson.put("provider", p);
-            if (m != null && (sub.model() == null || sub.model().isBlank()))
+            if (m != null && subModel == null)
                 taskJson.put("model", m);
             String parentApiKey = llm.apiKey();
             if (parentApiKey != null && !parentApiKey.isBlank()) {
@@ -333,9 +347,9 @@ public final class TaskTool implements Tool {
             var procArgs = ai.pijota.agent.SubAgentLauncher.agentCommand(cwd.toString());
             procArgs.add("--agent");
             procArgs.add("--no-session");
-            if (sub.model() != null && !sub.model().isBlank()) {
+            if (subModel != null) {
                 procArgs.add("--model");
-                procArgs.add(sub.model());
+                procArgs.add(subModel);
             }
 
             var resultHolder = new SubAgentResult[] {null};

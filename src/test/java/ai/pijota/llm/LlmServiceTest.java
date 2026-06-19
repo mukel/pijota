@@ -168,8 +168,9 @@ class LlmServiceTest {
         var service = serviceWithFake(fake);
         // Run one request to accumulate cost.
         service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
-        // Now set a tiny budget that is already exceeded.
-        var limited = new LlmService("test", "test-model", _ -> "test-key", null,
+        // Now set a tiny budget that is already exceeded. Use a priced catalog model so cost actually accrues
+        // (cost is computed from the model's per-million rates; unpriced models contribute $0).
+        var limited = new LlmService("anthropic", "claude-opus-4-5-20251101", _ -> "test-key", null,
                                         List.of(new FakeProviderFactory(fake)), 0.0001);
         limited.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
 
@@ -340,6 +341,23 @@ class LlmServiceTest {
                 builder.tokenUsage(tokenUsage);
             handler.onCompleteResponse(builder.build());
         }
+    }
+
+    @Test
+    void usageTrackerPricesAgainstPerModelRates() {
+        var tracker = new LlmService.UsageTracker(null);
+        tracker.add(new ai.pijota.messages.Usage(1_000_000, 1_000_000), new ModelRegistry.Pricing(5.0, 25.0));
+        assertEquals(30.0, tracker.totalCost(), 1e-9);
+        assertFalse(tracker.hasUnpricedUsage());
+    }
+
+    @Test
+    void usageTrackerFlagsUnpricedUsageWithoutInventingCost() {
+        var tracker = new LlmService.UsageTracker(null);
+        tracker.add(new ai.pijota.messages.Usage(1000, 1000), null);
+        assertEquals(0.0, tracker.totalCost(), 1e-9);
+        assertTrue(tracker.hasUnpricedUsage());
+        assertEquals(2000, tracker.totalInputTokens() + tracker.totalOutputTokens());
     }
 
     private record FakeProviderFactory(FakeModel fake) implements ProviderFactory {

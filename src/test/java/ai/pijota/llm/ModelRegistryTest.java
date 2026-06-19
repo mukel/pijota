@@ -173,6 +173,21 @@ class ModelRegistryTest {
     }
 
     @Test
+    void pricingForReturnsCatalogRatesForKnownModel() {
+        var pricing = ModelRegistry.pricingFor("anthropic", "claude-opus-4-5-20251101");
+        assertNotNull(pricing);
+        assertEquals(5.0, pricing.inputPerMTok());
+        assertEquals(25.0, pricing.outputPerMTok());
+    }
+
+    @Test
+    void pricingForReturnsNullWhenRateUnknown() {
+        assertNull(ModelRegistry.pricingFor("openai-codex", "gpt-5.4"));
+        assertNull(ModelRegistry.pricingFor("anthropic", "no-such-model"));
+        assertNull(ModelRegistry.pricingFor(null, null));
+    }
+
+    @Test
     void replaceDiscoveredOverwritesExistingByKey() {
         var discovered = List.of(new ModelInfo("gpt-4o", "openai", "GPT-4o Updated", 256_000));
         mutateKnownModels(ModelRegistry.KNOWN_MODELS);
