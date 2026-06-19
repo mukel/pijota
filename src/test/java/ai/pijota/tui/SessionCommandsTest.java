@@ -116,7 +116,7 @@ class SessionCommandsTest {
 
     @Test
     void usageReportShowsTokensCostAndBudget() {
-        var lines = SessionCommands.usageReport(1500, 500, 0.0123, 5.0, (slot, text) -> text);
+        var lines = SessionCommands.usageReport(1500, 500, 0.0123, 5.0, "  rate    unknown", (slot, text) -> text);
         String out = String.join("\n", lines);
         assertTrue(out.contains("input"), out);
         assertTrue(out.contains("total"), out);
@@ -126,7 +126,7 @@ class SessionCommandsTest {
 
     @Test
     void usageReportOmitsBudgetWhenUnset() {
-        var lines = SessionCommands.usageReport(10, 20, 0.0, null, (slot, text) -> text);
+        var lines = SessionCommands.usageReport(10, 20, 0.0, null, "  rate    unknown", (slot, text) -> text);
         assertFalse(String.join("\n", lines).contains("budget"));
     }
 

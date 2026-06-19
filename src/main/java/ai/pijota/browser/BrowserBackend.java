@@ -22,7 +22,8 @@ public interface BrowserBackend extends AutoCloseable {
     void start() throws Exception;
 
     /**
-     * Issues a navigation to {@code url} (returns once it has started; the caller awaits load via {@link #evaluate}).
+     * Navigates to {@code url} and blocks until the new document has loaded, using the backend's native protocol event
+     * (CDP {@code Page.loadEventFired} / BiDi {@code wait:"complete"}) rather than polling.
      */
     void navigate(String url) throws Exception;
 
