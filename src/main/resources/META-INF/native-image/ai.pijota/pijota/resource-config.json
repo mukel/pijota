@@ -3,6 +3,8 @@
     "includes": [
       { "pattern": "providers\\.json" },
       { "pattern": "models\\.json" },
+      { "pattern": "logback\\.xml" },
+      { "pattern": "web/.*" },
       { "pattern": "simplelogger\\.properties" },
       { "pattern": "themes/.*\\.json" },
       { "pattern": "agents/.*\\.md" },

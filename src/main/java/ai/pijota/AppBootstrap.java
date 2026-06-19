@@ -56,6 +56,10 @@ final class AppBootstrap {
                     if (detected != null) {
                         provider = detected;
                         apiKey = settings.resolveApiKey(detected);
+                        // Switching provider must switch the model too — otherwise we'd run the detected provider
+                        // with the previous provider's model (e.g. openai-codex with "gpt-4o").
+                        if (!ModelRegistry.isKnownProviderModel(detected, model))
+                            model = ModelRegistry.defaultModelForProvider(detected);
                     }
                 }
             }

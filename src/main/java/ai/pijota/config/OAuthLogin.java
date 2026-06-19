@@ -219,8 +219,10 @@ public final class OAuthLogin {
             if (parts.length != 3)
                 return null;
             int pad = (4 - parts[1].length() % 4) % 4;
-            byte[] decoded = java.util.Base64.getUrlDecoder().decode(parts[1] + "=".repeat(pad));
-            var auth = Util.MAPPER.readTree(decoded).get("https://api.openai.com/auth");
+            // Parse via String, not byte[]: Jackson's byte[] path fails under a native image (build-time init).
+            String json = new String(java.util.Base64.getUrlDecoder().decode(parts[1] + "=".repeat(pad)),
+                                            java.nio.charset.StandardCharsets.UTF_8);
+            var auth = Util.MAPPER.readTree(json).get("https://api.openai.com/auth");
             return auth != null && auth.has("chatgpt_account_id") ? auth.get("chatgpt_account_id").asText() : null;
         } catch (Exception e) {
             return null;

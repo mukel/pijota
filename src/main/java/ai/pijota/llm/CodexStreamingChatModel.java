@@ -258,8 +258,11 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             var parts = token.split("\\.");
             if (parts.length != 3)
                 return null;
-            byte[] decoded = java.util.Base64.getUrlDecoder().decode(padBase64(parts[1]));
-            var node = Util.MAPPER.readTree(decoded);
+            // Parse via String, not byte[]: Jackson's byte[] encoding-detection path returns null/throws under a
+            // native image (Jackson is initialized at build time), whereas the char-based readTree(String) works.
+            String json = new String(java.util.Base64.getUrlDecoder().decode(padBase64(parts[1])),
+                                            java.nio.charset.StandardCharsets.UTF_8);
+            var node = Util.MAPPER.readTree(json);
             var auth = node.get("https://api.openai.com/auth");
             return auth != null && auth.has("chatgpt_account_id") ? auth.get("chatgpt_account_id").asText() : null;
         } catch (Exception e) {
