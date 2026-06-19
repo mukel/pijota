@@ -10,12 +10,14 @@
 #   make fat          build fat jar (single uber-jar)
 #   make native       build GraalVM native image (size-optimized, portable -march=compatibility)
 #   make native-pgo-instrument / native-pgo-build   profile-guided optimized native image (2 phases)
+#   make setup-musl   one-time: build musl static libs (zlib + stub) for fully static builds
+#   make native-static  fully standalone statically-linked native image (musl; needs setup-musl)
 #   make format       apply code formatting
 #   make format-check verify code formatting (read-only)
 #   make coverage   run tests and generate JaCoCo coverage report
 #   make clean        remove build artifacts
 
-.PHONY: build test test-live check jar run fat native native-pgo-instrument native-pgo-build clean format format-check coverage
+.PHONY: build test test-live check jar run fat native native-pgo-instrument native-pgo-build setup-musl native-static clean format format-check coverage
 
 MVN  ?= mvn
 ARGS ?=
@@ -45,6 +47,27 @@ fat:
 
 native:
 	@$(MVN) -q -DskipTests -Pnative package
+
+# Fully standalone (statically linked, no libc dependency) native image via musl + musl-built zlib.
+# One-time: `make setup-musl` (needs musl-gcc — e.g. `sudo pacman -S musl` / `apt install musl-tools`).
+MUSL_LIBDIR ?= $(HOME)/.local/share/pijota-staticlibs/lib
+ZLIB_VERSION ?= 1.3.1
+
+setup-musl:
+	@command -v musl-gcc >/dev/null 2>&1 || { echo "musl-gcc not found — install musl (pacman -S musl / apt install musl-tools)"; exit 1; }
+	@mkdir -p "$(MUSL_LIBDIR)"
+	@: > /tmp/pijota-empty.c && gcc -c /tmp/pijota-empty.c -o /tmp/pijota-empty.o && ar rcs "$(MUSL_LIBDIR)/libatomic_asneeded.a" /tmp/pijota-empty.o
+	@tmp=$$(mktemp -d) && cd $$tmp && \
+		curl -fsSL -o zlib.tgz https://github.com/madler/zlib/releases/download/v$(ZLIB_VERSION)/zlib-$(ZLIB_VERSION).tar.gz && \
+		tar xf zlib.tgz && cd zlib-$(ZLIB_VERSION) && \
+		CC=musl-gcc LDFLAGS="-L$(MUSL_LIBDIR)" ./configure --static --prefix="$(MUSL_LIBDIR)/.." >/dev/null && \
+		$(MAKE) -s && $(MAKE) -s install >/dev/null && rm -rf $$tmp
+	@echo "musl static libs ready: $$(ls $(MUSL_LIBDIR))"
+
+native-static:
+	@test -f "$(MUSL_LIBDIR)/libz.a" || { echo "run 'make setup-musl' first (no libz.a in $(MUSL_LIBDIR))"; exit 1; }
+	@$(MVN) -q -DskipTests -Pnative,static -Dmusl.libdir="$(MUSL_LIBDIR)" package
+	@echo "Fully static native image: target/pijota ($$(file -b target/pijota | grep -o 'statically linked'))"
 
 # Profile-Guided Optimization (Oracle GraalVM) — typically 10-30% faster/smaller. Two phases:
 #   1) make native-pgo-instrument   build an instrumented binary

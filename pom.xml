@@ -31,6 +31,10 @@
          native-pgo-* make targets override it with the pgo-instrument / pgo=profile flags. See the Makefile. -->
     <pgo.arg>--no-fallback</pgo.arg>
 
+    <!-- Directory holding the musl-built static libs (libz.a + the libatomic_asneeded.a stub) for the -Pstatic
+         build; populated by `make setup-musl`. Override with -Dmusl.libdir=... if you put them elsewhere. -->
+    <musl.libdir>${user.home}/.local/share/pijota-staticlibs/lib</musl.libdir>
+
     <!-- web-UI libraries downloaded into the build (not committed); see web/vendor/README.md -->
     <marked.version>12.0.0</marked.version>
     <dompurify.version>3.0.9</dompurify.version>
@@ -357,9 +361,8 @@
                 <buildArg>-Os</buildArg>
                 <!-- optimize for binary size (default is -O2, tuned for speed) -->
                 <!-- Portable distribution: target a baseline CPU instead of the build host's (default targets the
-                     build machine → the binary may SIGILL on older/other CPUs). For a fully static-except-libc binary
-                     (portable across Linux distros) also add -H:+StaticExecutableWithDynamicLibC — that needs the
-                     static zlib (libz.a) installed on the build machine, which isn't present here. -->
+                     build machine → the binary may SIGILL on older/other CPUs). For a fully standalone (statically
+                     linked, no libc dependency) binary, build with the `static` profile (see `make native-static`). -->
                 <buildArg>-march=compatibility</buildArg>
                 <buildArg>${pgo.arg}</buildArg>
                 <!-- no-op by default; set by `make native-pgo-*` (see Makefile) -->
@@ -400,6 +403,10 @@
               <buildArgs combine.children="append">
                 <buildArg>--static</buildArg>
                 <buildArg>--libc=musl</buildArg>
+                <!-- musl link needs libz.a + a libatomic_asneeded.a stub (gcc/musl-gcc specs quirk). Point both the
+                     query-code probe compiles (CCompilerOption) and the final image link (CLibraryPath) at them. -->
+                <buildArg>-H:CCompilerOption=-L${musl.libdir}</buildArg>
+                <buildArg>-H:CLibraryPath=${musl.libdir}</buildArg>
               </buildArgs>
             </configuration>
           </plugin>
