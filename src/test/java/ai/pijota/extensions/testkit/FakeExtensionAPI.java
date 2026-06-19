@@ -237,6 +237,12 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     @Override
+    public void registerTool(Tool tool) {
+        // Test double stores a ToolDefinition view so tool(name) keeps working; production registers the Tool directly.
+        tools.add(Tool.ToolDefinition.from(tool));
+    }
+
+    @Override
     public void registerTool(Tool.ToolDefinition tool) {
         tools.add(tool);
     }

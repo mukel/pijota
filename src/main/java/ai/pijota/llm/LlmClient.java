@@ -58,6 +58,15 @@ public interface LlmClient extends AutoCloseable {
     CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
                                     BiConsumer<String, String> onPartial);
 
+    /**
+     * Summarizes messages for context compaction. The default has no summarizer and returns {@code null}, which the
+     * compaction manager treats as "degraded" (a heuristic summary). Real providers override this.
+     */
+    default String summarize(List<Message> messages, String instructions, String previousSummary,
+                                    BiConsumer<String, String> onPartial, String modelOverride, String systemPrompt) {
+        return null;
+    }
+
     @Override
     default void close() {}
 }

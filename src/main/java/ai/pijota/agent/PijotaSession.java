@@ -4,7 +4,6 @@ import ai.pijota.config.AppConfig;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.extensions.task.SubAgent;
 import ai.pijota.llm.LlmClient;
-import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.ToolManifest;
@@ -34,26 +33,10 @@ public final class PijotaSession implements AutoCloseable {
     private volatile String sessionWarning;
     private final long initialContextWindow;
 
-    public PijotaSession(LlmService llm, ToolRegistry toolRegistry, SessionManager sessionManager,
+    public PijotaSession(LlmClient llm, ToolRegistry toolRegistry, SessionManager sessionManager,
                                     ExtensionRegistry extensionRegistry, String systemPrompt, String cwd,
                                     boolean noSession, int contextWindow, AppConfig.CompactionConfig compactionConfig)
                                     throws IOException {
-        this((LlmClient) llm, llm, toolRegistry, sessionManager, extensionRegistry, systemPrompt, cwd, noSession,
-                                        contextWindow, compactionConfig);
-    }
-
-    PijotaSession(LlmClient llm, ToolRegistry toolRegistry, SessionManager sessionManager,
-                                    ExtensionRegistry extensionRegistry, String systemPrompt, String cwd,
-                                    boolean noSession, int contextWindow, AppConfig.CompactionConfig compactionConfig)
-                                    throws IOException {
-        this(llm, (llm instanceof LlmService s) ? s : null, toolRegistry, sessionManager, extensionRegistry,
-                                        systemPrompt, cwd, noSession, contextWindow, compactionConfig);
-    }
-
-    private PijotaSession(LlmClient llm, LlmService llmService, ToolRegistry toolRegistry,
-                                    SessionManager sessionManager, ExtensionRegistry extensionRegistry,
-                                    String systemPrompt, String cwd, boolean noSession, int contextWindow,
-                                    AppConfig.CompactionConfig compactionConfig) throws IOException {
         this.initialContextWindow = contextWindow;
         this.sessionManager = sessionManager;
         this.toolRegistry = toolRegistry;
@@ -64,20 +47,13 @@ public final class PijotaSession implements AutoCloseable {
         this.disableSession = noSession;
         this.sessionFile = noSession ? null : sessionManager.createSession(cwd);
         SelfRespawn.setSessionFile(this.sessionFile);
-        CompactionManager.SummaryGenerator summaryGen = null;
-        if (llmService != null) {
-            summaryGen = (msgs, instr, prev, onPart) -> {
-                var summaryAgent = findSummarizeAgent(cwd);
-                if (summaryAgent != null && summaryAgent.systemPrompt() != null) {
-                    return llmService.summarize(msgs, instr, prev, onPart, summaryAgent.model(),
-                                                    summaryAgent.systemPrompt());
-                }
-                if (summaryAgent != null && summaryAgent.model() != null) {
-                    return llmService.summarize(msgs, instr, prev, onPart, summaryAgent.model(), null);
-                }
-                return llmService.summarize(msgs, instr, prev, onPart);
-            };
-        }
+        // Compaction summaries go through the LlmClient (default: no summarizer → degraded heuristic). An optional
+        // "summarize" sub-agent can override the model/system-prompt; null fields fall back to the main model.
+        CompactionManager.SummaryGenerator summaryGen = (msgs, instr, prev, onPart) -> {
+            var summaryAgent = findSummarizeAgent(cwd);
+            return llm.summarize(msgs, instr, prev, onPart, summaryAgent != null ? summaryAgent.model() : null,
+                                            summaryAgent != null ? summaryAgent.systemPrompt() : null);
+        };
         this.agentLoop = AgentLoop.builder(llm, toolRegistry, cwd).summaryGenerator(summaryGen)
                                         .extensionRegistry(extensionRegistry).contextWindow(contextWindow)
                                         .compactionConfig(compactionConfig).build();

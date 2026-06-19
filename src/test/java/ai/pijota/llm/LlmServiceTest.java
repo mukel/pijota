@@ -182,7 +182,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("summary");
         var service = serviceWithFake(fake);
 
-        var result = service.summarize(List.of(new Message.User("text")), "summarize", null);
+        var result = service.summarize(List.of(new Message.User("text")), "summarize", null, (_c, _t) -> {}, null,
+                                        null);
 
         assertEquals("summary", result);
     }
@@ -214,7 +215,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withError(new RuntimeException("boom"));
         var service = serviceWithFake(fake);
 
-        var result = service.summarize(List.of(new Message.User("text")), "summarize", null);
+        var result = service.summarize(List.of(new Message.User("text")), "summarize", null, (_c, _t) -> {}, null,
+                                        null);
 
         assertNull(result);
     }

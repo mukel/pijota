@@ -12,7 +12,6 @@ final class DiffRenderer {
     private static final int CONTEXT_LINES = 3;
     private static final int MAX_RENDERED_ROWS = 300;
     private static final Pattern ANSI_RESET = Pattern.compile("\033\\[0m");
-    private static final Pattern ANSI = Pattern.compile("\033\\[[0-9;]*m");
 
     private final AnsiTheme theme;
 
@@ -78,7 +77,7 @@ final class DiffRenderer {
         String text = theme.styled("diffMeta", "- ") + theme.styled("diffHeader", action + " " + name) + "  "
                                         + theme.styled("diffAdd", "+" + added) + " "
                                         + theme.styled("diffDelete", "-" + deleted) + " ";
-        int fill = Math.max(5, width - visibleLength(text));
+        int fill = Math.max(5, width - AnsiWidth.visibleWidth(text));
         return text + theme.styled("diffMeta", "-".repeat(fill));
     }
 
@@ -125,10 +124,6 @@ final class DiffRenderer {
         if (home != null && path.startsWith(home))
             path = "~" + path.substring(home.length());
         return path;
-    }
-
-    private static int visibleLength(String text) {
-        return ANSI.matcher(text).replaceAll("").length();
     }
 
     private static int digits(int value) {

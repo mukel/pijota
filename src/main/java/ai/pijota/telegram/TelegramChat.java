@@ -166,7 +166,7 @@ public final class TelegramChat implements ChatHandler {
      */
     private boolean runExtensionCommand(String cmd, String text) {
         String name = cmd.substring(1); // drop the leading "/"
-        var match = session.extensionRegistry().slashCommands().stream().filter(c -> matchesName(c, name)).findFirst();
+        var match = session.extensionRegistry().slashCommands().stream().filter(c -> c.matches(name)).findFirst();
         if (match.isEmpty())
             return false;
         try {
@@ -175,19 +175,6 @@ public final class TelegramChat implements ChatHandler {
             tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
         }
         return true;
-    }
-
-    static boolean matchesName(SlashCommand c, String name) {
-        if (stripSlash(c.name()).equalsIgnoreCase(name))
-            return true;
-        for (String alias : c.aliases())
-            if (stripSlash(alias).equalsIgnoreCase(name))
-                return true;
-        return false;
-    }
-
-    private static String stripSlash(String s) {
-        return s.startsWith("/") ? s.substring(1) : s;
     }
 
     /** The argument text after the command word, e.g. {@code "/btw what is X"} → {@code "what is X"}. */

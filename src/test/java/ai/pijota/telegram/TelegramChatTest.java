@@ -2,7 +2,6 @@ package ai.pijota.telegram;
 
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
-import ai.pijota.modes.SlashCommand;
 
 import org.junit.jupiter.api.Test;
 
@@ -123,16 +122,6 @@ class TelegramChatTest {
         assertEquals("", TelegramChat.commandArgs("/plan"));
         assertEquals("what is X", TelegramChat.commandArgs("/btw what is X"));
         assertEquals("a b", TelegramChat.commandArgs("  /cmd   a b  "));
-    }
-
-    @Test
-    void matchesNameCoversNameAndAliasesIgnoringSlashAndCase() {
-        var c = new SlashCommand("logs", "Open log", List.of("log", "/tail"), s -> {});
-        assertTrue(TelegramChat.matchesName(c, "logs"));
-        assertTrue(TelegramChat.matchesName(c, "log"));
-        assertTrue(TelegramChat.matchesName(c, "tail"), "alias with a leading slash still matches");
-        assertTrue(TelegramChat.matchesName(c, "LOGS"), "case-insensitive");
-        assertFalse(TelegramChat.matchesName(c, "logz"));
     }
 
     @Test

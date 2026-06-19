@@ -75,6 +75,13 @@ public interface Tool {
             return new ToolDefinition(name, description, schema, execute, defaultEnabled, resultRenderer, glyph);
         }
 
+        /** Adapts a full {@link Tool} into a definition — the inverse of {@link #toTool()}. */
+        public static ToolDefinition from(Tool tool) {
+            return new ToolDefinition(tool.name(), tool.description(), tool.schema(),
+                                            (id, args, cwd) -> tool.execute(id, args, cwd), tool.defaultEnabled(),
+                                            tool::renderResult, tool.glyph());
+        }
+
         public Tool toTool() {
             return new Tool() {
                 @Override

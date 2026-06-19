@@ -318,15 +318,6 @@ public final class LlmService implements LlmClient {
         modelCache.clear();
     }
 
-    public String summarize(List<Message> toSummarize, String instructions, String previousSummary) {
-        return summarize(toSummarize, instructions, previousSummary, (_, _) -> {});
-    }
-
-    public String summarize(List<Message> toSummarize, String instructions, String previousSummary,
-                                    BiConsumer<String, String> onPartial) {
-        return summarize(toSummarize, instructions, previousSummary, onPartial, null, null);
-    }
-
     /**
      * Summarize with optional model override and custom system prompt. If {@code modelOverride} is non-null, a one-off
      * model instance is created without affecting the cached model used for the main conversation.

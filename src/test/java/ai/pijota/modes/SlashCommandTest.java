@@ -46,4 +46,15 @@ class SlashCommandTest {
         var b = new SlashCommand("/b", "desc", List.of(), handler);
         assertNotEquals(a, b);
     }
+
+    @Test
+    void matchesNameAndAliasesIgnoringSlashAndCase() {
+        var c = new SlashCommand("logs", "Open log", List.of("log", "/tail"), s -> {});
+        assertTrue(c.matches("logs"));
+        assertTrue(c.matches("log"));
+        assertTrue(c.matches("tail"), "alias with a leading slash still matches");
+        assertTrue(c.matches("/logs"), "a leading slash on the input is ignored");
+        assertTrue(c.matches("LOGS"), "case-insensitive");
+        assertFalse(c.matches("logz"));
+    }
 }

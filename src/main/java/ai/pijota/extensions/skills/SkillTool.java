@@ -45,8 +45,4 @@ public final class SkillTool implements Tool {
         return CompletableFuture.completedFuture(ToolResult
                                         .success("# Skill: " + skill.name() + "\n\n" + skill.content() + "\n"));
     }
-
-    Tool.ToolDefinition toDefinition() {
-        return new Tool.ToolDefinition(name(), description(), schema(), (id, args, cwd) -> execute(id, args, cwd));
-    }
 }

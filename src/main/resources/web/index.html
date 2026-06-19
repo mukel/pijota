@@ -78,7 +78,9 @@
   .answer { position: relative; }
   .answer-copy { position: absolute; top: 2px; right: 2px; opacity: 0; }
   .msg.assistant:hover .answer-copy, .answer-copy:focus-visible { opacity: 1; }
-  @media (hover: none) { .answer-copy { opacity: 1; } }
+  /* touch: no hover to reveal it, so an absolute overlay would permanently cover the first line — drop it
+     below the answer, right-aligned and in flow (mirrors the user message's copy), so it never overlaps. */
+  @media (hover: none) { .answer-copy { position: static; opacity: 1; display: block; width: fit-content; margin: 6px 0 0 auto; } }
   .bubble { padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); line-height: 1.65; overflow-wrap: anywhere; }
   .msg.user { align-items: flex-end; }
   .msg.user .bubble { background: var(--accent-soft); border-color: #1f6feb55; max-width: 82%; border-radius: 16px 16px 4px 16px; }

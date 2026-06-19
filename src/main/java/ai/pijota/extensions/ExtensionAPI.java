@@ -44,6 +44,10 @@ public interface ExtensionAPI {
 
     // ---- registration ----
 
+    /** Registers a full {@link Tool} (keeps its glyph/result-rendering/execution-mode/abort). */
+    void registerTool(Tool tool);
+
+    /** Registers a lightweight tool from a definition — convenient for lambda-style example tools. */
     void registerTool(Tool.ToolDefinition tool);
 
     void registerSlashCommand(SlashCommand command);

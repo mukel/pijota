@@ -88,10 +88,4 @@ public final class TodowriteTool implements Tool {
         var body = lines.subList(0, lines.size() - 1).stream().map(line -> "│ " + line).toList();
         return ToolResultView.of(summary, body);
     }
-
-    /** Wraps this tool as a {@link Tool.ToolDefinition} so it can be registered by an extension (opt-in). */
-    public Tool.ToolDefinition toDefinition() {
-        return new Tool.ToolDefinition(name(), description(), schema(), (id, args, cwd) -> execute(id, args, cwd),
-                                        this::renderResult).withGlyph(glyph());
-    }
 }

@@ -496,6 +496,13 @@ public final class ExtensionRegistry {
         }
 
         @Override
+        public void registerTool(Tool tool) {
+            if (toolRegistry != null) {
+                toolRegistry.register(tool);
+            }
+        }
+
+        @Override
         public void registerTool(Tool.ToolDefinition tool) {
             if (toolRegistry != null) {
                 toolRegistry.register(tool.toTool());

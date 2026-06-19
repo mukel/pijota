@@ -204,7 +204,27 @@ public final class OAuthLogin {
         int expiresIn = node.has("expires_in") ? node.get("expires_in").asInt() : 3600;
         long expiresAt = nowMs + (expiresIn * 1000L);
         String accountId = node.has("account_id") ? node.get("account_id").asText() : null;
+        // ChatGPT/Codex OAuth doesn't return a top-level account_id — it's a claim inside the id_token JWT.
+        if ((accountId == null || accountId.isBlank()) && node.hasNonNull("id_token"))
+            accountId = chatgptAccountIdFromIdToken(node.get("id_token").asText());
         return new TokenResult(accessToken, refreshToken, expiresAt, accountId);
+    }
+
+    /**
+     * Extracts {@code https://api.openai.com/auth.chatgpt_account_id} from an OIDC id_token; null if absent/malformed.
+     */
+    static String chatgptAccountIdFromIdToken(String idToken) {
+        try {
+            String[] parts = idToken.split("\\.");
+            if (parts.length != 3)
+                return null;
+            int pad = (4 - parts[1].length() % 4) % 4;
+            byte[] decoded = java.util.Base64.getUrlDecoder().decode(parts[1] + "=".repeat(pad));
+            var auth = Util.MAPPER.readTree(decoded).get("https://api.openai.com/auth");
+            return auth != null && auth.has("chatgpt_account_id") ? auth.get("chatgpt_account_id").asText() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     static String urlEncode(String value) {

@@ -686,9 +686,4 @@ public final class TaskTool implements Tool {
             out.put("logFiles", logs);
         return out;
     }
-
-    Tool.ToolDefinition toDefinition() {
-        return new Tool.ToolDefinition(name(), description(), schema(), (id, args, cwd) -> execute(id, args, cwd),
-                                        this::renderResult).withGlyph(glyph());
-    }
 }

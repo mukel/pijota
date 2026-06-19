@@ -51,7 +51,7 @@ public final class SkillExtension implements Extension {
         skills.addAll(loaded);
         if (!skills.isEmpty()) {
             api.registerSkills(skills);
-            api.registerTool(new SkillTool(skills).toDefinition());
+            api.registerTool(new SkillTool(skills));
             api.registerSystemPrompt(() -> SkillLoader.buildPrompt(skills));
         }
     }

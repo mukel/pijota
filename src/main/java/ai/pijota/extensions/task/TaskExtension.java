@@ -142,7 +142,7 @@ public final class TaskExtension implements Extension {
         var agents = SubAgent.loadAll(runtime.cwd());
 
         api.registerTool(new TaskTool(agents, runtime.llm(), runtime.tools()::enabledToolNames, runtime::systemPrompt,
-                                        this::onActivity, this::finished, runtime.cwd(), 0).toDefinition());
+                                        this::onActivity, this::finished, runtime.cwd(), 0));
 
         api.registerStatusLines(this::statusLines);
         api.registerSlashCommand(new SlashCommand("logs", "Open the latest sub-agent log", List.of("log", "tail"),

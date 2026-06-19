@@ -61,11 +61,10 @@ class SkillToolTest {
     }
 
     @Test
-    void toDefinitionProducesValidTool() {
+    void exposesNameAndSchema() {
         var skill = new SkillLoader.Skill("test", "desc", "body", null);
         var tool = new SkillTool(List.of(skill));
-        var def = tool.toDefinition();
-        assertEquals("skill", def.name());
-        assertNotNull(def.schema());
+        assertEquals("skill", tool.name());
+        assertNotNull(tool.schema());
     }
 }

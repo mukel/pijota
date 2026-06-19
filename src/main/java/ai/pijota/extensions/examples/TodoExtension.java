@@ -23,6 +23,6 @@ public final class TodoExtension implements Extension {
     @Override
     public void init(ExtensionAPI api) {
         if (api.runtime().getFlag("todo", false))
-            api.registerTool(new TodowriteTool().toDefinition());
+            api.registerTool(new TodowriteTool());
     }
 }

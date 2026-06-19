@@ -85,6 +85,23 @@ class OAuthLoginTest {
     }
 
     @Test
+    void buildTokenResultExtractsAccountIdFromIdToken() throws Exception {
+        // ChatGPT/Codex returns the account id only inside the id_token JWT, not as a top-level field.
+        var auth = Util.MAPPER.createObjectNode();
+        auth.put("chatgpt_account_id", "acc-from-idtoken");
+        var claims = Util.MAPPER.createObjectNode();
+        claims.set("https://api.openai.com/auth", auth);
+        String payload = java.util.Base64.getUrlEncoder().withoutPadding()
+                                        .encodeToString(Util.MAPPER.writeValueAsBytes(claims));
+
+        var json = Util.MAPPER.createObjectNode();
+        json.put("access_token", "at");
+        json.put("id_token", "header." + payload + ".sig");
+
+        assertEquals("acc-from-idtoken", OAuthLogin.buildTokenResult(json, 0L).accountId());
+    }
+
+    @Test
     void buildTokenResultDefaultsExpiresIn() throws Exception {
         var json = Util.MAPPER.createObjectNode();
         json.put("access_token", "at");

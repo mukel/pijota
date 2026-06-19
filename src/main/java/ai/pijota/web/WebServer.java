@@ -252,12 +252,9 @@ public final class WebServer implements AutoCloseable {
      * of being sent to the model.
      */
     private void runCommand(String line) {
-        String name = line.split("\\s+", 2)[0].substring(1).toLowerCase(); // drop leading '/'
+        String name = line.split("\\s+", 2)[0].substring(1); // drop leading '/' (matches() is case-insensitive)
         String args = line.length() > name.length() + 1 ? line.substring(name.length() + 1).strip() : "";
-        SlashCommand cmd = commands.stream()
-                                        .filter(c -> c.name().equalsIgnoreCase(name) || c.aliases().stream()
-                                                                        .anyMatch(a -> a.equalsIgnoreCase(name)))
-                                        .findFirst().orElse(null);
+        SlashCommand cmd = commands.stream().filter(c -> c.matches(name)).findFirst().orElse(null);
         if (cmd == null) {
             broadcast("status", Map.of("message", "unknown command: /" + name, "alert", true));
             return;
