@@ -29,6 +29,7 @@ public final class CdpBackend implements BrowserBackend {
 
     private static final long CONNECT_TIMEOUT_MS = 15_000;
     private static final long CALL_TIMEOUT_MS = 30_000;
+    private static final long LOAD_TIMEOUT_MS = 25_000; // cap on the wait for the new document's load event
 
     private final int port;
     private final Path profileDir;
@@ -45,6 +46,9 @@ public final class CdpBackend implements BrowserBackend {
 
     private volatile boolean connected; // attached + CDP domains enabled (cleared on drop → next call reconnects)
 
+    private final Object loadLock = new Object();
+    private boolean loaded; // set by the Page.loadEventFired event; reset before each navigation (guarded by loadLock)
+
     public CdpBackend(int port, Path profileDir, String chromeOverride, Consumer<String> log,
                                     Callable<Boolean> confirmLaunch, int viewportW, int viewportH,
                                     List<String> initScripts) {
@@ -57,6 +61,20 @@ public final class CdpBackend implements BrowserBackend {
         this.viewportH = viewportH;
         this.initScripts = initScripts != null ? initScripts : List.of();
         this.rpc.onDrop(() -> connected = false); // a dropped/stalled socket → reconnect on the next call
+        this.rpc.onEvent(this::onCdpEvent); // react to lifecycle events (await load) instead of polling readyState
+    }
+
+    /**
+     * Records {@code Page.loadEventFired} so {@link #navigate} can block until the new document has loaded. This event
+     * is main-frame-scoped on a page target, so matching by method name is sufficient; the {@code loaded} flag is armed
+     * (reset) under {@code loadLock} before each navigation so a prior page's event can't be mistaken for this one.
+     */
+    private void onCdpEvent(JsonNode frame) {
+        if ("Page.loadEventFired".equals(frame.path("method").asText()))
+            synchronized (loadLock) {
+                loaded = true;
+                loadLock.notifyAll();
+            }
     }
 
     @Override
@@ -98,12 +116,30 @@ public final class CdpBackend implements BrowserBackend {
 
     @Override
     public void navigate(String url) throws Exception {
+        synchronized (loadLock) {
+            loaded = false; // arm before issuing the navigation so we can't miss the event
+        }
         ObjectNode p = Util.MAPPER.createObjectNode();
         p.put("url", url);
         JsonNode nav = rpc.call("Page.navigate", p);
         String navErr = nav.path("errorText").asText("");
         if (!navErr.isBlank() && !"net::ERR_ABORTED".equals(navErr)) // ERR_ABORTED is normal on redirects/downloads
             throw new IOException("could not load " + url + " (" + navErr + ")");
+        awaitLoad(); // Page.navigate returns on commit; block until the new document's load event (like BiDi
+                     // wait:"complete"). On timeout we proceed anyway — extraction still works on whatever loaded.
+    }
+
+    /** Blocks until {@code Page.loadEventFired} for the in-flight navigation, or {@link #LOAD_TIMEOUT_MS} elapses. */
+    private void awaitLoad() throws InterruptedException {
+        long deadline = System.nanoTime() + LOAD_TIMEOUT_MS * 1_000_000L;
+        synchronized (loadLock) {
+            while (!loaded && rpc.isConnected()) {
+                long remainingMs = (deadline - System.nanoTime()) / 1_000_000L;
+                if (remainingMs <= 0)
+                    return; // timed out → fall back to extracting the partially-loaded page
+                loadLock.wait(Math.min(remainingMs, 200)); // 200ms cap so close() aborts the wait promptly
+            }
+        }
     }
 
     @Override

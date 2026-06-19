@@ -282,8 +282,9 @@ class McpExtensionTest {
         Await.until(() -> registry.get("mcp__c__echo").isPresent() // added
                                         && registry.get("mcp__b__echo").isEmpty() // removed
                                         && registry.get("mcp__a__echo").isPresent()); // restarted (changed)
-        assertTrue(runtime.statusCalls().stream().anyMatch(s -> s.contains("+1 -1 ~1")),
-                                        runtime.statusCalls().toString());
+        // The "+1 -1 ~1" status is emitted at the end of the async reload, after the registry is reconciled,
+        // so await it rather than asserting immediately (the registry Await above can win the race).
+        Await.until(() -> runtime.statusCalls().stream().anyMatch(s -> s.contains("+1 -1 ~1")));
         ext.onShutdown(runtime);
     }
 

@@ -1,6 +1,7 @@
 package ai.pijota.browser;
 
 import ai.pijota.tools.WebfetchTool;
+import ai.pijota.util.Env;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -21,24 +22,46 @@ import java.util.function.Consumer;
  */
 public final class BrowserSession {
 
-    private static final long LOAD_TIMEOUT_MS = 25_000;
-    private static final long STABILITY_TIMEOUT_MS = 6_000; // cap on the "text stopped growing" settle wait
     private static final int SCROLL_STEPS = 12; // max progressive scrolls to trigger lazy-loaded content
     private static final int VIEW_W = 1365, VIEW_H = 900; // emulated viewport (matches ds4) so layout is deterministic
     private static final int MAX_HTML = 1_500_000; // cap the rendered DOM pulled back (fallback path only)
 
+    /**
+     * Wall-clock waits for the settle heuristics that have <i>no</i> protocol event — "the visible text stopped
+     * growing" (SPA/lazy content) and the consent-dismissal reflow. The load wait itself is event-driven in the backend
+     * ({@code Page.loadEventFired} / BiDi {@code wait:"complete"}), so it isn't here. Production values match the tuned
+     * ds4 behavior; tests set {@code -Dpijota.browser.fastSettle} to collapse them (an instantly-ready fake has nothing
+     * to settle), keeping the suite fast without changing production behavior.
+     */
+    record Timings(long scrollStepMs, long stabilityPollMs, long consentMs, long stabilityCapMs, int stableReads) {
+        static final Timings DEFAULT = new Timings(450, 250, 300, 6_000, 3);
+        static final Timings FAST = new Timings(0, 0, 0, 300, 1);
+
+        static Timings fromEnv() {
+            return Boolean.parseBoolean(Env.get("pijota.browser.fastSettle", "PIJOTA_BROWSER_FAST_SETTLE"))
+                                            ? FAST
+                                            : DEFAULT;
+        }
+    }
+
     private final BrowserBackend backend;
+    private final Timings timings;
     private volatile boolean cancelled; // tripped by close() to interrupt the in-flight navigate/settle loops
 
     public BrowserSession(BrowserBackend backend) {
+        this(backend, Timings.fromEnv());
+    }
+
+    BrowserSession(BrowserBackend backend, Timings timings) {
         this.backend = backend;
+        this.timings = timings;
     }
 
     /** Convenience constructor for the default Chrome/CDP backend (with the Readability init script + ds4 viewport). */
     public BrowserSession(int port, Path profileDir, String chromeOverride, Consumer<String> log,
                                     Callable<Boolean> confirmLaunch) {
         this(new CdpBackend(port, profileDir, chromeOverride, log, confirmLaunch, VIEW_W, VIEW_H,
-                                        List.of(READABILITY_JS)));
+                                        List.of(READABILITY_JS)), Timings.fromEnv());
     }
 
     /**
@@ -66,7 +89,7 @@ public final class BrowserSession {
     public synchronized String visit(String url) throws Exception {
         cancelled = false;
         backend.start();
-        navigate(normalizeUrl(url));
+        backend.navigate(normalizeUrl(url)); // returns once the new document has loaded (event-driven in the backend)
         dismissConsent();
         loadSettle();
         String reader = readerArticle(); // tier 1: Mozilla Readability ("Firefox reader mode") — clean articles
@@ -97,29 +120,13 @@ public final class BrowserSession {
     public synchronized String search(String query) throws Exception {
         cancelled = false;
         backend.start();
-        navigate(googleSearchUrl(query));
+        backend.navigate(googleSearchUrl(query)); // returns once loaded (event-driven in the backend)
         dismissConsent();
         loadSettle();
         String results = str(evaluate(SEARCH_EXTRACT_JS));
         // DOM changed / blocked → fall back to the generic page conversion
         String body = !results.isBlank() ? results : WebfetchTool.htmlToMarkdown(fullDomHtml());
         return "# Search: " + query + "\n\n" + body;
-    }
-
-    /** Issues the navigation through the backend, then waits for the new document to commit + finish loading. */
-    private void navigate(String url) throws Exception {
-        String prev = currentUrl();
-        backend.navigate(url);
-        // navigate returns when navigation STARTS; wait for the new document to actually commit + finish so we never
-        // extract the previous page (the URL changing off `prev` marks the new document, redirects included).
-        long deadline = System.nanoTime() + LOAD_TIMEOUT_MS * 1_000_000L;
-        while (before(deadline) && !cancelled) {
-            String href = str(evaluate("location.href"));
-            boolean committed = !href.equals(prev) || "about:blank".equals(prev);
-            if (committed && "complete".equals(str(evaluate("document.readyState"))))
-                break;
-            Thread.sleep(200);
-        }
     }
 
     /**
@@ -132,7 +139,7 @@ public final class BrowserSession {
             int lastH = -1;
             for (int i = 0; i < SCROLL_STEPS && !cancelled; i++) {
                 evaluate("window.scrollBy(0, Math.round(innerHeight * 0.85))");
-                Thread.sleep(450);
+                Thread.sleep(timings.scrollStepMs());
                 int h = evaluate("document.body ? document.body.scrollHeight : 0").asInt(0);
                 if (h == lastH)
                     break; // page stopped growing → done loading
@@ -141,8 +148,8 @@ public final class BrowserSession {
             evaluate("window.scrollTo(0, 0)");
         }
         int last = -1, stable = 0;
-        long deadline = System.nanoTime() + STABILITY_TIMEOUT_MS * 1_000_000L;
-        while (before(deadline) && stable < 3 && !cancelled) {
+        long deadline = System.nanoTime() + timings.stabilityCapMs() * 1_000_000L;
+        while (before(deadline) && stable < timings.stableReads() && !cancelled) {
             int len = evaluate("((document.body && document.body.innerText) || '').length").asInt(0);
             if (len == last)
                 stable++;
@@ -150,14 +157,14 @@ public final class BrowserSession {
                 stable = 0;
                 last = len;
             }
-            Thread.sleep(250);
+            Thread.sleep(timings.stabilityPollMs());
         }
     }
 
     private void dismissConsent() {
         try {
             evaluate(CONSENT_JS);
-            Thread.sleep(300);
+            Thread.sleep(timings.consentMs());
         } catch (Exception ignored) {}
     }
 

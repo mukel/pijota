@@ -475,7 +475,8 @@ public final class LlmService implements LlmClient {
             totalInputTokens += in;
             totalOutputTokens += out;
             if (pricing != null)
-                totalCost += (in / 1_000_000.0) * pricing.inputPerMTok() + (out / 1_000_000.0) * pricing.outputPerMTok();
+                totalCost += (in / 1_000_000.0) * pricing.inputPerMTok()
+                                                + (out / 1_000_000.0) * pricing.outputPerMTok();
             else if (in > 0 || out > 0)
                 hasUnpricedUsage = true;
         }

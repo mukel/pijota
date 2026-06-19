@@ -103,11 +103,9 @@ public final class FakeChrome implements AutoCloseable {
         OutputStream out = s.getOutputStream();
         handshake(in, out);
         String msg;
-        while ((msg = readFrame(in)) != null) {
-            String resp = respond(msg);
-            if (resp != null)
-                writeFrame(out, resp);
-        }
+        while ((msg = readFrame(in)) != null)
+            for (String frame : respond(msg)) // reply, then any server-initiated events (e.g. Page.loadEventFired)
+                writeFrame(out, frame);
     }
 
     private static void handshake(InputStream in, OutputStream out) throws IOException {
@@ -195,7 +193,7 @@ public final class FakeChrome implements AutoCloseable {
 
     // ---- CDP JSON-RPC scripting ----
 
-    private String respond(String json) {
+    private java.util.List<String> respond(String json) {
         try {
             JsonNode n = Util.MAPPER.readTree(json);
             int id = n.path("id").asInt();
@@ -219,9 +217,15 @@ public final class FakeChrome implements AutoCloseable {
                 }
                 default -> {} // Page.enable / Runtime.enable / Emulation.* → empty result
             }
-            return Util.MAPPER.writeValueAsString(reply);
+            String replyJson = Util.MAPPER.writeValueAsString(reply);
+            // Real Chrome fires Page.loadEventFired once the navigated document finishes loading; CdpBackend.navigate
+            // now blocks on it, so the fake must send it too (after the navigate reply).
+            if ("Page.navigate".equals(method) && navigateError.isEmpty())
+                return java.util.List.of(replyJson,
+                                                "{\"method\":\"Page.loadEventFired\",\"params\":{\"timestamp\":0}}");
+            return java.util.List.of(replyJson);
         } catch (Exception e) {
-            return null;
+            return java.util.List.of();
         }
     }
 
