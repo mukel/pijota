@@ -34,7 +34,7 @@ final class McpConfig {
 
     private McpConfig() {}
 
-    /** Loads and merges the global ({@code ~/.pijota/mcp.json}) and project configs for {@code cwd}. */
+    /** Loads and merges the global and per-{@code cwd} project configs. */
     static List<McpServerConfig> load(Path cwd) {
         Path global = PijotaHome.resolve("mcp.json");
         Path project = cwd == null ? null : cwd.resolve(".pijota").resolve("mcp.json");

@@ -3,24 +3,34 @@ package ai.pijota.tools;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * The contract between pijota and any LLM-callable tool. Implement directly or use {@link ToolDefinition} to define a
+ * tool as a lambda. Every tool exposes a name, description, JSON Schema for arguments, and an async {@link #execute}
+ * method. Override {@link #renderResult} and {@link #hasResultView} to customize TUI display; set
+ * {@link #executionMode} to {@link ExecutionMode#SEQUENTIAL} for tools that must not run concurrently with others.
+ */
 public interface Tool {
 
     String name();
 
     String description();
 
+    /** JSON Schema for the tool's arguments. */
     Map<String, Object> schema();
 
+    /** Default execute without session cwd. */
     default CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> arguments) {
         return execute(toolCallId, arguments, null);
     }
 
+    /** Execute the tool — {@code sessionCwd} is the session's working directory at call time. */
     CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> arguments, String sessionCwd);
 
     default boolean defaultEnabled() {
         return true;
     }
 
+    /** SEQUENTIAL: tool must run alone; PARALLEL (default): may run concurrently with other tools. */
     enum ExecutionMode {
         SEQUENTIAL, PARALLEL
     }
@@ -30,6 +40,7 @@ public interface Tool {
 
     default void abort() {}
 
+    /** Result of a tool execution: content, error flag, and optional structured details. */
     record ToolResult(String content, boolean isError, Map<String, Object> details) {
         public static ToolResult success(String content) {
             return new ToolResult(content, false, Map.of());
@@ -54,6 +65,7 @@ public interface Tool {
         ToolResultView render(Map<String, Object> args, ToolResult result, String cwd);
     }
 
+    /** Lightweight tool registration record — wraps name, description, schema, and an execute lambda. */
     record ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
                                     boolean defaultEnabled, ResultRenderer resultRenderer, String glyph) {
         public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute) {
@@ -129,6 +141,7 @@ public interface Tool {
         }
     }
 
+    /** Minimal tool identity: name and description. */
     record ToolInfo(String name, String description) {
     }
 

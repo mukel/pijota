@@ -1,8 +1,14 @@
 package ai.pijota.extensions;
 
 /**
- * Extension entry point. Implementations register tools, commands, prompt contributions, and event handlers from
- * {@link #init(ExtensionAPI)}.
+ * Extension entry point. The extension lifecycle is:
+ * <ol>
+ * <li>{@link #init(ExtensionAPI)} — register tools, commands, hooks, prompt contributions</li>
+ * <li>{@link #onReady(ExtensionRuntime)} — session wired; interact with live state</li>
+ * <li>{@link #onShutdown(ExtensionRuntime)} — cleanup before process exit</li>
+ * </ol>
+ * Additionally, {@link #contributeHeadlessTools(HeadlessToolContext)} is called once per headless sub-agent launch to
+ * optionally add tools for that specific invocation.
  */
 public interface Extension {
 
@@ -10,17 +16,16 @@ public interface Extension {
 
     String description();
 
-    /**
-     * Called when the extension is first loaded. Use the API object to register hooks, tools, commands, etc.
-     */
+    /** Called once at load time — register hooks, tools, commands, etc. via {@code api}. */
     default void init(ExtensionAPI api) throws Exception {}
 
-    /** Called after the core session and UI/runtime have been wired. */
+    /** Called after the core session and UI/runtime have been wired — safe to interact with live state. */
     default void onReady(ExtensionRuntime runtime) throws Exception {}
 
-    /** Called during shutdown after session_shutdown subscribers have run. */
+    /** Called during shutdown, after SessionShutdown subscribers have run. */
     default void onShutdown(ExtensionRuntime runtime) throws Exception {}
 
+    /** Called before each headless sub-agent launch to optionally register tools scoped to that invocation. */
     default void contributeHeadlessTools(HeadlessToolContext ctx) {}
 
 }

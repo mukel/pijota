@@ -8,6 +8,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 
+/**
+ * Discovers project context files ({@code AGENTS.md}, {@code CLAUDE.md}, {@code .pijota/CONTEXT.md}) and injects their
+ * content into the system prompt. Searches upward from the working directory to the filesystem root. Gated by the
+ * {@code --no-context-files} flag and settings.
+ */
 public final class ContextFilesExtension implements Extension {
 
     private final String cwd;

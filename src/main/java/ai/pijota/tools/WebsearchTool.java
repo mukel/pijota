@@ -21,13 +21,21 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
-public final class WebsearchTool implements Tool {
+public class WebsearchTool implements Tool {
     private static final int DEFAULT_NUM_RESULTS = 8;
     private static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                                     + " (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
-    private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
-                                    .connectTimeout(Duration.ofSeconds(10)).build();
+    private final HttpClient http;
+
+    public WebsearchTool() {
+        this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(10))
+                                        .build());
+    }
+
+    WebsearchTool(HttpClient http) {
+        this.http = http;
+    }
 
     @Override
     public String name() {
@@ -74,38 +82,46 @@ public final class WebsearchTool implements Tool {
                     default -> ddgSearch(query, numResults);
                 };
 
-                if (results.isEmpty())
-                    return ToolResult.success("No search results found for: " + query);
-
-                var sb = new StringBuilder();
-                for (int i = 0; i < results.size(); i++) {
-                    var r = results.get(i);
-                    sb.append(i + 1).append(". **").append(r.title()).append("**\n");
-                    sb.append("   URL: ").append(r.url()).append('\n');
-                    sb.append("   ").append(r.snippet()).append("\n\n");
-                }
-
-                String output = sb.toString().stripTrailing();
-                if (output.length() > Util.DEFAULT_MAX_CHARS) {
-                    var truncated = Util.truncateToFile(output, Util.DEFAULT_MAX_CHARS, "pijota-websearch-");
-                    return ToolResult.success(truncated.text(), truncated.details());
-                }
-                return ToolResult.success(output);
+                return buildResult(results, query);
             } catch (Exception e) {
                 return ToolResult.error("Search error: " + e.getMessage());
             }
         });
     }
 
-    private List<SearchResult> ddgSearch(String query, int numResults) throws Exception {
+    static Tool.ToolResult buildResult(List<SearchResult> results, String query) throws IOException {
+        if (results.isEmpty())
+            return Tool.ToolResult.success("No search results found for: " + query);
+        String output = formatResults(results);
+        if (output.length() > Util.DEFAULT_MAX_CHARS) {
+            var truncated = Util.truncateToFile(output, Util.DEFAULT_MAX_CHARS, "pijota-websearch-");
+            return Tool.ToolResult.success(truncated.text(), truncated.details());
+        }
+        return Tool.ToolResult.success(output);
+    }
+
+    static String formatResults(List<SearchResult> results) {
+        var sb = new StringBuilder();
+        for (int i = 0; i < results.size(); i++) {
+            var r = results.get(i);
+            sb.append(i + 1).append(". **").append(r.title()).append("**\n");
+            sb.append("   URL: ").append(r.url()).append('\n');
+            sb.append("   ").append(r.snippet()).append("\n\n");
+        }
+        return sb.toString().stripTrailing();
+    }
+
+    List<SearchResult> ddgSearch(String query, int numResults) throws Exception {
         String url = "https://html.duckduckgo.com/html/?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).header("User-Agent", UA)
                                         .timeout(Duration.ofSeconds(15)).GET().build();
 
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-        String html = response.body();
+        return parseDdgResults(response.body(), numResults);
+    }
 
+    static List<SearchResult> parseDdgResults(String html, int numResults) {
         var results = new ArrayList<SearchResult>();
         var resultBlockPattern = Pattern.compile(
                                         "<a[^>]*class\\s*=\\s*['\"]result__a['\"][^>]*href\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>\\s*(.*?)\\s*</a>",
@@ -130,7 +146,7 @@ public final class WebsearchTool implements Tool {
         return results;
     }
 
-    private List<SearchResult> exaSearch(String query, int numResults) throws Exception {
+    List<SearchResult> exaSearch(String query, int numResults) throws Exception {
         String key = System.getenv("EXA_API_KEY");
         if (key == null || key.isBlank())
             return ddgSearch(query, numResults);
@@ -159,13 +175,7 @@ public final class WebsearchTool implements Tool {
             if (code != 200)
                 return ddgSearch(query, numResults);
 
-            JsonNode root = Util.MAPPER.readTree(response);
-            var results = new ArrayList<SearchResult>();
-            for (JsonNode item : root.path("results")) {
-                results.add(new SearchResult(item.path("title").asText(""), item.path("url").asText(""),
-                                                item.path("text").asText("")));
-            }
-            return results;
+            return parseExaResults(response);
         } finally {
             try {
                 stream.close();
@@ -174,7 +184,17 @@ public final class WebsearchTool implements Tool {
         }
     }
 
-    private List<SearchResult> parallelSearch(String query, int numResults) throws Exception {
+    static List<SearchResult> parseExaResults(String json) throws Exception {
+        JsonNode root = Util.MAPPER.readTree(json);
+        var results = new ArrayList<SearchResult>();
+        for (JsonNode item : root.path("results")) {
+            results.add(new SearchResult(item.path("title").asText(""), item.path("url").asText(""),
+                                            item.path("text").asText("")));
+        }
+        return results;
+    }
+
+    List<SearchResult> parallelSearch(String query, int numResults) throws Exception {
         String key = System.getenv("PARALLEL_API_KEY");
         if (key == null || key.isBlank())
             return ddgSearch(query, numResults);
@@ -194,7 +214,11 @@ public final class WebsearchTool implements Tool {
         if (response.statusCode() != 200)
             return ddgSearch(query, numResults);
 
-        JsonNode root = Util.MAPPER.readTree(response.body());
+        return parseParallelResults(response.body());
+    }
+
+    static List<SearchResult> parseParallelResults(String json) throws Exception {
+        JsonNode root = Util.MAPPER.readTree(json);
         var results = new ArrayList<SearchResult>();
         for (JsonNode item : root.path("results")) {
             results.add(new SearchResult(item.path("title").asText(""), item.path("url").asText(""),
@@ -216,6 +240,6 @@ public final class WebsearchTool implements Tool {
         return url;
     }
 
-    private record SearchResult(String title, String url, String snippet) {
+    record SearchResult(String title, String url, String snippet) {
     }
 }

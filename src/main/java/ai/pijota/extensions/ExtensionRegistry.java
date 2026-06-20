@@ -25,6 +25,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
+/**
+ * Core registry that loads, registers, and dispatches to all extensions. Owns the lifecycle: loads extensions from
+ * ServiceLoader and a directory, wires them into the agent loop, fires events, dispatches tool-call/user-bash
+ * decisions, collects slash commands/keybindings/status lines/skills, and handles shutdown cleanup. This is the
+ * host-facing API — extension authors use {@link ExtensionAPI}, not this class.
+ */
 public final class ExtensionRegistry {
     private static final Logger log = LoggerFactory.getLogger(ExtensionRegistry.class);
 

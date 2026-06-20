@@ -26,6 +26,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Schedule recurring or one-shot prompts via cron expressions or intervals. Jobs are managed through slash commands
+ * ({@code /schedule add}, {@code /schedule list}, {@code /schedule remove}) or the {@code scheduled_job} custom message
+ * type. Jobs persist in the session; missed runs execute on restart.
+ */
 public final class ScheduleExtension implements Extension {
 
     private static final String CUSTOM_TYPE = "schedule";

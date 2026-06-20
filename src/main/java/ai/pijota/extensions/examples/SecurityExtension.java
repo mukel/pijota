@@ -11,6 +11,10 @@ import ai.pijota.util.Util;
 import java.util.List;
 import java.util.regex.Pattern;
 
+/**
+ * Blocks dangerous bash commands — privilege escalation, recursive delete, disk destruction, fork bombs, shell-piping,
+ * iptables, destructive git, and more. Toggle with {@code /security}.
+ */
 public final class SecurityExtension implements Extension {
 
     private static final Pattern[] DANGEROUS_CMDS = {Pattern.compile("\\b(sudo|su|doas)\\b"),

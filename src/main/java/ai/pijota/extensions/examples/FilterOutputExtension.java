@@ -13,6 +13,11 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Auto-redacts secrets and tokens before tool output is shown to the user and sent to the model. Detects AWS keys,
+ * GitHub tokens, Stripe keys, JWTs, Bearer/Basic auth headers, and environment variable assignments containing secrets.
+ * Redaction is applied to the visible message content only. Toggle with {@code /filter output}.
+ */
 public final class FilterOutputExtension implements Extension {
 
     private static final Pattern[] SECRETS = {Pattern.compile("\\bAKIA[0-9A-Z]{16}\\b"),

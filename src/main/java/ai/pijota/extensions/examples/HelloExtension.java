@@ -8,6 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Minimal custom-tool example — registers a {@code hello} tool as a {@link Tool.ToolDefinition}. The simplest possible
+ * extension; not registered by default.
+ */
 public final class HelloExtension implements Extension {
 
     @Override

@@ -118,7 +118,7 @@ public final class WebBrowseExtension implements Extension {
     private CompletableFuture<Tool.ToolResult> run(Callable<String> action) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String md = action.call(); // the session confirms + launches lazily on first use, serialized
+                String md = action.call();
 
                 if (md == null || md.isBlank())
                     return Tool.ToolResult.success("(no content)");

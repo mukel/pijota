@@ -13,10 +13,9 @@ import java.util.function.Supplier;
 import static ai.pijota.util.Util.deltaPrefix;
 
 /**
- * Renders streaming assistant content and "thinking" into terminal lines. Owns all streaming text state — delta
- * tracking, markdown formatters, line accumulators, and the thinking header/footer lifecycle — and emits finished lines
- * to an {@link Output} sink. Self-contained and unit-testable with a capturing sink; the host TUI only forwards stream
- * updates and lifecycle calls and keeps owning everything else (tool results, prompt redraws, usage).
+ * Renders streaming assistant content and "thinking" into terminal lines, emitting finished lines to an {@link Output}
+ * sink. Owns all streaming text state — delta tracking, markdown formatters, line accumulators, and the thinking
+ * header/footer lifecycle; the host TUI only forwards stream updates and lifecycle calls.
  */
 final class StreamRenderer {
 
@@ -95,9 +94,9 @@ final class StreamRenderer {
     }
 
     /**
-     * Streams a thinking update. The caller decides whether thinking should be shown before calling this. Returns true
-     * if it changed scrollback this call (emitted the header or committed a completed thinking line) — the caller uses
-     * that to do a full, consistent redraw (otherwise the live thinking tail is repainted in place).
+     * Streams a thinking update (caller decides whether thinking should be shown). Returns true if it changed
+     * scrollback this call (emitted the header or committed a completed line), signalling the caller to do a full
+     * redraw; otherwise the live thinking tail is repainted in place.
      */
     boolean streamThinking(String fullThinking) {
         boolean changed = false;
@@ -118,8 +117,8 @@ final class StreamRenderer {
 
     /**
      * Streams a content update, closing the thinking block on the first non-empty content. Returns true if it committed
-     * one or more completed lines to scrollback this call (a newline arrived) — the caller uses that to do a full,
-     * consistent redraw so the committed line and the refreshed tail land in the same frame.
+     * one or more completed lines this call (a newline arrived), signalling the caller to do a full redraw so the
+     * committed line and the refreshed tail land in the same frame.
      */
     boolean streamContent(String fullContent) {
         String delta = deltaPrefix(fullContent, lastContent);
@@ -135,11 +134,11 @@ final class StreamRenderer {
     }
 
     /**
-     * The current in-progress content line for live preview at the bottom of the screen, or empty when there is nothing
-     * to preview. This is a non-consuming read: the partial is still committed (markdown-formatted, filtered) on its
-     * terminating newline via {@link #streamContent}/{@link #flush}. The preview is deliberately plain — it skips the
-     * stateful markdown/system-reminder pipeline, so a line may visually reflow when it commits. Suppressed while
-     * inside a {@code <system-reminder>} span or for reasoning-meta lines (both would be stripped on commit anyway).
+     * The in-progress content line for live preview at the bottom of the screen, or empty when there is nothing to
+     * preview. Non-consuming: the partial is still committed (markdown-formatted, filtered) on its terminating newline
+     * via {@link #streamContent}/{@link #flush}. The preview is deliberately plain — it skips the stateful
+     * markdown/system-reminder pipeline, so a line may visually reflow when it commits. Suppressed inside a
+     * {@code <system-reminder>} span or for reasoning-meta lines (both would be stripped on commit anyway).
      */
     Optional<String> contentLiveTail() {
         if (!contentStarted || streamProc.suppressing())

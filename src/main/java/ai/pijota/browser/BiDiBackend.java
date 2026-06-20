@@ -17,12 +17,10 @@ import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
 /**
- * {@link BrowserBackend} over the W3C WebDriver BiDi protocol — drives Firefox, Safari or Chrome through their
- * WebDriver "driver" (geckodriver / safaridriver / chromedriver). The driver launches the browser; we POST
- * {@code /session} (requesting {@code webSocketUrl}) to get a BiDi WebSocket and then speak BiDi over the shared
- * {@link WsJsonRpc}. The five {@link BrowserBackend} primitives map onto {@code browsingContext.navigate} and
- * {@code script.evaluate}; the typed BiDi remote values are unwrapped back to the plain JSON the extraction layer
- * expects by {@link #bidiToJson}.
+ * {@link BrowserBackend} over the W3C WebDriver BiDi protocol — drives Firefox/Safari/Chrome through their WebDriver
+ * "driver" (geckodriver / safaridriver). The driver launches the browser; we POST {@code /session} requesting a
+ * {@code webSocketUrl} and then speak BiDi over the shared {@link WsJsonRpc}, unwrapping typed remote values back to
+ * plain JSON via {@link #bidiToJson}.
  */
 public final class BiDiBackend implements BrowserBackend {
 
@@ -232,10 +230,9 @@ public final class BiDiBackend implements BrowserBackend {
     }
 
     /**
-     * Converts a BiDi {@code RemoteValue} into the plain JSON the extraction layer expects (the equivalent of CDP's
-     * {@code returnByValue}). Primitives unwrap to their value; arrays and objects recurse. Non-serializable special
-     * numbers (NaN/Infinity) and unsupported types (node/regexp/…) collapse to null, which the callers treat as "no
-     * value" via {@code str(...)}.
+     * Converts a BiDi {@code RemoteValue} into plain JSON (the equivalent of CDP's {@code returnByValue}): primitives
+     * unwrap, arrays/objects recurse, and non-serializable specials (NaN/Infinity) or unsupported types collapse to
+     * null, which callers treat as "no value".
      */
     static JsonNode bidiToJson(JsonNode rv) {
         if (rv == null || rv.isMissingNode())

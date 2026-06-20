@@ -6,9 +6,7 @@ import ai.pijota.llm.ModelRegistry;
 
 import java.util.List;
 
-/**
- * Handles model-related commands extracted from AppendOnlyTui.
- */
+/** Handles model-related commands (selection, cycling, refresh). */
 final class ModelCommandHandler {
 
     private final Host host;

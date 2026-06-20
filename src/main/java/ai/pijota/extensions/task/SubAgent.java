@@ -17,10 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Agent configuration matching Pi's agents.md format.
- *
- * Discovery paths (Pi-compatible): ~/.pi/agent/agents/*.md .pi/agents/*.md Compatibility: also reads
- * .pijota/agents/*.json (legacy).
+ * Sub-agent configuration matching Pi's agents.md format; loaded from markdown/JSON across user and project paths by
+ * {@link #loadAll}.
  */
 public record SubAgent(String name, String description, String systemPrompt, List<String> tools, String model,
                                 String source) {

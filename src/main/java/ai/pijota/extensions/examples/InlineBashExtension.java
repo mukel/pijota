@@ -10,6 +10,10 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Expands {@code !{command}} patterns in user prompts by capturing the command output and inlining it. Short-circuits
+ * raw {@code !command} prefix (bash mode) without expansion.
+ */
 public final class InlineBashExtension implements Extension {
 
     private static final Pattern INLINE_BASH = Pattern.compile("!\\{([^}]+)\\}");

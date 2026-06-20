@@ -48,7 +48,6 @@ final class WorkingAnimation {
         frameIndex.incrementAndGet();
     }
 
-    /** The current frame glyph for the selected style. */
     String frame() {
         String[] frames = ANIMATIONS.getOrDefault(style, ANIMATIONS.get("dots"));
         return frames[Math.floorMod(frameIndex.get(), frames.length)];

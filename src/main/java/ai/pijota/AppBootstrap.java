@@ -99,6 +99,7 @@ final class AppBootstrap {
         ext.setLlm(llm);
         ext.loadServiceLoaderExtensions();
         if (!parsedArgs.noExtensions()) {
+            // Pi-compatible extension dirs (matches the .pi/agents and .pi/chains convention), not ~/.pijota.
             ext.loadFromDirectory(Path.of(System.getProperty("user.home"), ".pi", "extensions"));
             ext.loadFromDirectory(Path.of(cwd, ".pi", "extensions"));
         }

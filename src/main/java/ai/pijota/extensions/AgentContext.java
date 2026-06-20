@@ -5,6 +5,10 @@ import ai.pijota.llm.LlmClient;
 
 import java.util.List;
 
+/**
+ * Bridge between {@link ExtensionRegistry} and the agent loop. Extension authors do <em>not</em> implement this — they
+ * use {@link ExtensionRuntime} and {@link ExtensionContext} which delegate here.
+ */
 public interface AgentContext {
     LlmClient llm();
 
@@ -26,8 +30,9 @@ public interface AgentContext {
     void sendUserMessage(String content);
 
     /**
-     * Send a user message with explicit delivery mode. deliverAs: "steer" (processed next turn start), "followUp"
-     * (processed after current turn)
+     * Send a user message with explicit delivery mode. deliverAs: "steer" (processed at the next turn start),
+     * "followUp" (processed after the current turn), or "nextTurn" (delivered when the agent is next idle — the
+     * default).
      */
     void sendUserMessage(String content, String deliverAs);
 

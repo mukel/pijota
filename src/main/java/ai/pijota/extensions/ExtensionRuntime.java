@@ -9,7 +9,13 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Live session state and control surface for extensions. Obtain via {@link ExtensionAPI#runtime()} during {@code init}
+ * — the handle is stable for the session lifetime. Exposes the LLM client, tool registry, message history, filesystem,
+ * status lines, extension flags, process execution, and TUI suspend/resume.
+ */
 public interface ExtensionRuntime {
+    /** Direct model calls, bypassing the agent loop. Supports summarization, side queries, etc. */
     LlmClient llm();
 
     Path cwd();
@@ -18,14 +24,18 @@ public interface ExtensionRuntime {
 
     List<Message> messages();
 
+    /** The live tool registry (register/deregister/enable/disable). */
     ToolRegistry tools();
 
+    /** Tools currently presented to the model. */
     List<Tool.ToolInfo> activeTools();
 
+    /** Replace the enabled tool set for subsequent turns. */
     void setActiveTools(List<String> toolNames);
 
     List<Tool.ToolInfo> allTools();
 
+    /** Human-readable session name (shown in {@code /sessions} listings). */
     String sessionName();
 
     void setSessionName(String name);
@@ -34,20 +44,27 @@ public interface ExtensionRuntime {
 
     boolean isClosed();
 
+    /** Abort the current turn, keep session alive. */
     void abort();
 
+    /** Trigger immediate compaction (shrinks context window). */
     void compact(String instructions);
 
+    /** Set the main status bar text (overwritten by next set/append). */
     void setStatus(String message);
 
     void appendStatus(String message);
 
+    /** Set a named status entry — appears alongside keyless status. */
     void setStatus(String key, String message);
 
+    /** Remove a named status entry. */
     void clearStatus(String key);
 
+    /** Check a boolean flag passed via CLI or config, with a default. */
     boolean getFlag(String name, boolean defaultValue);
 
+    /** Read a flag's raw string value. */
     Optional<String> getFlag(String name);
 
     /** Whether a raw flag value is truthy ({@code true}/{@code 1}/{@code yes}, case-insensitive). */
@@ -55,16 +72,17 @@ public interface ExtensionRuntime {
         return "true".equalsIgnoreCase(value) || "1".equals(value) || "yes".equalsIgnoreCase(value);
     }
 
+    /** Run a command in the session's cwd; returns exit code, stdout, stderr. */
     ExecResult exec(List<String> command);
 
-    /** Suspend the TUI (restore terminal to cooked mode) before spawning interactive subprocess. */
     void suspend();
 
-    /** Resume the TUI (re-enter raw mode) after an interactive subprocess exits. */
     void resume();
 
+    /** The UI context — null in headless/non-interactive modes. */
     UiContext ui();
 
+    /** Output of a command run via {@link #exec}. */
     record ExecResult(int exitCode, String stdout, String stderr) {
         public boolean success() {
             return exitCode == 0;

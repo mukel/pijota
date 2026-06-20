@@ -238,7 +238,7 @@ public final class ProcessRunner {
         }
     }
 
-    /** Runs a process, captures stdout as a string. Convenience for simple commands. */
+    /** Runs the process and returns its stdout, discarding stderr. */
     public String runCapture() throws IOException {
         discardStderr();
         return run().stdout();

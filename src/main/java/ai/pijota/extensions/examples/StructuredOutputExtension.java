@@ -8,6 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Registers a {@code structured_output} tool that lets the model return machine-readable final answers with a headline,
+ * summary, and action-items array. Demonstrates a typed multi-field tool definition. Not registered by default.
+ */
 public final class StructuredOutputExtension implements Extension {
 
     @Override

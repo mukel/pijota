@@ -12,6 +12,11 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
+/**
+ * Overrides the built-in {@code read} tool with a version that logs access and blocks sensitive paths ({@code .env},
+ * {@code secrets}, {@code credentials}, {@code .ssh}, {@code .aws}, {@code .gnupg}). Demonstrates tool-name shadowing:
+ * registering a tool with the same name as a built-in replaces it. Not registered by default.
+ */
 public final class ToolOverrideExtension implements Extension {
 
     private static final Pattern[] BLOCKED = {Pattern.compile("\\.env$"), Pattern.compile("\\.env\\..+$"),

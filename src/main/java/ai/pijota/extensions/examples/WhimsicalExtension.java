@@ -10,6 +10,10 @@ import ai.pijota.util.Emojis;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Replaces the boring "Thinking..." status text with whimsical random phrases pulled from a curated list. Rotates every
+ * 2 seconds during thinking. Toggle with {@code /whimsical}.
+ */
 public final class WhimsicalExtension implements Extension {
 
     private static final String[] PHRASES = {"pondering the orb", "consulting the spirits", "doing mental gymnastics",

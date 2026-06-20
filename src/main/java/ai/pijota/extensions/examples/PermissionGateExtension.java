@@ -7,6 +7,11 @@ import ai.pijota.util.Util;
 
 import java.util.regex.Pattern;
 
+/**
+ * Confirms before running dangerous bash commands. On each {@code bash} tool call, checks the command against patterns
+ * for recursive deletion, privilege escalation, and permission modifications, then prompts the user for confirmation
+ * via the UI. Not registered by default.
+ */
 public final class PermissionGateExtension implements Extension {
 
     private static final Pattern[] DANGEROUS = {

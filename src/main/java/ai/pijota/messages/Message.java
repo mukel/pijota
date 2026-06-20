@@ -5,6 +5,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Sealed hierarchy of all conversation message types: user messages, assistant responses (with tool calls and optional
+ * thinking), tool results, system messages, compaction/branch summaries, and custom extension messages. Every message
+ * has a unique ID and a creation timestamp.
+ */
 public sealed interface Message {
     UUID id();
 

@@ -12,7 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public final class TranscendenceTool implements Tool {
+public class TranscendenceTool implements Tool {
 
     private static final String MVN_NOT_FOUND = "✕ Transcend failed\n\nMaven (mvn) not found on PATH — "
                                     + "install Maven (https://maven.apache.org) or add it to PATH.";
@@ -79,21 +79,21 @@ public final class TranscendenceTool implements Tool {
         return Path.of(System.getProperty("user.dir"));
     }
 
-    private ToolResult doBuild(Path projectRoot) throws IOException {
+    ToolResult doBuild(Path projectRoot) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
             return ToolResult.error("No pom.xml found at " + projectRoot + "\nRecovery: cd " + projectRoot
                                             + " && mvn package -Pfat -q");
 
         try {
-            Path currentJar = SelfRespawn.findCurrentJar();
-            SelfRespawn.backupJar(currentJar);
+            Path currentJar = findCurrentJar();
+            backupJar(currentJar);
         } catch (IOException e) {
             // non-fatal — backup is best-effort
         }
 
         ProcessRunner.Result result;
         try {
-            result = SelfRespawn.buildJar(projectRoot);
+            result = buildJar(projectRoot);
         } catch (IOException e) {
             if (ProcessRunner.isCommandNotFound(e))
                 return ToolResult.error(MVN_NOT_FOUND);
@@ -117,7 +117,7 @@ public final class TranscendenceTool implements Tool {
                                             "Build exited " + result.exitCode() + ".", log, "mvn package -Pfat -q"));
         }
 
-        Path jar = SelfRespawn.findJarIn(projectRoot);
+        Path jar = findJarIn(projectRoot);
         if (jar != null && Files.exists(jar)) {
             details.put("jar", jar.getFileName().toString());
         } else {
@@ -130,14 +130,14 @@ public final class TranscendenceTool implements Tool {
                                         + jar.getFileName(), details);
     }
 
-    private ToolResult doTest(Path projectRoot) throws IOException {
+    ToolResult doTest(Path projectRoot) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
             return ToolResult.error("No pom.xml found at " + projectRoot + "\nRecovery: cd " + projectRoot
                                             + " && mvn test");
 
         ProcessRunner.Result result;
         try {
-            result = ProcessRunner.command("mvn", "test").workDir(projectRoot).redirectErrorStream(true).run();
+            result = runMvnTest(projectRoot);
         } catch (IOException e) {
             if (ProcessRunner.isCommandNotFound(e))
                 return ToolResult.error(MVN_NOT_FOUND);
@@ -163,21 +163,21 @@ public final class TranscendenceTool implements Tool {
                                         details);
     }
 
-    private ToolResult doRespawn(Path projectRoot, String mergeBranch) throws IOException {
+    ToolResult doRespawn(Path projectRoot, String mergeBranch) throws IOException {
         if (!Files.exists(projectRoot.resolve("pom.xml")))
             return ToolResult.error("No pom.xml found at " + projectRoot + "\nRecovery: cd " + projectRoot
                                             + " && mvn package -Pfat -q");
 
         try {
-            Path currentJar = SelfRespawn.findCurrentJar();
-            SelfRespawn.backupJar(currentJar);
+            Path currentJar = findCurrentJar();
+            backupJar(currentJar);
         } catch (IOException e) {
             // non-fatal — backup is best-effort
         }
 
         ProcessRunner.Result buildResult;
         try {
-            buildResult = SelfRespawn.buildJar(projectRoot);
+            buildResult = buildJar(projectRoot);
         } catch (IOException e) {
             if (ProcessRunner.isCommandNotFound(e))
                 return ToolResult.error(MVN_NOT_FOUND);
@@ -195,14 +195,14 @@ public final class TranscendenceTool implements Tool {
                                             log, "mvn package -Pfat -q"));
         }
 
-        Path jar = SelfRespawn.findJarIn(projectRoot);
+        Path jar = findJarIn(projectRoot);
         if (jar == null || !Files.exists(jar)) {
             return ToolResult.error(failure("✓ preserved current build", "✕ compiled new build",
                                             "Build finished, but no jar was found in target/.", log,
                                             "mvn package -Pfat -q"));
         }
 
-        if (!SelfRespawn.requestRespawn(jar, mergeBranch, projectRoot)) {
+        if (!requestRespawn(jar, mergeBranch, projectRoot)) {
             return ToolResult.success("→ Transcend\n  ✓ preserved current build\n  ✓ compiled new build  "
                                             + jar.getFileName() + "\n  … restart already pending",
                                             Map.of("jar", jar.getFileName().toString(), "warning",
@@ -222,27 +222,27 @@ public final class TranscendenceTool implements Tool {
                                         details);
     }
 
-    private ToolResult doRollback(Path projectRoot) {
-        if (!SelfRespawn.canRollback())
+    ToolResult doRollback(Path projectRoot) {
+        if (!canRollback())
             return ToolResult.error("No backup jar found. Nothing to rollback to."
                                             + "\nRecovery: mvn package -Pfat -q && retry transcend");
 
-        Path jar = SelfRespawn.findJarIn(projectRoot);
+        Path jar = findJarIn(projectRoot);
         if (jar == null) {
-            jar = SelfRespawn.findCurrentJar();
+            jar = findCurrentJar();
             if (jar == null)
                 return ToolResult.error("Cannot determine target jar for rollback. "
                                                 + "Restore manually: cp target/pijota-backup.jar target/<jar>");
         }
 
         try {
-            SelfRespawn.rollback(jar);
+            rollbackJar(jar);
         } catch (IOException e) {
             return ToolResult.error("Rollback failed: " + e.getMessage() + "\nRecovery: cp target/pijota-backup.jar "
                                             + jar);
         }
 
-        SelfRespawn.requestRespawn(jar);
+        requestRespawn(jar);
         return ToolResult.success("→ Transcend\n  ✓ restored previous build\n  ✓ restart queued");
     }
 
@@ -276,5 +276,41 @@ public final class TranscendenceTool implements Tool {
         } catch (IOException ignored) {
             return null;
         }
+    }
+
+    Path findCurrentJar() {
+        return SelfRespawn.findCurrentJar();
+    }
+
+    void backupJar(Path jar) throws IOException {
+        SelfRespawn.backupJar(jar);
+    }
+
+    ProcessRunner.Result buildJar(Path projectRoot) throws IOException {
+        return SelfRespawn.buildJar(projectRoot);
+    }
+
+    Path findJarIn(Path projectDir) {
+        return SelfRespawn.findJarIn(projectDir);
+    }
+
+    ProcessRunner.Result runMvnTest(Path projectRoot) throws IOException {
+        return ProcessRunner.command("mvn", "test").workDir(projectRoot).redirectErrorStream(true).run();
+    }
+
+    boolean requestRespawn(Path jar) {
+        return SelfRespawn.requestRespawn(jar);
+    }
+
+    boolean requestRespawn(Path jar, String mergeBranch, Path mergeWorktree) {
+        return SelfRespawn.requestRespawn(jar, mergeBranch, mergeWorktree);
+    }
+
+    boolean canRollback() {
+        return SelfRespawn.canRollback();
+    }
+
+    void rollbackJar(Path jar) throws IOException {
+        SelfRespawn.rollback(jar);
     }
 }

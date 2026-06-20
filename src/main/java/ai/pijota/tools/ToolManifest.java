@@ -11,6 +11,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Deterministic JSON snapshot + SHA-256 hash of the enabled tool set, used to reuse the cached system prompt tool list
+ * while the manifest is unchanged.
+ */
 public final class ToolManifest {
     private ToolManifest() {}
 

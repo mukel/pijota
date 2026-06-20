@@ -23,7 +23,6 @@ final class HelpOverlay {
 
     private HelpOverlay() {}
 
-    /** Builds the help lines from the slash-command help, the fixed shortcuts, and extension keybindings. */
     static List<String> content(List<String> commandHelp, Collection<ExtensionKeybinding> keybindings) {
         var out = new ArrayList<>(commandHelp);
         out.add("");

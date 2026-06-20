@@ -13,12 +13,10 @@ import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
 /**
- * Reads JS-rendered pages and search results the way a person's browser sees them — not a blocked headless fetch — and
- * returns markdown. The browser protocol is abstracted behind {@link BrowserBackend} ({@link CdpBackend} for Chrome via
- * the DevTools Protocol; a WebDriver BiDi backend for Firefox/Safari). This class owns the browser-agnostic part: lazy-
- * load settling, Mozilla Readability ("Firefox reader mode"), the visible-DOM extraction tiers, and markdown conversion
- * via {@link WebfetchTool#htmlToMarkdown}. Calls are serialized — one page, one op at a time — so concurrent tool
- * invocations can't race the protocol.
+ * Reads JS-rendered pages and search results the way a person's browser sees them (not a blocked headless fetch) and
+ * returns markdown. Owns the browser-agnostic part — lazy-load settling, Mozilla Readability, the visible-DOM
+ * extraction tiers, markdown conversion — over a pluggable {@link BrowserBackend}. Calls are serialized so they can't
+ * race the protocol.
  */
 public final class BrowserSession {
 
@@ -57,7 +55,6 @@ public final class BrowserSession {
         this.timings = timings;
     }
 
-    /** Convenience constructor for the default Chrome/CDP backend (with the Readability init script + ds4 viewport). */
     public BrowserSession(int port, Path profileDir, String chromeOverride, Consumer<String> log,
                                     Callable<Boolean> confirmLaunch) {
         this(new CdpBackend(port, profileDir, chromeOverride, log, confirmLaunch, VIEW_W, VIEW_H,

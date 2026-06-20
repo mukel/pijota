@@ -9,28 +9,32 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
+/**
+ * The registration and control surface exposed to {@link Extension#init}. Subscribe to events for observe-only or
+ * decision hooks, register tools/slash-commands/keybindings/prompt-contributions, render custom messages, and inject
+ * messages into the session. Returns {@code this} for chaining on all hook/registration methods. The {@link #runtime()}
+ * handle is valid immediately and stays valid for the entire session lifetime.
+ */
 public interface ExtensionAPI {
 
     // ---- event subscription ----
 
     /**
-     * Subscribes to events of the given type. The handler receives the typed event and an {@link ExtensionContext}. Use
-     * this for all observe/react ("listener") events — lifecycle, turns, messages, tool execution, provider/model,
-     * compaction. The handler may mutate the event where the event exposes mutators (e.g.
-     * {@link ExtensionEvent.SessionBeforeCompact}); it returns nothing. Returns {@code this} for chaining.
-     *
-     * <p>
-     * Events that <em>decide</em> the outcome of an action (and so return a typed result) have dedicated methods:
+     * Subscribe to observe-only lifecycle/turn/message/tool events. The handler receives the typed event and an
+     * {@link ExtensionContext}. For events that <em>decide</em> an outcome, use the dedicated hooks:
      * {@link #onToolCall}, {@link #onUserBash}, {@link #onBashToolCall}, {@link #onInput}.
      */
     <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, BiConsumer<E, ExtensionContext> handler);
 
-    /** Registers a renderer for custom extension messages; the first renderer to produce output wins. */
+    /**
+     * Render custom extension messages in the TUI. The first renderer that returns non-empty output wins. Use distinct
+     * {@code customType} values to avoid rendering messages meant for other extensions.
+     */
     ExtensionAPI registerMessageRenderer(BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer);
 
     // ---- decision events (return a typed result) ----
 
-    /** Decides whether a tool call may proceed; return a {@link ExtensionResult.Block} to veto it. */
+    /** Decides whether a tool call may proceed — return {@link ExtensionResult.Block} to veto. */
     ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler);
 
     /** Decides whether a user-initiated bash command may run. */

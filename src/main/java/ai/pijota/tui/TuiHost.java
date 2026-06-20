@@ -18,10 +18,8 @@ interface TuiHost {
     /** Appends already-styled lines to the scrollback. */
     default void appendPlain(List<String> lines) {}
 
-    /** Appends an error line to the scrollback. */
     default void appendError(String message) {}
 
-    /** Appends a status line to the scrollback. */
     default void appendStatus(String message) {}
 
     /** Styles {@code text} with the named theme slot; the default returns it unstyled. */
@@ -32,10 +30,8 @@ interface TuiHost {
     /** Repaints the prompt region (and live tail). */
     default void redrawPrompt() {}
 
-    /** Clears the prompt input buffer. */
     default void clearPrompt() {}
 
-    /** Whether an agent turn is currently running. */
     default boolean busy() {
         return false;
     }

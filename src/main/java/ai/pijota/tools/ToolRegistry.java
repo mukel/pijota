@@ -10,6 +10,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Thread-safe registry of tools, keyed by name in insertion order, where the enabled set decides which are visible to
+ * the model. Supports dynamic registration/deregistration for tools that connect and disconnect at runtime (e.g. MCP
+ * servers).
+ */
 public final class ToolRegistry {
 
     // Guarded by this: tools may be registered dynamically and from background threads (e.g. MCP servers connecting in

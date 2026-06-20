@@ -17,12 +17,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * A minimal JSON-RPC-over-WebSocket transport shared by the browser backends. Both the Chrome DevTools Protocol and
- * WebDriver BiDi speak {@code {id, method, params}} requests answered by id-keyed {@code {result}}/{@code {error}}
- * frames; unsolicited events carry no {@code id} and are delivered to the backend's {@link #onEvent event sink} so it
- * can react (e.g. await a {@code load} lifecycle event) rather than poll. Requests are correlated by an incrementing id
- * and {@link #call} blocks on the matching reply with a short poll so {@link #close} aborts promptly. The owning
- * backend serializes calls (one op at a time), so this stays lock-free.
+ * A minimal JSON-RPC-over-WebSocket transport shared by the browser backends (both CDP and WebDriver BiDi speak it).
+ * Requests are correlated by an incrementing id; unsolicited (id-less) event frames go to the {@link #onEvent} sink so
+ * the backend can react to lifecycle events rather than poll. The owning backend serializes calls, so this stays
+ * lock-free.
  */
 final class WsJsonRpc {
     private final HttpClient http;

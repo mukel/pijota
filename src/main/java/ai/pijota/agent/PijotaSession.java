@@ -19,6 +19,11 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
+/**
+ * Durable conversational session — the main public API. Wraps the agent loop, session persistence, and extension
+ * registry; messages, model/thinking-level changes, and compaction summaries are saved to disk and resume across
+ * restarts.
+ */
 public final class PijotaSession implements AutoCloseable {
 
     private final AgentLoop agentLoop;
@@ -326,12 +331,10 @@ public final class PijotaSession implements AutoCloseable {
         return agentLoop.llm().hasUnpricedUsage();
     }
 
-    /** The active provider id (e.g. {@code anthropic}). */
     public String provider() {
         return agentLoop.llm().provider();
     }
 
-    /** The active model id. */
     public String model() {
         return agentLoop.llm().model();
     }

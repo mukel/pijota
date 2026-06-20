@@ -8,25 +8,35 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * Frontend-agnostic UI for extensions. Each frontend (TUI, Telegram, Web) provides an implementation. Default methods
+ * are safe no-ops — call them unconditionally; if no UI is attached they silently succeed.
+ */
 public interface UiContext {
+    /** Set the main status bar text. */
     void setStatus(String message);
 
     default void appendStatus(String message) {}
 
+    /** Set a named status entry — survives replacement of the keyless status. */
     default void setStatus(String key, String message) {}
 
     default void clearStatus(String key) {}
 
+    /** Modal yes/no confirmation. Returns false when no UI is attached. */
     default CompletableFuture<Boolean> confirm(String question) {
         return CompletableFuture.completedFuture(false);
     }
 
+    /** Modal text prompt with optional default. Returns the default when no UI is attached. */
     default CompletableFuture<String> prompt(String question, String defaultValue) {
         return CompletableFuture.completedFuture(defaultValue);
     }
 
+    /** Show a transient notification/alert. */
     default void alert(String message) {}
 
+    /** Current color theme. Returns null when no UI is attached. */
     default AnsiTheme theme() {
         return null;
     }

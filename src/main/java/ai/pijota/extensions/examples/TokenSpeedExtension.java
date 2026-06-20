@@ -10,8 +10,7 @@ import java.util.List;
 /**
  * Opt-in status line showing the prefill (prompt-processing) and decode (generation) tokens-per-second of the most
  * recent request, e.g. {@code ⚡ pp 2.5K · tg 48 tok/s}. Off by default — enable with {@code --token-speed}. The speed
- * is measured by the LLM client (TTFT + reported usage) and read here via {@link ExtensionRuntime#llm()}; this
- * extension only renders it, so the feature lives entirely outside the core TUI.
+ * is measured by the LLM client and read via {@link ExtensionRuntime#llm()}; this extension only renders it.
  */
 public final class TokenSpeedExtension implements Extension {
 

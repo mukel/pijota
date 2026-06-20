@@ -25,5 +25,13 @@ Thumbs.db
 __pycache__/
 *.pyc
 
+# Scratch in the repo root (ad-hoc markdown-render fixtures, playground scripts) — keep the root clean.
+# Real top-level docs are kept via the exceptions below; add more with !/NAME.md as needed.
+/*.py
+/*.md
+!/README.md
+!/AGENTS.md
+!/CLAUDE.md
+
 # Pijota local state (generated at runtime)
 .pijota/

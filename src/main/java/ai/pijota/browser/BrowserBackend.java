@@ -3,15 +3,10 @@ package ai.pijota.browser;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * A browser-automation backend behind {@link BrowserSession}. Because all page extraction is done by injecting
- * JavaScript and reading values back, the protocol surface a backend must provide is tiny: launch/connect, issue a
- * navigation, and evaluate an expression. Everything else — the settle/scroll heuristics, Readability, the extraction
- * tiers and markdown conversion — is browser-agnostic and lives in {@link BrowserSession}.
- *
- * <p>
- * Implementations: {@link CdpBackend} (Chrome/Edge via the DevTools Protocol) and, in a later step, a WebDriver BiDi
- * backend for Firefox/Safari. Calls are serialized by the owning {@link BrowserSession}, so implementations need no
- * internal locking.
+ * A browser-automation backend behind {@link BrowserSession}. Since extraction is done entirely by injecting JS and
+ * reading values back, the surface is tiny: launch/connect, navigate, evaluate. Implementations are {@link CdpBackend}
+ * (Chrome via DevTools) and {@link BiDiBackend} (Firefox/Safari via WebDriver BiDi); calls are serialized by the owning
+ * session, so they need no internal locking.
  */
 public interface BrowserBackend extends AutoCloseable {
 

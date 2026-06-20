@@ -154,7 +154,7 @@ public final class SettingsManager {
         return null;
     }
 
-    /** Returns true if the provider requires an API key (has env vars or OAuth). */
+    /** True for providers that authenticate via env vars or OAuth (i.e. not keyless). */
     public static boolean requiresApiKey(String provider) {
         if (ProviderCatalog.oauth(provider).isPresent())
             return true;

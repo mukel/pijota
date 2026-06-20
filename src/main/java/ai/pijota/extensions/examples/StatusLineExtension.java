@@ -5,6 +5,10 @@ import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 
+/**
+ * Shows turn progress in the status bar via a keyed status entry. Demonstrates the keyed-status-line API; not
+ * registered by default.
+ */
 public final class StatusLineExtension implements Extension {
 
     @Override

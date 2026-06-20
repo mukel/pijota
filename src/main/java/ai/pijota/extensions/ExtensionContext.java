@@ -4,6 +4,10 @@ import ai.pijota.messages.Message;
 
 import java.util.List;
 
+/**
+ * Convenience wrapper around {@link UiContext} and {@link ExtensionRuntime}, passed to every event handler. All methods
+ * null-guard against missing UI/runtime so handlers work in every frontend without boilerplate.
+ */
 public final class ExtensionContext {
     private final UiContext ui;
     private final ExtensionRuntime runtime;

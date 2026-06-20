@@ -12,10 +12,7 @@ final class DoublePressGate {
         this.windowMs = windowMs;
     }
 
-    /**
-     * Returns true if triggered (second press within window). Returns false and arms the gate on first press or if
-     * expired.
-     */
+    /** True on the second press within the window; otherwise arms the gate and returns false. */
     boolean tryFire() {
         long now = System.currentTimeMillis();
         if (armedUntil > 0 && now <= armedUntil) {

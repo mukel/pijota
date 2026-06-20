@@ -37,7 +37,7 @@ final class MarkdownTableRenderer {
     private final AnsiTheme theme;
     private final int width;
 
-    private MarkdownTableRenderer(AnsiTheme theme, int width) {
+    MarkdownTableRenderer(AnsiTheme theme, int width) {
         this.theme = theme;
         this.width = width;
     }
@@ -53,7 +53,7 @@ final class MarkdownTableRenderer {
     }
 
     static boolean couldBeTable(String markdown) {
-        return markdown.indexOf('|') >= 0 && markdown.indexOf('\n') >= 0;
+        return markdown != null && markdown.indexOf('|') >= 0 && markdown.indexOf('\n') >= 0;
     }
 
     private List<StyledLine> render(TableBlock table) {
@@ -62,7 +62,7 @@ final class MarkdownTableRenderer {
         if (cols == 0)
             return List.of();
         int[] widths = columnWidths(rows, cols);
-        fitWidths(widths);
+        fitWidths(widths, width);
 
         var out = new ArrayList<StyledLine>();
         out.add(StyledLine.of(""));
@@ -162,7 +162,7 @@ final class MarkdownTableRenderer {
         return renderInlineChildren(node);
     }
 
-    private String applyTextMarks(String text) {
+    String applyTextMarks(String text) {
         var sb = new StringBuilder();
         int i = 0;
         while (i < text.length()) {
@@ -176,8 +176,9 @@ final class MarkdownTableRenderer {
             int contentStart = mark.start() + mark.marker().length();
             int end = text.indexOf(mark.marker(), contentStart);
             if (end < 0) {
-                sb.append(styled("text", text.substring(mark.start())));
-                break;
+                sb.append(styled("text", text.substring(mark.start(), contentStart)));
+                i = contentStart;
+                continue;
             }
             sb.append(styled("dim", mark.marker()));
             sb.append(styled(mark.slot(), text.substring(contentStart, end)));
@@ -187,10 +188,10 @@ final class MarkdownTableRenderer {
         return sb.toString();
     }
 
-    private record Mark(int start, String marker, String slot) {
+    record Mark(int start, String marker, String slot) {
     }
 
-    private static Mark nextMark(String text, int from) {
+    static Mark nextMark(String text, int from) {
         Mark best = null;
         for (var mark : List.of(new Mark(text.indexOf("==", from), "==", "highlight"),
                                         new Mark(text.indexOf("++", from), "++", "diffAdd"),
@@ -229,7 +230,7 @@ final class MarkdownTableRenderer {
         return text == null || text.isEmpty() ? "" : theme.styled(slot, text);
     }
 
-    private String separator(int[] widths) {
+    String separator(int[] widths) {
         var out = new StringBuilder();
         for (int i = 0; i < widths.length; i++) {
             if (i > 0)
@@ -239,7 +240,7 @@ final class MarkdownTableRenderer {
         return theme.styled("hr", out.toString());
     }
 
-    private void fitWidths(int[] widths) {
+    static void fitWidths(int[] widths, int width) {
         int cols = widths.length;
         int available = Math.max(cols * 5, width - ((cols - 1) * 3));
         for (int i = 0; i < widths.length; i++)
@@ -288,7 +289,7 @@ final class MarkdownTableRenderer {
         return text + spaces(pad);
     }
 
-    private static List<String> wrapStyled(String text, int width) {
+    static List<String> wrapStyled(String text, int width) {
         if (text == null || text.isEmpty())
             return List.of("");
         if (AnsiWidth.visibleWidth(text) <= width)

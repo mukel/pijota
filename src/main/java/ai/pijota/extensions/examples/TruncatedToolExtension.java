@@ -14,6 +14,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Registers an {@code rg} (ripgrep) tool that truncates output to 2000 lines or 50KB, whichever comes first.
+ * Demonstrates a properly bounded tool that respects context limits. Not registered by default.
+ */
 public final class TruncatedToolExtension implements Extension {
 
     private static final int MAX_BYTES = 50 * 1024;

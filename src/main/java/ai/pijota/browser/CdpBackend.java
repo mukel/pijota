@@ -20,10 +20,9 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
- * {@link BrowserBackend} over the Chrome DevTools Protocol — drives a real (visible) Chrome/Chromium so the model reads
- * JS-rendered pages the way a person's browser does. JDK-only: {@code java.net.http} for the DevTools HTTP endpoints
- * and the WebSocket (via {@link WsJsonRpc}), Jackson for JSON-RPC. A dedicated persistent profile is launched lazily
- * (after a confirmation) and reused; a dropped socket reconnects on the next call.
+ * {@link BrowserBackend} over the Chrome DevTools Protocol — drives a real (visible) Chrome/Chromium. A dedicated
+ * persistent profile is launched lazily (after a confirmation) and reused; a dropped socket reconnects on the next
+ * call.
  */
 public final class CdpBackend implements BrowserBackend {
 

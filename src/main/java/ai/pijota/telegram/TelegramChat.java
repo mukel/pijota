@@ -81,7 +81,6 @@ public final class TelegramChat implements ChatHandler {
         return ui;
     }
 
-    /** A text message arrived in this chat. */
     @Override
     public void onText(String text) {
         if (ui.offerReply(text))
@@ -251,7 +250,6 @@ public final class TelegramChat implements ChatHandler {
                                         });
     }
 
-    /** Exports the conversation transcript as a Markdown file attachment. */
     private void exportTranscript() {
         var file = session.sessionFile();
         if (file == null) {
@@ -334,7 +332,6 @@ public final class TelegramChat implements ChatHandler {
         return key != null && !key.isBlank();
     }
 
-    /** A button was tapped in this chat. */
     @Override
     public void onCallback(TelegramClient.CallbackQuery callback) {
         tg.answerCallback(callback.id());

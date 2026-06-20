@@ -9,14 +9,6 @@ import java.util.Map;
  *
  * @param name
  *            logical server name (the JSON key); used to namespace its tools as {@code mcp__<name>__<tool>}
- * @param command
- *            executable to run (e.g. {@code npx})
- * @param args
- *            command arguments
- * @param env
- *            extra environment variables for the child process
- * @param enabled
- *            whether to connect this server at startup
  */
 public record McpServerConfig(String name, String command, List<String> args, Map<String, String> env,
                                 boolean enabled) {

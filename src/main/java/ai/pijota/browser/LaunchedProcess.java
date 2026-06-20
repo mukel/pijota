@@ -10,10 +10,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 /**
- * A single child process a backend launched — the browser (CDP) or its WebDriver (BiDi). Captures the child's stderr to
- * a temp file (so a failed launch can be root-caused via {@link #exitDiagnostic()}), discards stdout, installs a
- * one-shot JVM-shutdown hook that kills the whole tree (so renderer/GPU/zygote or driver-spawned browser children
- * aren't orphaned on SIGTERM), and tree-kills on demand. Shared by {@link CdpBackend} and {@link BiDiBackend}.
+ * A single child process a backend launched — the browser (CDP) or its WebDriver (BiDi). Captures stderr for
+ * {@link #exitDiagnostic()}, tree-kills on demand, and installs a JVM-shutdown hook that tree-kills so browser children
+ * (renderer/GPU/zygote) aren't orphaned. Shared by {@link CdpBackend} and {@link BiDiBackend}.
  */
 final class LaunchedProcess {
 
@@ -69,10 +68,8 @@ final class LaunchedProcess {
     }
 
     /**
-     * When the launched process has already exited, a short diagnostic — its exit code plus the tail of its captured
-     * stderr — so a "did not come up" timeout can name the real cause (crashed on launch, port/profile in use,
-     * automation disabled, missing dependency) instead of just the symptom. Empty while it's still running or was never
-     * launched.
+     * If the launched process has already exited, its exit code plus the tail of its captured stderr — so a "did not
+     * come up" timeout can name the real cause instead of the symptom. Empty while running or never launched.
      */
     String exitDiagnostic() {
         Process p = process;

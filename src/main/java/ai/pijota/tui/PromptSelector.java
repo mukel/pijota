@@ -8,8 +8,8 @@ import java.util.function.IntConsumer;
 
 /**
  * Modal single-choice selector drawn in the prompt area. It owns its navigation state and renders its own rows; the
- * host only forwards keys ({@link #handleKey}) and asks for the lines to draw ({@link #renderLines}). Keeping this
- * self-contained keeps the selector's behavior unit-testable without a real terminal and out of the main TUI loop.
+ * host only forwards keys ({@link #handleKey}) and asks for the lines to draw ({@link #renderLines}). Being
+ * self-contained keeps its behavior unit-testable without a real terminal and out of the main TUI loop.
  */
 final class PromptSelector {
 

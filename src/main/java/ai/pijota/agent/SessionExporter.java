@@ -21,13 +21,6 @@ public final class SessionExporter {
 
     private SessionExporter() {}
 
-    /**
-     * Export the active branch of a session file to Markdown.
-     *
-     * @param sessionFile
-     *            path to the .jsonl session file
-     * @return Markdown string
-     */
     public static String toMarkdown(Path sessionFile) throws IOException {
         return toMarkdown(sessionFile, null);
     }

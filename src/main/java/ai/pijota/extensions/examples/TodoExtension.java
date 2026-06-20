@@ -5,8 +5,8 @@ import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.tools.TodowriteTool;
 
 /**
- * Opt-in structured todo list. The {@code todowrite} tool is only useful for multi-step work and adds weight to every
- * prompt, so it is OFF by default — enable it with the {@code --todo} flag. Keeps the default tool set lean.
+ * Opt-in structured todo list via the {@code todowrite} tool. The tool is only useful for multi-step work and adds
+ * weight to every prompt, so it is OFF by default — enable with the {@code --todo} flag.
  */
 public final class TodoExtension implements Extension {
 

@@ -17,6 +17,10 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Codex-style goal tracking and auto-continuation. When the model is rate-limited or idled mid-task, the goal is
+ * captured and the agent is automatically restarted with context to complete the interrupted work.
+ */
 public final class GoalExtension implements Extension {
 
     private static final String CUSTOM_TYPE = "goal";

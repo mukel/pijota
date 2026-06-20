@@ -294,10 +294,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * The single adapter backing every command handler's narrow {@link TuiHost}-derived view. It hands the handlers the
-     * TUI's capabilities while keeping the TUI's own methods and fields private: each handler sees only its declared
-     * {@code Host} contract, never this class. Calls that share a name with one of this adapter's own methods are
-     * qualified with {@code AppendOnlyTui.this} so they reach the enclosing TUI rather than recursing.
+     * The single adapter backing every command handler's narrow {@link TuiHost}-derived view: each handler sees only
+     * its declared {@code Host} contract, never this class. Calls that share a name with one of this adapter's own
+     * methods are qualified with {@code AppendOnlyTui.this} so they reach the enclosing TUI rather than recursing.
      */
     private final class Host implements DialogHandler.Host, ShellCommandRunner.Host, SessionCommands.Host,
                                     ModelCommandHandler.Host, TranscendenceOrchestrator.Host, SkillCommandHandler.Host,
@@ -1975,10 +1974,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     /**
      * Body rows the log viewer may occupy so the whole prompt frame still fits on screen. The append-only redraw erases
-     * the previous frame by moving the cursor up over it; if a frame is taller than the terminal, its top scrolls off
-     * and can no longer be reached, so stale separators/prompts pile up. We therefore budget the viewer against the
-     * measured height of every other region (plus the top separator and one spare line), recomputed each redraw so it
-     * adapts as the status/extension area grows or shrinks.
+     * the previous frame by moving the cursor up over it; a frame taller than the terminal scrolls its top off-screen
+     * out of reach, leaving stale separators/prompts piled up. So budget the viewer against the measured height of
+     * every other region, recomputed each redraw to track the status/extension area as it grows or shrinks.
      */
     private int fitViewerViewport(PromptSnapshot snapshot) {
         int width = Math.max(20, terminal.getWidth());

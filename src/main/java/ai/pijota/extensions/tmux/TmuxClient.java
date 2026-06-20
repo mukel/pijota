@@ -86,30 +86,25 @@ public final class TmuxClient {
                                         Duration.ofSeconds(DEFAULT_TIMEOUT_SECONDS));
     }
 
-    /** List tmux sessions. */
     public Result listSessions() {
         return run(List.of(TMUX, "list-sessions", "-F", "#{session_name}\t#{session_id}"),
                                         Duration.ofSeconds(DEFAULT_TIMEOUT_SECONDS));
     }
 
-    /** List panes in a session. */
     public Result listPanes(String session) {
         return run(List.of(TMUX, "list-panes", "-t", session, "-F", "#{pane_id}\t#{pane_pid}\t#{pane_title}"),
                                         Duration.ofSeconds(DEFAULT_TIMEOUT_SECONDS));
     }
 
-    /** True if the session still exists. */
     public boolean sessionExists(String name) {
         var result = run(List.of(TMUX, "has-session", "-t", name), Duration.ofSeconds(5));
         return result.success();
     }
 
-    /** Kill a session. */
     public Result killSession(String name) {
         return run(List.of(TMUX, "kill-session", "-t", name), Duration.ofSeconds(DEFAULT_TIMEOUT_SECONDS));
     }
 
-    /** Kill a pane. */
     public Result killPane(String target) {
         return run(List.of(TMUX, "kill-pane", "-t", target), Duration.ofSeconds(DEFAULT_TIMEOUT_SECONDS));
     }

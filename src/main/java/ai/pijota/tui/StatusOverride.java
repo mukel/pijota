@@ -1,9 +1,8 @@
 package ai.pijota.tui;
 
 /**
- * A transient status message shown in place of the default prompt status. It may be sticky (stays until replaced or
- * cleared) or timed (clears itself after a duration). Reads lazily drop an expired message so callers never observe a
- * stale one. Self-contained and unit-testable without a terminal.
+ * A transient status message shown in place of the default prompt status, either sticky (until replaced or cleared) or
+ * timed (clears itself after a duration). Reads lazily drop an expired message so callers never observe a stale one.
  */
 final class StatusOverride {
 
