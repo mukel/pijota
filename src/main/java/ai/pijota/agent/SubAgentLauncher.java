@@ -1,5 +1,6 @@
 package ai.pijota.agent;
 
+import ai.pijota.util.Platform;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 
@@ -45,6 +46,16 @@ public final class SubAgentLauncher {
             cmd.add(spec.model());
         }
 
+        var lines = new ArrayList<String>();
+        ProcessRunner.Result result = ProcessRunner.command(cmd).workDir(Path.of(spec.cwd()))
+                                        .timeout(spec.timeout() != null ? spec.timeout() : Duration.ofMinutes(3))
+                                        .feedStdin(buildTaskJson(spec)).consumeStdoutLines(lines::add)
+                                        .captureStderr(true).run();
+        return resolveOutput(lines, result.exitCode(), result.stderr());
+    }
+
+    /** Build the JSON task spec fed to the sub-agent on stdin (optional fields are omitted when null/blank/empty). */
+    static String buildTaskJson(Spec spec) throws IOException {
         var taskJson = new LinkedHashMap<String, Object>();
         taskJson.put("description", spec.task());
         if (spec.systemPrompt() != null && !spec.systemPrompt().isBlank())
@@ -59,32 +70,34 @@ public final class SubAgentLauncher {
             taskJson.put("model", spec.model());
         if (spec.apiKey() != null && !spec.apiKey().isBlank())
             taskJson.put("apiKey", spec.apiKey());
+        return Util.MAPPER.writeValueAsString(taskJson);
+    }
 
-        var output = new String[] {""};
-        var error = new String[] {null};
-        ProcessRunner.Result result = ProcessRunner.command(cmd).workDir(Path.of(spec.cwd()))
-                                        .timeout(spec.timeout() != null ? spec.timeout() : Duration.ofMinutes(3))
-                                        .feedStdin(Util.MAPPER.writeValueAsString(taskJson))
-                                        .consumeStdoutLines(line -> {
-                                            try {
-                                                Map<String, Object> ev = Util.MAPPER.readValue(line,
-                                                                                new TypeReference<Map<String, Object>>() {
-                                                                                });
-                                                if ("done".equals(ev.get("type"))) {
-                                                    output[0] = String.valueOf(ev.getOrDefault("output", ""));
-                                                    if (ev.get("error") instanceof String e && !e.isBlank())
-                                                        error[0] = e;
-                                                }
-                                            } catch (Exception ignored) {} // non-JSON / partial lines
-                                        }).captureStderr(true).run();
-
-        if (error[0] != null)
-            throw new IOException(error[0]);
-        if (output[0].isBlank() && result.exitCode() != 0) {
-            String stderr = result.stderr() != null && !result.stderr().isBlank() ? "; " + result.stderr().strip() : "";
-            throw new IOException("sub-agent failed (exit " + result.exitCode() + ")" + stderr);
+    /**
+     * Reduce the sub-agent's stdout event lines (plus exit code / stderr) to its output, or throw: the {@code done}
+     * event's {@code error} field wins; otherwise a blank output with a non-zero exit is reported as a failure.
+     */
+    static String resolveOutput(List<String> stdoutLines, int exitCode, String stderr) throws IOException {
+        String output = "";
+        String error = null;
+        for (String line : stdoutLines) {
+            try {
+                Map<String, Object> ev = Util.MAPPER.readValue(line, new TypeReference<Map<String, Object>>() {
+                });
+                if ("done".equals(ev.get("type"))) {
+                    output = String.valueOf(ev.getOrDefault("output", ""));
+                    if (ev.get("error") instanceof String e && !e.isBlank())
+                        error = e;
+                }
+            } catch (Exception ignored) {} // non-JSON / partial lines
         }
-        return output[0];
+        if (error != null)
+            throw new IOException(error);
+        if (output.isBlank() && exitCode != 0) {
+            String tail = stderr != null && !stderr.isBlank() ? "; " + stderr.strip() : "";
+            throw new IOException("sub-agent failed (exit " + exitCode + ")" + tail);
+        }
+        return output;
     }
 
     /**
@@ -92,7 +105,7 @@ public final class SubAgentLauncher {
      * with {@link ai.pijota.extensions.task.TaskTool} so the sub-agent launch is built exactly one way.
      */
     public static List<String> agentCommand(String cwd) {
-        if (System.getProperty("org.graalvm.nativeimage.imagecode") != null)
+        if (Platform.isNativeImage())
             return new ArrayList<>(List.of(currentExecutable()));
         String javaHome = System.getProperty("java.home");
         if (javaHome == null || javaHome.isBlank())

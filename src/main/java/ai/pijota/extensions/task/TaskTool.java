@@ -301,6 +301,19 @@ public final class TaskTool implements Tool {
         return ai.pijota.util.Env.get("pijota.subagent.model", "PIJOTA_SUBAGENT_MODEL");
     }
 
+    /**
+     * Resolve the dynamic, read-only {@code alias/current} to the parent's live {@code provider/model}, so a sub-agent
+     * can explicitly mirror the model the session is on right now. Static aliases and concrete models pass through
+     * unchanged (the child resolves those itself).
+     */
+    static String resolveCurrentAlias(String declared, String currentProvider, String currentModel) {
+        String currentSpec = ai.pijota.llm.ModelRegistry.ALIAS_PROVIDER + "/"
+                                        + ai.pijota.llm.ModelRegistry.CURRENT_ALIAS;
+        if (currentSpec.equalsIgnoreCase(declared) && currentProvider != null && currentModel != null)
+            return currentProvider + "/" + currentModel;
+        return declared;
+    }
+
     private SubAgentResult runAgent(SubAgent sub, String task, String workDir) {
         Path logFile;
         BufferedWriter logWriter;
@@ -334,7 +347,7 @@ public final class TaskTool implements Tool {
             String m = llm.model();
             // Model routing: a per-agent override wins; otherwise an optional global sub-agent model lets the main
             // loop stay on a strong model while sub-agents run on a cheaper one; otherwise inherit the parent model.
-            String subModel = subAgentModel(sub);
+            String subModel = resolveCurrentAlias(subAgentModel(sub), p, m);
             if (p != null)
                 taskJson.put("provider", p);
             if (m != null && subModel == null)

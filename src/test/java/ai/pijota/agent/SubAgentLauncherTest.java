@@ -1,10 +1,13 @@
 package ai.pijota.agent;
 
+import ai.pijota.util.Util;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -72,5 +75,61 @@ class SubAgentLauncherTest {
         assertEquals("gpt-4o", spec.model());
         assertEquals("secret", spec.apiKey());
         assertEquals(Duration.ofMinutes(2), spec.timeout());
+    }
+
+    @Test
+    void buildTaskJsonIncludesAllProvidedFields() throws Exception {
+        var spec = new SubAgentLauncher.Spec("task", "sys", List.of("read", "grep"), "/work", "openai", "gpt-4o", "key",
+                                        Duration.ofMinutes(1));
+        var json = Util.MAPPER.readValue(SubAgentLauncher.buildTaskJson(spec), Map.class);
+
+        assertEquals("task", json.get("description"));
+        assertEquals("sys", json.get("systemPrompt"));
+        assertEquals(List.of("read", "grep"), json.get("tools"));
+        assertEquals("/work", json.get("cwd"));
+        assertEquals("openai", json.get("provider"));
+        assertEquals("gpt-4o", json.get("model"));
+        assertEquals("key", json.get("apiKey"));
+        assertEquals(1, json.get("subagentDepth"));
+    }
+
+    @Test
+    void buildTaskJsonOmitsBlankAndEmptyOptionals() throws Exception {
+        var spec = new SubAgentLauncher.Spec("task", "  ", List.of(), "/work", null, null, "", null);
+        var json = Util.MAPPER.readValue(SubAgentLauncher.buildTaskJson(spec), Map.class);
+
+        assertEquals("task", json.get("description"));
+        assertEquals("/work", json.get("cwd"));
+        assertFalse(json.containsKey("systemPrompt"));
+        assertFalse(json.containsKey("tools"));
+        assertFalse(json.containsKey("provider"));
+        assertFalse(json.containsKey("model"));
+        assertFalse(json.containsKey("apiKey"));
+    }
+
+    @Test
+    void resolveOutputReturnsDoneEventOutput() throws Exception {
+        var out = SubAgentLauncher.resolveOutput(List.of("{\"type\":\"done\",\"output\":\"the answer\"}"), 0, "");
+        assertEquals("the answer", out);
+    }
+
+    @Test
+    void resolveOutputThrowsTheReportedError() {
+        var ex = assertThrows(IOException.class, () -> SubAgentLauncher.resolveOutput(
+                                        List.of("{\"type\":\"done\",\"output\":\"\",\"error\":\"boom\"}"), 0, ""));
+        assertEquals("boom", ex.getMessage());
+    }
+
+    @Test
+    void resolveOutputThrowsOnBlankOutputWithNonZeroExit() {
+        var ex = assertThrows(IOException.class,
+                                        () -> SubAgentLauncher.resolveOutput(List.of(), 1, "stack trace here"));
+        assertTrue(ex.getMessage().contains("exit 1"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("stack trace here"), ex.getMessage());
+    }
+
+    @Test
+    void resolveOutputReturnsBlankWhenNoDoneAndCleanExit() throws Exception {
+        assertEquals("", SubAgentLauncher.resolveOutput(List.of("not json", "{\"type\":\"stream\"}"), 0, ""));
     }
 }

@@ -356,13 +356,9 @@ public final class LlmService implements LlmClient {
     }
 
     private StreamingChatModel lc4jModelForModel(String m) {
-        String requested = m != null && !m.isEmpty() ? m : null;
-        String explicitProvider = null;
-        if (requested != null && requested.contains("/")) {
-            int slash = requested.indexOf('/');
-            explicitProvider = requested.substring(0, slash);
-            requested = requested.substring(slash + 1);
-        }
+        var pm = ModelRegistry.parseProviderModel(m != null && !m.isEmpty() ? m : null);
+        String explicitProvider = pm.provider();
+        String requested = pm.model();
         String effectiveProvider = explicitProvider != null
                                         ? explicitProvider
                                         : requested != null ? ModelRegistry.providerForModel(requested) : providerName;

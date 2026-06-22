@@ -29,10 +29,11 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("shorten_paths") boolean shortenPaths,
                                 @JsonProperty("max_retries") int maxRetries,
                                 @JsonProperty("retry_base_delay_ms") long retryBaseDelayMs,
-                                @JsonProperty("compaction") CompactionConfig compaction) {
+                                @JsonProperty("compaction") CompactionConfig compaction,
+                                @JsonProperty("aliases") Map<String, String> aliases) {
     public AppConfig() {
         this(null, null, Map.of(), "medium", "/bin/bash", null, null, null, null, List.of(), List.of(), true, false,
-                                        false, "dots", false, 3, 2000L, new CompactionConfig());
+                                        false, "dots", false, 3, 2000L, new CompactionConfig(), Map.of());
     }
 
     public static AppConfig load(Path path) throws IOException {
@@ -50,87 +51,176 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
     public AppConfig withApiKey(String provider, String apiKey) {
         var updated = new HashMap<>(apiKeys != null ? apiKeys : Map.<String, String>of());
         updated.put(provider, apiKey);
-        return new AppConfig(provider, defaultModel, updated, thinkingLevel, shellPath, shellCommandPrefix, sessionDir,
-                                        null, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
-                                        workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs, compaction);
+        return toBuilder().defaultProvider(provider).apiKeys(updated).build();
     }
 
     public AppConfig withoutApiKey(String provider) {
         var updated = new HashMap<>(apiKeys != null ? apiKeys : Map.<String, String>of());
         updated.remove(provider);
-        return new AppConfig(defaultProvider, defaultModel, updated, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, null, theme, themes, enabledModels, contextFiles, hideThinking,
-                                        quietStartup, workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs,
-                                        compaction);
+        return toBuilder().apiKeys(updated).build();
     }
 
     public AppConfig withDefaultProviderModel(String provider, String model) {
-        return new AppConfig(provider, model, apiKeys, thinkingLevel, shellPath, shellCommandPrefix, sessionDir, null,
-                                        theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
-                                        workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs, compaction);
+        return toBuilder().defaultProvider(provider).defaultModel(model).build();
     }
 
     public AppConfig withContextFiles(boolean enabled) {
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, null, theme, themes, enabledModels, enabled, hideThinking,
-                                        quietStartup, workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs,
-                                        compaction);
+        return toBuilder().contextFiles(enabled).build();
     }
 
     public AppConfig withHideThinking(boolean enabled) {
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, null, theme, themes, enabledModels, contextFiles, enabled,
-                                        quietStartup, workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs,
-                                        compaction);
+        return toBuilder().hideThinking(enabled).build();
     }
 
     public AppConfig withQuietStartup(boolean enabled) {
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, null, theme, themes, enabledModels, contextFiles, hideThinking,
-                                        enabled, workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs,
-                                        compaction);
+        return toBuilder().quietStartup(enabled).build();
     }
 
     public AppConfig withThinkingLevel(String level) {
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, level, shellPath, shellCommandPrefix, sessionDir,
-                                        null, theme, themes, enabledModels, contextFiles, hideThinking, quietStartup,
-                                        workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs, compaction);
+        return toBuilder().thinkingLevel(level).build();
     }
 
     public AppConfig withShortenPaths(boolean enabled) {
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, null, theme, themes, enabledModels, contextFiles, hideThinking,
-                                        quietStartup, workingAnimation, enabled, maxRetries, retryBaseDelayMs,
-                                        compaction);
+        return toBuilder().shortenPaths(enabled).build();
     }
 
     public AppConfig withSessionDir(String sessionDir) {
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, null, theme, themes, enabledModels, contextFiles, hideThinking,
-                                        quietStartup, workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs,
-                                        compaction);
+        return toBuilder().sessionDir(sessionDir).build();
     }
 
     public AppConfig withCompactionEnabled(boolean enabled) {
         var current = compaction != null ? compaction : new CompactionConfig();
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, null, theme, themes, enabledModels, contextFiles, hideThinking,
-                                        quietStartup, workingAnimation, shortenPaths, maxRetries, retryBaseDelayMs,
-                                        new CompactionConfig(enabled, current.reserveTokens(),
-                                                                        current.keepRecentTokens()));
+        return toBuilder().compaction(new CompactionConfig(enabled, current.reserveTokens(),
+                                        current.keepRecentTokens())).build();
     }
 
     public AppConfig withWorkingAnimation(String name) {
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, null, theme, themes, enabledModels, contextFiles, hideThinking,
-                                        quietStartup, name, shortenPaths, maxRetries, retryBaseDelayMs, compaction);
+        return toBuilder().workingAnimation(name).build();
     }
 
     public AppConfig withProjectDir(String projectDir) {
-        return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
-                                        sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
-                                        hideThinking, quietStartup, workingAnimation, shortenPaths, maxRetries,
-                                        retryBaseDelayMs, compaction);
+        return toBuilder().projectDir(projectDir).build();
+    }
+
+    public Builder toBuilder() {
+        return new Builder(this);
+    }
+
+    /**
+     * Mutable copy-builder so the {@code withX} helpers forward every field by name — eliminating the positional
+     * copy-constructor churn (and the class of bug where an unrelated change silently nulled another field).
+     */
+    public static final class Builder {
+        private String defaultProvider;
+        private String defaultModel;
+        private Map<String, String> apiKeys;
+        private String thinkingLevel;
+        private String shellPath;
+        private String shellCommandPrefix;
+        private String sessionDir;
+        private String projectDir;
+        private String theme;
+        private List<String> themes;
+        private List<String> enabledModels;
+        private Boolean contextFiles;
+        private boolean hideThinking;
+        private boolean quietStartup;
+        private String workingAnimation;
+        private boolean shortenPaths;
+        private int maxRetries;
+        private long retryBaseDelayMs;
+        private CompactionConfig compaction;
+        private Map<String, String> aliases;
+
+        private Builder(AppConfig c) {
+            this.defaultProvider = c.defaultProvider;
+            this.defaultModel = c.defaultModel;
+            this.apiKeys = c.apiKeys;
+            this.thinkingLevel = c.thinkingLevel;
+            this.shellPath = c.shellPath;
+            this.shellCommandPrefix = c.shellCommandPrefix;
+            this.sessionDir = c.sessionDir;
+            this.projectDir = c.projectDir;
+            this.theme = c.theme;
+            this.themes = c.themes;
+            this.enabledModels = c.enabledModels;
+            this.contextFiles = c.contextFiles;
+            this.hideThinking = c.hideThinking;
+            this.quietStartup = c.quietStartup;
+            this.workingAnimation = c.workingAnimation;
+            this.shortenPaths = c.shortenPaths;
+            this.maxRetries = c.maxRetries;
+            this.retryBaseDelayMs = c.retryBaseDelayMs;
+            this.compaction = c.compaction;
+            this.aliases = c.aliases;
+        }
+
+        public Builder defaultProvider(String v) {
+            this.defaultProvider = v;
+            return this;
+        }
+
+        public Builder defaultModel(String v) {
+            this.defaultModel = v;
+            return this;
+        }
+
+        public Builder apiKeys(Map<String, String> v) {
+            this.apiKeys = v;
+            return this;
+        }
+
+        public Builder thinkingLevel(String v) {
+            this.thinkingLevel = v;
+            return this;
+        }
+
+        public Builder sessionDir(String v) {
+            this.sessionDir = v;
+            return this;
+        }
+
+        public Builder projectDir(String v) {
+            this.projectDir = v;
+            return this;
+        }
+
+        public Builder contextFiles(Boolean v) {
+            this.contextFiles = v;
+            return this;
+        }
+
+        public Builder hideThinking(boolean v) {
+            this.hideThinking = v;
+            return this;
+        }
+
+        public Builder quietStartup(boolean v) {
+            this.quietStartup = v;
+            return this;
+        }
+
+        public Builder workingAnimation(String v) {
+            this.workingAnimation = v;
+            return this;
+        }
+
+        public Builder shortenPaths(boolean v) {
+            this.shortenPaths = v;
+            return this;
+        }
+
+        public Builder compaction(CompactionConfig v) {
+            this.compaction = v;
+            return this;
+        }
+
+        public AppConfig build() {
+            return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
+                                            sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
+                                            hideThinking, quietStartup, workingAnimation, shortenPaths, maxRetries,
+                                            retryBaseDelayMs, compaction, aliases);
+        }
     }
 
     public record CompactionConfig(@JsonProperty("enabled") boolean enabled,

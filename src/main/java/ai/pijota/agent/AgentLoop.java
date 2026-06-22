@@ -44,6 +44,7 @@ public final class AgentLoop implements AgentContext {
     private volatile boolean messageStreamStarted = false;
     private volatile String lastStreamContent = "";
     private int sessionTurn;
+    private final long retryBaseDelayMs;
 
     public static Builder builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
         return new Builder(llm, toolRegistry, cwd);
@@ -57,6 +58,7 @@ public final class AgentLoop implements AgentContext {
         private ExtensionRegistry extensionRegistry;
         private int contextWindow;
         private AppConfig.CompactionConfig compactionConfig;
+        private long retryBaseDelayMs = 2000;
 
         Builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
             this.llm = llm;
@@ -84,6 +86,12 @@ public final class AgentLoop implements AgentContext {
             return this;
         }
 
+        /** Base backoff for retryable LLM failures (doubles per attempt); default 2000ms. Tests set this low. */
+        public Builder retryBaseDelayMs(long ms) {
+            this.retryBaseDelayMs = ms;
+            return this;
+        }
+
         public AgentLoop build() {
             CompactionManager cm;
             if (summaryGenerator != null) {
@@ -94,18 +102,19 @@ public final class AgentLoop implements AgentContext {
             } else {
                 cm = new CompactionManager(null);
             }
-            return new AgentLoop(llm, toolRegistry, cwd, cm, extensionRegistry);
+            return new AgentLoop(llm, toolRegistry, cwd, cm, extensionRegistry, retryBaseDelayMs);
         }
     }
 
     private AgentLoop(LlmClient llm, ToolRegistry toolRegistry, String cwd, CompactionManager compaction,
-                                    ExtensionRegistry extensionRegistry) {
+                                    ExtensionRegistry extensionRegistry, long retryBaseDelayMs) {
         this.llm = llm;
         this.toolRegistry = toolRegistry;
         this.cwd = cwd;
         this.history = new MessageHistory();
         this.compaction = compaction;
         this.extensionRegistry = extensionRegistry;
+        this.retryBaseDelayMs = retryBaseDelayMs;
         this.toolExecutor = new ToolExecutor(toolRegistry, extensionRegistry, cwd, history, this::fireEvent, aborted);
     }
 
@@ -496,7 +505,7 @@ public final class AgentLoop implements AgentContext {
         return task.get().exceptionallyCompose(ex -> {
             if (attempt >= 2 || !ErrorUtil.isRetryable(ex))
                 return CompletableFuture.failedFuture(ex);
-            long defaultDelay = (long) (2000 * Math.pow(2.0, attempt));
+            long defaultDelay = (long) (retryBaseDelayMs * Math.pow(2.0, attempt));
             long delay = ErrorUtil.retryAfterDelayMs(ex, defaultDelay);
             log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}", attempt + 1, 3, delay,
                                             ErrorUtil.message(ex));

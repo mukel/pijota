@@ -67,6 +67,39 @@ class TelegramChatFlowTest {
     }
 
     @Test
+    void startSendsAWelcomeAndTheCommandList() {
+        var c = newChat();
+        c.chat().onText("/start");
+
+        var last = c.api().sent().getLast();
+        assertTrue(last.contains("pijota"), last); // a welcome line, not just a bare command dump
+        assertTrue(last.contains("/model"), last); // followed by the command list
+    }
+
+    @Test
+    void helpListsTheNativeCommands() {
+        var c = newChat();
+        c.chat().onText("/help");
+
+        var last = c.api().sent().getLast();
+        assertTrue(last.contains("/think"), last);
+        assertTrue(last.contains("/model"), last);
+    }
+
+    @Test
+    void messageDuringARunningTurnIsAcknowledgedAsQueued() {
+        var c = newChat();
+        c.session().llm().blockUntilAborted();
+        c.chat().onText("first"); // starts a turn that blocks
+        Await.until(() -> c.session().session().isBusy(), Duration.ofSeconds(5), "the turn should be running");
+
+        c.chat().onText("second while busy"); // must be acknowledged, not silently swallowed
+
+        assertTrue(c.api().sent().stream().anyMatch(s -> s.contains("Queued")), c.api().sent().toString());
+        c.session().session().abort();
+    }
+
+    @Test
     void aTurnStartsWithATypingAction() {
         var c = newChat();
         c.session().llm().enqueue(FauxLlm.Response.contentWithUsage("done"));

@@ -5,6 +5,7 @@ import ai.pijota.config.SettingsManager;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -65,6 +66,34 @@ class TelegramChatTest {
             long fences = c.lines().filter(l -> l.strip().startsWith("```")).count();
             assertEquals(0, fences % 2, "each chunk must have balanced ``` fences:\n" + c);
         }
+    }
+
+    @Test
+    void unterminatedFenceIsClosedOnTheFinalChunk() {
+        // An answer that ends inside a code block (no closing ```) must still produce balanced chunks on every chunk.
+        String code = ("int v = 12345;\n").repeat(400);
+        var chunks = TelegramChat.split("```java\n" + code); // deliberately never closed
+
+        for (String c : chunks) {
+            long fences = c.lines().filter(l -> l.strip().startsWith("```")).count();
+            assertEquals(0, fences % 2, "unterminated fence left a chunk unbalanced:\n" + c);
+        }
+    }
+
+    @Test
+    void appendFooterGoesOnLastChunkWhenItFits() {
+        var chunks = new ArrayList<>(List.of("body"));
+        TelegramChat.appendFooter(chunks, "\n\nfooter");
+        assertEquals(1, chunks.size());
+        assertTrue(chunks.getLast().endsWith("footer"));
+    }
+
+    @Test
+    void appendFooterBecomesItsOwnChunkWhenItWouldOverflow() {
+        var chunks = new ArrayList<>(List.of("x".repeat(LIMIT)));
+        TelegramChat.appendFooter(chunks, "\n\nfooter");
+        assertEquals(2, chunks.size());
+        assertEquals("footer", chunks.getLast());
     }
 
     @Test

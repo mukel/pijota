@@ -53,9 +53,8 @@ public final class TelegramChat implements ChatHandler {
                                     new TelegramClient.BotCommand("name", "Name this conversation"),
                                     new TelegramClient.BotCommand("help", "Show this help"));
 
-    // Derived from COMMANDS so the menu and the help text can't drift apart.
-    private static final String HELP = COMMANDS.stream().map(c -> "/" + c.command() + " — " + c.description())
-                                    .collect(Collectors.joining("\n", "Just type to chat. Commands:\n", ""));
+    private static final String WELCOME = "👋 I'm pijota — a coding agent you talk to in chat. Just type to ask "
+                                    + "anything; I'll read/edit files, run commands and stream the answer back.\n\n";
 
     private final long chatId;
     private final PijotaSession session;
@@ -88,7 +87,8 @@ public final class TelegramChat implements ChatHandler {
         if (text.strip().startsWith("/") && handleCommand(text.strip()))
             return; // a slash command (handled before busy/followUp so /stop can interrupt a running turn)
         if (session.isBusy()) {
-            session.followUp(text); // queue it onto the running turn (mirrors the TUI, which queues silently)
+            session.followUp(text); // queue it onto the running turn
+            tg.sendMessage(chatId, "➕ Queued — I'll get to it after the current turn.");
             return;
         }
         tg.sendChatAction(chatId, "typing"); // "typing…" + the streamed reply are the progress signal
@@ -109,7 +109,8 @@ public final class TelegramChat implements ChatHandler {
     private boolean handleCommand(String text) {
         String cmd = commandWord(text);
         switch (cmd) {
-            case "/start", "/help" -> tg.sendMessage(chatId, HELP);
+            case "/start" -> tg.sendMessage(chatId, WELCOME + helpText());
+            case "/help" -> tg.sendMessage(chatId, helpText());
             case "/stop", "/cancel" -> {
                 if (session.isBusy()) {
                     session.abort();
@@ -151,7 +152,7 @@ public final class TelegramChat implements ChatHandler {
             case "/name" -> nameConversation(commandArgs(text));
             default -> {
                 if (!runExtensionCommand(cmd, text))
-                    tg.sendMessage(chatId, "Unknown command " + cmd + ".\n\n" + HELP);
+                    tg.sendMessage(chatId, "Unknown command " + cmd + ".\n\n" + helpText());
             }
         }
         return true;
@@ -372,7 +373,9 @@ public final class TelegramChat implements ChatHandler {
         // content, so stripping/copying it every time would be O(n) per token. Only the ~1/EDIT_INTERVAL live edit (and
         // the single final render) does real work.
         long now = System.currentTimeMillis();
-        if (!isFinal && now - lastEditAt < EDIT_INTERVAL_MS)
+        // Show the first prose immediately (no dead air while the typing bubble may already be expiring); throttle only
+        // the subsequent live edits. lastSentText is empty until the first paint.
+        if (!isFinal && !lastSentText.isEmpty() && now - lastEditAt < EDIT_INTERVAL_MS)
             return;
 
         String text = content == null ? "" : content.strip();
@@ -394,9 +397,12 @@ public final class TelegramChat implements ChatHandler {
             // Finalize the live message as a short preview + notice, and send the whole answer as a file — far nicer
             // than a wall of split messages for big diffs, file dumps and logs.
             sendOrEdit(previewOf(text) + "\n\n📄 full answer attached" + footer(usage), null);
-            tg.sendDocument(chatId, "answer.md", text.getBytes(StandardCharsets.UTF_8), null);
+            tg.sendDocument(chatId, answerFileName(), text.getBytes(StandardCharsets.UTF_8), null);
         } else {
-            var chunks = split(text + footer(usage));
+            // Split the answer first (which closes any open code fence), then append the usage footer — so the footer
+            // is always its own paragraph after the content, never swallowed into a trailing code block.
+            var chunks = new ArrayList<>(split(text));
+            appendFooter(chunks, footer(usage));
             sendOrEdit(chunks.get(0), null); // finalize: drop the Stop button — the turn is done
             for (int i = 1; i < chunks.size(); i++)
                 sendChunk(chunks.get(i)); // overflow as fresh messages, each still HTML-rendered
@@ -422,6 +428,51 @@ public final class TelegramChat implements ChatHandler {
         if (nl > cap / 2)
             head = head.substring(0, nl);
         return head.strip() + "\n\n…";
+    }
+
+    /**
+     * Help text: the native command menu plus any extension slash commands that also work in chat (they're dispatched
+     * via {@link #runExtensionCommand}, so listing them keeps the bot's real capabilities discoverable).
+     */
+    private String helpText() {
+        var sb = new StringBuilder("Just type to chat. Commands:\n");
+        for (var c : COMMANDS)
+            sb.append("/").append(c.command()).append(" — ").append(c.description()).append('\n');
+        var builtin = COMMANDS.stream().map(TelegramClient.BotCommand::command).collect(Collectors.toSet());
+        var extras = session.extensionRegistry().slashCommands().stream().filter(c -> !builtin.contains(c.name()))
+                                        .sorted(java.util.Comparator.comparing(SlashCommand::name)).toList();
+        if (!extras.isEmpty()) {
+            sb.append("\nMore (extensions):\n");
+            for (var c : extras)
+                sb.append("/").append(c.name()).append(" — ").append(c.description()).append('\n');
+        }
+        return sb.toString().stripTrailing();
+    }
+
+    /**
+     * A filename for the attached long answer, derived from the conversation name so saved files are distinguishable.
+     */
+    private String answerFileName() {
+        try {
+            String name = session.sessionName();
+            if (name != null && !name.isBlank()) {
+                String safe = name.strip().toLowerCase().replaceAll("[^a-z0-9._-]+", "-").replaceAll("^-+|-+$", "");
+                if (!safe.isBlank())
+                    return safe + ".md";
+            }
+        } catch (Exception ignored) {} // naming is best-effort; fall back to a stable default
+        return "answer.md";
+    }
+
+    /** Appends the footer to the last chunk, or as its own chunk if it wouldn't fit (keeps every chunk ≤ the cap). */
+    static void appendFooter(List<String> chunks, String footer) {
+        if (footer.isEmpty())
+            return;
+        int last = chunks.size() - 1;
+        if (chunks.get(last).length() + footer.length() <= MAX_MESSAGE_LEN)
+            chunks.set(last, chunks.get(last) + footer);
+        else
+            chunks.add(footer.strip());
     }
 
     /** A faint one-line usage footer appended to the final answer, or "" when there's nothing to report. */
@@ -563,7 +614,7 @@ public final class TelegramChat implements ChatHandler {
                 inFence = !inFence;
         }
         if (cur.length() > 0)
-            parts.add(cur.toString().stripTrailing());
+            parts.add(flush(cur, inFence)); // close a still-open fence on the final chunk too
         return parts;
     }
 

@@ -239,12 +239,6 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
         }
     }
 
-    @Override
-    public void suspend() {}
-
-    @Override
-    public void resume() {}
-
     public void setUi(UiContext ui) {
         this.ui = ui;
     }

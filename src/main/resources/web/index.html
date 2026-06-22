@@ -18,6 +18,7 @@
     --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --accent-soft: #1f6feb33;
     --user: #1f6feb; --ok: #3fb950; --err: #f85149; --think: #a371f7;
     --code-bg: #010409; --overlay: #000a; --shadow-color: #0008; --err-text: #ffb4ae; --warn-text: #ffd9a8;
+    --code-inline-bg: #6e768166;
     --radius: 12px; --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
@@ -26,7 +27,7 @@
     --text: #1f2328; --muted: #656d76; --accent: #0969da; --accent-soft: #0969da14;
     --user: #0969da; --ok: #1a7f37; --err: #cf222e; --think: #8250df;
     --code-bg: #ffffff; --overlay: rgba(31,35,40,.35); --shadow-color: rgba(31,35,40,.18);
-    --err-text: #cf222e; --warn-text: #9a6700;
+    --err-text: #cf222e; --warn-text: #9a6700; --code-inline-bg: #afb8c133;
   }
   body { transition: background .2s, color .2s; }
   * { box-sizing: border-box; }
@@ -46,7 +47,7 @@
   .dot.busy { background: var(--accent); animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
   main { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
-  #thread { max-width: 760px; margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 18px; }
+  #thread { max-width: 820px; margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 18px; }
   /* empty conversation: greeting + composer centred in the viewport (drops to the bottom once messages flow) */
   .greeting { display: none; text-align: center; max-width: 760px; margin: 0 auto 24px; }
   .greeting .mark { font-size: 30px; font-weight: 700; letter-spacing: .5px; }
@@ -102,7 +103,7 @@
   .bubble pre:hover .copy-btn { opacity: 1; }
   .copy-btn:hover { color: var(--text); }
   .bubble code { font-family: var(--mono); font-size: 13px; }
-  .bubble :not(pre) > code { background: #6e768166; padding: 2px 6px; border-radius: 5px; }
+  .bubble :not(pre) > code { background: var(--code-inline-bg); padding: 2px 6px; border-radius: 5px; }
   .bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; }
   .bubble th, .bubble td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
   .bubble th { background: var(--panel-2); }
@@ -174,6 +175,7 @@
   }
   button.act:hover { filter: brightness(1.1); }
   button.act:active { transform: scale(.92); }
+  body.offline #send { opacity: .5; } /* visual cue while the SSE connection is down (still functional once it's back) */
   /* the stop icon is a CSS square (pixel-centred by the button's flex), not a font glyph — "■" sits off-centre in
      its line-box. font-size:0 collapses the textContent glyph; the ::before square is the visible icon. */
   button.act.stop { background: var(--err); font-size: 0; }
@@ -395,11 +397,14 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // ---- scrolling ----
   // run fn, then keep the view pinned to the bottom if it already was (so streaming doesn't fight manual scroll-up)
-  function nearBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 120; }
-  function withAutoScroll(fn) { const was = nearBottom(); const r = fn(); if (was) main.scrollTop = main.scrollHeight; return r; }
+  // "Stick to bottom" latch: follow the stream only while the user is parked at the bottom. The moment they scroll up
+  // we stop yanking them down (so they can read mid-stream); they re-engage by scrolling back down or tapping ↓.
+  function atBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 40; }
+  let stick = true;
+  function withAutoScroll(fn) { const r = fn(); if (stick) main.scrollTop = main.scrollHeight; return r; }
   const scrollBtn = $("#scrollbtn");
-  main.addEventListener("scroll", () => scrollBtn.classList.toggle("show", !nearBottom()));
-  scrollBtn.addEventListener("click", () => { main.scrollTop = main.scrollHeight; input.focus(); });
+  main.addEventListener("scroll", () => { stick = atBottom(); scrollBtn.classList.toggle("show", !stick); });
+  scrollBtn.addEventListener("click", () => { stick = true; main.scrollTop = main.scrollHeight; input.focus(); });
 
   // cyclic keyboard selection over a list of elements (shared by the slash menu and the fuzzy finder): moves the
   // selection by delta, applies the .sel class, scrolls it into view, and returns the new index.
@@ -539,10 +544,25 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   // ---- SSE wiring ----
+  let reconnectDelay = 1000, online = true;
+  function setOnline(v) {
+    if (v === online) return;
+    online = v;
+    document.body.classList.toggle("offline", !v);
+    if (!v) showToast("Connection lost — reconnecting…", true);
+  }
   function connect() {
     const es = new EventSource("/events");
-    es.addEventListener("open", () => conn.classList.add("on"));
-    es.addEventListener("error", () => conn.classList.remove("on"));
+    es.addEventListener("open", () => { conn.classList.add("on"); reconnectDelay = 1000; setOnline(true); });
+    es.addEventListener("error", () => {
+      conn.classList.remove("on");
+      setOnline(false);
+      // EventSource auto-retries while CONNECTING, but a CLOSED stream is terminal — reconnect ourselves (capped backoff).
+      if (es.readyState === EventSource.CLOSED) {
+        setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 5000);
+      }
+    });
 
     es.addEventListener("history", e => {
       thread.innerHTML = ""; toolCards.clear(); live = null;
@@ -603,7 +623,9 @@ window.addEventListener("DOMContentLoaded", () => {
     if (data !== undefined) { opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(data); }
     return fetch(url, opts);
   }
-  function post(text) { postJSON("/prompt", { text }); }
+  function post(text) {
+    postJSON("/prompt", { text }).catch(() => showToast("Couldn't reach the server — check your connection.", true));
+  }
   function send() {
     const text = input.value.trim();
     if (!text) return;

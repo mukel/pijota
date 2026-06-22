@@ -147,10 +147,6 @@ public final class SettingsManager {
             if (resolveApiKey(provider) != null)
                 return provider;
         }
-        for (var provider : knownEnvProviders()) {
-            if (resolveApiKey(provider) != null)
-                return provider;
-        }
         return null;
     }
 
@@ -186,29 +182,14 @@ public final class SettingsManager {
         return String.join(" or ", apiKeyEnvNames(provider));
     }
 
-    private static List<String> knownEnvProviders() {
-        return List.of("anthropic", "openai", "google", "deepseek", "groq", "openrouter", "xai", "mistral", "together",
-                                        "fireworks", "cerebras");
-    }
-
+    /**
+     * Env var names for a provider's API key: the catalog is the source of truth; unknown providers get a convention.
+     */
     private static List<String> apiKeyEnvNames(String provider) {
         var fromCatalog = ProviderCatalog.envNames(provider);
         if (!fromCatalog.isEmpty())
             return fromCatalog;
-        return switch (provider) {
-            case "openai" -> List.of("OPENAI_API_KEY");
-            case "anthropic" -> List.of("ANTHROPIC_API_KEY");
-            case "google" -> List.of("GEMINI_API_KEY", "GOOGLE_API_KEY");
-            case "deepseek" -> List.of("DEEPSEEK_API_KEY");
-            case "groq" -> List.of("GROQ_API_KEY");
-            case "xai" -> List.of("XAI_API_KEY");
-            case "mistral" -> List.of("MISTRAL_API_KEY");
-            case "together" -> List.of("TOGETHER_API_KEY");
-            case "openrouter" -> List.of("OPENROUTER_API_KEY");
-            case "cerebras" -> List.of("CEREBRAS_API_KEY");
-            case "fireworks" -> List.of("FIREWORKS_API_KEY");
-            default -> List.of(provider.toUpperCase().replace('-', '_') + "_API_KEY");
-        };
+        return List.of(provider.toUpperCase().replace('-', '_') + "_API_KEY");
     }
 
     public String effectiveShellPath() {

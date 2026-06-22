@@ -82,8 +82,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     .bind('n', "new", this::startNewSession).bind('t', "theme", this::showThemeSelector)
                                     .bind('c', "compact", () -> triggerCompaction(""))
                                     .bind('e', "editor", this::openPromptInEditor)
-                                    .bind('o', "logs", this::showLogSelector)
-                                    .bind('g', "transcend", () -> handleTranscend(""));
+                                    .bind('o', "logs", this::showLogSelector);
     private final GlobalKeyMap globalKeys = new GlobalKeyMap().bind(Key.Special.CTRL_G, this::openPromptInEditor)
                                     .bind(Key.Special.SHIFT_TAB, this::cycleThinkingLevel)
                                     .bind(Key.Special.CTRL_L, this::showModelSelector)
@@ -205,7 +204,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final List<SkillLoader.Skill> skills;
     private final ThemeManager themeMgr;
     private final ThemeCommandHandler themeCommands;
-    private final TranscendenceOrchestrator transcendence;
     private final ShellCommandRunner shellCommands;
     private final SessionCommands sessionCommands;
     private final ModelCommandHandler modelCommands;
@@ -255,7 +253,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build();
         this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
         this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
-        this.transcendence = new TranscendenceOrchestrator(host);
         this.selectors = new TuiSelectors(this::confirmModelSelection, this::confirmSessionSelection,
                                         this::confirmThemeSelection, this::confirmSettingsSelection,
                                         this::confirmLoginSelection, this::confirmForkSelection,
@@ -299,9 +296,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * methods are qualified with {@code AppendOnlyTui.this} so they reach the enclosing TUI rather than recursing.
      */
     private final class Host implements DialogHandler.Host, ShellCommandRunner.Host, SessionCommands.Host,
-                                    ModelCommandHandler.Host, TranscendenceOrchestrator.Host, SkillCommandHandler.Host,
-                                    SettingsCommandHandler.Host, ThemeManager.Host, ThemeCommandHandler.Host,
-                                    LoginCommandHandler.Host, CommandPaletteHandler.Host {
+                                    ModelCommandHandler.Host, SkillCommandHandler.Host, SettingsCommandHandler.Host,
+                                    ThemeManager.Host, ThemeCommandHandler.Host, LoginCommandHandler.Host,
+                                    CommandPaletteHandler.Host {
 
         // ---- shared primitives (TuiHost) ----
         @Override
@@ -363,11 +360,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         @Override
         public void clearStatus() {
             AppendOnlyTui.this.clearStatusOverride();
-        }
-
-        @Override
-        public void setStatusOverride(String status) {
-            AppendOnlyTui.this.setStatusOverride(status);
         }
 
         @Override
@@ -448,11 +440,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
-        public void submitAgent(Runnable task) {
-            agentExecutor.submit(task);
-        }
-
-        @Override
         public void submitAuthTask(Runnable task) {
             agentExecutor.submit(task);
         }
@@ -468,23 +455,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             });
         }
 
-        @Override
-        public CompletableFuture<List<Message>> promptSession(String prompt) {
-            return session.prompt(prompt);
-        }
-
         // ---- model ----
         @Override
         public void switchModel(ModelInfo chosen) {
             switchToModel(chosen);
         }
 
-        // ---- transcendence / terminal control ----
-        @Override
-        public void resetStreamState() {
-            streamRenderer.reset();
-        }
-
+        // ---- terminal control ----
         @Override
         public void showSessionWarning() {
             AppendOnlyTui.this.showSessionWarning();
@@ -498,31 +475,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         @Override
         public void resumeTui() {
             AppendOnlyTui.this.resumeTui();
-        }
-
-        @Override
-        public void flushTerminal() {
-            terminal.writer().flush();
-        }
-
-        @Override
-        public Path sessionFile() {
-            return session.sessionFile();
-        }
-
-        @Override
-        public String projectDir() {
-            if (settings != null) {
-                String dir = settings.projectDir();
-                if (dir != null && !dir.isBlank())
-                    return dir;
-            }
-            return rawCwd;
-        }
-
-        @Override
-        public boolean isGitRepo() {
-            return Files.isDirectory(Path.of(projectDir(), ".git"));
         }
 
         // ---- theme ----
@@ -1068,7 +1020,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
+    // Reentrant: nested suspend/resume pairs (e.g. transcendence brackets its whole flow, then suspends again around a
+    // subprocess launch) only toggle the terminal on the outermost transition.
+    private int suspendDepth = 0;
+
     public void suspendTui() {
+        if (suspendDepth++ > 0)
+            return;
         terminal.writer().print("\033[?25h\033[0m\r\n");
         terminal.writer().flush();
         if (originalAttributes != null)
@@ -1076,9 +1034,28 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     public void resumeTui() {
+        if (suspendDepth == 0 || --suspendDepth > 0)
+            return;
         try {
             originalAttributes = terminal.enterRawMode();
         } catch (Exception ignored) {}
+        redrawPrompt();
+    }
+
+    // UiContext terminal operations (this TUI is the UiContext for terminal frontends).
+    @Override
+    public void suspend() {
+        suspendTui();
+    }
+
+    @Override
+    public void resume() {
+        resumeTui();
+    }
+
+    @Override
+    public void appendOutput(List<String> lines) {
+        appendPlain(lines);
     }
 
     private void openPromptInEditor() {
@@ -1322,6 +1299,24 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
+    /** Switch via a model alias (e.g. {@code /model alias/fast}), resolved from settings {@code "aliases"}. */
+    void switchToAlias(String spec) {
+        String name = ModelRegistry.parseProviderModel(spec).model();
+        if (ModelRegistry.CURRENT_ALIAS.equalsIgnoreCase(name)) {
+            // alias/current is the dynamic, read-only alias for the live model — switching to it is a no-op.
+            appendPlain(List.of(theme.styled("statusText", "alias/current = " + provider + "/" + model)));
+            return;
+        }
+        var target = ModelRegistry.resolveAlias(name, settings);
+        if (target == null) {
+            appendPlain(List.of(theme.styled("toolError", "unknown alias \"" + name
+                                            + "\" — define it under \"aliases\" in settings.json")));
+            return;
+        }
+        long ctx = ModelRegistry.resolveContextWindow(target.provider(), target.model());
+        switchToModel(new ModelInfo(target.model(), target.provider(), target.provider() + "/" + target.model(), ctx));
+    }
+
     private void switchToModel(ModelInfo chosen) {
         String key = settings != null ? settings.resolveApiKey(chosen.provider()) : null;
         if (key == null || (key.isBlank() && SettingsManager.requiresApiKey(chosen.provider()))) {
@@ -1393,7 +1388,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void updateWhoamiTool() {
-        var tool = session.agentLoop().toolRegistry().get("whoami").orElse(null);
+        var tool = session.tool("whoami").orElse(null);
         if (tool instanceof WhoamiTool wt) {
             wt.setModelInfo(provider, model);
         }
@@ -1428,38 +1423,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     void copyLastResponse() {
         sessionCommands.copyLastResponse();
-    }
-
-    void showHotkeys() {
-        var lines = new ArrayList<String>();
-        lines.add(theme.styled("heading", "keyboard shortcuts"));
-        lines.add("");
-
-        // two-column layout
-        String[][] keys = {{"Enter", "submit prompt"}, {"Ctrl+J", "newline"}, {"Tab", "autocomplete"},
-                {"Shift+Tab", "toggle thinking"}, {"Up/Down", "history / navigate"},
-                {"Esc", "interrupt (double-force)"}, {"Ctrl+C", "clear / double to exit"}, {"Ctrl+K", "delete to end"},
-                {"Ctrl+U", "clear line"}, {"Ctrl+W", "delete word"}, {"Ctrl+A/E", "start/end of line"},
-                {"Ctrl+L", "select model"}, {"Ctrl+P", "command palette"}, {"Ctrl+Shift+P", "cycle model forward"},
-                {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"/help", "show help"}};
-
-        int keyWidth = 0;
-        for (var k : keys)
-            keyWidth = Math.max(keyWidth, AnsiWidth.visibleWidth(k[0]));
-        keyWidth += 2;
-
-        for (var k : keys) {
-            lines.add(theme.styled("toolLabel", padRight(k[0], keyWidth)) + theme.styled("statusText", k[1]));
-        }
-        lines.add("");
-        lines.add(theme.styled("statusText", "commands  /help /model /theme /compact /session /tree /fork /undo"));
-        lines.add(theme.styled("statusText", "shell     !cmd adds context · !!cmd runs without context"));
-
-        for (var binding : extensionKeybindings.values()) {
-            lines.add(theme.styled("toolLabel", padRight(binding.key().toString(), keyWidth))
-                                            + theme.styled("statusText", binding.description()));
-        }
-        appendPlain(lines);
     }
 
     static String padRight(String s, int width) {
@@ -1633,10 +1596,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         refreshSessionName();
     }
 
-    void handleTranscend(String args) {
-        transcendence.handle(args);
-    }
-
     void undoLastTurn() {
         if (activity.isBusy()) {
             appendPlain(List.of(theme.styled("toolError", "/undo is unavailable while a turn is running")));
@@ -1712,7 +1671,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
                                                     pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
                 }
-                String glyph = session.agentLoop().toolRegistry().get(msg.toolName()).map(Tool::glyph).orElse("●");
+                String glyph = session.toolGlyph(msg.toolName());
                 appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
                                                 settings != null && settings.shortenPathsEnabled(), elapsedMs, glyph));
                 pendingEdit.clear();
@@ -1758,7 +1717,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private Tool.ToolResultView renderToolResultView(Message.ToolResult msg) {
-        var tool = session.agentLoop().toolRegistry().get(msg.toolName());
+        var tool = session.tool(msg.toolName());
         // A tool gets its own rendering iff it advertises a custom view; no tool names are hardcoded here.
         if (tool.isEmpty() || !tool.get().hasResultView())
             return null;
@@ -1776,7 +1735,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
-    void appendPlain(List<String> lines) {
+    public void appendPlain(List<String> lines) {
         terminalUi.appendLines(lines.stream().map(StyledLine::of).toList());
     }
 
@@ -1817,6 +1776,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         String phase = activity.phase();
         if (phase != null && !phase.isBlank())
             bar += " " + phase;
+        long elapsed = activity.elapsedMillis();
+        if (elapsed >= 1000) // a running seconds counter so long turns visibly progress (not stuck)
+            bar += "  " + (elapsed / 1000) + "s";
         if (queued > 0)
             bar += "  queued " + queued;
         return snapshot.withStatus(bar).withWarning(status);

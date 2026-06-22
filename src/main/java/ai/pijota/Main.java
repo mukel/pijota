@@ -20,6 +20,7 @@ import ai.pijota.web.WebServer;
 import ai.pijota.tui.AppendOnlyTui;
 import ai.pijota.util.CliErrorReporter;
 import ai.pijota.util.PijotaHome;
+import ai.pijota.util.Platform;
 import ai.pijota.util.SelfRespawn;
 
 import org.slf4j.Logger;
@@ -115,7 +116,6 @@ public final class Main {
                                         b.settings(), b.extensions().skills(), b.extensions()::statusLines,
                                         b.extensions().keybindings());
         b.extensions().setTui(tui);
-        b.extensions().setSuspendResume(tui::suspendTui, tui::resumeTui);
         tui.syncThinkingLevel(b.llm().thinkingLevel());
         b.extensions().ready();
         if (parsedArgs.resume())
@@ -145,7 +145,6 @@ public final class Main {
         var session = b.session();
         var chat = new TelegramChat(allowedChat, session, client, b.settings());
         b.extensions().setTui(chat.ui());
-        b.extensions().setSuspendResume(() -> {}, () -> {});
         b.extensions().ready();
 
         try {
@@ -175,7 +174,6 @@ public final class Main {
         var server = new WebServer(session, addr.host(), addr.port(), b.llm(), b.extensions()::statusLines,
                                         b.extensions().slashCommands());
         b.extensions().setTui(server.ui());
-        b.extensions().setSuspendResume(() -> {}, () -> {});
         b.extensions().ready();
         try {
             server.start();
@@ -285,12 +283,18 @@ public final class Main {
     }
 
     private static boolean stdinRedirected() {
-        return System.console() == null;
+        if (System.console() != null)
+            return false;
+        try {
+            return System.in.available() > 0;
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     private static boolean shouldSupervise(Args args) {
-        return !args.agent() && !args.print() && args.promptArgs().isEmpty() && args.outputMode() != Args.OutputMode.RPC
-                                        && !stdinRedirected();
+        return !Platform.isNativeImage() && !args.agent() && !args.print() && args.promptArgs().isEmpty()
+                                        && args.outputMode() != Args.OutputMode.RPC && !stdinRedirected();
     }
 
     private static String readStdin() {

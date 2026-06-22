@@ -1,4 +1,4 @@
-package ai.pijota.tui;
+package ai.pijota.extensions.transcend;
 
 import org.junit.jupiter.api.Test;
 

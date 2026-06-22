@@ -31,7 +31,8 @@ public final class SystemPrompt {
                                     - Create parent directories when writing new files; use absolute paths in tool calls.
                                     """;
 
-    private static final String TRANSCENDENCE_SECTION = """
+    /** Self-modification guidance, contributed to the system prompt by the transcendence extension (JVM only). */
+    public static final String TRANSCENDENCE_SECTION = """
                                     TRANSCENDENCE:
                                     You are capable of self-modification. When the user sets a goal (including via
                                     /transcend "goal"), implement it by editing source files, using the transcendence

@@ -13,7 +13,6 @@ import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ModelRegistry;
 import ai.pijota.tools.BashTool;
 import ai.pijota.tools.ToolRegistry;
-import ai.pijota.tools.TranscendenceTool;
 import ai.pijota.tools.WhoamiTool;
 import ai.pijota.util.ProcessRunner;
 
@@ -44,6 +43,11 @@ final class AppBootstrap {
         String apiKey = parsedArgs.apiKey();
 
         var resolved = ModelRegistry.resolveProviderModel(parsedArgs.provider(), parsedArgs.model(), settings);
+        // "alias" is reserved: if it survived resolution, the named alias is undefined — fail clearly instead of
+        // silently falling through to the default provider.
+        if (ModelRegistry.ALIAS_PROVIDER.equalsIgnoreCase(resolved.provider()))
+            throw new IllegalStateException("Unknown model alias '" + parsedArgs.model()
+                                            + "'. Define it under \"aliases\" in settings.json (name -> provider/model).");
         String provider = resolved.provider();
         String model = resolved.model();
 
@@ -78,10 +82,6 @@ final class AppBootstrap {
         var flags = parsedArgs.extensionFlags();
         if (flagOn(flags, "whoami"))
             tools.register(new WhoamiTool());
-        // Transcendence (self-modification) is a built-in, on by default; disable with --no-transcendence.
-        boolean transcendence = !flagOn(flags, "no-transcendence");
-        if (transcendence)
-            tools.register(new TranscendenceTool());
 
         var llm = new LlmService(provider, model, settings::resolveApiKey);
         String effectiveThinking = parsedArgs.thinkingLevel();
@@ -96,6 +96,8 @@ final class AppBootstrap {
         llm.setModelChangeCallback((oldModel, newModel) -> ext.fireModelSelect(newModel, oldModel, "set"));
         ext.setToolRegistry(tools);
         ext.setCwd(Path.of(cwd));
+        // settings.projectDir() always resolves to a real path (configured dir, else the git root of cwd).
+        ext.setProjectDir(Path.of(settings.projectDir()));
         ext.setLlm(llm);
         ext.loadServiceLoaderExtensions();
         if (!parsedArgs.noExtensions()) {
@@ -105,6 +107,10 @@ final class AppBootstrap {
         }
         ext.register(new TaskExtension());
         ext.register(new PlanExtension());
+        // Self-modification (on by default; --no-transcendence to disable). The extension declares itself unavailable
+        // on a native image, so the registry skips it there — transcendence is JVM-only.
+        if (!flagOn(flags, "no-transcendence"))
+            ext.register(new ai.pijota.extensions.transcend.TranscendenceExtension());
         ext.register(new ai.pijota.extensions.examples.InlineBashExtension());
         ext.register(new ai.pijota.extensions.examples.FilterOutputExtension());
         ext.register(new ai.pijota.extensions.examples.SecurityExtension());
@@ -134,7 +140,7 @@ final class AppBootstrap {
                                         ? null
                                         : String.join("\n", parsedArgs.appendSystemPrompts());
         String systemPrompt = SystemPrompt.build(parsedArgs.systemPrompt(), appendPrompt, cwd,
-                                        ext.systemPromptContributions(), transcendence);
+                                        ext.systemPromptContributions());
         ext.setSystemPrompt(systemPrompt);
 
         int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
@@ -142,6 +148,7 @@ final class AppBootstrap {
         var session = new PijotaSession(llm, tools, sessions, ext, systemPrompt, cwd, parsedArgs.noSession(),
                                         contextWindow, settings.config().compaction());
         ext.setAgentLoop(session.agentLoop());
+        ext.setSessionFile(session::sessionFile);
         // Generic built-in commands (e.g. /model) usable by every frontend — registered once the session exists.
         ext.register(new ai.pijota.extensions.examples.CoreCommandsExtension(session, settings));
         boolean loadedSession = false;

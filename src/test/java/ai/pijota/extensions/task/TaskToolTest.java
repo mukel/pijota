@@ -7,6 +7,19 @@ import static org.junit.jupiter.api.Assertions.*;
 class TaskToolTest {
 
     @Test
+    void resolveCurrentAliasMirrorsParentModel() {
+        assertEquals("anthropic/claude-sonnet-4-6", TaskTool.resolveCurrentAlias("alias/current", "anthropic",
+                                        "claude-sonnet-4-6"));
+    }
+
+    @Test
+    void resolveCurrentAliasLeavesOtherModelsUnchanged() {
+        assertEquals("alias/fast", TaskTool.resolveCurrentAlias("alias/fast", "anthropic", "claude-sonnet-4-6"));
+        assertEquals("openai/gpt-4o", TaskTool.resolveCurrentAlias("openai/gpt-4o", "anthropic", "x"));
+        assertNull(TaskTool.resolveCurrentAlias(null, "anthropic", "x"));
+    }
+
+    @Test
     void subAgentModelPrefersPerAgentOverride() {
         var sub = new SubAgent("a", "d", "p", java.util.List.of(), "claude-haiku-4-5", "builtin");
         assertEquals("claude-haiku-4-5", TaskTool.subAgentModel(sub));

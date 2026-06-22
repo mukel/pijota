@@ -56,8 +56,8 @@ public final class ExtensionRegistry {
     private Path cwd;
     private String sessionName;
     private String systemPrompt;
-    private Runnable suspendCallback;
-    private Runnable resumeCallback;
+    private java.util.function.Supplier<Path> sessionFileSupplier;
+    private Path projectDir;
     private Map<String, String> extensionFlags = Map.of();
 
     public ExtensionRegistry() {}
@@ -138,6 +138,14 @@ public final class ExtensionRegistry {
         this.cwd = c;
     }
 
+    public void setSessionFile(java.util.function.Supplier<Path> supplier) {
+        this.sessionFileSupplier = supplier;
+    }
+
+    public void setProjectDir(Path projectDir) {
+        this.projectDir = projectDir;
+    }
+
     public void setSystemPrompt(String sp) {
         this.systemPrompt = sp;
     }
@@ -146,16 +154,16 @@ public final class ExtensionRegistry {
         this.extensionFlags = flags != null ? Map.copyOf(flags) : Map.of();
     }
 
-    public void setSuspendResume(Runnable suspend, Runnable resume) {
-        this.suspendCallback = suspend;
-        this.resumeCallback = resume;
-    }
-
     public ExtensionAPI api() {
         return api;
     }
 
     public void register(Extension ext) {
+        var reason = ext.unavailableReason();
+        if (reason.isPresent()) {
+            log.info("Extension {} not loaded: {}", ext.name(), reason.get());
+            return;
+        }
         extensions.add(ext);
         try {
             ext.init(api);
@@ -601,6 +609,16 @@ public final class ExtensionRegistry {
         }
 
         @Override
+        public Path sessionFile() {
+            return sessionFileSupplier != null ? sessionFileSupplier.get() : null;
+        }
+
+        @Override
+        public Path projectDir() {
+            return projectDir != null ? projectDir : cwd;
+        }
+
+        @Override
         public String systemPrompt() {
             return systemPrompt;
         }
@@ -712,18 +730,6 @@ public final class ExtensionRegistry {
         @Override
         public Optional<String> getFlag(String name) {
             return Optional.ofNullable(extensionFlags != null ? extensionFlags.get(name) : null);
-        }
-
-        @Override
-        public void suspend() {
-            if (suspendCallback != null)
-                suspendCallback.run();
-        }
-
-        @Override
-        public void resume() {
-            if (resumeCallback != null)
-                resumeCallback.run();
         }
 
         @Override

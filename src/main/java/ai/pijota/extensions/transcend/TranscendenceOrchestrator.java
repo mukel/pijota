@@ -1,6 +1,7 @@
-package ai.pijota.tui;
+package ai.pijota.extensions.transcend;
 
-import ai.pijota.messages.Message;
+import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.SelfRespawn;
@@ -11,50 +12,86 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 final class TranscendenceOrchestrator {
-    interface Host extends TuiHost {
-        void resetStreamState();
+    private final ExtensionAPI api;
+    private final ExtensionRuntime runtime;
 
-        void showSessionWarning();
-
-        void suspendTui();
-
-        void resumeTui();
-
-        void flushTerminal();
-
-        void submitAgent(Runnable task);
-
-        CompletableFuture<List<Message>> promptSession(String prompt);
-
-        Path sessionFile();
-
-        void setStatusOverride(String status);
-
-        String projectDir();
-
-        boolean isGitRepo();
+    public TranscendenceOrchestrator(ExtensionAPI api) {
+        this.api = api;
+        this.runtime = api.runtime();
     }
 
-    private final Host host;
+    // Transcend progress is operation output (build/test/respawn status), not model output — so it goes to the terminal
+    // scrollback via the TUI's cursor-bookkept append, never added to the conversation/session message log.
+    private String styled(String slot, String text) {
+        return runtime.ui().theme().styled(slot, text);
+    }
 
-    TranscendenceOrchestrator(Host host) {
-        this.host = host;
+    private void appendPlain(List<String> lines) {
+        runtime.ui().appendOutput(lines);
+    }
+
+    private boolean busy() {
+        return !runtime.isIdle();
+    }
+
+    private void beginBusy(String phase) {
+        runtime.setStatus("transcend", phase + "\u2026");
+    }
+
+    private void endBusy() {
+        runtime.clearStatus("transcend");
+    }
+
+    private void submitAgent(Runnable task) {
+        Thread t = new Thread(task, "transcend");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    // Drive the agent on a prompt and block until the turn completes. The extension surface has no future-returning
+    // send (only sendUserMessage + isIdle), so this polls; replacing it with an await-turn primitive on the runtime is
+    // tracked separately.
+    private void promptSession(String prompt) {
+        api.sendUserMessage(prompt);
+        try {
+            for (int i = 0; i < 200 && runtime.isIdle(); i++)
+                Thread.sleep(25); // wait for the turn to start
+            while (!runtime.isIdle())
+                Thread.sleep(100); // wait for it to finish
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private Path sessionFile() {
+        return runtime.sessionFile();
+    }
+
+    private void setStatusOverride(String status) {
+        runtime.setStatus("transcend", status);
+    }
+
+    private String projectDir() {
+        return runtime.projectDir().toString();
+    }
+
+    private boolean isGitRepo() {
+        return runtime.isGitRepo();
     }
 
     void handle(String args) {
-        if (!host.isGitRepo()) {
-            host.appendPlain(List.of(host.styled("toolError", "not a git repository at " + host.projectDir()), host
-                                            .styled("statusText", "recovery: run from a git repo root, or set project_dir in settings.json"),
-                                            host.styled("statusText", "  e.g. settings include {\"project_dir\": \"/path/to/pijota\"}")));
+        if (!isGitRepo()) {
+            appendPlain(List.of(styled("toolError", "not a git repository at " + projectDir()), styled("statusText",
+                                            "recovery: run from a git repo root, or set project_dir in settings.json"),
+                                            styled("statusText", "  e.g. settings include {\"project_dir\": \"/path/to/pijota\"}")));
             return;
         }
         var parsed = parseTranscendArgs(args);
-        if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError",
+        if (busy()) {
+            appendPlain(List.of(styled("toolError",
                                             "/transcend is unavailable while a turn is running (Esc Esc to interrupt)")));
             return;
         }
@@ -74,7 +111,7 @@ final class TranscendenceOrchestrator {
             return;
         }
 
-        String effectiveWorktree = parsed.worktreePath() != null ? parsed.worktreePath() : host.projectDir();
+        String effectiveWorktree = parsed.worktreePath() != null ? parsed.worktreePath() : projectDir();
         build(effectiveWorktree, parsed.testMode(), true);
     }
 
@@ -118,18 +155,17 @@ final class TranscendenceOrchestrator {
     private void build(String projectRoot, boolean testMode, boolean showHeader) {
         Path root = Path.of(projectRoot);
         if (!Files.exists(root.resolve("pom.xml"))) {
-            host.appendPlain(List.of(host.styled("toolError", "no pom.xml found at " + root), host.styled("statusText",
-                                            "recovery: cd " + root + " && mvn package -Pfat -q")));
+            appendPlain(List.of(styled("toolError", "no pom.xml found at " + root),
+                                            styled("statusText", "recovery: cd " + root + " && mvn package -Pfat -q")));
             return;
         }
 
-        long gen = host.beginBusy("transcending");
+        beginBusy("transcending");
         boolean keepBusy = false;
         long buildStart = System.currentTimeMillis();
         try {
             if (showHeader)
                 appendHeader();
-            host.redrawPrompt();
 
             try {
                 Path currentJar = SelfRespawn.findCurrentJar();
@@ -141,10 +177,11 @@ final class TranscendenceOrchestrator {
                 return;
             }
 
-            host.appendPlain(List.of(host.styled("statusText", "  ") + stepIcon("✓")
-                                            + host.styled("statusText", " preserved current build")));
-            host.redrawPrompt();
+            appendPlain(List.of(styled("statusText", "  ") + stepIcon("✓")
+                                            + styled("statusText", " preserved current build")));
 
+            appendPlain(List.of(styled("statusText",
+                                            "  … compiling new build (mvn package — this can take a minute)")));
             ProcessRunner.Result buildResult;
             try {
                 buildResult = SelfRespawn.buildJar(root);
@@ -176,42 +213,36 @@ final class TranscendenceOrchestrator {
             }
 
             double buildSec = (System.currentTimeMillis() - buildStart) / 1000.0;
-            host.appendPlain(List.of(host.styled("statusText", "  ") + stepIcon("✓")
-                                            + host.styled("statusText", " compiled ")
-                                            + host.styled("statusText", jar.getFileName().toString())
-                                            + host.styled("commandMeta", "  (" + String.format("%.1f", buildSec)
-                                                                            + "s)")));
-            host.redrawPrompt();
+            appendPlain(List.of(styled("statusText", "  ") + stepIcon("✓") + styled("statusText", " compiled ")
+                                            + styled("statusText", jar.getFileName().toString())
+                                            + styled("commandMeta", "  (" + String.format("%.1f", buildSec) + "s)")));
 
-            Path sessionFile = host.sessionFile();
+            Path sessionFile = sessionFile();
 
             if (testMode) {
-                host.appendPlain(List.of(host.styled("statusText", "  … launching test instance")));
-                host.redrawPrompt();
+                appendPlain(List.of(styled("statusText", "  … launching test instance")));
 
-                host.suspendTui();
+                // The test instance is a full interactive child that takes the terminal — hand it over (resume()
+                // restores raw mode and repaints the prompt afterwards).
+                runtime.ui().suspend();
                 try {
                     int ec = SelfRespawn.runInteractive(jar, sessionFile, true);
-                    host.resumeTui();
-                    host.appendPlain(List.of(host.styled("statusText", "  ") + stepIcon("✓")
-                                                    + host.styled("statusText", " test instance exited  code " + ec),
-                                                    "", host.styled("toolLabel", "✓ Pijota test build is ready"),
-                                                    host.styled("statusText", "  rollback: /transcend --rollback")));
+                    runtime.ui().resume();
+                    appendPlain(List.of(styled("statusText", "  ") + stepIcon("✓")
+                                                    + styled("statusText", " test instance exited  code " + ec), "",
+                                                    styled("toolLabel", "✓ Pijota test build is ready"),
+                                                    styled("statusText", "  rollback: /transcend --rollback")));
                 } catch (Exception e) {
-                    host.resumeTui();
+                    runtime.ui().resume();
                     appendFailure(List.of(step("✓", "preserved current build"), step("✓", "compiled new build"),
                                                     step("✕", "launch test instance")),
                                                     "Test instance error: " + e.getMessage(), log);
                 }
-                host.redrawPrompt();
                 return;
             }
 
-            host.appendPlain(List.of(host.styled("statusText", "  → restarting")));
-            host.redrawPrompt();
-            host.flushTerminal();
+            appendPlain(List.of(styled("statusText", "  → restarting")));
             SelfRespawn.respawn(jar, sessionFile, true);
-            host.resumeTui();
             String err = SelfRespawn.lastRespawnError();
             if (err != null) {
                 appendFailure(List.of(step("✓", "preserved current build"), step("✓", "compiled new build"),
@@ -220,18 +251,16 @@ final class TranscendenceOrchestrator {
             } else {
                 keepBusy = true;
             }
-            host.redrawPrompt();
         } finally {
             if (!keepBusy) {
-                host.endBusy(gen);
-                host.redrawPrompt();
+                endBusy();
             }
         }
     }
 
     private String stepIcon(String icon) {
         String slot = icon.equals("✓") ? "diffAdd" : "toolError";
-        return host.styled(slot, icon + " ");
+        return styled(slot, icon + " ");
     }
 
     static String step(String icon, String label) {
@@ -239,23 +268,23 @@ final class TranscendenceOrchestrator {
     }
 
     private void appendHeader() {
-        host.appendPlain(List.of(host.styled("toolLabel", "→ Transcend")));
+        appendPlain(List.of(styled("toolLabel", "→ Transcend")));
     }
 
     private void appendFailure(List<String> steps, String message, Path log, String recovery) {
         var lines = new ArrayList<String>();
         for (String step : steps) {
             String slot = step.startsWith("✕") ? "toolError" : "statusText";
-            lines.add(host.styled(slot, "  " + step));
+            lines.add(styled(slot, "  " + step));
         }
         lines.add("");
-        lines.add(host.styled("toolError", "Still running previous build."));
-        lines.add(host.styled("toolError", message));
+        lines.add(styled("toolError", "Still running previous build."));
+        lines.add(styled("toolError", message));
         if (log != null)
-            lines.add(host.styled("statusText", "log: " + log));
+            lines.add(styled("statusText", "log: " + log));
         if (recovery != null && !recovery.isBlank())
-            lines.add(host.styled("statusText", "recovery: " + recovery));
-        host.appendPlain(lines);
+            lines.add(styled("statusText", "recovery: " + recovery));
+        appendPlain(lines);
     }
 
     private void appendFailure(List<String> steps, String message, Path log) {
@@ -285,14 +314,12 @@ final class TranscendenceOrchestrator {
             resolvedWorktree = "../pijota-" + branchName.replace('/', '-');
         }
 
-        host.appendPlain(host.promptEcho("/transcend " + goal));
-        long gen = host.beginBusy("transcending");
-        host.redrawPrompt();
+        appendPlain(List.of("/transcend " + goal));
+        beginBusy("transcending");
 
         String finalWorktree = resolvedWorktree;
         String finalBranch = branchName;
-        host.submitAgent(() -> {
-            boolean promptCompleted = false;
+        submitAgent(() -> {
             try {
                 if (finalBranch != null) {
                     try {
@@ -301,27 +328,23 @@ final class TranscendenceOrchestrator {
                                                                                         finalWorktree)
                                                         .redirectErrorStream(true).run();
                         if (wtResult.exitCode() != 0) {
-                            host.appendPlain(List.of(host.styled("toolError", "worktree creation failed:"),
-                                                            host.styled("toolError", wtResult.stdout().strip()),
-                                                            host.styled("statusText", "recovery: rm -rf "
-                                                                                            + finalWorktree
+                            appendPlain(List.of(styled("toolError", "worktree creation failed:"),
+                                                            styled("toolError", wtResult.stdout().strip()),
+                                                            styled("statusText", "recovery: rm -rf " + finalWorktree
                                                                                             + " && /transcend "
                                                                                             + goal)));
-                            host.endBusy(gen);
-                            host.redrawPrompt();
+                            endBusy();
                             return;
                         }
                     } catch (IOException e) {
-                        host.appendPlain(List.of(host.styled("toolError", "worktree creation error: " + e.getMessage()),
-                                                        host.styled("statusText", "recovery: rm -rf " + finalWorktree
+                        appendPlain(List.of(styled("toolError", "worktree creation error: " + e.getMessage()),
+                                                        styled("statusText", "recovery: rm -rf " + finalWorktree
                                                                                         + " && /transcend " + goal)));
-                        host.endBusy(gen);
-                        host.redrawPrompt();
+                        endBusy();
                         return;
                     }
                 }
 
-                host.resetStreamState();
                 var fullPrompt = "TRANSCENDENCE GOAL: " + goal + "\n\n"
                                                 + "Implement this goal by modifying pijota's source code. "
                                                 + "A git worktree has been prepared at " + finalWorktree
@@ -344,17 +367,13 @@ final class TranscendenceOrchestrator {
                                                 + "6. Do not ask the user to merge; the replacement process will merge automatically.\n"
                                                 + "7. Ignore inconclusive verification from the wrong executable; fix real failures only.\n\n"
                                                 + "Work autonomously - do not ask for permission at each step.";
-                host.promptSession(fullPrompt).join();
-                promptCompleted = true;
+                promptSession(fullPrompt);
                 finalizeGoal(finalWorktree, finalBranch);
             } catch (CompletionException e) {
-                host.setStatusOverride("Error: " + ErrorUtil.message(e.getCause()));
+                setStatusOverride("Error: " + ErrorUtil.message(e.getCause()));
             } finally {
                 if (!SelfRespawn.isRespawnInProgress()) {
-                    if (!promptCompleted)
-                        host.showSessionWarning();
-                    host.endBusy(gen);
-                    host.redrawPrompt();
+                    endBusy();
                 }
             }
         });
@@ -365,9 +384,7 @@ final class TranscendenceOrchestrator {
             return;
 
         Path root = Path.of(worktree);
-        host.appendPlain(List.of(host.styled("toolLabel", "→ Transcend"),
-                                        host.styled("statusText", "  … finalizing worktree build")));
-        host.redrawPrompt();
+        appendPlain(List.of(styled("toolLabel", "→ Transcend"), styled("statusText", "  … finalizing worktree build")));
 
         ProcessRunner.Result buildResult;
         try {
@@ -387,8 +404,9 @@ final class TranscendenceOrchestrator {
                                             buildLog, "mvn package -Pfat -q");
             return;
         }
-        host.appendPlain(List.of(host.styled("statusText", "  ✓ compiled final build")));
+        appendPlain(List.of(styled("statusText", "  ✓ compiled final build")));
 
+        appendPlain(List.of(styled("statusText", "  … running tests (mvn test)")));
         ProcessRunner.Result testResult;
         try {
             testResult = ProcessRunner.command("mvn", "test").workDir(root).redirectErrorStream(true).run();
@@ -404,7 +422,7 @@ final class TranscendenceOrchestrator {
                                             : "Tests exited " + testResult.exitCode() + ".", testLog, "mvn test");
             return;
         }
-        host.appendPlain(List.of(host.styled("statusText", "  ✓ final tests passed")));
+        appendPlain(List.of(styled("statusText", "  ✓ final tests passed")));
 
         Path jar = SelfRespawn.findJarIn(root);
         if (jar == null || !Files.exists(jar)) {
@@ -419,30 +437,27 @@ final class TranscendenceOrchestrator {
         } catch (Exception ignored) {}
 
         if (!SelfRespawn.requestRespawn(jar, branch, root)) {
-            host.appendPlain(List.of(host.styled("statusWarn", "  … restart already pending")));
+            appendPlain(List.of(styled("statusWarn", "  … restart already pending")));
             return;
         }
 
-        host.appendPlain(List.of(host.styled("statusText", "  → restarting")));
-        host.redrawPrompt();
-        host.flushTerminal();
+        appendPlain(List.of(styled("statusText", "  → restarting")));
         SelfRespawn.maybeRespawn();
     }
 
     private void rollback() {
         if (!SelfRespawn.canRollback()) {
-            host.appendPlain(List.of(host.styled("toolError", "no backup jar - nothing to rollback to"),
-                                            host.styled("statusText", "recovery: mvn package -Pfat -q && /transcend")));
+            appendPlain(List.of(styled("toolError", "no backup jar - nothing to rollback to"),
+                                            styled("statusText", "recovery: mvn package -Pfat -q && /transcend")));
             return;
         }
 
         Path jar = SelfRespawn.findCurrentJar();
         if (jar == null) {
-            jar = SelfRespawn.findJarIn(Path.of(host.projectDir()));
+            jar = SelfRespawn.findJarIn(Path.of(projectDir()));
         }
         if (jar == null) {
-            host.appendPlain(List.of(host.styled("toolError", "cannot determine target jar for rollback"), host.styled(
-                                            "statusText",
+            appendPlain(List.of(styled("toolError", "cannot determine target jar for rollback"), styled("statusText",
                                             "recovery: cp target/pijota-backup.jar target/pijota-$(date +%s).jar")));
             return;
         }
@@ -450,49 +465,40 @@ final class TranscendenceOrchestrator {
         try {
             SelfRespawn.rollback(jar);
         } catch (Exception e) {
-            host.appendPlain(List.of(host.styled("toolError", "rollback failed: " + e.getMessage()),
-                                            host.styled("statusText", "recovery: cp target/pijota-backup.jar " + jar)));
+            appendPlain(List.of(styled("toolError", "rollback failed: " + e.getMessage()),
+                                            styled("statusText", "recovery: cp target/pijota-backup.jar " + jar)));
             return;
         }
 
-        host.appendPlain(List.of(host.styled("toolLabel", "→ Transcend"),
-                                        host.styled("statusText", "  ✓ restored previous build"),
-                                        host.styled("statusText", "  → restarting")));
-        host.redrawPrompt();
-        host.flushTerminal();
-        SelfRespawn.respawn(jar, host.sessionFile(), true);
-        host.resumeTui();
+        appendPlain(List.of(styled("toolLabel", "→ Transcend"), styled("statusText", "  ✓ restored previous build"),
+                                        styled("statusText", "  → restarting")));
+        SelfRespawn.respawn(jar, sessionFile(), true);
         String err = SelfRespawn.lastRespawnError();
         if (err != null)
             appendFailure(List.of("✓ restored previous build", "✕ restart"), err, null, "mvn package -Pfat -q");
-        host.redrawPrompt();
     }
 
     private void merge(String branch) {
-        host.appendPlain(List.of(host.styled("toolLabel", "→ Transcend"),
-                                        host.styled("statusText", "  … merging " + branch)));
-        host.redrawPrompt();
+        appendPlain(List.of(styled("toolLabel", "→ Transcend"), styled("statusText", "  … merging " + branch)));
 
         ProcessRunner.Result mergeResult;
         try {
             mergeResult = SelfRespawn.mergeBranch(branch);
         } catch (Exception e) {
-            host.appendPlain(List.of(host.styled("toolError", "merge error: " + e.getMessage()), host.styled(
-                                            "statusText",
+            appendPlain(List.of(styled("toolError", "merge error: " + e.getMessage()), styled("statusText",
                                             "recovery: git merge --abort && /transcend --merge " + branch)));
             return;
         }
 
         if (mergeResult.exitCode() != 0) {
             String output = mergeResult.stdout().isBlank() ? "[no output]" : mergeResult.stdout().strip();
-            host.appendPlain(List.of(host.styled("toolError", "  ✕ merge failed  exit " + mergeResult.exitCode()),
-                                            host.styled("toolError", output)));
+            appendPlain(List.of(styled("toolError", "  ✕ merge failed  exit " + mergeResult.exitCode()),
+                                            styled("toolError", output)));
             return;
         }
 
-        host.appendPlain(List.of(host.styled("statusText", "  ✓ merge complete")));
-        host.redrawPrompt();
-        build(host.projectDir(), false, false);
+        appendPlain(List.of(styled("statusText", "  ✓ merge complete")));
+        build(projectDir(), false, false);
     }
 
     static String generateBranch(String goal) {

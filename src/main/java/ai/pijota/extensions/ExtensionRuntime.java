@@ -20,6 +20,21 @@ public interface ExtensionRuntime {
 
     Path cwd();
 
+    /** The active session's on-disk transcript path (for relaunching a child on the same session), or null. */
+    default Path sessionFile() {
+        return null;
+    }
+
+    /** The project root (a configured project dir, else {@link #cwd()}). */
+    default Path projectDir() {
+        return cwd();
+    }
+
+    /** Whether {@link #projectDir()} is inside a git repository. */
+    default boolean isGitRepo() {
+        return projectDir() != null && java.nio.file.Files.isDirectory(projectDir().resolve(".git"));
+    }
+
     String systemPrompt();
 
     List<Message> messages();
@@ -75,11 +90,7 @@ public interface ExtensionRuntime {
     /** Run a command in the session's cwd; returns exit code, stdout, stderr. */
     ExecResult exec(List<String> command);
 
-    void suspend();
-
-    void resume();
-
-    /** The UI context — null in headless/non-interactive modes. */
+    /** The UI context — null in headless/non-interactive modes. Terminal handover/output live here ({@code ui()}). */
     UiContext ui();
 
     /** Output of a command run via {@link #exec}. */

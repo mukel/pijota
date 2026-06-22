@@ -7,15 +7,15 @@ import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.messages.Usage;
+import ai.pijota.testkit.Await;
+import ai.pijota.testkit.EventRecorder;
 import ai.pijota.testkit.FauxLlm;
-import ai.pijota.tools.Tool;
+import ai.pijota.testkit.TestTools;
 import ai.pijota.tools.ToolRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,7 +28,7 @@ class AgentLoopTest {
     void streamsAssistantDeltasAndStoresFinalAssistantMessage() throws Exception {
         var llm = new FauxLlm().enqueue(FauxLlm.Response.content("hel", "lo"));
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
-        var events = recordEvents(agent);
+        var events = EventRecorder.capture(agent);
 
         var messages = agent.prompt("hi").get(1, TimeUnit.SECONDS);
 
@@ -60,9 +60,9 @@ class AgentLoopTest {
         var llm = new FauxLlm().enqueue(FauxLlm.Response.toolCall(new ToolCall("tc1", "fake", "{\"value\":\"ok\"}")))
                                         .enqueue(FauxLlm.Response.content("done"));
         var registry = new ToolRegistry();
-        registry.register(fakeTool());
+        registry.register(TestTools.echoing("fake"));
         var agent = AgentLoop.builder(llm, registry, "/workspace").build();
-        var events = recordEvents(agent);
+        var events = EventRecorder.capture(agent);
 
         var messages = agent.prompt("use tool").get(1, TimeUnit.SECONDS);
 
@@ -80,11 +80,11 @@ class AgentLoopTest {
 
     @Test
     void abortCancelsActiveStreamAndCompletesWithoutException() throws Exception {
-        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("partial")).blockUntilAborted();
+        var llm = new FauxLlm().blockUntilAborted();
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
 
         var future = agent.prompt("start");
-        Thread.sleep(100);
+        Await.until(agent::isBusy);
         agent.abort();
 
         assertDoesNotThrow(() -> future.get(1, TimeUnit.SECONDS));
@@ -97,7 +97,7 @@ class AgentLoopTest {
                                         .enqueue(FauxLlm.Response.content("after tool"))
                                         .enqueue(FauxLlm.Response.content("follow up answer"));
         var registry = new ToolRegistry();
-        registry.register(fakeTool());
+        registry.register(TestTools.echoing("fake"));
         var agent = AgentLoop.builder(llm, registry, "/workspace").build();
 
         agent.followUp("follow this up");
@@ -138,7 +138,7 @@ class AgentLoopTest {
     @Test
     void addCustomMessageAddsMessageAndFiresEvent() {
         var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
-        var events = recordEvents(agent);
+        var events = EventRecorder.capture(agent);
 
         agent.addCustomMessage(new Message.Custom("note", "value"));
 
@@ -219,12 +219,31 @@ class AgentLoopTest {
     @Test
     void retryRecoversFromRetryableError() throws Exception {
         var llm = new FauxLlm().enqueueError("server error 500").enqueue(FauxLlm.Response.content("ok"));
-        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").retryBaseDelayMs(1).build();
 
-        var messages = agent.prompt("hi").get(5, TimeUnit.SECONDS);
+        var messages = agent.prompt("hi").get(2, TimeUnit.SECONDS);
 
         assertEquals("ok", ((Message.Assistant) messages.get(1)).content());
         assertEquals(2, llm.requests().size());
+    }
+
+    @Test
+    void retryGivesUpAfterThreeAttempts() {
+        var llm = new FauxLlm().enqueueError("server error 500").enqueueError("server error 500")
+                                        .enqueueError("server error 500");
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").retryBaseDelayMs(1).build();
+
+        assertThrows(ExecutionException.class, () -> agent.prompt("hi").get(2, TimeUnit.SECONDS));
+        assertEquals(3, llm.requests().size()); // initial + 2 retries, then give up
+    }
+
+    @Test
+    void nonRetryableErrorIsNotRetried() {
+        var llm = new FauxLlm().enqueueError(new RuntimeException("401 unauthorized"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").retryBaseDelayMs(1).build();
+
+        assertThrows(ExecutionException.class, () -> agent.prompt("hi").get(2, TimeUnit.SECONDS));
+        assertEquals(1, llm.requests().size()); // 4xx is not retryable
     }
 
     @Test
@@ -245,7 +264,7 @@ class AgentLoopTest {
         var config = new AppConfig.CompactionConfig(true, 100, 1);
         var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").summaryGenerator(summarizer)
                                         .compactionConfig(config).contextWindow(1000).build();
-        var events = recordEvents(agent);
+        var events = EventRecorder.capture(agent);
         agent.addSystemPrompt("sys");
         agent.sendUserMessage("old");
         agent.sendUserMessage("middle");
@@ -265,7 +284,7 @@ class AgentLoopTest {
             llm.enqueue(FauxLlm.Response.toolCall(new ToolCall("tc" + i, "fake", "{\"value\":\"ok\"}")));
         }
         var registry = new ToolRegistry();
-        registry.register(fakeTool());
+        registry.register(TestTools.echoing("fake"));
         var agent = AgentLoop.builder(llm, registry, "/workspace").build();
 
         var messages = agent.prompt("loop").get(2, TimeUnit.SECONDS);
@@ -276,11 +295,11 @@ class AgentLoopTest {
 
     @Test
     void abortSetsClosedAndCompletesResult() throws Exception {
-        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("partial")).blockUntilAborted();
+        var llm = new FauxLlm().blockUntilAborted();
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
 
         var future = agent.prompt("start");
-        Thread.sleep(100);
+        Await.until(agent::isBusy);
         agent.close();
 
         assertTrue(agent.isClosed());
@@ -395,7 +414,7 @@ class AgentLoopTest {
         var registry = registryWithExceptionHandler(captured::add);
         var llm = new FauxLlm().enqueueError(new RuntimeException("provider rejected the request"));
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").extensionRegistry(registry).build();
-        var events = recordEvents(agent);
+        var events = EventRecorder.capture(agent);
 
         var future = agent.prompt("hi");
 
@@ -430,7 +449,7 @@ class AgentLoopTest {
         });
         var llm = new FauxLlm().enqueueError(new RuntimeException("provider rejected the request"));
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").extensionRegistry(registry).build();
-        var events = recordEvents(agent);
+        var events = EventRecorder.capture(agent);
 
         var future = agent.prompt("hi");
 
@@ -439,18 +458,4 @@ class AgentLoopTest {
         assertFalse(agent.isBusy());
     }
 
-    private static List<AgentEvent> recordEvents(AgentLoop agent) {
-        var events = new ArrayList<AgentEvent>();
-        agent.addEventListener(events::add);
-        return events;
-    }
-
-    private static Tool fakeTool() {
-        return new Tool.ToolDefinition("fake", "Fake test tool",
-                                        Map.of("type", "object", "properties",
-                                                                        Map.of("value", Map.of("type", "string"))),
-                                        (_, args, _) -> CompletableFuture.completedFuture(Tool.ToolResult
-                                                                        .success("tool:" + args.get("value"))))
-                                        .toTool();
-    }
 }

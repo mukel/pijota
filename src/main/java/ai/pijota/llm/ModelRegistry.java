@@ -125,8 +125,51 @@ public final class ModelRegistry {
     public record ProviderModel(String provider, String model) {
     }
 
+    /**
+     * Reserved provider sentinel: {@code alias/<name>} selects a configured model alias (see {@link #resolveAlias}).
+     */
+    public static final String ALIAS_PROVIDER = "alias";
+
+    /** Reserved dynamic alias: {@code alias/current} resolves to the session's live model (not a config entry). */
+    public static final String CURRENT_ALIAS = "current";
+
+    /**
+     * Split a {@code "provider/model"} spec. With no usable slash, provider is null and the whole string is the model.
+     */
+    public static ProviderModel parseProviderModel(String spec) {
+        if (spec == null)
+            return new ProviderModel(null, null);
+        int slash = spec.indexOf('/');
+        if (slash > 0 && slash < spec.length() - 1)
+            return new ProviderModel(spec.substring(0, slash), spec.substring(slash + 1));
+        return new ProviderModel(null, spec);
+    }
+
+    /**
+     * Resolve an alias name (e.g. {@code "fast"}) from settings {@code "aliases"} to its target, or null if undefined.
+     */
+    public static ProviderModel resolveAlias(String aliasName, SettingsManager settings) {
+        if (aliasName == null || settings == null)
+            return null;
+        var aliases = settings.config().aliases();
+        String target = aliases != null ? aliases.get(aliasName) : null;
+        if (target == null || target.isBlank())
+            return null;
+        var pm = parseProviderModel(target);
+        return pm.provider() != null ? pm : new ProviderModel(providerForModel(target), target);
+    }
+
     public static ProviderModel resolveProviderModel(String explicitProvider, String explicitModel,
                                     SettingsManager settings) {
+        // Model aliases: "alias/<name>" resolves to a provider/model configured under settings "aliases"
+        // (e.g. alias/fast -> anthropic/claude-haiku-4-5). Lets agents/sub-agents declare a role, not a concrete model.
+        // Returned verbatim — an explicit alias target is honored as-is (supports custom/local models not in the
+        // catalog, and avoids silently substituting the provider default for an off-catalog id).
+        if (ALIAS_PROVIDER.equalsIgnoreCase(explicitProvider) && explicitModel != null && settings != null) {
+            var target = resolveAlias(explicitModel, settings);
+            if (target != null)
+                return target;
+        }
         String provider = explicitProvider;
         String model = explicitModel;
         if (provider == null && model != null)

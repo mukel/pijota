@@ -1,5 +1,7 @@
 package ai.pijota.extensions;
 
+import java.util.Optional;
+
 /**
  * Extension entry point. The extension lifecycle is:
  * <ol>
@@ -15,6 +17,15 @@ public interface Extension {
     String name();
 
     String description();
+
+    /**
+     * Whether this extension can run in the current environment. Return a reason to be skipped (logged); empty to load.
+     * Checked once before {@link #init}. For hard environment requirements (e.g. a native image, or a missing external
+     * binary) — not user opt-in flags.
+     */
+    default Optional<String> unavailableReason() {
+        return Optional.empty();
+    }
 
     /** Called once at load time — register hooks, tools, commands, etc. via {@code api}. */
     default void init(ExtensionAPI api) throws Exception {}

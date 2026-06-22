@@ -23,4 +23,16 @@ public final class TestTools {
                                                                         .completedFuture(Tool.ToolResult.success("ok")),
                                         defaultEnabled).toTool();
     }
+
+    /**
+     * A tool that echoes its {@code "value"} argument back as {@code "tool:<value>"} — for agent/executor tests that
+     * need to assert the tool actually received the model's arguments. Schema: one optional string {@code value}.
+     */
+    public static Tool echoing(String name) {
+        var schema = Map.<String, Object>of("type", "object", "properties", Map.of("value", Map.of("type", "string")));
+        return new Tool.ToolDefinition(name, name + " desc", schema,
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(Tool.ToolResult
+                                                                        .success("tool:" + args.get("value"))))
+                                        .toTool();
+    }
 }

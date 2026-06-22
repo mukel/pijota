@@ -3,6 +3,7 @@ package ai.pijota.agent;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.testkit.FauxLlm;
+import ai.pijota.testkit.Ndjson;
 import ai.pijota.testkit.StdioCapture;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -31,9 +32,9 @@ class HeadlessAgentRunnerTest {
         int exitCode = HeadlessAgentRunner.run(llm, new ExtensionRegistry());
 
         assertEquals(0, exitCode);
-        String output = stdio.out();
-        assertTrue(output.contains("\"type\":\"done\""));
-        assertTrue(output.contains("\"output\":\"hello world\""));
+        var done = Ndjson.event(stdio.out(), "done");
+        assertEquals("hello world", done.get("output"));
+        assertNull(done.get("error"));
     }
 
     @Test
@@ -61,9 +62,24 @@ class HeadlessAgentRunnerTest {
 
         assertEquals(0, exitCode);
         String output = stdio.out();
-        assertTrue(output.contains("\"type\":\"tool_start\""));
-        assertTrue(output.contains("\"type\":\"tool_result\""));
-        assertTrue(output.contains("\"type\":\"tool_end\""));
-        assertTrue(output.contains("\"toolCount\":1"));
+        assertNotNull(Ndjson.event(output, "tool_start"));
+        assertNotNull(Ndjson.event(output, "tool_result"));
+        assertNotNull(Ndjson.event(output, "tool_end"));
+        assertEquals(1, ((Number) Ndjson.event(output, "done").get("toolCount")).intValue());
+    }
+
+    @Test
+    void llmErrorEmitsDoneEventWithError() {
+        // A failed turn must surface as a done event carrying a non-blank error — SubAgentLauncher relies on this
+        // to report sub-agent failures instead of treating them as empty successes.
+        var llm = new FauxLlm().enqueueError(new RuntimeException("401 unauthorized"));
+        stdio.feedInput("{\"description\":\"x\",\"cwd\":\"" + tempDir.toString().replace("\\", "\\\\") + "\"}");
+
+        int exitCode = HeadlessAgentRunner.run(llm, new ExtensionRegistry());
+
+        assertEquals(1, exitCode);
+        var done = Ndjson.event(stdio.out(), "done");
+        assertNotNull(done.get("error"), "done event must carry the error");
+        assertFalse(((String) done.get("error")).isBlank());
     }
 }

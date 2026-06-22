@@ -3,6 +3,7 @@ package ai.pijota.agent;
 import ai.pijota.config.AppConfig;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
+import ai.pijota.testkit.Await;
 import ai.pijota.testkit.FauxLlm;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -88,7 +89,7 @@ class PijotaSessionTest {
         llm.blockUntilAborted();
 
         var future = session.prompt("start");
-        Thread.sleep(100);
+        Await.until(session::isBusy);
         session.abort();
 
         assertDoesNotThrow(() -> future.get(1, TimeUnit.SECONDS));

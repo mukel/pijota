@@ -33,7 +33,6 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/tree", "Show conversation tree"),
                                     new CompletionItem("/fork", "Fork a new session from a previous message"),
                                     new CompletionItem("/clone", "Clone current branch to a new session"),
-                                    new CompletionItem("/transcend", "Rebuild and restart pijota, or set a self-modification goal"),
                                     new CompletionItem("/skills", "List available skills"),
                                     new CompletionItem("/quit", "Exit pijota"));
 
@@ -66,7 +65,7 @@ final class SlashCommandRegistry {
         appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/context", "/usage", "/whoami",
                                         "/skills");
         appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/name", "/new", "/delete");
-        appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme", "/transcend");
+        appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme");
         appendGroup(out, "account", "/login", "/logout", "/refresh", "/hotkeys", "/quit");
 
         var builtins = BUILTIN_COMMANDS.stream().map(CompletionItem::name).collect(java.util.stream.Collectors.toSet());
@@ -74,10 +73,7 @@ final class SlashCommandRegistry {
         if (!extensions.isEmpty())
             appendGroup(out, "extensions", extensions.stream().map(CompletionItem::name).toArray(String[]::new));
 
-        out.add("");
-        out.add("keys");
-        out.add("  Enter submit · Ctrl+J newline · Ctrl+G editor · Esc interrupt · Ctrl+C clear/exit");
-        out.add("  Ctrl+L model picker · Ctrl+P cycle model · Shift+Tab thinking");
+        // Keyboard shortcuts are appended by HelpOverlay (the single canonical table) — don't duplicate them here.
         return out;
     }
 

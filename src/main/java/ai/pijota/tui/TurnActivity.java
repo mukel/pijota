@@ -13,6 +13,7 @@ final class TurnActivity {
     private final AtomicBoolean busy = new AtomicBoolean(false);
     private final AtomicLong generation = new AtomicLong(0);
     private volatile String phase;
+    private volatile long startMillis;
 
     /**
      * Marks a turn as running with an initial phase label; returns the token its matching {@link #end} must present.
@@ -20,7 +21,13 @@ final class TurnActivity {
     long begin(String phase) {
         busy.set(true);
         this.phase = phase;
+        this.startMillis = System.currentTimeMillis();
         return generation.incrementAndGet();
+    }
+
+    /** Milliseconds since the current turn began, or 0 when no turn is running. */
+    long elapsedMillis() {
+        return busy.get() ? System.currentTimeMillis() - startMillis : 0;
     }
 
     /** Ends the turn iff {@code token} is the current generation; returns true if this call actually ended it. */

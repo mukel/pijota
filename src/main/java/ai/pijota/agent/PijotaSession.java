@@ -6,6 +6,7 @@ import ai.pijota.extensions.task.SubAgent;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
+import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolManifest;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.SelfRespawn;
@@ -144,6 +145,16 @@ public final class PijotaSession implements AutoCloseable {
 
     public AgentLoop agentLoop() {
         return agentLoop;
+    }
+
+    /** Look up a registered tool by name — frontends use this for display (glyphs, labels). */
+    public Optional<Tool> tool(String name) {
+        return toolRegistry.get(name);
+    }
+
+    /** Display glyph for a tool, or a default bullet when the tool is unknown. */
+    public String toolGlyph(String name) {
+        return toolRegistry.get(name).map(Tool::glyph).orElse("●");
     }
 
     public ExtensionRegistry extensionRegistry() {

@@ -38,7 +38,7 @@ class SlashCommandRegistryTest {
         assertTrue(help.contains("chat"));
         assertTrue(help.contains("session"));
         assertTrue(help.contains("workspace"));
-        assertTrue(help.contains("Enter submit"));
+        assertTrue(help.contains("/model"));
     }
 
     @Test

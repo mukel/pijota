@@ -52,14 +52,10 @@ public final class ArgParser {
             switch (arg) {
                 case "--provider" -> provider = nextArg(rawArgs, i++);
                 case "--model", "-m" -> {
-                    String value = nextArg(rawArgs, i++);
-                    int slash = value.indexOf('/');
-                    if (slash > 0 && slash < value.length() - 1) {
-                        provider = value.substring(0, slash);
-                        model = value.substring(slash + 1);
-                    } else {
-                        model = value;
-                    }
+                    var pm = ai.pijota.llm.ModelRegistry.parseProviderModel(nextArg(rawArgs, i++));
+                    if (pm.provider() != null)
+                        provider = pm.provider();
+                    model = pm.model();
                 }
                 case "--api-key" -> apiKey = nextArg(rawArgs, i++);
                 case "--system-prompt" -> systemPrompt = nextArg(rawArgs, i++);
@@ -116,9 +112,13 @@ public final class ArgParser {
                         } else {
                             extensionFlags.put(name, "true");
                         }
-                    } else if (arg.startsWith("-")) {} else if (arg.startsWith("@")) {
+                    } else if (arg.startsWith("@")) {
                         fileArgs.add(arg.substring(1));
-                    } else if (!arg.startsWith("-")) {
+                    } else if (arg.startsWith("-")) {
+                        // Unknown single-dash flag — never a valid extension flag (those are --name), so it would
+                        // otherwise vanish silently. Warn instead of dropping it.
+                        System.err.println("pijota: ignoring unknown option '" + arg + "'");
+                    } else {
                         promptArgs.add(arg);
                     }
                 }

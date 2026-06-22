@@ -149,6 +149,23 @@ class ModelRegistryTest {
     }
 
     @Test
+    void resolvesModelAliasToConfiguredTarget() throws Exception {
+        var config = ai.pijota.util.Util.MAPPER.readValue("{\"aliases\":{\"fast\":\"anthropic/claude-haiku-4-5\"}}",
+                                        AppConfig.class);
+        var settings = new SettingsManager(config, _ -> {});
+        var resolved = ModelRegistry.resolveProviderModel("alias", "fast", settings);
+        assertEquals("anthropic", resolved.provider());
+        assertEquals("claude-haiku-4-5", resolved.model());
+        assertEquals("anthropic", ModelRegistry.resolveAlias("fast", settings).provider());
+    }
+
+    @Test
+    void unknownAliasResolvesToNull() {
+        var settings = new SettingsManager(new AppConfig(), _ -> {});
+        assertNull(ModelRegistry.resolveAlias("nope", settings));
+    }
+
+    @Test
     void isKnownProviderModelRecognizesKnown() {
         assertTrue(ModelRegistry.isKnownProviderModel("openai", "gpt-4o"));
     }

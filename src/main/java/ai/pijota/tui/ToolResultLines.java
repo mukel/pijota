@@ -54,7 +54,9 @@ final class ToolResultLines {
             String content = msg.content();
             if (content == null || content.isBlank())
                 return "";
-            return content.lines().limit(5).reduce("", (a, b) -> a + (a.isEmpty() ? "" : "\n") + b);
+            var all = content.lines().toList();
+            String shown = all.stream().limit(5).reduce("", (a, b) -> a + (a.isEmpty() ? "" : "\n") + b);
+            return all.size() > 5 ? shown + "\n… (+" + (all.size() - 5) + " more)" : shown;
         }
         Map<String, Object> details = msg.details() == null ? Map.of() : msg.details();
         return switch (msg.toolName()) {

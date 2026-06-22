@@ -45,7 +45,6 @@ final class TuiCommandController {
             case "/tree" -> tui.showTree();
             case "/fork" -> tui.forkSession(input);
             case "/clone" -> tui.cloneSession();
-            case "/transcend" -> tui.handleTranscend(arg);
             case "/skills" -> tui.showSkills();
             case "/whoami" -> tui.showWhoami();
             default -> handleUnknown(input, cmd);
@@ -55,6 +54,10 @@ final class TuiCommandController {
     private void handleModel(String arg) {
         if (arg.isBlank()) {
             tui.showModelSelector();
+            return;
+        }
+        if (arg.toLowerCase().startsWith(ModelRegistry.ALIAS_PROVIDER + "/")) {
+            tui.switchToAlias(arg);
             return;
         }
         var matches = searchModels(arg);

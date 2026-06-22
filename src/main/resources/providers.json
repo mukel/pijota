@@ -21,7 +21,7 @@
       "displayName": "Google AI",
       "apiType": "google",
       "baseUrl": "https://generativelanguage.googleapis.com",
-      "env": ["GEMINI_API_KEY"],
+      "env": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
       "defaultModel": "gemini-2.5-pro"
     },
     {

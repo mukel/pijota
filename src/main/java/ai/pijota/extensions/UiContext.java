@@ -56,4 +56,20 @@ public interface UiContext {
      * output (follow mode), updating as the agent works. {@code source} must be cheap and non-throwing.
      */
     default void viewer(String title, Supplier<List<String>> source) {}
+
+    // ---- terminal frontends only (no-ops elsewhere) ----
+
+    /**
+     * Append styled lines to the terminal scrollback (operation output, rendered with the frontend's cursor bookkeeping
+     * — never added to the conversation/session). No-op on non-terminal frontends. Style via {@link #theme}.
+     */
+    default void appendOutput(List<String> lines) {}
+
+    /** Hand the terminal over to a child process (raw → cooked); reentrant. No-op on non-terminal frontends. */
+    default void suspend() {}
+
+    /**
+     * Reclaim the terminal after {@link #suspend} and repaint the prompt; reentrant. No-op on non-terminal frontends.
+     */
+    default void resume() {}
 }
