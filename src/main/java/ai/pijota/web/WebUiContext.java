@@ -36,11 +36,6 @@ public final class WebUiContext implements UiContext {
     }
 
     @Override
-    public void appendStatus(String message) {
-        status(message, false);
-    }
-
-    @Override
     public void alert(String message) {
         status(message, true);
     }

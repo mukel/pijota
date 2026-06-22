@@ -65,10 +65,8 @@ public interface ExtensionRuntime {
     /** Trigger immediate compaction (shrinks context window). */
     void compact(String instructions);
 
-    /** Set the main status bar text (overwritten by next set/append). */
+    /** Set the main status bar text (overwritten by the next set). */
     void setStatus(String message);
-
-    void appendStatus(String message);
 
     /** Set a named status entry — appears alongside keyless status. */
     void setStatus(String key, String message);

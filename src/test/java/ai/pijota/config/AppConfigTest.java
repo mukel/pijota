@@ -17,8 +17,6 @@ class AppConfigTest {
         assertNull(config.defaultModel());
         assertTrue(config.apiKeys().isEmpty());
         assertEquals("medium", config.thinkingLevel());
-        assertEquals(3, config.maxRetries());
-        assertEquals(2000L, config.retryBaseDelayMs());
         assertNotNull(config.compaction());
         assertTrue(config.contextFiles());
         assertFalse(config.hideThinking());
@@ -114,14 +112,14 @@ class AppConfigTest {
                                           "default_provider": "anthropic",
                                           "default_model": "claude-sonnet",
                                           "thinking_level": "low",
-                                          "max_retries": 5
+                                          "hide_thinking": true
                                         }
                                         """);
         var loaded = AppConfig.load(file);
         assertEquals("anthropic", loaded.defaultProvider());
         assertEquals("claude-sonnet", loaded.defaultModel());
         assertEquals("low", loaded.thinkingLevel());
-        assertEquals(5, loaded.maxRetries());
+        assertTrue(loaded.hideThinking());
         Files.deleteIfExists(file);
     }
 

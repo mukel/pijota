@@ -16,13 +16,6 @@ public interface UiContext {
     /** Set the main status bar text. */
     void setStatus(String message);
 
-    default void appendStatus(String message) {}
-
-    /** Set a named status entry — survives replacement of the keyless status. */
-    default void setStatus(String key, String message) {}
-
-    default void clearStatus(String key) {}
-
     /** Modal yes/no confirmation. Returns false when no UI is attached. */
     default CompletableFuture<Boolean> confirm(String question) {
         return CompletableFuture.completedFuture(false);

@@ -190,11 +190,6 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
     }
 
     @Override
-    public void appendStatus(String message) {
-        statusCalls.add("append:" + message);
-    }
-
-    @Override
     public void setStatus(String key, String message) {
         if (key == null || key.isBlank())
             return;

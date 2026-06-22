@@ -27,13 +27,11 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("quiet_startup") boolean quietStartup,
                                 @JsonProperty("working_animation") String workingAnimation,
                                 @JsonProperty("shorten_paths") boolean shortenPaths,
-                                @JsonProperty("max_retries") int maxRetries,
-                                @JsonProperty("retry_base_delay_ms") long retryBaseDelayMs,
                                 @JsonProperty("compaction") CompactionConfig compaction,
                                 @JsonProperty("aliases") Map<String, String> aliases) {
     public AppConfig() {
         this(null, null, Map.of(), "medium", "/bin/bash", null, null, null, null, List.of(), List.of(), true, false,
-                                        false, "dots", false, 3, 2000L, new CompactionConfig(), Map.of());
+                                        false, "dots", false, new CompactionConfig(), Map.of());
     }
 
     public static AppConfig load(Path path) throws IOException {
@@ -127,8 +125,6 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         private boolean quietStartup;
         private String workingAnimation;
         private boolean shortenPaths;
-        private int maxRetries;
-        private long retryBaseDelayMs;
         private CompactionConfig compaction;
         private Map<String, String> aliases;
 
@@ -149,8 +145,6 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             this.quietStartup = c.quietStartup;
             this.workingAnimation = c.workingAnimation;
             this.shortenPaths = c.shortenPaths;
-            this.maxRetries = c.maxRetries;
-            this.retryBaseDelayMs = c.retryBaseDelayMs;
             this.compaction = c.compaction;
             this.aliases = c.aliases;
         }
@@ -218,8 +212,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         public AppConfig build() {
             return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
                                             sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
-                                            hideThinking, quietStartup, workingAnimation, shortenPaths, maxRetries,
-                                            retryBaseDelayMs, compaction, aliases);
+                                            hideThinking, quietStartup, workingAnimation, shortenPaths, compaction,
+                                            aliases);
         }
     }
 

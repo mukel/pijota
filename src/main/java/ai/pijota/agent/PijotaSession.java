@@ -64,52 +64,20 @@ public final class PijotaSession implements AutoCloseable {
                                         .extensionRegistry(extensionRegistry).contextWindow(contextWindow)
                                         .compactionConfig(compactionConfig).build();
 
-        this.agentLoop.addCompactionAppender((summary, count, firstKeptId) -> {
-            Path file = this.sessionFile;
-            if (!disableSession && file != null) {
-                try {
-                    sessionManager.appendCompaction(file, summary, count, firstKeptId);
-                } catch (IOException e) {
-                    rememberSessionWarning("compaction save", e);
-                }
-            }
-        });
+        this.agentLoop.addCompactionAppender((summary, count, firstKeptId) -> save("compaction save",
+                                        f -> sessionManager.appendCompaction(f, summary, count, firstKeptId)));
         this.agentLoop.addSystemPrompt(systemPrompt);
 
         this.agentLoop.addEventListener(event -> {
             switch (event) {
                 case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
-                    if (usage != null) {
-                        Path file = this.sessionFile;
-                        if (!disableSession && file != null) {
-                            try {
-                                sessionManager.appendMessage(file, msg);
-                            } catch (IOException e) {
-                                rememberSessionWarning("assistant message save", e);
-                            }
-                        }
-                    }
+                    if (usage != null)
+                        save("assistant message save", f -> sessionManager.appendMessage(f, msg));
                 }
-                case AgentEvent.ToolResult(Message.ToolResult msg) -> {
-                    Path file = this.sessionFile;
-                    if (!disableSession && file != null) {
-                        try {
-                            sessionManager.appendMessage(file, msg);
-                        } catch (IOException e) {
-                            rememberSessionWarning("tool result save", e);
-                        }
-                    }
-                }
-                case AgentEvent.CustomMessage(Message.Custom msg) -> {
-                    Path file = this.sessionFile;
-                    if (!disableSession && file != null) {
-                        try {
-                            sessionManager.appendMessage(file, msg);
-                        } catch (IOException e) {
-                            rememberSessionWarning("custom message save", e);
-                        }
-                    }
-                }
+                case AgentEvent.ToolResult(Message.ToolResult msg) ->
+                    save("tool result save", f -> sessionManager.appendMessage(f, msg));
+                case AgentEvent.CustomMessage(Message.Custom msg) ->
+                    save("custom message save", f -> sessionManager.appendMessage(f, msg));
                 default -> {}
             }
         });
@@ -119,14 +87,7 @@ public final class PijotaSession implements AutoCloseable {
     public CompletableFuture<List<Message>> prompt(String userInput) {
         String filtered = extensionRegistry.filterInput(userInput);
         var userMessage = new Message.User(filtered);
-        Path file = this.sessionFile;
-        if (!disableSession && file != null) {
-            try {
-                sessionManager.appendMessage(file, userMessage);
-            } catch (IOException e) {
-                rememberSessionWarning("user message save", e);
-            }
-        }
+        save("user message save", f -> sessionManager.appendMessage(f, userMessage));
         String effectivePrompt = extensionRegistry.fireBeforeAgentStart(agentLoop.messages(), sessionSystemPrompt);
         agentLoop.replaceSystemPrompt(effectivePrompt);
         extensionRegistry.setSystemPrompt(effectivePrompt);
@@ -199,10 +160,6 @@ public final class PijotaSession implements AutoCloseable {
         agentLoop.stripSystemRemindersFromContext();
     }
 
-    public void fireUserBash(String command, boolean excludeFromContext) {
-        extensionRegistry.fireUserBash(command, excludeFromContext);
-    }
-
     public CompactionManager.CompactionResult compact(String instructions) {
         return agentLoop.compactWithResult(instructions);
     }
@@ -226,14 +183,8 @@ public final class PijotaSession implements AutoCloseable {
     private void setThinkingLevel(ThinkingLevel level, boolean persist) {
         ThinkingLevel effective = level != null ? level : ThinkingLevel.OFF;
         agentLoop.llm().setThinkingLevel(effective);
-        Path file = this.sessionFile;
-        if (persist && !disableSession && file != null) {
-            try {
-                sessionManager.appendThinkingLevelChange(file, effective.name());
-            } catch (IOException e) {
-                rememberSessionWarning("thinking level save", e);
-            }
-        }
+        if (persist)
+            save("thinking level save", f -> sessionManager.appendThinkingLevelChange(f, effective.name()));
     }
 
     public void switchModel(String provider, String model, String apiKey, long contextWindow) {
@@ -247,15 +198,11 @@ public final class PijotaSession implements AutoCloseable {
     private void switchModel(String provider, String model, String apiKey, long contextWindow, boolean persist) {
         agentLoop.llm().setProviderAndModel(provider, model, apiKey);
         setContextWindow(contextWindow);
-        Path file = this.sessionFile;
-        if (persist && !disableSession && file != null) {
-            try {
-                sessionManager.appendModelChange(file, provider, model, contextWindow);
+        if (persist)
+            save("model change save", f -> {
+                sessionManager.appendModelChange(f, provider, model, contextWindow);
                 writeCacheMetadata(provider, model, sessionSystemPrompt);
-            } catch (IOException e) {
-                rememberSessionWarning("model change save", e);
-            }
-        }
+            });
     }
 
     public SessionManager.ModelSelection latestModelSelection() throws IOException {
@@ -374,17 +321,12 @@ public final class PijotaSession implements AutoCloseable {
      * from CLI args + settings.json — which can have drifted since launch.
      */
     public void recordInitialModelState() {
-        Path file = this.sessionFile;
-        if (disableSession || file == null)
-            return;
         var llm = agentLoop.llm();
-        try {
-            sessionManager.appendModelChange(file, llm.provider(), llm.model(), initialContextWindow);
+        save("initial model state save", f -> {
+            sessionManager.appendModelChange(f, llm.provider(), llm.model(), initialContextWindow);
             if (llm.thinkingLevel() != null)
-                sessionManager.appendThinkingLevelChange(file, llm.thinkingLevel().name());
-        } catch (IOException e) {
-            rememberSessionWarning("initial model state save", e);
-        }
+                sessionManager.appendThinkingLevelChange(f, llm.thinkingLevel().name());
+        });
     }
 
     public void checkCacheTarget() throws IOException {
@@ -410,6 +352,25 @@ public final class PijotaSession implements AutoCloseable {
         if (sessionFile != null && target.toAbsolutePath().normalize().equals(sessionFile.toAbsolutePath().normalize()))
             throw new IOException("cannot delete active session");
         Files.deleteIfExists(target);
+    }
+
+    /**
+     * The single persistence gate: run the write iff the session is enabled and open, capturing failures as warnings.
+     */
+    private void save(String what, SessionWrite write) {
+        Path file = this.sessionFile;
+        if (disableSession || file == null)
+            return;
+        try {
+            write.run(file);
+        } catch (IOException e) {
+            rememberSessionWarning(what, e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface SessionWrite {
+        void run(Path file) throws IOException;
     }
 
     private void rememberSessionWarning(String action, IOException e) {

@@ -24,18 +24,6 @@ public record SessionItem(Path path, String name, String description, long mtime
                                         .toList();
     }
 
-    static SessionDescriptor.ParsedDescription descriptionFromLine(String line) {
-        return SessionDescriptor.parseLine(line);
-    }
-
-    static String clean(String s) {
-        return SessionDescriptor.clean(s);
-    }
-
-    static String truncate(String s) {
-        return SessionDescriptor.truncate(s);
-    }
-
     @Override
     public String searchText() {
         return name + " " + description + " " + path.getFileName();

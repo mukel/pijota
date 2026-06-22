@@ -142,7 +142,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
-    @Override
     public void appendStatus(String msg) {
         appendPlain(List.of(theme.styled("statusText", msg)));
     }
@@ -436,7 +435,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // ---- shell / agent execution ----
         @Override
         public void fireUserBash(String command, boolean noContext) {
-            session.fireUserBash(command, noContext);
+            session.extensionRegistry().fireUserBash(command, noContext);
         }
 
         @Override

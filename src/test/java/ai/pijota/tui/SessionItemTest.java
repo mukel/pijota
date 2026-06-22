@@ -1,5 +1,7 @@
 package ai.pijota.tui;
 
+import ai.pijota.agent.SessionDescriptor;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -108,50 +110,50 @@ class SessionItemTest {
 
     @Test
     void cleanReturnsNullForNull() {
-        assertNull(SessionItem.clean(null));
+        assertNull(SessionDescriptor.clean(null));
     }
 
     @Test
     void cleanReturnsNullForBlank() {
-        assertNull(SessionItem.clean("   "));
+        assertNull(SessionDescriptor.clean("   "));
     }
 
     @Test
     void cleanStripsSystemReminders() {
-        assertEquals("hello world", SessionItem.clean("hello <system-reminder>secret</system-reminder> world"));
+        assertEquals("hello world", SessionDescriptor.clean("hello <system-reminder>secret</system-reminder> world"));
     }
 
     @Test
     void cleanReplacesNewlinesWithSpaces() {
-        assertEquals("line1 line2", SessionItem.clean("line1\nline2"));
+        assertEquals("line1 line2", SessionDescriptor.clean("line1\nline2"));
     }
 
     @Test
     void cleanCollapsesWhitespace() {
-        assertEquals("a b c", SessionItem.clean("a   b    c"));
+        assertEquals("a b c", SessionDescriptor.clean("a   b    c"));
     }
 
     @Test
     void cleanTrimsLeadingAndTrailingSpace() {
-        assertEquals("text", SessionItem.clean("  text  "));
+        assertEquals("text", SessionDescriptor.clean("  text  "));
     }
 
     @Test
     void truncateReturnsShortStringAsIs() {
-        assertEquals("short", SessionItem.truncate("short"));
+        assertEquals("short", SessionDescriptor.truncate("short"));
     }
 
     @Test
     void truncateTruncatesLongStringAtWordBoundary() {
         String longText = "a".repeat(90);
-        String result = SessionItem.truncate(longText);
+        String result = SessionDescriptor.truncate(longText);
         assertTrue(result.length() <= 81);
         assertTrue(result.endsWith("…"));
     }
 
     @Test
     void descriptionFromLineParsesUserMessage() {
-        var result = SessionItem.descriptionFromLine(
+        var result = SessionDescriptor.parseLine(
                                         "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hello world\"}");
         assertNotNull(result);
         assertEquals("hello world", result.firstUser());
@@ -160,7 +162,7 @@ class SessionItemTest {
 
     @Test
     void descriptionFromLineParsesSessionInfo() {
-        var result = SessionItem.descriptionFromLine("{\"type\":\"session_info\",\"name\":\"My Session\"}");
+        var result = SessionDescriptor.parseLine("{\"type\":\"session_info\",\"name\":\"My Session\"}");
         assertNotNull(result);
         assertNull(result.firstUser());
         assertEquals("My Session", result.sessionName());
@@ -168,19 +170,19 @@ class SessionItemTest {
 
     @Test
     void descriptionFromLineReturnsNullForNonMessage() {
-        var result = SessionItem.descriptionFromLine("{\"type\":\"tool_result\"}");
+        var result = SessionDescriptor.parseLine("{\"type\":\"tool_result\"}");
         assertNull(result);
     }
 
     @Test
     void descriptionFromLineReturnsNullForAssistantMessage() {
-        var result = SessionItem.descriptionFromLine(
+        var result = SessionDescriptor.parseLine(
                                         "{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"I am helping\"}");
         assertNull(result);
     }
 
     @Test
     void descriptionFromLineReturnsNullForInvalidJson() {
-        assertNull(SessionItem.descriptionFromLine("not json"));
+        assertNull(SessionDescriptor.parseLine("not json"));
     }
 }

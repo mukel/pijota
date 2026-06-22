@@ -21,8 +21,8 @@ class ThemeLoaderTest {
 
     private static SettingsManager settingsWithTheme(String theme) {
         return new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, theme, null, null,
-                                        true, false, false, null, false, 3, 2000L, new AppConfig.CompactionConfig(),
-                                        null), _ -> {});
+                                        true, false, false, null, false, new AppConfig.CompactionConfig(), null),
+                                        _ -> {});
     }
 
     private static SettingsManager emptySettings() {
@@ -73,7 +73,7 @@ class ThemeLoaderTest {
         Files.writeString(dir.resolve("ocean.json"), "{\"name\":\"ocean\",\"text\":\"#0000ff\"}");
 
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, "ocean",
-                                        List.of(dir.toString()), null, true, false, false, null, false, 3, 2000L,
+                                        List.of(dir.toString()), null, true, false, false, null, false,
                                         new AppConfig.CompactionConfig(), null), _ -> {});
 
         var theme = ThemeLoader.load(settings, emptyArgs(), "/tmp");
@@ -105,7 +105,7 @@ class ThemeLoaderTest {
         Files.writeString(dir.resolve("ocean.json"), "{\"name\":\"ocean\",\"text\":\"#0000ff\"}");
 
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, null,
-                                        List.of(dir.toString()), null, true, false, false, null, false, 3, 2000L,
+                                        List.of(dir.toString()), null, true, false, false, null, false,
                                         new AppConfig.CompactionConfig(), null), _ -> {});
 
         var theme = ThemeLoader.load(settings, ArgParser.parse(new String[] {"--no-themes"}), "/tmp");

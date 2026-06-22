@@ -49,21 +49,6 @@ public class FakeUiContext implements UiContext {
     }
 
     @Override
-    public void appendStatus(String message) {
-        statuses.add("append:" + message);
-    }
-
-    @Override
-    public void setStatus(String key, String message) {
-        statuses.add(key + "=" + message);
-    }
-
-    @Override
-    public void clearStatus(String key) {
-        statuses.add("clear:" + key);
-    }
-
-    @Override
     public CompletableFuture<Boolean> confirm(String question) {
         return confirmResult.get();
     }

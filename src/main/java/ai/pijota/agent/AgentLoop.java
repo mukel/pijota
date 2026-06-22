@@ -306,7 +306,7 @@ public final class AgentLoop implements AgentContext {
         return prompt(new Message.User(userInput));
     }
 
-    public CompletableFuture<List<Message>> runLoop() {
+    private CompletableFuture<List<Message>> runLoop() {
         var result = new CompletableFuture<List<Message>>();
         activeResult.set(result);
         sessionTurn++;
