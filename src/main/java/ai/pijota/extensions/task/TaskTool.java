@@ -118,7 +118,8 @@ public final class TaskTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String sessionCwd) {
+        Map<String, Object> args = a.map();
         return switch (detectMode(args)) {
             case "chain" -> executeChain(args);
             case "parallel" -> executeParallel(args);
@@ -517,7 +518,8 @@ public final class TaskTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+    public ToolResultView renderResult(Args rawArgs, ToolResult result, String cwd) {
+        Map<String, Object> args = rawArgs.map();
         String text = result.content();
         boolean isSingle = !args.containsKey("tasks") && !args.containsKey("chain");
         String summary;

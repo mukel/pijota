@@ -109,7 +109,7 @@ class TmuxExtensionTest {
     }
 
     private Tool.ToolResult runTool(FakeExtensionAPI api, String toolName, Map<String, Object> args) throws Exception {
-        return api.tool(toolName).execute().execute("id", args, "/tmp").get();
+        return api.tool(toolName).execute().execute("id", new Tool.Args(args), "/tmp").get();
     }
 
     /** Builds a persisted-state snapshot the way saveState() does, for seeding reload/render tests. */

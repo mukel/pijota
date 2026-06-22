@@ -74,7 +74,7 @@ public final class ToolRegistry {
                 return Optional.of(CompletableFuture.completedFuture(
                                                 Tool.ToolResult.error(formatValidationError(toolName, errors))));
             }
-            return Optional.of(tool.execute(toolCallId, arguments, sessionCwd));
+            return Optional.of(tool.execute(toolCallId, new Tool.Args(arguments), sessionCwd));
         }).orElseGet(() -> CompletableFuture.completedFuture(Tool.ToolResult.error("Unknown tool: " + toolName)));
     }
 

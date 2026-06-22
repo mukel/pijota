@@ -1,5 +1,6 @@
 package ai.pijota.extensions.examples;
 
+import ai.pijota.tools.Tool;
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
 import ai.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.junit.jupiter.api.Test;
@@ -64,22 +65,22 @@ class ToolOverrideExtensionTest {
 
     @Test
     void getIntWithNumber() {
-        assertEquals(42, ToolOverrideExtension.getInt(Map.of("x", 42), "x", 0));
+        assertEquals(42, new Tool.Args(Map.of("x", 42)).getInt("x", 0));
     }
 
     @Test
     void getIntWithStringNumber() {
-        assertEquals(10, ToolOverrideExtension.getInt(Map.of("x", "10"), "x", 0));
+        assertEquals(10, new Tool.Args(Map.of("x", "10")).getInt("x", 0));
     }
 
     @Test
     void getIntWithMissingKey() {
-        assertEquals(5, ToolOverrideExtension.getInt(Map.of(), "x", 5));
+        assertEquals(5, new Tool.Args(Map.of()).getInt("x", 5));
     }
 
     @Test
     void getIntWithInvalidString() {
-        assertEquals(0, ToolOverrideExtension.getInt(Map.of("x", "not-a-number"), "x", 0));
+        assertEquals(0, new Tool.Args(Map.of("x", "not-a-number")).getInt("x", 0));
     }
 
     @TempDir
@@ -105,7 +106,7 @@ class ToolOverrideExtensionTest {
         var ext = new ToolOverrideExtension();
         ext.init(api);
         var tool = api.tools().get(0);
-        var result = tool.execute().execute("tc", Map.of("filePath", ".env"), tempDir.toString()).get(1,
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of("filePath", ".env")), tempDir.toString()).get(1,
                                         TimeUnit.SECONDS);
         assertTrue(result.isError());
         assertTrue(result.content().contains("Access denied"));
@@ -117,7 +118,7 @@ class ToolOverrideExtensionTest {
         var ext = new ToolOverrideExtension();
         ext.init(api);
         var tool = api.tools().get(0);
-        var result = tool.execute().execute("tc", Map.of(), tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of()), tempDir.toString()).get(1, TimeUnit.SECONDS);
         assertTrue(result.isError());
         assertTrue(result.content().contains("Missing file path"));
     }
@@ -130,7 +131,8 @@ class ToolOverrideExtensionTest {
         var tool = api.tools().get(0);
         var file = tempDir.resolve("sample.txt");
         Files.writeString(file, "line1\nline2\nline3\nline4\n");
-        var result = tool.execute().execute("tc", Map.of("filePath", "sample.txt", "offset", 2, "limit", 2),
+        var result = tool.execute().execute("tc",
+                                        new Tool.Args(Map.of("filePath", "sample.txt", "offset", 2, "limit", 2)),
                                         tempDir.toString()).get(1, TimeUnit.SECONDS);
         assertFalse(result.isError());
         assertEquals("line2\nline3", result.content());
@@ -145,8 +147,8 @@ class ToolOverrideExtensionTest {
         var tool = api.tools().get(0);
         var file = tempDir.resolve("big.txt");
         Files.writeString(file, "x".repeat(60 * 1024));
-        var result = tool.execute().execute("tc", Map.of("filePath", "big.txt"), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of("filePath", "big.txt")), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
         assertFalse(result.isError());
         assertTrue(result.content().contains("[Output truncated at 50KB]"));
     }
@@ -157,8 +159,8 @@ class ToolOverrideExtensionTest {
         var ext = new ToolOverrideExtension();
         ext.init(api);
         var tool = api.tools().get(0);
-        var result = tool.execute().execute("tc", Map.of("filePath", "missing.txt"), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of("filePath", "missing.txt")), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
         assertTrue(result.isError());
     }
 
@@ -170,8 +172,8 @@ class ToolOverrideExtensionTest {
         var tool = api.tools().get(0);
         var file = tempDir.resolve("legacy.txt");
         Files.writeString(file, "content");
-        var result = tool.execute().execute("tc", Map.of("path", "legacy.txt"), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of("path", "legacy.txt")), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
         assertFalse(result.isError());
         assertEquals("content", result.content());
     }

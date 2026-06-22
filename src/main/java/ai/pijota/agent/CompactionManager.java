@@ -50,19 +50,22 @@ public final class CompactionManager {
         this.sessionAppender = appender;
     }
 
-    public CompactionResult checkAndCompact(List<Message> messages,
+    public CompactionResult checkAndCompact(List<Message> messages, long realContextTokens,
                                     java.util.function.Consumer<List<Message>> onCompact) {
 
         int estimatedChars = estimateChars(messages);
-        int estimatedTokens = estimateTokens(messages);
+        // Trust the provider's real prompt size when available: it captures tool-schema tokens + true tokenization
+        // the byte heuristic misses, while the heuristic captures cached message bytes the provider reports
+        // separately — so the max of the two is the safe, conservative context-size estimate for the trigger.
+        int contextTokens = (int) Math.max(realContextTokens, estimateTokens(messages));
         int limit = Math.max(0, contextWindow - reserveTokens);
 
-        if (!enabled || estimatedTokens < limit) {
-            return new CompactionResult(false, estimatedChars, estimatedTokens, 0);
+        if (!enabled || contextTokens < limit) {
+            return new CompactionResult(false, estimatedChars, contextTokens, 0);
         }
 
         int compactedCount = compact(messages, null, onCompact, null);
-        return new CompactionResult(true, estimatedChars, estimatedTokens, compactedCount);
+        return new CompactionResult(true, estimatedChars, contextTokens, compactedCount);
     }
 
     public CompactionResult compactNow(List<Message> messages, String instructions,
@@ -97,11 +100,21 @@ public final class CompactionManager {
         if (keepFrom <= 2)
             return 0;
 
-        List<Message> toSummarize = sanitizedCopy(messages.subList(1, keepFrom));
+        // A prior summary at the head is fed via the previousSummary param (the incremental-update prompt), not
+        // re-summarized inline — so it's incorporated exactly once, and the update path also works after a reload
+        // (when the in-memory previousSummary is null but the loaded history still carries the CompactionSummary).
+        int from = 1;
+        String priorSummary = previousSummary;
+        if (messages.get(1) instanceof Message.CompactionSummary cs) {
+            priorSummary = cs.summary();
+            from = 2;
+        }
+
+        List<Message> toSummarize = sanitizedCopy(messages.subList(from, keepFrom));
         String summary;
         if (summaryGenerator != null) {
             try {
-                summary = summaryGenerator.generate(toSummarize, instructions, previousSummary, onPartial);
+                summary = summaryGenerator.generate(toSummarize, instructions, priorSummary, onPartial);
             } catch (Exception e) {
                 summary = null;
             }

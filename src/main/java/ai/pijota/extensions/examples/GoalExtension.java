@@ -14,7 +14,6 @@ import ai.pijota.util.Util;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -47,55 +46,41 @@ public final class GoalExtension implements Extension {
         api.registerSlashCommand(new SlashCommand("goal", "View or manage the current goal", List.of(),
                                         this::handleGoalCommand));
 
-        api.registerTool(new Tool.ToolDefinition("create_goal",
-                                        "Create a goal with an objective and optional token budget. Fails if a non-complete goal exists unless replace_existing is true.",
-                                        Map.of("type", "object", "properties", Map.of("objective", Map.of("type",
-                                                                        "string", "description",
-                                                                        "What the agent should accomplish"),
-                                                                        "token_budget",
-                                                                        Map.of("type", "integer", "description",
-                                                                                                        "Maximum tokens to use before marking budget-limited"),
-                                                                        "completion_criterion",
-                                                                        Map.of("type", "string", "description",
-                                                                                                        "Optional condition that determines when the goal is satisfied"),
-                                                                        "continue_on_idle",
-                                                                        Map.of("type", "boolean", "description",
-                                                                                                        "Whether the agent should continue working when idle"),
-                                                                        "replace_existing",
-                                                                        Map.of("type", "boolean", "description",
-                                                                                                        "Replace current goal even if not complete")),
-                                                                        "required", List.of("objective")),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(doCreateGoal(args)),
-                                        createGoalRenderer()));
+        api.registerTool(Tool.named("create_goal").description(
+                                        "Create a goal with an objective and optional token budget. Fails if a non-complete goal exists unless replace_existing is true.")
+                                        .stringParam("objective", "What the agent should accomplish", true)
+                                        .intParam("token_budget", "Maximum tokens to use before marking budget-limited",
+                                                                        false)
+                                        .stringParam("completion_criterion",
+                                                                        "Optional condition that determines when the goal is satisfied",
+                                                                        false)
+                                        .boolParam("continue_on_idle", "Whether the agent should continue working when idle",
+                                                                        false)
+                                        .boolParam("replace_existing", "Replace current goal even if not complete",
+                                                                        false)
+                                        .resultRenderer(createGoalRenderer())
+                                        .run((args, cwd) -> doCreateGoal(args.map())));
 
-        api.registerTool(new Tool.ToolDefinition("get_goal",
-                                        "Returns the current goal state including objective, status, budget, progress, and usage.",
-                                        Map.of("type", "object", "properties", Map.of()),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(doGetGoal())));
+        api.registerTool(Tool.named("get_goal").description(
+                                        "Returns the current goal state including objective, status, budget, progress, and usage.")
+                                        .run((args, cwd) -> doGetGoal()));
 
-        api.registerTool(new Tool.ToolDefinition("update_goal",
-                                        "Update the goal status. Supports status: complete, pause, resume, idle.",
-                                        Map.of("type", "object", "properties", Map.of("status", Map.of("type", "string",
-                                                                        "description",
-                                                                        "Set to complete, pause, resume, or idle",
-                                                                        "enum",
-                                                                        List.of("complete", "pause", "resume",
-                                                                                                        "idle"))),
-                                                                        "required", List.of("status")),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(doUpdateGoal(args)),
-                                        updateGoalRenderer()));
+        api.registerTool(Tool.named("update_goal").description(
+                                        "Update the goal status. Supports status: complete, pause, resume, idle.")
+                                        .enumParam("status", "Set to complete, pause, resume, or idle", true,
+                                                                        List.of("complete", "pause", "resume", "idle"))
+                                        .resultRenderer(updateGoalRenderer())
+                                        .run((args, cwd) -> doUpdateGoal(args.map())));
 
-        api.registerTool(new Tool.ToolDefinition("add_goal_progress",
-                                        "Append a progress note or milestone to the current goal.",
-                                        Map.of("type", "object", "properties", Map.of("note", Map.of("type", "string",
-                                                                        "description", "Progress note or milestone")),
-                                                                        "required", List.of("note")),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(doAddProgress(args)),
-                                        addProgressRenderer()));
+        api.registerTool(Tool.named("add_goal_progress")
+                                        .description("Append a progress note or milestone to the current goal.")
+                                        .stringParam("note", "Progress note or milestone", true)
+                                        .resultRenderer(addProgressRenderer())
+                                        .run((args, cwd) -> doAddProgress(args.map())));
 
         api.registerStatusLines(this::statusLine);
 
-        api.on(ExtensionEvent.TurnStart.class, (ev, ctx) -> {
+        api.on(ExtensionEvent.TurnStart.class, _ -> {
             GoalState current = state.get();
             if (current.isActive() && current.hasBudget()) {
                 var llm = api.runtime().llm();
@@ -105,7 +90,7 @@ public final class GoalExtension implements Extension {
             }
         });
 
-        api.on(ExtensionEvent.TurnEnd.class, (ev, ctx) -> {
+        api.on(ExtensionEvent.TurnEnd.class, _ -> {
             GoalState current = state.get();
             if (!current.isActive())
                 return;
@@ -123,7 +108,7 @@ public final class GoalExtension implements Extension {
             }
         });
 
-        api.on(ExtensionEvent.SessionReady.class, (ev, ctx) -> loadFromSession());
+        api.on(ExtensionEvent.SessionReady.class, _ -> loadFromSession());
     }
 
     private void loadFromSession() {

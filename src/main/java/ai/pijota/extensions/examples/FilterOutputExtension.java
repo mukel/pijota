@@ -55,14 +55,14 @@ public final class FilterOutputExtension implements Extension {
         api.registerSlashCommand(new SlashCommand("filter-output", "Toggle secret/token redaction", List.of(),
                                         _ -> toggle()));
 
-        api.onInput((text, ctx) -> {
+        api.onInput(text -> {
             if (!enabled)
                 return new ai.pijota.extensions.ExtensionResult.InputResult(text, false);
             String redacted = redactString(text);
             return new ai.pijota.extensions.ExtensionResult.InputResult(redacted != null ? redacted : text, false);
         });
 
-        api.on(ExtensionEvent.BeforeProviderRequest.class, (event, ctx) -> {
+        api.on(ExtensionEvent.BeforeProviderRequest.class, event -> {
             if (!enabled)
                 return;
             List<Message> messages = event.messages();

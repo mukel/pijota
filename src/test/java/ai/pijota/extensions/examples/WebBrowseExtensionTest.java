@@ -60,7 +60,8 @@ class WebBrowseExtensionTest {
             var api = apiWith(rt);
 
             assertEquals(2, api.tools().size(), "--browse=chrome must enable the browse tools");
-            var visit = api.tool("web_visit_page").toTool().execute("c", Map.of("url", "https://x"), ".").join();
+            var visit = api.tool("web_visit_page").toTool().execute("c", new Tool.Args(Map.of("url", "https://x")), ".")
+                                            .join();
             assertFalse(visit.isError());
         }
     }
@@ -73,11 +74,13 @@ class WebBrowseExtensionTest {
             rt.setFlag("browse-port", String.valueOf(fake.port())); // attach to the fake → no real launch
             var api = apiWith(rt);
 
-            var visit = api.tool("web_visit_page").toTool().execute("c1", Map.of("url", "https://x"), ".").join();
+            var visit = api.tool("web_visit_page").toTool()
+                                            .execute("c1", new Tool.Args(Map.of("url", "https://x")), ".").join();
             assertFalse(visit.isError());
             assertEquals(fake.pageExtract, visit.content());
 
-            var search = api.tool("web_google_search").toTool().execute("c2", Map.of("query", "q"), ".").join();
+            var search = api.tool("web_google_search").toTool().execute("c2", new Tool.Args(Map.of("query", "q")), ".")
+                                            .join();
             assertFalse(search.isError());
             assertTrue(search.content().contains("## Results"));
 
@@ -94,7 +97,8 @@ class WebBrowseExtensionTest {
             rt.setFlag("browse-port", String.valueOf(fake.port()));
             var api = apiWith(rt);
 
-            var res = api.tool("web_visit_page").toTool().execute("c", Map.of("url", "https://x"), ".").join();
+            var res = api.tool("web_visit_page").toTool().execute("c", new Tool.Args(Map.of("url", "https://x")), ".")
+                                            .join();
             assertFalse(res.isError());
             assertTrue(res.content().length() < 250_000, "content should be truncated");
             assertFalse(res.details().isEmpty(), "truncation should attach a file reference in details");
@@ -110,7 +114,8 @@ class WebBrowseExtensionTest {
             rt.setFlag("browse-port", String.valueOf(fake.port()));
             var api = apiWith(rt);
 
-            var res = api.tool("web_visit_page").toTool().execute("c", Map.of("url", "https://x"), ".").join();
+            var res = api.tool("web_visit_page").toTool().execute("c", new Tool.Args(Map.of("url", "https://x")), ".")
+                                            .join();
             assertTrue(res.isError());
             assertTrue(res.content().contains("net::ERR_CONNECTION_REFUSED"), res.content());
         }
@@ -124,7 +129,8 @@ class WebBrowseExtensionTest {
         rt.setUi(declineUi()); // confirm() → false
         var api = apiWith(rt);
 
-        var res = api.tool("web_visit_page").toTool().execute("c", Map.of("url", "https://x"), ".").join();
+        var res = api.tool("web_visit_page").toTool().execute("c", new Tool.Args(Map.of("url", "https://x")), ".")
+                                        .join();
         assertTrue(res.isError());
         assertTrue(res.content().toLowerCase().contains("declined"), res.content());
     }

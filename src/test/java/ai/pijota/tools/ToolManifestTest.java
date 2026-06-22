@@ -174,8 +174,8 @@ class ToolManifestTest {
         }
 
         @Override
-        public java.util.concurrent.CompletableFuture<Tool.ToolResult> execute(String toolCallId,
-                                        Map<String, Object> arguments, String sessionCwd) {
+        public java.util.concurrent.CompletableFuture<Tool.ToolResult> execute(String toolCallId, Tool.Args arguments,
+                                        String sessionCwd) {
             return java.util.concurrent.CompletableFuture.completedFuture(Tool.ToolResult.success("ok"));
         }
     }

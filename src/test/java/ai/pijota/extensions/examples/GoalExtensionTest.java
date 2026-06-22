@@ -37,8 +37,8 @@ class GoalExtensionTest {
         new GoalExtension().init(fake);
         var tool = fake.tool("create_goal").toTool();
 
-        var result = tool.execute("id", Map.of("objective", "write tests"), ".").join();
-        var view = tool.renderResult(Map.of("objective", "write tests"), result, ".");
+        var result = tool.execute("id", new Tool.Args(Map.of("objective", "write tests")), ".").join();
+        var view = tool.renderResult(new Tool.Args(Map.of("objective", "write tests")), result, ".");
 
         assertTrue(view.summary().contains("Created goal: write tests"));
     }
@@ -49,8 +49,8 @@ class GoalExtensionTest {
         new GoalExtension().init(fake);
         var tool = fake.tool("create_goal").toTool();
 
-        var result = tool.execute("id", Map.of("objective", ""), ".").join();
-        var view = tool.renderResult(Map.of("objective", ""), result, ".");
+        var result = tool.execute("id", new Tool.Args(Map.of("objective", "")), ".").join();
+        var view = tool.renderResult(new Tool.Args(Map.of("objective", "")), result, ".");
 
         assertTrue(view.summary().contains("Failed"));
     }
@@ -237,7 +237,7 @@ class GoalExtensionTest {
     }
 
     private static Tool.ToolResult execute(Tool.ToolDefinition tool, Map<String, Object> args) {
-        return tool.execute().execute("id", args, ".").join();
+        return tool.execute().execute("id", new Tool.Args(args), ".").join();
     }
 
     @Test

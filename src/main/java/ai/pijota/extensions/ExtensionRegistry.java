@@ -22,8 +22,9 @@ import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Core registry that loads, registers, and dispatches to all extensions. Owns the lifecycle: loads extensions from
@@ -38,10 +39,10 @@ public final class ExtensionRegistry {
     private final List<SlashCommand> slashCommands = new CopyOnWriteArrayList<>();
     private final List<SkillLoader.Skill> skills = new CopyOnWriteArrayList<>();
     private final List<ExtensionKeybinding> keybindings = new CopyOnWriteArrayList<>();
-    private final Map<Class<? extends ExtensionEvent>, List<BiFunction<ExtensionEvent, ExtensionContext, Object>>> listeners = new ConcurrentHashMap<>();
+    private final Map<Class<? extends ExtensionEvent>, List<Function<ExtensionEvent, Object>>> listeners = new ConcurrentHashMap<>();
     private final List<java.util.function.Supplier<List<String>>> statusLineProviders = new CopyOnWriteArrayList<>();
     private final List<java.util.function.Supplier<List<String>>> footerLineProviders = new CopyOnWriteArrayList<>();
-    private final List<BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender>> messageRenderers = new CopyOnWriteArrayList<>();
+    private final List<Function<Message, ExtensionResult.MessageRender>> messageRenderers = new CopyOnWriteArrayList<>();
     private final List<ExceptionHandler> exceptionHandlers = new CopyOnWriteArrayList<>();
     private final List<URLClassLoader> extensionClassLoaders = new CopyOnWriteArrayList<>();
     private final Map<String, String> keyedStatuses = new ConcurrentSkipListMap<>();
@@ -173,8 +174,7 @@ public final class ExtensionRegistry {
         log.info("Registered extension: {}", ext.name());
     }
 
-    private void addListener(Class<? extends ExtensionEvent> eventType,
-                                    BiFunction<ExtensionEvent, ExtensionContext, Object> handler) {
+    private void addListener(Class<? extends ExtensionEvent> eventType, Function<ExtensionEvent, Object> handler) {
         listeners.computeIfAbsent(eventType, _ -> new CopyOnWriteArrayList<>()).add(handler);
     }
 
@@ -183,32 +183,34 @@ public final class ExtensionRegistry {
     public void fire(ExtensionEvent event) {
         if (agentContext == null || agentContext.isClosed())
             return;
-        var ctx = new ExtensionContext(uiContext, runtime);
         var handlers = listeners.getOrDefault(event.getClass(), List.of());
         for (var handler : handlers) {
             try {
-                handler.apply(event, ctx);
+                handler.apply(event);
             } catch (Throwable e) {
                 log.warn("Event handler error for {}: {}", event.name(), e.getMessage());
             }
         }
     }
 
-    public Optional<String> beforeToolCall(String toolCallId, String toolName, String arguments) {
-        var event = new ExtensionEvent.ToolCall(toolCallId, toolName, arguments, true);
-        var handlerCtx = new ExtensionContext(uiContext, runtime);
-        var handlers = listeners.getOrDefault(ExtensionEvent.ToolCall.class, List.of());
-        for (var handler : handlers) {
+    /** Runs the handlers registered for {@code eventType} and returns the first {@code R} result that vetoes. */
+    private <R> Optional<R> firstVeto(ExtensionEvent event, Class<R> type, Predicate<R> veto, String label) {
+        for (var handler : listeners.getOrDefault(event.getClass(), List.of())) {
             try {
-                Object result = handler.apply(event, handlerCtx);
-                if (result instanceof ExtensionResult.Block block) {
-                    return Optional.of(block.reason() != null ? block.reason() : "blocked");
-                }
+                Object result = handler.apply(event);
+                if (type.isInstance(result) && veto.test(type.cast(result)))
+                    return Optional.of(type.cast(result));
             } catch (Exception e) {
-                log.warn("tool_call handler error: {}", e.getMessage());
+                log.warn("{} handler error: {}", label, e.getMessage());
             }
         }
         return Optional.empty();
+    }
+
+    public Optional<String> beforeToolCall(String toolCallId, String toolName, String arguments) {
+        var event = new ExtensionEvent.ToolCall(toolCallId, toolName, arguments, true);
+        return firstVeto(event, ExtensionResult.Block.class, b -> true, "tool_call")
+                                        .map(b -> b.reason() != null ? b.reason() : "blocked");
     }
 
     public void afterToolCall(String toolCallId, String toolName, Tool.ToolResult result) {
@@ -236,10 +238,9 @@ public final class ExtensionRegistry {
     }
 
     public Optional<List<String>> renderMessage(Message message) {
-        var handlerCtx = new ExtensionContext(uiContext, runtime);
         for (var renderer : messageRenderers) {
             try {
-                var rendered = renderer.apply(message, handlerCtx);
+                var rendered = renderer.apply(message);
                 if (rendered != null && !rendered.lines().isEmpty())
                     return Optional.of(rendered.lines());
             } catch (Exception e) {
@@ -255,47 +256,24 @@ public final class ExtensionRegistry {
 
     public ExtensionResult.UserBashResult fireUserBash(String command, boolean excludeFromContext) {
         var event = new ExtensionEvent.UserBash(command, excludeFromContext, cwd != null ? cwd : Path.of(""));
-        var handlerCtx = new ExtensionContext(uiContext, runtime);
-        var handlers = listeners.getOrDefault(ExtensionEvent.UserBash.class, List.of());
-        for (var handler : handlers) {
-            try {
-                Object result = handler.apply(event, handlerCtx);
-                if (result instanceof ExtensionResult.UserBashResult r && r.blocked()) {
-                    return r;
-                }
-            } catch (Exception e) {
-                log.warn("user_bash handler error: {}", e.getMessage());
-            }
-        }
-        return ExtensionResult.UserBashResult.allow();
+        return firstVeto(event, ExtensionResult.UserBashResult.class, ExtensionResult.UserBashResult::blocked,
+                                        "user_bash").orElseGet(ExtensionResult.UserBashResult::allow);
     }
 
     public ExtensionResult.BashToolCallResult fireBashToolCall(String toolCallId, String command, String workdir,
                                     long timeoutSec) {
         var event = new ExtensionEvent.BashToolCall(toolCallId, command, workdir, timeoutSec);
-        var handlerCtx = new ExtensionContext(uiContext, runtime);
-        var handlers = listeners.getOrDefault(ExtensionEvent.BashToolCall.class, List.of());
-        for (var handler : handlers) {
-            try {
-                Object result = handler.apply(event, handlerCtx);
-                if (result instanceof ExtensionResult.BashToolCallResult r && r.blocked()) {
-                    return r;
-                }
-            } catch (Exception e) {
-                log.warn("bash_tool_call handler error: {}", e.getMessage());
-            }
-        }
-        return ExtensionResult.BashToolCallResult.allow();
+        return firstVeto(event, ExtensionResult.BashToolCallResult.class, ExtensionResult.BashToolCallResult::blocked,
+                                        "bash_tool_call").orElseGet(ExtensionResult.BashToolCallResult::allow);
     }
 
     // -- user input --
 
     public String filterInput(String input) {
         String result = input;
-        var handlerCtx = new ExtensionContext(uiContext, runtime);
         for (var handler : listeners.getOrDefault(ExtensionEvent.Input.class, List.of())) {
             try {
-                Object handled = handler.apply(new ExtensionEvent.Input(result), handlerCtx);
+                Object handled = handler.apply(new ExtensionEvent.Input(result));
                 if (handled instanceof ExtensionResult.InputResult r) {
                     result = r.text();
                     if (r.consumed())
@@ -403,32 +381,22 @@ public final class ExtensionRegistry {
         return List.copyOf(exceptionHandlers);
     }
 
-    public void dispatchException(Throwable t, UiContext uiContext) {
-        var ctx = new ExtensionContext(uiContext, runtime);
+    /** Dispatches an unhandled exception to the registered handlers, in registration order. */
+    public void dispatchException(Throwable t) {
         for (var handler : exceptionHandlers) {
             try {
-                handler.onException(t, ctx);
+                handler.onException(t);
             } catch (Exception e) {
                 log.warn("Exception handler failed: {}", e.getMessage());
             }
         }
     }
 
-    /**
-     * Dispatches to the registered exception handlers using the registry's active UI — for callers like the agent loop
-     * that have no {@link UiContext} of their own. Frontends that hold one should prefer
-     * {@link #dispatchException(Throwable, UiContext)}.
-     */
-    public void dispatchException(Throwable t) {
-        dispatchException(t, uiContext);
-    }
-
     public void cleanup() {
         var event = new ExtensionEvent.SessionShutdown();
-        var ctx = new ExtensionContext(uiContext, runtime);
         for (var handler : listeners.getOrDefault(ExtensionEvent.SessionShutdown.class, List.of())) {
             try {
-                handler.apply(event, ctx);
+                handler.apply(event);
             } catch (Throwable e) {
                 log.warn("Session shutdown handler error: {}", e.getMessage());
             }
@@ -467,45 +435,43 @@ public final class ExtensionRegistry {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, BiConsumer<E, ExtensionContext> handler) {
-            addListener(eventType, (e, ctx) -> {
-                handler.accept((E) e, ctx);
+        public <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, Consumer<E> handler) {
+            addListener(eventType, e -> {
+                handler.accept((E) e);
                 return null;
             });
             return this;
         }
 
         @Override
-        public ExtensionAPI registerMessageRenderer(
-                                        BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer) {
+        public ExtensionAPI registerMessageRenderer(Function<Message, ExtensionResult.MessageRender> renderer) {
             if (renderer != null)
                 messageRenderers.add(renderer);
             return this;
         }
 
         @Override
-        public ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler) {
-            addListener(ExtensionEvent.UserBash.class, (e, ctx) -> handler.apply((ExtensionEvent.UserBash) e, ctx));
+        public ExtensionAPI onUserBash(Function<ExtensionEvent.UserBash, ExtensionResult.UserBashResult> handler) {
+            addListener(ExtensionEvent.UserBash.class, e -> handler.apply((ExtensionEvent.UserBash) e));
             return this;
         }
 
         @Override
         public ExtensionAPI onBashToolCall(
-                                        BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler) {
-            addListener(ExtensionEvent.BashToolCall.class,
-                                            (e, ctx) -> handler.apply((ExtensionEvent.BashToolCall) e, ctx));
+                                        Function<ExtensionEvent.BashToolCall, ExtensionResult.BashToolCallResult> handler) {
+            addListener(ExtensionEvent.BashToolCall.class, e -> handler.apply((ExtensionEvent.BashToolCall) e));
             return this;
         }
 
         @Override
-        public ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler) {
-            addListener(ExtensionEvent.ToolCall.class, (e, ctx) -> handler.apply((ExtensionEvent.ToolCall) e, ctx));
+        public ExtensionAPI onToolCall(Function<ExtensionEvent.ToolCall, ExtensionResult.Block> handler) {
+            addListener(ExtensionEvent.ToolCall.class, e -> handler.apply((ExtensionEvent.ToolCall) e));
             return this;
         }
 
         @Override
-        public ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler) {
-            addListener(ExtensionEvent.Input.class, (e, ctx) -> handler.apply(((ExtensionEvent.Input) e).text(), ctx));
+        public ExtensionAPI onInput(Function<String, ExtensionResult.InputResult> handler) {
+            addListener(ExtensionEvent.Input.class, e -> handler.apply(((ExtensionEvent.Input) e).text()));
             return this;
         }
 
@@ -587,7 +553,7 @@ public final class ExtensionRegistry {
         @Override
         public void sendUserMessage(String content, DeliverAs deliverAs) {
             if (agentContext != null) {
-                agentContext.sendUserMessage(content, deliverAs.wire());
+                agentContext.sendUserMessage(content, deliverAs);
             }
         }
 

@@ -78,7 +78,7 @@ class CompactionManagerTest {
 
         var messages = new ArrayList<>(List.<Message>of(new Message.System("sys"), new Message.User("a".repeat(1000))));
 
-        var result = manager.checkAndCompact(messages, msgs -> {});
+        var result = manager.checkAndCompact(messages, 0, msgs -> {});
 
         assertFalse(result.compacted());
     }
@@ -93,7 +93,7 @@ class CompactionManagerTest {
 
         var messages = new ArrayList<>(List.<Message>of(new Message.System("sys"), new Message.User("hi")));
 
-        var result = manager.checkAndCompact(messages, msgs -> {});
+        var result = manager.checkAndCompact(messages, 0, msgs -> {});
 
         assertFalse(result.compacted());
         assertEquals(2, messages.size());
@@ -106,9 +106,44 @@ class CompactionManagerTest {
 
         var messages = new ArrayList<>(List.<Message>of(new Message.System("sys"), new Message.User("a".repeat(4000))));
 
-        var result = manager.checkAndCompact(messages, msgs -> {});
+        var result = manager.checkAndCompact(messages, 0, msgs -> {});
 
         assertTrue(result.compacted());
+    }
+
+    @Test
+    void checkAndCompactTriggersOnRealContextTokensWhenByteEstimateIsUnderLimit() {
+        var summarizer = (CompactionManager.SummaryGenerator) (m, i, p, o) -> "summary";
+        var manager = new CompactionManager(1000, TINY_RECENT, summarizer); // limit = 1000 - 100 = 900
+        // A handful of tiny messages: the byte estimate is a few tokens, well under 900 → would NOT trigger alone.
+        var messages = new ArrayList<>(List.<Message>of(new Message.System("sys"), new Message.User("a"),
+                                        new Message.User("b"), new Message.User("c"), new Message.User("d")));
+
+        // The provider reports a real 2000-token context (tool schemas + cache the byte estimate misses) → must
+        // compact.
+        var result = manager.checkAndCompact(messages, 2000, msgs -> {});
+
+        assertTrue(result.compacted(), "the provider's real context size should drive the trigger");
+    }
+
+    @Test
+    void recompactionFeedsPriorSummaryViaParamNotInlineBody() {
+        var seenPrev = new AtomicReference<String>();
+        var bodyHadSummary = new AtomicReference<>(false);
+        var summarizer = (CompactionManager.SummaryGenerator) (toSummarize, instr, prev, onPartial) -> {
+            seenPrev.set(prev);
+            bodyHadSummary.set(toSummarize.stream().anyMatch(m -> m instanceof Message.CompactionSummary));
+            return "new summary";
+        };
+        var manager = new CompactionManager(128_000, TINY_RECENT, summarizer);
+        var messages = new ArrayList<>(List.<Message>of(new Message.System("sys"),
+                                        new Message.CompactionSummary("OLD SUMMARY"), new Message.User("u1"),
+                                        new Message.User("u2"), new Message.User("recent " + "x".repeat(4000))));
+
+        manager.compactNow(messages, null, msgs -> {});
+
+        assertEquals("OLD SUMMARY", seenPrev.get(), "prior summary should arrive via the previousSummary param");
+        assertFalse(bodyHadSummary.get(), "prior summary should not be re-summarized inline in the body");
     }
 
     @Test

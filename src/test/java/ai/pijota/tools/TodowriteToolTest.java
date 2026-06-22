@@ -74,7 +74,7 @@ class TodowriteToolTest {
     void renderResultReturnsErrorContent() {
         var tool = new TodowriteTool();
         var errorResult = Tool.ToolResult.error("something wrong");
-        var view = tool.renderResult(Map.of(), errorResult, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), errorResult, "/cwd");
         assertEquals("something wrong", view.summary());
     }
 
@@ -82,7 +82,7 @@ class TodowriteToolTest {
     void renderResultSplitsLastLineAsSummary() {
         var tool = new TodowriteTool();
         var result = Tool.ToolResult.success("[✓] task A\n[ ] task B\n2 todos (1 completed)");
-        var view = tool.renderResult(Map.of(), result, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/cwd");
         assertEquals("2 todos (1 completed)", view.summary());
         assertEquals(2, view.body().size());
         assertTrue(view.body().get(0).contains("task A"));
@@ -92,7 +92,7 @@ class TodowriteToolTest {
     void renderResultHandlesEmptyContent() {
         var tool = new TodowriteTool();
         var result = Tool.ToolResult.success("");
-        var view = tool.renderResult(Map.of(), result, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/cwd");
         assertEquals("", view.summary());
     }
 

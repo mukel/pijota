@@ -192,7 +192,7 @@ class EditToolTest {
     void renderResultReturnsContentOnError() {
         var tool = new EditTool();
         var result = Tool.ToolResult.error("err");
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("err", view.summary());
     }
 
@@ -200,7 +200,7 @@ class EditToolTest {
     void renderResultShowsDiffPreview() {
         var tool = new EditTool();
         var result = Tool.ToolResult.success("ok", Map.of("diff", "-1 old\n+1 new"));
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("ok", view.summary());
         assertTrue(view.body().contains("-1 old"));
         assertTrue(view.body().contains("+1 new"));
@@ -212,7 +212,7 @@ class EditToolTest {
         var diff = java.util.stream.IntStream.range(0, 25).mapToObj(i -> (i % 2 == 0 ? "-" : "+") + i + " line")
                                         .collect(java.util.stream.Collectors.joining("\n"));
         var result = Tool.ToolResult.success("ok", Map.of("diff", diff));
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("ok", view.summary());
         assertTrue(view.body().contains("… 5 more changed lines"));
     }

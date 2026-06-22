@@ -26,7 +26,7 @@ class SlashCommandToolTest {
     @Test
     void executeNoQuestionsReturnsError() throws Exception {
         var tool = new SlashCommandTool();
-        var result = tool.execute("call-1", Map.of(), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of()), "/cwd").get();
         assertTrue(result.isError());
         assertTrue(result.content().contains("No questions"));
     }
@@ -34,7 +34,7 @@ class SlashCommandToolTest {
     @Test
     void executeSingleQuestionFormatsOutput() throws Exception {
         var tool = new SlashCommandTool();
-        var result = tool.execute("call-1", Map.of("question", "what?"), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of("question", "what?")), "/cwd").get();
         assertFalse(result.isError());
         assertTrue(result.content().contains("Q1: what?"));
     }
@@ -44,7 +44,8 @@ class SlashCommandToolTest {
         var tool = new SlashCommandTool();
         var options = List.of(Map.of("label", "yes", "description", "agree"),
                                         Map.of("label", "no", "description", "disagree"));
-        var result = tool.execute("call-1", Map.of("question", "proceed?", "options", options, "header", "confirm"),
+        var result = tool.execute("call-1", new Tool.Args(
+                                        Map.of("question", "proceed?", "options", options, "header", "confirm")),
                                         "/cwd").get();
         assertTrue(result.content().contains("- yes: agree"));
         assertTrue(result.content().contains("- no: disagree"));
@@ -54,7 +55,7 @@ class SlashCommandToolTest {
     void executeMultipleQuestions() throws Exception {
         var tool = new SlashCommandTool();
         var questions = List.of(Map.of("question", "q1?", "header", "h1"), Map.of("question", "q2?", "header", "h2"));
-        var result = tool.execute("call-1", Map.of("questions", questions), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of("questions", questions)), "/cwd").get();
         assertTrue(result.content().contains("Q1: q1?"));
         assertTrue(result.content().contains("Q2: q2?"));
     }
@@ -68,7 +69,7 @@ class SlashCommandToolTest {
             return CompletableFuture.completedFuture("answer text");
         });
         try {
-            var result = tool.execute("call-1", Map.of("question", "handler q?"), "/cwd").get();
+            var result = tool.execute("call-1", new Tool.Args(Map.of("question", "handler q?")), "/cwd").get();
             assertFalse(result.isError());
             assertEquals("handler q?", handlerCalled.get());
             assertTrue(result.content().contains("answer text"));
@@ -80,7 +81,7 @@ class SlashCommandToolTest {
     @Test
     void executeNonMapInQuestionsListReturnsError() throws Exception {
         var tool = new SlashCommandTool();
-        var result = tool.execute("call-1", Map.of("questions", List.of("not-a-map")), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of("questions", List.of("not-a-map"))), "/cwd").get();
         assertTrue(result.isError());
         assertTrue(result.content().contains("must be an object"));
     }
@@ -88,7 +89,8 @@ class SlashCommandToolTest {
     @Test
     void executeMissingQuestionTextReturnsError() throws Exception {
         var tool = new SlashCommandTool();
-        var result = tool.execute("call-1", Map.of("questions", List.of(Map.of("header", "h"))), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of("questions", List.of(Map.of("header", "h")))), "/cwd")
+                                        .get();
         assertTrue(result.isError());
         assertTrue(result.content().contains("missing question text"));
     }
@@ -96,7 +98,7 @@ class SlashCommandToolTest {
     @Test
     void executeTextAliasForQuestion() throws Exception {
         var tool = new SlashCommandTool();
-        var result = tool.execute("call-1", Map.of("text", "alias question"), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of("text", "alias question")), "/cwd").get();
         assertTrue(result.content().contains("alias question"));
     }
 
@@ -122,7 +124,8 @@ class SlashCommandToolTest {
     @Test
     void multipleFlagPreserved() throws Exception {
         var tool = new SlashCommandTool();
-        var result = tool.execute("call-1", Map.of("question", "choose", "multiple", true), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of("question", "choose", "multiple", true)), "/cwd")
+                                        .get();
         assertTrue(result.content().contains("Q1: choose"));
     }
 
@@ -130,7 +133,7 @@ class SlashCommandToolTest {
     void malformedOptionsAreSkipped() throws Exception {
         var tool = new SlashCommandTool();
         var options = List.of(Map.of("label", "ok"), "not-a-map");
-        var result = tool.execute("call-1", Map.of("question", "q", "options", options), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of("question", "q", "options", options)), "/cwd").get();
         assertTrue(result.content().contains("- ok:"));
     }
 
@@ -138,7 +141,7 @@ class SlashCommandToolTest {
     void textAliasInsideQuestions() throws Exception {
         var tool = new SlashCommandTool();
         var questions = List.of(Map.of("text", "alias?"));
-        var result = tool.execute("call-1", Map.of("questions", questions), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(Map.of("questions", questions)), "/cwd").get();
         assertTrue(result.content().contains("Q1: alias?"));
     }
 }

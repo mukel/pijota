@@ -19,7 +19,11 @@
 
 .PHONY: build test test-live check jar run fat native native-pgo-instrument native-pgo-build setup-musl native-static clean format format-check coverage
 
-MVN  ?= mvn
+# Prefer the Maven Daemon (mvnd) when present — its warm JVM makes the dev loop far faster (compile ~4x, tests ~1.3x);
+# falls back to plain mvn. Override with `make MVN=mvn ...` to force a fresh, daemonless run.
+MVN  ?= $(shell command -v mvnd 2>/dev/null || echo mvn)
+# Derive JAVA_HOME from the java on PATH when unset, so mvnd skips its (warned) probe and the build stays quiet.
+export JAVA_HOME ?= $(shell realpath "$$(command -v java)" 2>/dev/null | sed 's|/bin/java$$||')
 ARGS ?=
 
 # ---- dev loop ----

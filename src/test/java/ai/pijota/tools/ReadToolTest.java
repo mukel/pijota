@@ -132,7 +132,7 @@ class ReadToolTest {
     void renderResultErrorReturnsContent() {
         var tool = new ReadTool();
         var result = Tool.ToolResult.error("fail");
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("fail", view.summary());
     }
 
@@ -140,7 +140,7 @@ class ReadToolTest {
     void renderResultShowsOffsetAndLimit() {
         var tool = new ReadTool();
         var result = Tool.ToolResult.success("", Map.of("totalLines", 100, "offset", 5, "limit", 10));
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("100 line(s) [offset=5] [limit=10]", view.summary());
     }
 
@@ -148,7 +148,7 @@ class ReadToolTest {
     void renderResultHidesDefaultLimit() {
         var tool = new ReadTool();
         var result = Tool.ToolResult.success("", Map.of("totalLines", 5, "offset", 1, "limit", 2000));
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("5 line(s)", view.summary());
     }
 }

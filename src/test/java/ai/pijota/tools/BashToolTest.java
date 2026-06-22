@@ -112,7 +112,7 @@ class BashToolTest {
     void renderResultShortOutput() {
         var tool = new BashTool("/bin/bash", null);
         var tr = Tool.ToolResult.success("line1\nline2\nline3");
-        var view = tool.renderResult(Map.of(), tr, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), tr, "/cwd");
         assertTrue(view.summary().contains("line(s)"));
         assertEquals(3, view.body().size());
     }
@@ -124,7 +124,7 @@ class BashToolTest {
         for (int i = 0; i < 50; i++)
             lines.append("line ").append(i).append('\n');
         var tr = Tool.ToolResult.success(lines.toString());
-        var view = tool.renderResult(Map.of(), tr, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), tr, "/cwd");
         assertTrue(view.body().stream().anyMatch(l -> l.contains("omitted")));
     }
 
@@ -132,7 +132,7 @@ class BashToolTest {
     void renderResultTimedOutShowsPrefix() {
         var tool = new BashTool("/bin/bash", null);
         var tr = new Tool.ToolResult("timed out output", true, Map.of("timedOut", true));
-        var view = tool.renderResult(Map.of(), tr, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), tr, "/cwd");
         assertTrue(view.summary().contains("timed out"));
     }
 
@@ -140,7 +140,7 @@ class BashToolTest {
     void renderResultEmptyOutput() {
         var tool = new BashTool("/bin/bash", null);
         var tr = Tool.ToolResult.success("");
-        var view = tool.renderResult(Map.of(), tr, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), tr, "/cwd");
         assertTrue(view.summary().contains("no output"));
     }
 
@@ -148,7 +148,7 @@ class BashToolTest {
     void renderResultNoOutputExplicit() {
         var tool = new BashTool("/bin/bash", null);
         var tr = Tool.ToolResult.success("(no output)");
-        var view = tool.renderResult(Map.of(), tr, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), tr, "/cwd");
         assertTrue(view.summary().contains("no output"));
     }
 
@@ -159,7 +159,7 @@ class BashToolTest {
         for (int i = 0; i < 50; i++)
             lines.append("line ").append(i).append('\n');
         var tr = new Tool.ToolResult(lines.toString(), false, Map.of("outputPath", "/tmp/bash-xyz.log"));
-        var view = tool.renderResult(Map.of(), tr, "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), tr, "/cwd");
         assertTrue(view.body().stream().anyMatch(l -> l.contains("full output")));
     }
 

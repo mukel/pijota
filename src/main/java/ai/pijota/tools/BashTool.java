@@ -90,7 +90,8 @@ public final class BashTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String sessionCwd) {
+        Map<String, Object> args = a.map();
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String command = (String) args.get("command");
@@ -158,7 +159,8 @@ public final class BashTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+    public ToolResultView renderResult(Args a, ToolResult result, String cwd) {
+        Map<String, Object> args = a.map();
         String summary;
         Map<String, Object> details = result.details();
         String prefix = "";

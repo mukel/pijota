@@ -6,45 +6,45 @@ import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * The registration and control surface exposed to {@link Extension#init}. Subscribe to events for observe-only or
  * decision hooks, register tools/slash-commands/keybindings/prompt-contributions, render custom messages, and inject
  * messages into the session. Returns {@code this} for chaining on all hook/registration methods. The {@link #runtime()}
- * handle is valid immediately and stays valid for the entire session lifetime.
+ * handle is valid immediately and stays valid for the entire session lifetime — handlers that need UI or live state
+ * reach it through {@code runtime()} (and {@code runtime().ui()}).
  */
 public interface ExtensionAPI {
 
     // ---- event subscription ----
 
     /**
-     * Subscribe to observe-only lifecycle/turn/message/tool events. The handler receives the typed event and an
-     * {@link ExtensionContext}. For events that <em>decide</em> an outcome, use the dedicated hooks:
-     * {@link #onToolCall}, {@link #onUserBash}, {@link #onBashToolCall}, {@link #onInput}.
+     * Subscribe to observe-only lifecycle/turn/message/tool events. For events that <em>decide</em> an outcome, use the
+     * dedicated hooks: {@link #onToolCall}, {@link #onUserBash}, {@link #onBashToolCall}, {@link #onInput}.
      */
-    <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, BiConsumer<E, ExtensionContext> handler);
+    <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, Consumer<E> handler);
 
     /**
      * Render custom extension messages in the TUI. The first renderer that returns non-empty output wins. Use distinct
      * {@code customType} values to avoid rendering messages meant for other extensions.
      */
-    ExtensionAPI registerMessageRenderer(BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer);
+    ExtensionAPI registerMessageRenderer(Function<Message, ExtensionResult.MessageRender> renderer);
 
     // ---- decision events (return a typed result) ----
 
     /** Decides whether a tool call may proceed — return {@link ExtensionResult.Block} to veto. */
-    ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler);
+    ExtensionAPI onToolCall(Function<ExtensionEvent.ToolCall, ExtensionResult.Block> handler);
 
     /** Decides whether a user-initiated bash command may run. */
-    ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler);
+    ExtensionAPI onUserBash(Function<ExtensionEvent.UserBash, ExtensionResult.UserBashResult> handler);
 
     /** Decides whether an LLM-initiated bash tool call may run. */
-    ExtensionAPI onBashToolCall(BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler);
+    ExtensionAPI onBashToolCall(Function<ExtensionEvent.BashToolCall, ExtensionResult.BashToolCallResult> handler);
 
     /** Transforms or consumes raw user input before it is handled. */
-    ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler);
+    ExtensionAPI onInput(Function<String, ExtensionResult.InputResult> handler);
 
     // ---- registration ----
 

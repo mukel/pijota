@@ -66,7 +66,7 @@ class McpExtensionTest {
         f.ext.onReady(f.runtime);
 
         Tool tool = f.registry.get("mcp__srv__echo").orElseThrow();
-        Tool.ToolResult result = tool.execute("id-1", Map.of("v", "hi"), null).get(3, TimeUnit.SECONDS);
+        Tool.ToolResult result = tool.execute("id-1", new Tool.Args(Map.of("v", "hi")), null).get(3, TimeUnit.SECONDS);
         assertFalse(result.isError());
         assertEquals("pong:hi", result.content());
         f.ext.onShutdown(f.runtime);

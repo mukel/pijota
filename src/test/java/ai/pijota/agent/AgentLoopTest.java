@@ -1,6 +1,7 @@
 package ai.pijota.agent;
 
 import ai.pijota.config.AppConfig;
+import ai.pijota.extensions.DeliverAs;
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionRegistry;
@@ -113,7 +114,7 @@ class AgentLoopTest {
         var llm = new FauxLlm().enqueue(FauxLlm.Response.content("ok"));
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
 
-        agent.sendUserMessage("steer me", "steer");
+        agent.sendUserMessage("steer me", DeliverAs.STEER);
         var messages = agent.prompt("do it").get(1, TimeUnit.SECONDS);
 
         assertEquals(3, messages.size());
@@ -127,7 +128,7 @@ class AgentLoopTest {
         var llm = new FauxLlm().enqueue(FauxLlm.Response.content("first")).enqueue(FauxLlm.Response.content("second"));
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
 
-        agent.sendUserMessage("follow this", "followUp");
+        agent.sendUserMessage("follow this", DeliverAs.FOLLOW_UP);
         var messages = agent.prompt("hi").get(2, TimeUnit.SECONDS);
 
         assertEquals(4, messages.size());
@@ -402,7 +403,7 @@ class AgentLoopTest {
 
             @Override
             public void init(ExtensionAPI api) {
-                api.registerExceptionHandler((t, ctx) -> onException.accept(t));
+                api.registerExceptionHandler(t -> onException.accept(t));
             }
         });
         return registry;

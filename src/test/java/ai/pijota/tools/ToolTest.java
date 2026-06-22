@@ -69,7 +69,7 @@ class ToolTest {
         var def = new Tool.ToolDefinition("t", "d", Map.of(), (id, args, cwd) -> CompletableFuture
                                         .completedFuture(Tool.ToolResult.success("done")));
         var tool = def.toTool();
-        var result = tool.execute("call-id", Map.of()).get();
+        var result = tool.execute("call-id", new Tool.Args(Map.of())).get();
         assertEquals("done", result.content());
     }
 
@@ -78,7 +78,7 @@ class ToolTest {
         var def = new Tool.ToolDefinition("t", "d", Map.of(), (id, args, cwd) -> CompletableFuture
                                         .completedFuture(Tool.ToolResult.success(cwd)));
         var tool = def.toTool();
-        var result = tool.execute("call-id", Map.of(), "/home/user").get();
+        var result = tool.execute("call-id", new Tool.Args(Map.of()), "/home/user").get();
         assertEquals("/home/user", result.content());
     }
 
@@ -91,7 +91,7 @@ class ToolTest {
                                                                         .completedFuture(Tool.ToolResult.success("ok")),
                                         renderer);
         var tool = def.toTool();
-        var rendered = tool.renderResult(Map.of(), Tool.ToolResult.success("ignored"), "/cwd");
+        var rendered = tool.renderResult(new Tool.Args(Map.of()), Tool.ToolResult.success("ignored"), "/cwd");
         assertEquals("summary", rendered.summary());
         assertEquals(List.of("line1", "line2"), rendered.body());
     }
@@ -101,35 +101,36 @@ class ToolTest {
         var def = new Tool.ToolDefinition("t", "d", Map.of(), (id, args, cwd) -> CompletableFuture
                                         .completedFuture(Tool.ToolResult.success("ok")));
         var tool = def.toTool();
-        var rendered = tool.renderResult(Map.of(), Tool.ToolResult.success("first line\nsecond line"), "/cwd");
+        var rendered = tool.renderResult(new Tool.Args(Map.of()), Tool.ToolResult.success("first line\nsecond line"),
+                                        "/cwd");
         assertFalse(rendered.summary().contains("\n"), "default renderer should use first line only");
     }
 
     @Test
     void defaultRenderResult_firstLine() {
         var tool = new FakeTool("test", "desc", Map.of());
-        var view = tool.renderResult(Map.of(), Tool.ToolResult.success("line1\nline2\nline3"), "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), Tool.ToolResult.success("line1\nline2\nline3"), "/cwd");
         assertEquals("line1", view.summary());
     }
 
     @Test
     void defaultRenderResult_errorUsesFullContent() {
         var tool = new FakeTool("test", "desc", Map.of());
-        var view = tool.renderResult(Map.of(), Tool.ToolResult.error("error message\nline2"), "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), Tool.ToolResult.error("error message\nline2"), "/cwd");
         assertEquals("error message\nline2", view.summary());
     }
 
     @Test
     void defaultRenderResult_nullContentReturnsEmpty() {
         var tool = new FakeTool("test", "desc", Map.of());
-        var view = tool.renderResult(Map.of(), Tool.ToolResult.success(null), "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), Tool.ToolResult.success(null), "/cwd");
         assertEquals("", view.summary());
     }
 
     @Test
     void defaultRenderResult_blankContentReturnsEmpty() {
         var tool = new FakeTool("test", "desc", Map.of());
-        var view = tool.renderResult(Map.of(), Tool.ToolResult.success("   "), "/cwd");
+        var view = tool.renderResult(new Tool.Args(Map.of()), Tool.ToolResult.success("   "), "/cwd");
         assertEquals("", view.summary());
     }
 
@@ -187,8 +188,7 @@ class ToolTest {
         }
 
         @Override
-        public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Map<String, Object> arguments,
-                                        String sessionCwd) {
+        public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Tool.Args arguments, String sessionCwd) {
             return CompletableFuture.completedFuture(Tool.ToolResult.success("ok"));
         }
     }

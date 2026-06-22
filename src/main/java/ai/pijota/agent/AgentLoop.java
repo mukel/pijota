@@ -1,6 +1,7 @@
 package ai.pijota.agent;
 
 import ai.pijota.extensions.AgentContext;
+import ai.pijota.extensions.DeliverAs;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.config.AppConfig;
 import ai.pijota.llm.LlmClient;
@@ -214,7 +215,7 @@ public final class AgentLoop implements AgentContext {
     }
 
     private void runAutoCompaction(String reason) {
-        runCompaction(reason, (msgs, cb, partial) -> compaction.checkAndCompact(msgs, cb));
+        runCompaction(reason, (msgs, cb, partial) -> compaction.checkAndCompact(msgs, llm.lastContextTokens(), cb));
     }
 
     @FunctionalInterface
@@ -265,7 +266,7 @@ public final class AgentLoop implements AgentContext {
     @Override
     public void sendUserMessage(String content) {
         if (isBusy()) {
-            sendUserMessage(content, "steer");
+            sendUserMessage(content, DeliverAs.STEER);
         } else {
             history.add(new Message.User(content));
             fireEvent(new AgentEvent.TurnStart(sessionTurn + 1));
@@ -273,11 +274,11 @@ public final class AgentLoop implements AgentContext {
     }
 
     @Override
-    public void sendUserMessage(String content, String deliverAs) {
+    public void sendUserMessage(String content, DeliverAs deliverAs) {
         switch (deliverAs) {
-            case "steer" -> steeringMessages.add(content);
-            case "followUp" -> followUpMessages.add(content);
-            default -> {
+            case STEER -> steeringMessages.add(content);
+            case FOLLOW_UP -> followUpMessages.add(content);
+            case NEXT_TURN -> {
                 if (isBusy())
                     steeringMessages.add(content);
                 else

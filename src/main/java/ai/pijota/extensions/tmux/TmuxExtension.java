@@ -70,7 +70,7 @@ public final class TmuxExtension implements Extension {
     public void init(ExtensionAPI api) {
         this.api = api;
 
-        api.on(ExtensionEvent.SessionStart.class, (ev, _ctx) -> {
+        api.on(ExtensionEvent.SessionStart.class, ev -> {
             Path path = ev.sessionPath();
             String fileName = path != null ? path.getFileName().toString() : null;
             String base = fileName != null ? fileName.replaceFirst("\\.[^.]+$", "") : Util.shortUuid(8);
@@ -80,7 +80,7 @@ public final class TmuxExtension implements Extension {
             this.stateFile = path != null ? path.resolveSibling(base + ".tmux.json") : null;
         });
 
-        api.on(ExtensionEvent.SessionReady.class, (_, _ctx) -> loadState());
+        api.on(ExtensionEvent.SessionReady.class, _ -> loadState());
 
         api.registerTool(new Tool.ToolDefinition("tmux_bash",
                                         "Run a shell command in a new detached tmux pane and return immediately. "
@@ -91,7 +91,8 @@ public final class TmuxExtension implements Extension {
                                                                         .str("name", "Friendly name for the session (auto-generated if omitted)")
                                                                         .bool("cleanup_on_exit", "Kill the tmux session when the process exits (default false)")
                                                                         .build(),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxBash(args, cwd))));
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(tmuxBash(args.map(), cwd))));
 
         api.registerTool(new Tool.ToolDefinition("tmux_send",
                                         "Send keystrokes to a running tmux pane. Special keys: C-c, C-z, Enter.",
@@ -99,24 +100,24 @@ public final class TmuxExtension implements Extension {
                                                                         .str("keys", "Keys to send", true)
                                                                         .bool("enter", "Append Enter (default true)")
                                                                         .build(),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxSend(args))));
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxSend(args.map()))));
 
         api.registerTool(new Tool.ToolDefinition("tmux_capture", "Capture recent output from a tmux pane.", ToolSchema
                                         .object().str("target", "Friendly name or tmux target", true)
                                         .integer("lines", "Number of lines to capture (default 100, max 1000)").build(),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxCapture(args))));
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxCapture(args.map()))));
 
         api.registerTool(new Tool.ToolDefinition("tmux_list",
                                         "List active tmux sessions managed by Pijota, or all tmux panes in a session.",
                                         ToolSchema.object().str("scope", "sessions or panes (default sessions)")
                                                                         .str("session", "Session name when scope=panes")
                                                                         .build(),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxList(args))));
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxList(args.map()))));
 
         api.registerTool(new Tool.ToolDefinition("tmux_kill", "Kill a Pijota-managed tmux session.", ToolSchema.object()
                                         .str("target", "Friendly name of a managed session (see tmux_list)", true)
                                         .bool("confirm", "Skip the kill confirmation prompt (default false)").build(),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxKill(args))));
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(tmuxKill(args.map()))));
 
         api.registerSlashCommand(new SlashCommand("tmux-list", "List supervised tmux sessions", List.of(),
                                         _args -> note(listText())));

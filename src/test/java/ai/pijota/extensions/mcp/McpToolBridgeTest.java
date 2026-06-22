@@ -91,7 +91,8 @@ class McpToolBridgeTest {
         try {
             var def = McpToolBridge.toDefinition("srv", new McpToolDescriptor("echo", "Echo", Map.of("type", "object")),
                                             client, Duration.ofSeconds(2));
-            Tool.ToolResult result = def.execute().execute("id-1", Map.of("v", "hi"), null).get(2, TimeUnit.SECONDS);
+            Tool.ToolResult result = def.execute().execute("id-1", new Tool.Args(Map.of("v", "hi")), null).get(2,
+                                            TimeUnit.SECONDS);
             assertFalse(result.isError());
             assertEquals("pong:hi", result.content());
         } finally {
@@ -108,7 +109,8 @@ class McpToolBridgeTest {
             // short call timeout so the never-answered call maps to a ToolResult.error rather than throwing
             var def = McpToolBridge.toDefinition("srv", new McpToolDescriptor("hang", "Hang", Map.of("type", "object")),
                                             client, Duration.ofMillis(150));
-            Tool.ToolResult result = def.execute().execute("id-1", Map.of(), null).get(2, TimeUnit.SECONDS);
+            Tool.ToolResult result = def.execute().execute("id-1", new Tool.Args(Map.of()), null).get(2,
+                                            TimeUnit.SECONDS);
             assertTrue(result.isError());
             assertTrue(result.content().startsWith("mcp:"), result.content());
         } finally {

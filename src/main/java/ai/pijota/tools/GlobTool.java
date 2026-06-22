@@ -68,7 +68,8 @@ public final class GlobTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String cwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String cwd) {
+        Map<String, Object> args = a.map();
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String pattern = (String) args.get("pattern");

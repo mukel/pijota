@@ -58,7 +58,7 @@ public final class WhimsicalExtension implements Extension {
 
         api.registerThinkingHeaderText(() -> enabled && visible ? displayPhrase() + Emojis.ELLIPSIS : null);
 
-        api.on(ExtensionEvent.TurnStart.class, (_, _) -> {
+        api.on(ExtensionEvent.TurnStart.class, _ -> {
             if (enabled) {
                 currentPhrase = randomPhrase();
                 lastRotatedMs = System.currentTimeMillis();
@@ -66,7 +66,7 @@ public final class WhimsicalExtension implements Extension {
             }
         });
 
-        api.on(ExtensionEvent.TurnEnd.class, (_, _) -> visible = false);
+        api.on(ExtensionEvent.TurnEnd.class, _ -> visible = false);
     }
 
     private void maybeRotate() {

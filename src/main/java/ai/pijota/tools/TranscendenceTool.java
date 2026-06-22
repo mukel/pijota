@@ -47,7 +47,8 @@ public class TranscendenceTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String sessionCwd) {
+        Map<String, Object> args = a.map();
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String action = (String) args.get("action");

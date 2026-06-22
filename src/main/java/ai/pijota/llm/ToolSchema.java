@@ -44,12 +44,26 @@ public final class ToolSchema {
             return add(name, false, scalar("integer", description));
         }
 
+        public Builder integer(String name, String description, boolean required) {
+            return add(name, required, scalar("integer", description));
+        }
+
         public Builder number(String name, String description) {
             return add(name, false, scalar("number", description));
         }
 
         public Builder bool(String name, String description) {
             return add(name, false, scalar("boolean", description));
+        }
+
+        public Builder bool(String name, String description, boolean required) {
+            return add(name, required, scalar("boolean", description));
+        }
+
+        /** A string property constrained to a fixed set of values ({@code enum}). */
+        public Builder enumStr(String name, String description, boolean required, List<String> values) {
+            return add(name, required, Map.of("type", "string", "description", description, "enum",
+                                            List.copyOf(values)));
         }
 
         /**

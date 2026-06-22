@@ -31,18 +31,19 @@ public final class PermissionGateExtension implements Extension {
 
     @Override
     public void init(ExtensionAPI api) {
-        api.onToolCall((tc, ctx) -> {
+        var runtime = api.runtime();
+        api.onToolCall(tc -> {
             if (!Util.SHELL_TOOL_NAMES.contains(tc.toolName()))
                 return null;
             String command = parseCommand(tc.arguments());
             if (command == null || !isDangerous(command))
                 return null;
 
-            if (!ctx.hasUI())
+            if (runtime.ui() == null)
                 return new ExtensionResult.Block("Dangerous command blocked (no UI)");
 
             try {
-                boolean ok = ctx.ui().confirm("Dangerous command:\n  " + command + "\n\nAllow?").join();
+                boolean ok = runtime.ui().confirm("Dangerous command:\n  " + command + "\n\nAllow?").join();
                 if (!ok)
                     return new ExtensionResult.Block("Blocked by user");
             } catch (Exception e) {

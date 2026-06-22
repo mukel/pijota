@@ -1,5 +1,7 @@
 package ai.pijota.extensions.skills;
 
+import ai.pijota.tools.Tool;
+
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -18,7 +20,7 @@ class SkillToolTest {
     void executeWithFoundSkillReturnsContent() throws Exception {
         var skill = new SkillLoader.Skill("test", "A test skill", "skill body content", null);
         var tool = new SkillTool(List.of(skill));
-        var result = tool.execute("call-1", java.util.Map.of("name", "test"), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(java.util.Map.of("name", "test")), "/cwd").get();
         assertFalse(result.isError());
         assertTrue(result.content().contains("test"));
         assertTrue(result.content().contains("skill body content"));
@@ -28,14 +30,14 @@ class SkillToolTest {
     void executeCaseInsensitiveName() throws Exception {
         var skill = new SkillLoader.Skill("TestSkill", "desc", "content", null);
         var tool = new SkillTool(List.of(skill));
-        var result = tool.execute("call-1", java.util.Map.of("name", "testskill"), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(java.util.Map.of("name", "testskill")), "/cwd").get();
         assertFalse(result.isError());
     }
 
     @Test
     void executeMissingSkillReturnsError() throws Exception {
         var tool = new SkillTool(List.of());
-        var result = tool.execute("call-1", java.util.Map.of("name", "nonexistent"), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(java.util.Map.of("name", "nonexistent")), "/cwd").get();
         assertTrue(result.isError());
         assertTrue(result.content().contains("not found"));
     }
@@ -43,7 +45,7 @@ class SkillToolTest {
     @Test
     void executeBlankNameReturnsError() throws Exception {
         var tool = new SkillTool(List.of());
-        var result = tool.execute("call-1", java.util.Map.of("name", "  "), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(java.util.Map.of("name", "  ")), "/cwd").get();
         assertTrue(result.isError());
         assertTrue(result.content().contains("Missing"));
     }
@@ -51,7 +53,7 @@ class SkillToolTest {
     @Test
     void executeNullNameReturnsError() throws Exception {
         var tool = new SkillTool(List.of());
-        var result = tool.execute("call-1", java.util.Map.of(), "/cwd").get();
+        var result = tool.execute("call-1", new Tool.Args(java.util.Map.of()), "/cwd").get();
         assertTrue(result.isError());
     }
 

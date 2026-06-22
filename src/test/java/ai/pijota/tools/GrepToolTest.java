@@ -67,7 +67,7 @@ class GrepToolTest {
     void renderResultReturnsContentOnError() {
         var tool = new GrepTool();
         var result = Tool.ToolResult.error("boom");
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("boom", view.summary());
     }
 
@@ -75,7 +75,7 @@ class GrepToolTest {
     void renderResultShowsMatchCount() {
         var tool = new GrepTool();
         var result = Tool.ToolResult.success("x", Map.of("matchCount", 7));
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("7 match(es)", view.summary());
     }
 
@@ -83,7 +83,7 @@ class GrepToolTest {
     void renderResultFallsBackToContent() {
         var tool = new GrepTool();
         var result = Tool.ToolResult.success("output", Map.of());
-        var view = tool.renderResult(Map.of(), result, "/tmp");
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("output", view.summary());
     }
 

@@ -1,7 +1,6 @@
 package ai.pijota.extensions.testkit;
 
 import ai.pijota.extensions.ExtensionAPI;
-import ai.pijota.extensions.ExtensionContext;
 import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.ExtensionKeybinding;
 import ai.pijota.extensions.ExtensionResult;
@@ -18,14 +17,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class FakeExtensionAPI implements ExtensionAPI {
 
     private final ExtensionRuntime runtime;
-    private UiContext ui;
     private final List<Tool.ToolDefinition> tools = new ArrayList<>();
     private final List<SlashCommand> slashCommands = new ArrayList<>();
     private final List<ExtensionKeybinding> keybindings = new ArrayList<>();
@@ -34,8 +32,8 @@ public class FakeExtensionAPI implements ExtensionAPI {
     private final List<Supplier<List<String>>> footerLines = new ArrayList<>();
     private final List<Supplier<String>> systemPrompts = new ArrayList<>();
     private final List<Supplier<String>> thinkingHeaders = new ArrayList<>();
-    private final List<BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender>> renderers = new ArrayList<>();
-    private final Map<Class<? extends ExtensionEvent>, List<BiFunction<ExtensionEvent, ExtensionContext, Object>>> listeners = new ConcurrentHashMap<>();
+    private final List<Function<Message, ExtensionResult.MessageRender>> renderers = new ArrayList<>();
+    private final Map<Class<? extends ExtensionEvent>, List<Function<ExtensionEvent, Object>>> listeners = new ConcurrentHashMap<>();
     private final List<Message.Custom> sentMessages = new ArrayList<>();
     private final List<String> sentUserMessages = new ArrayList<>();
 
@@ -48,7 +46,9 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     public void setUi(UiContext ui) {
-        this.ui = ui;
+        // UI is reached by extensions via runtime().ui(), so route it onto the runtime.
+        if (runtime instanceof FakeExtensionRuntime r)
+            r.setUi(ui);
     }
 
     public ExtensionRuntime runtime() {
@@ -87,7 +87,7 @@ public class FakeExtensionAPI implements ExtensionAPI {
         return List.copyOf(thinkingHeaders);
     }
 
-    public List<BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender>> renderers() {
+    public List<Function<Message, ExtensionResult.MessageRender>> renderers() {
         return List.copyOf(renderers);
     }
 
@@ -154,15 +154,14 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends ExtensionEvent> List<BiFunction<T, ExtensionContext, Object>> listeners(Class<T> eventType) {
-        return (List<BiFunction<T, ExtensionContext, Object>>) (List<?>) listeners.getOrDefault(eventType, List.of());
+    public <T extends ExtensionEvent> List<Function<T, Object>> listeners(Class<T> eventType) {
+        return (List<Function<T, Object>>) (List<?>) listeners.getOrDefault(eventType, List.of());
     }
 
     /** Dispatches an event to its handlers; returns the first non-null result (for decision events) or null. */
     public Object fire(ExtensionEvent event) {
-        var ctx = new ExtensionContext(ui, runtime);
         for (var handler : listeners.getOrDefault(event.getClass(), List.of())) {
-            Object result = handler.apply(event, ctx);
+            Object result = handler.apply(event);
             if (result != null)
                 return result;
         }
@@ -170,10 +169,9 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     public ExtensionResult.InputResult filterInput(String text) {
-        var ctx = new ExtensionContext(ui, runtime);
         String current = text;
         for (var handler : listeners.getOrDefault(ExtensionEvent.Input.class, List.of())) {
-            Object result = handler.apply(new ExtensionEvent.Input(current), ctx);
+            Object result = handler.apply(new ExtensionEvent.Input(current));
             if (result instanceof ExtensionResult.InputResult r) {
                 current = r.text();
                 if (r.consumed())
@@ -185,17 +183,16 @@ public class FakeExtensionAPI implements ExtensionAPI {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, BiConsumer<E, ExtensionContext> handler) {
-        listeners.computeIfAbsent(eventType, _ -> new CopyOnWriteArrayList<>()).add((e, ctx) -> {
-            handler.accept((E) e, ctx);
+    public <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, Consumer<E> handler) {
+        listeners.computeIfAbsent(eventType, _ -> new CopyOnWriteArrayList<>()).add(e -> {
+            handler.accept((E) e);
             return null;
         });
         return this;
     }
 
     @Override
-    public ExtensionAPI registerMessageRenderer(
-                                    BiFunction<Message, ExtensionContext, ExtensionResult.MessageRender> renderer) {
+    public ExtensionAPI registerMessageRenderer(Function<Message, ExtensionResult.MessageRender> renderer) {
         if (renderer != null)
             renderers.add(renderer);
         return this;
@@ -203,34 +200,34 @@ public class FakeExtensionAPI implements ExtensionAPI {
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public ExtensionAPI onUserBash(BiFunction<ExtensionEvent.UserBash, ExtensionContext, ExtensionResult.UserBashResult> handler) {
+    public ExtensionAPI onUserBash(Function<ExtensionEvent.UserBash, ExtensionResult.UserBashResult> handler) {
         listeners.computeIfAbsent(ExtensionEvent.UserBash.class, _ -> new CopyOnWriteArrayList<>())
-                                        .add((BiFunction) handler);
+                                        .add((Function) handler);
         return this;
     }
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public ExtensionAPI onBashToolCall(
-                                    BiFunction<ExtensionEvent.BashToolCall, ExtensionContext, ExtensionResult.BashToolCallResult> handler) {
+                                    Function<ExtensionEvent.BashToolCall, ExtensionResult.BashToolCallResult> handler) {
         listeners.computeIfAbsent(ExtensionEvent.BashToolCall.class, _ -> new CopyOnWriteArrayList<>())
-                                        .add((BiFunction) handler);
+                                        .add((Function) handler);
         return this;
     }
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public ExtensionAPI onToolCall(BiFunction<ExtensionEvent.ToolCall, ExtensionContext, ExtensionResult.Block> handler) {
+    public ExtensionAPI onToolCall(Function<ExtensionEvent.ToolCall, ExtensionResult.Block> handler) {
         listeners.computeIfAbsent(ExtensionEvent.ToolCall.class, _ -> new CopyOnWriteArrayList<>())
-                                        .add((BiFunction) handler);
+                                        .add((Function) handler);
         return this;
     }
 
     @Override
-    public ExtensionAPI onInput(BiFunction<String, ExtensionContext, ExtensionResult.InputResult> handler) {
-        listeners.computeIfAbsent(ExtensionEvent.Input.class, _ -> new CopyOnWriteArrayList<>()).add((e, ctx) -> {
+    public ExtensionAPI onInput(Function<String, ExtensionResult.InputResult> handler) {
+        listeners.computeIfAbsent(ExtensionEvent.Input.class, _ -> new CopyOnWriteArrayList<>()).add(e -> {
             if (e instanceof ExtensionEvent.Input input)
-                return handler.apply(input.text(), ctx);
+                return handler.apply(input.text());
             return null;
         });
         return this;
@@ -305,6 +302,6 @@ public class FakeExtensionAPI implements ExtensionAPI {
 
     @Override
     public void sendUserMessage(String content, ai.pijota.extensions.DeliverAs deliverAs) {
-        sentUserMessages.add(content + "|" + deliverAs.wire());
+        sentUserMessages.add(content + "|" + deliverAs.name());
     }
 }

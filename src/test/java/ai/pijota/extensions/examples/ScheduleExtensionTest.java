@@ -1,5 +1,7 @@
 package ai.pijota.extensions.examples;
 
+import ai.pijota.tools.Tool;
+
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
 import ai.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.junit.jupiter.api.Test;
@@ -174,7 +176,8 @@ class ScheduleExtensionTest {
         var ext = new ScheduleExtension();
         ext.init(api);
         var tool = api.tools().get(0);
-        var result = tool.execute().execute("tc", Map.of("action", "add"), tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of("action", "add")), tempDir.toString()).get(1,
+                                        TimeUnit.SECONDS);
         assertTrue(result.isError());
         assertTrue(result.content().contains("schedule and prompt are required"));
     }
@@ -186,8 +189,8 @@ class ScheduleExtensionTest {
         ext.init(api);
         var tool = api.tools().get(0);
         var result = tool.execute().execute("tc",
-                                        Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name",
-                                                                        "test-job"),
+                                        new Tool.Args(Map.of("action", "add", "schedule", "+1h", "prompt", "hello",
+                                                                        "name", "test-job")),
                                         tempDir.toString()).get(1, TimeUnit.SECONDS);
         assertFalse(result.isError());
         assertTrue(result.content().contains("Scheduled"));
@@ -200,8 +203,8 @@ class ScheduleExtensionTest {
         ext.init(api);
         var tool = api.tools().get(0);
         Map<String, Object> args = Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "dup");
-        tool.execute().execute("tc", args, tempDir.toString()).get(1, TimeUnit.SECONDS);
-        var result = tool.execute().execute("tc", args, tempDir.toString()).get(1, TimeUnit.SECONDS);
+        tool.execute().execute("tc", new Tool.Args(args), tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var result = tool.execute().execute("tc", new Tool.Args(args), tempDir.toString()).get(1, TimeUnit.SECONDS);
         assertTrue(result.isError());
         assertTrue(result.content().contains("already exists"));
     }
@@ -212,7 +215,7 @@ class ScheduleExtensionTest {
         var ext = new ScheduleExtension();
         ext.init(api);
         var tool = api.tools().get(0);
-        var result = tool.execute().execute("tc", Map.of("action", "list"), tempDir.toString()).get(1,
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of("action", "list")), tempDir.toString()).get(1,
                                         TimeUnit.SECONDS);
         assertFalse(result.isError());
         assertTrue(result.content().contains("No scheduled jobs"));
@@ -224,7 +227,7 @@ class ScheduleExtensionTest {
         var ext = new ScheduleExtension();
         ext.init(api);
         var tool = api.tools().get(0);
-        var result = tool.execute().execute("tc", Map.of("action", "remove"), tempDir.toString()).get(1,
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of("action", "remove")), tempDir.toString()).get(1,
                                         TimeUnit.SECONDS);
         assertTrue(result.isError());
         assertTrue(result.content().contains("job_id is required"));
@@ -237,21 +240,22 @@ class ScheduleExtensionTest {
         ext.init(api);
         var tool = api.tools().get(0);
         var add = tool.execute().execute("tc",
-                                        Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "j"),
+                                        new Tool.Args(Map.of("action", "add", "schedule", "+1h", "prompt", "hello",
+                                                                        "name", "j")),
                                         tempDir.toString()).get(1, TimeUnit.SECONDS);
         String jobId = (String) add.details().get("job_id");
 
-        var disable = tool.execute().execute("tc", Map.of("action", "disable", "job_id", jobId), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var disable = tool.execute().execute("tc", new Tool.Args(Map.of("action", "disable", "job_id", jobId)),
+                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
         assertFalse(disable.isError());
 
-        var enable = tool.execute().execute("tc", Map.of("action", "enable", "job_id", jobId), tempDir.toString())
-                                        .get(1, TimeUnit.SECONDS);
+        var enable = tool.execute().execute("tc", new Tool.Args(Map.of("action", "enable", "job_id", jobId)),
+                                        tempDir.toString()).get(1, TimeUnit.SECONDS);
         assertFalse(enable.isError());
 
         var update = tool.execute().execute("tc",
-                                        Map.of("action", "update", "job_id", jobId, "schedule", "+2h", "prompt",
-                                                                        "updated"),
+                                        new Tool.Args(Map.of("action", "update", "job_id", jobId, "schedule", "+2h",
+                                                                        "prompt", "updated")),
                                         tempDir.toString()).get(1, TimeUnit.SECONDS);
         assertFalse(update.isError());
     }
@@ -263,18 +267,20 @@ class ScheduleExtensionTest {
         ext.init(api);
         var tool = api.tools().get(0);
         var add = tool.execute().execute("tc",
-                                        Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "j"),
+                                        new Tool.Args(Map.of("action", "add", "schedule", "+1h", "prompt", "hello",
+                                                                        "name", "j")),
                                         tempDir.toString()).get(1, TimeUnit.SECONDS);
         String jobId = (String) add.details().get("job_id");
-        tool.execute().execute("tc", Map.of("action", "disable", "job_id", jobId), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        tool.execute().execute("tc", new Tool.Args(Map.of("action", "disable", "job_id", jobId)), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
 
-        var cleanup = tool.execute().execute("tc", Map.of("action", "cleanup"), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var cleanup = tool.execute().execute("tc", new Tool.Args(Map.of("action", "cleanup")), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
         assertFalse(cleanup.isError());
         assertTrue(cleanup.content().contains("1"));
 
-        var list = tool.execute().execute("tc", Map.of("action", "list"), tempDir.toString()).get(1, TimeUnit.SECONDS);
+        var list = tool.execute().execute("tc", new Tool.Args(Map.of("action", "list")), tempDir.toString()).get(1,
+                                        TimeUnit.SECONDS);
         assertTrue(list.content().contains("No scheduled jobs"));
     }
 
@@ -284,7 +290,7 @@ class ScheduleExtensionTest {
         var ext = new ScheduleExtension();
         ext.init(api);
         var tool = api.tools().get(0);
-        var result = tool.execute().execute("tc", Map.of("action", "bogus"), tempDir.toString()).get(1,
+        var result = tool.execute().execute("tc", new Tool.Args(Map.of("action", "bogus")), tempDir.toString()).get(1,
                                         TimeUnit.SECONDS);
         assertTrue(result.isError());
     }
@@ -304,9 +310,11 @@ class ScheduleExtensionTest {
         var ext = new ScheduleExtension();
         ext.init(api);
         var tool = api.tools().get(0);
-        tool.execute().execute("tc", Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "j1"),
+        tool.execute().execute("tc", new Tool.Args(
+                                        Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "j1")),
                                         tempDir.toString()).get(1, TimeUnit.SECONDS);
-        tool.execute().execute("tc", Map.of("action", "add", "schedule", "+2h", "prompt", "hello", "name", "j2"),
+        tool.execute().execute("tc", new Tool.Args(
+                                        Map.of("action", "add", "schedule", "+2h", "prompt", "hello", "name", "j2")),
                                         tempDir.toString()).get(1, TimeUnit.SECONDS);
         var lines = api.statusLineSuppliers().get(0).get();
         assertEquals(1, lines.size());
@@ -321,13 +329,14 @@ class ScheduleExtensionTest {
         api.fire(new ai.pijota.extensions.ExtensionEvent.SessionReady());
         var tool = api.tools().get(0);
         Map<String, Object> addArgs = Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "persist");
-        tool.execute().execute("tc", addArgs, tempDir.toString()).get(1, TimeUnit.SECONDS);
+        tool.execute().execute("tc", new Tool.Args(addArgs), tempDir.toString()).get(1, TimeUnit.SECONDS);
 
         var ext2 = new ScheduleExtension();
         ext2.init(api);
         api.fire(new ai.pijota.extensions.ExtensionEvent.SessionReady());
-        var list = api.tools().get(0).execute().execute("tc", Map.of("action", "list"), tempDir.toString()).get(1,
-                                        TimeUnit.SECONDS);
+        var list = api.tools().get(0).execute()
+                                        .execute("tc", new Tool.Args(Map.of("action", "list")), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS);
         assertTrue(list.content().contains("persist"));
     }
 }

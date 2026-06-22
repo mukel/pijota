@@ -1406,8 +1406,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
         agentExecutor.submit(() -> {
             try {
-                var result = session.compact(instructions);
-                if (result == null || !result.compacted()) {
+                if (!session.compact(instructions)) {
                     appendPlain(List.of(theme.styled("statusText", "nothing to compact yet")));
                 }
             } catch (Exception e) {
@@ -1670,7 +1669,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
                                                     pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
                 }
-                String glyph = session.toolGlyph(msg.toolName());
+                String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse("●");
                 appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
                                                 settings != null && settings.shortenPathsEnabled(), elapsedMs, glyph));
                 pendingEdit.clear();
@@ -1723,14 +1722,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var args = pendingEdit.toolArgs() != null
                                         ? Util.parseJsonArgs(pendingEdit.toolArgs().get())
                                         : Map.<String, Object>of();
-        return tool.get().renderResult(args, new Tool.ToolResult(msg.content(), msg.isError(),
+        return tool.get().renderResult(new Tool.Args(args), new Tool.ToolResult(msg.content(), msg.isError(),
                                         msg.details() == null ? Map.of() : msg.details()), rawCwd);
     }
 
     private void dispatchException(Throwable t) {
         appendPlain(List.of(theme.styled("toolError", "Exception: " + ErrorUtil.message(t))));
         if (session != null && session.extensionRegistry() != null) {
-            session.extensionRegistry().dispatchException(t, this);
+            session.extensionRegistry().dispatchException(t);
         }
     }
 

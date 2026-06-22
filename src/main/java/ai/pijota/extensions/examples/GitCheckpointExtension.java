@@ -35,11 +35,11 @@ public final class GitCheckpointExtension implements Extension {
     public void init(ExtensionAPI api) {
         var runtime = api.runtime();
 
-        api.on(ExtensionEvent.ToolResult.class, (_ev, _ctx) -> {
-            lastEntryId.set(_ev.toolName() + ":" + _ev.toolCallId());
+        api.on(ExtensionEvent.ToolResult.class, ev -> {
+            lastEntryId.set(ev.toolName() + ":" + ev.toolCallId());
         });
 
-        api.on(ExtensionEvent.TurnStart.class, (_ev, _ctx) -> {
+        api.on(ExtensionEvent.TurnStart.class, _ev -> {
             try {
                 ExecResult result = runtime.exec(List.of("git", "stash", "create"));
                 String ref = result.stdout().strip();
@@ -52,7 +52,7 @@ public final class GitCheckpointExtension implements Extension {
             } catch (Exception ignored) {}
         });
 
-        api.on(ExtensionEvent.AgentEnd.class, (_ev, _ctx) -> {
+        api.on(ExtensionEvent.AgentEnd.class, _ev -> {
             synchronized (checkpoints) {
                 checkpoints.clear();
             }

@@ -7,7 +7,7 @@ import java.util.List;
 
 /**
  * Bridge between {@link ExtensionRegistry} and the agent loop. Extension authors do <em>not</em> implement this — they
- * use {@link ExtensionRuntime} and {@link ExtensionContext} which delegate here.
+ * use {@link ExtensionRuntime} (reached via {@code api.runtime()}), which delegates here.
  */
 public interface AgentContext {
     LlmClient llm();
@@ -29,12 +29,8 @@ public interface AgentContext {
      */
     void sendUserMessage(String content);
 
-    /**
-     * Send a user message with explicit delivery mode. deliverAs: "steer" (processed at the next turn start),
-     * "followUp" (processed after the current turn), or "nextTurn" (delivered when the agent is next idle — the
-     * default).
-     */
-    void sendUserMessage(String content, String deliverAs);
+    /** Send a user message with an explicit {@link DeliverAs} mode (steer / follow-up / next-turn). */
+    void sendUserMessage(String content, DeliverAs deliverAs);
 
     /** Add a custom extension message to the conversation (displayed, not sent to LLM). */
     void addCustomMessage(Message.Custom message);

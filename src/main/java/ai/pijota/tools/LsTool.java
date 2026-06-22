@@ -39,7 +39,8 @@ public final class LsTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Map<String, Object> args, String cwd) {
+    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Args a, String cwd) {
+        Map<String, Object> args = a.map();
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String pathStr = Util.resolvePath(args, cwd);

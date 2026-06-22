@@ -1,5 +1,6 @@
 package ai.pijota.agent;
 
+import ai.pijota.extensions.DeliverAs;
 import ai.pijota.extensions.AgentContext;
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
@@ -55,7 +56,8 @@ class ToolExecutorTest {
             }
 
             @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args a, String cwd) {
+                Map<String, Object> args = a.map();
                 return CompletableFuture.completedFuture(Tool.ToolResult.success("seq result"));
             }
         };
@@ -177,7 +179,8 @@ class ToolExecutorTest {
             }
 
             @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args a, String cwd) {
+                Map<String, Object> args = a.map();
                 return CompletableFuture.completedFuture(Tool.ToolResult.success("ok", Map.of("lines", 42)));
             }
         });
@@ -210,7 +213,8 @@ class ToolExecutorTest {
             }
 
             @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args a, String cwd) {
+                Map<String, Object> args = a.map();
                 var f = new CompletableFuture<Tool.ToolResult>();
                 f.completeExceptionally(new RuntimeException("boom"));
                 return f;
@@ -267,8 +271,8 @@ class ToolExecutorTest {
 
             @Override
             public void init(ExtensionAPI api) {
-                api.on(ExtensionEvent.ToolExecutionStart.class, (event, ctx) -> startCount.incrementAndGet());
-                api.on(ExtensionEvent.ToolExecutionEnd.class, (event, ctx) -> endCount.incrementAndGet());
+                api.on(ExtensionEvent.ToolExecutionStart.class, event -> startCount.incrementAndGet());
+                api.on(ExtensionEvent.ToolExecutionEnd.class, event -> endCount.incrementAndGet());
             }
         });
         var history = new MessageHistory();
@@ -321,7 +325,8 @@ class ToolExecutorTest {
             }
 
             @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args a, String cwd) {
+                Map<String, Object> args = a.map();
                 var f = new CompletableFuture<Tool.ToolResult>();
                 f.completeExceptionally(new RuntimeException("boom"));
                 return f;
@@ -366,7 +371,8 @@ class ToolExecutorTest {
             }
 
             @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args a, String cwd) {
+                Map<String, Object> args = a.map();
                 var f = new CompletableFuture<Tool.ToolResult>();
                 f.completeExceptionally(new RuntimeException("boom"));
                 return f;
@@ -410,7 +416,8 @@ class ToolExecutorTest {
             }
 
             @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args a, String cwd) {
+                Map<String, Object> args = a.map();
                 order.add("seq");
                 return CompletableFuture.completedFuture(Tool.ToolResult.success("seq"));
             }
@@ -432,7 +439,8 @@ class ToolExecutorTest {
             }
 
             @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args a, String cwd) {
+                Map<String, Object> args = a.map();
                 order.add("par");
                 return CompletableFuture.completedFuture(Tool.ToolResult.success("par"));
             }
@@ -460,7 +468,7 @@ class ToolExecutorTest {
 
             @Override
             public void init(ExtensionAPI api) {
-                api.onToolCall((event, ctx) -> new ai.pijota.extensions.ExtensionResult.Block(reason));
+                api.onToolCall(event -> new ai.pijota.extensions.ExtensionResult.Block(reason));
             }
         };
     }
@@ -500,7 +508,7 @@ class ToolExecutorTest {
             public void sendUserMessage(String content) {}
 
             @Override
-            public void sendUserMessage(String content, String deliverAs) {}
+            public void sendUserMessage(String content, DeliverAs deliverAs) {}
 
             @Override
             public void addCustomMessage(Message.Custom message) {}

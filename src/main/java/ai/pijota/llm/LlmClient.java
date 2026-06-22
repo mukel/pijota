@@ -20,6 +20,11 @@ public interface LlmClient extends AutoCloseable {
         return 0;
     }
 
+    /** Real token size of the most recent request's context (input + output), or 0 if no response yet. */
+    default long lastContextTokens() {
+        return 0;
+    }
+
     default long totalOutputTokens() {
         return 0;
     }

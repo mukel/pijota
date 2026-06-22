@@ -74,7 +74,7 @@ public final class ScheduleExtension implements Extension {
         this.api = api;
         this.sessionId = Util.shortUuid();
 
-        api.registerMessageRenderer((msg, ctx) -> {
+        api.registerMessageRenderer(msg -> {
             if (!(msg instanceof Message.Custom c) || !CUSTOM_TYPE.equals(c.customType()))
                 return null;
             int count = 0;
@@ -123,12 +123,13 @@ public final class ScheduleExtension implements Extension {
                                                                         Map.of("type", "string", "description",
                                                                                                         "Free-form note")),
                                                                         "required", List.of("action")),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(handleTool(args, cwd))));
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(handleTool(args.map(), cwd))));
 
         api.registerSlashCommand(new SlashCommand("schedule-prompt", "View or manage scheduled prompts", List.of(),
                                         this::handleSlash));
         api.registerStatusLines(this::statusLine);
-        api.on(ExtensionEvent.SessionReady.class, (_, _) -> start());
+        api.on(ExtensionEvent.SessionReady.class, _ -> start());
     }
 
     // ---- lifecycle ----

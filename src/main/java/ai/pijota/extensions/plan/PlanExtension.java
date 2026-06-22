@@ -41,7 +41,7 @@ public final class PlanExtension implements Extension {
 
         api.registerStatusLines(() -> planEnabled ? List.of("\u23f8 plan") : List.of());
 
-        api.onToolCall((tc, _ctx) -> {
+        api.onToolCall(tc -> {
             if (!planEnabled)
                 return null;
             if (!"bash".equals(tc.toolName()))
@@ -53,7 +53,7 @@ public final class PlanExtension implements Extension {
             return null;
         });
 
-        api.on(ExtensionEvent.BeforeAgentStart.class, (bas, _ctx) -> {
+        api.on(ExtensionEvent.BeforeAgentStart.class, bas -> {
             if (!planEnabled)
                 return;
             bas.systemPrompt().append("""
@@ -68,7 +68,7 @@ public final class PlanExtension implements Extension {
                                             Do NOT attempt to make changes — just describe what you would do.""");
         });
 
-        api.on(ExtensionEvent.SessionStart.class, (_event, _ctx) -> {
+        api.on(ExtensionEvent.SessionStart.class, _event -> {
             if (runtime.getFlag("plan", false)) {
                 planEnabled = true;
                 runtime.setActiveTools(PLAN_TOOLS);

@@ -79,14 +79,15 @@ public final class WebBrowseExtension implements Extension {
                                         "Search the web (Google) in a real browser and return the top result links as markdown. "
                                                                         + "Use for finding pages; follow up with web_visit_page to read one.",
                                         oneArg("query", "The search query"),
-                                        (id, args, cwd) -> run(() -> session.search(Util.getString(args, "query"))))
+                                        (id, args, cwd) -> run(() -> session
+                                                                        .search(Util.getString(args.map(), "query"))))
                                         .withGlyph("🌐"));
 
         api.registerTool(new Tool.ToolDefinition("web_visit_page",
                                         "Open a URL in a real browser (renders JavaScript, handles consent walls) and return the "
                                                                         + "page content as markdown.",
                                         oneArg("url", "The URL to open"),
-                                        (id, args, cwd) -> run(() -> session.visit(Util.getString(args, "url"))))
+                                        (id, args, cwd) -> run(() -> session.visit(Util.getString(args.map(), "url"))))
                                         .withGlyph("🌐"));
     }
 

@@ -89,7 +89,8 @@ public final class GrepTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String sessionCwd) {
+        Map<String, Object> args = a.map();
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String pattern = Util.getString(args, "pattern");
@@ -272,7 +273,8 @@ public final class GrepTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+    public ToolResultView renderResult(Args a, ToolResult result, String cwd) {
+        Map<String, Object> args = a.map();
         if (result.isError())
             return ToolResultView.of(result.content());
         Map<String, Object> details = result.details();

@@ -164,9 +164,7 @@ class PijotaSessionTest {
         session.agentLoop().sendUserMessage("old2");
         session.agentLoop().sendUserMessage("recent big " + "x".repeat(100_000));
 
-        var result = session.compact("compact");
-
-        assertTrue(result.compacted());
+        assertTrue(session.compact("compact"));
     }
 
     @Test

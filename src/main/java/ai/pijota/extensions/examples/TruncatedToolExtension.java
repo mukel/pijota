@@ -12,7 +12,6 @@ import ai.pijota.util.ProcessRunner;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Registers an {@code rg} (ripgrep) tool that truncates output to 2000 lines or 50KB, whichever comes first.
@@ -37,22 +36,16 @@ public final class TruncatedToolExtension implements Extension {
     public void init(ExtensionAPI api) {
         var runtime = api.runtime();
 
-        api.registerTool(new Tool.ToolDefinition("rg",
-                                        "Search file contents using ripgrep. Output truncated to " + MAX_LINES
-                                                                        + " lines or " + (MAX_BYTES / 1024) + "KB.",
-                                        Map.of("type", "object", "properties", Map.of("pattern", Map.of("type",
-                                                                        "string", "description",
-                                                                        "Search pattern (regex)"), "path",
-                                                                        Map.of("type", "string", "description",
-                                                                                                        "Directory to search (default: current dir)"),
-                                                                        "glob",
-                                                                        Map.of("type", "string", "description",
-                                                                                                        "File glob pattern, e.g. *.ts")),
-                                                                        "required", List.of("pattern")),
-                                        (id, args, cwd) -> {
-                                            String pattern = (String) args.get("pattern");
-                                            String searchPath = (String) args.getOrDefault("path", ".");
-                                            String glob = (String) args.get("glob");
+        api.registerTool(Tool.named("rg")
+                                        .description("Search file contents using ripgrep. Output truncated to "
+                                                                        + MAX_LINES + " lines or " + (MAX_BYTES / 1024)
+                                                                        + "KB.")
+                                        .stringParam("pattern", "Search pattern (regex)", true)
+                                        .stringParam("path", "Directory to search (default: current dir)", false)
+                                        .stringParam("glob", "File glob pattern, e.g. *.ts", false).run((args, cwd) -> {
+                                            String pattern = args.getString("pattern");
+                                            String searchPath = args.getString("path", ".");
+                                            String glob = args.getString("glob");
 
                                             var cmd = new ArrayList<>(List.of("rg", "--line-number", "--color=never"));
                                             if (glob != null) {
@@ -81,16 +74,12 @@ public final class TruncatedToolExtension implements Extension {
                                                                                     new IOException(stderr))
                                                                                                                     ? GrepTool.RG_NOT_FOUND
                                                                                                                     : stderr;
-                                                    return CompletableFuture.completedFuture(Tool.ToolResult.error(
-                                                                                    "rg search failed: " + reason));
+                                                    return Tool.ToolResult.error("rg search failed: " + reason);
                                                 }
 
-                                                if (output.isBlank()) {
-                                                    return CompletableFuture.completedFuture(Tool.ToolResult.success(
-                                                                                    "No matches found",
-                                                                                    Map.of("pattern", pattern, "matchCount",
-                                                                                                                    0)));
-                                                }
+                                                if (output.isBlank())
+                                                    return Tool.ToolResult.success("No matches found", Map.of("pattern",
+                                                                                    pattern, "matchCount", 0));
 
                                                 String[] allLines = output.split("\\R", -1);
                                                 int matchCount = 0;
@@ -120,12 +109,10 @@ public final class TruncatedToolExtension implements Extension {
                                                     text = output;
                                                 }
 
-                                                return CompletableFuture.completedFuture(Tool.ToolResult.success(text,
-                                                                                Map.of("pattern", pattern, "matchCount",
-                                                                                                                matchCount)));
+                                                return Tool.ToolResult.success(text, Map.of("pattern", pattern,
+                                                                                "matchCount", matchCount));
                                             } catch (Exception e) {
-                                                return CompletableFuture.completedFuture(Tool.ToolResult
-                                                                                .error("rg failed: " + e.getMessage()));
+                                                return Tool.ToolResult.error("rg failed: " + e.getMessage());
                                             }
                                         }));
     }

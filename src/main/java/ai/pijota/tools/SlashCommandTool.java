@@ -59,7 +59,8 @@ public final class SlashCommandTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Map<String, Object> args, String cwd) {
+    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Args a, String cwd) {
+        Map<String, Object> args = a.map();
         try {
             List<?> questions = normalizeQuestions(args);
             if (questions.isEmpty()) {

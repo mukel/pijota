@@ -53,10 +53,11 @@ public final class SecurityExtension implements Extension {
 
     @Override
     public void init(ExtensionAPI api) {
+        var runtime = api.runtime();
         api.registerSlashCommand(new SlashCommand("security", "Toggle dangerous command blocking", List.of(),
                                         _ -> toggle()));
 
-        api.onToolCall((tc, ctx) -> {
+        api.onToolCall(tc -> {
             if (!enabled)
                 return null;
             if (!Util.SHELL_TOOL_NAMES.contains(tc.toolName()))
@@ -74,7 +75,7 @@ public final class SecurityExtension implements Extension {
             return null;
         });
 
-        api.onUserBash((ub, ctx) -> {
+        api.onUserBash(ub -> {
             if (!enabled)
                 return ExtensionResult.UserBashResult.allow();
             String command = ub.command();
@@ -83,9 +84,9 @@ public final class SecurityExtension implements Extension {
 
             for (int pi = 0; pi < DANGEROUS_CMDS.length; pi++) {
                 if (DANGEROUS_CMDS[pi].matcher(command).find()) {
-                    if (ctx.hasUI()) {
+                    if (runtime.ui() != null) {
                         try {
-                            boolean ok = ctx.ui().confirm(Emojis.WARN + " Dangerous command:\n  " + command
+                            boolean ok = runtime.ui().confirm(Emojis.WARN + " Dangerous command:\n  " + command
                                                             + "\n\nExecute anyway?").join();
                             if (!ok)
                                 return ExtensionResult.UserBashResult.block("Blocked by user");

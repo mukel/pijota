@@ -51,7 +51,8 @@ public final class EditTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String cwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String cwd) {
+        Map<String, Object> args = a.map();
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String pathStr = Util.resolvePath(args, cwd);
@@ -294,7 +295,8 @@ public final class EditTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+    public ToolResultView renderResult(Args a, ToolResult result, String cwd) {
+        Map<String, Object> args = a.map();
         if (result.isError())
             return ToolResultView.of(result.content());
         String summary = result.content();

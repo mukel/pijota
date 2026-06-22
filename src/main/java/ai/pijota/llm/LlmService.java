@@ -97,6 +97,11 @@ public final class LlmService implements LlmClient {
         return usage.totalInputTokens();
     }
 
+    @Override
+    public long lastContextTokens() {
+        return usage.lastContextTokens();
+    }
+
     public long totalOutputTokens() {
         return usage.totalOutputTokens();
     }
@@ -431,6 +436,7 @@ public final class LlmService implements LlmClient {
         private final Double budgetLimit;
         private int totalInputTokens;
         private int totalOutputTokens;
+        private int lastContextTokens; // input+output of the most recent response ≈ the next request's prompt size
         private double totalCost;
         private boolean hasUnpricedUsage;
 
@@ -448,6 +454,10 @@ public final class LlmService implements LlmClient {
 
         int totalOutputTokens() {
             return totalOutputTokens;
+        }
+
+        int lastContextTokens() {
+            return lastContextTokens;
         }
 
         double totalCost() {
@@ -470,6 +480,8 @@ public final class LlmService implements LlmClient {
             int out = (int) usage.outputTokens();
             totalInputTokens += in;
             totalOutputTokens += out;
+            if (in > 0)
+                lastContextTokens = in + out; // the real prompt size this turn (+ output, which re-enters context)
             if (pricing != null)
                 totalCost += (in / 1_000_000.0) * pricing.inputPerMTok()
                                                 + (out / 1_000_000.0) * pricing.outputPerMTok();

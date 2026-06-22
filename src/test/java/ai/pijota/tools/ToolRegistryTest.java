@@ -133,7 +133,8 @@ class ToolRegistryTest {
             }
 
             @Override
-            public CompletableFuture<Tool.ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args a, String cwd) {
+                Map<String, Object> args = a.map();
                 return CompletableFuture.completedFuture(Tool.ToolResult.success("ok"));
             }
 

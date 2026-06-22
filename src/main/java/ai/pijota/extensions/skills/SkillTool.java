@@ -33,7 +33,8 @@ public final class SkillTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String cwd) {
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String cwd) {
+        Map<String, Object> args = a.map();
         String name = (String) args.get("name");
         if (name == null || name.isBlank()) {
             return CompletableFuture.completedFuture(ToolResult.error("Missing skill name"));

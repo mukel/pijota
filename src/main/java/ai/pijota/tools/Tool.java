@@ -1,5 +1,8 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ToolSchema;
+
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -19,12 +22,12 @@ public interface Tool {
     Map<String, Object> schema();
 
     /** Default execute without session cwd. */
-    default CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> arguments) {
+    default CompletableFuture<ToolResult> execute(String toolCallId, Args arguments) {
         return execute(toolCallId, arguments, null);
     }
 
     /** Execute the tool — {@code sessionCwd} is the session's working directory at call time. */
-    CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> arguments, String sessionCwd);
+    CompletableFuture<ToolResult> execute(String toolCallId, Args arguments, String sessionCwd);
 
     default boolean defaultEnabled() {
         return true;
@@ -57,12 +60,12 @@ public interface Tool {
 
     @FunctionalInterface
     interface Execute {
-        CompletableFuture<ToolResult> execute(String toolCallId, Map<String, Object> args, String sessionCwd);
+        CompletableFuture<ToolResult> execute(String toolCallId, Args args, String sessionCwd);
     }
 
     @FunctionalInterface
     interface ResultRenderer {
-        ToolResultView render(Map<String, Object> args, ToolResult result, String cwd);
+        ToolResultView render(Args args, ToolResult result, String cwd);
     }
 
     /** Lightweight tool registration record — wraps name, description, schema, and an execute lambda. */
@@ -117,12 +120,12 @@ public interface Tool {
                 }
 
                 @Override
-                public CompletableFuture<ToolResult> execute(String id, Map<String, Object> args, String cwd) {
+                public CompletableFuture<ToolResult> execute(String id, Args args, String cwd) {
                     return ToolDefinition.this.execute.execute(id, args, cwd);
                 }
 
                 @Override
-                public ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+                public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
                     return resultRenderer != null
                                                     ? resultRenderer.render(args, result, cwd)
                                                     : Tool.super.renderResult(args, result, cwd);
@@ -143,6 +146,137 @@ public interface Tool {
 
     /** Minimal tool identity: name and description. */
     record ToolInfo(String name, String description) {
+    }
+
+    /**
+     * Start defining a tool fluently — the JSON schema is generated from the declared params, so extensions don't
+     * hand-build {@code Map.of("type","object",…)}:
+     *
+     * <pre>{@code
+     * Tool.named("hello").description("A simple greeting").glyph("👋").stringParam("name", "Name to greet", true).run((
+     *                                 args, cwd) -> Tool.ToolResult.success("Hello, " + args.getString("name") + "!"));
+     * }</pre>
+     */
+    static Builder named(String name) {
+        return new Builder(name);
+    }
+
+    /** Read-only view over a tool call's arguments with typed accessors — no manual {@code (String) args.get(...)}. */
+    record Args(Map<String, Object> map) {
+        public String getString(String key) {
+            Object v = map.get(key);
+            return v == null ? null : v.toString();
+        }
+
+        public String getString(String key, String fallback) {
+            String v = getString(key);
+            return v == null ? fallback : v;
+        }
+
+        public boolean getBoolean(String key) {
+            Object v = map.get(key);
+            return v instanceof Boolean b ? b : "true".equalsIgnoreCase(getString(key));
+        }
+
+        public int getInt(String key, int fallback) {
+            Object v = map.get(key);
+            if (v instanceof Number n)
+                return n.intValue();
+            try {
+                return v == null ? fallback : Integer.parseInt(v.toString().trim());
+            } catch (NumberFormatException e) {
+                return fallback;
+            }
+        }
+
+        /** Raw argument value (for lists/nested objects the typed accessors don't cover). */
+        public Object get(String key) {
+            return map.get(key);
+        }
+
+        public Object getOrDefault(String key, Object fallback) {
+            return map.getOrDefault(key, fallback);
+        }
+    }
+
+    /** Synchronous tool body — {@link Builder#run} wraps it into a completed future. */
+    @FunctionalInterface
+    interface SyncExecute {
+        ToolResult run(Args args, String sessionCwd);
+    }
+
+    /**
+     * Fluent {@link Tool} builder: declare params (schema is generated) then finish with {@code run}/{@code runAsync}.
+     */
+    final class Builder {
+        private final String name;
+        private String description = "";
+        private String glyph = "●";
+        private boolean defaultEnabled = true;
+        private ResultRenderer resultRenderer;
+        private Map<String, Object> rawSchema; // when set, overrides the declared params
+        private final ToolSchema.Builder schema = ToolSchema.object();
+
+        private Builder(String name) {
+            this.name = name;
+        }
+
+        public Builder description(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder glyph(String glyph) {
+            this.glyph = glyph;
+            return this;
+        }
+
+        public Builder defaultEnabled(boolean defaultEnabled) {
+            this.defaultEnabled = defaultEnabled;
+            return this;
+        }
+
+        public Builder resultRenderer(ResultRenderer resultRenderer) {
+            this.resultRenderer = resultRenderer;
+            return this;
+        }
+
+        /** Use a raw JSON Schema instead of declared params (any {@code *Param} calls are ignored when this is set). */
+        public Builder schema(Map<String, Object> rawSchema) {
+            this.rawSchema = rawSchema;
+            return this;
+        }
+
+        public Builder stringParam(String name, String description, boolean required) {
+            schema.str(name, description, required);
+            return this;
+        }
+
+        public Builder boolParam(String name, String description, boolean required) {
+            schema.bool(name, description, required);
+            return this;
+        }
+
+        public Builder intParam(String name, String description, boolean required) {
+            schema.integer(name, description, required);
+            return this;
+        }
+
+        public Builder enumParam(String name, String description, boolean required, List<String> values) {
+            schema.enumStr(name, description, required, values);
+            return this;
+        }
+
+        /** Finish with a synchronous body (the common case). */
+        public ToolDefinition run(SyncExecute body) {
+            return runAsync((id, args, cwd) -> CompletableFuture.completedFuture(body.run(args, cwd)));
+        }
+
+        /** Finish with a full async body — for streaming or long-running tools. */
+        public ToolDefinition runAsync(Execute body) {
+            return new ToolDefinition(name, description, rawSchema != null ? rawSchema : schema.build(), body,
+                                            defaultEnabled, resultRenderer, glyph);
+        }
     }
 
     /**
@@ -167,7 +301,7 @@ public interface Tool {
      * Produce a display-oriented rendering of this tool's result. Each tool can override to provide richer output
      * (diffs, previews, etc.).
      */
-    default ToolResultView renderResult(Map<String, Object> args, ToolResult result, String cwd) {
+    default ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         String text = result.content();
         if (result.isError()) {
             return ToolResultView.of(text != null ? text : "");

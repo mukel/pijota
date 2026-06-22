@@ -20,7 +20,7 @@ public final class ToolRunner {
 
     public static Tool.ToolResult run(Tool tool, Map<String, Object> args, String cwd) {
         try {
-            return tool.execute("test-call", args == null ? Map.of() : args, cwd).get(TIMEOUT_SECONDS,
+            return tool.execute("test-call", new Tool.Args(args == null ? Map.of() : args), cwd).get(TIMEOUT_SECONDS,
                                             TimeUnit.SECONDS);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;

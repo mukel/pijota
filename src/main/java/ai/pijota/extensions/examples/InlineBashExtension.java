@@ -32,7 +32,7 @@ public final class InlineBashExtension implements Extension {
     public void init(ExtensionAPI api) {
         var runtime = api.runtime();
 
-        api.onInput((text, ctx) -> {
+        api.onInput(text -> {
             String trimmed = text.stripLeading();
 
             if (trimmed.startsWith("!") && !trimmed.startsWith("!{")) {
@@ -66,7 +66,7 @@ public final class InlineBashExtension implements Extension {
             }
             result.append(text, lastEnd, text.length());
 
-            if (ctx.hasUI()) {
+            if (runtime.ui() != null) {
                 runtime.setStatus("inline-bash", "Expanded " + replacements.size() + " inline command(s)");
             }
 

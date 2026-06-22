@@ -26,7 +26,7 @@ final class McpToolBridge {
         String description = descriptor.description() == null ? "(no description)" : descriptor.description();
         Map<String, Object> schema = normalizeSchema(descriptor.inputSchema());
         String originalName = descriptor.name();
-        Tool.Execute execute = (id, args, cwd) -> client.callTool(originalName, args, callTimeout)
+        Tool.Execute execute = (id, args, cwd) -> client.callTool(originalName, args.map(), callTimeout)
                                         .thenApply(McpToolBridge::toToolResult)
                                         .exceptionally(ex -> Tool.ToolResult.error("mcp: " + rootMessage(ex)));
         return new Tool.ToolDefinition(name, description, schema, execute);

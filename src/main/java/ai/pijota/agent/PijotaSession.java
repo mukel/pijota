@@ -63,6 +63,7 @@ public final class PijotaSession implements AutoCloseable {
         this.agentLoop = AgentLoop.builder(llm, toolRegistry, cwd).summaryGenerator(summaryGen)
                                         .extensionRegistry(extensionRegistry).contextWindow(contextWindow)
                                         .compactionConfig(compactionConfig).build();
+        extensionRegistry.setAgentLoop(this.agentLoop); // the session owns the registry↔loop wiring
 
         this.agentLoop.addCompactionAppender((summary, count, firstKeptId) -> save("compaction save",
                                         f -> sessionManager.appendCompaction(f, summary, count, firstKeptId)));
@@ -104,18 +105,17 @@ public final class PijotaSession implements AutoCloseable {
 
     // -- Session management --
 
+    /**
+     * The underlying loop — low-level access for the one-shot print runner; frontends should drive the session via
+     * {@link #prompt}/{@link #followUp}/{@link #abort}, not reach in here.
+     */
     public AgentLoop agentLoop() {
         return agentLoop;
     }
 
-    /** Look up a registered tool by name — frontends use this for display (glyphs, labels). */
+    /** Look up a registered tool by name — frontends use this for display (glyph, labels). */
     public Optional<Tool> tool(String name) {
         return toolRegistry.get(name);
-    }
-
-    /** Display glyph for a tool, or a default bullet when the tool is unknown. */
-    public String toolGlyph(String name) {
-        return toolRegistry.get(name).map(Tool::glyph).orElse("●");
     }
 
     public ExtensionRegistry extensionRegistry() {
@@ -160,8 +160,9 @@ public final class PijotaSession implements AutoCloseable {
         agentLoop.stripSystemRemindersFromContext();
     }
 
-    public CompactionManager.CompactionResult compact(String instructions) {
-        return agentLoop.compactWithResult(instructions);
+    /** Compacts the context; returns true if anything was actually summarized. */
+    public boolean compact(String instructions) {
+        return agentLoop.compactWithResult(instructions).compacted();
     }
 
     public void setAutoCompactionEnabled(boolean enabled) {
@@ -261,7 +262,8 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public long estimatedContextTokens() {
-        return CompactionManager.estimateTokens(agentLoop.messages());
+        // Prefer the provider's real prompt size (captures tool schemas/tokenization); fall back to the byte estimate.
+        return Math.max(agentLoop.llm().lastContextTokens(), CompactionManager.estimateTokens(agentLoop.messages()));
     }
 
     /** Cumulative input tokens billed this session. */
@@ -307,7 +309,8 @@ public final class PijotaSession implements AutoCloseable {
         return sessionFile != null ? sessionManager.sessionName(sessionFile) : null;
     }
 
-    public SessionManager.CacheMetadata cacheMetadata() throws IOException {
+    // Package-private: an internal persistence detail (carries tool-manifest hashes), not part of the frontend API.
+    SessionManager.CacheMetadata cacheMetadata() throws IOException {
         return sessionManager.latestCacheMetadata(sessionFile);
     }
 

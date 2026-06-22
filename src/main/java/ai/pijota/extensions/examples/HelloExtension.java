@@ -4,13 +4,11 @@ import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.tools.Tool;
 
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
- * Minimal custom-tool example — registers a {@code hello} tool as a {@link Tool.ToolDefinition}. The simplest possible
- * extension; not registered by default.
+ * Minimal custom-tool example — registers a {@code hello} tool with the fluent {@link Tool#named} builder (the schema
+ * is generated from the declared params). The simplest possible extension; not registered by default.
  */
 public final class HelloExtension implements Extension {
 
@@ -26,15 +24,11 @@ public final class HelloExtension implements Extension {
 
     @Override
     public void init(ExtensionAPI api) {
-        api.registerTool(new Tool.ToolDefinition("hello", "A simple greeting tool",
-                                        Map.of("type", "object", "properties", Map.of("name", Map.of("type", "string",
-                                                                        "description", "Name to greet")), "required",
-                                                                        List.of("name")),
-                                        (id, args, cwd) -> {
-                                            String name = (String) args.get("name");
-                                            return CompletableFuture.completedFuture(Tool.ToolResult.success(
-                                                                            "Hello, " + name + "!",
-                                                                            Map.of("greeted", name)));
+        api.registerTool(Tool.named("hello").description("A simple greeting tool")
+                                        .stringParam("name", "Name to greet", true).run((args, cwd) -> {
+                                            String name = args.getString("name");
+                                            return Tool.ToolResult.success("Hello, " + name + "!",
+                                                                            Map.of("greeted", name));
                                         }));
     }
 }
