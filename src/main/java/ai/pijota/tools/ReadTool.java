@@ -47,11 +47,10 @@ public final class ReadTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String cwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String pathStr = Util.resolvePath(args, cwd);
+                String pathStr = Util.resolvePath(args.map(), cwd);
                 if (pathStr == null)
                     return ToolResult.error("No path provided");
                 Path path = Path.of(pathStr);
@@ -63,8 +62,8 @@ public final class ReadTool implements Tool {
 
                 var lines = Files.readAllLines(path);
                 int totalLines = lines.size();
-                int offset = Util.getInt(args, "offset", 1);
-                int limit = Util.getInt(args, "limit", DEFAULT_READ_LIMIT);
+                int offset = args.getInt("offset", 1);
+                int limit = args.getInt("limit", DEFAULT_READ_LIMIT);
 
                 if (totalLines == 0)
                     return ToolResult.success("", Map.of("totalLines", 0));
@@ -123,8 +122,7 @@ public final class ReadTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Args a, ToolResult result, String cwd) {
-        Map<String, Object> args = a.map();
+    public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         if (result.isError())
             return ToolResultView.of(result.content());
         Map<String, Object> details = result.details();

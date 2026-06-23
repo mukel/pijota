@@ -1,6 +1,7 @@
 package ai.pijota.llm;
 
-import ai.pijota.agent.SessionManager;
+import ai.pijota.agent.ModelSelection;
+
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
 
@@ -92,13 +93,13 @@ class ModelRegistryTest {
 
     @Test
     void resolveContextWindowForSelectionUsesExplicitValue() {
-        var selection = new SessionManager.ModelSelection("openai", "gpt-4o", 64_000);
+        var selection = new ModelSelection("openai", "gpt-4o", 64_000);
         assertEquals(64_000L, ModelRegistry.resolveContextWindow(selection));
     }
 
     @Test
     void resolveContextWindowForNullSelectionReturnsDefault() {
-        assertEquals(128_000L, ModelRegistry.resolveContextWindow((SessionManager.ModelSelection) null));
+        assertEquals(128_000L, ModelRegistry.resolveContextWindow((ModelSelection) null));
     }
 
     @Test
@@ -122,7 +123,7 @@ class ModelRegistryTest {
     @Test
     void resolveSelectionRequiresApiKey() {
         var settings = new SettingsManager(new AppConfig(), _ -> {});
-        var selection = new SessionManager.ModelSelection("openai", "gpt-4o", 0);
+        var selection = new ModelSelection("openai", "gpt-4o", 0);
         assertNull(ModelRegistry.resolve(selection, settings));
     }
 

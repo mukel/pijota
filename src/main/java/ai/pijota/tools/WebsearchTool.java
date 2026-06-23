@@ -66,15 +66,14 @@ public class WebsearchTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String cwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String query = (String) args.get("query");
+                String query = args.getString("query");
                 if (query == null || query.isBlank())
                     return ToolResult.error("No query provided");
 
-                int numResults = Math.max(1, Util.getInt(args, "numResults", DEFAULT_NUM_RESULTS));
+                int numResults = Math.max(1, args.getInt("numResults", DEFAULT_NUM_RESULTS));
 
                 String provider = System.getenv().getOrDefault("OPENCODE_WEBSEARCH_PROVIDER", "ddg");
                 List<SearchResult> results = switch (provider) {

@@ -661,9 +661,6 @@ public final class SessionManager {
         return 0;
     }
 
-    public record ModelSelection(String provider, String model, long contextWindow) {
-    }
-
     @SuppressWarnings("unchecked")
     private static Message deserializeEntry(Map<String, Object> entry) {
         String type = (String) entry.getOrDefault("type", "message");

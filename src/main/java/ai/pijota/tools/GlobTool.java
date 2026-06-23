@@ -68,21 +68,20 @@ public final class GlobTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String cwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String pattern = (String) args.get("pattern");
+                String pattern = args.getString("pattern");
                 if (pattern == null || pattern.isBlank())
                     return ToolResult.error("No pattern provided");
 
                 Path base = Util.resolveDir(cwd);
-                Path searchPath = Util.resolveSearchPath(base, (String) args.get("path"));
+                Path searchPath = Util.resolveSearchPath(base, args.getString("path"));
                 if (!Files.exists(searchPath))
                     return ToolResult.error("Path not found: " + searchPath);
 
-                int limit = Math.max(1, Util.getInt(args, "limit", DEFAULT_LIMIT));
-                long timeout = Math.max(1, Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS));
+                int limit = Math.max(1, args.getInt("limit", DEFAULT_LIMIT));
+                long timeout = Math.max(1, args.getLong("timeout", DEFAULT_TIMEOUT_SECONDS));
 
                 SearchResult result = searchBackend.search(pattern, searchPath, limit, timeout);
                 if (result.lines().isEmpty())

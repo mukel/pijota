@@ -1,7 +1,5 @@
 package ai.pijota.extensions.examples;
 
-import ai.pijota.extensions.ExtensionEvent;
-
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionResult;
@@ -129,7 +127,6 @@ public final class ScheduleExtension implements Extension {
         api.registerSlashCommand(new SlashCommand("schedule-prompt", "View or manage scheduled prompts", List.of(),
                                         this::handleSlash));
         api.registerStatusLines(this::statusLine);
-        api.on(ExtensionEvent.SessionReady.class, _ -> start());
     }
 
     // ---- lifecycle ----
@@ -141,6 +138,11 @@ public final class ScheduleExtension implements Extension {
             return t;
         });
         loadJobs();
+    }
+
+    @Override
+    public void onReady(ExtensionRuntime runtime) {
+        start();
     }
 
     @Override

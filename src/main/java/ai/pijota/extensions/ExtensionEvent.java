@@ -18,8 +18,6 @@ public sealed interface ExtensionEvent {
     default String name() {
         return switch (this) {
             case SessionStart _ -> "session_start";
-            case SessionReady _ -> "session_ready";
-            case SessionShutdown _ -> "session_shutdown";
             case SessionBeforeCompact _ -> "session_before_compact";
             case SessionCompact _ -> "session_compact";
             case BeforeAgentStart _ -> "before_agent_start";
@@ -43,12 +41,6 @@ public sealed interface ExtensionEvent {
     }
     /** A new session file has been created or loaded — emitted once per session. */
     record SessionStart(Path sessionPath) implements ExtensionEvent {
-    }
-    /** Core components wired, extensions ready — the session is about to accept the first prompt. */
-    record SessionReady() implements ExtensionEvent {
-    }
-    /** Session is shutting down — last chance to persist state or clean up. */
-    record SessionShutdown() implements ExtensionEvent {
     }
     /** Compaction is about to begin — {@code cancel} allows extensions to veto it. */
     record SessionBeforeCompact(boolean cancel, String instructions) implements ExtensionEvent {

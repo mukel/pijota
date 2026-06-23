@@ -33,8 +33,7 @@ public final class WhoamiTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String sessionCwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
             String model = currentModel;
             String provider = currentProvider;

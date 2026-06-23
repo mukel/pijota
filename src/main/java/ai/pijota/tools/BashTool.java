@@ -90,20 +90,17 @@ public final class BashTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String sessionCwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String command = (String) args.get("command");
-                Path workdir = args.containsKey("workdir")
-                                                ? Path.of((String) args.get("workdir"))
-                                                : Util.resolveDir(sessionCwd);
+                String command = args.getString("command");
+                Path workdir = args.has("workdir") ? Path.of(args.getString("workdir")) : Util.resolveDir(sessionCwd);
 
                 if (!Files.isDirectory(workdir))
                     return ToolResult.error("Working directory does not exist: " + workdir);
 
                 // Timeout in SECONDS (pi-compatible)
-                long timeoutSeconds = Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS);
+                long timeoutSeconds = args.getLong("timeout", DEFAULT_TIMEOUT_SECONDS);
 
                 String fullCmd = shellPrefix != null ? shellPrefix + "\n" + command : command;
 
@@ -159,8 +156,7 @@ public final class BashTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Args a, ToolResult result, String cwd) {
-        Map<String, Object> args = a.map();
+    public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         String summary;
         Map<String, Object> details = result.details();
         String prefix = "";

@@ -206,7 +206,7 @@ public final class PijotaSession implements AutoCloseable {
             });
     }
 
-    public SessionManager.ModelSelection latestModelSelection() throws IOException {
+    public ModelSelection latestModelSelection() throws IOException {
         return sessionManager.latestModelSelection(sessionFile);
     }
 

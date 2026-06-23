@@ -80,8 +80,6 @@ public final class TmuxExtension implements Extension {
             this.stateFile = path != null ? path.resolveSibling(base + ".tmux.json") : null;
         });
 
-        api.on(ExtensionEvent.SessionReady.class, _ -> loadState());
-
         api.registerTool(new Tool.ToolDefinition("tmux_bash",
                                         "Run a shell command in a new detached tmux pane and return immediately. "
                                                                         + "Use this for long-running commands (dev servers, tests, log tailing) "
@@ -131,6 +129,11 @@ public final class TmuxExtension implements Extension {
                                         this::slashSupervise));
 
         api.registerStatusLines(this::statusLines);
+    }
+
+    @Override
+    public void onReady(ExtensionRuntime runtime) {
+        loadState();
     }
 
     @Override

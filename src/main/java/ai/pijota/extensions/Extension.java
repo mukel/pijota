@@ -33,7 +33,7 @@ public interface Extension {
     /** Called after the core session and UI/runtime have been wired — safe to interact with live state. */
     default void onReady(ExtensionRuntime runtime) throws Exception {}
 
-    /** Called during shutdown, after SessionShutdown subscribers have run. */
+    /** Called once during session shutdown — last chance to persist state or clean up. */
     default void onShutdown(ExtensionRuntime runtime) throws Exception {}
 
     /** Called before each headless sub-agent launch to optionally register tools scoped to that invocation. */

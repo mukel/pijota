@@ -79,8 +79,6 @@ class ExtensionRegistryTest {
             api.registerSlashCommand(new SlashCommand("fake-" + name, "fake", List.of(), _ -> {}));
             api.registerKeybinding(new ExtensionKeybinding(new KeyChord(KeyChord.Key.A), "fake", () -> {}));
             api.on(ExtensionEvent.SessionStart.class, _ -> events.add("session_start"));
-            api.on(ExtensionEvent.SessionReady.class, _ -> events.add("session_ready"));
-            api.on(ExtensionEvent.SessionShutdown.class, _ -> events.add("session_shutdown"));
             api.on(ExtensionEvent.BeforeAgentStart.class, _ -> events.add("before_agent_start"));
             api.on(ExtensionEvent.AgentStart.class, _ -> events.add("agent_start"));
             api.on(ExtensionEvent.AgentEnd.class, _ -> events.add("agent_end"));
@@ -258,12 +256,11 @@ class ExtensionRegistryTest {
     }
 
     @Test
-    void readyFiresSessionReadyAndOnReady() {
+    void readyCallsOnReady() {
         var ext = new CapturingExtension("x");
         var reg = registry(new FakeAgentContext(), new FakeUiContext());
         reg.register(ext);
         reg.ready();
-        assertTrue(ext.events.contains("session_ready"));
         assertTrue(ext.events.contains("ready"));
     }
 
@@ -275,13 +272,12 @@ class ExtensionRegistryTest {
     }
 
     @Test
-    void cleanupFiresShutdownAndOnShutdown() {
+    void cleanupCallsOnShutdown() {
         var ext = new CapturingExtension("x");
         var reg = registry(new FakeAgentContext(), new FakeUiContext());
         reg.register(ext);
         reg.ready();
         reg.cleanup();
-        assertTrue(ext.events.contains("session_shutdown"));
         assertTrue(ext.events.contains("shutdown"));
     }
 

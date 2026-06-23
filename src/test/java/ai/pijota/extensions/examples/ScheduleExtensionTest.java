@@ -167,7 +167,7 @@ class ScheduleExtensionTest {
         var api = api();
         var ext = new ScheduleExtension();
         ext.init(api);
-        assertDoesNotThrow(() -> api.fire(new ai.pijota.extensions.ExtensionEvent.SessionReady()));
+        assertDoesNotThrow(() -> ext.onReady(api.runtime()));
     }
 
     @Test
@@ -326,14 +326,14 @@ class ScheduleExtensionTest {
         var api = api();
         var ext = new ScheduleExtension();
         ext.init(api);
-        api.fire(new ai.pijota.extensions.ExtensionEvent.SessionReady());
+        ext.onReady(api.runtime());
         var tool = api.tools().get(0);
         Map<String, Object> addArgs = Map.of("action", "add", "schedule", "+1h", "prompt", "hello", "name", "persist");
         tool.execute().execute("tc", new Tool.Args(addArgs), tempDir.toString()).get(1, TimeUnit.SECONDS);
 
         var ext2 = new ScheduleExtension();
         ext2.init(api);
-        api.fire(new ai.pijota.extensions.ExtensionEvent.SessionReady());
+        ext2.onReady(api.runtime());
         var list = api.tools().get(0).execute()
                                         .execute("tc", new Tool.Args(Map.of("action", "list")), tempDir.toString())
                                         .get(1, TimeUnit.SECONDS);

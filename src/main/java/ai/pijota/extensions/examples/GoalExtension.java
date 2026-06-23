@@ -5,6 +5,7 @@ import ai.pijota.extensions.DeliverAs;
 
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.tools.Tool;
@@ -108,7 +109,11 @@ public final class GoalExtension implements Extension {
             }
         });
 
-        api.on(ExtensionEvent.SessionReady.class, _ -> loadFromSession());
+    }
+
+    @Override
+    public void onReady(ExtensionRuntime runtime) {
+        loadFromSession();
     }
 
     private void loadFromSession() {

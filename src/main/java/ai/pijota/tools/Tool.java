@@ -189,6 +189,21 @@ public interface Tool {
             }
         }
 
+        public long getLong(String key, long fallback) {
+            Object v = map.get(key);
+            if (v instanceof Number n)
+                return n.longValue();
+            try {
+                return v == null ? fallback : Long.parseLong(v.toString().trim());
+            } catch (NumberFormatException e) {
+                return fallback;
+            }
+        }
+
+        public boolean has(String key) {
+            return map.containsKey(key);
+        }
+
         /** Raw argument value (for lists/nested objects the typed accessors don't cover). */
         public Object get(String key) {
             return map.get(key);

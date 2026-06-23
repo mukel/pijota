@@ -39,15 +39,14 @@ public final class LsTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Args a, String cwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Args args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String pathStr = Util.resolvePath(args, cwd);
+                String pathStr = Util.resolvePath(args.map(), cwd);
                 if (pathStr == null)
                     pathStr = Util.resolveDir(cwd).toString();
                 Path path = Path.of(pathStr);
-                int limit = Math.max(1, Util.getInt(args, "limit", 500));
+                int limit = Math.max(1, args.getInt("limit", 500));
                 if (!Files.isDirectory(path)) {
                     return Tool.ToolResult.error("Not a directory: " + path);
                 }

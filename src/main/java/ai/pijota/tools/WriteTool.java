@@ -41,12 +41,11 @@ public final class WriteTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Args a, String cwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Args args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                Path path = Path.of(Util.resolvePath(args, cwd));
-                String content = (String) args.get("content");
+                Path path = Path.of(Util.resolvePath(args.map(), cwd));
+                String content = args.getString("content");
 
                 Path parent = path.getParent();
                 if (parent != null)
@@ -68,12 +67,11 @@ public final class WriteTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Args a, ToolResult result, String cwd) {
-        Map<String, Object> args = a.map();
+    public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         if (result.isError())
             return ToolResultView.of(result.content());
         String summary = result.content();
-        String content = (String) args.get("content");
+        String content = args.getString("content");
         if (content == null || content.isBlank())
             return ToolResultView.of(summary);
         var body = new ArrayList<String>();

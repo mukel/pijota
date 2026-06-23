@@ -47,16 +47,15 @@ public class TranscendenceTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String sessionCwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String action = (String) args.get("action");
+                String action = args.getString("action");
                 if (action == null || action.isBlank())
                     return ToolResult.error("Missing required field: action");
 
-                String worktree = (String) args.get("worktree");
-                String mergeBranch = (String) args.get("mergeBranch");
+                String worktree = args.getString("worktree");
+                String mergeBranch = args.getString("mergeBranch");
                 Path projectRoot = resolveProjectRoot(worktree);
 
                 return switch (action.strip().toLowerCase()) {

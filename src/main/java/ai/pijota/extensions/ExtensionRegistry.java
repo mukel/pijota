@@ -347,7 +347,6 @@ public final class ExtensionRegistry {
     }
 
     public void ready() {
-        fire(new ExtensionEvent.SessionReady());
         for (var ext : extensions) {
             try {
                 ext.onReady(runtime);
@@ -393,14 +392,6 @@ public final class ExtensionRegistry {
     }
 
     public void cleanup() {
-        var event = new ExtensionEvent.SessionShutdown();
-        for (var handler : listeners.getOrDefault(ExtensionEvent.SessionShutdown.class, List.of())) {
-            try {
-                handler.apply(event);
-            } catch (Throwable e) {
-                log.warn("Session shutdown handler error: {}", e.getMessage());
-            }
-        }
         for (var ext : extensions) {
             try {
                 ext.onShutdown(runtime);

@@ -89,26 +89,25 @@ public final class GrepTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String sessionCwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String sessionCwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String pattern = Util.getString(args, "pattern");
+                String pattern = args.getString("pattern");
                 if (pattern == null || pattern.isBlank())
                     return ToolResult.error("No pattern provided");
 
                 Path base = Util.resolveDir(sessionCwd);
-                Path searchPath = Util.resolveSearchPath(base, Util.getString(args, "path"));
+                Path searchPath = Util.resolveSearchPath(base, args.getString("path"));
                 if (!Files.exists(searchPath))
                     return ToolResult.error("Path not found: " + searchPath);
 
                 boolean isDirectory = Files.isDirectory(searchPath);
-                String glob = Util.coalesce(Util.getString(args, "glob"), Util.getString(args, "include"));
-                boolean ignoreCase = Boolean.TRUE.equals(args.get("ignoreCase"));
-                boolean literal = Boolean.TRUE.equals(args.get("literal"));
-                int context = Math.max(0, Util.getInt(args, "context", 0));
-                int limit = Math.max(1, Util.getInt(args, "limit", DEFAULT_LIMIT));
-                long timeoutSeconds = Math.max(1, Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS));
+                String glob = Util.coalesce(args.getString("glob"), args.getString("include"));
+                boolean ignoreCase = args.getBoolean("ignoreCase");
+                boolean literal = args.getBoolean("literal");
+                int context = Math.max(0, args.getInt("context", 0));
+                int limit = Math.max(1, args.getInt("limit", DEFAULT_LIMIT));
+                long timeoutSeconds = Math.max(1, args.getLong("timeout", DEFAULT_TIMEOUT_SECONDS));
 
                 SearchResult result = searchBackend.search(pattern, searchPath, ignoreCase, literal, glob, limit,
                                                 timeoutSeconds);
@@ -273,8 +272,7 @@ public final class GrepTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Args a, ToolResult result, String cwd) {
-        Map<String, Object> args = a.map();
+    public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         if (result.isError())
             return ToolResultView.of(result.content());
         Map<String, Object> details = result.details();

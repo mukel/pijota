@@ -51,16 +51,15 @@ public final class EditTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String cwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String pathStr = Util.resolvePath(args, cwd);
+                String pathStr = Util.resolvePath(args.map(), cwd);
                 if (pathStr == null)
                     return ToolResult.error("No path provided");
 
                 Path path = Path.of(pathStr);
-                return FileMutationQueue.run(path, () -> editFile(path, args));
+                return FileMutationQueue.run(path, () -> editFile(path, args.map()));
             } catch (Exception e) {
                 return ToolResult.error("Edit error: " + e.getMessage());
             }
@@ -295,8 +294,7 @@ public final class EditTool implements Tool {
     }
 
     @Override
-    public ToolResultView renderResult(Args a, ToolResult result, String cwd) {
-        Map<String, Object> args = a.map();
+    public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         if (result.isError())
             return ToolResultView.of(result.content());
         String summary = result.content();

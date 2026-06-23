@@ -33,14 +33,14 @@ class AppendOnlyTuiTest {
 
     @Test
     void compactModelNameShortProvider() {
-        var result = AppendOnlyTui.compactModelName("openai", "gpt-4o");
+        var result = PromptPresenter.compactModelName("openai", "gpt-4o");
         assertNotNull(result);
         assertFalse(result.isBlank());
     }
 
     @Test
     void compactModelNameLongProvider() {
-        var result = AppendOnlyTui.compactModelName("anthropic", "claude-sonnet-4-5-20250929");
+        var result = PromptPresenter.compactModelName("anthropic", "claude-sonnet-4-5-20250929");
         assertNotNull(result);
     }
 
@@ -90,48 +90,48 @@ class AppendOnlyTuiTest {
 
     @Test
     void insidePromptCodeBlockWithOpenFence() {
-        assertTrue(AppendOnlyTui.insidePromptCodeBlock(List.of("text", "```java", "code")));
+        assertTrue(PromptPresenter.insidePromptCodeBlock(List.of("text", "```java", "code")));
     }
 
     @Test
     void insidePromptCodeBlockWithClosedFence() {
-        assertFalse(AppendOnlyTui.insidePromptCodeBlock(List.of("text", "```java", "code", "```", "more")));
+        assertFalse(PromptPresenter.insidePromptCodeBlock(List.of("text", "```java", "code", "```", "more")));
     }
 
     @Test
     void insidePromptCodeBlockWithoutFence() {
-        assertFalse(AppendOnlyTui.insidePromptCodeBlock(List.of("text", "no code block")));
+        assertFalse(PromptPresenter.insidePromptCodeBlock(List.of("text", "no code block")));
     }
 
     @Test
     void insidePromptCodeBlockWithTildeFence() {
-        assertTrue(AppendOnlyTui.insidePromptCodeBlock(List.of("~~~bash", "cmd")));
-        assertFalse(AppendOnlyTui.insidePromptCodeBlock(List.of("~~~bash", "cmd", "~~~")));
+        assertTrue(PromptPresenter.insidePromptCodeBlock(List.of("~~~bash", "cmd")));
+        assertFalse(PromptPresenter.insidePromptCodeBlock(List.of("~~~bash", "cmd", "~~~")));
     }
 
     @Test
     void showExtensionStatusLineNormal() {
-        assertTrue(AppendOnlyTui.showExtensionStatusLine("hello"));
+        assertTrue(PromptPresenter.showExtensionStatusLine("hello"));
     }
 
     @Test
     void showExtensionStatusLineFiltered() {
-        assertFalse(AppendOnlyTui.showExtensionStatusLine("something filtered"));
+        assertFalse(PromptPresenter.showExtensionStatusLine("something filtered"));
     }
 
     @Test
     void showExtensionStatusLineSecured() {
-        assertFalse(AppendOnlyTui.showExtensionStatusLine("secured status"));
+        assertFalse(PromptPresenter.showExtensionStatusLine("secured status"));
     }
 
     @Test
     void showExtensionStatusLineEmpty() {
-        assertTrue(AppendOnlyTui.showExtensionStatusLine(""));
+        assertTrue(PromptPresenter.showExtensionStatusLine(""));
     }
 
     @Test
     void showExtensionStatusLineNull() {
-        assertFalse(AppendOnlyTui.showExtensionStatusLine(null));
+        assertFalse(PromptPresenter.showExtensionStatusLine(null));
     }
 
     @Test

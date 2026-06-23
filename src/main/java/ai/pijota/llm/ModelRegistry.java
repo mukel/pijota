@@ -1,6 +1,7 @@
 package ai.pijota.llm;
 
-import ai.pijota.agent.SessionManager;
+import ai.pijota.agent.ModelSelection;
+
 import ai.pijota.config.ProviderCatalog;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.util.Util;
@@ -81,7 +82,7 @@ public final class ModelRegistry {
                                         .orElse(null);
     }
 
-    public static long resolveContextWindow(SessionManager.ModelSelection selection) {
+    public static long resolveContextWindow(ModelSelection selection) {
         if (selection == null)
             return DEFAULT_CONTEXT_WINDOW;
         if (selection.contextWindow() > 0)
@@ -89,7 +90,7 @@ public final class ModelRegistry {
         return resolveContextWindow(selection.provider(), selection.model());
     }
 
-    public static ResolvedModel resolve(SessionManager.ModelSelection selection, SettingsManager settings) {
+    public static ResolvedModel resolve(ModelSelection selection, SettingsManager settings) {
         if (selection == null || settings == null)
             return null;
         var providerModel = resolveProviderModel(selection.provider(), selection.model(), settings);

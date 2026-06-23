@@ -4,6 +4,7 @@ import ai.pijota.extensions.ExtensionEvent;
 
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.extensions.ExtensionRuntime;
 
 /**
  * Shows turn progress in the status bar via a keyed status entry. Demonstrates the keyed-status-line API; not
@@ -37,8 +38,10 @@ public final class StatusLineExtension implements Extension {
             runtime.setStatus("status-demo", "Turn " + ev.turnNumber() + " complete");
         });
 
-        api.on(ExtensionEvent.SessionShutdown.class, _ev -> {
-            runtime.clearStatus("status-demo");
-        });
+    }
+
+    @Override
+    public void onShutdown(ExtensionRuntime runtime) {
+        runtime.clearStatus("status-demo");
     }
 }

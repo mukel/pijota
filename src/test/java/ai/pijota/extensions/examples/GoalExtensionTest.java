@@ -216,8 +216,9 @@ class GoalExtensionTest {
         var fake = new FakeExtensionAPI();
         fake.seedMessage(new Message.Custom("goal",
                                         "{\"objective\":\"restored\",\"status\":\"active\",\"token_budget\":0,\"completion_criterion\":\"\",\"continue_on_idle\":false,\"input_tokens_at_start\":0,\"output_tokens_at_start\":0,\"started_at_ms\":1000,\"total_paused_ms\":0,\"paused_at_ms\":-1,\"progress\":[]}"));
-        new GoalExtension().init(fake);
-        fake.fireSessionReady();
+        var goalExt = new GoalExtension();
+        goalExt.init(fake);
+        goalExt.onReady(fake.runtime());
 
         var get = execute(fake.tool("get_goal"), Map.of());
         assertTrue(get.content().contains("restored"));
@@ -229,8 +230,9 @@ class GoalExtensionTest {
         fake.seedMessage(new Message.Custom("goal",
                                         "{\"objective\":\"old\",\"status\":\"active\",\"token_budget\":0,\"completion_criterion\":\"\",\"continue_on_idle\":false,\"input_tokens_at_start\":0,\"output_tokens_at_start\":0,\"started_at_ms\":1000,\"total_paused_ms\":0,\"paused_at_ms\":-1,\"progress\":[]}"));
         fake.seedMessage(new Message.Custom("goal", "{\"status\":\"idle\"}"));
-        new GoalExtension().init(fake);
-        fake.fireSessionReady();
+        var goalExt = new GoalExtension();
+        goalExt.init(fake);
+        goalExt.onReady(fake.runtime());
 
         var get = execute(fake.tool("get_goal"), Map.of());
         assertTrue(get.content().contains("status: idle"));

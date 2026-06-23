@@ -55,11 +55,10 @@ public final class WebfetchTool implements Tool {
     }
 
     @Override
-    public CompletableFuture<ToolResult> execute(String toolCallId, Args a, String cwd) {
-        Map<String, Object> args = a.map();
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String cwd) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String url = (String) args.get("url");
+                String url = args.getString("url");
                 if (url == null || url.isBlank())
                     return ToolResult.error("No URL provided");
 
@@ -77,8 +76,8 @@ public final class WebfetchTool implements Tool {
                 if (uri.getHost() == null)
                     return ToolResult.error("Invalid URL (no host): " + url);
 
-                String format = Util.getString(args, "format", "markdown");
-                long timeoutSecs = Util.getLong(args, "timeout", DEFAULT_TIMEOUT_SECONDS);
+                String format = args.getString("format", "markdown");
+                long timeoutSecs = args.getLong("timeout", DEFAULT_TIMEOUT_SECONDS);
                 timeoutSecs = Math.min(timeoutSecs, MAX_TIMEOUT_SECONDS);
 
                 HttpRequest request = HttpRequest.newBuilder(uri).header("User-Agent", UA)

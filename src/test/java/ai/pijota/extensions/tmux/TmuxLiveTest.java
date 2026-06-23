@@ -43,7 +43,7 @@ class TmuxLiveTest {
         var ext = new TmuxExtension();
         ext.init(api);
         api.fire(new ExtensionEvent.SessionStart(Path.of("/sessions/live-00000000-0000-0000-0000-000000000000.jsonl")));
-        api.fire(new ExtensionEvent.SessionReady());
+        ext.onReady(api.runtime());
         return api;
     }
 

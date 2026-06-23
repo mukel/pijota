@@ -11,8 +11,6 @@ class ExtensionEventTest {
     @Test
     void nameMethodReturnsCorrectNames() {
         assertEquals("session_start", new ExtensionEvent.SessionStart(Path.of("/tmp")).name());
-        assertEquals("session_ready", new ExtensionEvent.SessionReady().name());
-        assertEquals("session_shutdown", new ExtensionEvent.SessionShutdown().name());
         assertEquals("turn_start", new ExtensionEvent.TurnStart(1).name());
         assertEquals("turn_end", new ExtensionEvent.TurnEnd(2).name());
         assertEquals("agent_start", new ExtensionEvent.AgentStart().name());
@@ -61,8 +59,6 @@ class ExtensionEventTest {
     @Test
     void sealedHierarchyCoversAllCases() {
         assertTrue(new ExtensionEvent.SessionStart(Path.of("/tmp")) instanceof ExtensionEvent);
-        assertTrue(new ExtensionEvent.SessionReady() instanceof ExtensionEvent);
-        assertTrue(new ExtensionEvent.SessionShutdown() instanceof ExtensionEvent);
         assertTrue(new ExtensionEvent.TurnStart(1) instanceof ExtensionEvent);
         assertTrue(new ExtensionEvent.AgentStart() instanceof ExtensionEvent);
         assertTrue(new ExtensionEvent.Input("x", false) instanceof ExtensionEvent);

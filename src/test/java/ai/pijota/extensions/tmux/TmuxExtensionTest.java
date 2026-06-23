@@ -100,11 +100,11 @@ class TmuxExtensionTest {
         return new Setup(api, ext, runtime);
     }
 
-    /** buildExt + the usual SessionStart (sidecar lands in the temp dir) + SessionReady. */
+    /** buildExt + the usual SessionStart (sidecar lands in the temp dir) + onReady. */
     private Setup initWithExt(TmuxClient client) {
         var setup = buildExt(client);
         setup.api().fire(new ExtensionEvent.SessionStart(sessionPath()));
-        setup.api().fireSessionReady();
+        setup.ext().onReady(setup.runtime());
         return setup;
     }
 
@@ -553,7 +553,7 @@ class TmuxExtensionTest {
     void sessionPrefixFallsBackToRandomWhenPathIsNull() throws Exception {
         var setup = buildExt(fakeClient());
         setup.api().fire(new ExtensionEvent.SessionStart(null));
-        setup.api().fireSessionReady();
+        setup.ext().onReady(setup.runtime());
         var result = runTool(setup.api(), "tmux_bash", Map.of("command", "echo hi"));
         assertFalse(result.isError());
         String tmuxName = (String) result.details().get("tmux_name");
@@ -705,7 +705,7 @@ class TmuxExtensionTest {
     void sessionPrefixHandlesFilenameWithoutExtensionAndShortNames() throws Exception {
         var setup = buildExt(fakeClient());
         setup.api().fire(new ExtensionEvent.SessionStart(Path.of("/sessions/my-session")));
-        setup.api().fireSessionReady();
+        setup.ext().onReady(setup.runtime());
         runTool(setup.api(), "tmux_bash", Map.of("command", "echo hi"));
         assertTrue(commands.stream().anyMatch(c -> c.contains("pijota-my-sessi-")), commands::toString);
 
