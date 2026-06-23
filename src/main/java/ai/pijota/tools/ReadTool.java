@@ -130,8 +130,8 @@ public final class ReadTool implements Tool {
         if (!(details.get("totalLines") instanceof Number tn))
             return ToolResultView.of(result.content());
         int total = tn.intValue();
-        int shown = details.get("shown") instanceof Number s ? s.intValue() : total;
-        int offset = details.get("offset") instanceof Number o ? o.intValue() : 1;
+        int shown = Util.getInt(details, "shown", total);
+        int offset = Util.getInt(details, "offset", 1);
         // The request (offset/limit) is already echoed in the call label, so the result reports only what was actually
         // returned: the whole file, or the returned slice of the total. No re-echoing of offset/limit.
         String summary = offset <= 1 && shown >= total

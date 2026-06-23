@@ -96,11 +96,18 @@ final class ToolRender {
         try {
             Path p = Path.of(path);
             if (!p.isAbsolute())
-                p = normalizePath(cwd.replaceAll("\\(.*\\)", "").strip()).resolve(p);
+                p = normalizePath(cleanCwd(cwd)).resolve(p);
             return p.toAbsolutePath().normalize().toString();
         } catch (Exception e) {
             return path;
         }
+    }
+
+    // The cwd may carry a trailing annotation like " (git)"; strip it once (cached pattern, not recompiled per call).
+    private static final java.util.regex.Pattern CWD_ANNOTATION = java.util.regex.Pattern.compile("\\(.*\\)");
+
+    private static String cleanCwd(String cwd) {
+        return CWD_ANNOTATION.matcher(cwd).replaceAll("").strip();
     }
 
     private static String compact(String path) {
@@ -126,7 +133,7 @@ final class ToolRender {
         if (path == null || path.isBlank())
             return ".";
         try {
-            Path base = normalizePath(cwd.replaceAll("\\(.*\\)", "").strip());
+            Path base = normalizePath(cleanCwd(cwd));
             Path resolved = Path.of(path);
             if (!resolved.isAbsolute())
                 resolved = base.resolve(resolved);

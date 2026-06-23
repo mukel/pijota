@@ -16,6 +16,8 @@ import java.util.Locale;
 public enum PathDisplay {
     FULL, RELATIVE, COMPACT, NAME;
 
+    private static final PathDisplay[] ALL = values(); // values() copies each call; cache it for next()
+
     /** Parse a settings value (case-insensitive); unknown/blank falls back to {@link #COMPACT}. */
     public static PathDisplay fromConfig(String value) {
         if (value != null && !value.isBlank())
@@ -34,7 +36,6 @@ public enum PathDisplay {
 
     /** Next mode in declaration order, wrapping — used by the cycle toggle. */
     public PathDisplay next() {
-        var all = values();
-        return all[(ordinal() + 1) % all.length];
+        return ALL[(ordinal() + 1) % ALL.length];
     }
 }
