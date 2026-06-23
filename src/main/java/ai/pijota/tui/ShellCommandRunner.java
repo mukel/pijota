@@ -11,11 +11,13 @@ final class ShellCommandRunner {
     }
 
     private final Host host;
+    private final String shell; // resolved shell (config / $SHELL / OS default) — portable across Unix & Windows
     private volatile Process activeProcess;
     private volatile Thread commandThread;
 
-    ShellCommandRunner(Host host) {
+    ShellCommandRunner(Host host, String shell) {
         this.host = host;
+        this.shell = shell;
     }
 
     void run(String command, boolean addToContext) {
@@ -30,7 +32,7 @@ final class ShellCommandRunner {
         host.redrawPrompt();
         commandThread = Thread.ofPlatform().name("pijota-shell-command").start(() -> {
             try {
-                var result = ProcessRunner.command("/bin/sh", "-lc", command).redirectErrorStream(true).noTimeout()
+                var result = ProcessRunner.command(shell, "-lc", command).redirectErrorStream(true).noTimeout()
                                                 .onStart(p -> activeProcess = p).run();
                 var out = new ArrayList<String>();
                 String slot = result.exitCode() == 0 ? "toolLabel" : "toolError";

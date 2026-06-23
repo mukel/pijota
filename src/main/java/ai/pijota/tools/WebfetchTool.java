@@ -4,7 +4,6 @@ import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -123,22 +122,10 @@ public final class WebfetchTool implements Tool {
     }
 
     /**
-     * SSRF guard: true if {@code host} resolves to a loopback, link-local (incl. 169.254.169.254 cloud metadata),
-     * site-local/private, wildcard, or multicast address. A prompt-injected agent must not be steered into fetching
-     * internal services or the metadata endpoint; legitimate local development goes through the bash tool instead.
-     * Fails open on resolution errors — an unresolvable host simply fails the fetch with a normal network error.
+     * SSRF guard — see {@link Util#isInternalAddress(String)}. Local development goes through the bash tool instead.
      */
     static boolean isInternalAddress(String host) {
-        try {
-            for (InetAddress addr : InetAddress.getAllByName(host)) {
-                if (addr.isLoopbackAddress() || addr.isLinkLocalAddress() || addr.isSiteLocalAddress()
-                                                || addr.isAnyLocalAddress() || addr.isMulticastAddress())
-                    return true;
-            }
-            return false;
-        } catch (Exception e) {
-            return false;
-        }
+        return Util.isInternalAddress(host);
     }
 
     static String acceptHeader(String format) {

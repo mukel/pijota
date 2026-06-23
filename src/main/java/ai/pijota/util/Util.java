@@ -8,6 +8,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -30,6 +31,25 @@ public final class Util {
                                             .fromString(Files.isDirectory(path) ? "rwx------" : "rw-------"));
         } catch (UnsupportedOperationException | IOException ignored) {
             // non-POSIX filesystem, or the path vanished — best effort, not a hard guarantee.
+        }
+    }
+
+    /**
+     * SSRF guard: true if {@code host} resolves to a loopback, link-local (incl. {@code 169.254.169.254} cloud
+     * metadata), site-local/private, wildcard, or multicast address. Used to stop a prompt-injected agent from steering
+     * an outbound fetcher (webfetch, the headless browser) at internal services or the metadata endpoint. Fails open on
+     * resolution errors — an unresolvable host just fails the fetch with a normal network error.
+     */
+    public static boolean isInternalAddress(String host) {
+        try {
+            for (InetAddress addr : InetAddress.getAllByName(host)) {
+                if (addr.isLoopbackAddress() || addr.isLinkLocalAddress() || addr.isSiteLocalAddress()
+                                                || addr.isAnyLocalAddress() || addr.isMulticastAddress())
+                    return true;
+            }
+            return false;
+        } catch (Exception e) {
+            return false;
         }
     }
 

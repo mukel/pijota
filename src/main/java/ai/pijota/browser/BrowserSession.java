@@ -2,6 +2,7 @@ package ai.pijota.browser;
 
 import ai.pijota.tools.WebfetchTool;
 import ai.pijota.util.Env;
+import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -210,6 +211,21 @@ public final class BrowserSession {
         String u = url.strip();
         if (!u.matches("(?i)^[a-z]+://.*"))
             u = "https://" + u;
+        // http(s) only: a real, JS-running browser must not be steered (e.g. by prompt injection in page content)
+        // into file:// (arbitrary local-file read) or other schemes.
+        if (!u.matches("(?i)^https?://.*"))
+            throw new IllegalArgumentException("only http/https URLs are allowed: " + url);
+        // SSRF guard, mirroring webfetch: block loopback / link-local (incl. 169.254.169.254 cloud metadata) /
+        // private / wildcard hosts. The browser doesn't force https, so the metadata endpoint would otherwise be
+        // reachable; legitimate local services go through the bash tool.
+        String host;
+        try {
+            host = java.net.URI.create(u).getHost();
+        } catch (RuntimeException e) {
+            host = null;
+        }
+        if (host == null || Util.isInternalAddress(host))
+            throw new IllegalArgumentException("refusing to navigate to an internal/invalid address: " + url);
         return u;
     }
 

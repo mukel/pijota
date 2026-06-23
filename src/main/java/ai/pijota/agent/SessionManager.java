@@ -533,7 +533,9 @@ public final class SessionManager {
     }
 
     private Path sessionDirForCwd(String cwd) {
-        String sanitized = cwd.replace('/', '_').replace('\\', '_');
+        // Flatten a cwd into one directory name. Replace path separators AND the characters Windows forbids in file
+        // names (: * ? " < > |) so e.g. "C:\proj" doesn't produce the illegal name "C:_proj".
+        String sanitized = cwd.replaceAll("[/\\\\:*?\"<>|]", "_");
         if (sanitized.startsWith("_"))
             sanitized = sanitized.substring(1);
         return sessionDir.resolve(sanitized);

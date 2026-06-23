@@ -1,5 +1,6 @@
 package ai.pijota.browser;
 
+import ai.pijota.util.Platform;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -179,7 +180,7 @@ public final class CdpBackend implements BrowserBackend {
                                         "--password-store=basic", // avoid an OS keyring/keychain unlock prompt blocking
                                                                   // startup
                                         "about:blank"));
-        if (System.getProperty("os.name", "").toLowerCase().contains("mac"))
+        if (Platform.isMac())
             cmd.add(1, "--use-mock-keychain");
         if ("root".equals(System.getProperty("user.name")))
             cmd.add(1, "--no-sandbox");
@@ -237,17 +238,27 @@ public final class CdpBackend implements BrowserBackend {
         if (override != null && !override.isBlank())
             return Path.of(override);
         var candidates = new ArrayList<Path>();
+        if (Platform.isWindows())
+            for (String env : List.of("ProgramFiles", "ProgramFiles(x86)", "LocalAppData")) {
+                String base = System.getenv(env);
+                if (base != null && !base.isBlank())
+                    candidates.add(Path.of(base, "Google", "Chrome", "Application", "chrome.exe"));
+            }
         for (String p : List.of("/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/usr/bin/chromium",
                                         "/usr/bin/chromium-browser", "/snap/bin/chromium", "/opt/google/chrome/chrome",
                                         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
                                         "/Applications/Chromium.app/Contents/MacOS/Chromium"))
             candidates.add(Path.of(p));
         String path = System.getenv("PATH");
-        if (path != null)
+        if (path != null) {
+            var names = Platform.isWindows()
+                                            ? List.of("chrome.exe", "chromium.exe", "msedge.exe")
+                                            : List.of("google-chrome-stable", "google-chrome", "chromium",
+                                                                            "chromium-browser", "chrome");
             for (String dir : path.split(java.io.File.pathSeparator))
-                for (String name : List.of("google-chrome-stable", "google-chrome", "chromium", "chromium-browser",
-                                                "chrome"))
+                for (String name : names)
                     candidates.add(Path.of(dir, name));
+        }
         return firstExecutable(candidates, Files::isExecutable);
     }
 

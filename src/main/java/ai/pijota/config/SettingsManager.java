@@ -1,6 +1,7 @@
 package ai.pijota.config;
 
 import ai.pijota.util.PijotaHome;
+import ai.pijota.util.Platform;
 import ai.pijota.util.SelfRespawn;
 
 import org.slf4j.Logger;
@@ -196,6 +197,9 @@ public final class SettingsManager {
         String p = config.shellPath();
         if (p != null && !p.isBlank())
             return p;
-        return System.getenv().getOrDefault("SHELL", "/bin/bash");
+        String env = System.getenv("SHELL");
+        if (env != null && !env.isBlank())
+            return env;
+        return Platform.defaultShell();
     }
 }

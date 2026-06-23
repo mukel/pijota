@@ -2,6 +2,7 @@ package ai.pijota.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import ai.pijota.util.Platform;
 import ai.pijota.util.Util;
 
 import java.io.IOException;
@@ -30,8 +31,11 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("compaction") CompactionConfig compaction,
                                 @JsonProperty("aliases") Map<String, String> aliases) {
     public AppConfig() {
-        this(null, null, Map.of(), "medium", "/bin/bash", null, null, null, null, List.of(), List.of(), true, false,
-                                        false, "dots", false, new CompactionConfig(), Map.of());
+        // OS-appropriate default shell (Unix: /bin/bash — unchanged; Windows: PATH bash) instead of a hardcoded Unix
+        // path that wouldn't exist on Windows. The bash tool stays bash (the model emits bash syntax), not the user's
+        // $SHELL.
+        this(null, null, Map.of(), "medium", Platform.defaultShell(), null, null, null, null, List.of(), List.of(),
+                                        true, false, false, "dots", false, new CompactionConfig(), Map.of());
     }
 
     public static AppConfig load(Path path) throws IOException {

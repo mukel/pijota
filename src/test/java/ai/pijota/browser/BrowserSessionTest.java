@@ -26,6 +26,22 @@ class BrowserSessionTest {
     }
 
     @Test
+    void normalizeUrlRejectsNonHttpSchemes() {
+        // a real browser must not be steered into file:// (local-file read) or other schemes.
+        assertThrows(IllegalArgumentException.class, () -> BrowserSession.normalizeUrl("file:///etc/passwd"));
+        assertThrows(IllegalArgumentException.class, () -> BrowserSession.normalizeUrl("ftp://host/x"));
+    }
+
+    @Test
+    void normalizeUrlRejectsInternalAddressesForSsrf() {
+        // loopback, link-local (169.254.169.254 cloud metadata), private, wildcard — SSRF-blocked.
+        for (String u : new String[] {"http://127.0.0.1:9333/json/version", "http://localhost/x",
+                "http://169.254.169.254/latest/meta-data/", "http://10.0.0.1", "http://192.168.1.1", "http://0.0.0.0"})
+            assertThrows(IllegalArgumentException.class, () -> BrowserSession.normalizeUrl(u),
+                                            u + " should be blocked");
+    }
+
+    @Test
     void findChromeHonorsTheExplicitOverride() {
         assertEquals(Path.of("/opt/my/chrome"), CdpBackend.findChrome("/opt/my/chrome"));
     }

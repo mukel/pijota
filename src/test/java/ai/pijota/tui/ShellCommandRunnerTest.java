@@ -12,7 +12,7 @@ class ShellCommandRunnerTest {
     @Test
     void runWithBlankCommandDoesNothing() {
         var host = new FakeHost();
-        var runner = new ShellCommandRunner(host);
+        var runner = new ShellCommandRunner(host, "/bin/sh");
 
         runner.run("", true);
 
@@ -23,7 +23,7 @@ class ShellCommandRunnerTest {
     @Test
     void runWithWhitespaceCommandDoesNothing() {
         var host = new FakeHost();
-        var runner = new ShellCommandRunner(host);
+        var runner = new ShellCommandRunner(host, "/bin/sh");
 
         runner.run("   ", true);
 
@@ -33,7 +33,7 @@ class ShellCommandRunnerTest {
     @Test
     void runFiresUserBashWithCorrectNoContextFlag() {
         var host = new FakeHost();
-        var runner = new ShellCommandRunner(host);
+        var runner = new ShellCommandRunner(host, "/bin/sh");
 
         runner.run("ls", false);
         assertEquals("ls", host.firedCommand);
@@ -48,7 +48,7 @@ class ShellCommandRunnerTest {
     @Test
     void runEchoesCommandWithCorrectPrefix() {
         var host = new FakeHost();
-        var runner = new ShellCommandRunner(host);
+        var runner = new ShellCommandRunner(host, "/bin/sh");
 
         runner.run("ls", true);
         assertEquals("!ls", host.echoedCommands.get(0));
@@ -60,7 +60,7 @@ class ShellCommandRunnerTest {
     @Test
     void runEntersBusyState() {
         var host = new FakeHost();
-        var runner = new ShellCommandRunner(host);
+        var runner = new ShellCommandRunner(host, "/bin/sh");
 
         runner.run("ls", true);
 
@@ -70,7 +70,7 @@ class ShellCommandRunnerTest {
     @Test
     void runIncludesCommandInLinesWhenEchoed() {
         var host = new FakeHost();
-        var runner = new ShellCommandRunner(host);
+        var runner = new ShellCommandRunner(host, "/bin/sh");
 
         runner.run("echo hello", true);
 

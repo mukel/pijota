@@ -247,7 +247,7 @@ public final class TaskExtension implements Extension {
 
     private List<Path> collectLogs() {
         var logs = new ArrayList<>(activeLogs);
-        Path logDir = Path.of("/tmp", "pijota-logs");
+        Path logDir = Path.of(System.getProperty("java.io.tmpdir"), "pijota-logs");
         if (Files.isDirectory(logDir)) {
             try (var stream = Files.newDirectoryStream(logDir, "sub-*.log")) {
                 stream.forEach(p -> {

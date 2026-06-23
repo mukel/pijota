@@ -17,6 +17,7 @@ import ai.pijota.tools.SlashCommandTool;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.WhoamiTool;
 import ai.pijota.util.ErrorUtil;
+import ai.pijota.util.Platform;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.SelfRespawn;
 import ai.pijota.util.Util;
@@ -245,7 +246,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.dialogs = new DialogHandler(host);
         this.promptPresenter = new PromptPresenter(host, activity, statusOverride, dialogs, animation, followUps,
                                         tokenMeter, extensionLinesSupplier);
-        this.shellCommands = new ShellCommandRunner(host);
+        this.shellCommands = new ShellCommandRunner(host,
+                                        settings != null ? settings.effectiveShellPath() : Platform.defaultShell());
         this.sessionCommands = new SessionCommands(host);
         this.modelCommands = new ModelCommandHandler(host);
         this.skillCommands = new SkillCommandHandler(host);
@@ -1090,7 +1092,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             suspendTui();
 
             String editor = System.getenv().getOrDefault("EDITOR", "vi");
-            int code = ProcessRunner.command("/bin/sh", "-lc", editor + " " + Util.shellQuote(file.toString()))
+            String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
+            int code = ProcessRunner.command(shell, "-lc", editor + " " + Util.shellQuote(file.toString()))
                                             .runInteractive();
 
             resumeTui();
