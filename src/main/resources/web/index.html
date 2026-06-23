@@ -6,6 +6,7 @@
 <meta name="description" content="pijota — interactive coding agent">
 <meta name="theme-color" content="#0d1117">
 <title>pijota</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d1117'/%3E%3Ctext x='16' y='23' font-family='-apple-system,Segoe UI,sans-serif' font-size='20' font-weight='700' fill='%232f81f7' text-anchor='middle'%3Ej%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" id="hljs-theme" href="/vendor/github-dark.min.css">
 <!-- vendored locally (see web/vendor/) so the UI renders offline with no CDN; deferred so they load in parallel
      without blocking first paint; app init waits for DOMContentLoaded -->
@@ -99,6 +100,9 @@
   .bubble pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
   /* the hljs theme paints its own bg + padding on the code element — neutralize it so the block is one clean fill */
   .bubble pre code, .bubble pre .hljs { background: transparent; padding: 0; }
+  /* language tag on highlighted code blocks (top-left); the block gets extra top padding so code clears the label */
+  .bubble pre.has-lang { padding-top: 30px; }
+  .bubble pre .lang { position: absolute; top: 8px; left: 12px; font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); font-family: var(--sans); pointer-events: none; user-select: none; }
   .copy-btn { position: absolute; top: 6px; right: 6px; padding: 2px 8px; font-size: 11px; font-family: var(--sans); color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; opacity: 0; transition: opacity .15s, color .15s; }
   .bubble pre:hover .copy-btn { opacity: 1; }
   .copy-btn:hover { color: var(--text); }
@@ -366,6 +370,7 @@ window.addEventListener("DOMContentLoaded", () => {
         el.querySelectorAll("pre").forEach(pre => {
           const code = pre.querySelector("code");
           if (code) { try { hljs.highlightElement(code); } catch (_) {} }
+          addLangLabel(pre, code);
           addCopyButton(pre);
         });
       }
@@ -386,6 +391,16 @@ window.addEventListener("DOMContentLoaded", () => {
   function addCopyButton(pre) {
     const code = pre.querySelector("code") || pre;
     pre.appendChild(copyButton("copy-btn", () => code.textContent));
+  }
+  // Faint language tag on a code block, read from the fence/hljs `language-xxx` class. Skips plain/undetected blocks
+  // so only real code gets labelled (and only those get the extra top padding).
+  function addLangLabel(pre, code) {
+    if (!code) return;
+    const m = /\blanguage-([\w+#.-]+)/.exec(code.className || "");
+    const lang = m && m[1] && m[1] !== "plaintext" && m[1] !== "undefined" ? m[1] : null;
+    if (!lang) return;
+    const tag = document.createElement("span"); tag.className = "lang"; tag.textContent = lang;
+    pre.classList.add("has-lang"); pre.appendChild(tag);
   }
   // Hover-revealed "copy" under a user/assistant message. getText() is read at click time so a streaming
   // assistant message copies whatever has accumulated so far (the raw markdown / typed source, not the DOM).
@@ -441,11 +456,14 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // current model + usage in the header (model switches and cost update live)
   function renderStats(d) {
-    if (!d || !d.model) { statsEl.innerHTML = ""; return; }
-    const parts = ["<b>" + d.model.replace(/</g, "&lt;") + "</b>"];
-    if (d.context) parts.push(fmtTokens(d.context) + " ctx");
-    if (d.cost > 0) parts.push("$" + d.cost.toFixed(2));
-    statsEl.innerHTML = parts.join("  ·  ");
+    statsEl.textContent = "";
+    if (!d || !d.model) return;
+    const model = document.createElement("b"); model.textContent = d.model; // textContent, not innerHTML — no escaping needed
+    statsEl.appendChild(model);
+    const extra = [];
+    if (d.context) extra.push(fmtTokens(d.context) + " ctx");
+    if (d.cost > 0) extra.push("$" + d.cost.toFixed(2));
+    if (extra.length) statsEl.append("  ·  " + extra.join("  ·  "));
   }
   function fmtTokens(n) { return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n); }
 
@@ -612,6 +630,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // ---- input / busy ----
   function setBusy(b) {
     busy = b;
+    document.title = b ? "● pijota" : "pijota"; // surface activity in a backgrounded tab
     conn.classList.toggle("busy", b);
     sendBtn.textContent = b ? "■" : "↑"; // ■ = stop the running turn, ↑ = send
     sendBtn.title = b ? "Stop" : "Send (Enter · Shift+Enter for newline)";

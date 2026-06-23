@@ -418,20 +418,24 @@ public final class WebServer implements AutoCloseable {
     }
 
     /**
-     * CSRF guard for the state-changing endpoints: a browser tab on any other site can POST to this loopback server, so
-     * a malicious page could drive the (shell-executing) agent. Browsers attach an {@code Origin} header on such
-     * cross-site requests; reject when it's present and not our own host. Absent Origin = a non-browser client
-     * (curl/CLI) with no CSRF vector, so it's allowed. Returns true (and sends 403) when the request was refused.
+     * CSRF guard for the state-changing endpoints: a browser tab on any other site can POST to this server, so a
+     * malicious page could drive the (shell-executing) agent. Same-origin means the request's {@code Origin} host
+     * matches the {@code Host} header the browser actually connected to — true for loopback AND for a LAN/0.0.0.0 bind
+     * reached from another device (e.g. a phone), since the served page and its POSTs share that host. A genuine
+     * cross-site request carries the attacking site's Origin, which won't match our Host. Absent Origin = a non-browser
+     * client (curl/CLI) with no CSRF vector. Returns true (and sends 403) when the request was refused.
      */
     private boolean crossOriginBlocked(HttpExchange ex) throws IOException {
         String origin = ex.getRequestHeaders().getFirst("Origin");
         if (origin == null || origin.isBlank())
             return false;
-        String oHost = null;
+        String originHost = null;
         try {
-            oHost = URI.create(origin).getHost();
+            originHost = URI.create(origin).getHost();
         } catch (RuntimeException ignored) {}
-        if (oHost != null && (oHost.equals(host) || isLoopbackHost(oHost)))
+        String hostHeader = ex.getRequestHeaders().getFirst("Host");
+        String connectedHost = hostHeader == null ? null : hostHeader.replaceFirst(":\\d+$", "");
+        if (originHost != null && (originHost.equalsIgnoreCase(connectedHost) || isLoopbackHost(originHost)))
             return false;
         send(ex, 403, "text/plain", "cross-origin request refused".getBytes(StandardCharsets.UTF_8));
         return true;
