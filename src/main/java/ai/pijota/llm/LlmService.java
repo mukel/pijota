@@ -340,10 +340,12 @@ public final class LlmService implements LlmClient {
                                         ? customSystemPrompt
                                         : "You are a context summarization assistant. Read the conversation and output only the structured summary requested.";
         try {
-            // Always use a fresh model instance, isolated from the main conversation's handle
+            // Reuse the main conversation's model handle (same cached, fully-resolved provider+model+key) so
+            // summarization works for every provider — notably Codex/OAuth, where re-resolving from modelName alone
+            // loses the model. A summarize sub-agent can still force a different model via modelOverride.
             var model = (modelOverride != null && !modelOverride.isEmpty())
                                             ? lc4jModelForModel(modelOverride)
-                                            : lc4jModelForModel(modelName);
+                                            : lc4jModel();
             var sysMsg = new ai.pijota.messages.Message.System(java.util.UUID.randomUUID(), java.time.Instant.now(),
                                             effectiveSystemPrompt);
             var userMsg = new ai.pijota.messages.Message.User(prompt);
