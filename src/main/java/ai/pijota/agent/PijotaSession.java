@@ -126,6 +126,10 @@ public final class PijotaSession implements AutoCloseable {
         return sessionFile;
     }
 
+    public String cwd() {
+        return cwd;
+    }
+
     public List<Message> messages() {
         return agentLoop.messages();
     }

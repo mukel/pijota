@@ -1,4 +1,4 @@
-package ai.pijota.tui;
+package ai.pijota.tools;
 
 import ai.pijota.config.PathDisplay;
 import ai.pijota.util.Util;
@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-final class ToolRender {
+public final class ToolLabels {
 
-    private ToolRender() {}
+    private ToolLabels() {}
 
     static String trace(String toolName, Supplier<String> args, String cwd, PathDisplay pathDisplay) {
         Map<String, Object> a = parse(args);
@@ -38,7 +38,7 @@ final class ToolRender {
         };
     }
 
-    static String detail(String toolName, Supplier<String> args, String cwd, PathDisplay pathDisplay) {
+    public static String detail(String toolName, Supplier<String> args, String cwd, PathDisplay pathDisplay) {
         Map<String, Object> a = parse(args);
         if (a.isEmpty())
             return "";

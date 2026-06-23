@@ -2,10 +2,12 @@ package ai.pijota.web;
 
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
+import ai.pijota.config.PathDisplay;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.modes.SlashCommand;
+import ai.pijota.tools.ToolLabels;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
@@ -300,8 +302,9 @@ public final class WebServer implements AutoCloseable {
                     broadcast("assistant", assistant(m, isFinal));
                 }
             }
-            case AgentEvent.ToolStart(var name, var id, var args) ->
-                broadcast("tool", Map.of("id", nz(id), "name", nz(name), "args", nz(args.get())));
+            case AgentEvent.ToolStart(var name, var id, var args) -> broadcast("tool", Map.of("id", nz(id), "name",
+                                            nz(name), "args", nz(args.get()), "detail",
+                                            nz(ToolLabels.detail(name, args, session.cwd(), PathDisplay.RELATIVE))));
             case AgentEvent.ToolResult(Message.ToolResult r) ->
                 broadcast("tool_result", Map.of("id", nz(r.toolCallId()), "name", nz(r.toolName()), "content",
                                                 nz(r.content()), "isError", r.isError()));
@@ -337,10 +340,12 @@ public final class WebServer implements AutoCloseable {
         return out;
     }
 
-    private static Map<String, Object> assistant(Message.Assistant m, boolean isFinal) {
+    private Map<String, Object> assistant(Message.Assistant m, boolean isFinal) {
         var tools = new ArrayList<Map<String, Object>>();
         for (ToolCall tc : m.toolCalls())
-            tools.add(Map.of("id", nz(tc.id()), "name", nz(tc.name()), "args", nz(tc.arguments())));
+            tools.add(Map.of("id", nz(tc.id()), "name", nz(tc.name()), "args", nz(tc.arguments()), "detail",
+                                            nz(ToolLabels.detail(tc.name(), tc::arguments, session.cwd(),
+                                                                            PathDisplay.RELATIVE))));
         var map = new LinkedHashMap<String, Object>();
         map.put("role", "assistant");
         map.put("content", nz(m.content()));

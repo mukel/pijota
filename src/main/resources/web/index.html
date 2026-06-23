@@ -139,7 +139,9 @@
   /* tactile press feedback shared by every copy button (harmonizes their transitions too) */
   .copy-btn, .msg-copy, .answer-copy, .think-copy { transition: opacity .12s, color .12s, border-color .12s, transform .1s; }
   .copy-btn:active, .msg-copy:active, .answer-copy:active, .think-copy:active { transform: scale(.94); }
-  .tool .name { font-family: var(--mono); color: var(--accent); }
+  .tool .name { font-family: var(--mono); color: var(--accent); flex: none; }
+  /* the concise descriptor (path / command / pattern) next to the tool name; ellipsizes, full text on expand */
+  .tool .detail { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tool .section { padding: 0 14px 12px; }
   .tool pre { margin: 6px 0 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; max-height: 360px; overflow-y: auto; }
   .tool.err > summary .name { color: var(--err); }
@@ -535,14 +537,15 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function toolCard(id, name, args) {
+  function toolCard(id, name, args, detail) {
     if (toolCards.has(id)) return toolCards.get(id);
     return withAutoScroll(() => {
       const wrap = document.createElement("div"); wrap.className = "msg assistant";
       const d = document.createElement("details"); d.className = "tool"; d.open = false;
       const sum = document.createElement("summary");
-      sum.innerHTML = '<span class="name"></span><span class="badge">running…</span>';
+      sum.innerHTML = '<span class="name"></span><span class="detail"></span><span class="badge">running…</span>';
       sum.querySelector(".name").textContent = name || "tool";
+      sum.querySelector(".detail").textContent = detail || ""; // path / command / pattern — full text shown on expand
       const argSec = document.createElement("div"); argSec.className = "section";
       if (args && args.trim() && args.trim() !== "{}") { const pre = document.createElement("pre"); pre.textContent = args; argSec.appendChild(pre); }
       d.append(sum, argSec);
@@ -553,7 +556,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
   function toolResult(id, name, content, isError) {
-    const card = toolCard(id, name, "");
+    const card = toolCard(id, name, "", "");
     card.details.classList.toggle("err", !!isError);
     card.badge.textContent = isError ? "error" : "done";
     const sec = document.createElement("div"); sec.className = "section";
@@ -595,7 +598,7 @@ window.addEventListener("DOMContentLoaded", () => {
       updateAssistant(live, d.content, d.thinking, d.final);
       if (d.final) live = null;
     });
-    es.addEventListener("tool", e => { const d = JSON.parse(e.data); toolCard(d.id, d.name, d.args); live = null; });
+    es.addEventListener("tool", e => { const d = JSON.parse(e.data); toolCard(d.id, d.name, d.args, d.detail); live = null; });
     es.addEventListener("tool_result", e => { const d = JSON.parse(e.data); toolResult(d.id, d.name, d.content, d.isError); });
     es.addEventListener("custom", e => {
       const d = JSON.parse(e.data); const el = addMsg("custom");
@@ -616,7 +619,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (m.role === "assistant") {
       const b = assistantBubble();
       updateAssistant(b, m.content, m.thinking, true); // committed message → copy buttons now
-      (m.toolCalls || []).forEach(tc => toolCard(tc.id, tc.name, tc.args));
+      (m.toolCalls || []).forEach(tc => toolCard(tc.id, tc.name, tc.args, tc.detail));
       live = null;
     } else if (m.role === "tool") {
       toolResult(m.id, m.name, m.content, m.isError);

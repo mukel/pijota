@@ -3,6 +3,7 @@ package ai.pijota.tui;
 import ai.pijota.config.PathDisplay;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
+import ai.pijota.tools.ToolLabels;
 import ai.pijota.theme.AnsiTheme;
 import ai.pijota.util.Util;
 
@@ -29,7 +30,7 @@ final class ToolResultLines {
         String marker = msg.isError() ? "✖" : glyph; // the tool supplies its glyph; ✖ marks any failure
         parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", marker));
         parts.add(theme.styled("statusText", msg.toolName()));
-        String detail = ToolRender.detail(msg.toolName(), args, rawCwd, pathDisplay);
+        String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay);
         if (!detail.isBlank())
             parts.add(theme.styled("statusText", detail));
         String summary = rendered != null ? rendered.summary() : toolResultSummary(msg);
