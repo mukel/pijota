@@ -3,6 +3,7 @@ package ai.pijota.tools;
 import java.util.ArrayList;
 
 import ai.pijota.llm.ToolSchema;
+import ai.pijota.util.Platform;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 
@@ -104,8 +105,8 @@ public final class BashTool implements Tool {
 
                 String fullCmd = shellPrefix != null ? shellPrefix + "\n" + command : command;
 
-                var result = commandExecutor.execute(List.of(shellPath, "-c", fullCmd), workdir,
-                                                Duration.ofSeconds(timeoutSeconds), MAX_OUTPUT_BYTES, true,
+                var result = commandExecutor.execute(List.of(shellPath, Platform.shellCommandFlag(shellPath), fullCmd),
+                                                workdir, Duration.ofSeconds(timeoutSeconds), MAX_OUTPUT_BYTES, true,
                                                 p -> currentProcess = p);
 
                 String output = result.stdout();

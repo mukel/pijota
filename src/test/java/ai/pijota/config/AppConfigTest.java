@@ -81,7 +81,7 @@ class AppConfigTest {
         assertTrue(config.contextFiles());
         assertFalse(config.hideThinking());
         assertFalse(config.quietStartup());
-        assertFalse(config.shortenPaths());
+        assertNull(config.pathDisplay()); // unset by default → SettingsManager resolves it to COMPACT
     }
 
     @Test
@@ -163,9 +163,9 @@ class AppConfigTest {
     }
 
     @Test
-    void withShortenPathsTogglesFlag() {
-        var config = new AppConfig().withShortenPaths(true);
-        assertTrue(config.shortenPaths());
+    void withPathDisplaySetsMode() {
+        var config = new AppConfig().withPathDisplay("name");
+        assertEquals("name", config.pathDisplay());
     }
 
     @Test

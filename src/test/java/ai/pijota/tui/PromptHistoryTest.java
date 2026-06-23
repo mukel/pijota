@@ -43,4 +43,17 @@ class PromptHistoryTest {
         assertEquals("lo there", history.suggestionFor("HEL"));
         assertEquals("", history.suggestionFor("missing"));
     }
+
+    @Test
+    void replaceAllSeedsHistoryFromLoadedSession() {
+        var history = new PromptHistory();
+        history.add("typed before load");
+
+        history.replaceAll(java.util.List.of("first prompt", "second prompt")); // e.g. a loaded session's user msgs
+
+        // prior entry is gone; up-arrow recalls the loaded session's prompts, newest first.
+        assertEquals("second prompt", history.previous("draft").orElseThrow());
+        assertEquals("first prompt", history.previous("draft").orElseThrow());
+        assertTrue(history.previous("draft").isEmpty());
+    }
 }

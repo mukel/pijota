@@ -96,6 +96,7 @@ public final class ReadTool implements Tool {
                     bytes += nextBytes;
                     shown++;
                 }
+                details.put("shown", shown);
 
                 if (shown == 0 && startIdx < totalLines) {
                     sb.append("[").append(totalLines - startIdx).append(" more lines in file. Use offset=")
@@ -126,18 +127,17 @@ public final class ReadTool implements Tool {
         if (result.isError())
             return ToolResultView.of(result.content());
         Map<String, Object> details = result.details();
-        Object total = details.get("totalLines");
-        if (total instanceof Number n) {
-            StringBuilder sb = new StringBuilder(n.intValue() + " line(s)");
-            Object off = details.get("offset");
-            Object lim = details.get("limit");
-            if (off instanceof Number o && o.intValue() > 1)
-                sb.append(" [offset=").append(o.intValue()).append("]");
-            if (lim instanceof Number l && l.intValue() != DEFAULT_READ_LIMIT)
-                sb.append(" [limit=").append(l.intValue()).append("]");
-            return ToolResultView.of(sb.toString());
-        }
-        return ToolResultView.of(result.content());
+        if (!(details.get("totalLines") instanceof Number tn))
+            return ToolResultView.of(result.content());
+        int total = tn.intValue();
+        int shown = details.get("shown") instanceof Number s ? s.intValue() : total;
+        int offset = details.get("offset") instanceof Number o ? o.intValue() : 1;
+        // The request (offset/limit) is already echoed in the call label, so the result reports only what was actually
+        // returned: the whole file, or the returned slice of the total. No re-echoing of offset/limit.
+        String summary = offset <= 1 && shown >= total
+                                        ? total + (total == 1 ? " line" : " lines")
+                                        : shown + " of " + total + " lines";
+        return ToolResultView.of(summary);
     }
 
     private static String truncateLine(String line) {

@@ -146,7 +146,7 @@ final class AppBootstrap {
         int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
 
         var session = new PijotaSession(llm, tools, sessions, ext, systemPrompt, cwd, parsedArgs.noSession(),
-                                        contextWindow, settings.config().compaction());
+                                        contextWindow, settings.config().compaction(), settings.maxTurns());
         ext.setSessionFile(session::sessionFile);
         // Generic built-in commands (e.g. /model) usable by every frontend — registered once the session exists.
         ext.register(new ai.pijota.extensions.examples.CoreCommandsExtension(session, settings));

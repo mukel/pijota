@@ -4,22 +4,26 @@ import java.nio.file.Path;
 
 /**
  * Single source of truth for pijota's per-user config directory ({@code ~/.pijota}) and the files/subdirectories under
- * it. Keeping the {@code .pijota} convention in one place means a rename (or an env override later) touches only this
- * class instead of a dozen scattered {@code Path.of(System.getProperty("user.home"), ".pijota", …)} calls.
+ * it. The default stays stable across platforms to avoid surprising existing users; set {@code -Dpijota.home=...} or
+ * {@code PIJOTA_HOME=...} to place it in an OS-native config directory.
  */
 public final class PijotaHome {
 
     private PijotaHome() {}
 
     /**
-     * The {@code ~/.pijota} directory itself. Resolved from {@code user.home} on each call (not cached) so a test or
-     * relaunch that overrides the home directory is honored.
+     * The config directory itself. Resolved on each call so tests, relaunches, and env/property overrides are honored.
      */
     public static Path dir() {
-        return Path.of(System.getProperty("user.home"), ".pijota");
+        String override = System.getProperty("pijota.home");
+        if (override == null || override.isBlank())
+            override = System.getenv("PIJOTA_HOME");
+        return override != null && !override.isBlank()
+                                        ? Path.of(override).toAbsolutePath().normalize()
+                                        : Path.of(System.getProperty("user.home"), ".pijota");
     }
 
-    /** A path under {@code ~/.pijota}, e.g. {@code resolve("themes", name + ".json")}. */
+    /** A path under the config directory, e.g. {@code resolve("themes", name + ".json")}. */
     public static Path resolve(String first, String... more) {
         Path p = dir().resolve(first);
         for (String segment : more)

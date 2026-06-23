@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import ai.pijota.config.PathDisplay;
 import ai.pijota.llm.ThinkingLevel;
 import org.junit.jupiter.api.Test;
 
@@ -12,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class SettingsCommandHandlerTest {
     @Test
     void buildsSettingsItemsFromSnapshot() {
-        var snapshot = new SettingsCommandHandler.SettingsSnapshot(true, false, true, ThinkingLevel.MEDIUM, false, true,
-                                        "dots");
+        var snapshot = new SettingsCommandHandler.SettingsSnapshot(true, false, PathDisplay.COMPACT,
+                                        ThinkingLevel.MEDIUM, false, true, "dots");
 
         var items = SettingsCommandHandler.items(snapshot);
 
@@ -21,8 +22,8 @@ class SettingsCommandHandlerTest {
         assertEquals("off", items.get(0).detailText());
         assertEquals("Context files", items.get(1).titleText());
         assertEquals("on  next session", items.get(1).detailText());
-        assertEquals("Shorten paths", items.get(2).titleText());
-        assertEquals("on", items.get(2).detailText());
+        assertEquals("Path display", items.get(2).titleText());
+        assertEquals("compact", items.get(2).detailText());
         assertEquals("Thinking", items.get(3).titleText());
         assertEquals("medium", items.get(3).detailText());
         assertEquals("Hide thinking", items.get(4).titleText());
@@ -89,7 +90,7 @@ class SettingsCommandHandlerTest {
         boolean available = true;
         boolean contextFilesEnabled = true;
         boolean compactionEnabled = true;
-        boolean shortenPathsEnabled;
+        PathDisplay pathDisplay = PathDisplay.COMPACT;
         ThinkingLevel thinkingLevel = ThinkingLevel.MEDIUM;
         boolean hideThinking;
         boolean quietStartup;
@@ -108,9 +109,8 @@ class SettingsCommandHandlerTest {
 
         @Override
         public SettingsCommandHandler.SettingsSnapshot settingsSnapshot() {
-            return new SettingsCommandHandler.SettingsSnapshot(contextFilesEnabled, compactionEnabled,
-                                            shortenPathsEnabled, thinkingLevel, hideThinking, quietStartup,
-                                            workingAnimation);
+            return new SettingsCommandHandler.SettingsSnapshot(contextFilesEnabled, compactionEnabled, pathDisplay,
+                                            thinkingLevel, hideThinking, quietStartup, workingAnimation);
         }
 
         @Override
@@ -155,8 +155,8 @@ class SettingsCommandHandlerTest {
         }
 
         @Override
-        public void toggleShortenPaths() {
-            shortenPathsEnabled = !shortenPathsEnabled;
+        public void cyclePathDisplay() {
+            pathDisplay = pathDisplay.next();
         }
 
         @Override

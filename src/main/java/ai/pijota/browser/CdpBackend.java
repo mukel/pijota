@@ -238,12 +238,22 @@ public final class CdpBackend implements BrowserBackend {
         if (override != null && !override.isBlank())
             return Path.of(override);
         var candidates = new ArrayList<Path>();
-        if (Platform.isWindows())
+        if (Platform.isWindows()) {
+            var names = List.of("chrome.exe", "chromium.exe", "msedge.exe");
             for (String env : List.of("ProgramFiles", "ProgramFiles(x86)", "LocalAppData")) {
                 String base = System.getenv(env);
-                if (base != null && !base.isBlank())
+                if (base != null && !base.isBlank()) {
                     candidates.add(Path.of(base, "Google", "Chrome", "Application", "chrome.exe"));
+                    candidates.add(Path.of(base, "Microsoft", "Edge", "Application", "msedge.exe"));
+                }
             }
+            String path = System.getenv("PATH");
+            if (path != null)
+                for (String dir : path.split(java.io.File.pathSeparator))
+                    for (String name : names)
+                        candidates.add(Path.of(dir, name));
+            return firstExecutable(candidates, Files::isExecutable);
+        }
         for (String p : List.of("/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/usr/bin/chromium",
                                         "/usr/bin/chromium-browser", "/snap/bin/chromium", "/opt/google/chrome/chrome",
                                         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -251,10 +261,7 @@ public final class CdpBackend implements BrowserBackend {
             candidates.add(Path.of(p));
         String path = System.getenv("PATH");
         if (path != null) {
-            var names = Platform.isWindows()
-                                            ? List.of("chrome.exe", "chromium.exe", "msedge.exe")
-                                            : List.of("google-chrome-stable", "google-chrome", "chromium",
-                                                                            "chromium-browser", "chrome");
+            var names = List.of("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome");
             for (String dir : path.split(java.io.File.pathSeparator))
                 for (String name : names)
                     candidates.add(Path.of(dir, name));

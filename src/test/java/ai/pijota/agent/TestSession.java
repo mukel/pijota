@@ -78,7 +78,7 @@ public record TestSession(PijotaSession session, FauxLlm llm, ToolRegistry tools
             try {
                 var sessionManager = new SessionManager(dir);
                 var session = new PijotaSession(llm, tools, sessionManager, extensions, systemPrompt, dir.toString(),
-                                                noSession, contextWindow, compaction);
+                                                noSession, contextWindow, compaction, AppConfig.DEFAULT_MAX_TURNS);
                 return new TestSession(session, llm, tools, sessionManager);
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);

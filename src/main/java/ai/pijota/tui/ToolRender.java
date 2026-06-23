@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import ai.pijota.config.PathDisplay;
 import ai.pijota.util.Util;
 
 import java.nio.file.Path;
@@ -12,21 +13,22 @@ final class ToolRender {
 
     private ToolRender() {}
 
-    static String trace(String toolName, Supplier<String> args, String cwd, boolean shortenPaths) {
+    static String trace(String toolName, Supplier<String> args, String cwd, PathDisplay pathDisplay) {
         Map<String, Object> a = parse(args);
         if (a.isEmpty())
             return "→ " + toolName;
         return switch (toolName) {
-            case "read" -> "→ Read " + displayPath(pathArg(a), cwd) + options(a, "offset", "limit");
-            case "write" -> "→ Write " + displayPath(pathArg(a), cwd);
-            case "edit" -> "→ Edit " + displayPath(pathArg(a), cwd);
-            case "grep" ->
-                "✱ Grep " + quote(a.get("pattern")) + " in " + displayPath(a.getOrDefault("path", ".").toString(), cwd)
-                                                + options(a, "glob", "context", "limit");
-            case "glob" ->
-                "✱ Glob " + quote(a.get("pattern")) + " in " + displayPath(a.getOrDefault("path", ".").toString(), cwd)
-                                                + options(a, "limit");
-            case "ls" -> "→ Ls " + displayPath(a.getOrDefault("path", ".").toString(), cwd) + options(a, "limit");
+            case "read" -> "→ Read " + displayPath(pathArg(a), cwd, pathDisplay) + options(a, "offset", "limit");
+            case "write" -> "→ Write " + displayPath(pathArg(a), cwd, pathDisplay);
+            case "edit" -> "→ Edit " + displayPath(pathArg(a), cwd, pathDisplay);
+            case "grep" -> "✱ Grep " + quote(a.get("pattern")) + " in "
+                                            + displayPath(a.getOrDefault("path", ".").toString(), cwd, pathDisplay)
+                                            + options(a, "glob", "context", "limit");
+            case "glob" -> "✱ Glob " + quote(a.get("pattern")) + " in "
+                                            + displayPath(a.getOrDefault("path", ".").toString(), cwd, pathDisplay)
+                                            + options(a, "limit");
+            case "ls" ->
+                "→ Ls " + displayPath(a.getOrDefault("path", ".").toString(), cwd, pathDisplay) + options(a, "limit");
             case "bash" -> "→ Bash " + quote(shorten(a.getOrDefault("command", "").toString(), 80));
             case "question" -> "→ Question " + shorten(questionText(a), 80);
             case "task" -> "→ Task " + taskLabel(a);
@@ -36,20 +38,22 @@ final class ToolRender {
         };
     }
 
-    static String detail(String toolName, Supplier<String> args, String cwd, boolean shortenPaths) {
+    static String detail(String toolName, Supplier<String> args, String cwd, PathDisplay pathDisplay) {
         Map<String, Object> a = parse(args);
         if (a.isEmpty())
             return "";
         return switch (toolName) {
-            case "read" -> displayPath(pathArg(a), cwd) + options(a, "offset", "limit");
-            case "write", "edit" -> displayPath(pathArg(a), cwd);
+            case "read" -> displayPath(pathArg(a), cwd, pathDisplay) + options(a, "offset", "limit");
+            case "write", "edit" -> displayPath(pathArg(a), cwd, pathDisplay);
             case "bash" -> quote(shorten(a.getOrDefault("command", "").toString(), 60));
             case "question" -> shorten(questionText(a), 60);
-            case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd) + options(a, "limit");
-            case "grep" -> quote(a.get("pattern")) + " in " + displayPath(a.getOrDefault("path", ".").toString(), cwd)
-                                            + options(a, "glob", "context", "limit");
-            case "glob" -> quote(a.get("pattern")) + " in " + displayPath(a.getOrDefault("path", ".").toString(), cwd)
-                                            + options(a, "limit");
+            case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd, pathDisplay) + options(a, "limit");
+            case "grep" ->
+                quote(a.get("pattern")) + " in " + displayPath(a.getOrDefault("path", ".").toString(), cwd, pathDisplay)
+                                                + options(a, "glob", "context", "limit");
+            case "glob" ->
+                quote(a.get("pattern")) + " in " + displayPath(a.getOrDefault("path", ".").toString(), cwd, pathDisplay)
+                                                + options(a, "limit");
             case "task" -> taskDetail(a);
             case "webfetch" -> shorten(a.getOrDefault("url", "").toString(), 60);
             case "websearch" -> quote(shorten(a.getOrDefault("query", "").toString(), 60));
@@ -70,6 +74,52 @@ final class ToolRender {
         if (args == null)
             return Map.of();
         return Util.parseJsonArgs(args.get());
+    }
+
+    /**
+     * Render a path per the configured {@link PathDisplay} mode: FULL (absolute), RELATIVE (to cwd, or absolute/{@code
+     * ~} when outside), COMPACT (relative with each intermediate dir shrunk to its first letter, e.g.
+     * {@code s/m/j/util/File.java}), or NAME (filename only).
+     */
+    static String displayPath(String path, String cwd, PathDisplay mode) {
+        if (path == null || path.isBlank())
+            return ".";
+        return switch (mode == null ? PathDisplay.COMPACT : mode) {
+            case NAME -> fileName(path);
+            case FULL -> absolutePath(path, cwd);
+            case COMPACT -> compact(displayPath(path, cwd));
+            case RELATIVE -> displayPath(path, cwd);
+        };
+    }
+
+    private static String absolutePath(String path, String cwd) {
+        try {
+            Path p = Path.of(path);
+            if (!p.isAbsolute())
+                p = normalizePath(cwd.replaceAll("\\(.*\\)", "").strip()).resolve(p);
+            return p.toAbsolutePath().normalize().toString();
+        } catch (Exception e) {
+            return path;
+        }
+    }
+
+    private static String compact(String path) {
+        int lastSep = path.lastIndexOf('/');
+        if (lastSep <= 0)
+            return path; // a bare filename, "." or "~" — nothing to compact
+        var sb = new StringBuilder();
+        for (String seg : path.substring(0, lastSep).split("/", -1))
+            sb.append(abbrev(seg)).append('/');
+        return sb.append(path.substring(lastSep + 1)).toString();
+    }
+
+    /** First character of a path segment, preserving "", ".", "..", "~" and a leading dot for hidden dirs. */
+    private static String abbrev(String seg) {
+        if (seg.isEmpty() || seg.equals(".") || seg.equals("..") || seg.equals("~"))
+            return seg;
+        if (seg.startsWith(".") && seg.length() > 1)
+            return seg.substring(0, 2);
+        return seg.substring(0, 1);
     }
 
     static String displayPath(String path, String cwd) {

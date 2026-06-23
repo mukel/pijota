@@ -23,7 +23,7 @@ final class SettingsCommandHandler {
 
         void toggleContextFiles();
 
-        void toggleShortenPaths();
+        void cyclePathDisplay();
 
         ThinkingLevel advanceThinkingLevel();
 
@@ -36,9 +36,9 @@ final class SettingsCommandHandler {
         void setTransientStatus(String status, long millis);
     }
 
-    record SettingsSnapshot(boolean contextFilesEnabled, boolean compactionEnabled, boolean shortenPathsEnabled,
-                                    ThinkingLevel thinkingLevel, boolean hideThinking, boolean quietStartup,
-                                    String workingAnimation) {
+    record SettingsSnapshot(boolean contextFilesEnabled, boolean compactionEnabled,
+                                    ai.pijota.config.PathDisplay pathDisplay, ThinkingLevel thinkingLevel,
+                                    boolean hideThinking, boolean quietStartup, String workingAnimation) {
     }
 
     private final Host host;
@@ -70,7 +70,7 @@ final class SettingsCommandHandler {
             case "thinking_level" -> host.advanceThinkingLevel();
             case "hide_thinking" -> host.toggleHideThinking();
             case "quiet_startup" -> host.toggleQuietStartup();
-            case "shorten_paths" -> host.toggleShortenPaths();
+            case "path_display" -> host.cyclePathDisplay();
             case "animation" -> host.toggleWorkingAnimation();
             default -> {}
         }
@@ -86,9 +86,8 @@ final class SettingsCommandHandler {
                                                                                                         ? "on  next session"
                                                                                                         : "off  next session",
                                                                         snapshot.contextFilesEnabled()),
-                                        new SettingsItem("shorten_paths", "Shorten paths",
-                                                                        snapshot.shortenPathsEnabled() ? "on" : "off",
-                                                                        snapshot.shortenPathsEnabled()),
+                                        new SettingsItem("path_display", "Path display",
+                                                                        snapshot.pathDisplay().config(), true),
                                         new SettingsItem("thinking_level", "Thinking", snapshot.thinkingLevel().label(),
                                                                         true),
                                         new SettingsItem("hide_thinking", "Hide thinking",

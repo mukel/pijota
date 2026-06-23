@@ -4,6 +4,7 @@ import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionResult;
 import ai.pijota.extensions.ExtensionRuntime.ExecResult;
+import ai.pijota.util.Platform;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +57,8 @@ public final class InlineBashExtension implements Extension {
                     continue;
                 result.append(text, lastEnd, idx);
                 try {
-                    ExecResult exec = runtime.exec(List.of("bash", "-c", r.command));
+                    String shell = Platform.defaultShell();
+                    ExecResult exec = runtime.exec(List.of(shell, Platform.shellCommandFlag(shell), r.command));
                     String out = exec.success() ? exec.stdout().strip() : exec.stderr().strip();
                     result.append(out);
                 } catch (Exception e) {

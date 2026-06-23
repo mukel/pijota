@@ -27,15 +27,20 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("hide_thinking") boolean hideThinking,
                                 @JsonProperty("quiet_startup") boolean quietStartup,
                                 @JsonProperty("working_animation") String workingAnimation,
-                                @JsonProperty("shorten_paths") boolean shortenPaths,
+                                @JsonProperty("path_display") String pathDisplay,
                                 @JsonProperty("compaction") CompactionConfig compaction,
-                                @JsonProperty("aliases") Map<String, String> aliases) {
+                                @JsonProperty("aliases") Map<String, String> aliases,
+                                @JsonProperty("max_turns") Integer maxTurns) {
+
+    /** Default per-prompt agent-turn cap when {@code max_turns} is unset. {@code 0} (or negative) means unlimited. */
+    public static final int DEFAULT_MAX_TURNS = 256;
+
     public AppConfig() {
         // OS-appropriate default shell (Unix: /bin/bash — unchanged; Windows: PATH bash) instead of a hardcoded Unix
         // path that wouldn't exist on Windows. The bash tool stays bash (the model emits bash syntax), not the user's
         // $SHELL.
         this(null, null, Map.of(), "medium", Platform.defaultShell(), null, null, null, null, List.of(), List.of(),
-                                        true, false, false, "dots", false, new CompactionConfig(), Map.of());
+                                        true, false, false, "dots", null, new CompactionConfig(), Map.of(), null);
     }
 
     public static AppConfig load(Path path) throws IOException {
@@ -84,8 +89,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         return toBuilder().thinkingLevel(level).build();
     }
 
-    public AppConfig withShortenPaths(boolean enabled) {
-        return toBuilder().shortenPaths(enabled).build();
+    public AppConfig withPathDisplay(String mode) {
+        return toBuilder().pathDisplay(mode).build();
     }
 
     public AppConfig withSessionDir(String sessionDir) {
@@ -130,9 +135,10 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         private boolean hideThinking;
         private boolean quietStartup;
         private String workingAnimation;
-        private boolean shortenPaths;
+        private String pathDisplay;
         private CompactionConfig compaction;
         private Map<String, String> aliases;
+        private Integer maxTurns;
 
         private Builder(AppConfig c) {
             this.defaultProvider = c.defaultProvider;
@@ -150,9 +156,10 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             this.hideThinking = c.hideThinking;
             this.quietStartup = c.quietStartup;
             this.workingAnimation = c.workingAnimation;
-            this.shortenPaths = c.shortenPaths;
+            this.pathDisplay = c.pathDisplay;
             this.compaction = c.compaction;
             this.aliases = c.aliases;
+            this.maxTurns = c.maxTurns;
         }
 
         public Builder defaultProvider(String v) {
@@ -205,8 +212,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             return this;
         }
 
-        public Builder shortenPaths(boolean v) {
-            this.shortenPaths = v;
+        public Builder pathDisplay(String v) {
+            this.pathDisplay = v;
             return this;
         }
 
@@ -215,11 +222,16 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             return this;
         }
 
+        public Builder maxTurns(Integer v) {
+            this.maxTurns = v;
+            return this;
+        }
+
         public AppConfig build() {
             return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
                                             sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
-                                            hideThinking, quietStartup, workingAnimation, shortenPaths, compaction,
-                                            aliases);
+                                            hideThinking, quietStartup, workingAnimation, pathDisplay, compaction,
+                                            aliases, maxTurns);
         }
     }
 

@@ -137,18 +137,35 @@ class ReadToolTest {
     }
 
     @Test
-    void renderResultShowsOffsetAndLimit() {
+    void renderResultWholeFileShowsLineCount() {
         var tool = new ReadTool();
-        var result = Tool.ToolResult.success("", Map.of("totalLines", 100, "offset", 5, "limit", 10));
+        var result = Tool.ToolResult.success("", Map.of("totalLines", 5, "offset", 1, "limit", 2000, "shown", 5));
         var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
-        assertEquals("100 line(s) [offset=5] [limit=10]", view.summary());
+        assertEquals("5 lines", view.summary()); // whole file read → just the count, no redundant offset/limit
     }
 
     @Test
-    void renderResultHidesDefaultLimit() {
+    void renderResultPartialReadShowsReturnedOfTotal() {
         var tool = new ReadTool();
-        var result = Tool.ToolResult.success("", Map.of("totalLines", 5, "offset", 1, "limit", 2000));
+        // read limited to 340 lines of a 425-line file → report what was returned, not the file total (and no [limit])
+        var result = Tool.ToolResult.success("", Map.of("totalLines", 425, "offset", 1, "limit", 340, "shown", 340));
         var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
-        assertEquals("5 line(s)", view.summary());
+        assertEquals("340 of 425 lines", view.summary());
+    }
+
+    @Test
+    void renderResultWithOffsetShowsReturnedOfTotal() {
+        var tool = new ReadTool();
+        var result = Tool.ToolResult.success("", Map.of("totalLines", 100, "offset", 5, "limit", 10, "shown", 10));
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
+        assertEquals("10 of 100 lines", view.summary());
+    }
+
+    @Test
+    void renderResultSingleLineIsSingular() {
+        var tool = new ReadTool();
+        var result = Tool.ToolResult.success("", Map.of("totalLines", 1, "offset", 1, "limit", 2000, "shown", 1));
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
+        assertEquals("1 line", view.summary());
     }
 }

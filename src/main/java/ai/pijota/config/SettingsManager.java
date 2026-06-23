@@ -12,9 +12,6 @@ import java.util.List;
 
 public final class SettingsManager {
     private static final Logger logger = LoggerFactory.getLogger(SettingsManager.class);
-    private static final Path CONFIG_HOME = PijotaHome.dir();
-    private static final Path SETTINGS_FILE = CONFIG_HOME.resolve("settings.json");
-    private static final Path SESSION_DIR = CONFIG_HOME.resolve("sessions");
 
     private AppConfig config;
     private final java.util.function.Consumer<AppConfig> onSave;
@@ -35,7 +32,7 @@ public final class SettingsManager {
 
     private static AppConfig loadConfig() {
         try {
-            return AppConfig.load(SETTINGS_FILE);
+            return AppConfig.load(PijotaHome.resolve("settings.json"));
         } catch (Exception e) {
             return new AppConfig();
         }
@@ -43,7 +40,7 @@ public final class SettingsManager {
 
     private static void persistConfig(AppConfig config) {
         try {
-            config.save(SETTINGS_FILE);
+            config.save(PijotaHome.resolve("settings.json"));
         } catch (Exception e) {
             logger.warn("Failed to save settings: {}", e.getMessage());
         }
@@ -86,13 +83,20 @@ public final class SettingsManager {
         save();
     }
 
-    public boolean shortenPathsEnabled() {
-        return config.shortenPaths();
+    public PathDisplay pathDisplay() {
+        return PathDisplay.fromConfig(config.pathDisplay());
     }
 
-    public void setShortenPathsEnabled(boolean enabled) {
-        config = config.withShortenPaths(enabled);
+    public void setPathDisplay(PathDisplay mode) {
+        config = config.withPathDisplay(mode.config());
         save();
+    }
+
+    /** Advance to the next path-display mode (full → relative → compact → name → …) and return it. */
+    public PathDisplay cyclePathDisplay() {
+        PathDisplay next = pathDisplay().next();
+        setPathDisplay(next);
+        return next;
     }
 
     public String workingAnimation() {
@@ -116,11 +120,11 @@ public final class SettingsManager {
         if (custom != null && !custom.isBlank()) {
             return Path.of(custom);
         }
-        return SESSION_DIR;
+        return PijotaHome.resolve("sessions");
     }
 
     public Path configHome() {
-        return CONFIG_HOME;
+        return PijotaHome.dir();
     }
 
     public void save() {
@@ -191,6 +195,11 @@ public final class SettingsManager {
         if (!fromCatalog.isEmpty())
             return fromCatalog;
         return List.of(provider.toUpperCase().replace('-', '_') + "_API_KEY");
+    }
+
+    /** Per-prompt agent-turn cap. Unset → {@link AppConfig#DEFAULT_MAX_TURNS}; {@code 0} or negative → unlimited. */
+    public int maxTurns() {
+        return config.maxTurns() != null ? config.maxTurns() : AppConfig.DEFAULT_MAX_TURNS;
     }
 
     public String effectiveShellPath() {

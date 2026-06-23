@@ -61,16 +61,27 @@ class SettingsManagerTest {
     }
 
     @Test
-    void shortenPathsEnabledDefaultFalse() {
+    void pathDisplayDefaultsToCompact() {
         var sm = managerWith(new AppConfig());
-        assertFalse(sm.shortenPathsEnabled());
+        assertEquals(PathDisplay.COMPACT, sm.pathDisplay());
     }
 
     @Test
-    void setShortenPathsEnabled() {
+    void maxTurnsDefaultsWhenUnset() {
+        assertEquals(AppConfig.DEFAULT_MAX_TURNS, managerWith(new AppConfig()).maxTurns());
+    }
+
+    @Test
+    void maxTurnsHonorsConfigIncludingZeroForUnlimited() {
+        assertEquals(7, managerWith(new AppConfig().toBuilder().maxTurns(7).build()).maxTurns());
+        assertEquals(0, managerWith(new AppConfig().toBuilder().maxTurns(0).build()).maxTurns()); // 0 = unlimited
+    }
+
+    @Test
+    void setPathDisplayPersistsMode() {
         var sm = managerWith(new AppConfig());
-        sm.setShortenPathsEnabled(true);
-        assertTrue(sm.shortenPathsEnabled());
+        sm.setPathDisplay(PathDisplay.NAME);
+        assertEquals(PathDisplay.NAME, sm.pathDisplay());
     }
 
     @Test
@@ -83,7 +94,7 @@ class SettingsManagerTest {
     @Test
     void sessionDirCustom() {
         var config = new AppConfig(null, null, null, null, null, null, "/custom/sessions", null, null, null, null, null,
-                                        false, false, null, false, null, null);
+                                        false, false, null, null, null, null, null);
         var sm = managerWith(config);
         assertEquals(Path.of("/custom/sessions"), sm.sessionDir());
     }
@@ -114,7 +125,7 @@ class SettingsManagerTest {
     @Test
     void effectiveShellPathUsesConfig() {
         var config = new AppConfig(null, null, null, null, "/bin/zsh", null, null, null, null, null, null, null, false,
-                                        false, null, false, null, null);
+                                        false, null, null, null, null, null);
         var sm = managerWith(config);
         assertEquals("/bin/zsh", sm.effectiveShellPath());
     }
@@ -186,7 +197,7 @@ class SettingsManagerTest {
     @Test
     void effectiveShellPathFallsBackToShellEnvironmentVariable() {
         var config = new AppConfig(null, null, null, null, null, null, null, null, null, null, null, null, false, false,
-                                        null, false, null, null);
+                                        null, null, null, null, null);
         var sm = managerWith(config);
         String expected = System.getenv().getOrDefault("SHELL", "/bin/bash");
         assertEquals(expected, sm.effectiveShellPath());

@@ -30,6 +30,15 @@ final class PromptHistory {
         preNavigationText = "";
     }
 
+    /** Replace all entries (e.g. when a session is loaded) with {@code texts} in chronological order (oldest first). */
+    void replaceAll(List<String> texts) {
+        entries.clear();
+        index = -1;
+        preNavigationText = "";
+        for (String t : texts)
+            add(t);
+    }
+
     Optional<String> previous(String currentText) {
         if (entries.isEmpty())
             return Optional.empty();

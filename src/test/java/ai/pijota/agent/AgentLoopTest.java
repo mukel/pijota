@@ -286,7 +286,7 @@ class AgentLoopTest {
         }
         var registry = new ToolRegistry();
         registry.register(TestTools.echoing("fake"));
-        var agent = AgentLoop.builder(llm, registry, "/workspace").build();
+        var agent = AgentLoop.builder(llm, registry, "/workspace").maxTurns(25).build();
 
         var messages = agent.prompt("loop").get(2, TimeUnit.SECONDS);
 
@@ -456,6 +456,45 @@ class AgentLoopTest {
 
         assertThrows(ExecutionException.class, () -> future.get(2, TimeUnit.SECONDS));
         assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.Error), "still reported to the user");
+        assertFalse(agent.isBusy());
+    }
+
+    @Test
+    void stopsAtConfiguredMaxTurnsAndClearsBusy() throws Exception {
+        // A turn that keeps calling tools must stop at the configured cap, and that terminal path must clear the busy
+        // flag — otherwise isBusy() stays stuck true and wrongly blocks /transcend, /model, etc. ("a turn is running"
+        // with nothing to interrupt).
+        var llm = new FauxLlm();
+        for (int i = 0; i < 6; i++)
+            llm.enqueue(FauxLlm.Response.toolCall(new ToolCall("tc" + i, "fake", "{\"value\":\"ok\"}")));
+        var registry = new ToolRegistry();
+        registry.register(TestTools.echoing("fake"));
+        var agent = AgentLoop.builder(llm, registry, "/workspace").maxTurns(3).build();
+
+        var messages = agent.prompt("loop").get(5, TimeUnit.SECONDS);
+
+        assertTrue(messages.stream().anyMatch(
+                                        m -> m instanceof Message.Assistant a && a.content().contains("Max turns (3)")),
+                                        "loop should stop at the configured cap");
+        assertFalse(agent.isBusy(), "isBusy() must clear when the turn cap is hit");
+    }
+
+    @Test
+    void maxTurnsZeroMeansUnlimited() throws Exception {
+        // maxTurns <= 0 disables the cap: a few tool calls then a final answer completes normally (no "Max turns").
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "fake", "{\"value\":\"ok\"}")))
+                                        .enqueue(FauxLlm.Response.toolCall(new ToolCall("t2", "fake",
+                                                                        "{\"value\":\"ok\"}")))
+                                        .enqueue(FauxLlm.Response.content("done"));
+        var registry = new ToolRegistry();
+        registry.register(TestTools.echoing("fake"));
+        var agent = AgentLoop.builder(llm, registry, "/workspace").maxTurns(0).build();
+
+        var messages = agent.prompt("loop").get(5, TimeUnit.SECONDS);
+
+        assertTrue(messages.stream().anyMatch(m -> m instanceof Message.Assistant a && a.content().equals("done")));
+        assertFalse(messages.stream().anyMatch(
+                                        m -> m instanceof Message.Assistant a && a.content().contains("Max turns")));
         assertFalse(agent.isBusy());
     }
 

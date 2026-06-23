@@ -32,4 +32,10 @@ public final class Platform {
     public static String defaultShell() {
         return isWindows() ? "bash" : "/bin/bash";
     }
+
+    /** Shell flag for running a command string. */
+    public static String shellCommandFlag(String shellPath) {
+        String shell = shellPath != null ? shellPath.toLowerCase(Locale.ROOT) : "";
+        return isWindows() && (shell.endsWith("bash") || shell.endsWith("bash.exe")) ? "-lc" : "-c";
+    }
 }

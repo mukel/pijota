@@ -21,7 +21,7 @@ class ThemeLoaderTest {
 
     private static SettingsManager settingsWithTheme(String theme) {
         return new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, theme, null, null,
-                                        true, false, false, null, false, new AppConfig.CompactionConfig(), null),
+                                        true, false, false, null, null, new AppConfig.CompactionConfig(), null, null),
                                         _ -> {});
     }
 
@@ -73,8 +73,8 @@ class ThemeLoaderTest {
         Files.writeString(dir.resolve("ocean.json"), "{\"name\":\"ocean\",\"text\":\"#0000ff\"}");
 
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, "ocean",
-                                        List.of(dir.toString()), null, true, false, false, null, false,
-                                        new AppConfig.CompactionConfig(), null), _ -> {});
+                                        List.of(dir.toString()), null, true, false, false, null, null,
+                                        new AppConfig.CompactionConfig(), null, null), _ -> {});
 
         var theme = ThemeLoader.load(settings, emptyArgs(), "/tmp");
         assertEquals("ocean", theme.name);
@@ -105,8 +105,8 @@ class ThemeLoaderTest {
         Files.writeString(dir.resolve("ocean.json"), "{\"name\":\"ocean\",\"text\":\"#0000ff\"}");
 
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, null,
-                                        List.of(dir.toString()), null, true, false, false, null, false,
-                                        new AppConfig.CompactionConfig(), null), _ -> {});
+                                        List.of(dir.toString()), null, true, false, false, null, null,
+                                        new AppConfig.CompactionConfig(), null, null), _ -> {});
 
         var theme = ThemeLoader.load(settings, ArgParser.parse(new String[] {"--no-themes"}), "/tmp");
         assertEquals("dark", theme.name);

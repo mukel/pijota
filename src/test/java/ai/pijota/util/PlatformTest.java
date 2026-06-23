@@ -23,4 +23,14 @@ class PlatformTest {
         else
             assertTrue(shell.startsWith("/"), "Unix default shell should be an absolute path: " + shell);
     }
+
+    @Test
+    void shellCommandFlagMatchesShell() {
+        if (Platform.isWindows()) {
+            assertEquals("-lc", Platform.shellCommandFlag("bash"));
+            assertEquals("-lc", Platform.shellCommandFlag("C:\\Program Files\\Git\\bin\\bash.exe"));
+        } else {
+            assertEquals("-c", Platform.shellCommandFlag("/bin/bash"));
+        }
+    }
 }

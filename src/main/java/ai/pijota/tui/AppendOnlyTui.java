@@ -9,6 +9,7 @@ import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.extensions.ExtensionKeybinding;
 import ai.pijota.extensions.KeyChord;
 import ai.pijota.extensions.UiContext;
+import ai.pijota.config.PathDisplay;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
@@ -296,6 +297,18 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         SlashCommandTool.setQuestionHandler(this::askQuestions);
         updateWhoamiTool();
         session.addEventListener(this::onEvent);
+        seedPromptHistoryFromSession(); // resumed/--continue sessions: make prior prompts recall-able with up/down
+    }
+
+    /**
+     * Populate the prompt's up/down history with the current session's user messages so a loaded/resumed conversation
+     * can be explored with the arrow keys. The transcript itself is not reprinted (append-only); only input recall is
+     * restored. Replaces any existing entries, so it tracks the active session across /load, /new, /undo and /fork.
+     */
+    private void seedPromptHistoryFromSession() {
+        promptEditor.seedHistory(session.messages().stream().filter(m -> m instanceof Message.User)
+                                        .map(m -> ((Message.User) m).content()).filter(c -> c != null && !c.isBlank())
+                                        .toList());
     }
 
     /**
@@ -557,7 +570,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         public SettingsCommandHandler.SettingsSnapshot settingsSnapshot() {
             var cfg = settings.config();
             return new SettingsCommandHandler.SettingsSnapshot(settings.contextFilesEnabled(),
-                                            settings.compactionEnabled(), settings.shortenPathsEnabled(), thinkingLevel,
+                                            settings.compactionEnabled(), settings.pathDisplay(), thinkingLevel,
                                             cfg.hideThinking(), cfg.quietStartup(), animation.style());
         }
 
@@ -592,8 +605,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
-        public void toggleShortenPaths() {
-            settings.setShortenPathsEnabled(!settings.shortenPathsEnabled());
+        public void cyclePathDisplay() {
+            settings.cyclePathDisplay();
         }
 
         @Override
@@ -1091,10 +1104,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             Files.writeString(file, promptEditor.text(), StandardCharsets.UTF_8);
             suspendTui();
 
-            String editor = System.getenv().getOrDefault("EDITOR", "vi");
+            String editor = System.getenv().getOrDefault("EDITOR", Platform.isWindows() ? "notepad" : "vi");
             String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
-            int code = ProcessRunner.command(shell, "-lc", editor + " " + Util.shellQuote(file.toString()))
-                                            .runInteractive();
+            int code = ProcessRunner.command(shell, Platform.shellCommandFlag(shell),
+                                            editor + " " + Util.shellQuote(file.toString())).runInteractive();
 
             resumeTui();
             if (code == 0) {
@@ -1668,13 +1681,20 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 Supplier<String> args = started != null ? started.args() : null;
                 long elapsedMs = started != null ? System.currentTimeMillis() - started.startedAtMs() : 0;
                 Tool.ToolResultView rendered = renderToolResultView(msg);
-                if (isEditWrite(msg) && pendingEdit.hasEditResult() && !pendingEdit.previewShown()) {
-                    appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
-                                                    pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
+                if (isEditWrite(msg)) {
+                    // The TUI renders the diff itself (the preview above, or the DiffRenderer below). Drop the tool
+                    // view's own diff body so the change isn't shown twice — keep only its one-line summary.
+                    if (rendered != null)
+                        rendered = Tool.ToolResultView.of(rendered.summary());
+                    if (pendingEdit.hasEditResult() && !pendingEdit.previewShown())
+                        appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
+                                                        pendingEdit.oldText(), pendingEdit.newText(),
+                                                        terminal.getWidth()));
                 }
                 String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse("●");
                 appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
-                                                settings != null && settings.shortenPathsEnabled(), elapsedMs, glyph));
+                                                settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
+                                                elapsedMs, glyph));
                 pendingEdit.clear();
             }
             case AgentEvent.Compaction c -> {
@@ -1713,6 +1733,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
             case AgentEvent.Error(Throwable t) ->
                 appendPlain(List.of(theme.styled("toolError", "error: " + ErrorUtil.message(t))));
+            case AgentEvent.HistoryChanged _ -> seedPromptHistoryFromSession(); // /load, /new, /undo, /fork
             default -> {}
         }
     }

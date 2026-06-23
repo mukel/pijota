@@ -18,14 +18,12 @@ import java.util.Map;
 
 public final class OAuthTokenStore {
     private static final Logger logger = LoggerFactory.getLogger(OAuthTokenStore.class);
-    private static final Path CONFIG_HOME = PijotaHome.dir();
-    private static final Path DEFAULT_AUTH_FILE = CONFIG_HOME.resolve("auth.json");
 
     private final Path authFile;
     private final Map<String, Entry> tokens;
 
     public OAuthTokenStore() {
-        this(DEFAULT_AUTH_FILE);
+        this(PijotaHome.resolve("auth.json"));
     }
 
     OAuthTokenStore(Path authFile) {

@@ -27,8 +27,6 @@ import java.util.function.Supplier;
 
 public final class AgentLoop implements AgentContext {
     private static final Logger log = LoggerFactory.getLogger(AgentLoop.class);
-    private static final int MAX_TURNS = 25;
-
     private final LlmClient llm;
     private final ToolRegistry toolRegistry;
     private final String cwd;
@@ -46,6 +44,7 @@ public final class AgentLoop implements AgentContext {
     private volatile String lastStreamContent = "";
     private int sessionTurn;
     private final long retryBaseDelayMs;
+    private final int maxTurns; // per-prompt turn cap; <= 0 means unlimited
 
     public static Builder builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
         return new Builder(llm, toolRegistry, cwd);
@@ -60,6 +59,7 @@ public final class AgentLoop implements AgentContext {
         private int contextWindow;
         private AppConfig.CompactionConfig compactionConfig;
         private long retryBaseDelayMs = 2000;
+        private int maxTurns = AppConfig.DEFAULT_MAX_TURNS;
 
         Builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
             this.llm = llm;
@@ -93,6 +93,12 @@ public final class AgentLoop implements AgentContext {
             return this;
         }
 
+        /** Per-prompt turn cap; {@code <= 0} means unlimited. Defaults to {@link AppConfig#DEFAULT_MAX_TURNS}. */
+        public Builder maxTurns(int n) {
+            this.maxTurns = n;
+            return this;
+        }
+
         public AgentLoop build() {
             CompactionManager cm;
             if (summaryGenerator != null) {
@@ -103,12 +109,12 @@ public final class AgentLoop implements AgentContext {
             } else {
                 cm = new CompactionManager(null);
             }
-            return new AgentLoop(llm, toolRegistry, cwd, cm, extensionRegistry, retryBaseDelayMs);
+            return new AgentLoop(llm, toolRegistry, cwd, cm, extensionRegistry, retryBaseDelayMs, maxTurns);
         }
     }
 
     private AgentLoop(LlmClient llm, ToolRegistry toolRegistry, String cwd, CompactionManager compaction,
-                                    ExtensionRegistry extensionRegistry, long retryBaseDelayMs) {
+                                    ExtensionRegistry extensionRegistry, long retryBaseDelayMs, int maxTurns) {
         this.llm = llm;
         this.toolRegistry = toolRegistry;
         this.cwd = cwd;
@@ -116,6 +122,7 @@ public final class AgentLoop implements AgentContext {
         this.compaction = compaction;
         this.extensionRegistry = extensionRegistry;
         this.retryBaseDelayMs = retryBaseDelayMs;
+        this.maxTurns = maxTurns;
         this.toolExecutor = new ToolExecutor(toolRegistry, extensionRegistry, cwd, history, this::fireEvent, aborted);
     }
 
@@ -328,12 +335,12 @@ public final class AgentLoop implements AgentContext {
     private void runTurn(CompletableFuture<List<Message>> result, int turn) {
         if (aborted.get()) {
             fireEvent(new AgentEvent.Error(new RuntimeException("Aborted")));
-            result.complete(history.mutableSnapshot());
+            completeTurn(result, history.mutableSnapshot());
             return;
         }
-        if (turn > MAX_TURNS) {
-            history.add(new Message.Assistant("[Max turns (" + MAX_TURNS + ") reached. Stopping.]", List.of(), null));
-            result.complete(history.mutableSnapshot());
+        if (maxTurns > 0 && turn > maxTurns) {
+            history.add(new Message.Assistant("[Max turns (" + maxTurns + ") reached. Stopping.]", List.of(), null));
+            completeTurn(result, history.mutableSnapshot());
             return;
         }
 
@@ -441,13 +448,21 @@ public final class AgentLoop implements AgentContext {
         return !aborted.get() && activeResult.get() == result;
     }
 
+    /**
+     * Completes a turn future and clears the busy flag together, so no terminal path can leave {@link #isBusy()} stuck
+     * true (which would wrongly block /transcend, /model, etc. with "a turn is running" when nothing is).
+     */
+    private void completeTurn(CompletableFuture<List<Message>> result, List<Message> snapshot) {
+        activeResult.compareAndSet(result, null);
+        result.complete(snapshot);
+    }
+
     private void processFollowUp(CompletableFuture<List<Message>> result, int turn) {
         if (!followUpMessages.isEmpty() && !aborted.get()) {
             drainAndProcess(followUpMessages);
             runLoopRecursive(result, turn + 1);
         } else {
-            activeResult.compareAndSet(result, null);
-            result.complete(history.mutableSnapshot());
+            completeTurn(result, history.mutableSnapshot());
         }
     }
 

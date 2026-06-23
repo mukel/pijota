@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import ai.pijota.util.Platform;
 import ai.pijota.util.ProcessRunner;
 
 import java.util.ArrayList;
@@ -32,8 +33,9 @@ final class ShellCommandRunner {
         host.redrawPrompt();
         commandThread = Thread.ofPlatform().name("pijota-shell-command").start(() -> {
             try {
-                var result = ProcessRunner.command(shell, "-lc", command).redirectErrorStream(true).noTimeout()
-                                                .onStart(p -> activeProcess = p).run();
+                var result = ProcessRunner.command(shell, Platform.shellCommandFlag(shell), command)
+                                                .redirectErrorStream(true).noTimeout().onStart(p -> activeProcess = p)
+                                                .run();
                 var out = new ArrayList<String>();
                 String slot = result.exitCode() == 0 ? "toolLabel" : "toolError";
                 String suffix = result.exitCode() == 143 || result.exitCode() == 137

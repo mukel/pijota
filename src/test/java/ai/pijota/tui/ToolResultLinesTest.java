@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import ai.pijota.config.PathDisplay;
 import ai.pijota.messages.Message;
 import ai.pijota.testkit.AnsiStripper;
 import ai.pijota.theme.AnsiTheme;
@@ -21,7 +22,7 @@ class ToolResultLinesTest {
     @Test
     void composesHeaderWithIconNameAndSummary() {
         var msg = new Message.ToolResult("id", "grep", "body", false, Map.of("matchCount", 5));
-        var lines = ToolResultLines.compose(msg, null, null, AnsiTheme.dark(), "/cwd", false, 0, "●");
+        var lines = ToolResultLines.compose(msg, null, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0, "●");
 
         String out = visible(lines);
         assertTrue(out.contains("grep"), out);
@@ -32,7 +33,7 @@ class ToolResultLinesTest {
     void usesExtensionViewSummaryAndBodyWhenPresent() {
         var msg = new Message.ToolResult("id", "bash", "ignored", false);
         var view = new Tool.ToolResultView("ran ok", List.of("line one", "line two"));
-        var lines = ToolResultLines.compose(msg, view, null, AnsiTheme.dark(), "/cwd", false, 0, "●");
+        var lines = ToolResultLines.compose(msg, view, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0, "●");
 
         String out = visible(lines);
         assertTrue(out.contains("ran ok"), out);
@@ -43,30 +44,32 @@ class ToolResultLinesTest {
     @Test
     void bashExitCodeIsAppended() {
         var ok = new Message.ToolResult("id", "bash", "", false, Map.of("exitCode", 0));
-        assertTrue(visible(ToolResultLines.compose(ok, null, null, AnsiTheme.dark(), "/cwd", false, 0, "●"))
-                                        .contains("exit 0"));
+        assertTrue(visible(ToolResultLines.compose(ok, null, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0,
+                                        "●")).contains("exit 0"));
 
         var fail = new Message.ToolResult("id", "bash", "", true, Map.of("exitCode", 2));
-        assertTrue(visible(ToolResultLines.compose(fail, null, null, AnsiTheme.dark(), "/cwd", false, 0, "●"))
-                                        .contains("exit 2"));
+        assertTrue(visible(ToolResultLines.compose(fail, null, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0,
+                                        "●")).contains("exit 2"));
     }
 
     @Test
     void elapsedTimeShownOnlyForToolsTheUserWaitsOn() {
         var msg = new Message.ToolResult("id", "webfetch", "body", false);
-        String slow = visible(ToolResultLines.compose(msg, null, null, AnsiTheme.dark(), "/cwd", false, 2500, "●"));
+        String slow = visible(ToolResultLines.compose(msg, null, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT,
+                                        2500, "●"));
         assertTrue(slow.contains("2s"), slow);
-        String fast = visible(ToolResultLines.compose(msg, null, null, AnsiTheme.dark(), "/cwd", false, 200, "●"));
+        String fast = visible(ToolResultLines.compose(msg, null, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT,
+                                        200, "●"));
         assertFalse(fast.contains("0s"), fast);
     }
 
     @Test
     void headerUsesToolGlyphAndErrorMarker() {
         var ok = new Message.ToolResult("id", "bash", "done", false);
-        assertTrue(visible(ToolResultLines.compose(ok, null, null, AnsiTheme.dark(), "/cwd", false, 0, "$"))
-                                        .contains("$"), "the tool's glyph is shown");
+        assertTrue(visible(ToolResultLines.compose(ok, null, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0,
+                                        "$")).contains("$"), "the tool's glyph is shown");
         var fail = new Message.ToolResult("id", "bash", "boom", true);
-        assertTrue(visible(ToolResultLines.compose(fail, null, null, AnsiTheme.dark(), "/cwd", false, 0, "$"))
-                                        .contains("✖"), "a failure shows the error marker");
+        assertTrue(visible(ToolResultLines.compose(fail, null, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0,
+                                        "$")).contains("✖"), "a failure shows the error marker");
     }
 }

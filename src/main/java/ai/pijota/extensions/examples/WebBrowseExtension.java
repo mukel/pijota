@@ -6,6 +6,7 @@ import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.tools.Tool;
 import ai.pijota.util.Env;
+import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Util;
 
 import org.slf4j.Logger;
@@ -24,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  * Opt-in web browsing through a real (visible) Chrome — the ds4 approach. Off by default; enable with {@code --browse}.
  * Exposes two tools, {@code web_google_search} and {@code web_visit_page}, returning clean markdown from a rendered
  * page (so paywalls/consent walls/SPAs that defeat a plain fetch work). The browser uses a dedicated persistent profile
- * under {@code ~/.pijota/browser}, is launched lazily on first use after an interactive confirmation, reused across the
+ * under Pijota's config directory, is launched lazily on first use after an interactive confirmation, reused across the
  * session, and closed on shutdown.
  */
 public final class WebBrowseExtension implements Extension {
@@ -59,7 +60,7 @@ public final class WebBrowseExtension implements Extension {
         String engine = rt.getFlag("browse").filter(v -> !v.isBlank() && !v.equals("true"))
                                         .orElse(Env.get("pijota.browse.engine", "PIJOTA_BROWSER"));
         this.browser = engine == null || engine.isBlank() ? "chrome" : engine.strip().toLowerCase();
-        Path profile = Path.of(System.getProperty("user.home"), ".pijota", "browser", browser);
+        Path profile = PijotaHome.resolve("browser", browser);
         String binary = Env.get("pijota.browse.bin", "PIJOTA_BROWSER_BIN"); // optional path override; else
                                                                             // auto-detected
         try {

@@ -41,8 +41,8 @@ public final class PijotaSession implements AutoCloseable {
 
     public PijotaSession(LlmClient llm, ToolRegistry toolRegistry, SessionManager sessionManager,
                                     ExtensionRegistry extensionRegistry, String systemPrompt, String cwd,
-                                    boolean noSession, int contextWindow, AppConfig.CompactionConfig compactionConfig)
-                                    throws IOException {
+                                    boolean noSession, int contextWindow, AppConfig.CompactionConfig compactionConfig,
+                                    int maxTurns) throws IOException {
         this.initialContextWindow = contextWindow;
         this.sessionManager = sessionManager;
         this.toolRegistry = toolRegistry;
@@ -62,7 +62,7 @@ public final class PijotaSession implements AutoCloseable {
         };
         this.agentLoop = AgentLoop.builder(llm, toolRegistry, cwd).summaryGenerator(summaryGen)
                                         .extensionRegistry(extensionRegistry).contextWindow(contextWindow)
-                                        .compactionConfig(compactionConfig).build();
+                                        .compactionConfig(compactionConfig).maxTurns(maxTurns).build();
         extensionRegistry.setAgentLoop(this.agentLoop); // the session owns the registry↔loop wiring
 
         this.agentLoop.addCompactionAppender((summary, count, firstKeptId) -> save("compaction save",

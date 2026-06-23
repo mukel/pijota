@@ -410,6 +410,11 @@ public final class PromptEditor {
         return history.isNavigating();
     }
 
+    /** Seed up/down input history (e.g. from a loaded session's user messages), replacing any prior entries. */
+    public synchronized void seedHistory(java.util.List<String> entries) {
+        history.replaceAll(entries);
+    }
+
     public synchronized boolean historyPrev() {
         return history.previous(buffer.text()).map(text -> {
             setTextInternal(text);
