@@ -6,7 +6,7 @@
       "apiType": "openai",
       "baseUrl": "https://api.deepseek.com/v1",
       "env": ["DEEPSEEK_API_KEY"],
-      "defaultModel": "deepseek-chat"
+      "defaultModel": "deepseek-v4-pro"
     },
     {
       "id": "anthropic",
@@ -14,7 +14,7 @@
       "apiType": "anthropic",
       "baseUrl": "https://api.anthropic.com/v1",
       "env": ["ANTHROPIC_API_KEY"],
-      "defaultModel": "claude-sonnet-4-5-20250929"
+      "defaultModel": "claude-opus-4-5-20251101"
     },
     {
       "id": "google",
@@ -22,7 +22,7 @@
       "apiType": "google",
       "baseUrl": "https://generativelanguage.googleapis.com",
       "env": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
-      "defaultModel": "gemini-2.5-pro"
+      "defaultModel": "gemini-3.1-pro-preview"
     },
     {
       "id": "openai",
@@ -30,7 +30,7 @@
       "apiType": "openai",
       "baseUrl": "https://api.openai.com/v1",
       "env": ["OPENAI_API_KEY"],
-      "defaultModel": "gpt-4o"
+      "defaultModel": "gpt-5.5"
     },
     {
       "id": "groq",
@@ -46,7 +46,7 @@
       "apiType": "openai",
       "baseUrl": "https://api.x.ai/v1",
       "env": ["XAI_API_KEY"],
-      "defaultModel": "grok-2"
+      "defaultModel": "grok-4.3"
     },
     {
       "id": "mistral",
@@ -62,7 +62,7 @@
       "apiType": "openai",
       "baseUrl": "https://api.together.xyz/v1",
       "env": ["TOGETHER_API_KEY"],
-      "defaultModel": "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+      "defaultModel": "Qwen/Qwen3.7-Max"
     },
     {
       "id": "openrouter",
@@ -70,7 +70,7 @@
       "apiType": "openai",
       "baseUrl": "https://openrouter.ai/api/v1",
       "env": ["OPENROUTER_API_KEY"],
-      "defaultModel": "openai/gpt-4.1"
+      "defaultModel": "deepseek/deepseek-v4-pro"
     },
     {
       "id": "cerebras",
@@ -78,7 +78,7 @@
       "apiType": "openai",
       "baseUrl": "https://api.cerebras.ai/v1",
       "env": ["CEREBRAS_API_KEY"],
-      "defaultModel": "llama3.3-70b"
+      "defaultModel": "gpt-oss-120b"
     },
     {
       "id": "fireworks",
@@ -86,7 +86,7 @@
       "apiType": "openai",
       "baseUrl": "https://api.fireworks.ai/inference/v1",
       "env": ["FIREWORKS_API_KEY"],
-      "defaultModel": "accounts/fireworks/models/llama-v3p3-70b-instruct"
+      "defaultModel": "accounts/fireworks/models/deepseek-v4-pro"
     },
     {
       "id": "openai-codex",
@@ -108,7 +108,7 @@
       "apiType": "anthropic",
       "baseUrl": "https://api.kimi.com/coding/v1",
       "env": ["KIMI_API_KEY"],
-      "defaultModel": "kimi-k2.6",
+      "defaultModel": "k2p7",
       "headers": {
         "User-Agent": "KimiCLI/1.5"
       }
@@ -119,7 +119,7 @@
       "apiType": "openai",
       "baseUrl": "https://api.moonshot.ai/v1",
       "env": ["MOONSHOT_API_KEY"],
-      "defaultModel": "kimi-k2-thinking"
+      "defaultModel": "kimi-k2.7-code"
     },
     {
       "id": "moonshotai-cn",
@@ -127,7 +127,7 @@
       "apiType": "openai",
       "baseUrl": "https://api.moonshot.cn/v1",
       "env": ["MOONSHOT_API_KEY"],
-      "defaultModel": "kimi-k2-thinking"
+      "defaultModel": "kimi-k2.7-code"
     },
     {
       "id": "xiaomi-token-plan-cn",
@@ -152,24 +152,6 @@
       "baseUrl": "https://token-plan-sgp.xiaomimimo.com/v1",
       "env": ["XIAOMI_TOKEN_PLAN_SGP_API_KEY"],
       "defaultModel": "mimo-v2.5-pro"
-    },
-    {
-      "id": "local",
-      "displayName": "Local LLM",
-      "apiType": "openai",
-      "baseUrl": "http://localhost:17325/v1",
-      "env": [],
-      "defaultModel": "local-model",
-      "thinkingFormat": "qwen-chat-template"
-    },
-    {
-      "id": "workstation",
-      "displayName": "Workstation",
-      "apiType": "openai",
-      "baseUrl": "http://workstation.lan:17325/v1",
-      "env": [],
-      "defaultModel": "LFM2.5-8B-A1B-Q8_0.gguf",
-      "thinkingFormat": "qwen-chat-template"
     }
   ]
 }

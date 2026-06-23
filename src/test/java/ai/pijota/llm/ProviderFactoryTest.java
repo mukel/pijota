@@ -16,11 +16,11 @@ class ProviderFactoryTest {
     }
 
     @Test
-    void localProvidersRouteToTheStandardOpenAiClient() {
-        // formerly hardcoded to a bespoke client by name; now plain OpenAI-compatible (apiType=openai in the catalog)
+    void openAiCompatibleProvidersAreSupported() {
+        // apiType=openai providers route to the standard OpenAI-compatible client
         var factory = new ProviderFactory.OpenAiCompatible();
-        assertTrue(factory.supports("local"));
-        assertTrue(factory.supports("workstation"));
+        assertTrue(factory.supports("deepseek"));
+        assertTrue(factory.supports("groq"));
     }
 
     @Test

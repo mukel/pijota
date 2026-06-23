@@ -68,7 +68,7 @@ class ModelRegistryTest {
 
     @Test
     void providerForModelFindsProvider() {
-        assertEquals("openai", ModelRegistry.providerForModel("gpt-4o"));
+        assertEquals("openai", ModelRegistry.providerForModel("gpt-5.5"));
     }
 
     @Test
@@ -105,17 +105,17 @@ class ModelRegistryTest {
     @Test
     void resolveRequiresApiKey() {
         var settings = new SettingsManager(new AppConfig(), _ -> {});
-        var resolved = ModelRegistry.resolve("openai", "gpt-4o", settings);
+        var resolved = ModelRegistry.resolve("openai", "gpt-5.5", settings);
         assertNull(resolved);
     }
 
     @Test
     void resolveReturnsModelWhenKeyAvailable() {
         var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), _ -> {});
-        var resolved = ModelRegistry.resolve("openai", "gpt-4o", settings);
+        var resolved = ModelRegistry.resolve("openai", "gpt-5.5", settings);
         assertNotNull(resolved);
         assertEquals("openai", resolved.provider());
-        assertEquals("gpt-4o", resolved.model());
+        assertEquals("gpt-5.5", resolved.model());
         assertEquals("sk-test", resolved.apiKey());
         assertTrue(resolved.contextWindow() > 0);
     }
@@ -129,9 +129,9 @@ class ModelRegistryTest {
 
     @Test
     void resolveProviderModelUsesModelToFindProvider() {
-        var resolved = ModelRegistry.resolveProviderModel(null, "gpt-4o", null);
+        var resolved = ModelRegistry.resolveProviderModel(null, "gpt-5.5", null);
         assertEquals("openai", resolved.provider());
-        assertEquals("gpt-4o", resolved.model());
+        assertEquals("gpt-5.5", resolved.model());
     }
 
     @Test
@@ -168,7 +168,7 @@ class ModelRegistryTest {
 
     @Test
     void isKnownProviderModelRecognizesKnown() {
-        assertTrue(ModelRegistry.isKnownProviderModel("openai", "gpt-4o"));
+        assertTrue(ModelRegistry.isKnownProviderModel("openai", "gpt-5.5"));
     }
 
     @Test

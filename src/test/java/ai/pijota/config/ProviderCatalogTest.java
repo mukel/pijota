@@ -38,17 +38,6 @@ class ProviderCatalogTest {
     }
 
     @Test
-    void localProvidersAreOpenAiCompatibleWithChatTemplateThinking() {
-        // the former local/workstation magic-name client is now plain catalog data
-        for (String p : new String[] {"local", "workstation"}) {
-            assertEquals("openai", ProviderCatalog.apiType(p), p);
-            assertEquals("qwen-chat-template", ProviderCatalog.thinkingFormat(p), p);
-        }
-        assertEquals("http://localhost:17325/v1", ProviderCatalog.baseUrl("local"));
-        assertEquals("http://workstation.lan:17325/v1", ProviderCatalog.baseUrl("workstation"));
-    }
-
-    @Test
     void standardProvidersDeclareNoThinkingFormat() {
         assertNull(ProviderCatalog.thinkingFormat("openai"));
         assertNull(ProviderCatalog.thinkingFormat("unknown-provider"));

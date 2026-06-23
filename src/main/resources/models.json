@@ -1,23 +1,302 @@
 {
   "models": [
-    { "id": "gpt-4o", "provider": "openai", "displayName": "GPT-4o", "contextWindow": 128000 },
-    { "id": "gpt-5.2", "provider": "openai-codex", "displayName": "GPT-5.2", "contextWindow": 272000 },
-    { "id": "gpt-5.3-codex", "provider": "openai-codex", "displayName": "GPT-5.3 Codex", "contextWindow": 272000 },
-    { "id": "gpt-5.3-codex-spark", "provider": "openai-codex", "displayName": "GPT-5.3 Codex Spark", "contextWindow": 272000 },
-    { "id": "gpt-5.4", "provider": "openai-codex", "displayName": "GPT-5.4", "contextWindow": 272000 },
-    { "id": "gpt-5.4-mini", "provider": "openai-codex", "displayName": "GPT-5.4 mini", "contextWindow": 272000 },
-    { "id": "gpt-5.5", "provider": "openai-codex", "displayName": "GPT-5.5", "contextWindow": 272000 },
-    { "id": "claude-opus-4-5-20251101", "provider": "anthropic", "displayName": "Claude Opus 4.5", "contextWindow": 200000, "inputCostPerMTok": 5.0, "outputCostPerMTok": 25.0 },
-    { "id": "claude-sonnet-4-5-20250929", "provider": "anthropic", "displayName": "Claude Sonnet 4.5", "contextWindow": 200000, "inputCostPerMTok": 3.0, "outputCostPerMTok": 15.0 },
-    { "id": "gemini-3.1-pro-preview", "provider": "google", "displayName": "Gemini 3.1 Pro Preview", "contextWindow": 1048576 },
-    { "id": "gemini-3.1-flash-lite-preview", "provider": "google", "displayName": "Gemini 3.1 Flash Lite Preview", "contextWindow": 1048576 },
-    { "id": "deepseek-v4-flash", "provider": "deepseek", "displayName": "DeepSeek V4 Flash", "contextWindow": 1000000 },
-    { "id": "deepseek-v4-pro", "provider": "deepseek", "displayName": "DeepSeek V4 Pro", "contextWindow": 1000000 },
-    { "id": "kimi-k2.6", "provider": "kimi-coding", "displayName": "Kimi K2.6", "contextWindow": 262144 },
-    { "id": "deepseek-chat", "provider": "deepseek", "displayName": "DeepSeek Chat", "contextWindow": 128000 },
-    { "id": "kimi-k2-thinking", "provider": "kimi-coding", "displayName": "Kimi K2 Thinking", "contextWindow": 262144 },
-    { "id": "mimo-v2.5-pro", "provider": "xiaomi-token-plan-cn", "displayName": "MiMo v2.5 Pro", "contextWindow": 200000 },
-    { "id": "local-model", "provider": "local", "displayName": "Local Model", "contextWindow": 32768 },
-    { "id": "LFM2.5-8B-A1B-Q8_0.gguf", "provider": "workstation", "displayName": "LFM2.5 8B", "contextWindow": 32768 }
+    {
+      "id": "gpt-5.5",
+      "provider": "openai",
+      "displayName": "GPT-5.5",
+      "contextWindow": 272000,
+      "inputCostPerMTok": 5.0,
+      "outputCostPerMTok": 30.0
+    },
+    {
+      "id": "gpt-5-mini",
+      "provider": "openai",
+      "displayName": "GPT-5 mini",
+      "contextWindow": 400000,
+      "inputCostPerMTok": 0.25,
+      "outputCostPerMTok": 2.0
+    },
+    {
+      "id": "gpt-5.5",
+      "provider": "openai-codex",
+      "displayName": "GPT-5.5",
+      "contextWindow": 272000
+    },
+    {
+      "id": "gpt-5.4",
+      "provider": "openai-codex",
+      "displayName": "GPT-5.4",
+      "contextWindow": 272000
+    },
+    {
+      "id": "gpt-5.4-mini",
+      "provider": "openai-codex",
+      "displayName": "GPT-5.4 mini",
+      "contextWindow": 272000
+    },
+    {
+      "id": "gpt-5.3-codex-spark",
+      "provider": "openai-codex",
+      "displayName": "GPT-5.3 Codex Spark",
+      "contextWindow": 128000
+    },
+    {
+      "id": "claude-opus-4-5-20251101",
+      "provider": "anthropic",
+      "displayName": "Claude Opus 4.5",
+      "contextWindow": 200000,
+      "inputCostPerMTok": 5.0,
+      "outputCostPerMTok": 25.0
+    },
+    {
+      "id": "claude-sonnet-4-5-20250929",
+      "provider": "anthropic",
+      "displayName": "Claude Sonnet 4.5",
+      "contextWindow": 200000,
+      "inputCostPerMTok": 3.0,
+      "outputCostPerMTok": 15.0
+    },
+    {
+      "id": "claude-haiku-4-5-20251001",
+      "provider": "anthropic",
+      "displayName": "Claude Haiku 4.5",
+      "contextWindow": 200000,
+      "inputCostPerMTok": 1.0,
+      "outputCostPerMTok": 5.0
+    },
+    {
+      "id": "gemini-3.1-pro-preview",
+      "provider": "google",
+      "displayName": "Gemini 3.1 Pro",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 2.0,
+      "outputCostPerMTok": 12.0
+    },
+    {
+      "id": "gemini-3.1-flash-lite-preview",
+      "provider": "google",
+      "displayName": "Gemini 3.1 Flash Lite",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 0.25,
+      "outputCostPerMTok": 1.5
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "provider": "deepseek",
+      "displayName": "DeepSeek V4 Pro",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 0.435,
+      "outputCostPerMTok": 0.87
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "provider": "deepseek",
+      "displayName": "DeepSeek V4 Flash",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 0.14,
+      "outputCostPerMTok": 0.28
+    },
+    {
+      "id": "grok-4.3",
+      "provider": "xai",
+      "displayName": "Grok 4.3",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 1.25,
+      "outputCostPerMTok": 2.5
+    },
+    {
+      "id": "grok-code-fast-1",
+      "provider": "xai",
+      "displayName": "Grok Code Fast 1",
+      "contextWindow": 32768,
+      "inputCostPerMTok": 0.2,
+      "outputCostPerMTok": 1.5
+    },
+    {
+      "id": "mistral-large-latest",
+      "provider": "mistral",
+      "displayName": "Mistral Large",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 0.5,
+      "outputCostPerMTok": 1.5
+    },
+    {
+      "id": "devstral-medium-latest",
+      "provider": "mistral",
+      "displayName": "Devstral Medium",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 0.4,
+      "outputCostPerMTok": 2.0
+    },
+    {
+      "id": "llama-3.3-70b-versatile",
+      "provider": "groq",
+      "displayName": "Llama 3.3 70B",
+      "contextWindow": 131072,
+      "inputCostPerMTok": 0.59,
+      "outputCostPerMTok": 0.79
+    },
+    {
+      "id": "openai/gpt-oss-120b",
+      "provider": "groq",
+      "displayName": "GPT-OSS 120B",
+      "contextWindow": 131072,
+      "inputCostPerMTok": 0.15,
+      "outputCostPerMTok": 0.6
+    },
+    {
+      "id": "Qwen/Qwen3.7-Max",
+      "provider": "together",
+      "displayName": "Qwen3.7 Max",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 1.25,
+      "outputCostPerMTok": 3.75
+    },
+    {
+      "id": "deepseek-ai/DeepSeek-V4-Pro",
+      "provider": "together",
+      "displayName": "DeepSeek V4 Pro",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 1.74,
+      "outputCostPerMTok": 3.48
+    },
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "provider": "openrouter",
+      "displayName": "DeepSeek V4 Pro",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 0.435,
+      "outputCostPerMTok": 0.87
+    },
+    {
+      "id": "anthropic/claude-fable-5",
+      "provider": "openrouter",
+      "displayName": "Claude Fable 5",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 10.0,
+      "outputCostPerMTok": 50.0
+    },
+    {
+      "id": "gpt-oss-120b",
+      "provider": "cerebras",
+      "displayName": "GPT-OSS 120B",
+      "contextWindow": 131072,
+      "inputCostPerMTok": 0.35,
+      "outputCostPerMTok": 0.75
+    },
+    {
+      "id": "zai-glm-4.7",
+      "provider": "cerebras",
+      "displayName": "Z.AI GLM-4.7",
+      "contextWindow": 131072,
+      "inputCostPerMTok": 2.25,
+      "outputCostPerMTok": 2.75
+    },
+    {
+      "id": "accounts/fireworks/models/deepseek-v4-pro",
+      "provider": "fireworks",
+      "displayName": "DeepSeek V4 Pro",
+      "contextWindow": 1000000,
+      "inputCostPerMTok": 1.74,
+      "outputCostPerMTok": 3.48
+    },
+    {
+      "id": "accounts/fireworks/models/glm-5p2",
+      "provider": "fireworks",
+      "displayName": "GLM 5.2",
+      "contextWindow": 200000,
+      "inputCostPerMTok": 1.4,
+      "outputCostPerMTok": 4.4
+    },
+    {
+      "id": "k2p7",
+      "provider": "kimi-coding",
+      "displayName": "Kimi K2.7",
+      "contextWindow": 262144
+    },
+    {
+      "id": "kimi-for-coding",
+      "provider": "kimi-coding",
+      "displayName": "Kimi For Coding",
+      "contextWindow": 262144
+    },
+    {
+      "id": "kimi-k2-thinking",
+      "provider": "kimi-coding",
+      "displayName": "Kimi K2 Thinking",
+      "contextWindow": 262144
+    },
+    {
+      "id": "kimi-k2.7-code",
+      "provider": "moonshotai",
+      "displayName": "Kimi K2.7 Code",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 0.95,
+      "outputCostPerMTok": 4.0
+    },
+    {
+      "id": "kimi-k2.6",
+      "provider": "moonshotai",
+      "displayName": "Kimi K2.6",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 0.95,
+      "outputCostPerMTok": 4.0
+    },
+    {
+      "id": "kimi-k2-thinking",
+      "provider": "moonshotai",
+      "displayName": "Kimi K2 Thinking",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 0.6,
+      "outputCostPerMTok": 2.5
+    },
+    {
+      "id": "kimi-k2.7-code",
+      "provider": "moonshotai-cn",
+      "displayName": "Kimi K2.7 Code",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 0.95,
+      "outputCostPerMTok": 4.0
+    },
+    {
+      "id": "kimi-k2-thinking",
+      "provider": "moonshotai-cn",
+      "displayName": "Kimi K2 Thinking",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 0.6,
+      "outputCostPerMTok": 2.5
+    },
+    {
+      "id": "mimo-v2.5-pro",
+      "provider": "xiaomi-token-plan-cn",
+      "displayName": "MiMo v2.5 Pro",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 1.0,
+      "outputCostPerMTok": 3.0
+    },
+    {
+      "id": "mimo-v2.5",
+      "provider": "xiaomi-token-plan-cn",
+      "displayName": "MiMo v2.5",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 0.4,
+      "outputCostPerMTok": 2.0
+    },
+    {
+      "id": "mimo-v2.5-pro",
+      "provider": "xiaomi-token-plan-ams",
+      "displayName": "MiMo v2.5 Pro",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 1.0,
+      "outputCostPerMTok": 3.0
+    },
+    {
+      "id": "mimo-v2.5-pro",
+      "provider": "xiaomi-token-plan-sgp",
+      "displayName": "MiMo v2.5 Pro",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 1.0,
+      "outputCostPerMTok": 3.0
+    }
   ]
 }
