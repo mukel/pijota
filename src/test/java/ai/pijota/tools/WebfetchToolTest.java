@@ -207,4 +207,25 @@ class WebfetchToolTest {
         var result = run(tool, java.util.Map.of("url", "not a url"), "/cwd");
         assertTrue(result.isError());
     }
+
+    @Test
+    void internalAddressesAreBlockedForSsrf() {
+        // loopback, link-local (incl. 169.254.169.254 cloud metadata), private, wildcard — must be refused.
+        for (String h : new String[] {"127.0.0.1", "localhost", "169.254.169.254", "10.0.0.1", "192.168.1.1", "0.0.0.0",
+                "::1"})
+            assertTrue(WebfetchTool.isInternalAddress(h), h + " should be blocked");
+    }
+
+    @Test
+    void publicAddressesAreAllowed() {
+        assertFalse(WebfetchTool.isInternalAddress("8.8.8.8"));
+    }
+
+    @Test
+    void executeRefusesInternalUrl() {
+        var tool = new WebfetchTool();
+        var result = run(tool, java.util.Map.of("url", "http://169.254.169.254/latest/meta-data/"), "/cwd");
+        assertTrue(result.isError());
+        assertTrue(result.content().toLowerCase().contains("internal"), result.content());
+    }
 }

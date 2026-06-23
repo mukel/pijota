@@ -96,7 +96,9 @@ public final class OAuthTokenStore {
     private void persist() {
         try {
             Files.createDirectories(authFile.getParent());
+            Util.restrictToOwner(authFile.getParent());
             Util.MAPPER.writerWithDefaultPrettyPrinter().writeValue(authFile.toFile(), tokens);
+            Util.restrictToOwner(authFile); // OAuth access/refresh tokens — owner-only
         } catch (IOException e) {
             logger.warn("Failed to persist auth tokens: {}", e.getMessage());
         }

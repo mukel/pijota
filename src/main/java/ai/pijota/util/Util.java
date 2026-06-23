@@ -10,6 +10,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -17,6 +18,20 @@ import java.util.Map;
 public final class Util {
     public static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule())
                                     .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+    /**
+     * Best-effort restrict a path to its owner — files to {@code 0600}, directories to {@code 0700} — so secrets (API
+     * keys, OAuth tokens) and session transcripts under {@code ~/.pijota} aren't readable by other local users. No-op
+     * on non-POSIX filesystems (e.g. Windows), where filesystem ACLs govern access instead.
+     */
+    public static void restrictToOwner(Path path) {
+        try {
+            Files.setPosixFilePermissions(path, PosixFilePermissions
+                                            .fromString(Files.isDirectory(path) ? "rwx------" : "rw-------"));
+        } catch (UnsupportedOperationException | IOException ignored) {
+            // non-POSIX filesystem, or the path vanished — best effort, not a hard guarantee.
+        }
+    }
 
     public static final int DEFAULT_MAX_CHARS = 100_000;
 

@@ -19,10 +19,6 @@ final class LoginCommandHandler {
 
         void submitAuthTask(Runnable task);
 
-        void suspendTui();
-
-        void resumeTui();
-
         void setDefaultModelForProvider(String provider, String model) throws IOException;
 
         void removeApiKey(String provider) throws IOException;

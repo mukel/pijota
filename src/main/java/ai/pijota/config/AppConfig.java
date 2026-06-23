@@ -43,7 +43,9 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
 
     public void save(Path path) throws IOException {
         Files.createDirectories(path.getParent());
+        Util.restrictToOwner(path.getParent());
         Util.MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), this);
+        Util.restrictToOwner(path); // settings.json holds API keys — owner-only
     }
 
     public AppConfig withApiKey(String provider, String apiKey) {

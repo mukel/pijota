@@ -105,6 +105,20 @@ class AppConfigTest {
     }
 
     @Test
+    void saveRestrictsSettingsToOwnerOnly() throws IOException {
+        // settings.json holds API keys — it (and the config dir) must not be readable by other local users.
+        var fs = java.nio.file.FileSystems.getDefault();
+        org.junit.jupiter.api.Assumptions.assumeTrue(fs.supportedFileAttributeViews().contains("posix"));
+        Path dir = Files.createTempDirectory("pijota-sec");
+        Path file = dir.resolve("nested").resolve("settings.json");
+        new AppConfig().withApiKey("openai", "sk-secret").save(file);
+        assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions
+                                        .toString(Files.getPosixFilePermissions(file)));
+        assertEquals("rwx------", java.nio.file.attribute.PosixFilePermissions
+                                        .toString(Files.getPosixFilePermissions(file.getParent())));
+    }
+
+    @Test
     void loadReadsJsonValues() throws IOException {
         Path file = Files.createTempFile("config", ".json");
         Files.writeString(file, """

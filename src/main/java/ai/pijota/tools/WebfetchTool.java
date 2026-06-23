@@ -4,6 +4,7 @@ import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -75,6 +76,10 @@ public final class WebfetchTool implements Tool {
                 }
                 if (uri.getHost() == null)
                     return ToolResult.error("Invalid URL (no host): " + url);
+                if (isInternalAddress(uri.getHost()))
+                    return ToolResult.error("Refusing to fetch an internal address (" + uri.getHost()
+                                                    + ") — loopback/link-local/private hosts (incl. cloud metadata) "
+                                                    + "are blocked to prevent SSRF. Use the bash tool for local services.");
 
                 String format = args.getString("format", "markdown");
                 long timeoutSecs = args.getLong("timeout", DEFAULT_TIMEOUT_SECONDS);
@@ -115,6 +120,25 @@ public final class WebfetchTool implements Tool {
                 return ToolResult.error("Fetch interrupted");
             }
         });
+    }
+
+    /**
+     * SSRF guard: true if {@code host} resolves to a loopback, link-local (incl. 169.254.169.254 cloud metadata),
+     * site-local/private, wildcard, or multicast address. A prompt-injected agent must not be steered into fetching
+     * internal services or the metadata endpoint; legitimate local development goes through the bash tool instead.
+     * Fails open on resolution errors — an unresolvable host simply fails the fetch with a normal network error.
+     */
+    static boolean isInternalAddress(String host) {
+        try {
+            for (InetAddress addr : InetAddress.getAllByName(host)) {
+                if (addr.isLoopbackAddress() || addr.isLinkLocalAddress() || addr.isSiteLocalAddress()
+                                                || addr.isAnyLocalAddress() || addr.isMulticastAddress())
+                    return true;
+            }
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     static String acceptHeader(String format) {

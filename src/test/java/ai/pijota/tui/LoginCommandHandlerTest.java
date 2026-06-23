@@ -77,8 +77,6 @@ class LoginCommandHandlerTest {
         assertEquals("token", store.savedTokenUrl);
         assertEquals("client", store.savedClientId);
         assertEquals("openai-default", host.defaultModel);
-        assertEquals(0, host.suspends);
-        assertEquals(0, host.resumes);
     }
 
     @Test
@@ -109,7 +107,6 @@ class LoginCommandHandlerTest {
         handler.confirmProviderSelection();
 
         assertEquals(List.of("OpenAI has no OAuth config"), host.errors);
-        assertEquals(0, host.suspends);
     }
 
     @Test
@@ -124,8 +121,6 @@ class LoginCommandHandlerTest {
         handler.confirmProviderSelection();
 
         assertEquals(List.of("Login failed: denied"), host.errors);
-        assertEquals(0, host.suspends);
-        assertEquals(0, host.resumes);
     }
 
     @Test
@@ -206,8 +201,6 @@ class LoginCommandHandlerTest {
         boolean deactivated;
         boolean promptCleared;
         int redraws;
-        int suspends;
-        int resumes;
         String defaultModel;
         String removedApiKeyProvider;
         final List<String> errors = new ArrayList<>();
@@ -251,16 +244,6 @@ class LoginCommandHandlerTest {
         @Override
         public void submitAuthTask(Runnable task) {
             task.run();
-        }
-
-        @Override
-        public void suspendTui() {
-            suspends++;
-        }
-
-        @Override
-        public void resumeTui() {
-            resumes++;
         }
 
         @Override

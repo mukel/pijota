@@ -181,7 +181,10 @@ public final class ModelRegistry {
             provider = "openai";
         if (model == null)
             model = settings != null ? settings.config().defaultModel() : null;
-        if (model == null || !isKnownProviderModel(provider, model)) {
+        // Honor an explicit model verbatim — only fall back to the provider default when none was given. Off-catalog
+        // ids (alias targets, local fine-tunes, models newer than the bundled catalog) must reach the provider API
+        // as-is; silently swapping them for the default would diverge the live model from the UI and the session.
+        if (model == null || model.isBlank()) {
             model = defaultModelForProvider(provider);
         }
         return new ProviderModel(provider, model);

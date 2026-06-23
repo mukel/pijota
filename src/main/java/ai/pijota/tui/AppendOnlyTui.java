@@ -483,16 +483,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             AppendOnlyTui.this.showSessionWarning();
         }
 
-        @Override
-        public void suspendTui() {
-            AppendOnlyTui.this.suspendTui();
-        }
-
-        @Override
-        public void resumeTui() {
-            AppendOnlyTui.this.resumeTui();
-        }
-
         // ---- theme ----
         @Override
         public AnsiTheme theme() {
@@ -1781,7 +1771,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // would then freeze the working spinner for the rest of the session (the prompt shows a frozen "●●●" while the
         // turn keeps running). Swallow everything so the next tick still fires.
         try {
-            if (!running.get() || SelfRespawn.isRespawnInProgress())
+            // While suspended (editor/shell handed the terminal to a child), don't advance or repaint — the
+            // redrawPrompt guard is the backstop; this stops the tick doing work at the source.
+            if (!running.get() || SelfRespawn.isRespawnInProgress() || suspendDepth > 0)
                 return;
             boolean redraw = false;
             if (logViewer.active() && logViewer.refreshIfDue()) // repaint only when a live log tailed new content

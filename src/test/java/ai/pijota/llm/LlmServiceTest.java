@@ -77,6 +77,17 @@ class LlmServiceTest {
     }
 
     @Test
+    void setProviderAndModelHonorsOffCatalogModelVerbatim() {
+        // Custom / off-catalog models (e.g. an `alias/<name>` target or a local fine-tune) must reach the provider
+        // as-is — the setter must not silently substitute the provider's default catalog model, or the live model
+        // would diverge from what the UI shows and the session persists.
+        var service = serviceWithFake(new FakeModel(), "openai", "gpt-5.5");
+        service.setProviderAndModel("openai", "my-finetuned-model", "k");
+        assertEquals("openai", service.provider());
+        assertEquals("my-finetuned-model", service.model());
+    }
+
+    @Test
     void setThinkingLevelClearsCache() {
         var service = serviceWithFake(new FakeModel());
         service.setThinkingLevel(ThinkingLevel.LOW);

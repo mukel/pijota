@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -219,7 +220,7 @@ public final class WebServer implements AutoCloseable {
     }
 
     private void handlePrompt(HttpExchange ex) throws IOException {
-        if (requirePost(ex))
+        if (requirePost(ex) || crossOriginBlocked(ex))
             return;
         String text = strField(readBody(ex), "text");
         if (text != null && !text.isBlank()) {
@@ -267,14 +268,14 @@ public final class WebServer implements AutoCloseable {
     }
 
     private void handleInterrupt(HttpExchange ex) throws IOException {
-        if (requirePost(ex))
+        if (requirePost(ex) || crossOriginBlocked(ex))
             return;
         session.abort();
         send(ex, 204, "text/plain", new byte[0]);
     }
 
     private void handleAnswer(HttpExchange ex) throws IOException {
-        if (requirePost(ex))
+        if (requirePost(ex) || crossOriginBlocked(ex))
             return;
         String body = readBody(ex);
         ui.resolve(strField(body, "id"), strField(body, "value"));
@@ -416,9 +417,34 @@ public final class WebServer implements AutoCloseable {
         return true;
     }
 
+    /**
+     * CSRF guard for the state-changing endpoints: a browser tab on any other site can POST to this loopback server, so
+     * a malicious page could drive the (shell-executing) agent. Browsers attach an {@code Origin} header on such
+     * cross-site requests; reject when it's present and not our own host. Absent Origin = a non-browser client
+     * (curl/CLI) with no CSRF vector, so it's allowed. Returns true (and sends 403) when the request was refused.
+     */
+    private boolean crossOriginBlocked(HttpExchange ex) throws IOException {
+        String origin = ex.getRequestHeaders().getFirst("Origin");
+        if (origin == null || origin.isBlank())
+            return false;
+        String oHost = null;
+        try {
+            oHost = URI.create(origin).getHost();
+        } catch (RuntimeException ignored) {}
+        if (oHost != null && (oHost.equals(host) || isLoopbackHost(oHost)))
+            return false;
+        send(ex, 403, "text/plain", "cross-origin request refused".getBytes(StandardCharsets.UTF_8));
+        return true;
+    }
+
+    private static boolean isLoopbackHost(String h) {
+        return h.equals("127.0.0.1") || h.equalsIgnoreCase("localhost") || h.equals("::1");
+    }
+
+    private static final int MAX_BODY_BYTES = 2_000_000; // prompts are tiny; cap to avoid unbounded-body OOM
     private static String readBody(HttpExchange ex) throws IOException {
         try (InputStream in = ex.getRequestBody()) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            return new String(in.readNBytes(MAX_BODY_BYTES), StandardCharsets.UTF_8);
         }
     }
 
