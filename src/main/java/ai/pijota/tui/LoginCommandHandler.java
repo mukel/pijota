@@ -48,7 +48,8 @@ final class LoginCommandHandler {
     }
 
     interface OAuthClient {
-        OAuthLogin.TokenResult login(ProviderCatalog.OAuth oauth) throws Exception;
+        OAuthLogin.TokenResult login(ProviderCatalog.OAuth oauth, java.util.function.Consumer<String> out)
+                                        throws Exception;
     }
 
     interface DefaultModelResolver {
@@ -131,9 +132,9 @@ final class LoginCommandHandler {
             }
             var oauthCfg = oauth.get();
 
-            host.suspendTui();
-            var result = oauthClient.login(oauthCfg);
-            host.resumeTui();
+            // Output goes through the TUI append stream (not raw System.out) so the device URL renders cleanly above
+            // the prompt and the input loop stays live — letting Esc cancel the in-flight login (see handleEsc).
+            var result = oauthClient.login(oauthCfg, line -> host.appendPlain(List.of(line)));
 
             String tokenUrl = oauthCfg.oauthTokenEndpoint() != null && !oauthCfg.oauthTokenEndpoint().isBlank()
                                             ? oauthCfg.oauthTokenEndpoint()
@@ -148,11 +149,14 @@ final class LoginCommandHandler {
                                             + (defaultModel != null ? defaultModel : ""));
             host.redrawPrompt();
         } catch (Exception e) {
-            if (e instanceof InterruptedException)
+            if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
-            host.resumeTui();
-            host.appendError("Login failed: "
-                                            + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+                host.appendStatus("Login cancelled");
+            } else {
+                host.appendError("Login failed: " + (e.getMessage() != null
+                                                ? e.getMessage()
+                                                : e.getClass().getSimpleName()));
+            }
             host.redrawPrompt();
         }
     }
@@ -181,12 +185,13 @@ final class LoginCommandHandler {
         host.redrawPrompt();
     }
 
-    private static OAuthLogin.TokenResult login(ProviderCatalog.OAuth oauth) throws Exception {
+    private static OAuthLogin.TokenResult login(ProviderCatalog.OAuth oauth, java.util.function.Consumer<String> out)
+                                    throws Exception {
         if (oauth.oauthTokenEndpoint() != null && !oauth.oauthTokenEndpoint().isBlank()) {
             return OAuthLogin.loginOpenAI(oauth.deviceEndpoint(), oauth.tokenEndpoint(), oauth.oauthTokenEndpoint(),
-                                            oauth.clientId());
+                                            oauth.clientId(), out);
         }
-        return OAuthLogin.login(oauth.deviceEndpoint(), oauth.tokenEndpoint(), oauth.clientId(), oauth.scope());
+        return OAuthLogin.login(oauth.deviceEndpoint(), oauth.tokenEndpoint(), oauth.clientId(), oauth.scope(), out);
     }
 
     private static final class CatalogProviderSource implements ProviderSource {

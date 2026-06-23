@@ -41,6 +41,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -72,6 +73,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final ExecutorService agentExecutor = Executors
                                     .newSingleThreadExecutor(Thread.ofPlatform().name("pijota-tui-agent").factory());
+    private volatile Future<?> authTask; // in-flight OAuth login, cancellable via Esc/Ctrl+C
     private final TurnActivity activity = new TurnActivity();
     private final StatusOverride statusOverride = new StatusOverride();
     private final DialogHandler dialogs;
@@ -455,7 +457,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
         @Override
         public void submitAuthTask(Runnable task) {
-            agentExecutor.submit(task);
+            authTask = agentExecutor.submit(task);
         }
 
         @Override
@@ -1005,7 +1007,18 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         };
     }
 
+    /** Cancels an in-flight OAuth login (interrupts its poll loop); returns true if one was active. */
+    private boolean cancelAuthTaskIfActive() {
+        var task = authTask;
+        if (task == null || task.isDone())
+            return false;
+        task.cancel(true); // interrupt → the login poll's sleep/HTTP send throws; the handler reports "Login cancelled"
+        return true;
+    }
+
     private void handleEsc(boolean forceInterrupt) {
+        if (cancelAuthTaskIfActive())
+            return;
         if (dialogs.cancelQuestionIfIdle(activity.isBusy()))
             return;
         if (!activity.isBusy())
@@ -1024,6 +1037,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void handleCtrlC() {
+        if (cancelAuthTaskIfActive())
+            return;
         if (exitGate.tryFire()) {
             running.set(false);
             close();
@@ -1036,7 +1051,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     // Reentrant: nested suspend/resume pairs (e.g. transcendence brackets its whole flow, then suspends again around a
     // subprocess launch) only toggle the terminal on the outermost transition.
-    private int suspendDepth = 0;
+    private volatile int suspendDepth = 0;
 
     public void suspendTui() {
         if (suspendDepth++ > 0)
@@ -1798,7 +1813,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void redrawPrompt() {
-        if (SelfRespawn.isRespawnInProgress())
+        // While suspended (e.g. OAuth /login printing the device URL via System.out), the terminal is handed back to
+        // raw stdout; repainting the prompt/status bar here would interleave with that output (the model/status bar
+        // bled into the printed login URL). Skip all repaints until resumed.
+        if (suspendDepth > 0 || SelfRespawn.isRespawnInProgress())
             return;
         var snapshot = promptPresenter.decorate(promptEditor.snapshot());
         if (logViewer.active())
@@ -1813,6 +1831,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private long lastStreamRepaintAt;
 
     private void redrawStreamTail() {
+        if (suspendDepth > 0)
+            return;
         long now = System.currentTimeMillis();
         if (now - lastStreamRepaintAt < STREAM_REPAINT_INTERVAL_MS)
             return;

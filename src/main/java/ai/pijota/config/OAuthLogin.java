@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.function.Consumer;
 
 public final class OAuthLogin {
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(3);
@@ -21,28 +22,22 @@ public final class OAuthLogin {
 
     private OAuthLogin() {}
 
-    public static TokenResult login(String deviceEndpoint, String tokenEndpoint, String clientId, String scope)
-                                    throws Exception {
+    public static TokenResult login(String deviceEndpoint, String tokenEndpoint, String clientId, String scope,
+                                    Consumer<String> out) throws Exception {
         var client = HttpClient.newHttpClient();
 
         var device = requestDeviceCode(client, deviceEndpoint, clientId, scope);
-        System.out.println("\nOpen this URL in your browser:");
-        System.out.println(clickableLink(device.verificationUri(), device.verificationUri()));
-        System.out.println("Enter this code: " + device.userCode());
-        System.out.println("Waiting for authorization...\n");
+        announce(out, device);
 
         return pollForToken(client, tokenEndpoint, clientId, device.deviceCode());
     }
 
-    public static TokenResult loginOpenAI(String deviceCodeUrl, String tokenUrl, String oauthTokenUrl, String clientId)
-                                    throws Exception {
+    public static TokenResult loginOpenAI(String deviceCodeUrl, String tokenUrl, String oauthTokenUrl, String clientId,
+                                    Consumer<String> out) throws Exception {
         var client = HttpClient.newHttpClient();
 
         var device = requestOpenAIDeviceCode(client, deviceCodeUrl, clientId);
-        System.out.println("\nOpen this URL in your browser:");
-        System.out.println(clickableLink(device.verificationUri(), device.verificationUri()));
-        System.out.println("Enter this code: " + device.userCode());
-        System.out.println("Waiting for authorization...\n");
+        announce(out, device);
 
         var result = pollOpenAIDeviceAuth(client, tokenUrl, device);
         if (result.token() != null)
@@ -54,6 +49,14 @@ public final class OAuthLogin {
     public record AuthCode(String code, String codeVerifier) {
     }
     private record DeviceAuthResult(TokenResult token, AuthCode authCode) {
+    }
+
+    private static void announce(Consumer<String> out, DeviceCode device) {
+        out.accept("");
+        out.accept("Open this URL in your browser:");
+        out.accept(clickableLink(device.verificationUri(), device.verificationUri()));
+        out.accept("Enter this code: " + device.userCode());
+        out.accept("Waiting for authorization (Esc to cancel)...");
     }
 
     private static DeviceCode requestDeviceCode(HttpClient client, String endpoint, String clientId, String scope)
@@ -92,7 +95,6 @@ public final class OAuthLogin {
             if (response.statusCode() != 400 && response.statusCode() != 403) {
                 throw new IOException("Token request failed: HTTP " + response.statusCode() + " - " + response.body());
             }
-            System.out.print(".");
             Thread.sleep(POLL_INTERVAL.toMillis());
         }
         throw new IOException("OAuth authorization timed out");
@@ -144,7 +146,6 @@ public final class OAuthLogin {
                 throw new IOException("OpenAI device auth polling failed: HTTP " + response.statusCode() + " - "
                                                 + response.body());
             }
-            System.out.print(".");
             Thread.sleep(interval.toMillis());
         }
         throw new IOException("OpenAI OAuth authorization timed out");

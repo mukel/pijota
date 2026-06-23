@@ -59,7 +59,7 @@ class OAuthLoginFlowTest {
                                         {"access_token":"AT","refresh_token":"RT","expires_in":3600,"account_id":"acct-1"}""");
         server.start();
         try {
-            var token = OAuthLogin.login(base + "/device", base + "/token", "client-id", "read");
+            var token = OAuthLogin.login(base + "/device", base + "/token", "client-id", "read", System.out::println);
 
             assertEquals("AT", token.accessToken());
             assertEquals("RT", token.refreshToken());
@@ -113,7 +113,7 @@ class OAuthLoginFlowTest {
         server.start();
         try {
             assertThrows(IOException.class, () -> OAuthLogin.login(base + "/device", base + "/token", "client-id",
-                                            "read"));
+                                            "read", System.out::println));
         } finally {
             stop();
         }

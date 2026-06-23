@@ -227,9 +227,10 @@ public final class Main {
             OAuthLogin.TokenResult result;
             if (o.oauthTokenEndpoint() != null && !o.oauthTokenEndpoint().isBlank()) {
                 result = OAuthLogin.loginOpenAI(o.deviceEndpoint(), o.tokenEndpoint(), o.oauthTokenEndpoint(),
-                                                o.clientId());
+                                                o.clientId(), System.out::println);
             } else {
-                result = OAuthLogin.login(o.deviceEndpoint(), o.tokenEndpoint(), o.clientId(), o.scope());
+                result = OAuthLogin.login(o.deviceEndpoint(), o.tokenEndpoint(), o.clientId(), o.scope(),
+                                                System.out::println);
             }
             String tokenUrl = o.oauthTokenEndpoint() != null && !o.oauthTokenEndpoint().isBlank()
                                             ? o.oauthTokenEndpoint()
