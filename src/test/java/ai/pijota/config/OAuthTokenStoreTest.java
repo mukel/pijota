@@ -67,4 +67,33 @@ class OAuthTokenStoreTest {
 
         assertNull(store.getAccessToken("openai"));
     }
+
+    @Test
+    void tokensSurviveAPersistenceRoundTrip(@TempDir Path tmp) {
+        var authFile = tmp.resolve("auth.json");
+        new OAuthTokenStore(authFile).save("openai", "access-1", "refresh-1", 0, "acc-1", "https://t", "cid");
+
+        var reloaded = new OAuthTokenStore(authFile); // reads the file written by save()
+        assertEquals("access-1", reloaded.getAccessToken("openai"));
+        assertEquals("refresh-1", reloaded.getRefreshToken("openai"));
+        assertEquals("acc-1", reloaded.getAccountId("openai"));
+    }
+
+    @Test
+    void saveOverwritesAnExistingProvider(@TempDir Path tmp) {
+        var store = new OAuthTokenStore(tmp.resolve("auth.json"));
+        store.save("openai", "old", "r", 0, null, null, null);
+        store.save("openai", "new", "r2", 0, null, null, null);
+        assertEquals("new", store.getAccessToken("openai"));
+        assertEquals("r2", store.getRefreshToken("openai"));
+    }
+
+    @Test
+    void loadIsResilientToMissingAndCorruptFiles(@TempDir Path tmp) throws Exception {
+        assertNull(new OAuthTokenStore(tmp.resolve("absent.json")).getAccessToken("openai"));
+
+        var corrupt = tmp.resolve("corrupt.json");
+        java.nio.file.Files.writeString(corrupt, "{ this is not valid json");
+        assertDoesNotThrow(() -> new OAuthTokenStore(corrupt).getAccessToken("openai"));
+    }
 }

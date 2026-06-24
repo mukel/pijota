@@ -1,10 +1,15 @@
 package ai.pijota.telegram;
 
+import ai.pijota.agent.TestSession;
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.telegram.TelegramClient.InlineKeyboard;
+import ai.pijota.telegram.TelegramClient.Update;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -182,5 +187,67 @@ class TelegramChatTest {
             String key = settings.resolveApiKey(m.provider());
             assertTrue(key != null && !key.isBlank(), "offered a model with no key for provider " + m.provider());
         }
+    }
+
+    // ---- command handling (incl. the /start deep-link greeting) ----
+
+    /** A TelegramApi that records the text of every message the chat sends. */
+    private static final class RecordingApi implements TelegramApi {
+        final List<String> sent = new ArrayList<>();
+
+        @Override
+        public List<Update> getUpdates(long offset, int timeout) {
+            return List.of();
+        }
+
+        @Override
+        public long sendMessage(long chatId, String text) {
+            sent.add(text);
+            return sent.size();
+        }
+
+        @Override
+        public long sendMessage(long chatId, String text, InlineKeyboard keyboard) {
+            sent.add(text);
+            return sent.size();
+        }
+
+        @Override
+        public void editMessageText(long chatId, long messageId, String text) {}
+
+        @Override
+        public void answerCallback(String callbackQueryId) {}
+
+        @Override
+        public void sendChatAction(long chatId, String action) {}
+    }
+
+    private static TelegramChat chat(RecordingApi api, Path tmp) {
+        var ts = TestSession.in(tmp).build();
+        return new TelegramChat(1L, ts.session(), api, new SettingsManager(new AppConfig(), c -> {}));
+    }
+
+    @Test
+    void startWithDeepLinkPayloadGreetsWithAConnectionConfirmation(@TempDir Path tmp) {
+        var api = new RecordingApi();
+        chat(api, tmp).onText("/start pijota"); // arrives from t.me/<bot>?start=pijota
+        assertEquals(1, api.sent.size());
+        assertTrue(api.sent.get(0).contains("Connected to your pijota session"), api.sent.get(0));
+    }
+
+    @Test
+    void plainStartGreetsWithoutTheConnectionLine(@TempDir Path tmp) {
+        var api = new RecordingApi();
+        chat(api, tmp).onText("/start");
+        assertEquals(1, api.sent.size());
+        assertFalse(api.sent.get(0).contains("Connected to your pijota session"));
+    }
+
+    @Test
+    void helpRepliesWithoutTouchingTheAgent(@TempDir Path tmp) {
+        var api = new RecordingApi();
+        chat(api, tmp).onText("/help");
+        assertEquals(1, api.sent.size());
+        assertFalse(api.sent.get(0).isBlank());
     }
 }

@@ -109,6 +109,15 @@ class WebUiContextTest {
     }
 
     @Test
+    void themeIsNeverNullSoStyledIsSafe() {
+        // Regression: /transcend (and any extension) calls ui.theme().styled(...). Under remote control the UI owner is
+        // the web/Telegram context — its theme() must not be null. A no-color theme returns the text unchanged.
+        var ui = new Bus().ui();
+        assertNotNull(ui.theme());
+        assertEquals("hello", ui.theme().styled("toolTitle", "hello"));
+    }
+
+    @Test
     void resolveIsANoOpForUnknownOrAlreadyAnsweredDialogs() {
         var bus = new Bus();
         var ui = bus.ui();

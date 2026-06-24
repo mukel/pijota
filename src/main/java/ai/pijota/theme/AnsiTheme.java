@@ -73,6 +73,20 @@ public class AnsiTheme {
 
     // -- factory presets -------------------------------
 
+    /** A no-color theme whose {@link #styled} returns text unchanged — the safe fallback for non-terminal frontends. */
+    private static final AnsiTheme PLAIN = plainTheme();
+
+    public static AnsiTheme plain() {
+        return PLAIN;
+    }
+
+    private static AnsiTheme plainTheme() {
+        var t = new AnsiTheme();
+        t.name = "plain";
+        t.enabled = false;
+        return t;
+    }
+
     public static AnsiTheme dark() {
         var t = new AnsiTheme();
         t.name = "dark";

@@ -177,6 +177,38 @@ class WebServerTest {
     }
 
     @Test
+    void tokenGateAcceptsTheCookieRejectsWrongTokensAndGatesPosts() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        int port = freePort();
+        String token = "secret-pairing-xyz";
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of(), token)) {
+            server.start();
+            var client = HttpClient.newHttpClient();
+            String base = "http://127.0.0.1:" + port;
+
+            var wrongQuery = client.send(HttpRequest.newBuilder(URI.create(base + "/?t=nope")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(403, wrongQuery.statusCode(), "wrong ?t= token → refused");
+
+            var viaCookie = client.send(HttpRequest.newBuilder(URI.create(base + "/"))
+                                            .header("Cookie", "pijota_rc=" + token).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, viaCookie.statusCode(), "a valid cookie authenticates without ?t=");
+
+            var badCookie = client.send(HttpRequest.newBuilder(URI.create(base + "/events"))
+                                            .header("Cookie", "pijota_rc=bad").build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(403, badCookie.statusCode(), "wrong cookie → refused");
+
+            var post = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .header("Content-Type", "application/json")
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"hi\"}")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(403, post.statusCode(), "POST endpoints are token-gated too (auth before method/CSRF checks)");
+        }
+    }
+
+    @Test
     void accessBannerContainsUrlAndToken() {
         String banner = String.join("\n", WebServer.accessBanner("127.0.0.1", 8420, "tok123"));
         assertTrue(banner.contains("127.0.0.1:8420"), banner);

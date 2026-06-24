@@ -224,10 +224,16 @@
   .modal .opt:hover { border-color: var(--accent); background: var(--accent-soft); }
   .modal .opt:active { transform: scale(.98); }
   .modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  /* dialog actions are text pills, not the composer's round icon button (.act is 34px circular) */
+  .modal button.act { width: auto; height: auto; align-self: center; border-radius: 9px; padding: 10px 16px; font-size: 14px; }
   .modal input { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; }
   .modal input:focus { border-color: var(--accent); }
   /* /question dialog: option buttons + a free-text field per question */
+  .qform-wrap { position: relative; }
   .qform { max-height: 56vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+  .qjump { position: absolute; right: 6px; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 15px; cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: 0 3px 10px var(--shadow-color); }
+  .qjump.show { display: flex; }
+  .qjump:hover { border-color: var(--accent); }
   .qblock { margin: 0 0 16px; } .qblock:last-child { margin-bottom: 0; }
   .qheader { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 3px; }
   .qtext { margin-bottom: 8px; }
@@ -813,7 +819,15 @@ window.addEventListener("DOMContentLoaded", () => {
         block.appendChild(inp);
         form.appendChild(block);
       });
-      modal.appendChild(form);
+      // when options overflow the scroll area, a ↓ floats at its corner to jump straight to the bottom (free-text + Submit)
+      const wrap = document.createElement("div"); wrap.className = "qform-wrap";
+      const jump = document.createElement("button");
+      jump.type = "button"; jump.className = "qjump"; jump.textContent = "↓"; jump.title = "Jump to the bottom";
+      jump.onclick = () => form.scrollTo({ top: form.scrollHeight, behavior: "smooth" });
+      const updateJump = () => jump.classList.toggle("show", form.scrollHeight - form.scrollTop - form.clientHeight > 16);
+      form.addEventListener("scroll", updateJump);
+      wrap.append(form, jump); modal.appendChild(wrap);
+      setTimeout(updateJump, 0); // after layout: reveal only if the content actually overflows
       const submit = () => answer((d.questions || []).map((q, qi) => {
         const typed = state[qi].text.trim();
         const ans = typed || [...state[qi].picked].join(", ");

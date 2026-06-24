@@ -30,9 +30,10 @@ public interface UiContext {
     /** Show a transient notification/alert. */
     default void alert(String message) {}
 
-    /** Current color theme. Returns null when no UI is attached. */
+    /** Current color theme. Never null — non-terminal frontends get a no-color theme, so {@code theme().styled(…)} is
+     * always safe (it returns text unchanged there). Terminal frontends override with the live theme. */
     default AnsiTheme theme() {
-        return null;
+        return AnsiTheme.plain();
     }
 
     /**
