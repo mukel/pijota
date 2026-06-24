@@ -1,6 +1,7 @@
 package ai.pijota.web;
 
 import ai.pijota.agent.TestSession;
+import ai.pijota.messages.Message;
 import ai.pijota.testkit.Await;
 import ai.pijota.testkit.FauxLlm;
 
@@ -18,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -162,6 +164,24 @@ class WebServerTest {
             // serveEvents writes history/statuslines/stats frames immediately, then parks; read until we see history.
             String frames = readUntil(resp.body(), "event: history", Duration.ofSeconds(5));
             assertTrue(frames.contains("event: history"), frames);
+        });
+    }
+
+    @Test
+    void historyFrameOmitsSilentCustomMessages() throws Exception {
+        withServer((ts, client, base) -> {
+            // a goal-style state snapshot (silent) and an ordinary custom note
+            ts.session().agentLoop().addCustomMessage(new Message.Custom("goal", "active · secret goal snapshot",
+                                            Map.of("silent", true)));
+            ts.session().agentLoop().addCustomMessage(new Message.Custom("note", "a visible note", Map.of()));
+
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofInputStream());
+            String frames = readUntil(resp.body(), "event: history", Duration.ofSeconds(5));
+
+            assertTrue(frames.contains("a visible note"), frames);
+            assertFalse(frames.contains("secret goal snapshot"),
+                                            "silent state snapshots must not reach the browser: " + frames);
         });
     }
 

@@ -13,6 +13,7 @@ import ai.pijota.util.Emojis;
 import ai.pijota.util.Util;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -182,6 +183,11 @@ public final class GoalExtension implements Extension {
             sb.append(" · criterion: ").append(current.completionCriterion());
         if (!current.progress().isEmpty())
             sb.append(" · progress: ").append(current.progress().size());
+        // Surface the management actions — the command advertises "view or manage", so show how.
+        sb.append("  ·  manage: ");
+        sb.append(current.status() == GoalState.Status.PAUSED
+                                        ? "/goal resume · clear"
+                                        : "/goal pause · clear · progress <note>");
         api.runtime().setStatus(sb.toString());
     }
 
@@ -335,10 +341,15 @@ public final class GoalExtension implements Extension {
     // ---- internals ----
 
     private void saveEntry(GoalState goalState) {
-        @SuppressWarnings("unchecked")
-        var details = (Map<String, Object>) (Map<?, ?>) Map.of("json",
-                                        goalState.status() == GoalState.Status.IDLE ? null : goalState.toJson());
-        String summary = goalState.status() == GoalState.Status.IDLE
+        boolean idle = goalState.status() == GoalState.Status.IDLE;
+        // These entries are state snapshots persisted for reload — shown via the status line, not as repeated
+        // transcript
+        // lines (Message.Custom.SILENT). Omit json when idle rather than storing null.
+        var details = new HashMap<String, Object>();
+        if (!idle)
+            details.put("json", goalState.toJson());
+        details.put(Message.Custom.SILENT, true);
+        String summary = idle
                                         ? "no goal"
                                         : statusLabel(goalState.status()) + " · "
                                                                         + Util.truncate(goalState.objective(), 60);

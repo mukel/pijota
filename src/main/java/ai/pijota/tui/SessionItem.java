@@ -40,8 +40,13 @@ public record SessionItem(Path path, String name, String description, long mtime
         String age = SessionDescriptor.relativeAge(mtime); // single source for age formatting
         String shortName = name.length() > 14 ? name.substring(0, 14) : name;
         String date = mtime > 0 ? DATE.format(Instant.ofEpochMilli(mtime)) : "unknown";
-        String counts = messageCount + " msg" + (messageCount == 1 ? "" : "s")
-                                        + (estTokens > 0 ? "  ~" + SessionDescriptor.formatTokens(estTokens) : "");
-        return age + "  " + date + "  " + counts + "  " + shortName;
+        // omit counts for empty/unreadable sessions (0 msgs)
+        String counts = messageCount > 0
+                                        ? "  " + messageCount + " msg" + (messageCount == 1 ? "" : "s") + (estTokens > 0
+                                                                        ? "  ~" + SessionDescriptor.formatTokens(
+                                                                                                        estTokens)
+                                                                        : "")
+                                        : "";
+        return age + "  " + date + counts + "  " + shortName;
     }
 }

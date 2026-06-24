@@ -73,13 +73,32 @@ public sealed interface Message {
 
     record Custom(UUID id, Instant timestamp, String customType, String content,
                                     Map<String, Object> details) implements Message {
+
+        /** Details flag marking an entry as a persisted state snapshot frontends should not render. */
+        public static final String SILENT = "silent";
+
         public Custom(String customType, String content) {
             this(UUID.randomUUID(), Instant.now(), customType, content, Map.of());
         }
 
         public Custom(String customType, String content, Map<String, Object> details) {
             this(UUID.randomUUID(), Instant.now(), customType, content,
-                                            details == null ? Map.of() : Map.copyOf(details));
+                                            details == null ? Map.of() : copyOfNullable(details));
+        }
+
+        /**
+         * True when this is a persisted state snapshot (e.g. goal status) — kept for reload but shown via a status
+         * line, not echoed into the transcript. Read by every frontend so the {@link #SILENT} key lives in one place.
+         */
+        public boolean isSilent() {
+            return details != null && Boolean.TRUE.equals(details.get(SILENT));
+        }
+
+        // Map.copyOf rejects null values, but older persisted snapshots can carry one (e.g. a goal entry written as
+        // {"json":null} before that key was omitted) — tolerate it so reloading those sessions doesn't throw.
+        private static Map<String, Object> copyOfNullable(Map<String, Object> details) {
+            var copy = new java.util.HashMap<String, Object>(details);
+            return java.util.Collections.unmodifiableMap(copy);
         }
     }
 }

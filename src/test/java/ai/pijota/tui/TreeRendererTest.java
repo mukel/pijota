@@ -101,6 +101,36 @@ class TreeRendererTest {
     }
 
     @Test
+    void linearConversationRendersFlatWithoutBranchConnectors() {
+        var renderer = new TreeRenderer(fakeTheme());
+        var entries = List.of(e("u1", null, "message", "user", "one"), e("a1", "u1", "message", "assistant", "a"),
+                                        e("u2", "a1", "message", "user", "two"),
+                                        e("a2", "u2", "message", "assistant", "b"),
+                                        e("u3", "a2", "message", "user", "three"));
+        var lines = renderer.render(entries, entries, "u3");
+
+        assertTrue(lines.stream().noneMatch(l -> l.contains("├") || l.contains("└") || l.contains("┆")),
+                                        "a linear conversation must not draw branch connectors");
+        assertTrue(lines.stream().anyMatch(l -> l.contains("one")));
+        assertTrue(lines.stream().anyMatch(l -> l.contains("three")));
+    }
+
+    @Test
+    void forkIndentsOnlyAtTheBranchPoint() {
+        var renderer = new TreeRenderer(fakeTheme());
+        // u1 → a1, then a1 forks into two user turns
+        var entries = List.of(e("u1", null, "message", "user", "root"), e("a1", "u1", "message", "assistant", "resp"),
+                                        e("u2a", "a1", "message", "user", "branchA"),
+                                        e("u2b", "a1", "message", "user", "branchB"));
+        var lines = renderer.render(entries, entries, "u2b");
+
+        assertTrue(lines.stream().anyMatch(l -> l.contains("├")), "the fork should draw branch connectors");
+        assertTrue(lines.stream().anyMatch(l -> l.contains("└")));
+        String rootLine = lines.stream().filter(l -> l.contains("root")).findFirst().orElseThrow();
+        assertFalse(rootLine.contains("├") || rootLine.contains("└"), "the pre-fork turn stays flat: " + rootLine);
+    }
+
+    @Test
     void renderMultiTurnWithBranching() {
         var renderer = new TreeRenderer(fakeTheme());
         var entries = List.of(e("u1", null, "message", "user", "first query"),

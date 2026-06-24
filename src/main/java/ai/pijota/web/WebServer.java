@@ -308,8 +308,10 @@ public final class WebServer implements AutoCloseable {
             case AgentEvent.ToolResult(Message.ToolResult r) ->
                 broadcast("tool_result", Map.of("id", nz(r.toolCallId()), "name", nz(r.toolName()), "content",
                                                 nz(r.content()), "isError", r.isError()));
-            case AgentEvent.CustomMessage(Message.Custom c) ->
-                broadcast("custom", Map.of("type", nz(c.customType()), "content", nz(c.content())));
+            case AgentEvent.CustomMessage(Message.Custom c) -> {
+                if (!c.isSilent()) // persisted state snapshots (e.g. goal status) aren't shown in the transcript
+                    broadcast("custom", Map.of("type", nz(c.customType()), "content", nz(c.content())));
+            }
             case AgentEvent.Error(Throwable t) -> broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
             case AgentEvent.HistoryChanged ignored -> broadcast("history", history()); // re-render after new/load/undo
             default -> {
@@ -330,8 +332,10 @@ public final class WebServer implements AutoCloseable {
                 }
                 case Message.ToolResult r -> out.add(Map.of("role", "tool", "id", nz(r.toolCallId()), "name",
                                                 nz(r.toolName()), "content", nz(r.content()), "isError", r.isError()));
-                case Message.Custom c ->
-                    out.add(Map.of("role", "custom", "type", nz(c.customType()), "content", nz(c.content())));
+                case Message.Custom c -> {
+                    if (!c.isSilent())
+                        out.add(Map.of("role", "custom", "type", nz(c.customType()), "content", nz(c.content())));
+                }
                 default -> {
                     // System/CompactionSummary are internal context, not shown in the chat transcript
                 }

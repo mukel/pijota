@@ -45,17 +45,25 @@ public record SessionDescriptor(Path path, String id, String description, boolea
     /** One-line label for a flat selector: description, message/token counts, and a relative age when known. */
     public String label() {
         var sb = new StringBuilder(description);
-        sb.append("  ·  ").append(messageCount).append(" msg").append(messageCount == 1 ? "" : "s");
-        if (estTokens > 0)
-            sb.append("  ·  ~").append(formatTokens(estTokens));
+        // Skip counts for empty/unreadable sessions (0 msgs) — they'd just read "(empty) · 0 msgs".
+        if (messageCount > 0) {
+            sb.append("  ·  ").append(messageCount).append(" msg").append(messageCount == 1 ? "" : "s");
+            if (estTokens > 0)
+                sb.append("  ·  ~").append(formatTokens(estTokens));
+        }
         if (mtime > 0)
             sb.append("  ·  ").append(relativeAge());
         return sb.toString();
     }
 
-    /** Compact token count, e.g. {@code "812 tok"} or {@code "12.3k tok"}. */
+    /** Rough token estimate from a character count (~4 chars per token), the project-wide heuristic. */
+    public static long estimateTokens(long chars) {
+        return (long) Math.ceil(chars / 4.0);
+    }
+
+    /** Compact token count using the project's standard count formatter, e.g. {@code "812 tok"} / {@code "12K tok"}. */
     public static String formatTokens(long tokens) {
-        return tokens < 1000 ? tokens + " tok" : String.format("%.1fk tok", tokens / 1000.0);
+        return Util.fmtCount(tokens) + " tok";
     }
 
     public String relativeAge() {
@@ -99,12 +107,17 @@ public record SessionDescriptor(Path path, String id, String description, boolea
                 }
                 if (!"message".equals(type))
                     continue; // header / compaction / model_change / cache_metadata — not conversation
-                messages++;
+                String role = (String) entry.getOrDefault("role", "");
+                // Count conversational turns only — tool_result entries are plumbing and would inflate the picker
+                // count.
+                if ("user".equals(role) || "assistant".equals(role))
+                    messages++;
+                // Tokens, however, include every message's content (tool results consume context too).
                 if (entry.get("content") instanceof String c)
                     chars += c.length();
                 if (entry.get("thinking") instanceof String t)
                     chars += t.length();
-                if (firstUser == null && "user".equals(entry.getOrDefault("role", ""))) {
+                if (firstUser == null && "user".equals(role)) {
                     String c = clean((String) entry.get("content"));
                     if (c != null)
                         firstUser = truncate(c);
@@ -113,28 +126,10 @@ public record SessionDescriptor(Path path, String id, String description, boolea
         } catch (IOException e) {
             return new Stats("(unreadable)", false, 0, 0);
         }
-        long estTokens = (long) Math.ceil(chars / 4.0);
+        long estTokens = estimateTokens(chars);
         if (sessionName != null)
             return new Stats(sessionName, true, messages, estTokens);
         return new Stats(firstUser != null ? firstUser : "(empty)", false, messages, estTokens);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static ParsedDescription parseLine(String line) {
-        try {
-            Map<String, Object> entry = Util.MAPPER.readValue(line, Map.class);
-            if ("session_info".equals(entry.get("type"))) {
-                String name = clean((String) entry.get("name"));
-                return new ParsedDescription(null, name == null ? null : truncate(name));
-            }
-            if (!"message".equals(entry.getOrDefault("type", "message")))
-                return null;
-            if (!"user".equals(entry.getOrDefault("role", "")))
-                return null;
-            return new ParsedDescription(truncate(clean((String) entry.get("content"))), null);
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     public static String clean(String s) {
@@ -153,9 +148,6 @@ public record SessionDescriptor(Path path, String id, String description, boolea
         if (cut <= MAX_DESC_LEN - 10 || cut <= 0)
             cut = MAX_DESC_LEN;
         return s.substring(0, cut) + "…";
-    }
-
-    public record ParsedDescription(String firstUser, String sessionName) {
     }
 
     private record Stats(String text, boolean named, int messageCount, long estTokens) {

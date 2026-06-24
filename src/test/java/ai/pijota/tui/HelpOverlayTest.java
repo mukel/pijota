@@ -17,4 +17,17 @@ class HelpOverlayTest {
         assertTrue(out.contains("Shift+Tab") && out.contains("toggle thinking"), out);
         assertTrue(out.contains("Ctrl+_") && out.contains("undo"), out);
     }
+
+    @Test
+    void helpListsCommandsBeforeShortcuts() {
+        var lines = HelpOverlay.content(List.of("/model"), List.of(), false);
+        assertTrue(lines.indexOf("/model") < lines.indexOf("keyboard shortcuts"), lines.toString());
+    }
+
+    @Test
+    void hotkeysListsShortcutsBeforeCommands() {
+        var lines = HelpOverlay.content(List.of("/model"), List.of(), true);
+        assertTrue(lines.indexOf("keyboard shortcuts") < lines.indexOf("/model"),
+                                        "/hotkeys must show shortcuts first: " + lines);
+    }
 }

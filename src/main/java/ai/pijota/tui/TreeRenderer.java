@@ -13,8 +13,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 final class TreeRenderer {
-    private static final int MAX_TREE_INDENT = 3;
-
     private final AnsiTheme theme;
 
     TreeRenderer(AnsiTheme theme) {
@@ -36,10 +34,16 @@ final class TreeRenderer {
         var rootTurns = firstUserDescendants(tree.roots(), tree.children());
         if (rootTurns.isEmpty()) {
             lines.add(theme.styled("statusText", "no user turns yet"));
-        }
-        for (int i = 0; i < rootTurns.size(); i++) {
-            appendTurnNode(lines, rootTurns.get(i), tree.children(), tree.parents(), activePath, leafId,
-                                            tree.userNumbers(), "", i == rootTurns.size() - 1, 0);
+        } else {
+            // a single start renders flat (no connector) until it forks; multiple starts are themselves a root fork
+            boolean single = rootTurns.size() == 1;
+            var seen = new HashSet<String>(); // guards against a cyclic parentId chain looping the walk forever
+            for (int i = 0; i < rootTurns.size(); i++) {
+                boolean last = i == rootTurns.size() - 1;
+                appendSegment(lines, rootTurns.get(i), tree.children(), activePath, leafId, tree.userNumbers(),
+                                                single ? "" : (last ? "└ " : "├ "),
+                                                single ? "" : (last ? "   " : "│  "), seen);
+            }
         }
         return lines;
     }
@@ -47,7 +51,6 @@ final class TreeRenderer {
     private TreeView buildTreeView(List<Map<String, Object>> entries) {
         var byId = new LinkedHashMap<String, Map<String, Object>>();
         var children = new LinkedHashMap<String, List<Map<String, Object>>>();
-        var parents = new HashMap<String, String>();
         var roots = new ArrayList<Map<String, Object>>();
         var userNumbers = new HashMap<String, Integer>();
         int userCount = 0;
@@ -62,16 +65,12 @@ final class TreeRenderer {
         for (var entry : entries) {
             Object pid = entry.get("parentId");
             String parentId = pid instanceof String s ? s : null;
-            if (parentId == null || !byId.containsKey(parentId)) {
+            if (parentId == null || !byId.containsKey(parentId))
                 roots.add(entry);
-            } else {
+            else
                 children.computeIfAbsent(parentId, _ -> new ArrayList<>()).add(entry);
-                String id = entryId(entry);
-                if (id != null)
-                    parents.put(id, parentId);
-            }
         }
-        return new TreeView(entries, roots, children, parents, userNumbers, userCount);
+        return new TreeView(entries, roots, children, userNumbers, userCount);
     }
 
     private Set<String> entryIds(List<Map<String, Object>> entries) {
@@ -84,43 +83,60 @@ final class TreeRenderer {
         return ids;
     }
 
-    private void appendTurnNode(List<String> lines, Map<String, Object> entry,
-                                    Map<String, List<Map<String, Object>>> children, Map<String, String> parents,
-                                    Set<String> activePath, String leafId, Map<String, Integer> userNumbers,
-                                    String prefix, boolean last, int depth) {
-        String id = entryId(entry);
-        boolean currentTurn = leafId != null && containsBeforeNextUser(entry, children, leafId::equals);
-        boolean activeTurn = containsBeforeNextUser(entry, children, activePath::contains);
-        int visualDepth = Math.min(depth, MAX_TREE_INDENT);
-        String marker = currentTurn ? "→" : activeTurn ? "·" : " ";
-        String connector = depth > MAX_TREE_INDENT ? "┆ " : last ? "└ " : "├ ";
-        String visualPrefix = depth > MAX_TREE_INDENT ? "   ".repeat(MAX_TREE_INDENT) : prefix;
-        Integer from = depth > MAX_TREE_INDENT ? forkFrom(id, parents, userNumbers) : null;
-        String line = theme.styled("statusText", visualPrefix + connector)
-                                        + theme.styled(currentTurn ? "toolLabel" : "statusText", marker + " ")
-                                        + turnLabel(entry, userNumbers.get(id), children, currentTurn, from);
-        lines.add(line);
-
-        var childEntries = firstUserDescendants(children.getOrDefault(id, List.of()), children);
-        String childPrefix = visualDepth >= MAX_TREE_INDENT ? visualPrefix : prefix + (last ? "   " : "│  ");
-        for (int i = 0; i < childEntries.size(); i++) {
-            appendTurnNode(lines, childEntries.get(i), children, parents, activePath, leafId, userNumbers, childPrefix,
-                                            i == childEntries.size() - 1, depth + 1);
+    /**
+     * Render a maximal linear run of turns starting at {@code start} at the same indent, then recurse — indenting only
+     * where the conversation actually forks (a turn with more than one child branch). {@code firstPrefix} is drawn
+     * before the run's first turn (the branch connector), {@code restPrefix} before every later turn in the run.
+     */
+    private void appendSegment(List<String> lines, Map<String, Object> start,
+                                    Map<String, List<Map<String, Object>>> children, Set<String> activePath,
+                                    String leafId, Map<String, Integer> userNumbers, String firstPrefix,
+                                    String restPrefix, Set<String> seen) {
+        Map<String, Object> entry = start;
+        boolean first = true;
+        while (entry != null) {
+            String id = entryId(entry);
+            if (id != null && !seen.add(id))
+                break; // already rendered this turn — a cyclic parentId chain; stop rather than loop forever
+            appendTurnLine(lines, entry, first ? firstPrefix : restPrefix, children, activePath, leafId, userNumbers);
+            first = false;
+            var nextTurns = firstUserDescendants(children.getOrDefault(id, List.of()), children);
+            if (nextTurns.size() == 1) {
+                entry = nextTurns.getFirst(); // linear continuation — stay in the same column
+            } else if (nextTurns.isEmpty()) {
+                entry = null;
+            } else {
+                for (int i = 0; i < nextTurns.size(); i++) { // a real fork — indent each branch under it
+                    boolean last = i == nextTurns.size() - 1;
+                    appendSegment(lines, nextTurns.get(i), children, activePath, leafId, userNumbers,
+                                                    restPrefix + (last ? "└ " : "├ "),
+                                                    restPrefix + (last ? "   " : "│  "), seen);
+                }
+                entry = null;
+            }
         }
     }
 
+    private void appendTurnLine(List<String> lines, Map<String, Object> entry, String prefix,
+                                    Map<String, List<Map<String, Object>>> children, Set<String> activePath,
+                                    String leafId, Map<String, Integer> userNumbers) {
+        String id = entryId(entry);
+        boolean currentTurn = leafId != null && containsBeforeNextUser(entry, children, leafId::equals);
+        boolean activeTurn = containsBeforeNextUser(entry, children, activePath::contains);
+        String marker = currentTurn ? "→" : activeTurn ? "·" : " ";
+        lines.add(theme.styled("statusText", prefix)
+                                        + theme.styled(currentTurn ? "toolLabel" : "statusText", marker + " ")
+                                        + turnLabel(entry, userNumbers.get(id), children, currentTurn));
+    }
+
     private String turnLabel(Map<String, Object> entry, Integer userNumber,
-                                    Map<String, List<Map<String, Object>>> children, boolean currentTurn,
-                                    Integer forkFrom) {
+                                    Map<String, List<Map<String, Object>>> children, boolean currentTurn) {
         var summary = summarizeTurn(entry, children);
         var label = new StringBuilder();
         String number = userNumber == null ? "?" : String.valueOf(userNumber);
         label.append(theme.styled(currentTurn ? "toolLabel" : "statusText", String.format("%2s", number)));
         label.append("  ");
         label.append(theme.styled(currentTurn ? "toolLabel" : "", snippet((String) entry.get("content"), 44)));
-        if (forkFrom != null && userNumber != null && forkFrom != userNumber - 1) {
-            label.append(theme.styled("statusText", "  · from ")).append(forkFrom);
-        }
         if (summary.toolCalls() > 0) {
             label.append(theme.styled("statusText", "  · ")).append(theme.styled("statusText",
                                             summary.toolCalls() + " tool" + (summary.toolCalls() == 1 ? "" : "s")));
@@ -144,18 +160,6 @@ final class TreeRenderer {
         return label.toString();
     }
 
-    private Integer forkFrom(String id, Map<String, String> parents, Map<String, Integer> userNumbers) {
-        var visited = new java.util.HashSet<String>();
-        String parent = parents.get(id);
-        while (parent != null && visited.add(parent)) {
-            Integer number = userNumbers.get(parent);
-            if (number != null)
-                return number;
-            parent = parents.get(parent);
-        }
-        return null;
-    }
-
     private List<Map<String, Object>> firstUserDescendants(List<Map<String, Object>> entries,
                                     Map<String, List<Map<String, Object>>> children) {
         var users = new ArrayList<Map<String, Object>>();
@@ -174,7 +178,7 @@ final class TreeRenderer {
         state.chars += contentChars(entry); // the user message itself
         summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, state);
         return new TurnSummary(state.toolCallIds.size(), state.errors, state.compacted,
-                                        (long) Math.ceil(state.chars / 4.0));
+                                        SessionDescriptor.estimateTokens(state.chars));
     }
 
     private void summarizeTurnChildren(List<Map<String, Object>> entries,
@@ -237,7 +241,7 @@ final class TreeRenderer {
             if ("message".equals(e.getOrDefault("type", "message")))
                 chars += contentChars(e);
         }
-        return (long) Math.ceil(chars / 4.0);
+        return SessionDescriptor.estimateTokens(chars);
     }
 
     /** Relative age of an entry's timestamp ("5m ago"), or null when absent/unparseable. */
@@ -271,8 +275,8 @@ final class TreeRenderer {
     }
 
     private record TreeView(List<Map<String, Object>> entries, List<Map<String, Object>> roots,
-                                    Map<String, List<Map<String, Object>>> children, Map<String, String> parents,
-                                    Map<String, Integer> userNumbers, int userCount) {
+                                    Map<String, List<Map<String, Object>>> children, Map<String, Integer> userNumbers,
+                                    int userCount) {
     }
 
     private static final class TurnSummaryState {

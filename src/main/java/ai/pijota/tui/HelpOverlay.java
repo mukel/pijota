@@ -23,9 +23,34 @@ final class HelpOverlay {
 
     private HelpOverlay() {}
 
+    /** {@code /help} layout: slash commands first, keyboard shortcuts after. */
     static List<String> content(List<String> commandHelp, Collection<ExtensionKeybinding> keybindings) {
-        var out = new ArrayList<>(commandHelp);
-        out.add("");
+        return content(commandHelp, keybindings, false);
+    }
+
+    /**
+     * @param shortcutsFirst
+     *            when true (the {@code /hotkeys} view), list keyboard shortcuts before the slash commands; otherwise
+     *            commands come first (the {@code /help} view).
+     */
+    static List<String> content(List<String> commandHelp, Collection<ExtensionKeybinding> keybindings,
+                                    boolean shortcutsFirst) {
+        var shortcuts = shortcutsBlock(keybindings);
+        var out = new ArrayList<String>();
+        if (shortcutsFirst) {
+            out.addAll(shortcuts);
+            out.add("");
+            out.addAll(commandHelp);
+        } else {
+            out.addAll(commandHelp);
+            out.add("");
+            out.addAll(shortcuts);
+        }
+        return out;
+    }
+
+    private static List<String> shortcutsBlock(Collection<ExtensionKeybinding> keybindings) {
+        var out = new ArrayList<String>();
         out.add("keyboard shortcuts");
         int keyWidth = 0;
         for (var k : SHORTCUTS)

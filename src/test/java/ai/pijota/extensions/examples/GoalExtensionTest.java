@@ -271,4 +271,18 @@ class GoalExtensionTest {
         assertEquals("goal", result[0]);
         assertEquals("criterion", result[1]);
     }
+
+    @Test
+    void clearCommandResetsToIdleWithoutNpe() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        var goalCmd = fake.slashCommand("goal");
+
+        goalCmd.handler().accept("write the docs"); // create an active goal
+        // clearing transitions to IDLE → the snapshot omits json; must not NPE (Map.copyOf once rejected a null value)
+        assertDoesNotThrow(() -> goalCmd.handler().accept("clear"));
+
+        var get = execute(fake.tool("get_goal"), Map.of());
+        assertTrue(get.content().toLowerCase().contains("idle"), get.content());
+    }
 }

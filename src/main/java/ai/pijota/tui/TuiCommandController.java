@@ -31,7 +31,7 @@ final class TuiCommandController {
             case "/undo" -> tui.undoLastTurn();
             case "/compact" -> tui.triggerCompaction(arg);
             case "/copy" -> tui.copyLastResponse();
-            case "/hotkeys" -> tui.showHelpOverlay();
+            case "/hotkeys" -> tui.showHelpOverlay(true);
             case "/session" -> tui.showSessionInfo();
             case "/context" -> tui.showContext();
             case "/usage" -> tui.showUsage();

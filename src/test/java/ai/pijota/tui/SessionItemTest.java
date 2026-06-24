@@ -123,6 +123,29 @@ class SessionItemTest {
     }
 
     @Test
+    void messageCountExcludesToolResults(@TempDir Path tmp) throws Exception {
+        var file = tmp.resolve("tools.jsonl");
+        Files.writeString(file, "{\"type\":\"message\",\"role\":\"user\",\"content\":\"do it\"}\n"
+                                        + "{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"ok\"}\n"
+                                        + "{\"type\":\"message\",\"role\":\"tool_result\",\"content\":\"output\"}\n"
+                                        + "{\"type\":\"message\",\"role\":\"tool_result\",\"content\":\"more\"}\n");
+
+        var d = SessionDescriptor.describe(file);
+        assertEquals(2, d.messageCount(), "tool_result entries are plumbing, not conversation turns");
+    }
+
+    @Test
+    void labelOmitsCountsForEmptySession(@TempDir Path tmp) throws Exception {
+        var file = tmp.resolve("empty.jsonl");
+        Files.writeString(file, "{\"id\":\"x\",\"type\":\"session\",\"version\":3}\n"); // header only
+
+        var d = SessionDescriptor.describe(file);
+        assertEquals(0, d.messageCount());
+        assertFalse(d.label().contains("msg"), d.label());
+        assertFalse(d.label().contains("tok"), d.label());
+    }
+
+    @Test
     void detailTextShowsMessageCount(@TempDir Path tmp) throws Exception {
         var file = tmp.resolve("d.jsonl");
         Files.writeString(file, "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hi\"}\n");
@@ -134,7 +157,7 @@ class SessionItemTest {
     @Test
     void formatTokensIsCompact() {
         assertEquals("812 tok", SessionDescriptor.formatTokens(812));
-        assertEquals("12.3k tok", SessionDescriptor.formatTokens(12_345));
+        assertEquals("12K tok", SessionDescriptor.formatTokens(12_345));
     }
 
     @Test
@@ -180,38 +203,4 @@ class SessionItemTest {
         assertTrue(result.endsWith("…"));
     }
 
-    @Test
-    void descriptionFromLineParsesUserMessage() {
-        var result = SessionDescriptor.parseLine(
-                                        "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hello world\"}");
-        assertNotNull(result);
-        assertEquals("hello world", result.firstUser());
-        assertNull(result.sessionName());
-    }
-
-    @Test
-    void descriptionFromLineParsesSessionInfo() {
-        var result = SessionDescriptor.parseLine("{\"type\":\"session_info\",\"name\":\"My Session\"}");
-        assertNotNull(result);
-        assertNull(result.firstUser());
-        assertEquals("My Session", result.sessionName());
-    }
-
-    @Test
-    void descriptionFromLineReturnsNullForNonMessage() {
-        var result = SessionDescriptor.parseLine("{\"type\":\"tool_result\"}");
-        assertNull(result);
-    }
-
-    @Test
-    void descriptionFromLineReturnsNullForAssistantMessage() {
-        var result = SessionDescriptor.parseLine(
-                                        "{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"I am helping\"}");
-        assertNull(result);
-    }
-
-    @Test
-    void descriptionFromLineReturnsNullForInvalidJson() {
-        assertNull(SessionDescriptor.parseLine("not json"));
-    }
 }

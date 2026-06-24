@@ -1308,9 +1308,18 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showHelpOverlay() {
+        showHelpOverlay(false);
+    }
+
+    /**
+     * @param shortcutsFirst
+     *            /hotkeys lists keyboard shortcuts before commands; /help lists commands first.
+     */
+    void showHelpOverlay(boolean shortcutsFirst) {
         // Render help in the scrollable log viewer (one modal viewer for /help and /logs) so the full command list
         // and shortcuts scroll and fit the terminal, rather than being capped.
-        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values()));
+        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values(),
+                                        shortcutsFirst));
         redrawPrompt();
     }
 
@@ -1716,18 +1725,22 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
             case AgentEvent.CustomMessage(Message.Custom custom) -> {
                 streamRenderer.flush();
-                if (session.extensionRegistry().hasMessageRenderers()) {
-                    var rendered = session.extensionRegistry().renderMessage(custom);
-                    if (rendered.isPresent()) {
-                        appendPlain(List.of(theme.styled("customMessageLabel", custom.customType())));
-                        appendPlain(rendered.get());
+                // Some custom entries are state snapshots persisted for reload (e.g. goal status), shown via a status
+                // line rather than the transcript — skip them so they don't print once per state change.
+                if (!custom.isSilent()) {
+                    if (session.extensionRegistry().hasMessageRenderers()) {
+                        var rendered = session.extensionRegistry().renderMessage(custom);
+                        if (rendered.isPresent()) {
+                            appendPlain(List.of(theme.styled("customMessageLabel", custom.customType())));
+                            appendPlain(rendered.get());
+                        } else {
+                            appendPlain(List.of(theme.styled("customMessageLabel", custom.customType() + ": ")
+                                                            + custom.content()));
+                        }
                     } else {
                         appendPlain(List.of(theme.styled("customMessageLabel", custom.customType() + ": ")
-                                                        + custom.content()));
+                                                        + theme.styled("customMessageText", custom.content())));
                     }
-                } else {
-                    appendPlain(List.of(theme.styled("customMessageLabel", custom.customType() + ": ")
-                                                    + theme.styled("customMessageText", custom.content())));
                 }
                 redrawPrompt();
             }
