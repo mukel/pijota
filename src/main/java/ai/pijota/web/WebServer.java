@@ -189,11 +189,11 @@ public final class WebServer implements AutoCloseable {
      * terminal QR. {@code token} is appended as {@code ?t=} when non-null.
      */
     public static List<String> accessBanner(String bindHost, int port, String token) {
-        String displayHost = "0.0.0.0".equals(bindHost)
-                                        ? (ai.pijota.util.Net.lanAddress() != null
-                                                                        ? ai.pijota.util.Net.lanAddress()
-                                                                        : DEFAULT_HOST)
-                                        : bindHost;
+        String displayHost = bindHost;
+        if ("0.0.0.0".equals(bindHost)) {
+            String lan = ai.pijota.util.Net.lanAddress(); // enumerate interfaces once, not twice
+            displayHost = lan != null ? lan : DEFAULT_HOST;
+        }
         String url = "http://" + displayHost + ":" + port + "/" + (token == null ? "" : "?t=" + token);
         return ai.pijota.util.QrTerminal.scannable("scan to open on your phone:", url);
     }
