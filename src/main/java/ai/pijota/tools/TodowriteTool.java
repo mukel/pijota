@@ -2,11 +2,28 @@ package ai.pijota.tools;
 
 import ai.pijota.llm.ToolSchema;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 public final class TodowriteTool implements Tool {
+
+    /** One todo item. {@code status}: pending | in_progress | completed | cancelled. {@code priority}: high|medium|low. */
+    public record Todo(String content, String status, String priority) {
+    }
+
+    private final Consumer<List<Todo>> onUpdate;
+
+    public TodowriteTool() {
+        this(todos -> {});
+    }
+
+    /** {@code onUpdate} receives the full list on every write — lets a frontend surface a live todo panel. */
+    public TodowriteTool(Consumer<List<Todo>> onUpdate) {
+        this.onUpdate = onUpdate;
+    }
 
     @Override
     public String name() {
@@ -40,38 +57,49 @@ public final class TodowriteTool implements Tool {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Object todosRaw = args.get("todos");
-                if (!(todosRaw instanceof List<?> todos)) {
+                if (!(todosRaw instanceof List<?> rawList))
                     return ToolResult.error("todos must be an array");
+                var parsed = new ArrayList<Todo>();
+                for (Object item : rawList) {
+                    if (item instanceof Map<?, ?> m)
+                        parsed.add(new Todo(str(m, "content"), str(m, "status"), str(m, "priority")));
                 }
-                int count = 0;
-                int completed = 0;
-                var sb = new StringBuilder();
-                for (Object item : todos) {
-                    if (!(item instanceof Map<?, ?> m))
-                        continue;
-                    count++;
-                    String status = m.get("status") instanceof String s ? s : "";
-                    String content = m.get("content") instanceof String s ? s : "";
-                    String priority = m.get("priority") instanceof String s ? s : "";
-                    if ("completed".equals(status))
-                        completed++;
-                    String icon = switch (status) {
-                        case "completed" -> "[✓]";
-                        case "in_progress" -> "[~]";
-                        case "cancelled" -> "[−]";
-                        default -> "[ ]";
-                    };
-                    sb.append(icon).append(" ").append(content);
-                    if (!priority.isBlank())
-                        sb.append("  (").append(priority).append(")");
-                    sb.append('\n');
-                }
-                sb.append(count).append(" todos (").append(completed).append(" completed)");
-                return ToolResult.success(sb.toString());
+                onUpdate.accept(List.copyOf(parsed)); // replace-the-whole-list semantics, mirrored to the live panel
+                return ToolResult.success(render(parsed));
             } catch (Exception e) {
                 return ToolResult.error("todowrite error: " + e.getMessage());
             }
         });
+    }
+
+    /** Renders the list as the tool result: an icon-prefixed line per todo, then an {@code N todos (M completed)} tally. */
+    static String render(List<Todo> todos) {
+        int completed = 0;
+        var sb = new StringBuilder();
+        for (Todo t : todos) {
+            if ("completed".equals(t.status()))
+                completed++;
+            sb.append(icon(t.status())).append(' ').append(t.content());
+            if (!t.priority().isBlank())
+                sb.append("  (").append(t.priority()).append(')');
+            sb.append('\n');
+        }
+        sb.append(todos.size()).append(" todos (").append(completed).append(" completed)");
+        return sb.toString();
+    }
+
+    /** Status icon for a todo state — shared with the live panel so both stay in sync. */
+    public static String icon(String status) {
+        return switch (status) {
+            case "completed" -> "[✓]";
+            case "in_progress" -> "[~]";
+            case "cancelled" -> "[−]";
+            default -> "[ ]";
+        };
+    }
+
+    private static String str(Map<?, ?> m, String key) {
+        return m.get(key) instanceof String s ? s : "";
     }
 
     @Override

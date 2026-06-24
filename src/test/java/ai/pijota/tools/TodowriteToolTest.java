@@ -101,4 +101,18 @@ class TodowriteToolTest {
         var tool = new TodowriteTool();
         assertTrue(tool.defaultEnabled());
     }
+
+    @Test
+    void updateConsumerReceivesTheFullParsedList() {
+        var captured = new java.util.concurrent.atomic.AtomicReference<List<TodowriteTool.Todo>>();
+        var tool = new TodowriteTool(captured::set);
+        run(tool, Map.of("todos", List.of(Map.of("content", "A", "status", "in_progress", "priority", "high"),
+                                        Map.of("content", "B", "status", "pending", "priority", "low"))), "/cwd");
+
+        assertNotNull(captured.get());
+        assertEquals(2, captured.get().size());
+        assertEquals("A", captured.get().get(0).content());
+        assertEquals("in_progress", captured.get().get(0).status());
+        assertEquals("high", captured.get().get(0).priority());
+    }
 }

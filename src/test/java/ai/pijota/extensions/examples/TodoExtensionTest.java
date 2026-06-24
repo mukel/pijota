@@ -2,8 +2,12 @@ package ai.pijota.extensions.examples;
 
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
 import ai.pijota.extensions.testkit.FakeExtensionRuntime;
+import ai.pijota.tools.TodowriteTool.Todo;
 
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -14,14 +18,51 @@ class TodoExtensionTest {
         var api = new FakeExtensionAPI(new FakeExtensionRuntime());
         new TodoExtension().init(api);
         assertTrue(api.tools().isEmpty(), "todowrite must not be registered without --todo");
+        assertTrue(api.statusLineSuppliers().isEmpty(), "no live panel without --todo");
     }
 
     @Test
-    void todowriteRegisteredWhenFlagEnabled() {
+    void todowriteAndPanelRegisteredWhenFlagEnabled() {
         var runtime = new FakeExtensionRuntime();
         runtime.setFlag("todo", "true");
         var api = new FakeExtensionAPI(runtime);
         new TodoExtension().init(api);
         assertNotNull(api.tool("todowrite"), "todowrite must be registered with --todo");
+        assertFalse(api.statusLineSuppliers().isEmpty(), "a live todo panel is registered with --todo");
+    }
+
+    // ---- live panel ----
+
+    @Test
+    void panelIsEmptyWithNoTodos() {
+        assertTrue(TodoExtension.renderPanel(List.of()).isEmpty());
+    }
+
+    @Test
+    void panelIsHiddenOnceEverythingIsFinished() {
+        var done = List.of(new Todo("a", "completed", "low"), new Todo("b", "cancelled", "low"));
+        assertTrue(TodoExtension.renderPanel(done).isEmpty(), "a finished list shouldn't clutter the footer");
+    }
+
+    @Test
+    void panelShowsTallyHeaderAndEachTodo() {
+        var list = List.of(new Todo("write parser", "in_progress", "high"),
+                                        new Todo("add tests", "pending", "medium"),
+                                        new Todo("read spec", "completed", "low"));
+        var panel = TodoExtension.renderPanel(list);
+
+        assertEquals("📋 todos · 1/3", panel.get(0));
+        assertTrue(panel.stream().anyMatch(l -> l.contains("[~] write parser")));
+        assertTrue(panel.stream().anyMatch(l -> l.contains("[ ] add tests")));
+        assertTrue(panel.stream().anyMatch(l -> l.contains("[✓] read spec")));
+    }
+
+    @Test
+    void panelSummarizesOverflowBeyondTheRowCap() {
+        var many = new ArrayList<Todo>();
+        for (int i = 0; i < 12; i++)
+            many.add(new Todo("t" + i, "pending", "low"));
+        var panel = TodoExtension.renderPanel(many);
+        assertTrue(panel.getLast().contains("+4 more"), panel.getLast()); // header + 8 rows shown, 4 summarized
     }
 }
