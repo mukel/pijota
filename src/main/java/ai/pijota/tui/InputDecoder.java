@@ -70,6 +70,8 @@ public final class InputDecoder {
             return Key.Special.CTRL_UNDERSCORE; // Ctrl+_ / Ctrl+/ — readline/zsh undo
         if (ch == 24)
             return Key.Special.CTRL_X;
+        if (ch == 26)
+            return Key.Special.CTRL_Z; // job-control suspend (raw mode swallows the kernel's SIGTSTP)
         if (ch == 9)
             return Key.Special.TAB;
         if (ch == 10)

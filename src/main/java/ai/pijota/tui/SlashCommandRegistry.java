@@ -5,6 +5,9 @@ import ai.pijota.modes.SlashCommand;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import static java.util.Arrays.stream;
+import java.util.Optional;
+import static java.util.stream.Collectors.toSet;
 
 final class SlashCommandRegistry {
     private static final List<CompletionItem> BUILTIN_COMMANDS = List.of(
@@ -33,6 +36,8 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/tree", "Show conversation tree"),
                                     new CompletionItem("/fork", "Fork a new session from a previous message"),
                                     new CompletionItem("/clone", "Clone current branch to a new session"),
+                                    new CompletionItem("/remote-control",
+                                                                    "Control this session from your phone/browser"),
                                     new CompletionItem("/skills", "List available skills"),
                                     new CompletionItem("/quit", "Exit pijota"));
 
@@ -44,8 +49,7 @@ final class SlashCommandRegistry {
 
     public SlashCommandRegistry(List<SlashCommand> extensionCommands) {
         var list = new ArrayList<CompletionItem>(BUILTIN_COMMANDS);
-        var builtinNames = BUILTIN_COMMANDS.stream().map(CompletionItem::name)
-                                        .collect(java.util.stream.Collectors.toSet());
+        var builtinNames = BUILTIN_COMMANDS.stream().map(CompletionItem::name).collect(toSet());
         for (var ext : extensionCommands) {
             // A built-in with the same name (e.g. the terminal-native /model) takes precedence here; skip the
             // generic duplicate so completion lists it once.
@@ -68,7 +72,7 @@ final class SlashCommandRegistry {
         appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme");
         appendGroup(out, "account", "/login", "/logout", "/refresh", "/hotkeys", "/quit");
 
-        var builtins = BUILTIN_COMMANDS.stream().map(CompletionItem::name).collect(java.util.stream.Collectors.toSet());
+        var builtins = BUILTIN_COMMANDS.stream().map(CompletionItem::name).collect(toSet());
         var extensions = commands.stream().filter(c -> !builtins.contains(c.name())).toList();
         if (!extensions.isEmpty())
             appendGroup(out, "extensions", extensions.stream().map(CompletionItem::name).toArray(String[]::new));
@@ -80,14 +84,14 @@ final class SlashCommandRegistry {
     private void appendGroup(List<String> out, String title, String... names) {
         out.add("");
         out.add(title);
-        int maxLen = java.util.Arrays.stream(names).mapToInt(String::length).max().orElse(0);
+        int maxLen = stream(names).mapToInt(String::length).max().orElse(0);
         for (String name : names) {
             command(name).ifPresent(cmd -> out.add(String.format("  %-" + (maxLen + 2) + "s %s", cmd.name(),
                                             cmd.description())));
         }
     }
 
-    private java.util.Optional<CompletionItem> command(String name) {
+    private Optional<CompletionItem> command(String name) {
         return commands.stream().filter(c -> c.name().equals(name)).findFirst();
     }
 

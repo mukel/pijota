@@ -123,4 +123,59 @@ class TelegramFrontendTest {
         f.handle(new Update(1, null, null)); // e.g. a join/leave/photo we don't handle
         assertTrue(chats.isEmpty());
     }
+
+    @Test
+    void aThrowingUpdateNeitherKillsTheLoopNorSkipsTheBatch() throws Exception {
+        var recording = new RecordingChat();
+        ChatHandler throwing = new ChatHandler() {
+            @Override
+            public void onText(String text) {
+                throw new RuntimeException("boom");
+            }
+
+            @Override
+            public void onCallback(CallbackQuery callback) {}
+        };
+        // one batch: a broken chat's update, then a good chat's update; the good one must still be delivered
+        var batch = new java.util.concurrent.atomic.AtomicReference<List<Update>>(
+                                        List.of(textUpdate(1, 1, "boom"), textUpdate(2, 2, "ok")));
+        TelegramApi api = new TelegramApi() {
+            @Override
+            public List<Update> getUpdates(long offset, int timeout) {
+                return batch.getAndSet(List.of());
+            }
+
+            @Override
+            public long sendMessage(long chatId, String text) {
+                return 0;
+            }
+
+            @Override
+            public long sendMessage(long chatId, String text, InlineKeyboard keyboard) {
+                return 0;
+            }
+
+            @Override
+            public void editMessageText(long chatId, long messageId, String text) {}
+
+            @Override
+            public void answerCallback(String callbackQueryId) {}
+
+            @Override
+            public void sendChatAction(long chatId, String action) {}
+        };
+        var f = new TelegramFrontend(api, id -> id == 1 ? throwing : recording, id -> true);
+
+        var thread = new Thread(f::run, "test-telegram-poll");
+        thread.setDaemon(true);
+        thread.start();
+        long deadline = System.currentTimeMillis() + 3000;
+        while (recording.texts.isEmpty() && System.currentTimeMillis() < deadline)
+            Thread.sleep(20);
+        f.stop();
+        thread.join(2000);
+
+        assertEquals(List.of("ok"), recording.texts, "the good update is still delivered after a prior one threw");
+        assertFalse(thread.isAlive(), "the poll loop survived and stopped cleanly");
+    }
 }

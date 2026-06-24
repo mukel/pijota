@@ -43,9 +43,10 @@
   header .logo { font-weight: 700; letter-spacing: .5px; font-size: 16px; }
   header .logo b { color: var(--accent); }
   header .spacer { flex: 1; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); transition: background .3s; }
+  /* connection: red (down) ↔ green (alive), both with a glow so the state pops; the `error` handler removes `on`. */
+  .dot { width: 9px; height: 9px; flex: none; aspect-ratio: 1; border-radius: 50%; background: var(--err); box-shadow: 0 0 8px var(--err); transition: background .3s, box-shadow .3s; }
   .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
-  .dot.busy { background: var(--accent); animation: pulse 1s infinite; }
+  .dot.busy { background: var(--accent); box-shadow: none; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
   main { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
   #thread { max-width: 820px; margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 18px; }
@@ -416,12 +417,22 @@ window.addEventListener("DOMContentLoaded", () => {
   // run fn, then keep the view pinned to the bottom if it already was (so streaming doesn't fight manual scroll-up)
   // "Stick to bottom" latch: follow the stream only while the user is parked at the bottom. The moment they scroll up
   // we stop yanking them down (so they can read mid-stream); they re-engage by scrolling back down or tapping ↓.
-  function atBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 40; }
-  let stick = true;
-  function withAutoScroll(fn) { const r = fn(); if (stick) main.scrollTop = main.scrollHeight; return r; }
+  function atBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 60; }
+  let stick = true, lastTop = 0;
+  function toBottom() { main.scrollTop = main.scrollHeight; }
+  function withAutoScroll(fn) { const r = fn(); if (stick) toBottom(); return r; }
   const scrollBtn = $("#scrollbtn");
-  main.addEventListener("scroll", () => { stick = atBottom(); scrollBtn.classList.toggle("show", !stick); });
-  scrollBtn.addEventListener("click", () => { stick = true; main.scrollTop = main.scrollHeight; input.focus(); });
+  // Only a genuine upward scroll detaches from the bottom (so streaming re-renders / programmatic scrolls don't flip
+  // it off); returning to the bottom re-attaches. The ResizeObserver then keeps us pinned as content grows.
+  main.addEventListener("scroll", () => {
+    const top = main.scrollTop;
+    if (top < lastTop - 4) stick = false;
+    else if (atBottom()) stick = true;
+    lastTop = top;
+    scrollBtn.classList.toggle("show", !stick);
+  });
+  scrollBtn.addEventListener("click", () => { stick = true; toBottom(); input.focus(); });
+  new ResizeObserver(() => { if (stick) toBottom(); }).observe(thread); // follow all growth: text, tools, thinking
 
   // cyclic keyboard selection over a list of elements (shared by the slash menu and the fuzzy finder): moves the
   // selection by delta, applies the .sel class, scrolls it into view, and returns the new index.

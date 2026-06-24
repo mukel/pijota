@@ -109,7 +109,13 @@ public final class TelegramChat implements ChatHandler {
     private boolean handleCommand(String text) {
         String cmd = commandWord(text);
         switch (cmd) {
-            case "/start" -> tg.sendMessage(chatId, WELCOME + helpText());
+            case "/start" -> {
+                // Telegram deep link: t.me/<bot>?start=<payload> arrives as "/start <payload>" — a payload means the
+                // user opened the bot from the remote-control link/QR, so confirm the connection.
+                String payload = text.length() > cmd.length() ? text.substring(cmd.length()).strip() : "";
+                String prefix = payload.isBlank() ? "" : "🔗 Connected to your pijota session.\n\n";
+                tg.sendMessage(chatId, prefix + WELCOME + helpText());
+            }
             case "/help" -> tg.sendMessage(chatId, helpText());
             case "/stop", "/cancel" -> {
                 if (session.isBusy()) {

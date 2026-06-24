@@ -32,6 +32,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.function.Consumer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.net.URLDecoder;
+import java.security.MessageDigest;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A tiny web frontend for a {@link PijotaSession}: the chat <em>is</em> the conversation, served as a single page. The
@@ -44,7 +50,7 @@ import java.util.function.Supplier;
  * ({@code 127.0.0.1}) only and is never exposed on a routable interface. It is a personal, single-user control surface.
  */
 public final class WebServer implements AutoCloseable {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WebServer.class);
+    private static final Logger log = LoggerFactory.getLogger(WebServer.class);
     private static final long HEARTBEAT_SECONDS = 15; // SSE comment ping; a failed write prunes a closed browser tab
     private static final long STREAM_COALESCE_MS = 60; // cap streaming-update fan-out; each partial carries full
                                                        // content
@@ -63,6 +69,10 @@ public final class WebServer implements AutoCloseable {
     private final Supplier<List<String>> statusLines; // keyed statuses + registered status/footer lines (TUI parity)
     private final List<SlashCommand> commands;
     private final WebUiContext ui;
+    // When non-null, every request must carry this token (cookie or ?t=) — required once the server binds past
+    // loopback.
+    private final String authToken;
+    private final Consumer<AgentEvent> eventListener = this::onEvent; // stored so close() can remove it
     private final Set<SseClient> clients = ConcurrentHashMap.newKeySet();
     private final ScheduledExecutorService heartbeat = Executors
                                     .newSingleThreadScheduledExecutor(daemon("pijota-web-hb"));
@@ -77,6 +87,15 @@ public final class WebServer implements AutoCloseable {
      */
     public WebServer(PijotaSession session, String host, int port, LlmClient llm, Supplier<List<String>> statusLines,
                                     List<SlashCommand> commands) {
+        this(session, host, port, llm, statusLines, commands, null);
+    }
+
+    /**
+     * @param authToken
+     *            when non-blank, every request must present it (via {@code ?t=} or the {@code pijota_rc} cookie).
+     */
+    public WebServer(PijotaSession session, String host, int port, LlmClient llm, Supplier<List<String>> statusLines,
+                                    List<SlashCommand> commands, String authToken) {
         this.session = session;
         this.host = host == null || host.isBlank() ? DEFAULT_HOST : host;
         this.port = port;
@@ -84,6 +103,7 @@ public final class WebServer implements AutoCloseable {
         this.statusLines = statusLines;
         this.commands = List.copyOf(commands);
         this.ui = new WebUiContext(this::broadcast);
+        this.authToken = authToken == null || authToken.isBlank() ? null : authToken;
     }
 
     /**
@@ -144,17 +164,43 @@ public final class WebServer implements AutoCloseable {
         http.createContext("/vendor/", this::serveVendor); // version-pinned UI libs, served locally (no CDN)
         http.createContext("/", this::serveIndex); // catch-all: index for "/", 404 otherwise
         http.setExecutor(Executors.newCachedThreadPool(daemon("pijota-web")));
-        session.addEventListener(this::onEvent);
-        heartbeat.scheduleAtFixedRate(this::ping, HEARTBEAT_SECONDS, HEARTBEAT_SECONDS, TimeUnit.SECONDS);
-        heartbeat.scheduleAtFixedRate(this::pollStats, 1, 1, TimeUnit.SECONDS); // push model/usage on change
-        heartbeat.scheduleAtFixedRate(this::pollStatusLines, 1, 1, TimeUnit.SECONDS); // push keyed/footer status
-                                                                                      // changes
+        // guard()ed so a single failure can't cancel the periodic task (scheduleAtFixedRate stops on a thrown exception).
+        heartbeat.scheduleAtFixedRate(guard(this::ping), HEARTBEAT_SECONDS, HEARTBEAT_SECONDS, TimeUnit.SECONDS);
+        heartbeat.scheduleAtFixedRate(guard(this::pollStats), 1, 1, TimeUnit.SECONDS); // push model/usage on change
+        heartbeat.scheduleAtFixedRate(guard(this::pollStatusLines), 1, 1, TimeUnit.SECONDS); // push keyed/footer status
         http.start();
+        session.addEventListener(eventListener); // attach only once serving, so a bind failure leaves no dangling listener
         log.info("web ui on http://{}:{}", host, port);
+    }
+
+    /** Wraps a periodic task so a thrown error is logged, never propagated (which would cancel its schedule). */
+    private static Runnable guard(Runnable task) {
+        return () -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                log.warn("web periodic task failed (will retry next tick): {}", t.toString());
+            }
+        };
+    }
+
+    /**
+     * Printable "open on your phone" banner: the reachable URL (LAN IP when bound to {@code 0.0.0.0}) plus a scannable
+     * terminal QR. {@code token} is appended as {@code ?t=} when non-null.
+     */
+    public static List<String> accessBanner(String bindHost, int port, String token) {
+        String displayHost = "0.0.0.0".equals(bindHost)
+                                        ? (ai.pijota.util.Net.lanAddress() != null
+                                                                        ? ai.pijota.util.Net.lanAddress()
+                                                                        : DEFAULT_HOST)
+                                        : bindHost;
+        String url = "http://" + displayHost + ":" + port + "/" + (token == null ? "" : "?t=" + token);
+        return ai.pijota.util.QrTerminal.scannable("scan to open on your phone:", url);
     }
 
     @Override
     public void close() {
+        session.removeEventListener(eventListener); // detach from the live session (in-process /remote-control stop)
         heartbeat.shutdownNow();
         if (http != null)
             http.stop(0);
@@ -162,9 +208,58 @@ public final class WebServer implements AutoCloseable {
             c.release();
     }
 
+    /**
+     * Token gate for non-loopback binds: when {@link #authToken} is set, a request is allowed only if it carries the
+     * token via the {@code pijota_rc} cookie or a {@code ?t=} query param (the latter is how the QR/URL bootstraps —
+     * the first GET sets the cookie). Returns true (and sends 403) when refused. No token configured ⇒ never gates.
+     */
+    private boolean authBlocked(HttpExchange ex) throws IOException {
+        if (authToken == null)
+            return false; // no token configured — open (loopback --web behaviour)
+        if (tokenMatches(cookieToken(ex)))
+            return false; // already paired
+        if (tokenMatches(queryToken(ex))) {
+            // bootstrap from the URL/QR token: pin it as an HttpOnly cookie so later XHRs (no token in URL) still pass
+            ex.getResponseHeaders().add("Set-Cookie", "pijota_rc=" + authToken + "; Path=/; HttpOnly; SameSite=Strict");
+            return false;
+        }
+        send(ex, 403, "text/plain", "unauthorized".getBytes(StandardCharsets.UTF_8));
+        return true;
+    }
+
+    private boolean tokenMatches(String candidate) {
+        return candidate != null && MessageDigest.isEqual(candidate.getBytes(StandardCharsets.UTF_8),
+                                        authToken.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String queryToken(HttpExchange ex) {
+        String q = ex.getRequestURI().getQuery();
+        if (q == null)
+            return null;
+        for (String part : q.split("&")) {
+            if (part.startsWith("t="))
+                return URLDecoder.decode(part.substring(2), StandardCharsets.UTF_8);
+        }
+        return null;
+    }
+
+    private static String cookieToken(HttpExchange ex) {
+        String cookies = ex.getRequestHeaders().getFirst("Cookie");
+        if (cookies == null)
+            return null;
+        for (String c : cookies.split(";")) {
+            String t = c.trim();
+            if (t.startsWith("pijota_rc="))
+                return t.substring("pijota_rc=".length());
+        }
+        return null;
+    }
+
     // ---- routes ----
 
     private void serveIndex(HttpExchange ex) throws IOException {
+        if (authBlocked(ex))
+            return;
         if (!"/".equals(ex.getRequestURI().getPath())) {
             send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
             return;
@@ -179,6 +274,8 @@ public final class WebServer implements AutoCloseable {
 
     /** Serves the version-pinned vendored UI libraries (marked / highlight.js / DOMPurify) from the classpath. */
     private void serveVendor(HttpExchange ex) throws IOException {
+        if (authBlocked(ex))
+            return;
         String name = ex.getRequestURI().getPath().substring("/vendor/".length());
         if (name.isEmpty() || name.indexOf('/') >= 0 || name.contains("..")) { // flat whitelist — no path traversal
             send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
@@ -202,6 +299,8 @@ public final class WebServer implements AutoCloseable {
 
     /** Long-lived SSE connection: replay history, then stream live events until the browser disconnects. */
     private void serveEvents(HttpExchange ex) throws IOException {
+        if (authBlocked(ex))
+            return;
         ex.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
         ex.getResponseHeaders().set("Cache-Control", "no-cache");
         ex.getResponseHeaders().set("Connection", "keep-alive");
@@ -222,7 +321,7 @@ public final class WebServer implements AutoCloseable {
     }
 
     private void handlePrompt(HttpExchange ex) throws IOException {
-        if (requirePost(ex) || crossOriginBlocked(ex))
+        if (authBlocked(ex) || requirePost(ex) || crossOriginBlocked(ex))
             return;
         String text = strField(readBody(ex), "text");
         if (text != null && !text.isBlank()) {
@@ -263,21 +362,21 @@ public final class WebServer implements AutoCloseable {
             return;
         }
         broadcast("custom", Map.of("type", "command", "content", line));
-        java.util.concurrent.CompletableFuture.runAsync(() -> cmd.handler().accept(args)).exceptionally(t -> {
+        CompletableFuture.runAsync(() -> cmd.handler().accept(args)).exceptionally(t -> {
             broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
             return null;
         });
     }
 
     private void handleInterrupt(HttpExchange ex) throws IOException {
-        if (requirePost(ex) || crossOriginBlocked(ex))
+        if (authBlocked(ex) || requirePost(ex) || crossOriginBlocked(ex))
             return;
         session.abort();
         send(ex, 204, "text/plain", new byte[0]);
     }
 
     private void handleAnswer(HttpExchange ex) throws IOException {
-        if (requirePost(ex) || crossOriginBlocked(ex))
+        if (authBlocked(ex) || requirePost(ex) || crossOriginBlocked(ex))
             return;
         String body = readBody(ex);
         ui.resolve(strField(body, "id"), strField(body, "value"));

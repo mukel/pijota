@@ -184,6 +184,7 @@ public final class Main {
                                                 + "Use authentication or a firewall.");
             System.out.println("[web] pijota web ui on http://" + addr.host() + ":" + addr.port()
                                             + " (Ctrl-C to stop)");
+            WebServer.accessBanner(addr.host(), addr.port(), null).forEach(System.out::println);
             Thread.currentThread().join();
             return 0;
         } catch (Exception e) {

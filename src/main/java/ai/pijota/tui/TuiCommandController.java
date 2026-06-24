@@ -5,6 +5,7 @@ import ai.pijota.llm.ModelRegistry;
 import ai.pijota.modes.SlashCommand;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 
 final class TuiCommandController {
@@ -45,6 +46,7 @@ final class TuiCommandController {
             case "/tree" -> tui.showTree();
             case "/fork" -> tui.forkSession(input);
             case "/clone" -> tui.cloneSession();
+            case "/remote-control", "/remote" -> tui.showRemoteControl();
             case "/skills" -> tui.showSkills();
             case "/whoami" -> tui.showWhoami();
             default -> handleUnknown(input, cmd);
@@ -118,7 +120,7 @@ final class TuiCommandController {
         String q = query.toLowerCase();
         return ModelRegistry.KNOWN_MODELS.stream().filter(m -> SlashCommandRegistry.fuzzyMatch(q, m.id().toLowerCase())
                                         || SlashCommandRegistry.fuzzyMatch(q, m.displayName().toLowerCase()))
-                                        .sorted(java.util.Comparator.comparingInt(m -> Math.min(
+                                        .sorted(Comparator.comparingInt(m -> Math.min(
                                                                         SlashCommandRegistry.matchScore(q, m.id()
                                                                                                         .toLowerCase()),
                                                                         SlashCommandRegistry.matchScore(q, m

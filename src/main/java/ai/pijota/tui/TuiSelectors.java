@@ -13,7 +13,8 @@ final class TuiSelectors {
                                                                         LoginProviderItem.class,
                                                                         "providers"), FORK(ForkMessageItem.class,
                                                                                                         "fork from"), PALETTE(CompletionItem.class,
-                                                                                                                                        "command palette");
+                                                                                                                                        "command palette"), REMOTE(RemoteOptionItem.class,
+                                                                                                                                                                        "remote control");
 
         private final Class<? extends SelectorItem> itemType;
         private final String title;
@@ -27,7 +28,8 @@ final class TuiSelectors {
     private final EnumMap<Slot, SelectorBinding> bindings = new EnumMap<>(Slot.class);
 
     TuiSelectors(Runnable confirmModel, Runnable confirmSession, Runnable confirmTheme, Runnable confirmSettings,
-                                    Runnable confirmLogin, Runnable confirmFork, Runnable confirmPalette) {
+                                    Runnable confirmLogin, Runnable confirmFork, Runnable confirmPalette,
+                                    Runnable confirmRemote) {
         bind(Slot.MODEL, confirmModel);
         bind(Slot.SESSION, confirmSession);
         bind(Slot.THEME, confirmTheme);
@@ -35,6 +37,7 @@ final class TuiSelectors {
         bind(Slot.LOGIN, confirmLogin);
         bind(Slot.FORK, confirmFork);
         bind(Slot.PALETTE, confirmPalette);
+        bind(Slot.REMOTE, confirmRemote);
     }
 
     List<PromptRegion> regions() {

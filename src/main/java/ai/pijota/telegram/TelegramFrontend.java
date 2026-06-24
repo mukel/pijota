@@ -39,10 +39,16 @@ public final class TelegramFrontend {
             try {
                 for (var update : tg.getUpdates(offset, POLL_TIMEOUT_SECONDS)) {
                     offset = Math.max(offset, update.updateId() + 1); // ack everything up to here on the next poll
-                    handle(update);
+                    try {
+                        handle(update);
+                    } catch (Throwable perUpdate) {
+                        // one bad update must not skip the rest of the batch nor kill the poll loop
+                        log.warn("telegram update handling failed: {}", perUpdate.toString());
+                    }
                 }
-            } catch (RuntimeException e) {
-                log.warn("telegram poll failed; backing off: {}", e.getMessage());
+            } catch (Throwable e) {
+                // the poll loop must never die — back off and keep going on ANY failure (network, API, etc.)
+                log.warn("telegram poll failed; backing off: {}", e.toString());
                 sleep(ERROR_BACKOFF_MS);
             }
         }

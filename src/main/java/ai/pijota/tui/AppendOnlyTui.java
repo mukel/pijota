@@ -49,9 +49,16 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.Optional;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class AppendOnlyTui implements AutoCloseable, UiContext {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AppendOnlyTui.class);
+    private static final Logger log = LoggerFactory.getLogger(AppendOnlyTui.class);
     private AnsiTheme theme;
     private String provider;
     private String model;
@@ -128,8 +135,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     @Override
-    public <T> void select(String title, List<T> items, java.util.function.Function<T, String> render,
-                                    java.util.function.Consumer<T> onChoice) {
+    public <T> void select(String title, List<T> items, Function<T, String> render, Consumer<T> onChoice) {
         var snapshot = List.copyOf(items);
         selector.show(title, snapshot.stream().map(render).toList(), idx -> onChoice.accept(snapshot.get(idx)));
         redrawPrompt();
@@ -205,6 +211,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final MessageBrowser messageBrowser;
     private PendingEditManager pendingEdit;
     private final Supplier<List<String>> extensionLinesSupplier;
+    private final RemoteControl remoteControl;
     private final List<SkillLoader.Skill> skills;
     private final ThemeManager themeMgr;
     private final ThemeCommandHandler themeCommands;
@@ -267,7 +274,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                         themeCommands::confirmThemeSelection,
                                         settingsCommands::confirmSettingsSelection,
                                         loginCommands::confirmProviderSelection, this::confirmForkSelection,
-                                        commandPalette::confirmPaletteSelection);
+                                        commandPalette::confirmPaletteSelection, this::confirmRemoteSelection);
         var regions = new ArrayList<PromptRegion>();
         regions.add(new PromptRegion.Editor());
         regions.add(new PendingRegion());
@@ -294,6 +301,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
         }
         this.commandController = new TuiCommandController(this, commands);
+        this.remoteControl = new RemoteControl(session, settings, extensionLinesSupplier,
+                                        session.extensionRegistry()::slashCommands, this);
         SlashCommandTool.setQuestionHandler(this::askQuestions);
         updateWhoamiTool();
         session.addEventListener(this::onEvent);
@@ -530,7 +539,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
-        public java.util.Optional<ThemeItem> selectedTheme() {
+        public Optional<ThemeItem> selectedTheme() {
             return selectors.selected(TuiSelectors.Slot.THEME);
         }
 
@@ -580,7 +589,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
-        public java.util.Optional<SettingsItem> selectedSetting() {
+        public Optional<SettingsItem> selectedSetting() {
             return selectors.selected(TuiSelectors.Slot.SETTINGS);
         }
 
@@ -639,7 +648,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
-        public java.util.Optional<LoginProviderItem> selectedProvider() {
+        public Optional<LoginProviderItem> selectedProvider() {
             return selectors.selected(TuiSelectors.Slot.LOGIN);
         }
 
@@ -672,7 +681,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
-        public java.util.Optional<ModelInfo> model(String id) {
+        public Optional<ModelInfo> model(String id) {
             return ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equals(id)).findFirst();
         }
 
@@ -687,7 +696,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
-        public java.util.Optional<CompletionItem> selectedPaletteItem() {
+        public Optional<CompletionItem> selectedPaletteItem() {
             return selectors.selected(TuiSelectors.Slot.PALETTE);
         }
 
@@ -833,6 +842,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             try {
                 var key = InputDecoder.readKey(terminal);
                 try {
+                    if (key == Key.Special.CTRL_Z) { // job-control suspend (works from any state)
+                        suspendProcess();
+                        continue;
+                    }
                     if (dialogs.handleConfirm(key))
                         continue;
                     if (dialogs.handlePrompt(key))
@@ -1065,6 +1078,24 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         terminal.writer().flush();
         if (originalAttributes != null)
             terminal.setAttributes(originalAttributes);
+    }
+
+    /**
+     * Ctrl+Z job-control suspend. Raw mode turns off ISIG, so the kernel never turns Ctrl+Z into SIGTSTP — we do it
+     * ourselves: drop to cooked mode, stop the process (the shell prints "Suspended"), then re-enter raw mode and
+     * repaint when {@code fg} continues us. {@code Signal.raise} blocks here until SIGCONT.
+     */
+    private void suspendProcess() {
+        if (ai.pijota.util.Platform.isWindows())
+            return; // no SIGTSTP / job control on Windows
+        suspendTui();
+        try {
+            sun.misc.Signal.raise(new sun.misc.Signal("TSTP"));
+        } catch (IllegalArgumentException | UnsatisfiedLinkError ignored) {
+            // platform without SIGTSTP — fall through and just restore the prompt
+        } finally {
+            resumeTui();
+        }
     }
 
     public void resumeTui() {
@@ -1548,6 +1579,42 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
+    /**
+     * {@code /remote-control} — pick a remote channel (web / Telegram) to drive this live session, or stop the active
+     * one.
+     */
+    void showRemoteControl() {
+        var items = new ArrayList<RemoteOptionItem>();
+        if (remoteControl.active()) {
+            items.add(new RemoteOptionItem("stop", "Stop remote control", "active: " + remoteControl.summary()));
+        } else {
+            items.add(new RemoteOptionItem("web", "Web (browser / scan QR on phone)",
+                                            "LAN bind · pairing token · QR in the terminal"));
+            items.add(new RemoteOptionItem("telegram", "Telegram", "drive from your phone via the bot"));
+        }
+        selectors.show(TuiSelectors.Slot.REMOTE, items);
+        setStatusOverride("Remote control — Enter to choose, Esc cancels");
+        redrawPrompt();
+    }
+
+    private void confirmRemoteSelection() {
+        var selected = selectors.selected(TuiSelectors.Slot.REMOTE);
+        selectors.deactivate(TuiSelectors.Slot.REMOTE);
+        clearStatusOverride(); // drop the "Remote control — Enter to choose…" hint once a choice is made
+        if (selected.isEmpty()) {
+            redrawPrompt();
+            return;
+        }
+        List<String> out = switch (((RemoteOptionItem) selected.get()).id()) {
+            case "web" -> remoteControl.startWeb();
+            case "telegram" -> remoteControl.startTelegram();
+            case "stop" -> remoteControl.stop();
+            default -> List.of();
+        };
+        appendPlain(out); // includes the URL + terminal QR for the web option
+        redrawPrompt();
+    }
+
     void forkSession(String input) {
         if (activity.isBusy()) {
             appendPlain(List.of(theme.styled("toolError", "/fork is unavailable while a turn is running")));
@@ -1833,8 +1900,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * the key was consumed, redrawing afterwards. Modals don't touch {@code busy} — that reflects the agent turn, so
      * the working spinner shows only while the model is actually running, not while a viewer/picker is open.
      */
-    private boolean routeModalKey(java.util.function.BooleanSupplier active,
-                                    java.util.function.Predicate<Key> handleKey, Key key) {
+    private boolean routeModalKey(BooleanSupplier active, Predicate<Key> handleKey, Key key) {
         if (!active.getAsBoolean() || !handleKey.test(key))
             return false;
         redrawPrompt();

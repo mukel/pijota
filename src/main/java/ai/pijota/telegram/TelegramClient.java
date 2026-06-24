@@ -89,6 +89,16 @@ public final class TelegramClient implements TelegramApi {
         call("setMyCommands", new SetCommandsReq(commands));
     }
 
+    /** This bot's {@code @username} via {@code getMe} — for building a {@code https://t.me/<username>} link; null on failure. */
+    public String getMyUsername() {
+        try {
+            String username = call("getMe", java.util.Map.of()).path("username").asText(null);
+            return username == null || username.isBlank() ? null : username;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     /** Acknowledges a button tap so Telegram stops showing the loading spinner on the button. */
     public void answerCallback(String callbackQueryId) {
         call("answerCallbackQuery", new CallbackAnswerReq(callbackQueryId));

@@ -229,6 +229,15 @@ public final class PijotaSession implements AutoCloseable {
         agentLoop.addEventListener(listener);
     }
 
+    public void removeEventListener(Consumer<AgentEvent> listener) {
+        agentLoop.removeEventListener(listener);
+    }
+
+    /** The live model client (current provider/model + usage) — e.g. for an in-process web/Telegram remote control. */
+    public LlmClient llm() {
+        return agentLoop.llm();
+    }
+
     public List<Path> listSessions() {
         return sessionManager.listSessions(cwd);
     }
@@ -481,7 +490,7 @@ public final class PijotaSession implements AutoCloseable {
 
     private static SubAgent findSummarizeAgent(String cwd) {
         try {
-            for (var agent : SubAgent.loadAll(java.nio.file.Path.of(cwd))) {
+            for (var agent : SubAgent.loadAll(Path.of(cwd))) {
                 if ("summarize".equals(agent.name()))
                     return agent;
             }

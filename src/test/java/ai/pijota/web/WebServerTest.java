@@ -155,6 +155,35 @@ class WebServerTest {
     }
 
     @Test
+    void tokenGateRejectsWithoutTokenAndAcceptsWithIt() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        int port = freePort();
+        String token = "secret-pairing-xyz";
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of(), token)) {
+            server.start();
+            var client = HttpClient.newHttpClient();
+            String base = "http://127.0.0.1:" + port;
+
+            var denied = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(403, denied.statusCode(), "no token → refused");
+
+            var ok = client.send(HttpRequest.newBuilder(URI.create(base + "/?t=" + token)).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, ok.statusCode(), "valid ?t= token → served");
+            assertTrue(ok.headers().firstValue("Set-Cookie").orElse("").contains("pijota_rc="),
+                                            "pairs the browser by setting the cookie");
+        }
+    }
+
+    @Test
+    void accessBannerContainsUrlAndToken() {
+        String banner = String.join("\n", WebServer.accessBanner("127.0.0.1", 8420, "tok123"));
+        assertTrue(banner.contains("127.0.0.1:8420"), banner);
+        assertTrue(banner.contains("t=tok123"), banner);
+    }
+
+    @Test
     void eventsStreamReplaysHistoryFrame() throws Exception {
         withServer((ts, client, base) -> {
             var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),

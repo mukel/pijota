@@ -116,6 +116,13 @@
       <version>${commonmark.version}</version>
     </dependency>
 
+    <!-- QR code generation (terminal QR for /remote-control); pure Java, no reflection — native-image friendly. -->
+    <dependency>
+      <groupId>io.nayuki</groupId>
+      <artifactId>qrcodegen</artifactId>
+      <version>1.8.0</version>
+    </dependency>
+
     <!-- Logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
