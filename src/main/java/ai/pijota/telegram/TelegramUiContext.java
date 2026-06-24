@@ -132,6 +132,7 @@ public final class TelegramUiContext implements UiContext {
      * Unblock any tool waiting on a tap/prompt by resolving it as if cancelled — called when the bridge goes away
      * (remote-control stop) so the agent turn can't hang waiting for an answer that can never arrive.
      */
+    @Override
     public void cancelPending() {
         for (var choice : List.copyOf(pendingChoices.values()))
             choice.apply().accept(""); // confirm → false; an empty tap leaves a select unselected

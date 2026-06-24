@@ -86,8 +86,8 @@ class SessionDescriptorTest {
 
     @Test
     void cleanStripsSystemRemindersAndCollapsesWhitespace() {
-        assertEquals("hello world",
-                                        SessionDescriptor.clean("hello   <system-reminder>secret</system-reminder>\n world"));
+        assertEquals("hello world", SessionDescriptor
+                                        .clean("hello   <system-reminder>secret</system-reminder>\n world"));
         assertNull(SessionDescriptor.clean("   "));
         assertNull(SessionDescriptor.clean(null));
     }

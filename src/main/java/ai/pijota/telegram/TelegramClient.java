@@ -89,7 +89,10 @@ public final class TelegramClient implements TelegramApi {
         call("setMyCommands", new SetCommandsReq(commands));
     }
 
-    /** This bot's {@code @username} via {@code getMe} — for building a {@code https://t.me/<username>} link; null on failure. */
+    /**
+     * This bot's {@code @username} via {@code getMe} — for building a {@code https://t.me/<username>} link; null on
+     * failure.
+     */
     public String getMyUsername() {
         try {
             String username = call("getMe", java.util.Map.of()).path("username").asText(null);

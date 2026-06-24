@@ -270,11 +270,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
         this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
         // Confirm callbacks point straight at the owning handlers; session/fork keep TUI-local restore logic.
-        this.selectors = new TuiSelectors(modelCommands::confirmModelSelection, this::confirmSessionSelection,
-                                        themeCommands::confirmThemeSelection,
-                                        settingsCommands::confirmSettingsSelection,
-                                        loginCommands::confirmProviderSelection, this::confirmForkSelection,
-                                        commandPalette::confirmPaletteSelection, this::confirmRemoteSelection);
+        this.selectors = new TuiSelectors();
+        selectors.bind(TuiSelectors.Slot.MODEL, modelCommands::confirmModelSelection);
+        selectors.bind(TuiSelectors.Slot.SESSION, this::confirmSessionSelection);
+        selectors.bind(TuiSelectors.Slot.THEME, themeCommands::confirmThemeSelection);
+        selectors.bind(TuiSelectors.Slot.SETTINGS, settingsCommands::confirmSettingsSelection);
+        selectors.bind(TuiSelectors.Slot.LOGIN, loginCommands::confirmProviderSelection);
+        selectors.bind(TuiSelectors.Slot.FORK, this::confirmForkSelection);
+        selectors.bind(TuiSelectors.Slot.PALETTE, commandPalette::confirmPaletteSelection);
+        selectors.bind(TuiSelectors.Slot.REMOTE, this::confirmRemoteSelection);
         var regions = new ArrayList<PromptRegion>();
         regions.add(new PromptRegion.Editor());
         regions.add(new PendingRegion());

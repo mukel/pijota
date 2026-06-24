@@ -42,18 +42,17 @@ public final class TodoExtension implements Extension {
     static List<String> renderPanel(List<Todo> todos) {
         if (todos.isEmpty())
             return List.of();
-        long done = todos.stream().filter(t -> "completed".equals(t.status()) || "cancelled".equals(t.status())).count();
+        long done = todos.stream().filter(t -> "completed".equals(t.status()) || "cancelled".equals(t.status()))
+                                        .count();
         if (done == todos.size())
             return List.of(); // all wrapped up — don't clutter the footer with a finished list
         var lines = new ArrayList<String>();
         lines.add("📋 todos · " + done + "/" + todos.size());
-        for (int i = 0; i < todos.size(); i++) {
-            if (i == MAX_PANEL_ROWS) {
-                lines.add("   … +" + (todos.size() - i) + " more");
-                break;
-            }
+        int shown = Math.min(todos.size(), MAX_PANEL_ROWS);
+        for (int i = 0; i < shown; i++)
             lines.add("  " + TodowriteTool.icon(todos.get(i).status()) + " " + todos.get(i).content());
-        }
+        if (todos.size() > MAX_PANEL_ROWS)
+            lines.add("   … +" + (todos.size() - MAX_PANEL_ROWS) + " more");
         return lines;
     }
 }

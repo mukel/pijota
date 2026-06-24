@@ -13,7 +13,7 @@ class TuiSelectorsTest {
 
     @Test
     void showAndSelectFirst() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items = List.<SelectorItem>of(new ModelItem(new ModelInfo("a", "p", "A", 1000), false),
                                         new ModelItem(new ModelInfo("b", "p", "B", 2000), true));
         selectors.show(TuiSelectors.Slot.MODEL, items);
@@ -28,7 +28,7 @@ class TuiSelectorsTest {
 
     @Test
     void checkItemsRejectsWrongType() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items = List.<SelectorItem>of(new SettingsItem("id", "t", "d", false));
         assertThrows(IllegalArgumentException.class, () -> {
             selectors.show(TuiSelectors.Slot.MODEL, items);
@@ -37,14 +37,14 @@ class TuiSelectorsTest {
 
     @Test
     void checkItemsAcceptsCorrectType() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items = List.<SelectorItem>of(new SettingsItem("id", "t", "d", false));
         assertDoesNotThrow(() -> selectors.show(TuiSelectors.Slot.SETTINGS, items));
     }
 
     @Test
     void deactivateClearsSelection() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items = List.<SelectorItem>of(new ThemeItem("dark", "", false));
         selectors.show(TuiSelectors.Slot.THEME, items);
         assertTrue(selectors.anyActive());
@@ -55,7 +55,7 @@ class TuiSelectorsTest {
 
     @Test
     void deactivateAllClearsEverything() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items = List.<SelectorItem>of(new ThemeItem("dark", "", false));
         selectors.show(TuiSelectors.Slot.THEME, items);
         selectors.show(TuiSelectors.Slot.SETTINGS, List.of(new SettingsItem("x", "t", "d", false)));
@@ -67,20 +67,20 @@ class TuiSelectorsTest {
 
     @Test
     void selectedReturnsEmptyWhenInactive() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         assertTrue(selectors.selected(TuiSelectors.Slot.MODEL).isEmpty());
     }
 
     @Test
     void regionsReturnsNonEmpty() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var regions = selectors.regions();
         assertFalse(regions.isEmpty());
     }
 
     @Test
     void handleUpDownTriggersRedraw() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items = List.<SelectorItem>of(new SettingsItem("a", "t", "d", false),
                                         new SettingsItem("b", "t", "d", false));
         selectors.show(TuiSelectors.Slot.SETTINGS, items);
@@ -95,7 +95,7 @@ class TuiSelectorsTest {
 
     @Test
     void handlePgUpPgDown() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items = List.<SelectorItem>of(new SettingsItem("a", "", "", false));
         selectors.show(TuiSelectors.Slot.SETTINGS, items);
 
@@ -108,8 +108,8 @@ class TuiSelectorsTest {
     void handleEnterCallsConfirmAndRedraw() {
         var confirmCount = new int[1];
         var redrawCount = new int[1];
-        var selectors = new TuiSelectors(() -> confirmCount[0]++, () -> {}, () -> {}, () -> {}, () -> {}, () -> {},
-                                        () -> {}, () -> {});
+        var selectors = new TuiSelectors();
+        selectors.bind(TuiSelectors.Slot.MODEL, () -> confirmCount[0]++);
         var items = List.<SelectorItem>of(new ModelItem(new ModelInfo("m", "p", "M", 1000), false));
         selectors.show(TuiSelectors.Slot.MODEL, items);
 
@@ -120,13 +120,13 @@ class TuiSelectorsTest {
 
     @Test
     void handleReturnsFalseWhenInactive() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         assertFalse(selectors.handle(Key.Special.UP, () -> {}));
     }
 
     @Test
     void refreshUpdatesItems() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items1 = List.<SelectorItem>of(new SettingsItem("old", "oldT", "oldD", false));
         selectors.show(TuiSelectors.Slot.SETTINGS, items1);
 
@@ -153,8 +153,8 @@ class TuiSelectorsTest {
     void handleEnterCallsPaletteConfirm() {
         var confirmCount = new int[1];
         var redrawCount = new int[1];
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {},
-                                        () -> confirmCount[0]++, () -> {});
+        var selectors = new TuiSelectors();
+        selectors.bind(TuiSelectors.Slot.PALETTE, () -> confirmCount[0]++);
         var items = List.<SelectorItem>of(new CompletionItem("/help", "[cmd] Show commands"));
         selectors.show(TuiSelectors.Slot.PALETTE, items);
 
@@ -165,14 +165,14 @@ class TuiSelectorsTest {
 
     @Test
     void showWithLoginProviderItems() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var items = List.<SelectorItem>of(new LoginProviderItem("openai", "OpenAI", "oauth", false));
         assertDoesNotThrow(() -> selectors.show(TuiSelectors.Slot.LOGIN, items));
     }
 
     @Test
     void showWithForkMessageItems() {
-        var selectors = new TuiSelectors(() -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {}, () -> {});
+        var selectors = new TuiSelectors();
         var msg = new Message.User("content");
         var items = List.<SelectorItem>of(new ForkMessageItem(1, msg));
         assertDoesNotThrow(() -> selectors.show(TuiSelectors.Slot.FORK, items));

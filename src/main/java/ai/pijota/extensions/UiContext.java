@@ -30,8 +30,10 @@ public interface UiContext {
     /** Show a transient notification/alert. */
     default void alert(String message) {}
 
-    /** Current color theme. Never null — non-terminal frontends get a no-color theme, so {@code theme().styled(…)} is
-     * always safe (it returns text unchanged there). Terminal frontends override with the live theme. */
+    /**
+     * Current color theme. Never null — non-terminal frontends get a no-color theme, so {@code theme().styled(…)} is
+     * always safe (it returns text unchanged there). Terminal frontends override with the live theme.
+     */
     default AnsiTheme theme() {
         return AnsiTheme.plain();
     }
@@ -53,12 +55,14 @@ public interface UiContext {
     default CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
         CompletableFuture<String> chain = CompletableFuture.completedFuture("");
         for (SlashCommandTool.Question q : questions)
-            chain = chain.thenCompose(acc -> askOne(q)
-                                            .thenApply(answer -> acc + (acc.isEmpty() ? "" : "\n") + q.question() + " → " + answer));
+            chain = chain.thenCompose(acc -> askOne(q).thenApply(answer -> acc + (acc.isEmpty() ? "" : "\n")
+                                            + q.question() + " → " + answer));
         return chain;
     }
 
-    /** One question via the shared primitives: a non-empty option list → {@link #select}, otherwise → {@link #prompt}. */
+    /**
+     * One question via the shared primitives: a non-empty option list → {@link #select}, otherwise → {@link #prompt}.
+     */
     private CompletableFuture<String> askOne(SlashCommandTool.Question q) {
         if (q.options() == null || q.options().isEmpty())
             return prompt(q.question(), "");
@@ -66,6 +70,12 @@ public interface UiContext {
         select(q.question(), q.options(), SlashCommandTool.Option::label, opt -> answer.complete(opt.label()));
         return answer;
     }
+
+    /**
+     * Release any interaction still blocking a tool (e.g. a pending {@code /question}) by resolving it as cancelled —
+     * called when this frontend goes away so the agent turn can't hang. No-op for frontends with nothing pending.
+     */
+    default void cancelPending() {}
 
     /** Opens a modal, scrollable, searchable read-only viewer over {@code lines} (e.g. a sub-agent log). */
     default void viewer(String title, List<String> lines) {}

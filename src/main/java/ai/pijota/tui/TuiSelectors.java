@@ -27,17 +27,10 @@ final class TuiSelectors {
 
     private final EnumMap<Slot, SelectorBinding> bindings = new EnumMap<>(Slot.class);
 
-    TuiSelectors(Runnable confirmModel, Runnable confirmSession, Runnable confirmTheme, Runnable confirmSettings,
-                                    Runnable confirmLogin, Runnable confirmFork, Runnable confirmPalette,
-                                    Runnable confirmRemote) {
-        bind(Slot.MODEL, confirmModel);
-        bind(Slot.SESSION, confirmSession);
-        bind(Slot.THEME, confirmTheme);
-        bind(Slot.SETTINGS, confirmSettings);
-        bind(Slot.LOGIN, confirmLogin);
-        bind(Slot.FORK, confirmFork);
-        bind(Slot.PALETTE, confirmPalette);
-        bind(Slot.REMOTE, confirmRemote);
+    /** Every slot starts with a no-op confirm; callers {@link #bind} the ones they handle — by name, so none can be swapped. */
+    TuiSelectors() {
+        for (Slot slot : Slot.values())
+            bind(slot, () -> {});
     }
 
     List<PromptRegion> regions() {
@@ -122,7 +115,7 @@ final class TuiSelectors {
         return (T) slot.itemType.cast(item);
     }
 
-    private void bind(Slot slot, Runnable onConfirm) {
+    void bind(Slot slot, Runnable onConfirm) {
         bindings.put(slot, new SelectorBinding(new Selector<>(List.of()), onConfirm));
     }
 

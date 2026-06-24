@@ -375,7 +375,8 @@ public final class LlmService implements LlmClient {
         effectiveProvider = providerModel.provider();
         String effectiveModel = providerModel.model();
         if (effectiveModel == null || effectiveModel.isBlank())
-            effectiveModel = modelName; // never hand a null/blank model to a provider (e.g. Codex 400s on "the 'null' model")
+            effectiveModel = modelName; // never hand a null/blank model to a provider (e.g. Codex 400s on "the 'null'
+                                        // model")
         String key = apiKeyResolver.apply(effectiveProvider);
         if (key == null)
             key = "";

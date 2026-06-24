@@ -62,7 +62,8 @@ class SubAgentTest {
     @Test
     void markdownModelNullLiteralBecomesNullNotTheStringNull(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
                                     throws Exception {
-        // `model: null` means "no override, inherit parent" — must NOT become the literal model "null" (Codex 400s on it).
+        // `model: null` means "no override, inherit parent" — must NOT become the literal model "null" (Codex 400s on
+        // it).
         var file = dir.resolve("summarize.md");
         java.nio.file.Files.writeString(file, "---\nname: summarize\nmodel: null\n---\nbody");
         assertNull(SubAgent.loadMarkdown(file, "test").model());

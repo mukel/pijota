@@ -1,6 +1,5 @@
 package ai.pijota.extensions;
 
-import ai.pijota.tools.SlashCommandTool;
 import ai.pijota.tools.SlashCommandTool.Option;
 import ai.pijota.tools.SlashCommandTool.Question;
 
@@ -33,7 +32,8 @@ class UiContextQuestionTest {
             }
         };
 
-        var withOptions = new Question("Color?", "Color", List.of(new Option("Red", ""), new Option("Blue", "")), false);
+        var withOptions = new Question("Color?", "Color", List.of(new Option("Red", ""), new Option("Blue", "")),
+                                        false);
         var freeText = new Question("Name?", "Name", List.of(), false);
 
         String combined = ui.askQuestions(List.of(withOptions, freeText)).get();

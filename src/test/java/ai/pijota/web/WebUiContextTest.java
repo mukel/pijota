@@ -94,7 +94,8 @@ class WebUiContextTest {
         var ui = bus.ui();
         var question = new ai.pijota.tools.SlashCommandTool.Question("Pick one?", "Choice",
                                         List.of(new ai.pijota.tools.SlashCommandTool.Option("A", "first"),
-                                                                        new ai.pijota.tools.SlashCommandTool.Option("B", "second")),
+                                                                        new ai.pijota.tools.SlashCommandTool.Option("B",
+                                                                                                        "second")),
                                         false);
 
         var future = ui.askQuestions(List.of(question)); // one combined dialog, not a select per question

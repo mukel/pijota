@@ -22,9 +22,12 @@ import java.util.function.Function;
  */
 public final class WebUiContext implements UiContext {
 
+    /** A dialog awaiting an answer: the {@code handler} that resolves it, and the {@code payload} to replay to new tabs. */
+    private record Pending(Consumer<String> handler, Map<String, Object> payload) {
+    }
+
     private final BiConsumer<String, Object> emit;
-    private final Map<String, Consumer<String>> pending = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, Object>> dialogs = new ConcurrentHashMap<>(); // payloads still awaiting an answer
+    private final Map<String, Pending> dialogs = new ConcurrentHashMap<>();
     private final AtomicLong ids = new AtomicLong();
 
     WebUiContext(BiConsumer<String, Object> emit) {
@@ -111,29 +114,31 @@ public final class WebUiContext implements UiContext {
         return future;
     }
 
-    /** Completes the dialog with the given id; no-op if it already fired or never existed. Notifies other tabs to close. */
+    /**
+     * Completes the dialog with the given id; no-op if it already fired or never existed. Notifies other tabs to close.
+     */
     void resolve(String id, String value) {
         if (id == null)
             return;
-        dialogs.remove(id);
-        var handler = pending.remove(id);
-        if (handler != null) {
+        var dialog = dialogs.remove(id);
+        if (dialog != null) {
             emit.accept("dialog_done", Map.of("id", id)); // any other tab still showing this dialog should close it
-            handler.accept(value);
+            dialog.handler().accept(value);
         }
     }
 
     /** Payloads of dialogs still awaiting an answer — replayed to a tab that connects after the dialog was emitted. */
     public List<Map<String, Object>> pendingDialogs() {
-        return List.copyOf(dialogs.values());
+        return dialogs.values().stream().map(Pending::payload).toList();
     }
 
     /**
      * Unblock every tool still waiting on a dialog (e.g. a pending {@code /question}) by resolving it as if cancelled.
      * Called when the frontend goes away (remote-control stop / shutdown) so the agent turn can't hang forever.
      */
+    @Override
     public void cancelPending() {
-        for (String id : List.copyOf(pending.keySet()))
+        for (String id : List.copyOf(dialogs.keySet()))
             resolve(id, ""); // empty answer → confirm=false, prompt/question="" — the waiting tool returns
     }
 
@@ -143,8 +148,7 @@ public final class WebUiContext implements UiContext {
         var payload = new java.util.LinkedHashMap<String, Object>();
         payload.put("id", id);
         payload.putAll(fields);
-        pending.put(id, handler);
-        dialogs.put(id, payload);
+        dialogs.put(id, new Pending(handler, payload));
         emit.accept("dialog", payload);
     }
 

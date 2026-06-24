@@ -46,8 +46,7 @@ class TodoExtensionTest {
 
     @Test
     void panelShowsTallyHeaderAndEachTodo() {
-        var list = List.of(new Todo("write parser", "in_progress", "high"),
-                                        new Todo("add tests", "pending", "medium"),
+        var list = List.of(new Todo("write parser", "in_progress", "high"), new Todo("add tests", "pending", "medium"),
                                         new Todo("read spec", "completed", "low"));
         var panel = TodoExtension.renderPanel(list);
 

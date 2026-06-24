@@ -10,7 +10,9 @@ import java.util.function.Consumer;
 
 public final class TodowriteTool implements Tool {
 
-    /** One todo item. {@code status}: pending | in_progress | completed | cancelled. {@code priority}: high|medium|low. */
+    /**
+     * One todo item. {@code status}: pending | in_progress | completed | cancelled. {@code priority}: high|medium|low.
+     */
     public record Todo(String content, String status, String priority) {
     }
 
@@ -72,7 +74,9 @@ public final class TodowriteTool implements Tool {
         });
     }
 
-    /** Renders the list as the tool result: an icon-prefixed line per todo, then an {@code N todos (M completed)} tally. */
+    /**
+     * Renders the list as the tool result: an icon-prefixed line per todo, then an {@code N todos (M completed)} tally.
+     */
     static String render(List<Todo> todos) {
         int completed = 0;
         var sb = new StringBuilder();

@@ -164,12 +164,14 @@ public final class WebServer implements AutoCloseable {
         http.createContext("/vendor/", this::serveVendor); // version-pinned UI libs, served locally (no CDN)
         http.createContext("/", this::serveIndex); // catch-all: index for "/", 404 otherwise
         http.setExecutor(Executors.newCachedThreadPool(daemon("pijota-web")));
-        // guard()ed so a single failure can't cancel the periodic task (scheduleAtFixedRate stops on a thrown exception).
+        // guard()ed so a single failure can't cancel the periodic task (scheduleAtFixedRate stops on a thrown
+        // exception).
         heartbeat.scheduleAtFixedRate(guard(this::ping), HEARTBEAT_SECONDS, HEARTBEAT_SECONDS, TimeUnit.SECONDS);
         heartbeat.scheduleAtFixedRate(guard(this::pollStats), 1, 1, TimeUnit.SECONDS); // push model/usage on change
         heartbeat.scheduleAtFixedRate(guard(this::pollStatusLines), 1, 1, TimeUnit.SECONDS); // push keyed/footer status
         http.start();
-        session.addEventListener(eventListener); // attach only once serving, so a bind failure leaves no dangling listener
+        session.addEventListener(eventListener); // attach only once serving, so a bind failure leaves no dangling
+                                                 // listener
         log.info("web ui on http://{}:{}", host, port);
     }
 
@@ -312,7 +314,8 @@ public final class WebServer implements AutoCloseable {
             client.write(frame("history", Util.MAPPER.writeValueAsString(history())));
             client.write(frame("statuslines", Util.MAPPER.writeValueAsString(Map.of("lines", lastStatusLines))));
             client.write(frame("stats", Util.MAPPER.writeValueAsString(statsMap())));
-            // Replay any dialog still awaiting an answer (e.g. a pending /question) so a tab opened mid-question sees it.
+            // Replay any dialog still awaiting an answer (e.g. a pending /question) so a tab opened mid-question sees
+            // it.
             for (Map<String, Object> dialog : ui.pendingDialogs())
                 client.write(frame("dialog", Util.MAPPER.writeValueAsString(dialog)));
             client.await(); // parked until a write fails (disconnect) or the server closes
