@@ -20,7 +20,7 @@ public final class WriteTool implements Tool {
 
     @Override
     public String glyph() {
-        return "✏";
+        return "💾";
     }
 
     @Override

@@ -508,7 +508,8 @@ public final class TelegramChat implements ChatHandler {
         String emoji = switch (toolName) {
             case "bash" -> "💻";
             case "read" -> "📖";
-            case "write", "edit" -> "✏️";
+            case "edit" -> "📝";
+            case "write" -> "💾";
             case "grep" -> "🔍";
             case "glob", "ls" -> "📁";
             case "webfetch", "websearch" -> "🌐";
