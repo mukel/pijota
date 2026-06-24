@@ -9,10 +9,56 @@ import ai.pijota.config.SettingsManager;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 class AppBootstrapTest {
+
+    private static SettingsManager settings(Path tmp, Map<String, String> aliases, String defaultModel) {
+        var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", defaultModel)
+                                        .withSessionDir(tmp.toString()).toBuilder().aliases(aliases).build();
+        return new SettingsManager(config, _ -> {});
+    }
+
+    @Test
+    void printModeResolvesThePrintAliasModel() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of("print", "openai/gpt-4.1-mini"), "gpt-5.5");
+        Args args = ArgParser.parse(new String[] {"--print", "hi", "--api-key", "sk-test"});
+
+        var result = AppBootstrap.bootstrap(args, settings);
+
+        assertEquals("gpt-4.1-mini", result.llm().model(), "print/-p uses the 'print' alias when no --model is given");
+    }
+
+    @Test
+    void printModeWithoutPrintAliasKeepsDefaultModel() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of(), "gpt-5.5");
+        Args args = ArgParser.parse(new String[] {"--print", "hi", "--api-key", "sk-test"});
+
+        assertEquals("gpt-5.5", AppBootstrap.bootstrap(args, settings).llm().model());
+    }
+
+    @Test
+    void interactiveModeIgnoresThePrintAlias() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of("print", "openai/gpt-4.1-mini"), "gpt-5.5");
+        Args args = ArgParser.parse(new String[] {"--api-key", "sk-test"}); // no --print
+
+        assertEquals("gpt-5.5", AppBootstrap.bootstrap(args, settings).llm().model());
+    }
+
+    @Test
+    void explicitModelOverridesThePrintAlias() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of("print", "openai/gpt-4.1-mini"), "gpt-5.5");
+        Args args = ArgParser.parse(new String[] {"--print", "hi", "--model", "openai/gpt-5.5", "--api-key",
+                "sk-test"});
+
+        assertEquals("gpt-5.5", AppBootstrap.bootstrap(args, settings).llm().model());
+    }
 
     @Test
     void bootstrapAgentModeReturnsWiredResult() throws Exception {

@@ -11,6 +11,11 @@ import static org.junit.jupiter.api.Assertions.*;
 class ModelCommandHandlerTest {
 
     private static ModelCommandHandler.Host fakeHost(String provider, String model) {
+        return fakeHost(provider, model, null);
+    }
+
+    private static ModelCommandHandler.Host fakeHost(String provider, String model,
+                                    ai.pijota.config.SettingsManager settingsManager) {
         return new ModelCommandHandler.Host() {
             @Override
             public boolean busy() {
@@ -61,9 +66,22 @@ class ModelCommandHandlerTest {
 
             @Override
             public ai.pijota.config.SettingsManager settings() {
-                return null;
+                return settingsManager;
             }
         };
+    }
+
+    @Test
+    void availableModelsHonorsEnabledModelsAllowlist() {
+        var config = new ai.pijota.config.AppConfig().withApiKey("anthropic", "sk-ant").withApiKey("openai", "sk-test")
+                                        .toBuilder().enabledModels(List.of("anthropic/*")).build();
+        var settings = new ai.pijota.config.SettingsManager(config, _ -> {});
+        var handler = new ModelCommandHandler(fakeHost("anthropic", "x", settings));
+
+        var available = handler.availableModels();
+        assertFalse(available.isEmpty());
+        assertTrue(available.stream().allMatch(m -> m.provider().equals("anthropic")),
+                                        "enabled_models 'anthropic/*' restricts the picker to anthropic models");
     }
 
     @Test

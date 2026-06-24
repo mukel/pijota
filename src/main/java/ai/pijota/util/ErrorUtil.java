@@ -25,12 +25,49 @@ public final class ErrorUtil {
         return current;
     }
 
+    private static final int MAX_MESSAGE_LEN = 600;
+
     public static String message(Throwable t) {
         Throwable unwrapped = unwrap(t);
         String message = unwrapped.getMessage();
         if (message == null || message.isBlank())
             message = unwrapped.getClass().getSimpleName();
-        return sanitize(message);
+        return truncate(sanitize(concise(message)));
+    }
+
+    /**
+     * Provider errors frequently arrive as a JSON blob — sometimes echoing the entire request (system prompt and all).
+     * Pull out the human-readable part ({@code error.message}, plus {@code error.code} when present) so the terminal
+     * shows one short line instead of a screenful. Returns the input unchanged when it isn't recognizable error JSON.
+     */
+    static String concise(String raw) {
+        if (raw == null)
+            return "";
+        String msg = raw.strip();
+        int brace = msg.indexOf('{');
+        if (brace < 0)
+            return msg;
+        try {
+            var root = Util.MAPPER.readTree(msg.substring(brace));
+            var err = root.findValue("error"); // first "error" node at any depth (often nested under "response")
+            if (err != null && err.isTextual() && !err.asText().isBlank())
+                return err.asText();
+            var node = err != null && err.isObject() ? err : root;
+            String m = node.path("message").asText(null);
+            if (m != null && !m.isBlank()) {
+                String code = node.path("code").asText(null);
+                return code != null && !code.isBlank() ? m + " (" + code + ")" : m;
+            }
+        } catch (Exception ignored) {
+            // not JSON we understand — fall back to the raw text (the caller truncates it)
+        }
+        return msg;
+    }
+
+    static String truncate(String s) {
+        if (s == null)
+            return "";
+        return s.length() <= MAX_MESSAGE_LEN ? s : s.substring(0, MAX_MESSAGE_LEN) + "… (truncated)";
     }
 
     public static String sanitize(String message) {
@@ -42,7 +79,8 @@ public final class ErrorUtil {
     }
 
     public static boolean isContextOverflow(Throwable t) {
-        String m = t != null ? ErrorUtil.message(t) : null;
+        // Check the RAW message, not the conciseified one — the overflow hint may live outside error.message.
+        String m = t != null ? unwrap(t).getMessage() : null;
         if (m == null)
             return false;
         String lower = m.toLowerCase();

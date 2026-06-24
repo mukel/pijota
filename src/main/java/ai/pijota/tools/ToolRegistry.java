@@ -182,6 +182,7 @@ public final class ToolRegistry {
         registry.register(new ReadTool());
         registry.register(new WriteTool());
         registry.register(new EditTool());
+        registry.register(new ApplyPatchTool());
         registry.register(new GlobTool());
         registry.register(new GrepTool());
         registry.register(new LsTool());

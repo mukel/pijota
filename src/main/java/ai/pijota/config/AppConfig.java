@@ -222,6 +222,16 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             return this;
         }
 
+        public Builder aliases(Map<String, String> v) {
+            this.aliases = v;
+            return this;
+        }
+
+        public Builder enabledModels(List<String> v) {
+            this.enabledModels = v;
+            return this;
+        }
+
         public Builder maxTurns(Integer v) {
             this.maxTurns = v;
             return this;

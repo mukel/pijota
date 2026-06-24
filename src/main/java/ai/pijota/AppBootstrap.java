@@ -42,7 +42,21 @@ final class AppBootstrap {
 
         String apiKey = parsedArgs.apiKey();
 
-        var resolved = ModelRegistry.resolveProviderModel(parsedArgs.provider(), parsedArgs.model(), settings);
+        // Per-role model: print/-p uses the "print" alias when set and no explicit --model was given, so
+        // non-interactive
+        // runs can default to a cheaper/faster model (e.g. alias print -> alias/fast). Other roles (sub-agents,
+        // summarize) already pick their model from their own spec/alias.
+        boolean usePrintAlias = parsedArgs.model() == null && parsedArgs.print() && settings.config().aliases() != null
+                                        && settings.config().aliases().containsKey("print");
+        // ArgParser splits "alias/<name>" into provider="alias" + model="<name>", so resolve the print role the same
+        // way (provider=ALIAS, model="print") rather than passing a bare "alias/print" string, which
+        // resolveProviderModel
+        // would take literally.
+        var resolved = usePrintAlias
+                                        ? ModelRegistry.resolveProviderModel(ModelRegistry.ALIAS_PROVIDER, "print",
+                                                                        settings)
+                                        : ModelRegistry.resolveProviderModel(parsedArgs.provider(), parsedArgs.model(),
+                                                                        settings);
         // "alias" is reserved: if it survived resolution, the named alias is undefined — fail clearly instead of
         // silently falling through to the default provider.
         if (ModelRegistry.ALIAS_PROVIDER.equalsIgnoreCase(resolved.provider()))
@@ -103,7 +117,13 @@ final class AppBootstrap {
         if (!parsedArgs.noExtensions()) {
             // Pi-compatible extension dirs (matches the .pi/agents and .pi/chains convention), not ~/.pijota.
             ext.loadFromDirectory(Path.of(System.getProperty("user.home"), ".pi", "extensions"));
-            ext.loadFromDirectory(Path.of(cwd, ".pi", "extensions"));
+            // Project-local extensions are executable code from the cwd — only load them from a TRUSTED folder, so a
+            // cloned/untrusted repo can't auto-run code on startup. Trust with /trust (takes effect next launch).
+            if (new ai.pijota.config.TrustStore().isTrusted(cwd))
+                ext.loadFromDirectory(Path.of(cwd, ".pi", "extensions"));
+            else if (Path.of(cwd, ".pi", "extensions").toFile().isDirectory())
+                logger.info("Skipped untrusted project extensions in {}/.pi/extensions — run /trust to enable them.",
+                                                cwd);
         }
         ext.register(new TaskExtension());
         ext.register(new PlanExtension());

@@ -190,6 +190,51 @@ public final class ModelRegistry {
         return new ProviderModel(provider, model);
     }
 
+    /**
+     * Allowlist match for the model picker: true if {@code m} matches one of the glob {@code patterns} (matched against
+     * {@code "provider/id"} or just {@code id}, case-insensitive, {@code *}/{@code ?} wildcards). An empty/null list
+     * matches everything (no allowlist configured).
+     */
+    public static boolean isEnabled(ModelInfo m, List<String> patterns) {
+        if (patterns == null || patterns.isEmpty())
+            return true;
+        String full = m.provider() + "/" + m.id();
+        for (String p : patterns) {
+            if (p == null || p.isBlank())
+                continue;
+            String regex = globToRegex(p.trim());
+            if (full.matches(regex) || m.id().matches(regex))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Apply the {@code enabled_models} glob allowlist to a model list (shared by every frontend's picker). Fails open —
+     * if the patterns would exclude everything, the unfiltered list is returned so a bad pattern can't lock the user
+     * out of switching models. Null/empty patterns return the list unchanged.
+     */
+    public static List<ModelInfo> applyAllowlist(List<ModelInfo> models, List<String> patterns) {
+        if (patterns == null || patterns.isEmpty())
+            return models;
+        var filtered = models.stream().filter(m -> isEnabled(m, patterns)).toList();
+        return filtered.isEmpty() ? models : filtered;
+    }
+
+    private static String globToRegex(String glob) {
+        var sb = new StringBuilder("(?i)");
+        for (int i = 0; i < glob.length(); i++) {
+            char c = glob.charAt(i);
+            if (c == '*')
+                sb.append(".*");
+            else if (c == '?')
+                sb.append('.');
+            else
+                sb.append(java.util.regex.Pattern.quote(String.valueOf(c)));
+        }
+        return sb.toString();
+    }
+
     public static boolean isKnownProviderModel(String provider, String model) {
         if (provider == null || model == null)
             return false;

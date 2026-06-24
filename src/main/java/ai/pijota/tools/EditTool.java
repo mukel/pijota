@@ -76,15 +76,15 @@ public final class EditTool implements Tool {
 
         String original = Files.readString(path);
         String rawContent = stripBom(original);
-        String lineEnding = detectLineEnding(original);
-        String content = normalizeToLF(rawContent);
+        String lineEnding = Util.detectLineEnding(original);
+        String content = Util.normalizeToLF(rawContent);
 
         var matches = new ArrayList<MatchResult>();
         var errors = new ArrayList<String>();
         for (int i = 0; i < edits.size(); i++) {
             var edit = edits.get(i);
-            String oldLF = normalizeToLF(edit.oldText());
-            String newLF = normalizeToLF(edit.newText());
+            String oldLF = Util.normalizeToLF(edit.oldText());
+            String newLF = Util.normalizeToLF(edit.newText());
 
             int exactCount = Util.countOccurrences(content, oldLF);
             if (oldLF.isEmpty()) {
@@ -139,7 +139,7 @@ public final class EditTool implements Tool {
             return ToolResult.error("No changes made to " + path + ". The replacements produced identical content.");
         }
 
-        Files.writeString(path, restoreLineEndings(result, lineEnding), StandardOpenOption.TRUNCATE_EXISTING);
+        Files.writeString(path, Util.restoreLineEndings(result, lineEnding), StandardOpenOption.TRUNCATE_EXISTING);
 
         var details = Map.<String, Object>of("diff", displayDiff(content, result), "patch",
                                         unifiedPatch(path.toString(), content, result), "firstChangedLine",
@@ -275,22 +275,6 @@ public final class EditTool implements Tool {
 
     private static String stripBom(String s) {
         return s.startsWith("\uFEFF") ? s.substring(1) : s;
-    }
-
-    private static String detectLineEnding(String s) {
-        if (s.contains("\r\n"))
-            return "\r\n";
-        if (s.contains("\r"))
-            return "\r";
-        return "\n";
-    }
-
-    private static String normalizeToLF(String s) {
-        return s.replace("\r\n", "\n").replace("\r", "\n");
-    }
-
-    private static String restoreLineEndings(String s, String le) {
-        return "\n".equals(le) ? s : s.replace("\n", le);
     }
 
     @Override

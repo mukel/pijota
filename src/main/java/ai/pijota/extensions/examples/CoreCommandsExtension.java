@@ -133,9 +133,11 @@ public final class CoreCommandsExtension implements Extension {
     }
 
     private List<ModelInfo> availableModels() {
-        return ModelRegistry.KNOWN_MODELS.stream()
+        var withKeys = ModelRegistry.KNOWN_MODELS.stream()
                                         .filter(m -> settings == null || settings.resolveApiKey(m.provider()) != null)
                                         .toList();
+        // Honor the enabled_models allowlist here too, so every frontend (web, Telegram) sees the same model list.
+        return ModelRegistry.applyAllowlist(withKeys, settings != null ? settings.config().enabledModels() : null);
     }
 
     private void switchTo(ModelInfo m) {

@@ -181,4 +181,55 @@ class ErrorUtilTest {
         };
         assertEquals(5000, ErrorUtil.retryAfterDelayMs(ex, 5000));
     }
+
+    @Test
+    void messageExtractsErrorFromNestedProviderJson() {
+        // Codex/OpenAI "response.failed" blob that echoes the whole request — must not dump it all.
+        String blob = "{\"type\":\"response.failed\",\"response\":{\"id\":\"resp_abc\",\"status\":\"failed\","
+                                        + "\"error\":{\"code\":\"server_is_overloaded\",\"message\":\"Our servers are currently "
+                                        + "overloaded. Please try again later.\"},\"instructions\":\"You are pijota, a very long "
+                                        + "system prompt that should never reach the terminal...\"}}";
+        String msg = ErrorUtil.message(new RuntimeException(blob));
+        assertEquals("Our servers are currently overloaded. Please try again later. (server_is_overloaded)", msg);
+        assertFalse(msg.contains("You are pijota"), "the echoed system prompt must be stripped");
+    }
+
+    @Test
+    void messageExtractsTopLevelOpenAiErrorObject() {
+        String blob = "{\"error\":{\"message\":\"Invalid API key\",\"type\":\"invalid_request_error\"}}";
+        assertEquals("Invalid API key", ErrorUtil.message(new RuntimeException(blob)));
+    }
+
+    @Test
+    void messageHandlesErrorAsPlainString() {
+        assertEquals("boom", ErrorUtil.message(new RuntimeException("{\"error\":\"boom\"}")));
+    }
+
+    @Test
+    void messageLeavesPlainTextUnchanged() {
+        assertEquals("connection reset by peer", ErrorUtil.message(new RuntimeException("connection reset by peer")));
+    }
+
+    @Test
+    void messageTruncatesHugeNonJsonText() {
+        String huge = "x".repeat(5000);
+        String msg = ErrorUtil.message(new RuntimeException(huge));
+        assertTrue(msg.length() < huge.length());
+        assertTrue(msg.endsWith("… (truncated)"));
+    }
+
+    @Test
+    void messageStillRedactsSecretsAfterExtraction() {
+        String blob = "{\"error\":{\"message\":\"bad key sk-abcdef123456 supplied\"}}";
+        String msg = ErrorUtil.message(new RuntimeException(blob));
+        assertTrue(msg.contains("sk-***"), msg);
+        assertFalse(msg.contains("sk-abcdef123456"));
+    }
+
+    @Test
+    void contextOverflowStillDetectedFromNestedJson() {
+        String blob = "{\"error\":{\"code\":\"context_length_exceeded\",\"message\":\"This model's maximum context "
+                                        + "length is 128000 tokens.\"}}";
+        assertTrue(ErrorUtil.isContextOverflow(new RuntimeException(blob)));
+    }
 }

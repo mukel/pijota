@@ -157,6 +157,25 @@ public final class Util {
         return path.isAbsolute() ? path.normalize() : base.resolve(path).normalize();
     }
 
+    /** The dominant line ending of {@code s}: {@code "\r\n"}, {@code "\r"}, or {@code "\n"} (default). */
+    public static String detectLineEnding(String s) {
+        if (s.contains("\r\n"))
+            return "\r\n";
+        if (s.contains("\r"))
+            return "\r";
+        return "\n";
+    }
+
+    /** Convert LF-normalized {@code s} back to {@code lineEnding}. */
+    public static String restoreLineEndings(String s, String lineEnding) {
+        return "\n".equals(lineEnding) ? s : s.replace("\n", lineEnding);
+    }
+
+    /** Normalize CRLF/CR line endings to LF. */
+    public static String normalizeToLF(String s) {
+        return s.replace("\r\n", "\n").replace("\r", "\n");
+    }
+
     public static int countOccurrences(String haystack, String needle) {
         if (needle == null || needle.isEmpty() || haystack == null)
             return 0;

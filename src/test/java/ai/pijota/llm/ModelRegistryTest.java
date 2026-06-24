@@ -218,4 +218,31 @@ class ModelRegistryTest {
                                         .findFirst().orElseThrow();
         assertEquals(256_000L, updated.contextWindow());
     }
+
+    @Test
+    void isEnabledMatchesAllowlistGlobs() {
+        var haiku = new ModelInfo("claude-haiku-4-5", "anthropic", "Haiku", 200_000);
+        var gpt = new ModelInfo("gpt-5.5", "openai", "GPT", 400_000);
+
+        assertTrue(ModelRegistry.isEnabled(haiku, null), "null patterns = all allowed");
+        assertTrue(ModelRegistry.isEnabled(haiku, List.of()), "empty patterns = all allowed");
+        assertTrue(ModelRegistry.isEnabled(haiku, List.of("anthropic/*")));
+        assertFalse(ModelRegistry.isEnabled(gpt, List.of("anthropic/*")));
+        assertTrue(ModelRegistry.isEnabled(haiku, List.of("*haiku*")), "glob on the bare id");
+        assertTrue(ModelRegistry.isEnabled(gpt, List.of("anthropic/*", "gpt-5.5")), "exact id in the list");
+        assertFalse(ModelRegistry.isEnabled(gpt, List.of("*claude*")));
+    }
+
+    @Test
+    void applyAllowlistFiltersFailsOpenAndPassesThroughWhenUnset() {
+        var haiku = new ModelInfo("claude-haiku-4-5", "anthropic", "Haiku", 200_000);
+        var gpt = new ModelInfo("gpt-5.5", "openai", "GPT", 400_000);
+        var all = List.of(haiku, gpt);
+
+        assertEquals(all, ModelRegistry.applyAllowlist(all, null), "null patterns: unchanged");
+        assertEquals(all, ModelRegistry.applyAllowlist(all, List.of()), "empty patterns: unchanged");
+        assertEquals(List.of(haiku), ModelRegistry.applyAllowlist(all, List.of("anthropic/*")), "filters to matches");
+        assertEquals(all, ModelRegistry.applyAllowlist(all, List.of("matches/nothing")),
+                                        "fails open when the allowlist would empty the list");
+    }
 }

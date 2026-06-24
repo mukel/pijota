@@ -94,8 +94,11 @@ final class ModelCommandHandler {
     }
 
     List<ModelInfo> availableModels() {
-        return ModelRegistry.KNOWN_MODELS.stream().filter(m -> host.settings() == null
-                                        || host.settings().resolveApiKey(m.provider()) != null).toList();
+        var settings = host.settings();
+        var withKeys = ModelRegistry.KNOWN_MODELS.stream()
+                                        .filter(m -> settings == null || settings.resolveApiKey(m.provider()) != null)
+                                        .toList();
+        return ModelRegistry.applyAllowlist(withKeys, settings != null ? settings.config().enabledModels() : null);
     }
 
     ModelInfo nextModel(List<ModelInfo> models, int direction) {
