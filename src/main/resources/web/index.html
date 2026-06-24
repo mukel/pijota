@@ -144,6 +144,10 @@
   /* the concise descriptor (path / command / pattern) next to the tool name; ellipsizes, full text on expand */
   .tool .detail { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tool .section { padding: 0 14px 12px; }
+  /* readable rendering of the question tool's args (vs raw JSON) */
+  .qcard { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+  .qcard-title { font-weight: 600; margin-bottom: 4px; }
+  .qcard-opt { color: var(--muted); font-size: 13px; padding-left: 4px; line-height: 1.5; }
   .tool pre { margin: 6px 0 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; max-height: 360px; overflow-y: auto; }
   .tool.err > summary .name { color: var(--err); }
   .tool .badge { margin-left: auto; font-size: 11px; padding: 1px 8px; border-radius: 20px; background: #3fb95022; color: var(--ok); }
@@ -230,7 +234,8 @@
   .modal input:focus { border-color: var(--accent); }
   /* /question dialog: option buttons + a free-text field per question */
   .qform-wrap { position: relative; }
-  .qform { max-height: 56vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+  /* vertical padding so the first/last fields' (focused) borders aren't clipped by the scroll container */
+  .qform { max-height: 56vh; overflow-y: auto; margin: 0 -4px; padding: 4px 4px 10px; }
   .qjump { position: absolute; right: 6px; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 15px; cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: 0 3px 10px var(--shadow-color); }
   .qjump.show { display: flex; }
   .qjump:hover { border-color: var(--accent); }
@@ -253,9 +258,10 @@
   main, .finder-list, .tool pre { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
   /* ---- responsive / touch ---- */
-  /* touch devices have no hover, so reveal-on-hover affordances must stay visible */
+  /* touch devices: hide the reveal-on-hover copy buttons entirely — long-press selects + copies text natively instead */
   @media (hover: none) {
-    .copy-btn { opacity: .8; }
+    .copy-btn, .msg-actions, .answer-copy, .think-copy { display: none !important; }
+    .msg .bubble { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; } /* allow long-press copy */
     .scrollbtn { display: none; } /* on touch, flick-to-bottom is natural; avoid an overlapping floating button */
   }
   @media (max-width: 640px) {
@@ -572,13 +578,40 @@ window.addEventListener("DOMContentLoaded", () => {
       sum.querySelector(".name").textContent = name || "tool";
       sum.querySelector(".detail").textContent = detail || ""; // path / command / pattern — full text shown on expand
       const argSec = document.createElement("div"); argSec.className = "section";
-      if (args && args.trim() && args.trim() !== "{}") { const pre = document.createElement("pre"); pre.textContent = args; argSec.appendChild(pre); }
+      if (name === "question")
+        argSec.appendChild(renderQuestionArgs(args)); // readable questions + options, not raw JSON
+      else if (args && args.trim() && args.trim() !== "{}") { const pre = document.createElement("pre"); pre.textContent = args; argSec.appendChild(pre); }
       d.append(sum, argSec);
       const card = { wrap, details: d, badge: sum.querySelector(".badge") };
       wrap.appendChild(d); thread.appendChild(wrap);
       toolCards.set(id, card);
       return card;
     });
+  }
+  // Render the question tool's args as a readable list (question text + options), falling back to raw JSON if it can't parse.
+  function renderQuestionArgs(argsJson) {
+    let data;
+    try { data = JSON.parse(argsJson || "{}"); } catch { const pre = document.createElement("pre"); pre.textContent = argsJson || ""; return pre; }
+    const list = Array.isArray(data.questions) && data.questions.length ? data.questions
+               : (data.question || data.text) ? [{ question: data.question || data.text, header: data.header, options: data.options, multiple: data.multiple }]
+               : [];
+    if (!list.length) { const pre = document.createElement("pre"); pre.textContent = argsJson || ""; return pre; }
+    const box = document.createElement("div"); box.className = "qcard";
+    list.forEach((q, i) => {
+      const block = document.createElement("div"); block.className = "qcard-q";
+      const title = document.createElement("div"); title.className = "qcard-title";
+      title.textContent = (list.length > 1 ? (i + 1) + ". " : "") + (q.question || q.text || "")
+                        + (q.multiple ? "  (choose any)" : "");
+      block.appendChild(title);
+      (q.options || []).forEach(o => {
+        const opt = document.createElement("div"); opt.className = "qcard-opt";
+        const label = typeof o === "string" ? o : (o.label || "");
+        opt.textContent = "• " + label + (o && o.description ? " — " + o.description : "");
+        block.appendChild(opt);
+      });
+      box.appendChild(block);
+    });
+    return box;
   }
   function toolResult(id, name, content, isError) {
     const card = toolCard(id, name, "", "");
@@ -638,6 +671,7 @@ window.addEventListener("DOMContentLoaded", () => {
     es.addEventListener("stats", e => renderStats(JSON.parse(e.data)));
     es.addEventListener("viewer", e => showViewer(JSON.parse(e.data)));
     es.addEventListener("dialog", e => showDialog(JSON.parse(e.data)));
+    es.addEventListener("dialog_done", e => { const f = openDialogs.get(JSON.parse(e.data).id); if (f) f(); });
   }
 
   function replayHistory(m) {
@@ -761,14 +795,18 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // ---- dialogs (confirm / prompt / select) ----
+  const openDialogs = new Map(); // id → dismiss(); lets a replayed dialog dedupe and dialog_done close it across tabs
   function showDialog(d) {
+    if (d.id && openDialogs.has(d.id)) return; // already on screen (e.g. replayed on connect, or a duplicate event)
     const { overlay, modal, close } = openOverlay(d.kind === "select" ? "finder" : "");
-    const answer = v => { postJSON("/answer", { id: d.id, value: v }); close(); };
+    const dismiss = () => { if (d.id) openDialogs.delete(d.id); close(); };
+    if (d.id) openDialogs.set(d.id, dismiss);
+    const answer = v => { postJSON("/answer", { id: d.id, value: v }); dismiss(); };
     // mobile has no Esc: tapping the dimmed backdrop cancels. confirm/prompt resolve to a safe default so the agent
     // never hangs; select just dismisses; question submits its current state (set below). Mutable so a branch can swap it.
     let onCancel = d.kind === "confirm" ? () => answer("no")
                  : d.kind === "prompt" ? () => answer(d.default || "")
-                 : close;
+                 : dismiss;
     overlay.addEventListener("click", e => { if (e.target === overlay) onCancel(); });
     modal.appendChild(closeButton(() => onCancel()));
     const h = document.createElement("h3"); h.textContent = d.question || d.title || ""; modal.appendChild(h);

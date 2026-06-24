@@ -96,7 +96,10 @@ final class RemoteControl {
         Thread thread = new Thread(frontend::run, "pijota-remote-telegram");
         thread.setDaemon(true);
         thread.start();
-        activate(chat.ui(), "telegram " + (username != null ? "@" + username : String.valueOf(allowed)), frontend::stop);
+        activate(chat.ui(), "telegram " + (username != null ? "@" + username : String.valueOf(allowed)), () -> {
+            frontend.stop();
+            chat.ui().cancelPending(); // unblock any tool waiting on a tap/prompt so the turn can't hang
+        });
         var out = new ArrayList<String>();
         out.add("🔗 Remote control (Telegram) is live — drive this session from chat " + allowed + ".");
         if (username != null)

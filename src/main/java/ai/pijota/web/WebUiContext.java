@@ -24,6 +24,7 @@ public final class WebUiContext implements UiContext {
 
     private final BiConsumer<String, Object> emit;
     private final Map<String, Consumer<String>> pending = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Object>> dialogs = new ConcurrentHashMap<>(); // payloads still awaiting an answer
     private final AtomicLong ids = new AtomicLong();
 
     WebUiContext(BiConsumer<String, Object> emit) {
@@ -66,17 +67,15 @@ public final class WebUiContext implements UiContext {
     @Override
     public CompletableFuture<Boolean> confirm(String question) {
         var future = new CompletableFuture<Boolean>();
-        String id = open(data -> future.complete("yes".equals(data)));
-        emit.accept("dialog", Map.of("id", id, "kind", "confirm", "question", question));
+        openDialog(Map.of("kind", "confirm", "question", question), data -> future.complete("yes".equals(data)));
         return future;
     }
 
     @Override
     public CompletableFuture<String> prompt(String question, String defaultValue) {
         var future = new CompletableFuture<String>();
-        String id = open(future::complete);
-        emit.accept("dialog", Map.of("id", id, "kind", "prompt", "question", question, "default",
-                                        defaultValue == null ? "" : defaultValue));
+        openDialog(Map.of("kind", "prompt", "question", question, "default", defaultValue == null ? "" : defaultValue),
+                                        future::complete);
         return future;
     }
 
@@ -85,12 +84,11 @@ public final class WebUiContext implements UiContext {
         var labels = new ArrayList<String>(items.size());
         for (T item : items)
             labels.add(render.apply(item));
-        String id = open(data -> {
+        openDialog(Map.of("kind", "select", "title", title, "options", labels), data -> {
             int idx = parseIndex(data);
             if (idx >= 0 && idx < items.size())
                 onChoice.accept(items.get(idx)); // callers never see indices; we map back to their domain object
         });
-        emit.accept("dialog", Map.of("id", id, "kind", "select", "title", title, "options", labels));
     }
 
     /**
@@ -101,7 +99,6 @@ public final class WebUiContext implements UiContext {
     @Override
     public CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
         var future = new CompletableFuture<String>();
-        String id = open(future::complete);
         var payload = new ArrayList<Map<String, Object>>(questions.size());
         for (SlashCommandTool.Question q : questions) {
             var options = new ArrayList<String>();
@@ -110,23 +107,45 @@ public final class WebUiContext implements UiContext {
             payload.add(Map.of("question", q.question(), "header", q.header() == null ? "" : q.header(), "options",
                                             options, "multiple", q.multiple()));
         }
-        emit.accept("dialog", Map.of("id", id, "kind", "question", "questions", payload));
+        openDialog(Map.of("kind", "question", "questions", payload), future::complete);
         return future;
     }
 
-    /** Completes the dialog with the given id; no-op if it already fired or never existed. */
+    /** Completes the dialog with the given id; no-op if it already fired or never existed. Notifies other tabs to close. */
     void resolve(String id, String value) {
         if (id == null)
             return;
+        dialogs.remove(id);
         var handler = pending.remove(id);
-        if (handler != null)
+        if (handler != null) {
+            emit.accept("dialog_done", Map.of("id", id)); // any other tab still showing this dialog should close it
             handler.accept(value);
+        }
     }
 
-    private String open(Consumer<String> handler) {
+    /** Payloads of dialogs still awaiting an answer — replayed to a tab that connects after the dialog was emitted. */
+    public List<Map<String, Object>> pendingDialogs() {
+        return List.copyOf(dialogs.values());
+    }
+
+    /**
+     * Unblock every tool still waiting on a dialog (e.g. a pending {@code /question}) by resolving it as if cancelled.
+     * Called when the frontend goes away (remote-control stop / shutdown) so the agent turn can't hang forever.
+     */
+    public void cancelPending() {
+        for (String id : List.copyOf(pending.keySet()))
+            resolve(id, ""); // empty answer → confirm=false, prompt/question="" — the waiting tool returns
+    }
+
+    /** Registers a pending dialog (id + handler + replayable payload) and pushes it to connected tabs. */
+    private void openDialog(Map<String, Object> fields, Consumer<String> handler) {
         String id = Long.toString(ids.incrementAndGet());
+        var payload = new java.util.LinkedHashMap<String, Object>();
+        payload.put("id", id);
+        payload.putAll(fields);
         pending.put(id, handler);
-        return id;
+        dialogs.put(id, payload);
+        emit.accept("dialog", payload);
     }
 
     private static int parseIndex(String data) {

@@ -200,6 +200,7 @@ public final class WebServer implements AutoCloseable {
 
     @Override
     public void close() {
+        ui.cancelPending(); // unblock any tool waiting on a dialog (e.g. a pending /question) so the turn can't hang
         session.removeEventListener(eventListener); // detach from the live session (in-process /remote-control stop)
         heartbeat.shutdownNow();
         if (http != null)
@@ -311,6 +312,9 @@ public final class WebServer implements AutoCloseable {
             client.write(frame("history", Util.MAPPER.writeValueAsString(history())));
             client.write(frame("statuslines", Util.MAPPER.writeValueAsString(Map.of("lines", lastStatusLines))));
             client.write(frame("stats", Util.MAPPER.writeValueAsString(statsMap())));
+            // Replay any dialog still awaiting an answer (e.g. a pending /question) so a tab opened mid-question sees it.
+            for (Map<String, Object> dialog : ui.pendingDialogs())
+                client.write(frame("dialog", Util.MAPPER.writeValueAsString(dialog)));
             client.await(); // parked until a write fails (disconnect) or the server closes
         } catch (IOException ignored) {
             // client went away before/while replaying history

@@ -109,6 +109,44 @@ class WebUiContextTest {
     }
 
     @Test
+    void dialogsAreReplayablyPendingUntilAnsweredThenSignalOtherTabsToClose() {
+        // Regression: a tab opened mid-question saw "running" but no dialog. Pending dialogs must be replayable, and
+        // answering must tell other tabs to close.
+        var bus = new Bus();
+        var ui = bus.ui();
+        var future = ui.confirm("Proceed?");
+
+        assertEquals(1, ui.pendingDialogs().size(), "an unanswered dialog is replayable to a newly-connected tab");
+        assertEquals("confirm", ui.pendingDialogs().get(0).get("kind"));
+
+        ui.resolve((String) bus.data.get("id"), "yes");
+        assertTrue(ui.pendingDialogs().isEmpty(), "an answered dialog is no longer pending");
+        assertEquals("dialog_done", bus.event, "other tabs are told to close it");
+        assertTrue(future.join());
+    }
+
+    @Test
+    void cancelPendingUnblocksToolsWaitingOnDialogs() {
+        // Regression: stopping remote control while a /question was pending hung the turn forever. cancelPending() must
+        // complete every waiting future so the blocked tool returns.
+        var bus = new Bus();
+        var ui = bus.ui();
+        var confirm = ui.confirm("Proceed?");
+        var question = ui.askQuestions(List.of(new ai.pijota.tools.SlashCommandTool.Question("Pick?", "",
+                                        List.of(new ai.pijota.tools.SlashCommandTool.Option("A", "")), false)));
+
+        assertFalse(confirm.isDone());
+        assertFalse(question.isDone());
+
+        ui.cancelPending(); // the frontend (remote-control channel) went away
+
+        assertTrue(confirm.isDone() && question.isDone(), "all waiting tools are unblocked");
+        assertFalse(confirm.join(), "cancelled confirm → safe default (no)");
+        assertEquals("", question.join(), "cancelled question → empty answer");
+        assertTrue(ui.pendingDialogs().isEmpty());
+    }
+
+    @Test
     void themeIsNeverNullSoStyledIsSafe() {
         // Regression: /transcend (and any extension) calls ui.theme().styled(...). Under remote control the UI owner is
         // the web/Telegram context — its theme() must not be null. A no-color theme returns the text unchanged.
