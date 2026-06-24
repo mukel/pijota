@@ -46,7 +46,9 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
                         switch (key) {
                             case "name" -> name = value;
                             case "description" -> description = value;
-                            case "model" -> model = value;
+                            // YAML null literals mean "no override" — without this, `model: null` becomes the literal
+                            // string "null" and is sent as the model (e.g. Codex rejects "the 'null' model").
+                            case "model" -> model = yamlNull(value);
                             case "tools" -> tools = Arrays.stream(value.split("[,;]")).map(String::strip)
                                                             .filter(s -> !s.isBlank()).toList();
                         }
@@ -59,6 +61,11 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
             return new SubAgent(file.getFileName().toString().replace(".md", ""), "failed: " + e.getMessage(), "",
                                             List.of(), null, source);
         }
+    }
+
+    /** Maps YAML's null literals ({@code null}, {@code ~}, empty) to Java null; other values pass through unchanged. */
+    private static String yamlNull(String value) {
+        return value.isBlank() || value.equals("null") || value.equals("~") ? null : value;
     }
 
     public static SubAgent loadJson(Path file, String source) {

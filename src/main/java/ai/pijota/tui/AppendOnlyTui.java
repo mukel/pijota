@@ -303,7 +303,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.commandController = new TuiCommandController(this, commands);
         this.remoteControl = new RemoteControl(session, settings, extensionLinesSupplier,
                                         session.extensionRegistry()::slashCommands, this);
-        SlashCommandTool.setQuestionHandler(this::askQuestions);
         updateWhoamiTool();
         session.addEventListener(this::onEvent);
         seedPromptHistoryFromSession(); // resumed/--continue sessions: make prior prompts recall-able with up/down
@@ -1277,7 +1276,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         runExtensionCommand(cmd, "/logs", "/logs");
     }
 
-    private CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
+    @Override
+    public CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
         return dialogs.askQuestions(questions);
     }
 

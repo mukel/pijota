@@ -133,6 +133,8 @@ public final class ExtensionRegistry {
 
     public void setTui(UiContext t) {
         this.uiContext = t;
+        // The interactive /question tool follows the active UI owner — route it to t's askQuestions (null → text fallback).
+        ai.pijota.tools.SlashCommandTool.setQuestionHandler(t == null ? null : t::askQuestions);
     }
 
     public void setCwd(Path c) {

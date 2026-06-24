@@ -1,6 +1,7 @@
 package ai.pijota.extensions;
 
 import ai.pijota.theme.AnsiTheme;
+import ai.pijota.tools.SlashCommandTool;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -40,6 +41,30 @@ public interface UiContext {
      * own domain objects — the selector never exposes indices.
      */
     default <T> void select(String title, List<T> items, Function<T, String> render, Consumer<T> onChoice) {}
+
+    /**
+     * Ask one or more questions (the {@code /question} tool) and return the combined answer. The default makes any
+     * frontend interactive by decomposing each question into the primitives every frontend implements — {@link #select}
+     * for an option list, {@link #prompt} for free text — and chaining them. A frontend may override with a single
+     * richer widget (e.g. options plus a free-text field, or multi-select). With no UI attached, the answers resolve to
+     * the prompt defaults.
+     */
+    default CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
+        CompletableFuture<String> chain = CompletableFuture.completedFuture("");
+        for (SlashCommandTool.Question q : questions)
+            chain = chain.thenCompose(acc -> askOne(q)
+                                            .thenApply(answer -> acc + (acc.isEmpty() ? "" : "\n") + q.question() + " → " + answer));
+        return chain;
+    }
+
+    /** One question via the shared primitives: a non-empty option list → {@link #select}, otherwise → {@link #prompt}. */
+    private CompletableFuture<String> askOne(SlashCommandTool.Question q) {
+        if (q.options() == null || q.options().isEmpty())
+            return prompt(q.question(), "");
+        var answer = new CompletableFuture<String>();
+        select(q.question(), q.options(), SlashCommandTool.Option::label, opt -> answer.complete(opt.label()));
+        return answer;
+    }
 
     /** Opens a modal, scrollable, searchable read-only viewer over {@code lines} (e.g. a sub-agent log). */
     default void viewer(String title, List<String> lines) {}

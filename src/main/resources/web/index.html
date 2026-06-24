@@ -226,6 +226,14 @@
   .modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
   .modal input { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; }
   .modal input:focus { border-color: var(--accent); }
+  /* /question dialog: option buttons + a free-text field per question */
+  .qform { max-height: 56vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+  .qblock { margin: 0 0 16px; } .qblock:last-child { margin-bottom: 0; }
+  .qheader { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 3px; }
+  .qtext { margin-bottom: 8px; }
+  .modal .qopt { display: block; width: 100%; margin: 5px 0; }
+  .modal .qopt.on { border-color: var(--accent); background: var(--accent-soft); }
+  .qinput { margin-top: 6px; }
   /* fuzzy finder (select dialogs) */
   .finder-list { margin-top: 10px; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
   .finder-item { flex: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .12s; }
@@ -751,12 +759,12 @@ window.addEventListener("DOMContentLoaded", () => {
     const { overlay, modal, close } = openOverlay(d.kind === "select" ? "finder" : "");
     const answer = v => { postJSON("/answer", { id: d.id, value: v }); close(); };
     // mobile has no Esc: tapping the dimmed backdrop cancels. confirm/prompt resolve to a safe default so the agent
-    // never hangs; select just dismisses without switching.
-    const cancel = d.kind === "confirm" ? () => answer("no")
+    // never hangs; select just dismisses; question submits its current state (set below). Mutable so a branch can swap it.
+    let onCancel = d.kind === "confirm" ? () => answer("no")
                  : d.kind === "prompt" ? () => answer(d.default || "")
                  : close;
-    overlay.addEventListener("click", e => { if (e.target === overlay) cancel(); });
-    modal.appendChild(closeButton(cancel));
+    overlay.addEventListener("click", e => { if (e.target === overlay) onCancel(); });
+    modal.appendChild(closeButton(() => onCancel()));
     const h = document.createElement("h3"); h.textContent = d.question || d.title || ""; modal.appendChild(h);
 
     if (d.kind === "confirm") {
@@ -776,7 +784,49 @@ window.addEventListener("DOMContentLoaded", () => {
       const ok = button("OK", "act"); ok.onclick = () => answer(inp.value);
       row.append(ok); modal.append(inp, row); focusSoon(inp);
     } else if (d.kind === "select") {
-      buildFinder(modal, d.options || [], i => answer(String(i)), cancel);
+      buildFinder(modal, d.options || [], i => answer(String(i)), onCancel);
+    } else if (d.kind === "question") {
+      // one form for all questions: option buttons (multi-select when `multiple`) plus a free-text field per question.
+      h.textContent = (d.questions || []).length > 1 ? "A few questions" : "";
+      const state = (d.questions || []).map(() => ({ picked: new Set(), text: "" }));
+      const form = document.createElement("div"); form.className = "qform";
+      (d.questions || []).forEach((q, qi) => {
+        const block = document.createElement("div"); block.className = "qblock";
+        if (q.header) { const lbl = document.createElement("div"); lbl.className = "qheader"; lbl.textContent = q.header; block.appendChild(lbl); }
+        const qt = document.createElement("div"); qt.className = "qtext"; qt.textContent = q.question; block.appendChild(qt);
+        (q.options || []).forEach(opt => {
+          const b = button(opt, "opt"); b.classList.add("qopt");
+          b.onclick = () => {
+            if (q.multiple) {
+              b.classList.toggle("on");
+              state[qi].picked.has(opt) ? state[qi].picked.delete(opt) : state[qi].picked.add(opt);
+            } else {
+              block.querySelectorAll(".qopt").forEach(x => x.classList.remove("on"));
+              b.classList.add("on"); state[qi].picked = new Set([opt]);
+            }
+          };
+          block.appendChild(b);
+        });
+        const inp = document.createElement("input"); inp.className = "qinput";
+        inp.placeholder = (q.options || []).length ? "…or type a custom answer" : "Type your answer";
+        inp.addEventListener("input", () => state[qi].text = inp.value);
+        block.appendChild(inp);
+        form.appendChild(block);
+      });
+      modal.appendChild(form);
+      const submit = () => answer((d.questions || []).map((q, qi) => {
+        const typed = state[qi].text.trim();
+        const ans = typed || [...state[qi].picked].join(", ");
+        return q.question + " → " + (ans || "(no answer)");
+      }).join("\n"));
+      onCancel = submit; // backdrop / ✕ / Esc submit the current state so the agent never hangs
+      const row = document.createElement("div"); row.className = "row";
+      const ok = button("Submit", "act"); ok.onclick = submit; row.appendChild(ok); modal.appendChild(row);
+      modal.tabIndex = 0; focusSoon(modal);
+      modal.addEventListener("keydown", e => {
+        if (e.key === "Escape") submit();
+        else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+      });
     }
   }
   function button(text, cls) { const b = document.createElement("button"); b.className = cls === "act" ? "act" : "opt"; b.textContent = text; return b; }

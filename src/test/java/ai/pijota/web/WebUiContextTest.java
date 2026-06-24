@@ -89,6 +89,26 @@ class WebUiContextTest {
     }
 
     @Test
+    void askQuestionsEmitsOneQuestionDialogAndResolvesWithTheAnswer() {
+        var bus = new Bus();
+        var ui = bus.ui();
+        var question = new ai.pijota.tools.SlashCommandTool.Question("Pick one?", "Choice",
+                                        List.of(new ai.pijota.tools.SlashCommandTool.Option("A", "first"),
+                                                                        new ai.pijota.tools.SlashCommandTool.Option("B", "second")),
+                                        false);
+
+        var future = ui.askQuestions(List.of(question)); // one combined dialog, not a select per question
+
+        assertEquals("dialog", bus.event);
+        assertEquals("question", bus.data.get("kind"));
+        assertEquals(1, ((List<?>) bus.data.get("questions")).size());
+        assertFalse(future.isDone(), "stays pending until the browser answers");
+
+        ui.resolve((String) bus.data.get("id"), "Pick one? → A");
+        assertEquals("Pick one? → A", future.join());
+    }
+
+    @Test
     void resolveIsANoOpForUnknownOrAlreadyAnsweredDialogs() {
         var bus = new Bus();
         var ui = bus.ui();

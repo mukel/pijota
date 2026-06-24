@@ -1,6 +1,7 @@
 package ai.pijota.web;
 
 import ai.pijota.extensions.UiContext;
+import ai.pijota.tools.SlashCommandTool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,6 +91,27 @@ public final class WebUiContext implements UiContext {
                 onChoice.accept(items.get(idx)); // callers never see indices; we map back to their domain object
         });
         emit.accept("dialog", Map.of("id", id, "kind", "select", "title", title, "options", labels));
+    }
+
+    /**
+     * Richer than the default select/prompt decomposition: one {@code question} dialog carrying every question with its
+     * options and {@code multiple} flag. The browser renders option buttons plus a free-text field per question and
+     * POSTs back a single combined answer string.
+     */
+    @Override
+    public CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
+        var future = new CompletableFuture<String>();
+        String id = open(future::complete);
+        var payload = new ArrayList<Map<String, Object>>(questions.size());
+        for (SlashCommandTool.Question q : questions) {
+            var options = new ArrayList<String>();
+            for (SlashCommandTool.Option o : q.options())
+                options.add(o.label());
+            payload.add(Map.of("question", q.question(), "header", q.header() == null ? "" : q.header(), "options",
+                                            options, "multiple", q.multiple()));
+        }
+        emit.accept("dialog", Map.of("id", id, "kind", "question", "questions", payload));
+        return future;
     }
 
     /** Completes the dialog with the given id; no-op if it already fired or never existed. */
