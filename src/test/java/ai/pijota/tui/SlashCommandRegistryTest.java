@@ -52,4 +52,27 @@ class SlashCommandRegistryTest {
             assertTrue(help.contains(line.stripTrailing()), "missing: " + line);
         }
     }
+
+    // ---- completion ranking (fuzzyMatch / matchScore) ----
+
+    @Test
+    void fuzzyMatchAcceptsSubsequencesAndSubstringsButNotMisses() {
+        assertTrue(SlashCommandRegistry.fuzzyMatch("", "anything"), "empty query matches everything");
+        assertTrue(SlashCommandRegistry.fuzzyMatch("mdl", "model"), "subsequence m-d-l");
+        assertTrue(SlashCommandRegistry.fuzzyMatch("ode", "model"), "subsequence o-d-e");
+        assertFalse(SlashCommandRegistry.fuzzyMatch("xyz", "model"), "neither subsequence nor substring");
+    }
+
+    @Test
+    void matchScoreRanksExactBeforePrefixBeforeFuzzyAndPenalizesGaps() {
+        int exact = SlashCommandRegistry.matchScore("model", "model");
+        int prefix = SlashCommandRegistry.matchScore("mod", "model");
+        int contiguous = SlashCommandRegistry.matchScore("ode", "model"); // subsequence, no gaps
+        int gappy = SlashCommandRegistry.matchScore("mdl", "model"); // subsequence with gaps
+
+        assertEquals(0, exact, "exact match scores best");
+        assertEquals(1, prefix, "prefix beats any fuzzy");
+        assertTrue(exact < prefix && prefix < contiguous, "exact < prefix < fuzzy");
+        assertTrue(gappy > contiguous, "more gaps rank worse");
+    }
 }

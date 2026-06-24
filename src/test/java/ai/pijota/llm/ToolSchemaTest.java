@@ -167,4 +167,15 @@ class ToolSchemaTest {
         assertEquals(List.of("path"), obj.required());
         assertFalse(obj.additionalProperties());
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void builder_enumStrConstrainsToTheAllowedValues() {
+        var schema = ToolSchema.object().enumStr("mode", "the mode", true, List.of("read", "write")).build();
+        var mode = (Map<String, Object>) ((Map<String, Object>) schema.get("properties")).get("mode");
+
+        assertEquals("string", mode.get("type"));
+        assertEquals(List.of("read", "write"), mode.get("enum"));
+        assertEquals(List.of("mode"), schema.get("required"));
+    }
 }

@@ -112,4 +112,25 @@ class OAuthLoginTest {
         assertNull(token.refreshToken());
         assertNull(token.accountId());
     }
+
+    // ---- chatgptAccountIdFromIdToken: JWT payload parsing (auth) ----
+
+    private static String jwt(String payloadJson) {
+        String payload = java.util.Base64.getUrlEncoder().withoutPadding()
+                                        .encodeToString(payloadJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return "header." + payload + ".signature";
+    }
+
+    @Test
+    void chatgptAccountIdExtractsTheClaimFromAValidToken() {
+        var token = jwt("{\"https://api.openai.com/auth\":{\"chatgpt_account_id\":\"acc-123\"}}");
+        assertEquals("acc-123", OAuthLogin.chatgptAccountIdFromIdToken(token));
+    }
+
+    @Test
+    void chatgptAccountIdReturnsNullForMalformedOrClaimlessTokens() {
+        assertNull(OAuthLogin.chatgptAccountIdFromIdToken("not-a-jwt"), "not three dot-separated parts");
+        assertNull(OAuthLogin.chatgptAccountIdFromIdToken("a.b.c"), "undecodable payload → caught → null");
+        assertNull(OAuthLogin.chatgptAccountIdFromIdToken(jwt("{\"sub\":\"x\"}")), "valid JWT but no auth claim");
+    }
 }

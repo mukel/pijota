@@ -27,7 +27,10 @@ final class TuiSelectors {
 
     private final EnumMap<Slot, SelectorBinding> bindings = new EnumMap<>(Slot.class);
 
-    /** Every slot starts with a no-op confirm; callers {@link #bind} the ones they handle — by name, so none can be swapped. */
+    /**
+     * Every slot starts with a no-op confirm; callers {@link #bind} the ones they handle — by name, so none can be
+     * swapped.
+     */
     TuiSelectors() {
         for (Slot slot : Slot.values())
             bind(slot, () -> {});

@@ -22,7 +22,9 @@ import java.util.function.Function;
  */
 public final class WebUiContext implements UiContext {
 
-    /** A dialog awaiting an answer: the {@code handler} that resolves it, and the {@code payload} to replay to new tabs. */
+    /**
+     * A dialog awaiting an answer: the {@code handler} that resolves it, and the {@code payload} to replay to new tabs.
+     */
     private record Pending(Consumer<String> handler, Map<String, Object> payload) {
     }
 
