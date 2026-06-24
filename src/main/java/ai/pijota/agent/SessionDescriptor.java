@@ -15,7 +15,8 @@ import java.util.Map;
  * time. This is the single place that derives a readable label from a session file, so every frontend's session picker
  * (terminal, web, Telegram) shows the same thing rather than a bare uuid.
  */
-public record SessionDescriptor(Path path, String id, String description, boolean named, long mtime) {
+public record SessionDescriptor(Path path, String id, String description, boolean named, long mtime, int messageCount,
+                                long estTokens) {
 
     private static final int MAX_DESC_LEN = 80;
 
@@ -30,19 +31,31 @@ public record SessionDescriptor(Path path, String id, String description, boolea
         String id = p.getFileName().toString();
         if (id.endsWith(".jsonl"))
             id = id.substring(0, id.length() - ".jsonl".length());
-        var desc = readDescription(p);
+        var stats = readStats(p);
         long mtime;
         try {
             mtime = Files.getLastModifiedTime(p).toMillis();
         } catch (IOException e) {
             mtime = 0;
         }
-        return new SessionDescriptor(p, id, desc.text(), desc.named(), mtime);
+        return new SessionDescriptor(p, id, stats.text(), stats.named(), mtime, stats.messageCount(),
+                                        stats.estTokens());
     }
 
-    /** One-line label for a flat selector: the description plus a relative age when known. */
+    /** One-line label for a flat selector: description, message/token counts, and a relative age when known. */
     public String label() {
-        return mtime > 0 ? description + "  ·  " + relativeAge() : description;
+        var sb = new StringBuilder(description);
+        sb.append("  ·  ").append(messageCount).append(" msg").append(messageCount == 1 ? "" : "s");
+        if (estTokens > 0)
+            sb.append("  ·  ~").append(formatTokens(estTokens));
+        if (mtime > 0)
+            sb.append("  ·  ").append(relativeAge());
+        return sb.toString();
+    }
+
+    /** Compact token count, e.g. {@code "812 tok"} or {@code "12.3k tok"}. */
+    public static String formatTokens(long tokens) {
+        return tokens < 1000 ? tokens + " tok" : String.format("%.1fk tok", tokens / 1000.0);
     }
 
     public String relativeAge() {
@@ -63,25 +76,47 @@ public record SessionDescriptor(Path path, String id, String description, boolea
         return (ago / 86_400_000) + "d ago";
     }
 
-    private static Description readDescription(Path p) {
+    @SuppressWarnings("unchecked")
+    private static Stats readStats(Path p) {
         String firstUser = null;
         String sessionName = null;
+        int messages = 0;
+        long chars = 0;
         try (var lines = Files.lines(p)) {
             for (var it = lines.iterator(); it.hasNext();) {
-                var parsed = parseLine(it.next());
-                if (parsed == null)
+                Map<String, Object> entry;
+                try {
+                    entry = Util.MAPPER.readValue(it.next(), Map.class);
+                } catch (Exception bad) {
+                    continue; // skip blank/corrupt lines, same resilience as parseLine
+                }
+                String type = (String) entry.getOrDefault("type", "message");
+                if ("session_info".equals(type)) {
+                    String name = clean((String) entry.get("name"));
+                    if (name != null)
+                        sessionName = truncate(name);
                     continue;
-                if (parsed.sessionName() != null)
-                    sessionName = parsed.sessionName();
-                if (firstUser == null && parsed.firstUser() != null)
-                    firstUser = parsed.firstUser();
+                }
+                if (!"message".equals(type))
+                    continue; // header / compaction / model_change / cache_metadata — not conversation
+                messages++;
+                if (entry.get("content") instanceof String c)
+                    chars += c.length();
+                if (entry.get("thinking") instanceof String t)
+                    chars += t.length();
+                if (firstUser == null && "user".equals(entry.getOrDefault("role", ""))) {
+                    String c = clean((String) entry.get("content"));
+                    if (c != null)
+                        firstUser = truncate(c);
+                }
             }
-            if (sessionName != null)
-                return new Description(sessionName, true);
-            return new Description(firstUser != null ? firstUser : "(empty)", false);
         } catch (IOException e) {
-            return new Description("(unreadable)", false);
+            return new Stats("(unreadable)", false, 0, 0);
         }
+        long estTokens = (long) Math.ceil(chars / 4.0);
+        if (sessionName != null)
+            return new Stats(sessionName, true, messages, estTokens);
+        return new Stats(firstUser != null ? firstUser : "(empty)", false, messages, estTokens);
     }
 
     @SuppressWarnings("unchecked")
@@ -123,6 +158,6 @@ public record SessionDescriptor(Path path, String id, String description, boolea
     public record ParsedDescription(String firstUser, String sessionName) {
     }
 
-    private record Description(String text, boolean named) {
+    private record Stats(String text, boolean named, int messageCount, long estTokens) {
     }
 }

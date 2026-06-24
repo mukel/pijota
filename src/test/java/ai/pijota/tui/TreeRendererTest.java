@@ -83,6 +83,24 @@ class TreeRendererTest {
     }
 
     @Test
+    void renderShowsTokenEstimate() {
+        var renderer = new TreeRenderer(fakeTheme());
+        var entries = List.of(e("u1", null, "message", "user", "x".repeat(40)),
+                                        e("a1", "u1", "message", "assistant", "y".repeat(40)));
+        var all = String.join("\n", renderer.render(entries, entries, "a1"));
+        assertTrue(all.contains("tok"), "header and turn should show a ~token estimate: " + all);
+    }
+
+    @Test
+    void renderShowsRelativeTimestampWhenPresent() {
+        var renderer = new TreeRenderer(fakeTheme());
+        var u = e("u1", null, "message", "user", "hello");
+        u.put("timestamp", java.time.Instant.now().toString());
+        var all = String.join("\n", renderer.render(List.of(u), List.of(u), "u1"));
+        assertTrue(all.contains("ago") || all.contains("just now"), all);
+    }
+
+    @Test
     void renderMultiTurnWithBranching() {
         var renderer = new TreeRenderer(fakeTheme());
         var entries = List.of(e("u1", null, "message", "user", "first query"),

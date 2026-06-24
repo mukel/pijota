@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import ai.pijota.agent.SessionDescriptor;
 import ai.pijota.theme.AnsiTheme;
 
 import java.util.ArrayList;
@@ -26,8 +27,10 @@ final class TreeRenderer {
 
         var lines = new ArrayList<String>();
         lines.add(theme.styled("toolLabel", "Conversation Tree"));
-        lines.add(theme.styled("statusText",
-                                        tree.userCount() + " turns · " + tree.entries().size() + " entries · /fork N"));
+        long totalTokens = totalTokens(tree.entries());
+        lines.add(theme.styled("statusText", tree.userCount() + " turns · " + tree.entries().size() + " entries"
+                                        + (totalTokens > 0 ? " · ~" + SessionDescriptor.formatTokens(totalTokens) : "")
+                                        + " · /fork N"));
         lines.add("");
         lines.add(theme.styled("statusText", "turns"));
         var rootTurns = firstUserDescendants(tree.roots(), tree.children());
@@ -129,6 +132,13 @@ final class TreeRenderer {
         if (summary.compacted() > 0) {
             label.append(theme.styled("statusWarn", "  · compacted"));
         }
+        if (summary.estTokens() > 0) {
+            label.append(theme.styled("statusText", "  · ~" + SessionDescriptor.formatTokens(summary.estTokens())));
+        }
+        String age = age(entry);
+        if (age != null) {
+            label.append(theme.styled("statusText", "  · " + age));
+        }
         if (currentTurn)
             label.append(theme.styled("toolLabel", "  · current"));
         return label.toString();
@@ -161,8 +171,10 @@ final class TreeRenderer {
 
     private TurnSummary summarizeTurn(Map<String, Object> entry, Map<String, List<Map<String, Object>>> children) {
         var state = new TurnSummaryState();
+        state.chars += contentChars(entry); // the user message itself
         summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, state);
-        return new TurnSummary(state.toolCallIds.size(), state.errors, state.compacted);
+        return new TurnSummary(state.toolCallIds.size(), state.errors, state.compacted,
+                                        (long) Math.ceil(state.chars / 4.0));
     }
 
     private void summarizeTurnChildren(List<Map<String, Object>> entries,
@@ -170,6 +182,7 @@ final class TreeRenderer {
         for (var entry : entries) {
             if (isUserEntry(entry))
                 continue;
+            state.chars += contentChars(entry);
             String type = (String) entry.getOrDefault("type", "message");
             String role = (String) entry.getOrDefault("role", "");
             if ("compaction".equals(type)) {
@@ -208,6 +221,36 @@ final class TreeRenderer {
         return false;
     }
 
+    /** Characters of model-visible text in an entry (content + thinking), used for the ~token estimate. */
+    private static long contentChars(Map<String, Object> entry) {
+        long chars = 0;
+        if (entry.get("content") instanceof String s)
+            chars += s.length();
+        if (entry.get("thinking") instanceof String t)
+            chars += t.length();
+        return chars;
+    }
+
+    private static long totalTokens(List<Map<String, Object>> entries) {
+        long chars = 0;
+        for (var e : entries) {
+            if ("message".equals(e.getOrDefault("type", "message")))
+                chars += contentChars(e);
+        }
+        return (long) Math.ceil(chars / 4.0);
+    }
+
+    /** Relative age of an entry's timestamp ("5m ago"), or null when absent/unparseable. */
+    private static String age(Map<String, Object> entry) {
+        if (!(entry.get("timestamp") instanceof String ts))
+            return null;
+        try {
+            return SessionDescriptor.relativeAge(java.time.Instant.parse(ts).toEpochMilli());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     static String entryId(Map<String, Object> entry) {
         Object id = entry.get("id");
         return id instanceof String s ? s : null;
@@ -224,7 +267,7 @@ final class TreeRenderer {
         return s.length() > max ? s.substring(0, Math.max(0, max - 1)) + "…" : s;
     }
 
-    private record TurnSummary(int toolCalls, int errors, int compacted) {
+    private record TurnSummary(int toolCalls, int errors, int compacted, long estTokens) {
     }
 
     private record TreeView(List<Map<String, Object>> entries, List<Map<String, Object>> roots,
@@ -236,5 +279,6 @@ final class TreeRenderer {
         final Set<String> toolCallIds = new HashSet<>();
         int errors;
         int compacted;
+        long chars;
     }
 }

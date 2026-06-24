@@ -31,7 +31,7 @@ class CommandPaletteHandlerTest {
         host.models = List.of(new ModelInfo("zeta", "openai", "Zeta", 128_000),
                                         new ModelInfo("alpha", "anthropic", "Alpha", 64_000));
         host.themes = List.of(new ThemeItem("dark", "", true), new ThemeItem("custom", "/tmp/custom.json", false));
-        host.sessions = List.of(new SessionItem(Path.of("session-a.jsonl"), "session-a", "desc", 0, false));
+        host.sessions = List.of(new SessionItem(Path.of("session-a.jsonl"), "session-a", "desc", 0, false, 0, 0));
         var handler = new CommandPaletteHandler(host);
 
         handler.showCommandPalette();

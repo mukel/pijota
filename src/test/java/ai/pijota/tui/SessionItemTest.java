@@ -79,7 +79,7 @@ class SessionItemTest {
 
     @Test
     void searchTextAndTitleText() throws Exception {
-        var item = new SessionItem(Path.of("/tmp/foo.jsonl"), "foo", "bar", 0, false);
+        var item = new SessionItem(Path.of("/tmp/foo.jsonl"), "foo", "bar", 0, false, 0, 0);
         assertTrue(item.searchText().contains("foo"));
         assertTrue(item.searchText().contains("bar"));
         assertEquals("bar", item.titleText());
@@ -88,24 +88,53 @@ class SessionItemTest {
     @Test
     void detailTextAgesAndTruncatesName() {
         long now = System.currentTimeMillis();
-        var justNow = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", now, false);
+        var justNow = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", now, false, 0, 0);
         assertTrue(justNow.detailText().contains("just now"));
 
-        var minutes = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", now - 2 * 60_000, false);
+        var minutes = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", now - 2 * 60_000, false, 0, 0);
         assertTrue(minutes.detailText().contains("m ago"));
 
-        var hours = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", now - 2 * 3_600_000, false);
+        var hours = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", now - 2 * 3_600_000, false, 0, 0);
         assertTrue(hours.detailText().contains("h ago"));
 
-        var days = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", now - 2 * 86_400_000, false);
+        var days = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", now - 2 * 86_400_000, false, 0, 0);
         assertTrue(days.detailText().contains("d ago"));
 
-        var unknown = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", 0, false);
+        var unknown = new SessionItem(Path.of("/tmp/a.jsonl"), "a", "d", 0, false, 0, 0);
         assertTrue(unknown.detailText().contains("unknown"));
 
-        var longName = new SessionItem(Path.of("/tmp/a.jsonl"), "verylongsessionname", "d", now, false);
+        var longName = new SessionItem(Path.of("/tmp/a.jsonl"), "verylongsessionname", "d", now, false, 0, 0);
         assertTrue(longName.detailText().contains("verylongsessio"));
         assertFalse(longName.detailText().contains("verylongsessionname"));
+    }
+
+    @Test
+    void describeCountsMessagesAndEstimatesTokens(@TempDir Path tmp) throws Exception {
+        var file = tmp.resolve("counts.jsonl");
+        Files.writeString(file, "{\"type\":\"message\",\"role\":\"user\",\"content\":\"" + "a".repeat(40) + "\"}\n"
+                                        + "{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"" + "b".repeat(40)
+                                        + "\"}\n" + "{\"type\":\"model_change\",\"provider\":\"x\",\"model\":\"y\"}\n");
+
+        var d = SessionDescriptor.describe(file);
+        assertEquals(2, d.messageCount(), "only message entries are counted (model_change ignored)");
+        assertEquals(20, d.estTokens(), "80 content chars / 4");
+        assertTrue(d.label().contains("2 msgs"), d.label());
+        assertTrue(d.label().contains("tok"), d.label());
+    }
+
+    @Test
+    void detailTextShowsMessageCount(@TempDir Path tmp) throws Exception {
+        var file = tmp.resolve("d.jsonl");
+        Files.writeString(file, "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hi\"}\n");
+        var item = SessionItem.fromPaths(List.of(file)).get(0);
+        assertEquals(1, item.messageCount());
+        assertTrue(item.detailText().contains("1 msg"), item.detailText());
+    }
+
+    @Test
+    void formatTokensIsCompact() {
+        assertEquals("812 tok", SessionDescriptor.formatTokens(812));
+        assertEquals("12.3k tok", SessionDescriptor.formatTokens(12_345));
     }
 
     @Test
