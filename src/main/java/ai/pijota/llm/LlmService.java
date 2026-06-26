@@ -303,6 +303,9 @@ public final class LlmService implements LlmClient {
         if (!key.equals(lastResolvedKey)) {
             modelCache.clear();
             lastResolvedKey = key;
+            if (key.isBlank()) // diagnostic: a blank key usually means an unset key or a failed OAuth refresh → cryptic 401
+                log.warn("No API key resolved for provider '{}'; requests may fail with an authentication error.",
+                                                providerName);
         }
         return key;
     }

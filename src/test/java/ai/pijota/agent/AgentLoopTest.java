@@ -320,6 +320,24 @@ class AgentLoopTest {
     }
 
     @Test
+    void abortEmitsTurnEndSoEventDrivenFrontendsClearBusy() throws Exception {
+        // The TUI keys off the prompt future, but the web learns the turn ended only via the TurnEnd event — without
+        // it, the web Stop button lingers after an interrupt (the turn's normal paths skip TurnEnd once aborted).
+        var llm = new FauxLlm().blockUntilAborted();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        var events = EventRecorder.capture(agent);
+
+        var future = agent.prompt("start");
+        Await.until(agent::isBusy);
+        agent.abort();
+        future.get(1, TimeUnit.SECONDS);
+
+        assertFalse(agent.isBusy());
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.TurnEnd),
+                                        "abort must emit TurnEnd so the web clears its Stop button / busy state");
+    }
+
+    @Test
     void setContextWindowDoesNotThrowForRangeOfValues() {
         var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
         assertDoesNotThrow(() -> agent.setContextWindow(100));

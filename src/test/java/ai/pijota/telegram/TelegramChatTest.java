@@ -3,6 +3,8 @@ package ai.pijota.telegram;
 import ai.pijota.agent.TestSession;
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.modes.SlashCommand;
+import ai.pijota.telegram.TelegramClient.BotCommand;
 import ai.pijota.telegram.TelegramClient.InlineKeyboard;
 import ai.pijota.telegram.TelegramClient.Update;
 
@@ -249,5 +251,21 @@ class TelegramChatTest {
         chat(api, tmp).onText("/help");
         assertEquals(1, api.sent.size());
         assertFalse(api.sent.get(0).isBlank());
+    }
+
+    // ---- command-menu parity (menuCommands) ----
+
+    @Test
+    void menuCommandsMergesValidExtensionCommandsAndSkipsHyphenatedOrDuplicates() {
+        var ext = List.of(new SlashCommand("plan", "Toggle plan mode", List.of(), a -> {}),
+                                        new SlashCommand("remote-control", "hyphen → invalid for Telegram", List.of(), a -> {}),
+                                        new SlashCommand("help", "duplicate of a built-in", List.of(), a -> {}));
+        var menu = TelegramChat.menuCommands(ext);
+        var names = menu.stream().map(BotCommand::command).toList();
+
+        assertTrue(menu.containsAll(TelegramChat.COMMANDS), "keeps all built-ins");
+        assertTrue(names.contains("plan"), "valid extension command is added");
+        assertFalse(names.contains("remote-control"), "hyphenated names are skipped (Telegram allows only [a-z0-9_])");
+        assertEquals(1, names.stream().filter("help"::equals).count(), "a built-in isn't duplicated");
     }
 }

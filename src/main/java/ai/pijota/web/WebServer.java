@@ -12,6 +12,7 @@ import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
@@ -21,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.net.URLDecoder;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -156,13 +159,14 @@ public final class WebServer implements AutoCloseable {
 
     public void start() throws IOException {
         http = HttpServer.create(new InetSocketAddress(host, port), 0);
-        http.createContext("/events", this::serveEvents);
-        http.createContext("/prompt", this::handlePrompt);
-        http.createContext("/interrupt", this::handleInterrupt);
-        http.createContext("/answer", this::handleAnswer);
-        http.createContext("/commands", this::handleCommands);
-        http.createContext("/vendor/", this::serveVendor); // version-pinned UI libs, served locally (no CDN)
-        http.createContext("/", this::serveIndex); // catch-all: index for "/", 404 otherwise
+        // Auth is gated centrally (secured) so it's structural — a new route can't accidentally ship unauthenticated.
+        http.createContext("/events", secured(this::serveEvents));
+        http.createContext("/prompt", secured(this::handlePrompt));
+        http.createContext("/interrupt", secured(this::handleInterrupt));
+        http.createContext("/answer", secured(this::handleAnswer));
+        http.createContext("/commands", secured(this::handleCommands));
+        http.createContext("/vendor/", secured(this::serveVendor)); // version-pinned UI libs, served locally (no CDN)
+        http.createContext("/", secured(this::serveIndex)); // catch-all: index for "/", 404 otherwise
         http.setExecutor(Executors.newCachedThreadPool(daemon("pijota-web")));
         // guard()ed so a single failure can't cancel the periodic task (scheduleAtFixedRate stops on a thrown
         // exception).
@@ -184,6 +188,15 @@ public final class WebServer implements AutoCloseable {
                 log.warn("web periodic task failed (will retry next tick): {}", t.toString());
             }
         };
+    }
+
+    private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
+
+    /** A 192-bit URL-safe pairing token — the shared way to authenticate non-loopback web access (--web / remote-control). */
+    public static String newPairingToken() {
+        byte[] bytes = new byte[24];
+        TOKEN_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     /**
@@ -223,7 +236,11 @@ public final class WebServer implements AutoCloseable {
             return false; // already paired
         if (tokenMatches(queryToken(ex))) {
             // bootstrap from the URL/QR token: pin it as an HttpOnly cookie so later XHRs (no token in URL) still pass
-            ex.getResponseHeaders().add("Set-Cookie", "pijota_rc=" + authToken + "; Path=/; HttpOnly; SameSite=Strict");
+            // Persistent (not a session cookie) so a paired browser survives a restart even though the SPA strips ?t=
+            // from the URL — otherwise the bootstrap secret would be gone and every request 403s. SameSite=Lax (not
+            // Strict) so it rides top-level navigations/reloads reliably (state-changing POSTs are Origin-checked).
+            ex.getResponseHeaders().add("Set-Cookie",
+                                            "pijota_rc=" + authToken + "; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax");
             return false;
         }
         send(ex, 403, "text/plain", "unauthorized".getBytes(StandardCharsets.UTF_8));
@@ -260,13 +277,22 @@ public final class WebServer implements AutoCloseable {
 
     // ---- routes ----
 
+    /** Wraps a handler so every request is token-checked first — auth is one structural gate, not a per-route checklist. */
+    private HttpHandler secured(HttpHandler handler) {
+        return ex -> {
+            if (!authBlocked(ex))
+                handler.handle(ex);
+        };
+    }
+
     private void serveIndex(HttpExchange ex) throws IOException {
-        if (authBlocked(ex))
-            return;
         if (!"/".equals(ex.getRequestURI().getPath())) {
             send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
             return;
         }
+        // The pairing token arrives as ?t=… ; authBlocked pinned it as a cookie. We serve the page directly (no
+        // redirect — a 302 + cookie is dropped by some mobile browsers under SameSite, causing "unauthorized"); the
+        // SPA strips ?t= from the address bar client-side via history.replaceState so the secret doesn't linger.
         try (InputStream in = WebServer.class.getResourceAsStream("/web/index.html")) {
             byte[] html = in.readAllBytes();
             // The single-page app is the whole UI; never let a browser serve a stale copy after an upgrade.
@@ -277,8 +303,6 @@ public final class WebServer implements AutoCloseable {
 
     /** Serves the version-pinned vendored UI libraries (marked / highlight.js / DOMPurify) from the classpath. */
     private void serveVendor(HttpExchange ex) throws IOException {
-        if (authBlocked(ex))
-            return;
         String name = ex.getRequestURI().getPath().substring("/vendor/".length());
         if (name.isEmpty() || name.indexOf('/') >= 0 || name.contains("..")) { // flat whitelist — no path traversal
             send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
@@ -302,8 +326,6 @@ public final class WebServer implements AutoCloseable {
 
     /** Long-lived SSE connection: replay history, then stream live events until the browser disconnects. */
     private void serveEvents(HttpExchange ex) throws IOException {
-        if (authBlocked(ex))
-            return;
         ex.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
         ex.getResponseHeaders().set("Cache-Control", "no-cache");
         ex.getResponseHeaders().set("Connection", "keep-alive");
@@ -328,7 +350,7 @@ public final class WebServer implements AutoCloseable {
     }
 
     private void handlePrompt(HttpExchange ex) throws IOException {
-        if (authBlocked(ex) || requirePost(ex) || crossOriginBlocked(ex))
+        if (requirePost(ex) || crossOriginBlocked(ex)) // auth is handled by the secured() wrapper
             return;
         String text = strField(readBody(ex), "text");
         if (text != null && !text.isBlank()) {
@@ -376,14 +398,14 @@ public final class WebServer implements AutoCloseable {
     }
 
     private void handleInterrupt(HttpExchange ex) throws IOException {
-        if (authBlocked(ex) || requirePost(ex) || crossOriginBlocked(ex))
+        if (requirePost(ex) || crossOriginBlocked(ex)) // auth is handled by the secured() wrapper
             return;
         session.abort();
         send(ex, 204, "text/plain", new byte[0]);
     }
 
     private void handleAnswer(HttpExchange ex) throws IOException {
-        if (authBlocked(ex) || requirePost(ex) || crossOriginBlocked(ex))
+        if (requirePost(ex) || crossOriginBlocked(ex)) // auth is handled by the secured() wrapper
             return;
         String body = readBody(ex);
         ui.resolve(strField(body, "id"), strField(body, "value"));

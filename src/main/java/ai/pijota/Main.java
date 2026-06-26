@@ -148,7 +148,7 @@ public final class Main {
         b.extensions().ready();
 
         try {
-            client.setMyCommands(TelegramChat.COMMANDS);
+            client.setMyCommands(TelegramChat.menuCommands(b.extensions().slashCommands()));
             client.setMyShortDescription("Your pijota coding agent, in chat.");
             client.setMyDescription("Pijota coding agent. Just type to chat; use /help for commands. "
                                             + "Long answers arrive as file attachments.");
@@ -171,20 +171,21 @@ public final class Main {
         var addr = WebServer.parseAddress(flagValue);
         var session = b.session();
         b.tools().unregister("question");
+        // Secure by default on the network: a non-loopback bind is token-gated (the agent runs shell + edits files, so
+        // an open LAN endpoint is dangerous). Loopback stays open — only the local user can reach it.
+        String token = addr.isLoopback() ? null : WebServer.newPairingToken();
         var server = new WebServer(session, addr.host(), addr.port(), b.llm(), b.extensions()::statusLines,
-                                        b.extensions().slashCommands());
+                                        b.extensions().slashCommands(), token);
         b.extensions().setTui(server.ui());
         b.extensions().ready();
         try {
             server.start();
             SelfRespawn.markStartupHealthy();
-            if (!addr.isLoopback())
-                CliErrorReporter.warn("Web UI bound to " + addr.host()
-                                                + " — anyone who can reach this address controls this machine. "
-                                                + "Use authentication or a firewall.");
             System.out.println("[web] pijota web ui on http://" + addr.host() + ":" + addr.port()
                                             + " (Ctrl-C to stop)");
-            WebServer.accessBanner(addr.host(), addr.port(), null).forEach(System.out::println);
+            if (token != null)
+                System.out.println("[web] non-loopback bind — token-gated; scan to pair:");
+            WebServer.accessBanner(addr.host(), addr.port(), token).forEach(System.out::println);
             Thread.currentThread().join();
             return 0;
         } catch (Exception e) {

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.CookieManager;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -146,6 +147,70 @@ class WebServerTest {
     }
 
     @Test
+    void pairingServesThePageDirectlyAndPinsTheCookie() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        int port = freePort();
+        String token = "secret-pairing-xyz";
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of(), token)) {
+            server.start();
+            var client = HttpClient.newBuilder().cookieHandler(new CookieManager()).build();
+            String base = "http://127.0.0.1:" + port;
+
+            // the QR opens /?t=<token>: page is served directly (no redirect — robust across mobile browsers) and the
+            // cookie is pinned. (The SPA strips ?t= from the address bar client-side via history.replaceState.)
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/?t=" + token)).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+
+            assertEquals(200, resp.statusCode(), "valid ?t= → authenticated page, served directly");
+            assertFalse(resp.body().isBlank(), "served the SPA");
+            assertTrue(resp.body().contains("history.replaceState"), "SPA strips the token from the URL client-side");
+            // The cookie MUST be persistent (Max-Age): the SPA strips ?t= from the URL, so a session-only cookie would
+            // lock the user out after a browser restart with no way back in. Lax so it rides reloads/navigations.
+            String cookie = resp.headers().firstValue("Set-Cookie").orElse("");
+            assertTrue(cookie.contains("Max-Age="), "pairing cookie must persist across browser restarts: " + cookie);
+            assertTrue(cookie.contains("SameSite=Lax"), "Lax so it survives top-level navigations/reloads: " + cookie);
+        }
+    }
+
+    @Test
+    void noTokenServerServesQueryUrlsWithoutRedirect() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/?x=1")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, resp.statusCode(), "no token mode → no pairing redirect, just serve the SPA");
+        });
+    }
+
+    @Test
+    void commandsEndpointIsTokenGated() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        int port = freePort();
+        String token = "secret-pairing-xyz";
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of(), token)) {
+            server.start();
+            var client = HttpClient.newHttpClient();
+            String base = "http://127.0.0.1:" + port;
+
+            var denied = client.send(HttpRequest.newBuilder(URI.create(base + "/commands")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(403, denied.statusCode(), "GET /commands without a token must not leak the command list");
+
+            var ok = client.send(HttpRequest.newBuilder(URI.create(base + "/commands"))
+                                            .header("Cookie", "pijota_rc=" + token).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, ok.statusCode(), "with the cookie → command list");
+        }
+    }
+
+    @Test
+    void newPairingTokenIsUrlSafeUniqueAndHighEntropy() {
+        String a = WebServer.newPairingToken();
+        String b = WebServer.newPairingToken();
+        assertNotEquals(a, b, "tokens must be unguessably unique");
+        assertTrue(a.matches("[A-Za-z0-9_-]{30,}"), "URL-safe base64, 24 bytes ≈ 32 chars: " + a);
+    }
+
+    @Test
     void promptEndpointRejectsNonPost() throws Exception {
         withServer((ts, client, base) -> {
             var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt")).GET().build(),
@@ -170,9 +235,9 @@ class WebServerTest {
 
             var ok = client.send(HttpRequest.newBuilder(URI.create(base + "/?t=" + token)).build(),
                                             HttpResponse.BodyHandlers.ofString());
-            assertEquals(200, ok.statusCode(), "valid ?t= token → served");
+            assertEquals(200, ok.statusCode(), "valid ?t= token → page served directly (no redirect)");
             assertTrue(ok.headers().firstValue("Set-Cookie").orElse("").contains("pijota_rc="),
-                                            "pairs the browser by setting the cookie");
+                                            "pairs the browser by pinning the cookie");
         }
     }
 

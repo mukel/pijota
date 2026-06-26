@@ -266,8 +266,13 @@ public final class AgentLoop implements AgentContext {
         toolRegistry.abortRunningTools();
         history.removeTrailingEmptyAssistant();
         CompletableFuture<List<Message>> result = activeResult.getAndSet(null);
-        if (result != null && !result.isDone())
+        if (result != null && !result.isDone()) {
+            // The turn's normal terminal paths bail on !isActive once aborted, so they never emit TurnEnd. Emit it here
+            // so event-driven frontends (the web Stop button / busy state) learn the turn ended — the TUI relies on the
+            // future below, but the web only learns via this event. Consumers treat TurnEnd idempotently.
+            fireEvent(new AgentEvent.TurnEnd(sessionTurn));
             result.complete(history.mutableSnapshot());
+        }
     }
 
     @Override

@@ -26,6 +26,7 @@ class RemoteControlTest {
         var rc = remoteControl(tmp);
         assertFalse(rc.active());
         assertNull(rc.summary());
+        assertTrue(rc.info().isEmpty(), "no connection banner to re-show when inactive");
     }
 
     @Test
@@ -42,5 +43,26 @@ class RemoteControlTest {
         var rc = remoteControl(tmp);
         assertTrue(String.join(" ", rc.startTelegram()).contains("TELEGRAM_BOT_TOKEN"));
         assertFalse(rc.active(), "a failed start leaves no active channel");
+    }
+
+    @Test
+    void startWebActivatesWithAReshowableBannerThenStopRestores(@TempDir Path tmp) {
+        var rc = remoteControl(tmp);
+        var banner = rc.startWeb();
+        if (!rc.active()) { // the default port is busy on this host → graceful error, nothing else to assert
+            assertTrue(String.join(" ", banner).toLowerCase().contains("could not start"), banner.toString());
+            return;
+        }
+        try {
+            assertTrue(rc.summary().startsWith("web :"), rc.summary());
+            assertEquals(banner, rc.info(), "info() re-shows exactly the start banner");
+            assertTrue(String.join("\n", rc.info()).contains("http://"), "banner carries the reachable URL");
+            assertTrue(String.join(" ", rc.startWeb()).contains("already active"), "a second start is rejected");
+        } finally {
+            rc.stop();
+        }
+        assertFalse(rc.active(), "stop deactivates");
+        assertNull(rc.summary());
+        assertTrue(rc.info().isEmpty(), "nothing left to re-show after stop");
     }
 }

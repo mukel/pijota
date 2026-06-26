@@ -53,7 +53,7 @@ public final class ExtensionRegistry {
     private ToolRegistry toolRegistry;
     private AgentContext agentContext;
     private LlmService llm;
-    private UiContext uiContext;
+    private volatile UiContext uiContext; // setTui may be called from a worker (remote-control start); read elsewhere
     private Path cwd;
     private String sessionName;
     private String systemPrompt;

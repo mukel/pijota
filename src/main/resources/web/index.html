@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <meta name="description" content="pijota — interactive coding agent">
-<meta name="theme-color" content="#0d1117">
+<meta name="theme-color" content="#131316">
 <title>pijota</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d1117'/%3E%3Ctext x='16' y='23' font-family='-apple-system,Segoe UI,sans-serif' font-size='20' font-weight='700' fill='%232f81f7' text-anchor='middle'%3Ej%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23131316'/%3E%3Ctext x='16' y='23' font-family='-apple-system,Segoe UI,sans-serif' font-size='20' font-weight='700' fill='%234d8dfb' text-anchor='middle'%3Ej%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" id="hljs-theme" href="/vendor/github-dark.min.css">
 <!-- vendored locally (see web/vendor/) so the UI renders offline with no CDN; deferred so they load in parallel
      without blocking first paint; app init waits for DOMContentLoaded -->
@@ -15,20 +15,22 @@
 <script defer src="/vendor/purify.min.js"></script>
 <style>
   :root {
-    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128; --border: #30363d;
-    --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --accent-soft: #1f6feb33;
-    --user: #1f6feb; --ok: #3fb950; --err: #f85149; --think: #a371f7;
-    --code-bg: #010409; --overlay: #000a; --shadow-color: #0008; --err-text: #ffb4ae; --warn-text: #ffd9a8;
-    --code-inline-bg: #6e768166;
+    /* a calm neutral dark (vs GitHub's cool blue-black); surfaces step up bg→code→panel→panel-2 for clean depth */
+    --bg: #131316; --panel: #1c1c20; --panel-2: #26262c; --border: #34343c;
+    --text: #ededf1; --muted: #9a9aa6; --accent: #4d8dfb; --accent-soft: #4d8dfb26;
+    --user: #4d8dfb; --user-bg: #4d8dfb33; --ok: #4ac26b; --err: #f9736b; --think: #b08cff;
+    --code-bg: #17171b; --overlay: #000a; --shadow-color: #00000073; --err-text: #ffb4ae; --warn-text: #ffd9a8;
+    --code-inline-bg: #ffffff14;
     --radius: 12px; --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   :root[data-theme="light"] {
-    --bg: #ffffff; --panel: #f6f8fa; --panel-2: #eaeef2; --border: #d0d7de;
-    --text: #1f2328; --muted: #656d76; --accent: #0969da; --accent-soft: #0969da14;
-    --user: #0969da; --ok: #1a7f37; --err: #cf222e; --think: #8250df;
-    --code-bg: #ffffff; --overlay: rgba(31,35,40,.35); --shadow-color: rgba(31,35,40,.18);
-    --err-text: #cf222e; --warn-text: #9a6700; --code-inline-bg: #afb8c133;
+    /* a soft warm off-white (vs stark #fff); cards/panels read as white above it, code sits a touch below */
+    --bg: #faf9f7; --panel: #ffffff; --panel-2: #efeeea; --border: #e4e2dc;
+    --text: #2a2a28; --muted: #6b6b64; --accent: #2f6fed; --accent-soft: #2f6fed14;
+    --user: #2f6fed; --user-bg: #2f6fed1f; --ok: #1a7f37; --err: #d83a36; --think: #7b53d6;
+    --code-bg: #f6f5f1; --overlay: rgba(40,40,36,.35); --shadow-color: rgba(40,40,36,.16);
+    --err-text: #b42318; --warn-text: #8a6100; --code-inline-bg: #00000010;
   }
   body { transition: background .2s, color .2s; }
   * { box-sizing: border-box; }
@@ -86,27 +88,28 @@
   @media (hover: none) { .answer-copy { position: static; opacity: 1; display: block; width: fit-content; margin: 6px 0 0 auto; } }
   .bubble { padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); line-height: 1.65; overflow-wrap: anywhere; }
   .msg.user { align-items: flex-end; }
-  .msg.user .bubble { background: var(--accent-soft); border-color: #1f6feb55; max-width: 82%; border-radius: 16px 16px 4px 16px; }
+  .msg.user .bubble { background: var(--user-bg); border-color: transparent; max-width: 82%; border-radius: 16px 16px 4px 16px; } /* clean theme-aware pill */
   /* assistant messages render flat (no nested box) so code blocks are the only boxed elements */
   .msg.assistant .bubble { background: transparent; border: none; padding: 0; border-radius: 0; }
-  .msg.error .bubble { border-color: var(--err); color: var(--err-text); background: #f8514915; }
+  .msg.error .bubble { border-color: var(--err); color: var(--err-text); background: color-mix(in srgb, var(--err) 12%, transparent); }
   .msg.custom .bubble { background: transparent; border-style: dashed; color: var(--muted); font-size: 13px; }
 
   /* markdown */
   .bubble p:first-child { margin-top: 0; } .bubble p:last-child { margin-bottom: 0; }
-  .bubble pre { position: relative; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px 18px; overflow-x: auto; font-family: var(--mono); font-size: 13px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  /* code block: a bordered card with a header bar (language + copy) above the scrollable code — like ChatGPT/Claude */
+  .codeblock { margin: .85em 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--code-bg); }
+  .codebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px 4px 14px; background: var(--panel-2); border-bottom: 1px solid var(--border); }
+  .codebar .lang { font-family: var(--sans); font-size: 11px; letter-spacing: .4px; text-transform: lowercase; color: var(--muted); }
+  .copy-btn { font-family: var(--sans); font-size: 11px; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+  .copy-btn:hover { color: var(--text); background: var(--panel); border-color: var(--border); }
+  .bubble pre { background: var(--code-bg); padding: 12px 14px; overflow-x: auto; font-family: var(--mono); font-size: 13px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .codeblock pre { margin: 0; } /* the card owns the border/radius/fill; the pre just scrolls */
   /* force a thin, space-reserving classic scrollbar (overrides the OS overlay bar that draws teal over the code) */
   .bubble pre::-webkit-scrollbar { height: 8px; }
   .bubble pre::-webkit-scrollbar-track { background: transparent; }
   .bubble pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
   /* the hljs theme paints its own bg + padding on the code element — neutralize it so the block is one clean fill */
   .bubble pre code, .bubble pre .hljs { background: transparent; padding: 0; }
-  /* language tag on highlighted code blocks (top-left); the block gets extra top padding so code clears the label */
-  .bubble pre.has-lang { padding-top: 30px; }
-  .bubble pre .lang { position: absolute; top: 8px; left: 12px; font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); font-family: var(--sans); pointer-events: none; user-select: none; }
-  .copy-btn { position: absolute; top: 6px; right: 6px; padding: 2px 8px; font-size: 11px; font-family: var(--sans); color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; opacity: 0; transition: opacity .15s, color .15s; }
-  .bubble pre:hover .copy-btn { opacity: 1; }
-  .copy-btn:hover { color: var(--text); }
   .bubble code { font-family: var(--mono); font-size: 13px; }
   .bubble :not(pre) > code { background: var(--code-inline-bg); padding: 2px 6px; border-radius: 5px; }
   .bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; }
@@ -123,7 +126,7 @@
   .bubble hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
 
   details.think, details.tool { border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); overflow: hidden; }
-  details.think { border-color: #a371f733; }
+  details.think { border-color: color-mix(in srgb, var(--think) 30%, transparent); }
   details.think, details.tool { transition: border-color .15s; }
   details > summary { cursor: pointer; padding: 9px 14px; font-size: 13px; user-select: none; display: flex; align-items: center; gap: 8px; list-style: none; border-radius: 10px; transition: background .12s; }
   details > summary:hover { background: var(--accent-soft); }
@@ -150,8 +153,11 @@
   .qcard-opt { color: var(--muted); font-size: 13px; padding-left: 4px; line-height: 1.5; }
   .tool pre { margin: 6px 0 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; max-height: 360px; overflow-y: auto; }
   .tool.err > summary .name { color: var(--err); }
-  .tool .badge { margin-left: auto; font-size: 11px; padding: 1px 8px; border-radius: 20px; background: #3fb95022; color: var(--ok); }
-  .tool.err .badge { background: #f8514922; color: var(--err); }
+  .tool .badge { margin-left: auto; font-size: 11px; padding: 1px 8px; border-radius: 20px; background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .tool.err .badge { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
+  /* while a tool runs, the whole "running…" pill breathes — an obvious, opacity-only (vestibular-safe) cue. Under
+     prefers-reduced-motion the global rule below neutralizes it, leaving a static "running…" label (still clear). */
+  .tool .badge.running { animation: pulse 1.3s ease-in-out infinite; }
 
   /* jump-to-latest, shown only when scrolled up */
   .scrollbtn {
@@ -165,8 +171,19 @@
   .scrollbtn:hover { border-color: var(--accent); }
   .scrollbtn:active { transform: translateX(-50%) scale(.9); }
 
+  /* the send button keeps its fixed slot (↑ send), disabled when empty; Stop is the separate round button below */
+  .act:disabled { opacity: .4; cursor: default; }
+  /* Stop: a round red button floating just above the send button, shown ONLY while streaming (.show) */
+  /* same size + right offset as the send button, so it stacks directly above it (centres aligned) */
+  .stopbtn { display: none; position: absolute; right: 7px; top: -46px; width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--err); color: #fff; font-size: 0; cursor: pointer; box-shadow: 0 4px 14px var(--shadow-color); align-items: center; justify-content: center; transition: transform .1s, filter .12s; }
+  /* the stop icon is a pixel-centred CSS square (the "■" glyph sits off-centre in its line-box); font-size:0 hides it */
+  .stopbtn::before { content: ""; width: 13px; height: 13px; border-radius: 3px; background: currentColor; }
+  .stopbtn.show { display: flex; }
+  .stopbtn:hover { filter: brightness(1.08); }
+  .stopbtn:active { transform: scale(.92); }
   .composer { flex: none; background: transparent; padding: 6px 18px 18px; }
   .composer .inner {
+    position: relative; /* anchors the round Stop button floating above the send button */
     max-width: 760px; width: 100%; margin: 0 auto; display: flex; gap: 8px; align-items: center;
     background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 7px 7px 7px 18px;
     box-shadow: 0 1px 3px var(--shadow-color); transition: border-color .15s, box-shadow .15s;
@@ -187,10 +204,6 @@
   button.act:hover { filter: brightness(1.1); }
   button.act:active { transform: scale(.92); }
   body.offline #send { opacity: .5; } /* visual cue while the SSE connection is down (still functional once it's back) */
-  /* the stop icon is a CSS square (pixel-centred by the button's flex), not a font glyph — "■" sits off-centre in
-     its line-box. font-size:0 collapses the textContent glyph; the ::before square is the visible icon. */
-  button.act.stop { background: var(--err); font-size: 0; }
-  button.act.stop::before { content: ""; width: 11px; height: 11px; border-radius: 2px; background: currentColor; }
 
   .slashmenu { max-width: 760px; margin: 0 auto 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: none; box-shadow: 0 -6px 24px var(--shadow-color); }
   .slashmenu.show { display: block; animation: slashIn .16s cubic-bezier(.22,.61,.36,1) both; }
@@ -202,7 +215,7 @@
      shrink below its content so the ellipsis actually kicks in instead of overflowing on a narrow phone) */
   .slashmenu .item .cmd { flex: none; font-family: var(--mono); color: var(--accent); font-size: 13px; white-space: nowrap; }
   .slashmenu .item .desc { flex: 1; min-width: 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .msg.custom .bubble.command { font-family: var(--mono); color: var(--accent); border-style: solid; border-color: #1f6feb55; }
+  .msg.custom .bubble.command { font-family: var(--mono); color: var(--accent); border-style: solid; border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
   .stats { color: var(--muted); font-size: 12px; font-family: var(--mono); white-space: nowrap; }
   .stats b { color: var(--text); font-weight: 600; }
   .badges { display: flex; gap: 6px; align-items: center; max-width: 45vw; overflow: hidden; }
@@ -260,7 +273,7 @@
   /* ---- responsive / touch ---- */
   /* touch devices: hide the reveal-on-hover copy buttons entirely — long-press selects + copies text natively instead */
   @media (hover: none) {
-    .copy-btn, .msg-actions, .answer-copy, .think-copy { display: none !important; }
+    .msg-actions, .answer-copy, .think-copy { display: none !important; } /* code-block copy stays — it's a bar button */
     .msg .bubble { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; } /* allow long-press copy */
     .scrollbtn { display: none; } /* on touch, flick-to-bottom is natural; avoid an overlapping floating button */
   }
@@ -301,7 +314,7 @@
     <span class="badges" id="badges"></span>
     <button class="icon-btn" id="theme-toggle" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
   </header>
-  <main id="main"><div id="thread" role="log" aria-live="polite" aria-label="Conversation"></div></main>
+  <main id="main"><div id="thread" role="log" aria-live="polite" aria-atomic="false" aria-label="Conversation"></div></main>
   <div id="toasts" aria-live="polite"></div>
   <button class="scrollbtn" id="scrollbtn" title="Scroll to latest" aria-label="Scroll to latest">↓</button>
   <div class="composer">
@@ -312,15 +325,23 @@
     <div class="slashmenu" id="slash"></div>
     <div class="inner">
       <textarea id="input" placeholder="Message pijota…" rows="1" aria-label="Message pijota"></textarea>
-      <button class="act" id="send" title="Send (Enter · Shift+Enter for newline)" aria-label="Send">↑</button>
+      <button class="act" id="send" title="Send" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 19V7M6 13l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="stopbtn" id="stop" title="Stop" aria-label="Stop generating">■</button>
     </div>
   </div>
 
 <script>
 window.addEventListener("DOMContentLoaded", () => {
   "use strict";
+  // The pairing token (?t=…) is now pinned as a cookie by the server — drop it from the address bar so the secret
+  // doesn't linger in history or get re-shared. (Server serves the page directly; no redirect, so this is robust.)
+  if (location.search) history.replaceState(null, "", location.pathname);
   const $ = s => document.querySelector(s);
   const thread = $("#thread"), main = $("#main"), input = $("#input"), sendBtn = $("#send");
+  const stopBtn = $("#stop");
+  // phones: Enter = newline, the button sends (no Shift/Ctrl). Keyed off (hover: none) — the single touch signal the
+  // rest of this file already uses — so the Enter behaviour and the hover-only copy buttons agree on every device.
+  const isTouch = matchMedia("(hover: none)").matches;
   const conn = $("#conn"), badgesEl = $("#badges"), slash = $("#slash"), statsEl = $("#stats");
 
   // empty conversation → centered greeting + composer; first message drops it to the bottom (auto-tracked).
@@ -393,8 +414,7 @@ window.addEventListener("DOMContentLoaded", () => {
         el.querySelectorAll("pre").forEach(pre => {
           const code = pre.querySelector("code");
           if (code) { try { hljs.highlightElement(code); } catch (_) {} }
-          addLangLabel(pre, code);
-          addCopyButton(pre);
+          decorateCodeBlock(pre, code);
         });
       }
     } else {
@@ -411,19 +431,18 @@ window.addEventListener("DOMContentLoaded", () => {
     }, () => {});
     return btn;
   }
-  function addCopyButton(pre) {
-    const code = pre.querySelector("code") || pre;
-    pre.appendChild(copyButton("copy-btn", () => code.textContent));
-  }
-  // Faint language tag on a code block, read from the fence/hljs `language-xxx` class. Skips plain/undetected blocks
-  // so only real code gets labelled (and only those get the extra top padding).
-  function addLangLabel(pre, code) {
-    if (!code) return;
-    const m = /\blanguage-([\w+#.-]+)/.exec(code.className || "");
-    const lang = m && m[1] && m[1] !== "plaintext" && m[1] !== "undefined" ? m[1] : null;
-    if (!lang) return;
+  // Wrap a code block in a header bar (language label + always-visible copy), ChatGPT/Claude-style. The language is
+  // read from the fence/hljs `language-xxx` class; undetected blocks just get an empty label (the copy stays useful).
+  function decorateCodeBlock(pre, code) {
+    if (pre.parentNode && pre.parentNode.classList.contains("codeblock")) return; // already decorated
+    const m = code && /\blanguage-([\w+#.-]+)/.exec(code.className || "");
+    const lang = m && m[1] && m[1] !== "plaintext" && m[1] !== "undefined" ? m[1] : "";
+    const wrap = document.createElement("div"); wrap.className = "codeblock";
+    const bar = document.createElement("div"); bar.className = "codebar";
     const tag = document.createElement("span"); tag.className = "lang"; tag.textContent = lang;
-    pre.classList.add("has-lang"); pre.appendChild(tag);
+    bar.append(tag, copyButton("copy-btn", () => (code || pre).textContent, "Copy code"));
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.append(bar, pre);
   }
   // Hover-revealed "copy" under a user/assistant message. getText() is read at click time so a streaming
   // assistant message copies whatever has accumulated so far (the raw markdown / typed source, not the DOM).
@@ -540,6 +559,9 @@ window.addEventListener("DOMContentLoaded", () => {
   function assistantBubble() {
     return withAutoScroll(() => {
       const e = addMsg("assistant");
+      // While streaming, mark the message busy so a screen reader waits for the settled text instead of re-announcing
+      // the growing subtree on every animation frame; cleared when the turn finalizes (or the turn ends).
+      e.msg.setAttribute("aria-busy", "true");
       const answer = document.createElement("div"); answer.className = "answer";
       const content = document.createElement("div"); answer.appendChild(content);
       e.bubble.appendChild(answer); // a thinking block, if any, is inserted ABOVE this
@@ -556,12 +578,15 @@ window.addEventListener("DOMContentLoaded", () => {
     b.final = !!isFinal;
     if (!b.raf) b.raf = requestAnimationFrame(() => {
       b.raf = 0; withAutoScroll(() => renderMarkdown(b.content, b.pending, b.final));
+      if (b.final) b.msg.setAttribute("aria-busy", "false"); // settled → announce the complete message once
       // once settled, float a copy at the answer's top-right (innerHTML rewrites b.content, so the button lives
       // on the sibling .answer wrapper, not inside it). The thinking block carries its own copy above. Skip it when
       // the answer leads with a code block — that block's own top-right copy is in the same spot (no double button).
       if (b.final && !b.copied && b.pending.trim()) {
+        // decorateCodeBlock has wrapped a leading <pre> in <div class="codeblock"> by now, so check for that wrapper
+        // (not PRE) — otherwise the code card's own top-right copy and this one would overlap.
         const lead = b.content.firstElementChild;
-        if (!lead || lead.tagName !== "PRE")
+        if (!lead || !lead.classList.contains("codeblock"))
           b.answer.appendChild(copyButton("answer-copy", () => b.pending, "Copy response"));
         b.copied = true;
       }
@@ -574,7 +599,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const wrap = document.createElement("div"); wrap.className = "msg assistant";
       const d = document.createElement("details"); d.className = "tool"; d.open = false;
       const sum = document.createElement("summary");
-      sum.innerHTML = '<span class="name"></span><span class="detail"></span><span class="badge">running…</span>';
+      sum.innerHTML = '<span class="name"></span><span class="detail"></span><span class="badge running">running…</span>';
       sum.querySelector(".name").textContent = name || "tool";
       sum.querySelector(".detail").textContent = detail || ""; // path / command / pattern — full text shown on expand
       const argSec = document.createElement("div"); argSec.className = "section";
@@ -616,6 +641,7 @@ window.addEventListener("DOMContentLoaded", () => {
   function toolResult(id, name, content, isError) {
     const card = toolCard(id, name, "", "");
     card.details.classList.toggle("err", !!isError);
+    card.badge.classList.remove("running"); // stop the pulse once the tool settles
     card.badge.textContent = isError ? "error" : "done";
     const sec = document.createElement("div"); sec.className = "section";
     const pre = document.createElement("pre"); pre.textContent = content || "(no output)";
@@ -692,11 +718,15 @@ window.addEventListener("DOMContentLoaded", () => {
   // ---- input / busy ----
   function setBusy(b) {
     busy = b;
+    // turn ended without a final frame (error/interrupt): release the streaming bubble so AT still announces it
+    if (!b && live) { live.msg.setAttribute("aria-busy", "false"); live = null; }
+    // any tool still "running…" when the turn ends (e.g. interrupted before its result) — stop the pulse
+    if (!b) thread.querySelectorAll(".tool .badge.running").forEach(badge => {
+      badge.classList.remove("running"); badge.textContent = "stopped";
+    });
     document.title = b ? "● pijota" : "pijota"; // surface activity in a backgrounded tab
     conn.classList.toggle("busy", b);
-    sendBtn.textContent = b ? "■" : "↑"; // ■ = stop the running turn, ↑ = send
-    sendBtn.title = b ? "Stop" : "Send (Enter · Shift+Enter for newline)";
-    sendBtn.classList.toggle("stop", b);
+    updateComposer(); // the send button's enabled-state + the Stop button are derived from busy + the draft
   }
   function autoGrow() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 200) + "px"; }
   function postJSON(url, data) {
@@ -711,8 +741,19 @@ window.addEventListener("DOMContentLoaded", () => {
     const text = input.value.trim();
     if (!text) return;
     input.value = ""; autoGrow(); hideMenu();
+    // Post immediately, even mid-stream: the server injects it into the running turn (session.followUp steers the
+    // current task) and slash commands / interrupts take effect at once. Nothing is held client-side to lose on a
+    // disconnect or to mis-fire after Stop — Stop just interrupts, with no pending text to flush.
     post(text);
+    updateComposer();
     input.focus(); // keep the chat bar focused after clicking Send
+  }
+
+  // The send button stays in one fixed slot (↑), disabled when empty; Stop is the separate round button shown only
+  // while streaming. Sending mid-stream posts right away, so there is no queued/pending state to render.
+  function updateComposer() {
+    sendBtn.disabled = !input.value.trim();
+    stopBtn.classList.toggle("show", busy);
   }
 
   // command palette: a fuzzy finder over every command, opened with ⌘K / Ctrl-K
@@ -781,8 +822,9 @@ window.addEventListener("DOMContentLoaded", () => {
   function moveSel(d) { menuSel = cycleSelection([...slash.children], menuSel, d); }
   function completeMenu(i) { input.value = menuItems[i].name + " "; hideMenu(); input.focus(); autoGrow(); }
 
-  sendBtn.addEventListener("click", () => { if (busy) postJSON("/interrupt"); else send(); });
-  input.addEventListener("input", () => { autoGrow(); updateMenu(); });
+  sendBtn.addEventListener("click", send); // always send (never Stop); posts immediately, even mid-stream
+  stopBtn.addEventListener("click", () => postJSON("/interrupt")); // Stop is its own control, above the composer
+  input.addEventListener("input", () => { autoGrow(); updateMenu(); updateComposer(); });
   input.addEventListener("keydown", e => {
     if (slash.classList.contains("show")) {
       if (e.key === "ArrowDown") { e.preventDefault(); return moveSel(1); }
@@ -791,7 +833,8 @@ window.addEventListener("DOMContentLoaded", () => {
       if (e.key === "Enter" && menuSel >= 0) { e.preventDefault(); completeMenu(menuSel); send(); return; } // complete + run
       if (e.key === "Escape") { e.preventDefault(); return hideMenu(); }
     }
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    // Desktop: Enter sends, Shift+Enter = newline. Touch: Enter = newline (no Shift on phones) — the button sends.
+    if (e.key === "Enter" && !e.shiftKey && !isTouch) { e.preventDefault(); send(); }
   });
 
   // ---- dialogs (confirm / prompt / select) ----
@@ -933,7 +976,7 @@ window.addEventListener("DOMContentLoaded", () => {
     return qi === q.length ? 1000 : Infinity;
   }
 
-  autoGrow(); connect(); input.focus();
+  autoGrow(); updateComposer(); connect(); input.focus();
 });
 </script>
 </body>

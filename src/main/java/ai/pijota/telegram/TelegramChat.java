@@ -53,6 +53,27 @@ public final class TelegramChat implements ChatHandler {
                                     new TelegramClient.BotCommand("name", "Name this conversation"),
                                     new TelegramClient.BotCommand("help", "Show this help"));
 
+    /**
+     * The bot's full {@code /} autocomplete menu: the built-in {@link #COMMANDS} plus extension-provided commands the
+     * chat actually handles (via {@code runExtensionCommand}), so they're discoverable in Telegram — not just /help.
+     * Telegram only allows {@code [a-z0-9_]{1,32}} names and caps the menu at 100, so hyphenated/duplicate names are
+     * skipped rather than rejecting the whole call.
+     */
+    public static List<TelegramClient.BotCommand> menuCommands(List<SlashCommand> extensionCommands) {
+        var menu = new ArrayList<>(COMMANDS);
+        var seen = COMMANDS.stream().map(TelegramClient.BotCommand::command).collect(Collectors.toCollection(java.util.HashSet::new));
+        for (SlashCommand c : extensionCommands) {
+            String name = c.name();
+            if (name == null || !name.matches("[a-z0-9_]{1,32}") || !seen.add(name))
+                continue;
+            String desc = c.description() == null || c.description().isBlank() ? name : c.description();
+            menu.add(new TelegramClient.BotCommand(name, desc.length() > 256 ? desc.substring(0, 256) : desc));
+            if (menu.size() >= 100)
+                break;
+        }
+        return menu;
+    }
+
     private static final String WELCOME = "👋 I'm pijota — a coding agent you talk to in chat. Just type to ask "
                                     + "anything; I'll read/edit files, run commands and stream the answer back.\n\n";
 
@@ -144,12 +165,18 @@ public final class TelegramChat implements ChatHandler {
             case "/new" -> {
                 if (!requireIdle())
                     break;
-                try {
-                    session.newSession(); // fresh session file; clears the in-context history
-                    tg.sendMessage(chatId, "🆕 Started a new conversation.");
-                } catch (java.io.IOException e) {
-                    tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
-                }
+                // Confirm first (parity with the TUI) — an accidental /new tap shouldn't drop the live conversation.
+                ui.confirm("🆕 Start a new conversation? The current one is cleared (it stays saved on disk).")
+                                                .thenAccept(yes -> {
+                                                    if (!yes)
+                                                        return;
+                                                    try {
+                                                        session.newSession(); // fresh session file; clears in-context history
+                                                        tg.sendMessage(chatId, "🆕 Started a new conversation.");
+                                                    } catch (java.io.IOException e) {
+                                                        tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
+                                                    }
+                                                });
             }
             case "/usage" -> tg.sendMessage(chatId, usageSummary());
             case "/model" -> showModelPicker();
@@ -549,10 +576,18 @@ public final class TelegramChat implements ChatHandler {
 
     /** Sends or edits the single streamed message as HTML (with an optional keyboard), then remembers the text. */
     private void sendOrEdit(String text, TelegramClient.InlineKeyboard keyboard) {
-        if (streamMessageId == null)
+        if (streamMessageId == null) {
             streamMessageId = sendHtmlOrPlain(text, keyboard);
-        else
-            editHtmlOrPlain(streamMessageId, text, keyboard);
+        } else {
+            try {
+                editHtmlOrPlain(streamMessageId, text, keyboard);
+            } catch (RuntimeException e) {
+                // the streamed message is gone (deleted / no longer editable) — recover by starting a fresh one,
+                // otherwise the rest of the answer would stream into the void
+                log.debug("telegram edit failed; sending a fresh message: {}", e.getMessage());
+                streamMessageId = sendHtmlOrPlain(text, keyboard);
+            }
+        }
         lastSentText = text;
     }
 

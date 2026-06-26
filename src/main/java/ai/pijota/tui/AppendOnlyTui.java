@@ -253,7 +253,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         Host host = new Host();
         this.dialogs = new DialogHandler(host);
         this.promptPresenter = new PromptPresenter(host, activity, statusOverride, dialogs, animation, followUps,
-                                        tokenMeter, extensionLinesSupplier);
+                                        tokenMeter, this::statusLinesWithRemote);
         this.shellCommands = new ShellCommandRunner(host,
                                         settings != null ? settings.effectiveShellPath() : Platform.defaultShell());
         this.sessionCommands = new SessionCommands(host);
@@ -1290,7 +1290,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void refreshModels() {
-        modelCommands.refreshModels();
+        // ModelRefresher.refresh() is a multi-provider network call — run it off the input thread so the UI never
+        // freezes (the input loop stays free to type / Esc); feedback is printed immediately, the result when it lands.
+        if (activity.isBusy()) {
+            appendPlain(List.of(theme.styled("toolError", "/refresh is unavailable while a turn is running")));
+            return;
+        }
+        appendPlain(List.of(theme.styled("statusText", "refreshing models…")));
+        agentExecutor.submit(modelCommands::refreshModels);
     }
 
     void showModelSelector(List<ModelInfo> models) {
@@ -1590,6 +1597,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     void showRemoteControl() {
         var items = new ArrayList<RemoteOptionItem>();
         if (remoteControl.active()) {
+            items.add(new RemoteOptionItem("show", "Show link & QR", remoteControl.summary()));
             items.add(new RemoteOptionItem("stop", "Stop remote control", "active: " + remoteControl.summary()));
         } else {
             items.add(new RemoteOptionItem("web", "Web (browser / scan QR on phone)",
@@ -1601,6 +1609,16 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
+    /** Extension status lines, plus a persistent reminder (and security cue) whenever remote control is driving this session. */
+    private List<String> statusLinesWithRemote() {
+        var base = extensionLinesSupplier.get();
+        if (remoteControl == null || !remoteControl.active())
+            return base;
+        var lines = new ArrayList<String>(base);
+        lines.add("🔗 remote control active · " + remoteControl.summary() + " · /remote-control to manage");
+        return lines;
+    }
+
     private void confirmRemoteSelection() {
         var selected = selectors.selected(TuiSelectors.Slot.REMOTE);
         selectors.deactivate(TuiSelectors.Slot.REMOTE);
@@ -1609,14 +1627,29 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             redrawPrompt();
             return;
         }
-        List<String> out = switch (((RemoteOptionItem) selected.get()).id()) {
-            case "web" -> remoteControl.startWeb();
-            case "telegram" -> remoteControl.startTelegram();
-            case "stop" -> remoteControl.stop();
-            default -> List.of();
-        };
-        appendPlain(out); // includes the URL + terminal QR for the web option
+        switch (((RemoteOptionItem) selected.get()).id()) {
+            // Starting a channel can do network I/O (Telegram getMe + setMyCommands) or bind a socket — run it off the
+            // input thread so the UI never freezes; the banner is appended when it lands.
+            case "web" -> startRemoteAsync(remoteControl::startWeb);
+            case "telegram" -> startRemoteAsync(remoteControl::startTelegram);
+            case "show" -> appendPlain(remoteControl.info()); // instant: re-show the active channel's link & QR
+            case "stop" -> appendPlain(remoteControl.stop()); // fast: detach + close
+            default -> { }
+        }
         redrawPrompt();
+    }
+
+    /**
+     * Run a remote-control start (which may block on network/socket setup) off the input thread; print its banner after.
+     * Uses a dedicated thread, NOT {@code agentExecutor} (which is single-threaded) — a network-blocking start must not
+     * queue behind a running turn, and we don't want it to block one either.
+     */
+    private void startRemoteAsync(java.util.function.Supplier<List<String>> start) {
+        appendPlain(List.of(theme.styled("statusText", "starting remote control…")));
+        Thread.ofPlatform().daemon().name("pijota-remote-start").start(() -> {
+            appendPlain(start.get()); // appendPlain marshals to the terminal thread, so it's safe from here
+            redrawPrompt();
+        });
     }
 
     void forkSession(String input) {
@@ -1708,6 +1741,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void onEvent(AgentEvent event) {
         switch (event) {
             case AgentEvent.TurnStart _ -> {
+                toolsInProgress.clear(); // evict any leftovers from a prior interrupted/aborted turn
                 followUps.clearPending();
                 streamRenderer.reset();
                 streamingContent = false;
