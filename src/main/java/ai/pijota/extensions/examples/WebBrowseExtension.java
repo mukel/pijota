@@ -89,6 +89,18 @@ public final class WebBrowseExtension implements Extension {
                                         oneArg("url", "The URL to open"),
                                         (id, args, cwd) -> run(() -> session.visit(args.getString("url"))))
                                         .withGlyph("🌐"));
+
+        api.registerTool(new Tool.ToolDefinition("web_pdf_to_markdown",
+                                        "Extract a local PDF's text as markdown using the browser's PDF.js. Digital (text-layer) "
+                                                                        + "PDFs only — scanned/image-only PDFs have no text layer and yield little.",
+                                        oneArg("path", "Path to the .pdf file, relative to the workspace"),
+                                        (id, args, cwd) -> run(() -> session.extractPdf(readPdfBase64(cwd, args.getString("path")))))
+                                        .withGlyph("📄"));
+    }
+
+    private static String readPdfBase64(String cwd, String path) throws IOException {
+        Path p = Path.of(cwd).resolve(path).normalize();
+        return java.util.Base64.getEncoder().encodeToString(java.nio.file.Files.readAllBytes(p));
     }
 
     @Override

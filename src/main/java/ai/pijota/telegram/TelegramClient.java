@@ -33,9 +33,27 @@ public final class TelegramClient implements TelegramApi {
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final String base;
+    private final String fileBase;
 
     public TelegramClient(String token) {
         this.base = "https://api.telegram.org/bot" + token;
+        this.fileBase = "https://api.telegram.org/file/bot" + token; // downloads use a different host path than the API
+    }
+
+    /** Resolves a file_id to its bytes (getFile → download). Returns null on any failure so callers can degrade. */
+    @Override
+    public byte[] downloadFile(String fileId) {
+        try {
+            String path = call("getFile", new GetFileReq(fileId)).path("file_path").asText(null);
+            if (path == null || path.isBlank())
+                return null;
+            var request = HttpRequest.newBuilder(URI.create(fileBase + "/" + path)).timeout(REQUEST_TIMEOUT).GET()
+                                            .build();
+            var resp = http.send(request, BodyHandlers.ofByteArray());
+            return resp.statusCode() == 200 ? resp.body() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Long-polls for new updates; blocks up to {@code timeoutSeconds} server-side. Pass {@code lastUpdateId + 1}. */
@@ -218,7 +236,25 @@ public final class TelegramClient implements TelegramApi {
     public record Update(long updateId, TgMessage message, CallbackQuery callbackQuery) {
     }
 
-    public record TgMessage(long messageId, TgChat chat, String text) {
+    public record TgMessage(long messageId, TgChat chat, String text, String caption, List<PhotoSize> photo,
+                                    TgFile document, TgFile audio, TgFile voice, TgFile video) {
+        /** Compat constructor for text-only messages (and tests). */
+        public TgMessage(long messageId, TgChat chat, String text) {
+            this(messageId, chat, text, null, null, null, null, null, null);
+        }
+
+        /** The first attached non-photo file (document / audio / voice / video), or null. */
+        public TgFile file() {
+            return document != null ? document : video != null ? video : audio != null ? audio : voice;
+        }
+    }
+
+    /** One size of a Telegram photo; the API sends an ascending list, so the last entry is the highest resolution. */
+    public record PhotoSize(String fileId, int width, int height, long fileSize) {
+    }
+
+    /** A non-photo file (document / audio / voice / video) carrying its own MIME type. */
+    public record TgFile(String fileId, String fileName, String mimeType, long fileSize) {
     }
 
     public record TgChat(long id) {
@@ -259,6 +295,9 @@ public final class TelegramClient implements TelegramApi {
     private static final LinkPreviewOptions NO_PREVIEW = new LinkPreviewOptions(true);
 
     private record LinkPreviewOptions(boolean isDisabled) {
+    }
+
+    private record GetFileReq(String fileId) {
     }
 
     private record SendMessageReq(long chatId, String text, InlineKeyboard replyMarkup, String parseMode,

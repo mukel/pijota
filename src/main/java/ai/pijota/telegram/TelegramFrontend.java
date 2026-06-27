@@ -64,6 +64,15 @@ public final class TelegramFrontend {
             long chatId = update.message().chat().id();
             if (allow.test(chatId))
                 chatFor(chatId).onText(update.message().text());
+        } else if (update.message() != null && update.message().photo() != null && !update.message().photo().isEmpty()
+                                        && update.message().chat() != null) {
+            long chatId = update.message().chat().id();
+            if (allow.test(chatId))
+                chatFor(chatId).onPhoto(update.message().photo(), update.message().caption());
+        } else if (update.message() != null && update.message().file() != null && update.message().chat() != null) {
+            long chatId = update.message().chat().id();
+            if (allow.test(chatId))
+                chatFor(chatId).onDocument(update.message().file(), update.message().caption());
         } else if (update.callbackQuery() != null && update.callbackQuery().message() != null
                                         && update.callbackQuery().message().chat() != null) {
             long chatId = update.callbackQuery().message().chat().id();

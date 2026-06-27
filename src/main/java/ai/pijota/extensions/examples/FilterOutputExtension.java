@@ -152,7 +152,7 @@ public final class FilterOutputExtension implements Extension {
         return switch (msg) {
             case Message.ToolResult r -> new Message.ToolResult(r.id(), r.timestamp(), r.toolCallId(), r.toolName(),
                                             newContent, r.isError(), r.details());
-            case Message.User u -> new Message.User(u.id(), u.timestamp(), newContent);
+            case Message.User u -> new Message.User(u.id(), u.timestamp(), newContent, u.attachments());
             case Message.Assistant a -> new Message.Assistant(a.id(), a.timestamp(), newContent, a.toolCalls(),
                                             a.thinking(), a.sourceProvider(), a.sourceModel());
             default -> msg;

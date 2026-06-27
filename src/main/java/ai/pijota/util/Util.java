@@ -1,6 +1,5 @@
 package ai.pijota.util;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -188,14 +187,7 @@ public final class Util {
     }
 
     public static String resolvePath(Map<String, Object> args) {
-        Object v = args.get("path");
-        if (v instanceof String s && !s.isBlank())
-            return s;
-        v = args.get("filePath");
-        if (v instanceof String s && !s.isBlank())
-            return s;
-        v = args.get("file_path");
-        return v instanceof String s && !s.isBlank() ? s : null;
+        return getFirstString(args, "path", "filePath", "file_path");
     }
 
     public static String resolvePath(Map<String, Object> args, String cwd) {
@@ -326,14 +318,8 @@ public final class Util {
     /** Tool names whose {@code command} argument is a shell command (the {@code bash} tool and tmux's runner). */
     public static final java.util.Set<String> SHELL_TOOL_NAMES = java.util.Set.of("bash", "tmux_bash");
 
-    @SuppressWarnings("unchecked")
     public static String parseBashArgs(String argsJson) {
-        try {
-            var args = MAPPER.readValue(argsJson, Map.class);
-            return (String) args.get("command");
-        } catch (Exception e) {
-            return null;
-        }
+        return parseJsonArgs(argsJson).get("command") instanceof String s ? s : null;
     }
 
     public static String shortenCwd(String cwd) {
@@ -361,6 +347,18 @@ public final class Util {
         return "'" + value.replace("'", "'\\''") + "'";
     }
 
+    /**
+     * Shell-encodes a value as a shell expects a path argument, quoting only when needed (like zsh's {@code ${(q)}} /
+     * {@code printf %q}): a value of only safe characters is returned bare; anything with spaces, quotes, {@code $},
+     * globs, etc. is wrapped in single quotes (embedded {@code '} escaped as {@code '\''}), making spaces/{@code "}/
+     * {@code '} all literal. {@code ~} is kept unquoted so a leading {@code ~/} still expands.
+     */
+    public static String shellQuoteIfNeeded(String value) {
+        if (value.isEmpty())
+            return "''";
+        return value.matches("[A-Za-z0-9._/@%+,:=~-]+") ? value : shellQuote(value);
+    }
+
     public static String firstLine(String text) {
         if (text == null || text.isBlank())
             return "";
@@ -372,13 +370,5 @@ public final class Util {
         var pw = new PrintWriter(sw, true);
         t.printStackTrace(pw);
         return sw.toString();
-    }
-
-    public static String json(Object obj) {
-        try {
-            return MAPPER.writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

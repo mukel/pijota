@@ -15,9 +15,28 @@ public sealed interface Message {
 
     Instant timestamp();
 
-    record User(UUID id, Instant timestamp, String content) implements Message {
+    /** An image (or other media) attached to a user message: {@code base64} payload + its {@code mime} type. */
+    record Attachment(String mime, String base64, String filename) {
+        /** Provider hard limit (~Anthropic 5MB); larger media is dropped before the request to avoid an API error. */
+        public static final long MAX_BYTES = 5L * 1024 * 1024;
+
+        /** Approximate decoded size from the base64 length (avoids decoding just to measure). */
+        public long approxBytes() {
+            return base64 == null ? 0 : (long) base64.length() * 3 / 4;
+        }
+    }
+
+    record User(UUID id, Instant timestamp, String content, List<Attachment> attachments) implements Message {
+        public User {
+            attachments = attachments == null ? List.of() : List.copyOf(attachments);
+        }
+
         public User(String content) {
-            this(UUID.randomUUID(), Instant.now(), content);
+            this(UUID.randomUUID(), Instant.now(), content, List.of());
+        }
+
+        public User(String content, List<Attachment> attachments) {
+            this(UUID.randomUUID(), Instant.now(), content, attachments);
         }
     }
 

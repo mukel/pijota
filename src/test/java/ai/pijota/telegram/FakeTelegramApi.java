@@ -70,4 +70,17 @@ final class FakeTelegramApi implements TelegramApi {
     public synchronized void sendChatAction(long chatId, String action) {
         actions.add(action);
     }
+
+    private volatile byte[] downloadPayload;
+
+    /** Stubs the bytes {@link #downloadFile} returns (null by default → simulates a failed download). */
+    FakeTelegramApi onDownload(byte[] bytes) {
+        this.downloadPayload = bytes;
+        return this;
+    }
+
+    @Override
+    public byte[] downloadFile(String fileId) {
+        return downloadPayload;
+    }
 }

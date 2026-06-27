@@ -6,7 +6,11 @@
       "displayName": "GPT-5.5",
       "contextWindow": 272000,
       "inputCostPerMTok": 5.0,
-      "outputCostPerMTok": 30.0
+      "outputCostPerMTok": 30.0,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "gpt-5-mini",
@@ -14,25 +18,41 @@
       "displayName": "GPT-5 mini",
       "contextWindow": 400000,
       "inputCostPerMTok": 0.25,
-      "outputCostPerMTok": 2.0
+      "outputCostPerMTok": 2.0,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "gpt-5.5",
       "provider": "openai-codex",
       "displayName": "GPT-5.5",
-      "contextWindow": 272000
+      "contextWindow": 272000,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "gpt-5.4",
       "provider": "openai-codex",
       "displayName": "GPT-5.4",
-      "contextWindow": 272000
+      "contextWindow": 272000,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "gpt-5.4-mini",
       "provider": "openai-codex",
       "displayName": "GPT-5.4 mini",
-      "contextWindow": 272000
+      "contextWindow": 272000,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "gpt-5.3-codex-spark",
@@ -46,7 +66,12 @@
       "displayName": "Claude Opus 4.5",
       "contextWindow": 200000,
       "inputCostPerMTok": 5.0,
-      "outputCostPerMTok": 25.0
+      "outputCostPerMTok": 25.0,
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ]
     },
     {
       "id": "claude-sonnet-4-5-20250929",
@@ -54,7 +79,12 @@
       "displayName": "Claude Sonnet 4.5",
       "contextWindow": 200000,
       "inputCostPerMTok": 3.0,
-      "outputCostPerMTok": 15.0
+      "outputCostPerMTok": 15.0,
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ]
     },
     {
       "id": "claude-haiku-4-5-20251001",
@@ -62,7 +92,12 @@
       "displayName": "Claude Haiku 4.5",
       "contextWindow": 200000,
       "inputCostPerMTok": 1.0,
-      "outputCostPerMTok": 5.0
+      "outputCostPerMTok": 5.0,
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ]
     },
     {
       "id": "gemini-3.1-pro-preview",
@@ -70,7 +105,14 @@
       "displayName": "Gemini 3.1 Pro",
       "contextWindow": 1048576,
       "inputCostPerMTok": 2.0,
-      "outputCostPerMTok": 12.0
+      "outputCostPerMTok": 12.0,
+      "input": [
+        "text",
+        "image",
+        "pdf",
+        "audio",
+        "video"
+      ]
     },
     {
       "id": "gemini-3.1-flash-lite-preview",
@@ -78,7 +120,14 @@
       "displayName": "Gemini 3.1 Flash Lite",
       "contextWindow": 1048576,
       "inputCostPerMTok": 0.25,
-      "outputCostPerMTok": 1.5
+      "outputCostPerMTok": 1.5,
+      "input": [
+        "text",
+        "image",
+        "pdf",
+        "audio",
+        "video"
+      ]
     },
     {
       "id": "deepseek-v4-pro",
@@ -102,7 +151,11 @@
       "displayName": "Grok 4.3",
       "contextWindow": 1000000,
       "inputCostPerMTok": 1.25,
-      "outputCostPerMTok": 2.5
+      "outputCostPerMTok": 2.5,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "grok-code-fast-1",
@@ -118,7 +171,11 @@
       "displayName": "Mistral Large",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.5,
-      "outputCostPerMTok": 1.5
+      "outputCostPerMTok": 1.5,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "devstral-medium-latest",
@@ -174,7 +231,12 @@
       "displayName": "Claude Fable 5",
       "contextWindow": 1000000,
       "inputCostPerMTok": 10.0,
-      "outputCostPerMTok": 50.0
+      "outputCostPerMTok": 50.0,
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ]
     },
     {
       "id": "gpt-oss-120b",
@@ -212,13 +274,21 @@
       "id": "k2p7",
       "provider": "kimi-coding",
       "displayName": "Kimi K2.7",
-      "contextWindow": 262144
+      "contextWindow": 262144,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "kimi-for-coding",
       "provider": "kimi-coding",
       "displayName": "Kimi For Coding",
-      "contextWindow": 262144
+      "contextWindow": 262144,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "kimi-k2-thinking",
@@ -232,7 +302,11 @@
       "displayName": "Kimi K2.7 Code",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.95,
-      "outputCostPerMTok": 4.0
+      "outputCostPerMTok": 4.0,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "kimi-k2.6",
@@ -240,7 +314,11 @@
       "displayName": "Kimi K2.6",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.95,
-      "outputCostPerMTok": 4.0
+      "outputCostPerMTok": 4.0,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "kimi-k2-thinking",
@@ -256,7 +334,11 @@
       "displayName": "Kimi K2.7 Code",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.95,
-      "outputCostPerMTok": 4.0
+      "outputCostPerMTok": 4.0,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "kimi-k2-thinking",
@@ -280,7 +362,11 @@
       "displayName": "MiMo v2.5",
       "contextWindow": 1048576,
       "inputCostPerMTok": 0.4,
-      "outputCostPerMTok": 2.0
+      "outputCostPerMTok": 2.0,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "mimo-v2.5-pro",

@@ -99,6 +99,25 @@ public final class BrowserSession {
         return md;
     }
 
+    /**
+     * Extracts a PDF's text layer as markdown using the bundled PDF.js, run in the real browser — digital (text-layer)
+     * PDFs only; a scanned/image-only PDF has no text layer and yields little. {@code base64} is the raw PDF bytes. The
+     * lib + worker are injected via {@link #evaluate} and the parsing happens in-page, so nothing is linked into the
+     * native image. Returns a placeholder string (never throws on a bad PDF) so the caller can fall back gracefully.
+     */
+    public synchronized String extractPdf(String base64) throws Exception {
+        String lib = pdfLibJs();
+        if (lib.isBlank())
+            return "[pdf.js unavailable — it is downloaded at build time; see src/main/resources/browser/README.md]";
+        cancelled = false;
+        backend.start();
+        backend.navigate("about:blank");
+        evaluate(lib); // defines the PDF.js UMD global
+        evaluate("globalThis.__pdfWorker=" + Util.MAPPER.writeValueAsString(pdfWorkerJs())); // Blob-worker source
+        evaluate("globalThis.__pdfB64=" + Util.MAPPER.writeValueAsString(base64));
+        return str(evaluate(EXTRACT_PDF_JS));
+    }
+
     /** Runs Mozilla Readability on a clone of the RENDERED DOM → markdown; "" when the page isn't an article. */
     private String readerArticle() throws Exception {
         JsonNode art = evaluate(READER_EXTRACT_JS);
@@ -247,4 +266,24 @@ public final class BrowserSession {
     private static final String PAGE_EXTRACT_JS = loadResource("/browser/extract-page.js");
     private static final String SEARCH_EXTRACT_JS = loadResource("/browser/extract-search.js");
     private static final String CONSENT_JS = loadResource("/browser/dismiss-consent.js");
+    private static final String EXTRACT_PDF_JS = loadResource("/browser/extract-pdf.js");
+
+    // PDF.js (lib + worker) is large and downloaded at build time — load it lazily so a browse session that never reads
+    // a PDF doesn't hold ~1.5 MB, and so its absence (e.g. an offline first build) can't break class loading.
+    private static volatile String pdfLib;
+    private static volatile String pdfWorker;
+
+    private static String pdfLibJs() {
+        var v = pdfLib;
+        if (v == null)
+            pdfLib = v = loadResource("/browser/pdf.min.js");
+        return v;
+    }
+
+    private static String pdfWorkerJs() {
+        var v = pdfWorker;
+        if (v == null)
+            pdfWorker = v = loadResource("/browser/pdf.worker.min.js");
+        return v;
+    }
 }

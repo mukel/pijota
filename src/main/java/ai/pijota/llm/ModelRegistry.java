@@ -71,6 +71,28 @@ public final class ModelRegistry {
     public record Pricing(double inputPerMTok, double outputPerMTok) {
     }
 
+    /**
+     * The model's accepted input modalities, or {@code null} when unknown. A catalog model that doesn't declare its
+     * modalities is treated as text-only; a model absent from the catalog returns {@code null} so callers can be lenient
+     * (don't block a brand-new model).
+     */
+    public static java.util.Set<Modality> inputModalities(String provider, String model) {
+        if (model == null)
+            return java.util.EnumSet.of(Modality.TEXT);
+        var found = KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model)
+                                        && (provider == null || provider.equalsIgnoreCase(m.provider()))).findFirst();
+        if (found.isEmpty())
+            return null;
+        var mods = found.get().inputModalities();
+        return mods != null ? mods : java.util.EnumSet.of(Modality.TEXT);
+    }
+
+    /** Whether the model accepts the given modality; an unknown model (null modalities) is allowed (not blocked). */
+    public static boolean supports(String provider, String model, Modality modality) {
+        var mods = inputModalities(provider, model);
+        return mods == null || mods.contains(modality);
+    }
+
     /** Looks up pricing for the given model, preferring a provider match; {@code null} if the rate is unknown. */
     public static Pricing pricingFor(String provider, String model) {
         if (model == null)
@@ -118,9 +140,6 @@ public final class ModelRegistry {
     }
 
     public record ResolvedModel(String provider, String model, String apiKey, long contextWindow) {
-        public int contextWindowInt() {
-            return (int) Math.min(contextWindow, Integer.MAX_VALUE);
-        }
     }
 
     public record ProviderModel(String provider, String model) {

@@ -129,7 +129,7 @@ final class MessageHistory {
                 if (messages.get(i) instanceof Message.User user) {
                     String cleaned = Util.stripSystemReminders(user.content()).strip();
                     if (!cleaned.equals(user.content())) {
-                        messages.set(i, new Message.User(user.id(), user.timestamp(), cleaned));
+                        messages.set(i, new Message.User(user.id(), user.timestamp(), cleaned, user.attachments()));
                     }
                 }
             }

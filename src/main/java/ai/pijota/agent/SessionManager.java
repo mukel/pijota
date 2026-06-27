@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
@@ -208,63 +209,54 @@ public final class SessionManager {
     }
 
     public CacheMetadata latestCacheMetadata(Path sessionFile) throws IOException {
-        if (sessionFile == null || !Files.exists(sessionFile))
-            return null;
-        CacheMetadata metadata = null;
-        for (var entry : currentBranchEntries(sessionFile)) {
-            if ("cache_metadata".equals(entry.get("type"))) {
-                metadata = new CacheMetadata((String) entry.getOrDefault("systemPrompt", ""),
-                                                (String) entry.getOrDefault("toolManifestHash", ""),
-                                                (String) entry.getOrDefault("toolManifestJson", ""),
-                                                (String) entry.getOrDefault("provider", ""),
-                                                (String) entry.getOrDefault("model", ""));
-            }
-        }
-        return metadata;
+        return latestOfType(sessionFile, "cache_metadata", entry -> new CacheMetadata(
+                                        (String) entry.getOrDefault("systemPrompt", ""),
+                                        (String) entry.getOrDefault("toolManifestHash", ""),
+                                        (String) entry.getOrDefault("toolManifestJson", ""),
+                                        (String) entry.getOrDefault("provider", ""),
+                                        (String) entry.getOrDefault("model", "")), false);
     }
 
     public ModelSelection latestModelSelection(Path sessionFile) throws IOException {
-        if (sessionFile == null || !Files.exists(sessionFile))
-            return null;
-        ModelSelection selection = null;
-        for (var entry : currentBranchEntries(sessionFile)) {
-            if ("model_change".equals(entry.get("type"))) {
-                String provider = (String) entry.getOrDefault("provider", "");
-                String model = (String) entry.getOrDefault("model", "");
-                long contextWindow = asLong(entry.get("contextWindow"));
-                if (!provider.isBlank() && !model.isBlank()) {
-                    selection = new ModelSelection(provider, model, contextWindow);
-                }
-            }
-        }
-        return selection;
+        return latestOfType(sessionFile, "model_change", entry -> {
+            String provider = (String) entry.getOrDefault("provider", "");
+            String model = (String) entry.getOrDefault("model", "");
+            return provider.isBlank() || model.isBlank() ? null
+                                            : new ModelSelection(provider, model, asLong(entry.get("contextWindow")));
+        }, true);
     }
 
     public String sessionName(Path sessionFile) throws IOException {
-        if (sessionFile == null || !Files.exists(sessionFile))
-            return null;
-        String name = null;
-        for (var entry : currentBranchEntries(sessionFile)) {
-            if ("session_info".equals(entry.get("type"))) {
-                String value = (String) entry.getOrDefault("name", "");
-                name = value == null || value.isBlank() ? null : value.trim();
-            }
-        }
-        return name;
+        return latestOfType(sessionFile, "session_info", entry -> {
+            String value = (String) entry.getOrDefault("name", "");
+            return value == null || value.isBlank() ? null : value.trim();
+        }, false);
     }
 
     public String latestThinkingLevel(Path sessionFile) throws IOException {
+        return latestOfType(sessionFile, "thinking_level_change", entry -> {
+            String value = (String) entry.getOrDefault("level", "");
+            return value.isBlank() ? null : value;
+        }, true);
+    }
+
+    /**
+     * The last entry of {@code type} in the current branch, mapped via {@code mapper}. When {@code mapper} yields null:
+     * {@code keepPreviousOnNull=true} ignores that entry (keeps the prior value); false adopts the null (clears it).
+     */
+    private <T> T latestOfType(Path sessionFile, String type, Function<Map<String, Object>, T> mapper,
+                                    boolean keepPreviousOnNull) throws IOException {
         if (sessionFile == null || !Files.exists(sessionFile))
             return null;
-        String level = null;
+        T result = null;
         for (var entry : currentBranchEntries(sessionFile)) {
-            if ("thinking_level_change".equals(entry.get("type"))) {
-                String value = (String) entry.getOrDefault("level", "");
-                if (!value.isBlank())
-                    level = value;
+            if (type.equals(entry.get("type"))) {
+                T mapped = mapper.apply(entry);
+                if (mapped != null || !keepPreviousOnNull)
+                    result = mapped;
             }
         }
-        return level;
+        return result;
     }
 
     public void saveMessages(Path file, List<Message> messages, String cwd) throws IOException {
@@ -591,12 +583,35 @@ public final class SessionManager {
         return null;
     }
 
+    private static List<Message.Attachment> deserializeAttachments(Object raw) {
+        if (!(raw instanceof List<?> list))
+            return List.of();
+        var out = new java.util.ArrayList<Message.Attachment>();
+        for (Object o : list)
+            if (o instanceof Map<?, ?> m)
+                out.add(new Message.Attachment((String) m.get("mime"), (String) m.get("base64"),
+                                                (String) m.get("filename")));
+        return out;
+    }
+
     private static void serializeMessage(Map<String, Object> entry, Message msg) {
         switch (msg) {
             case Message.User u -> {
                 entry.put("type", "message");
                 entry.put("role", "user");
                 entry.put("content", u.content());
+                if (!u.attachments().isEmpty()) {
+                    var atts = new java.util.ArrayList<Map<String, Object>>();
+                    for (var a : u.attachments()) {
+                        var m = new java.util.LinkedHashMap<String, Object>();
+                        m.put("mime", a.mime());
+                        m.put("base64", a.base64());
+                        if (a.filename() != null)
+                            m.put("filename", a.filename());
+                        atts.add(m);
+                    }
+                    entry.put("attachments", atts);
+                }
             }
             case Message.Assistant a -> {
                 entry.put("type", "message");
@@ -685,7 +700,7 @@ public final class SessionManager {
         return switch (role) {
             case "user" -> {
                 String content = (String) entry.getOrDefault("content", "");
-                yield new Message.User(id, ts, content);
+                yield new Message.User(id, ts, content, deserializeAttachments(entry.get("attachments")));
             }
             case "assistant" -> {
                 String content = (String) entry.get("content");
@@ -723,7 +738,7 @@ public final class SessionManager {
             }
             default -> {
                 String content = (String) entry.getOrDefault("content", "");
-                yield new Message.User(id, ts, content);
+                yield new Message.User(id, ts, content, deserializeAttachments(entry.get("attachments")));
             }
         };
     }

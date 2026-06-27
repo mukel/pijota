@@ -175,12 +175,37 @@
   .act:disabled { opacity: .4; cursor: default; }
   /* Stop: a round red button floating just above the send button, shown ONLY while streaming (.show) */
   /* same size + right offset as the send button, so it stacks directly above it (centres aligned) */
-  .stopbtn { display: none; position: absolute; right: 7px; top: -46px; width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--err); color: #fff; font-size: 0; cursor: pointer; box-shadow: 0 4px 14px var(--shadow-color); align-items: center; justify-content: center; transition: transform .1s, filter .12s; }
+  /* Stop is anchored to the send button's own wrapper (left:0, same width) so it's pixel-aligned above it on every screen */
+  .sendwrap { position: relative; flex: none; align-self: flex-end; display: flex; }
+  /* +18px clears the send button's ~8px inset inside the box, leaving ~10px between the Stop and the prompt box */
+  .stopbtn { display: none; position: absolute; left: 0; bottom: calc(100% + 18px); width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--err); color: #fff; font-size: 0; cursor: pointer; box-shadow: 0 4px 14px var(--shadow-color); align-items: center; justify-content: center; transition: transform .1s, filter .12s; }
   /* the stop icon is a pixel-centred CSS square (the "■" glyph sits off-centre in its line-box); font-size:0 hides it */
   .stopbtn::before { content: ""; width: 13px; height: 13px; border-radius: 3px; background: currentColor; }
   .stopbtn.show { display: flex; }
   .stopbtn:hover { filter: brightness(1.08); }
   .stopbtn:active { transform: scale(.92); }
+  /* pending image attachments (paste / drop) shown above the input as removable thumbnails */
+  .attachments { display: flex; flex-wrap: wrap; gap: 8px; max-width: 760px; margin: 0 auto 8px; }
+  .attachments:empty { display: none; }
+  .thumb { position: relative; width: 58px; height: 58px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .rm { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: var(--overlay); color: #fff; font-size: 11px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  /* non-image attachment shown as a named chip (in the composer and in sent bubbles) */
+  .filechip { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); font-size: 12.5px; }
+  .filechip .ficon { flex: none; } .filechip .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .filechip .rm { flex: none; border: none; background: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 0 1px; }
+  .filechip .rm:hover { color: var(--text); }
+  .msg .filerow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .msg.user .filerow { justify-content: flex-end; }
+  /* the attach (+) button, beside Send — only shown (.show) when the active model accepts media */
+  .attach { display: none; flex: none; align-self: flex-end; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); align-items: center; justify-content: center; cursor: pointer; transition: color .12s, border-color .12s, transform .1s; }
+  .attach.show { display: flex; }
+  .attach:hover { color: var(--text); border-color: var(--accent); } .attach:active { transform: scale(.92); }
+  /* images inside a sent message bubble */
+  .msg .imgs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .msg .imgs img { max-width: 260px; max-height: 260px; border-radius: 10px; border: 1px solid var(--border); }
+  .msg.user .imgs { justify-content: flex-end; }
+  .composer.dragover .inner { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .composer { flex: none; background: transparent; padding: 6px 18px 18px; }
   .composer .inner {
     position: relative; /* anchors the round Stop button floating above the send button */
@@ -243,6 +268,9 @@
   .modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
   /* dialog actions are text pills, not the composer's round icon button (.act is 34px circular) */
   .modal button.act { width: auto; height: auto; align-self: center; border-radius: 9px; padding: 10px 16px; font-size: 14px; }
+  /* secondary action (e.g. confirm-dialog "No"): same pill size as the primary, neutral colours instead of accent */
+  .modal button.act.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .modal button.act.secondary:hover { filter: none; border-color: var(--accent); }
   .modal input { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg); color: var(--text); outline: none; }
   .modal input:focus { border-color: var(--accent); }
   /* /question dialog: option buttons + a free-text field per question */
@@ -323,10 +351,14 @@
       <div class="hint">Ask anything · type <code>/</code> for commands · ⌘K / Ctrl-K for the palette</div>
     </div>
     <div class="slashmenu" id="slash"></div>
+    <div class="attachments" id="attachments"></div>
     <div class="inner">
       <textarea id="input" placeholder="Message pijota…" rows="1" aria-label="Message pijota"></textarea>
-      <button class="act" id="send" title="Send" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 19V7M6 13l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <button class="stopbtn" id="stop" title="Stop" aria-label="Stop generating">■</button>
+      <button class="attach" id="attach" title="Attach a file" aria-label="Attach a file"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+      <span class="sendwrap">
+        <button class="act" id="send" title="Send" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 19V7M6 13l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="stopbtn" id="stop" title="Stop" aria-label="Stop generating">■</button>
+      </span>
     </div>
   </div>
 
@@ -388,6 +420,9 @@ window.addEventListener("DOMContentLoaded", () => {
     input.focus(); // an action button, not a focus target — return focus to the chat bar
   });
   let busy = false, live = null;           // live = current streaming assistant bubble
+  let pendingFiles = [];                    // {mime, data(base64), url(dataURL), name, isImage} to attach
+  let modalities = ["image", "pdf", "audio", "video"]; // media the current model accepts (from the stats event)
+  let lastModel = null;                     // tracks model switches to warn when downgrading to a weaker model
   const toolCards = new Map();             // tool-call id -> {wrap, result placeholder}
   let commands = [], menuItems = [], menuSel = -1;
   fetch("/commands").then(r => r.json()).then(c => commands = c).catch(() => {});
@@ -490,9 +525,26 @@ window.addEventListener("DOMContentLoaded", () => {
     m.appendChild(b); thread.appendChild(m);
     return { msg: m, bubble: b };
   }
-  function simple(role, text) {
+  function simple(role, text, images, files) {
     const m = addMsg(role);
-    withAutoScroll(() => renderMarkdown(m.bubble, text));
+    withAutoScroll(() => {
+      renderMarkdown(m.bubble, text);
+      if (images && images.length) { // data URLs echoed by the server for a sent user message
+        const wrap = document.createElement("div"); wrap.className = "imgs";
+        images.forEach(url => { const im = document.createElement("img"); im.src = url; im.loading = "lazy"; wrap.appendChild(im); });
+        m.bubble.appendChild(wrap);
+      }
+      if (files && files.length) { // non-image attachments shown as named chips
+        const wrap = document.createElement("div"); wrap.className = "filerow";
+        files.forEach(f => {
+          const c = document.createElement("span"); c.className = "filechip";
+          const ic = document.createElement("span"); ic.className = "ficon"; ic.textContent = fileGlyph(f.mime);
+          const n = document.createElement("span"); n.className = "fname"; n.textContent = f.name || "file";
+          c.append(ic, n); wrap.appendChild(c);
+        });
+        m.bubble.appendChild(wrap);
+      }
+    });
     if (role === "user") addMsgCopy(m.msg, () => text);
   }
 
@@ -512,6 +564,18 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!d || !d.model) return;
     const model = document.createElement("b"); model.textContent = d.model; // textContent, not innerHTML — no escaping needed
     statsEl.appendChild(model);
+    if (Array.isArray(d.modalities)) {
+      // on a real model switch to one that dropped media support, warn that existing attachments won't be sent to it
+      if (lastModel !== null && d.model !== lastModel) {
+        const lost = modalities.filter(m => !d.modalities.includes(m)); // `modalities` still = the previous model's
+        if (lost.length)
+          showToast("Now on " + d.model + " — can't read " + lost.join(", ")
+                                          + "; any " + lost.join("/") + " already in this chat won't be sent to it.", true);
+      }
+      modalities = d.modalities; // re-gate composer uploads for this model
+      updateComposer();
+    }
+    lastModel = d.model;
     const extra = [];
     if (d.context) extra.push(fmtTokens(d.context) + " ctx");
     if (d.cost > 0) extra.push("$" + d.cost.toFixed(2));
@@ -674,7 +738,7 @@ window.addEventListener("DOMContentLoaded", () => {
       for (const m of JSON.parse(e.data)) replayHistory(m);
       main.scrollTop = main.scrollHeight;
     });
-    es.addEventListener("user", e => { simple("user", JSON.parse(e.data).content); });
+    es.addEventListener("user", e => { const d = JSON.parse(e.data); simple("user", d.content, d.images, d.files); });
     es.addEventListener("stream_start", () => { live = assistantBubble(); });
     es.addEventListener("assistant", e => {
       const d = JSON.parse(e.data);
@@ -711,7 +775,7 @@ window.addEventListener("DOMContentLoaded", () => {
     } else if (m.role === "custom") {
       simple("custom", m.content);
     } else {
-      simple(m.role, m.content);
+      simple(m.role, m.content, m.images, m.files); // user message — restore its image thumbnails / file chips
     }
   }
 
@@ -734,26 +798,109 @@ window.addEventListener("DOMContentLoaded", () => {
     if (data !== undefined) { opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(data); }
     return fetch(url, opts);
   }
-  function post(text) {
-    postJSON("/prompt", { text }).catch(() => showToast("Couldn't reach the server — check your connection.", true));
+  function post(text, files) {
+    postJSON("/prompt", { text, files: files || [] })
+      .then(r => { if (!r.ok) showToast(r.status === 413 ? "Attachments too large — message not sent."
+                                          : "Send failed (" + r.status + ").", true); })
+      .catch(() => showToast("Couldn't reach the server — check your connection.", true));
   }
   function send() {
     const text = input.value.trim();
-    if (!text) return;
-    input.value = ""; autoGrow(); hideMenu();
+    if (!text && !pendingFiles.length) return;
+    const files = pendingFiles.map(f => ({ mime: f.mime, data: f.data, filename: f.name }));
+    input.value = ""; pendingFiles = []; renderAttachments(); autoGrow(); hideMenu();
     // Post immediately, even mid-stream: the server injects it into the running turn (session.followUp steers the
     // current task) and slash commands / interrupts take effect at once. Nothing is held client-side to lose on a
     // disconnect or to mis-fire after Stop — Stop just interrupts, with no pending text to flush.
-    post(text);
+    post(text, files);
     updateComposer();
     input.focus(); // keep the chat bar focused after clicking Send
   }
 
+  // ---- file attachments (attach button / paste / drag-drop), gated to the model's modalities ----
+  const attachEl = $("#attachments");
+  const MAX_FILES = 8, MAX_FILE_BYTES = 5 * 1024 * 1024; // keep under provider limits (Anthropic ~5MB)
+  // mirrors ai.pijota.llm.Modality.fromMime — keep the two in sync
+  function modalityOf(mime) {
+    if (!mime) return "text";
+    if (mime.startsWith("image/")) return "image";
+    if (mime.startsWith("audio/")) return "audio";
+    if (mime.startsWith("video/")) return "video";
+    if (mime === "application/pdf") return "pdf";
+    return "text"; // text / code / docx — extracted server-side, works on any model
+  }
+  // text (extracted server-side) and pdf (extracted via the web_pdf_to_markdown tool when the model isn't PDF-native) work
+  // on any model; other media needs the model to declare the modality.
+  function accepts(mime) { const m = modalityOf(mime); return m === "text" || m === "pdf" || modalities.includes(m); }
+  // providers accept only JPEG/PNG/GIF/WebP — a provider/model limitation; HEIC/TIFF/BMP etc. are rejected (no transcode)
+  const SUPPORTED_IMAGE = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+  function addFile(file) {
+    if (!file) return;
+    if (!accepts(file.type))
+      return showToast("This model can't read " + modalityOf(file.type) + " files — switch with /model.", true);
+    if (modalityOf(file.type) === "image" && !SUPPORTED_IMAGE.includes(file.type.toLowerCase()))
+      return showToast((file.name || "image") + ": that format isn't supported by the model — use JPEG/PNG/GIF/WebP.", true);
+    if (pendingFiles.length >= MAX_FILES) return showToast("Up to " + MAX_FILES + " files per message.", true);
+    if (file.size > MAX_FILE_BYTES) return showToast((file.name || "file") + " is too large (max 5MB).", true);
+    const r = new FileReader();
+    r.onload = () => {
+      const url = String(r.result), comma = url.indexOf(",");
+      pendingFiles.push({ mime: file.type, data: url.slice(comma + 1), url, name: file.name || modalityOf(file.type),
+                                          isImage: modalityOf(file.type) === "image" });
+      renderAttachments(); updateComposer();
+    };
+    r.readAsDataURL(file);
+  }
+  function fileGlyph(mime) {
+    const m = modalityOf(mime);
+    return m === "pdf" ? "📄" : m === "audio" ? "🎧" : m === "video" ? "🎬" : "📎";
+  }
+  function renderAttachments() {
+    attachEl.replaceChildren();
+    pendingFiles.forEach((f, i) => {
+      const rm = document.createElement("button"); rm.className = "rm"; rm.textContent = "✕"; rm.title = "Remove";
+      rm.onclick = () => { pendingFiles.splice(i, 1); renderAttachments(); updateComposer(); input.focus(); };
+      if (f.isImage) {
+        const t = document.createElement("div"); t.className = "thumb";
+        const im = document.createElement("img"); im.src = f.url; im.alt = f.name;
+        t.append(im, rm); attachEl.appendChild(t);
+      } else {
+        const c = document.createElement("div"); c.className = "filechip"; c.title = f.name;
+        const ic = document.createElement("span"); ic.className = "ficon"; ic.textContent = fileGlyph(f.mime);
+        const n = document.createElement("span"); n.className = "fname"; n.textContent = f.name;
+        c.append(ic, n, rm); attachEl.appendChild(c);
+      }
+    });
+  }
+  input.addEventListener("paste", e => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const it of items)
+      if (it.kind === "file") { const f = it.getAsFile(); if (f) { e.preventDefault(); addFile(f); } }
+  });
+  ["dragenter", "dragover"].forEach(ev => composerInner.addEventListener(ev,
+                                  e => { e.preventDefault(); $(".composer").classList.add("dragover"); }));
+  composerInner.addEventListener("dragleave", () => $(".composer").classList.remove("dragover"));
+  composerInner.addEventListener("drop", e => {
+    e.preventDefault();
+    $(".composer").classList.remove("dragover");
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (files) for (const f of files) addFile(f);
+  });
+  // attach (📎) button → hidden native file picker
+  const fileInput = document.createElement("input");
+  fileInput.type = "file"; fileInput.multiple = true; fileInput.style.display = "none";
+  document.body.appendChild(fileInput);
+  fileInput.addEventListener("change", () => { for (const f of fileInput.files) addFile(f); fileInput.value = ""; });
+  const attachBtn = $("#attach");
+  attachBtn.addEventListener("click", () => fileInput.click());
+
   // The send button stays in one fixed slot (↑), disabled when empty; Stop is the separate round button shown only
   // while streaming. Sending mid-stream posts right away, so there is no queued/pending state to render.
   function updateComposer() {
-    sendBtn.disabled = !input.value.trim();
+    sendBtn.disabled = !input.value.trim() && !pendingFiles.length;
     stopBtn.classList.toggle("show", busy);
+    attachBtn.classList.toggle("show", true); // text + pdf attach on any model; media gates per-file in addFile()
   }
 
   // command palette: a fuzzy finder over every command, opened with ⌘K / Ctrl-K
@@ -856,7 +1003,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     if (d.kind === "confirm") {
       const row = document.createElement("div"); row.className = "row";
-      const no = button("No", "opt"), yes = button("Yes", "act");
+      const no = button("No", "act secondary"), yes = button("Yes", "act");
       no.onclick = () => answer("no"); yes.onclick = () => answer("yes");
       row.append(no, yes); modal.appendChild(row);
       modal.tabIndex = 0; focusSoon(modal);
@@ -924,7 +1071,7 @@ window.addEventListener("DOMContentLoaded", () => {
       });
     }
   }
-  function button(text, cls) { const b = document.createElement("button"); b.className = cls === "act" ? "act" : "opt"; b.textContent = text; return b; }
+  function button(text, cls) { const b = document.createElement("button"); b.className = cls; b.textContent = text; return b; }
   // a small ✕ pinned to the modal's top-right — the standard, keyboard-clear way to dismiss a dialog (mobile has no Esc)
   function closeButton(onClose) {
     const b = document.createElement("button"); b.type = "button"; b.className = "modal-close";

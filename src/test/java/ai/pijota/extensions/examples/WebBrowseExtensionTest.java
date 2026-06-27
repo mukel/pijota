@@ -40,15 +40,19 @@ class WebBrowseExtensionTest {
         rt.setFlag("browse", "true");
         var api = apiWith(rt);
 
-        assertEquals(2, api.tools().size());
+        assertEquals(3, api.tools().size());
         var search = api.tool("web_google_search");
         var visit = api.tool("web_visit_page");
+        var pdf = api.tool("web_pdf_to_markdown");
         assertNotNull(search);
         assertNotNull(visit);
+        assertNotNull(pdf);
         assertEquals("🌐", search.glyph());
         assertEquals("🌐", visit.glyph());
+        assertEquals("📄", pdf.glyph());
         assertTrue(requiredArgs(search).contains("query"));
         assertTrue(requiredArgs(visit).contains("url"));
+        assertTrue(requiredArgs(pdf).contains("path"));
     }
 
     @Test
@@ -59,7 +63,7 @@ class WebBrowseExtensionTest {
             rt.setFlag("browse-port", String.valueOf(fake.port()));
             var api = apiWith(rt);
 
-            assertEquals(2, api.tools().size(), "--browse=chrome must enable the browse tools");
+            assertEquals(3, api.tools().size(), "--browse=chrome must enable the browse tools");
             var visit = api.tool("web_visit_page").toTool().execute("c", new Tool.Args(Map.of("url", "https://x")), ".")
                                             .join();
             assertFalse(visit.isError());

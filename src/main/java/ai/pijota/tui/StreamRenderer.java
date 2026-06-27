@@ -67,10 +67,6 @@ final class StreamRenderer {
         this.thinkingMarkdown.setTheme(thinkingTheme);
     }
 
-    boolean thinkingHeaderShown() {
-        return thinkingHeaderShown;
-    }
-
     boolean compactionStreamRendered() {
         return compactionStreamRendered;
     }

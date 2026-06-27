@@ -5,6 +5,7 @@ import ai.pijota.agent.PijotaSession;
 import ai.pijota.agent.SessionExporter;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.llm.ModelInfo;
+import ai.pijota.llm.Modality;
 import ai.pijota.llm.ModelRegistry;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
@@ -112,14 +113,73 @@ public final class TelegramChat implements ChatHandler {
             tg.sendMessage(chatId, "➕ Queued — I'll get to it after the current turn.");
             return;
         }
+        runTurn(text, List.of());
+    }
+
+    /** Starts a turn: typing indicator, stream-state reset, prompt, and a shared error reply. */
+    private void runTurn(String text, List<Message.Attachment> attachments) {
         tg.sendChatAction(chatId, "typing"); // "typing…" + the streamed reply are the progress signal
         streamMessageId = null;
         lastSentText = "";
         streamedProse = false;
-        session.prompt(text).exceptionally(t -> {
+        session.prompt(text, attachments).exceptionally(t -> {
             tg.sendMessage(chatId, "❌ " + ErrorUtil.message(t));
             return List.of();
         });
+    }
+
+    @Override
+    public void onPhoto(java.util.List<TelegramClient.PhotoSize> photo, String caption) {
+        // Telegram orders sizes ascending → the last is the highest resolution; photos are always JPEG.
+        submitFile(photo.get(photo.size() - 1).fileId(), "image/jpeg", "photo.jpg", caption, "image");
+    }
+
+    @Override
+    public void onDocument(TelegramClient.TgFile file, String caption) {
+        String mime = file.mimeType() != null && !file.mimeType().isBlank() ? file.mimeType()
+                                        : "application/octet-stream";
+        String name = file.fileName() != null && !file.fileName().isBlank() ? file.fileName() : "file";
+        submitFile(file.fileId(), mime, name, caption, "file");
+    }
+
+    /** Downloads a Telegram file and submits it as an attachment, gated to the model's modalities (text always works). */
+    private void submitFile(String fileId, String mime, String filename, String caption, String kind) {
+        if (session.isBusy()) {
+            tg.sendMessage(chatId, "➕ Busy right now — resend the " + kind + " once the current turn finishes.");
+            return;
+        }
+        var modality = Modality.fromMime(mime);
+        // text is extracted and PDFs are staged for the web_pdf_to_markdown tool, so both work on any model; other media
+        // (image/audio/video) needs the model to declare the modality.
+        if (modality != Modality.TEXT && modality != Modality.PDF
+                                        && !ModelRegistry.supports(session.llm().provider(), session.llm().model(),
+                                                                        modality)) {
+            tg.sendMessage(chatId, "⚠️ " + session.llm().model() + " can't read "
+                                            + modality.name().toLowerCase(java.util.Locale.ROOT)
+                                            + " files — switch with /model, then resend.");
+            return;
+        }
+        if (modality == Modality.IMAGE && !Modality.isSupportedImage(mime)) { // provider limitation, not ours
+            tg.sendMessage(chatId, "⚠️ That image format isn't supported by the model — send JPEG/PNG/GIF/WebP.");
+            return;
+        }
+        // The download is multi-MB and blocking — run it off the single poll/dispatch thread so other chats aren't stalled.
+        java.util.concurrent.CompletableFuture.runAsync(() -> downloadAndSubmit(fileId, mime, filename, caption, kind));
+    }
+
+    private void downloadAndSubmit(String fileId, String mime, String filename, String caption, String kind) {
+        byte[] bytes = tg.downloadFile(fileId);
+        if (bytes == null) {
+            tg.sendMessage(chatId, "❌ Couldn't download that " + kind + ".");
+            return;
+        }
+        if (bytes.length > Message.Attachment.MAX_BYTES) {
+            tg.sendMessage(chatId, "⚠️ That " + kind + " is too large (max 5MB).");
+            return;
+        }
+        var attachment = new Message.Attachment(mime, java.util.Base64.getEncoder().encodeToString(bytes), filename);
+        String text = caption != null && !caption.isBlank() ? caption : "(" + kind + ": " + filename + ")";
+        runTurn(text, List.of(attachment));
     }
 
     /**

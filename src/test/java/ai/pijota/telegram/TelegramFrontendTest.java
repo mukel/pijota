@@ -21,6 +21,8 @@ class TelegramFrontendTest {
     private static final class RecordingChat implements ChatHandler {
         final List<String> texts = new ArrayList<>();
         final List<String> taps = new ArrayList<>();
+        final List<String> photos = new ArrayList<>();
+        final List<String> docs = new ArrayList<>();
 
         @Override
         public void onText(String text) {
@@ -30,6 +32,16 @@ class TelegramFrontendTest {
         @Override
         public void onCallback(CallbackQuery callback) {
             taps.add(callback.data());
+        }
+
+        @Override
+        public void onPhoto(List<TelegramClient.PhotoSize> photo, String caption) {
+            photos.add(photo.get(photo.size() - 1).fileId() + ":" + caption);
+        }
+
+        @Override
+        public void onDocument(TelegramClient.TgFile file, String caption) {
+            docs.add(file.fileName() + ":" + file.mimeType() + ":" + caption);
         }
     }
 
@@ -88,6 +100,25 @@ class TelegramFrontendTest {
         assertEquals(List.of("hello"), chats.get(100L).texts);
         assertEquals(List.of("yes"), chats.get(100L).taps);
         assertEquals(List.of("hi from another chat"), chats.get(200L).texts);
+    }
+
+    @Test
+    void routesPhotoAndDocumentMessages() {
+        var chats = new ConcurrentHashMap<Long, RecordingChat>();
+        var f = frontend(chats, new AtomicInteger(), id -> true);
+
+        var photo = new TgMessage(10, new TgChat(100), null, "look",
+                                        List.of(new TelegramClient.PhotoSize("small", 1, 1, 9),
+                                                        new TelegramClient.PhotoSize("big", 9, 9, 99)),
+                                        null, null, null, null);
+        var doc = new TgMessage(11, new TgChat(100), null, "read",
+                                        null, new TelegramClient.TgFile("fid", "spec.pdf", "application/pdf", 1234),
+                                        null, null, null);
+        f.handle(new Update(1, photo, null));
+        f.handle(new Update(2, doc, null));
+
+        assertEquals(List.of("big:look"), chats.get(100L).photos, "largest photo size routed with caption");
+        assertEquals(List.of("spec.pdf:application/pdf:read"), chats.get(100L).docs);
     }
 
     @Test

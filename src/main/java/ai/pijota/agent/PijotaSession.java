@@ -4,19 +4,25 @@ import ai.pijota.config.AppConfig;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.extensions.task.SubAgent;
 import ai.pijota.llm.LlmClient;
+import ai.pijota.llm.Modality;
+import ai.pijota.llm.ModelRegistry;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolManifest;
 import ai.pijota.tools.ToolRegistry;
+import ai.pijota.util.DocumentText;
 import ai.pijota.util.SelfRespawn;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -86,8 +92,18 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public CompletableFuture<List<Message>> prompt(String userInput) {
-        String filtered = extensionRegistry.filterInput(userInput);
-        var userMessage = new Message.User(filtered);
+        return prompt(userInput, List.of());
+    }
+
+    /**
+     * Prompt with attachments. Text-like files (txt/code/docx/…) are extracted and inlined into the prompt here; binary
+     * media (image/pdf/audio/video) is carried as attachments and gated to the model's modalities at send time.
+     */
+    public CompletableFuture<List<Message>> prompt(String userInput, List<Message.Attachment> attachments) {
+        var supported = ModelRegistry.inputModalities(llm().provider(), llm().model()); // null = unknown → allow all
+        var normalized = normalizeAttachments(userInput, attachments, supported, cwd);
+        String filtered = extensionRegistry.filterInput(normalized.text());
+        var userMessage = new Message.User(filtered, normalized.media());
         save("user message save", f -> sessionManager.appendMessage(f, userMessage));
         String effectivePrompt = extensionRegistry.fireBeforeAgentStart(agentLoop.messages(), sessionSystemPrompt);
         agentLoop.replaceSystemPrompt(effectivePrompt);
@@ -101,6 +117,71 @@ public final class PijotaSession implements AutoCloseable {
                 rememberSessionWarning("transcend", new IOException(err));
             return messages;
         });
+    }
+
+    private record Normalized(String text, List<Message.Attachment> media) {
+    }
+
+    /**
+     * Splits attachments: text-like files are extracted and appended to the prompt; binary media is kept as-is.
+     * {@code supported} is the active model's input modalities ({@code null} = unknown → allow all); a PDF a model can't
+     * read natively is staged to a file under {@code cwd} so it can be read with the {@code web_pdf_to_markdown} tool.
+     */
+    private static Normalized normalizeAttachments(String text, List<Message.Attachment> attachments,
+                                    Set<Modality> supported, String cwd) {
+        if (attachments == null || attachments.isEmpty())
+            return new Normalized(text == null ? "" : text, List.of());
+        var media = new ArrayList<Message.Attachment>();
+        var sb = new StringBuilder(text == null ? "" : text);
+        for (var a : attachments) {
+            String name = a.filename() != null && !a.filename().isBlank() ? a.filename() : "file";
+            Modality mod = Modality.fromMime(a.mime());
+            if (mod != Modality.TEXT) {
+                // a PDF the model can't read natively → stage it to disk so it can be read with the web_pdf_to_markdown tool
+                if (mod == Modality.PDF && supported != null && !supported.contains(Modality.PDF)) {
+                    String rel = stageFile(cwd, name, a.base64());
+                    sb.append(rel != null
+                                                    ? "\n\n[Attached PDF \"" + name + "\" saved to " + rel + " — this model can't read PDFs "
+                                                                                    + "directly; use the web_pdf_to_markdown tool to read it.]"
+                                                    : "\n\n[attachment \"" + name + "\" couldn't be saved]");
+                }
+                // image formats the providers can't read (HEIC/TIFF/BMP/…) — reject rather than let the API 400 later
+                else if (mod == Modality.IMAGE && !Modality.isSupportedImage(a.mime()))
+                    sb.append("\n\n[attachment \"").append(name).append("\" omitted — ")
+                                                    .append(a.mime().substring(a.mime().indexOf('/') + 1).toUpperCase(java.util.Locale.ROOT))
+                                                    .append(" images aren't supported; use JPEG/PNG/GIF/WebP]");
+                else if (a.approxBytes() <= Message.Attachment.MAX_BYTES) // core size floor — every frontend inherits it
+                    media.add(a); // image / pdf / audio / video → sent as a typed content part (gated by the model)
+                else // never drop silently — leave a note so the model (and transcript) know it was omitted
+                    sb.append("\n\n[attachment \"").append(name).append("\" omitted — larger than 5 MB]");
+                continue;
+            }
+            byte[] bytes;
+            try {
+                bytes = Base64.getDecoder().decode(a.base64());
+            } catch (RuntimeException e) {
+                bytes = null;
+            }
+            String extracted = bytes == null ? null : DocumentText.extract(a.mime(), a.filename(), bytes);
+            if (extracted != null && !extracted.isBlank())
+                sb.append("\n\n<file name=\"").append(name).append("\">\n").append(extracted).append("\n</file>");
+            else
+                sb.append("\n\n[attachment \"").append(name).append("\" couldn't be read as text]");
+        }
+        return new Normalized(sb.toString(), media);
+    }
+
+    /** Writes an uploaded file under {@code <cwd>/.pijota/uploads/} so a tool can read it; returns the relative path or null. */
+    private static String stageFile(String cwd, String name, String base64) {
+        try {
+            Path dir = Path.of(cwd, ".pijota", "uploads");
+            Files.createDirectories(dir);
+            Path file = dir.resolve(name.replaceAll("[^A-Za-z0-9._-]", "_"));
+            Files.write(file, Base64.getDecoder().decode(base64));
+            return Path.of(cwd).relativize(file).toString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // -- Session management --

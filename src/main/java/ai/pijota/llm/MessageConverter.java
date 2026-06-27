@@ -3,20 +3,37 @@ package ai.pijota.llm;
 import ai.pijota.messages.Message;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.AudioContent;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.Content;
+import dev.langchain4j.data.message.ImageContent;
+import dev.langchain4j.data.message.PdfFileContent;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.data.message.VideoContent;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public final class MessageConverter {
     private MessageConverter() {}
 
     public static List<ChatMessage> toLangChain4j(List<Message> messages) {
+        return toLangChain4j(messages, null);
+    }
+
+    /**
+     * @param allowed the modalities the active model accepts; attachments of any other modality are dropped and called
+     *                out in a note so the conversation still makes sense. {@code null} means allow every modality
+     *                (e.g. an unknown model — let the provider decide).
+     */
+    public static List<ChatMessage> toLangChain4j(List<Message> messages, Set<Modality> allowed) {
         var chatMessages = new ArrayList<ChatMessage>();
         Set<String> pendingToolResultIds = new LinkedHashSet<>();
         for (int i = 0; i < messages.size(); i++) {
@@ -29,7 +46,7 @@ public final class MessageConverter {
                 case Message.Custom _ -> {}
                 case Message.User u -> {
                     pendingToolResultIds = new LinkedHashSet<>();
-                    chatMessages.add(new UserMessage(u.content()));
+                    chatMessages.add(userMessage(u, allowed));
                 }
                 case Message.Assistant a -> {
                     if (a.toolCalls() != null && !a.toolCalls().isEmpty()) {
@@ -73,6 +90,61 @@ public final class MessageConverter {
             }
         }
         return chatMessages;
+    }
+
+    // A user message becomes a multi-part message (text + one ImageContent per attachment) when it carries images and
+    // the model supports vision; langchain4j maps ImageContent to each provider's native shape (Anthropic base64 source,
+    // OpenAI image_url, Gemini inlineData). With no usable images it stays a plain text message.
+    private static ChatMessage userMessage(Message.User u, Set<Modality> allowed) {
+        // only binary media reaches here as attachments — text-like files are extracted & inlined upstream
+        var media = u.attachments().stream()
+                                        .filter(a -> a.mime() != null && Modality.fromMime(a.mime()) != Modality.TEXT)
+                                        .toList();
+        if (media.isEmpty())
+            return new UserMessage(u.content());
+        var kept = new ArrayList<Content>();
+        var dropped = new LinkedHashMap<Modality, Integer>(); // modalities the model can't read, counted for the note
+        for (var a : media) {
+            Modality m = Modality.fromMime(a.mime());
+            if (allowed == null || allowed.contains(m))
+                kept.add(contentFor(m, a));
+            else
+                dropped.merge(m, 1, Integer::sum);
+        }
+        String text = u.content();
+        if (!dropped.isEmpty()) {
+            int total = dropped.values().stream().mapToInt(Integer::intValue).sum();
+            var notes = dropped.entrySet().stream()
+                                            .map(e -> plural(e.getValue(), e.getKey().name().toLowerCase(Locale.ROOT)))
+                                            .toList();
+            String note = "[" + String.join(" and ", notes) + " omitted — the current model can't read "
+                                            + (total == 1 ? "it" : "them") + "]";
+            text = hasText(text) ? text + "\n\n" + note : note;
+        }
+        var parts = new ArrayList<Content>();
+        if (hasText(text))
+            parts.add(TextContent.from(text));
+        parts.addAll(kept);
+        // a lone text part stays a plain UserMessage so singleText() keeps working downstream
+        if (parts.size() == 1 && parts.get(0) instanceof TextContent tc)
+            return new UserMessage(tc.text());
+        return UserMessage.from(parts);
+    }
+
+    // langchain4j maps each typed content to the provider's native shape (Anthropic source/document, OpenAI image_url/
+    // input_audio, Gemini inlineData). Text modality never reaches here — those files are inlined as text upstream.
+    private static Content contentFor(Modality m, Message.Attachment a) {
+        return switch (m) {
+            case IMAGE -> ImageContent.from(a.base64(), a.mime());
+            case PDF -> PdfFileContent.from(a.base64(), a.mime());
+            case AUDIO -> AudioContent.from(a.base64(), a.mime());
+            case VIDEO -> VideoContent.from(a.base64(), a.mime());
+            case TEXT -> throw new IllegalStateException("text attachments are extracted & inlined upstream");
+        };
+    }
+
+    private static String plural(int n, String noun) {
+        return n + " " + noun + (n == 1 ? "" : "s");
     }
 
     private static AiMessage assistantMessage(String text, String thinking) {

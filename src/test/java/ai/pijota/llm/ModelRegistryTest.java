@@ -29,6 +29,17 @@ class ModelRegistryTest {
     }
 
     @Test
+    void inputModalitiesReflectCatalogAndAreLenientForUnknownModels() {
+        mutateKnownModels(List.of(
+                                        new ModelInfo("vis", "p", "Vision", 1000, null, null, List.of("text", "image")),
+                                        new ModelInfo("txt", "p", "Text", 1000, null, null, List.of("text"))));
+        assertTrue(ModelRegistry.supports("p", "vis", Modality.IMAGE), "catalog model declares image");
+        assertFalse(ModelRegistry.supports("p", "txt", Modality.IMAGE), "text-only catalog model rejects image");
+        assertTrue(ModelRegistry.supports("p", "txt", Modality.TEXT), "text is always accepted");
+        assertTrue(ModelRegistry.supports("p", "brand-new-model", Modality.IMAGE), "unknown model → not blocked");
+    }
+
+    @Test
     void filterReturnsModelsContainingSearchTerm() {
         var results = ModelRegistry.filter("gpt");
         assertFalse(results.isEmpty());

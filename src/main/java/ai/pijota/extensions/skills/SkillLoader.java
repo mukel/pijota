@@ -9,12 +9,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public final class SkillLoader {
-
-    private static final Pattern VALID_NAME = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
 
     private SkillLoader() {}
 

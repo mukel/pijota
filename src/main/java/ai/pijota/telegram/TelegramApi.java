@@ -41,4 +41,8 @@ public interface TelegramApi {
     default long sendDocument(long chatId, String filename, byte[] content, String caption) {
         return 0; // fakes that don't exercise uploads ignore them
     }
+
+    default byte[] downloadFile(String fileId) {
+        return null; // fakes that don't exercise photo input ignore downloads
+    }
 }

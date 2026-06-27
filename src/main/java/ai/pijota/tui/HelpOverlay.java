@@ -19,7 +19,9 @@ final class HelpOverlay {
             {"Ctrl+U", "clear line"}, {"Ctrl+W", "delete word"}, {"Ctrl+A/E", "start/end of line"}, {"Ctrl+_", "undo"},
             {"Alt+_", "redo"}, {"Ctrl+Y", "yank (paste last kill)"}, {"Alt+Y", "yank-pop"}, {"Ctrl+L", "select model"},
             {"Ctrl+P", "command palette"}, {"Ctrl+Shift+P", "cycle model forward"},
-            {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"}, {"/help", "show help"}};
+            {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"},
+            {"@", "fzf file completion (@ref)"}, {"Ctrl+T", "fzf path completion (raw)"},
+            {"/help", "show help"}};
 
     private HelpOverlay() {}
 

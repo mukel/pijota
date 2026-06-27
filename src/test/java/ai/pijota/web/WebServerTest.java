@@ -329,6 +329,26 @@ class WebServerTest {
         });
     }
 
+    @Test
+    void promptWithAnImageAttachmentParsesAndStoresIt() throws Exception {
+        withServer((ts, client, base) -> {
+            ts.llm().enqueue(FauxLlm.Response.contentWithUsage("seen"));
+
+            String body = "{\"text\":\"what is this\",\"files\":[{\"mime\":\"image/png\",\"data\":\"QQ==\","
+                                            + "\"filename\":\"x.png\"}]}";
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, resp.statusCode());
+
+            Await.until(() -> !ts.session().userMessages().isEmpty(), Duration.ofSeconds(5), "no user message stored");
+            var user = ts.session().userMessages().getFirst();
+            assertEquals(1, user.attachments().size());
+            assertEquals("image/png", user.attachments().getFirst().mime());
+            assertEquals("x.png", user.attachments().getFirst().filename());
+        });
+    }
+
     /** Reads from a (possibly open-ended) stream on a daemon thread until the marker appears or the timeout elapses. */
     private static String readUntil(InputStream in, String marker, Duration timeout) throws Exception {
         CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {

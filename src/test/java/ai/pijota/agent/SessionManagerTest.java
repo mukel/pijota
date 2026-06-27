@@ -59,6 +59,22 @@ class SessionManagerTest {
     }
 
     @Test
+    void userAttachmentsRoundTripThroughTheSessionFile() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = tempDir.resolve("attachments.jsonl");
+        var att = new Message.Attachment("image/png", "QQ==", "x.png");
+        manager.saveMessages(file, List.<Message>of(new Message.User("look", List.of(att))), "/workspace");
+
+        var loaded = manager.loadMessages(file);
+        var user = assertInstanceOf(Message.User.class, loaded.getFirst());
+        assertEquals(1, user.attachments().size());
+        var roundTripped = user.attachments().getFirst();
+        assertEquals("image/png", roundTripped.mime());
+        assertEquals("QQ==", roundTripped.base64());
+        assertEquals("x.png", roundTripped.filename());
+    }
+
+    @Test
     void appendsAndReadsSessionMetadataFromCurrentBranch() throws Exception {
         var manager = new SessionManager(tempDir);
         var file = manager.createSession("/workspace/project");

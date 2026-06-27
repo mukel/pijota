@@ -4,6 +4,7 @@ import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.llm.ModelInfo;
+import ai.pijota.llm.Modality;
 import ai.pijota.llm.ModelRegistry;
 import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.extensions.ExtensionKeybinding;
@@ -99,6 +100,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     .bind(Key.Special.SHIFT_TAB, this::cycleThinkingLevel)
                                     .bind(Key.Special.CTRL_L, this::showModelSelector)
                                     .bind(Key.Special.CTRL_P, this::showCommandPalette)
+                                    .bind(Key.Special.CTRL_T, this::pickPathWithFzf)
                                     .bind(Key.Special.CTRL_SHIFT_P, this::cycleModel);
 
     @Override
@@ -933,6 +935,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         redrawPrompt();
                         continue;
                     }
+                    if (key instanceof Key.Char at && at.value() == '@' && !activity.isBusy()
+                                                    && FzfFilePicker.available()) {
+                        pickFileWithFzf(true); // @ opens fzf file completion; the chosen path is inserted as @"…"
+                        continue;
+                    }
                     var result = promptEditor.apply(key);
                     if (result.exit()) {
                         running.set(false);
@@ -1075,9 +1082,19 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private volatile int suspendDepth = 0;
 
     public void suspendTui() {
+        suspendTui(true);
+    }
+
+    /**
+     * @param freshLine advance to a new line on suspend. True for programs that print to stdout (their output then
+     *     starts below the prompt). False for alternate-screen programs (fzf): the screen — and cursor — are restored on
+     *     exit, so an extra newline would leave the cursor one row below where {@link PromptLayout#eraseCurrent} expects
+     *     it, so the in-place erase misses the top separator and a stale {@code ─} rule accumulates each time.
+     */
+    public void suspendTui(boolean freshLine) {
         if (suspendDepth++ > 0)
             return;
-        terminal.writer().print("\033[?25h\033[0m\r\n");
+        terminal.writer().print(freshLine ? "\033[?25h\033[0m\r\n" : "\033[?25h\033[0m");
         terminal.writer().flush();
         if (originalAttributes != null)
             terminal.setAttributes(originalAttributes);
@@ -1126,6 +1143,42 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(lines);
     }
 
+    /** Ctrl+T: fzf-pick a file and insert its <em>raw path</em> (no {@code @}) — for putting a path in the message text. */
+    private void pickPathWithFzf() {
+        if (!activity.isBusy() && FzfFilePicker.available())
+            pickFileWithFzf(false);
+    }
+
+    /**
+     * Opens fzf (suspending the TUI, like the editor) to pick a file. When {@code asReference}, inserts an
+     * {@code @}-reference (quoted/escaped, resolved as a file); otherwise the raw path (a leading {@code ./} trimmed) for
+     * use as plain text in the message.
+     */
+    private void pickFileWithFzf(boolean asReference) {
+        Path out = null;
+        try {
+            out = Files.createTempFile("pijota-fzf-", ".txt");
+            suspendTui(false); // fzf uses the alternate screen → no fresh-line, or a stale separator is left on resume
+            String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
+            ProcessRunner.command(shell, Platform.shellCommandFlag(shell), FzfFilePicker.script(out)).runInteractive();
+            resumeTui();
+            // fzf --print0 writes the selection then a NUL. Empty → cancel (Esc) → insert nothing, not even a stray @.
+            String selection = FzfFilePicker.selectionFrom(Files.readString(out, StandardCharsets.UTF_8));
+            if (!selection.isEmpty())
+                promptEditor.insertText(FzfFilePicker.insertion(selection, asReference) + " ");
+        } catch (Exception e) {
+            resumeTui();
+            setStatusOverride("fzf error: " + e.getMessage());
+        } finally {
+            if (out != null) {
+                try {
+                    Files.deleteIfExists(out);
+                } catch (IOException ignored) {}
+            }
+            redrawPrompt();
+        }
+    }
+
     private void openPromptInEditor() {
         if (activity.isBusy()) {
             setTransientStatus("Editor unavailable while busy", 2500);
@@ -1162,11 +1215,27 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
+    /** Heads-up when the current model can't read some attached media — it'll be dropped to a note at send time. */
+    private void warnUnreadableAttachments(List<Message.Attachment> attachments) {
+        if (attachments.isEmpty())
+            return;
+        var unreadable = attachments.stream().map(a -> Modality.fromMime(a.mime()))
+                                        .filter(m -> m != Modality.TEXT
+                                                && !ModelRegistry.supports(session.llm().provider(),
+                                                                                session.llm().model(), m))
+                                        .map(m -> m.name().toLowerCase(java.util.Locale.ROOT)).distinct().toList();
+        if (!unreadable.isEmpty())
+            appendPlain(List.of(theme.styled("statusText", "⚠ " + session.llm().model() + " can't read "
+                                            + String.join("/", unreadable) + " — sending text only")));
+    }
+
     private void handleSubmit(String text) {
         String submitted = Util.stripSystemReminders(text).strip();
         if (submitted.isBlank())
             return;
-        submitted = fileRefs.expand(submitted);
+        var expansion = fileRefs.expand(submitted);
+        submitted = expansion.text();
+        var attachments = expansion.attachments(); // @image files pulled out for vision models
         String answer = submitted;
         if (dialogs.submitQuestionAnswer(answer, () -> appendPlain(promptEcho(answer))))
             return;
@@ -1184,8 +1253,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             shellCommands.run(payload.substring(1).strip(), true);
             return;
         }
+        warnUnreadableAttachments(attachments);
         appendPlain(promptEcho(submitted));
         if (activity.isBusy() && session.isBusy()) {
+            if (!attachments.isEmpty()) // followUp steers with text only — attachments can't ride along mid-turn
+                appendPlain(List.of(theme.styled("toolError", "attachments aren't sent mid-turn — resend after this turn")));
             session.followUp(payload);
             int queued = followUps.add(payload);
             appendPlain(List.of(theme.styled("statusText", "queued follow-up (" + queued + ")")));
@@ -1199,7 +1271,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         agentExecutor.submit(() -> {
             try {
                 streamRenderer.reset();
-                session.prompt(payload).join();
+                session.prompt(payload, attachments).join();
             } catch (CompletionException e) {
                 dispatchException(e.getCause() != null ? e.getCause() : e);
                 setStatusOverride("Error: " + ErrorUtil.message(e.getCause()));

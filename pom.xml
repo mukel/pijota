@@ -39,6 +39,8 @@
     <marked.version>12.0.0</marked.version>
     <dompurify.version>3.0.9</dompurify.version>
     <highlightjs.version>11.9.0</highlightjs.version>
+    <!-- PDF.js (legacy UMD build) downloaded into the build for browser-side PDF→markdown; see browser/README.md -->
+    <pdfjs.version>3.11.174</pdfjs.version>
   </properties>
 
   <dependencyManagement>
@@ -251,6 +253,33 @@
               <url>https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@${highlightjs.version}/build/styles/github.min.css</url>
               <outputFileName>github.min.css</outputFileName>
               <sha512>d1a3d0cb2799ad68fdb02038e949665a028e3f49948a92d0e8e657bbc97821c0260f6bb7d443c4cbd55c20cbe5ed2a0068a7bc6cb5d9858a0c684fe29fe81c80</sha512>
+            </configuration>
+          </execution>
+          <!-- PDF.js (legacy UMD build) for browser-side PDF→markdown — lands in browser/, not web/vendor/. -->
+          <execution>
+            <id>browser-pdfjs</id>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <url>https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.min.js</url>
+              <outputDirectory>${project.build.outputDirectory}/browser</outputDirectory>
+              <outputFileName>pdf.min.js</outputFileName>
+              <sha512>431a997469cbe6d1a441d5750a867d5e458d9ab7d60adba604018272d77d90d9cc25a2ad03fcc7ac9519b0a4c47d3f522c0d9dcef99d042885bbfc433f8b61ee</sha512>
+            </configuration>
+          </execution>
+          <execution>
+            <id>browser-pdfjs-worker</id>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <url>https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.js</url>
+              <outputDirectory>${project.build.outputDirectory}/browser</outputDirectory>
+              <outputFileName>pdf.worker.min.js</outputFileName>
+              <sha512>0ea062719cd081d2e7ffa5c1d55a153fbd6f489b8b9ae23aaa92ccd315a41e732d6b9c9255226cd50af377922408d0075dcc8dc67ce2e459e0f7f6541e948193</sha512>
             </configuration>
           </execution>
         </executions>

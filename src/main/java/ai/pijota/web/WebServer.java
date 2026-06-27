@@ -4,6 +4,7 @@ import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.config.PathDisplay;
 import ai.pijota.llm.LlmClient;
+import ai.pijota.llm.Modality;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.modes.SlashCommand;
@@ -352,19 +353,31 @@ public final class WebServer implements AutoCloseable {
     private void handlePrompt(HttpExchange ex) throws IOException {
         if (requirePost(ex) || crossOriginBlocked(ex)) // auth is handled by the secured() wrapper
             return;
-        String text = strField(readBody(ex), "text");
-        if (text != null && !text.isBlank()) {
-            if (text.stripLeading().startsWith("/"))
-                runCommand(text.strip());
-            else {
-                broadcast("user", Map.of("content", text));
-                if (session.isBusy())
-                    session.followUp(text); // queue onto the running turn, mirroring the TUI
-                else
-                    session.prompt(text).exceptionally(t -> {
-                        broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
-                        return List.of();
-                    });
+        String body = readBody(ex);
+        if (body == null) { // over the size cap — tell the client instead of silently dropping the message
+            send(ex, 413, "text/plain", "attachments too large".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        String text = strField(body, "text");
+        var attachments = parseAttachments(body); // pasted / dropped / picked files, base64 in the JSON body
+        String t = text == null ? "" : text;
+        if (!t.isBlank() || !attachments.isEmpty()) {
+            if (t.stripLeading().startsWith("/"))
+                runCommand(t.strip());
+            else if (session.isBusy()) {
+                // mid-reply: followUp steers the running turn with text only — attachments can't ride along, so don't
+                // echo media as if it was sent; tell the user to resend it after the turn.
+                if (!attachments.isEmpty())
+                    broadcast("status", Map.of("message", "Attachments aren't added mid-reply — resend after this turn.",
+                                                    "alert", true));
+                broadcast("user", Map.of("content", t, "images", List.of(), "files", List.of()));
+                session.followUp(t);
+            } else {
+                broadcast("user", userEvent(t, attachments)); // thumbnails + named chips in the user bubble
+                session.prompt(t, attachments).exceptionally(err -> {
+                    broadcast("agent_error", Map.of("message", ErrorUtil.message(err)));
+                    return List.of();
+                });
             }
         }
         send(ex, 204, "text/plain", new byte[0]);
@@ -453,7 +466,12 @@ public final class WebServer implements AutoCloseable {
         var out = new ArrayList<Map<String, Object>>();
         for (Message m : session.messages()) {
             switch (m) {
-                case Message.User u -> out.add(Map.of("role", "user", "content", nz(u.content())));
+                case Message.User u -> {
+                    var e = new java.util.LinkedHashMap<String, Object>();
+                    e.put("role", "user");
+                    e.putAll(userEvent(nz(u.content()), u.attachments())); // include images/files so reload keeps them
+                    out.add(e);
+                }
                 case Message.Assistant a -> {
                     if (!nz(a.content()).isBlank() || !nz(a.thinking()).isBlank() || !a.toolCalls().isEmpty())
                         out.add(assistant(a, true));
@@ -536,8 +554,14 @@ public final class WebServer implements AutoCloseable {
     private Map<String, Object> statsMap() {
         if (llm == null)
             return Map.of();
+        // media modalities the active model accepts (excluding text), so the composer can gate uploads; an unknown
+        // model (null) advertises all of them — the server still gates at send time.
+        var mods = ai.pijota.llm.ModelRegistry.inputModalities(llm.provider(), llm.model());
+        var modalities = mods == null ? List.of("image", "pdf", "audio", "video")
+                                        : mods.stream().map(m -> m.name().toLowerCase(java.util.Locale.ROOT))
+                                                                        .filter(m -> !m.equals("text")).sorted().toList();
         return Map.of("model", nz(llm.provider()) + "/" + nz(llm.model()), "context", session.estimatedContextTokens(),
-                                        "cost", llm.totalCost());
+                                        "cost", llm.totalCost(), "modalities", modalities);
     }
 
     private void ping() {
@@ -582,10 +606,45 @@ public final class WebServer implements AutoCloseable {
         return h.equals("127.0.0.1") || h.equalsIgnoreCase("localhost") || h.equals("::1");
     }
 
-    private static final int MAX_BODY_BYTES = 2_000_000; // prompts are tiny; cap to avoid unbounded-body OOM
+    // Headroom above the composer's own ceiling (8 files × 5MB ≈ 55MB base64) so a full upload never truncates.
+    private static final int MAX_BODY_BYTES = 64_000_000;
+
+    /** Reads the request body, or {@code null} if it exceeds {@link #MAX_BODY_BYTES} (so we reject rather than truncate). */
     private static String readBody(HttpExchange ex) throws IOException {
         try (InputStream in = ex.getRequestBody()) {
-            return new String(in.readNBytes(MAX_BODY_BYTES), StandardCharsets.UTF_8);
+            byte[] bytes = in.readNBytes(MAX_BODY_BYTES + 1);
+            return bytes.length > MAX_BODY_BYTES ? null : new String(bytes, StandardCharsets.UTF_8);
+        }
+    }
+
+    /** Builds the {@code user}-message payload (content + image data URLs + named non-image chips) for live + replay. */
+    private static Map<String, Object> userEvent(String content, List<Message.Attachment> attachments) {
+        return Map.of("content", content,
+                                        "images", attachments.stream()
+                                                                        .filter(a -> Modality.fromMime(a.mime()) == Modality.IMAGE)
+                                                                        .map(a -> "data:" + a.mime() + ";base64," + a.base64()).toList(),
+                                        "files", attachments.stream()
+                                                                        .filter(a -> Modality.fromMime(a.mime()) != Modality.IMAGE)
+                                                                        .map(a -> Map.of("name", a.filename() == null ? "file" : a.filename(),
+                                                                                                        "mime", nz(a.mime()))).toList());
+    }
+
+    /** Parses the {@code files:[{mime,data,filename}]} array (base64, no data-URL prefix) from a /prompt body. */
+    private static List<Message.Attachment> parseAttachments(String json) {
+        try {
+            var node = Util.MAPPER.readTree(json).get("files");
+            if (node == null || !node.isArray())
+                return List.of();
+            var out = new ArrayList<Message.Attachment>();
+            for (var f : node) {
+                String mime = f.path("mime").asText("");
+                String data = f.path("data").asText("");
+                if (!mime.isBlank() && !data.isBlank())
+                    out.add(new Message.Attachment(mime, data, f.path("filename").asText(null)));
+            }
+            return out;
+        } catch (Exception e) {
+            return List.of();
         }
     }
 

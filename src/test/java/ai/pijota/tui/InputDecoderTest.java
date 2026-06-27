@@ -19,6 +19,7 @@ class InputDecoderTest {
         assertEquals(Key.Special.CTRL_U, InputDecoder.readKey(input(21)));
         assertEquals(Key.Special.CTRL_W, InputDecoder.readKey(input(23)));
         assertEquals(Key.Special.CTRL_R, InputDecoder.readKey(input(18)));
+        assertEquals(Key.Special.CTRL_T, InputDecoder.readKey(input(20)), "Ctrl+T → fzf path completion");
         assertEquals(Key.Special.CTRL_Y, InputDecoder.readKey(input(25)));
         assertEquals(Key.Special.CTRL_UNDERSCORE, InputDecoder.readKey(input(31)));
         assertEquals(Key.Special.CTRL_X, InputDecoder.readKey(input(24)));

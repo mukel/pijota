@@ -121,9 +121,6 @@ public final class LlmService implements LlmClient {
         return usage.hasUnpricedUsage();
     }
 
-    public boolean isOverBudget() {
-        return usage.overBudget();
-    }
 
     public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<ai.pijota.tools.Tool> tools,
                                     BiConsumer<String, String> onPartial) {
@@ -157,7 +154,10 @@ public final class LlmService implements LlmClient {
         var result = new StreamResult();
         future.completeOnTimeout(result, 300, TimeUnit.SECONDS);
 
-        var chatMessages = MessageConverter.toLangChain4j(messages);
+        // Gate attachments to the active model's accepted modalities (unsupported media is dropped with a note), so we
+        // never send an image/PDF/audio/video to a model that can't read it — langchain4j maps the rest natively.
+        var chatMessages = MessageConverter.toLangChain4j(messages,
+                                        ModelRegistry.inputModalities(providerName, modelName));
         var requestBuilder = ChatRequest.builder().messages(chatMessages);
         if (tools != null && !tools.isEmpty())
             requestBuilder.toolSpecifications(tools);
@@ -165,43 +165,16 @@ public final class LlmService implements LlmClient {
         model.chat(requestBuilder.build(), new StreamingChatResponseHandler() {
             private final StringBuilder thinkingBuf = new StringBuilder();
             private final long streamStartNanos = System.nanoTime();
-            private long lastDeltaNanos = streamStartNanos;
             private long firstTokenNanos = 0; // time-to-first-token: marks the end of prefill / start of decode
-            private int deltaCount = 0;
-            private int totalChars = 0;
 
             private void markFirstToken() {
                 if (firstTokenNanos == 0)
                     firstTokenNanos = System.nanoTime();
             }
 
-            private void traceDelta(String newText) {
-                if (!log.isDebugEnabled())
-                    return;
-                long now = System.nanoTime();
-                deltaCount++;
-                int size = newText != null ? newText.length() : 0;
-                totalChars += size;
-                long sinceStart = (now - streamStartNanos) / 1_000_000;
-                long sinceLast = (now - lastDeltaNanos) / 1_000_000;
-                lastDeltaNanos = now;
-                log.debug("stream delta #{}: {} chars | +{}ms since start | +{}ms since last delta", deltaCount, size,
-                                                sinceStart, sinceLast);
-            }
-
-            private void traceComplete() {
-                if (!log.isDebugEnabled())
-                    return;
-                long totalMs = (System.nanoTime() - streamStartNanos) / 1_000_000;
-                log.debug("stream complete: {} deltas, {} total chars in {}ms (avg {}/delta, avg {}/delta)", deltaCount,
-                                                totalChars, totalMs, deltaCount > 0 ? totalChars / deltaCount : 0,
-                                                deltaCount > 0 ? totalMs / deltaCount : 0);
-            }
-
             @Override
             public void onPartialResponse(String t) {
                 markFirstToken();
-                traceDelta(t);
                 applyPartialContent(result, t);
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
@@ -213,7 +186,6 @@ public final class LlmService implements LlmClient {
                 String t = pr.text();
                 if (t != null) {
                     markFirstToken();
-                    traceDelta(t);
                     applyPartialContent(result, t);
                     onPartial.accept(result.content(), thinkingBuf.toString());
                 }
@@ -226,7 +198,6 @@ public final class LlmService implements LlmClient {
                 String ptText = pt.text();
                 if (ptText != null) {
                     markFirstToken();
-                    traceDelta(ptText);
                 }
                 thinkingBuf.append(ptText);
                 onPartial.accept(result.content(), thinkingBuf.toString());
@@ -234,7 +205,6 @@ public final class LlmService implements LlmClient {
 
             @Override
             public void onCompleteResponse(ChatResponse r) {
-                traceComplete();
                 var ai = r.aiMessage();
                 if (ai != null) {
                     if (ai.text() != null && !ai.text().isEmpty())

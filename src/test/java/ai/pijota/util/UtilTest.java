@@ -11,6 +11,17 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class UtilTest {
     @Test
+    void shellQuoteIfNeededQuotesOnlyWhenNecessary() {
+        assertEquals("src/Foo.java", Util.shellQuoteIfNeeded("src/Foo.java")); // safe → bare
+        assertEquals("~/notes.md", Util.shellQuoteIfNeeded("~/notes.md")); // ~ kept bare so it still expands
+        assertEquals("'my file.txt'", Util.shellQuoteIfNeeded("my file.txt")); // space → quoted
+        assertEquals("'a \"b\" c.txt'", Util.shellQuoteIfNeeded("a \"b\" c.txt")); // double-quotes literal in '...'
+        assertEquals("'John'\\''s.txt'", Util.shellQuoteIfNeeded("John's.txt")); // ' → '\'' dance
+        assertEquals("'a$b *.txt'", Util.shellQuoteIfNeeded("a$b *.txt")); // $ and glob neutralized
+        assertEquals("''", Util.shellQuoteIfNeeded("")); // empty → ''
+    }
+
+    @Test
     void fmtCountFormatsHumanReadableNumbers() {
         assertEquals("0", Util.fmtCount(0));
         assertEquals("42", Util.fmtCount(42));

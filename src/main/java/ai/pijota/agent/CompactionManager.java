@@ -198,7 +198,7 @@ public final class CompactionManager {
 
     private static Message sanitize(Message msg) {
         return switch (msg) {
-            case Message.User u -> new Message.User(u.id(), u.timestamp(), strip(u.content()));
+            case Message.User u -> new Message.User(u.id(), u.timestamp(), strip(u.content()), u.attachments());
             case Message.Assistant a -> new Message.Assistant(a.id(), a.timestamp(), strip(a.content()), a.toolCalls(),
                                             strip(a.thinking()), a.sourceProvider(), a.sourceModel());
             case Message.ToolResult tr -> new Message.ToolResult(tr.id(), tr.timestamp(), tr.toolCallId(),

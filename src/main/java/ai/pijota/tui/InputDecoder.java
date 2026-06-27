@@ -60,6 +60,8 @@ public final class InputDecoder {
             return Key.Special.CTRL_P;
         if (ch == 18)
             return Key.Special.CTRL_R;
+        if (ch == 20)
+            return Key.Special.CTRL_T; // fzf path completion (raw path, no @)
         if (ch == 21)
             return Key.Special.CTRL_U;
         if (ch == 23)

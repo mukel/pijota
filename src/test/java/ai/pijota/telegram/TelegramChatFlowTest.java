@@ -9,6 +9,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -97,6 +98,63 @@ class TelegramChatFlowTest {
 
         assertTrue(c.api().sent().stream().anyMatch(s -> s.contains("Queued")), c.api().sent().toString());
         c.session().session().abort();
+    }
+
+    @Test
+    void unsupportedImageDocumentIsRejectedWithAClearReply() {
+        var c = newChat();
+        c.chat().onDocument(new TelegramClient.TgFile("fid", "p.heic", "image/heic", 100), "look");
+
+        assertTrue(c.api().sent().stream().anyMatch(s -> s.contains("isn't supported")), c.api().sent().toString());
+        assertTrue(c.session().session().userMessages().isEmpty(), "rejected before it could become a turn");
+    }
+
+    @Test
+    void supportedImageDocumentIsDownloadedAndSubmittedAsAttachment() {
+        var c = newChat();
+        c.api().onDownload(new byte[] {1, 2, 3});
+        c.session().llm().enqueue(FauxLlm.Response.contentWithUsage("I see it"));
+
+        c.chat().onDocument(new TelegramClient.TgFile("fid", "pic.png", "image/png", 3), "what is this");
+
+        Await.until(() -> !c.session().session().userMessages().isEmpty(), Duration.ofSeconds(5),
+                                        "the image was never submitted as a turn");
+        var u = c.session().session().userMessages().getFirst();
+        assertEquals(1, u.attachments().size());
+        assertEquals("image/png", u.attachments().getFirst().mime());
+    }
+
+    @Test
+    void photoIsDownloadedAndSubmittedAsJpeg() {
+        var c = newChat();
+        c.api().onDownload(new byte[] {9, 9, 9});
+        c.session().llm().enqueue(FauxLlm.Response.contentWithUsage("nice photo"));
+
+        c.chat().onPhoto(List.of(new TelegramClient.PhotoSize("small", 1, 1, 9),
+                                        new TelegramClient.PhotoSize("big", 9, 9, 3)), "caption");
+
+        Await.until(() -> !c.session().session().userMessages().isEmpty(), Duration.ofSeconds(5),
+                                        "the photo was never submitted");
+        var u = c.session().session().userMessages().getFirst();
+        assertEquals(1, u.attachments().size());
+        assertEquals("image/jpeg", u.attachments().getFirst().mime());
+    }
+
+    @Test
+    void pdfDocumentIsAcceptedAndStagedOnANonPdfModel() {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().provider("deepseek").model("deepseek-v4-pro"); // text-only model — can't read PDFs natively
+        ts.llm().enqueue(FauxLlm.Response.contentWithUsage("ok"));
+        var api = new FakeTelegramApi();
+        api.onDownload("%PDF-1.7 hello".getBytes());
+        var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
+
+        chat.onDocument(new TelegramClient.TgFile("fid", "spec.pdf", "application/pdf", 13), "read it");
+
+        Await.until(() -> !ts.session().userMessages().isEmpty(), Duration.ofSeconds(5), "the PDF was never submitted");
+        assertFalse(api.sent().stream().anyMatch(s -> s.contains("can't read")), api.sent().toString());
+        assertTrue(ts.session().userMessages().getFirst().content().contains("web_pdf_to_markdown"),
+                                        ts.session().userMessages().getFirst().content());
     }
 
     @Test

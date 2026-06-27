@@ -21,7 +21,7 @@ class MessageTest {
     void userMessageFullConstructor() {
         var id = java.util.UUID.randomUUID();
         var ts = java.time.Instant.now();
-        var msg = new Message.User(id, ts, "hi");
+        var msg = new Message.User(id, ts, "hi", java.util.List.of());
         assertEquals(id, msg.id());
         assertEquals(ts, msg.timestamp());
     }
@@ -109,6 +109,26 @@ class MessageTest {
     void customMessageWithDetails() {
         var msg = new Message.Custom("type", "content", Map.of("key", "value"));
         assertEquals(Map.of("key", "value"), msg.details());
+    }
+
+    @Test
+    void attachmentsDefaultToEmptyAndDefensivelyCopied() {
+        assertTrue(new Message.User("hi").attachments().isEmpty(), "1-arg ctor → no attachments");
+        assertTrue(new Message.User("hi", null).attachments().isEmpty(), "null attachments → empty list");
+
+        var mutable = new java.util.ArrayList<Message.Attachment>(
+                                        List.of(new Message.Attachment("image/png", "QQ==", "x.png")));
+        var msg = new Message.User("look", mutable);
+        mutable.clear(); // the message must keep its own copy
+        assertEquals(1, msg.attachments().size());
+        assertEquals("x.png", msg.attachments().getFirst().filename());
+    }
+
+    @Test
+    void attachmentApproxBytesAndCap() {
+        assertEquals(0, new Message.Attachment("image/png", null, "x").approxBytes(), "null base64 → 0");
+        assertEquals(3, new Message.Attachment("image/png", "AAAA", "x").approxBytes(), "4 base64 chars ≈ 3 bytes");
+        assertEquals(5L * 1024 * 1024, Message.Attachment.MAX_BYTES);
     }
 
     @Test
