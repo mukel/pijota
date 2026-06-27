@@ -62,7 +62,8 @@ public final class TelegramChat implements ChatHandler {
      */
     public static List<TelegramClient.BotCommand> menuCommands(List<SlashCommand> extensionCommands) {
         var menu = new ArrayList<>(COMMANDS);
-        var seen = COMMANDS.stream().map(TelegramClient.BotCommand::command).collect(Collectors.toCollection(java.util.HashSet::new));
+        var seen = COMMANDS.stream().map(TelegramClient.BotCommand::command)
+                                        .collect(Collectors.toCollection(java.util.HashSet::new));
         for (SlashCommand c : extensionCommands) {
             String name = c.name();
             if (name == null || !name.matches("[a-z0-9_]{1,32}") || !seen.add(name))
@@ -136,24 +137,27 @@ public final class TelegramChat implements ChatHandler {
 
     @Override
     public void onDocument(TelegramClient.TgFile file, String caption) {
-        String mime = file.mimeType() != null && !file.mimeType().isBlank() ? file.mimeType()
+        String mime = file.mimeType() != null && !file.mimeType().isBlank()
+                                        ? file.mimeType()
                                         : "application/octet-stream";
         String name = file.fileName() != null && !file.fileName().isBlank() ? file.fileName() : "file";
         submitFile(file.fileId(), mime, name, caption, "file");
     }
 
-    /** Downloads a Telegram file and submits it as an attachment, gated to the model's modalities (text always works). */
+    /**
+     * Downloads a Telegram file and submits it as an attachment, gated to the model's modalities (text always works).
+     */
     private void submitFile(String fileId, String mime, String filename, String caption, String kind) {
         if (session.isBusy()) {
             tg.sendMessage(chatId, "➕ Busy right now — resend the " + kind + " once the current turn finishes.");
             return;
         }
         var modality = Modality.fromMime(mime);
-        // text is extracted and PDFs are staged for the web_pdf_to_markdown tool, so both work on any model; other media
+        // text is extracted and PDFs are staged for the web_pdf_to_markdown tool, so both work on any model; other
+        // media
         // (image/audio/video) needs the model to declare the modality.
-        if (modality != Modality.TEXT && modality != Modality.PDF
-                                        && !ModelRegistry.supports(session.llm().provider(), session.llm().model(),
-                                                                        modality)) {
+        if (modality != Modality.TEXT && modality != Modality.PDF && !ModelRegistry.supports(session.llm().provider(),
+                                        session.llm().model(), modality)) {
             tg.sendMessage(chatId, "⚠️ " + session.llm().model() + " can't read "
                                             + modality.name().toLowerCase(java.util.Locale.ROOT)
                                             + " files — switch with /model, then resend.");
@@ -163,7 +167,8 @@ public final class TelegramChat implements ChatHandler {
             tg.sendMessage(chatId, "⚠️ That image format isn't supported by the model — send JPEG/PNG/GIF/WebP.");
             return;
         }
-        // The download is multi-MB and blocking — run it off the single poll/dispatch thread so other chats aren't stalled.
+        // The download is multi-MB and blocking — run it off the single poll/dispatch thread so other chats aren't
+        // stalled.
         java.util.concurrent.CompletableFuture.runAsync(() -> downloadAndSubmit(fileId, mime, filename, caption, kind));
     }
 
@@ -231,7 +236,8 @@ public final class TelegramChat implements ChatHandler {
                                                     if (!yes)
                                                         return;
                                                     try {
-                                                        session.newSession(); // fresh session file; clears in-context history
+                                                        session.newSession(); // fresh session file; clears in-context
+                                                                              // history
                                                         tg.sendMessage(chatId, "🆕 Started a new conversation.");
                                                     } catch (java.io.IOException e) {
                                                         tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));

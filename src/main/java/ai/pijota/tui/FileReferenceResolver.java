@@ -29,9 +29,12 @@ final class FileReferenceResolver {
             if (text.charAt(i) == '@' && (i == 0 || Character.isWhitespace(text.charAt(i - 1)))) {
                 int start = i;
                 i++;
-                // @"…" / @'…' allow paths with spaces (e.g. from fzf completion). Double quotes honor \" and \\ escapes;
+                // @"…" / @'…' allow paths with spaces (e.g. from fzf completion). Double quotes honor \" and \\
+                // escapes;
                 // single quotes are literal. An unquoted reference runs to the next whitespace, as before.
-                char quote = i < text.length() && (text.charAt(i) == '"' || text.charAt(i) == '\'') ? text.charAt(i) : 0;
+                char quote = i < text.length() && (text.charAt(i) == '"' || text.charAt(i) == '\'')
+                                                ? text.charAt(i)
+                                                : 0;
                 StringBuilder ref = new StringBuilder();
                 if (quote != 0) {
                     i++; // past the opening quote
@@ -62,7 +65,8 @@ final class FileReferenceResolver {
                             result.append("[").append(path).append(" — too large or unreadable]");
                         }
                     } else if (unsupportedImageLabel(path) != null && !path.contains("*")) {
-                        // a recognized image format the providers can't read (HEIC/TIFF/BMP) — say so, don't inline bytes
+                        // a recognized image format the providers can't read (HEIC/TIFF/BMP) — say so, don't inline
+                        // bytes
                         result.append("[").append(path).append(" — ").append(unsupportedImageLabel(path))
                                                         .append(" images aren't supported; use JPEG/PNG/GIF/WebP]");
                     } else {
@@ -140,7 +144,8 @@ final class FileReferenceResolver {
         };
     }
 
-    // Image formats the providers can't read (a provider/model limitation — transcoding needs a native codec). Returns a
+    // Image formats the providers can't read (a provider/model limitation — transcoding needs a native codec). Returns
+    // a
     // short label for the message; null for anything else (which falls through to the normal text-inline path).
     private static String unsupportedImageLabel(String name) {
         String n = name.toLowerCase(Locale.ROOT);

@@ -59,8 +59,9 @@ class MessageConverterTest {
     void audioAndVideoBecomeTypedContentWhenAllowed() {
         var user = new Message.User("media", List.of(new Message.Attachment("audio/mpeg", "QQ==", "a.mp3"),
                                         new Message.Attachment("video/mp4", "QQ==", "v.mp4")));
-        var um = (UserMessage) MessageConverter.toLangChain4j(List.<Message>of(user),
-                                        Set.of(Modality.AUDIO, Modality.VIDEO)).get(0);
+        var um = (UserMessage) MessageConverter
+                                        .toLangChain4j(List.<Message>of(user), Set.of(Modality.AUDIO, Modality.VIDEO))
+                                        .get(0);
         assertTrue(um.contents().stream().anyMatch(c -> c instanceof AudioContent));
         assertTrue(um.contents().stream().anyMatch(c -> c instanceof VideoContent));
     }

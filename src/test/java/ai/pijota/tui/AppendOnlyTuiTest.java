@@ -13,10 +13,19 @@ class AppendOnlyTuiTest {
     @Test
     void collapseStatusLinesCapsWithAffordanceOrShowsAll() {
         var five = List.of("a", "b", "c", "d", "e");
-        assertEquals(List.of("a", "b", "c", "… 2 more · Ctrl+O to expand"),
-                                        AppendOnlyTui.collapse(five, false, 3)); // collapsed → first 3 + expand hint
-        assertEquals(List.of("a", "b", "c", "d", "e", "… Ctrl+O to collapse"),
-                                        AppendOnlyTui.collapse(five, true, 3)); // expanded → all + collapse hint
+        assertEquals(List.of("a", "b", "c", "… 2 more · Ctrl+O to expand"), AppendOnlyTui.collapse(five, false, 3)); // collapsed
+                                                                                                                     // →
+                                                                                                                     // first
+                                                                                                                     // 3
+                                                                                                                     // +
+                                                                                                                     // expand
+                                                                                                                     // hint
+        assertEquals(List.of("a", "b", "c", "d", "e", "… Ctrl+O to collapse"), AppendOnlyTui.collapse(five, true, 3)); // expanded
+                                                                                                                       // →
+                                                                                                                       // all
+                                                                                                                       // +
+                                                                                                                       // collapse
+                                                                                                                       // hint
         assertEquals(List.of("a", "b"), AppendOnlyTui.collapse(List.of("a", "b"), false, 3)); // under cap → untouched
         assertEquals(List.of("a", "b"), AppendOnlyTui.collapse(List.of("a", "b"), true, 3));
     }

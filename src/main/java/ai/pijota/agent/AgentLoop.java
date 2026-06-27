@@ -154,7 +154,6 @@ public final class AgentLoop implements AgentContext {
         return history.all();
     }
 
-
     public void clearMessages() {
         history.clear();
     }

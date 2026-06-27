@@ -20,9 +20,8 @@ final class HelpOverlay {
             {"Alt+_", "redo"}, {"Ctrl+Y", "yank (paste last kill)"}, {"Alt+Y", "yank-pop"}, {"Ctrl+L", "select model"},
             {"Ctrl+P", "command palette"}, {"Ctrl+Shift+P", "cycle model forward"},
             {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"},
-            {"Ctrl+O", "expand/collapse status bar"},
-            {"@", "fzf file completion (@ref)"}, {"Ctrl+T", "fzf path completion (raw)"},
-            {"/help", "show help"}};
+            {"Ctrl+O", "expand/collapse status bar"}, {"@", "fzf file completion (@ref)"},
+            {"Ctrl+T", "fzf path completion (raw)"}, {"/help", "show help"}};
 
     private HelpOverlay() {}
 

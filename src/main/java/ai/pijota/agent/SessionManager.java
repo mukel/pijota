@@ -221,7 +221,8 @@ public final class SessionManager {
         return latestOfType(sessionFile, "model_change", entry -> {
             String provider = (String) entry.getOrDefault("provider", "");
             String model = (String) entry.getOrDefault("model", "");
-            return provider.isBlank() || model.isBlank() ? null
+            return provider.isBlank() || model.isBlank()
+                                            ? null
                                             : new ModelSelection(provider, model, asLong(entry.get("contextWindow")));
         }, true);
     }

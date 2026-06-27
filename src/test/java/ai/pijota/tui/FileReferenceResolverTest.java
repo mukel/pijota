@@ -235,9 +235,9 @@ class FileReferenceResolverTest {
 
     @Test
     void escapedDoubleQuoteInsideDoubleQuotedReference(@TempDir Path tmp) throws Exception {
-        Files.writeString(tmp.resolve("od\"d.txt"), "weird name"); // file literally named  od"d.txt
+        Files.writeString(tmp.resolve("od\"d.txt"), "weird name"); // file literally named od"d.txt
         var resolver = new FileReferenceResolver(tmp);
-        // input is  @"od\"d.txt"  → unescapes to  od"d.txt
+        // input is @"od\"d.txt" → unescapes to od"d.txt
         assertTrue(resolver.expand("@\"od\\\"d.txt\"").text().contains("weird name"));
     }
 
@@ -252,14 +252,13 @@ class FileReferenceResolverTest {
 
     @Test
     void specialCharacterFilenamesRoundTripThroughReferenceAndExpand(@TempDir Path tmp) throws Exception {
-        for (String name : new String[] {
-            "pom.xml",          // slash-less top-level (was left literal before the ./ fix)
-            "re@port.txt",      // @ inside the name — only a boundary @ triggers parsing
-            "John's.txt",       // apostrophe, no space → bare
-            "a 'b'.txt",        // apostrophe + space → double-quoted (no escaping needed for ')
-            "a \"b\" c.txt",    // double-quote + space → quoted with \" escapes
-            "'leading.txt",     // leading apostrophe → ./ sidesteps the quote-parse
-            "data (1).txt" }) { // parens + space
+        for (String name : new String[] {"pom.xml", // slash-less top-level (was left literal before the ./ fix)
+                "re@port.txt", // @ inside the name — only a boundary @ triggers parsing
+                "John's.txt", // apostrophe, no space → bare
+                "a 'b'.txt", // apostrophe + space → double-quoted (no escaping needed for ')
+                "a \"b\" c.txt", // double-quote + space → quoted with \" escapes
+                "'leading.txt", // leading apostrophe → ./ sidesteps the quote-parse
+                "data (1).txt"}) { // parens + space
             Files.writeString(tmp.resolve(name), "RT:" + name);
             var resolver = new FileReferenceResolver(tmp);
             String ref = FileReferenceResolver.reference(name);

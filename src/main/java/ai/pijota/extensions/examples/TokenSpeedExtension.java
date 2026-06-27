@@ -40,7 +40,7 @@ public final class TokenSpeedExtension implements Extension {
             return List.of();
         // show the real figures (not fmtCount's "2.5K" rounding): prefill is large so an integer is enough, decode is
         // small so keep one decimal. Both are wall-clock end-to-end (prefill includes network latency to first token).
-        return List.of(String.format(Locale.ROOT, "⚡ pp %d · tg %.1f tok/s",
-                                        Math.round(s.prefillTokensPerSec()), s.decodeTokensPerSec()));
+        return List.of(String.format(Locale.ROOT, "⚡ pp %d · tg %.1f tok/s", Math.round(s.prefillTokensPerSec()),
+                                        s.decodeTokensPerSec()));
     }
 }

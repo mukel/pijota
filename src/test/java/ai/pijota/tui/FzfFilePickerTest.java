@@ -19,7 +19,8 @@ class FzfFilePickerTest {
         assertTrue(s.contains("fzf"), s);
         assertTrue(s.contains("--read0") && s.contains("--print0"), "NUL-delimited so odd filenames survive verbatim");
         assertTrue(s.contains("git ls-files -z"), "static, raw (un-quoted) git list, cwd-relative incl ../");
-        assertTrue(s.contains("fd --type f") && s.contains("find"), "fd (gitignore-aware) → find fallback outside a repo");
+        assertTrue(s.contains("fd --type f") && s.contains("find"),
+                                        "fd (gitignore-aware) → find fallback outside a repo");
         assertTrue(s.contains("change:transform"), "re-root via transform, not per-keystroke reload"); // flicker fix
         assertTrue(s.contains("*/)"), "re-root only when the query ends in / → reaches @../ outside the repo");
         assertFalse(s.contains("change:reload"), "no per-keystroke reload → no flicker");
@@ -59,19 +60,19 @@ class FzfFilePickerTest {
 
     // --- end-to-end against the REAL fzf (non-interactive --filter); skipped when fzf isn't installed --------------
 
-    private record Case(String filename, String query) {}
+    private record Case(String filename, String query) {
+    }
 
     @Test
     void oddFilenamesRoundTripThroughRealFzfAndTheResolver(@TempDir Path tmp) throws Exception {
         assumeTrue(FzfFilePicker.available(), "fzf not installed");
         run(tmp, "git", "init", "-q", "."); // exercise the git-ls-files lister path
 
-        for (var c : List.of(
-                                        new Case("pom.xml", "pom"),          // slash-less top-level
-                                        new Case("my file.txt", "my file"),  // space
-                                        new Case("John's.txt", "John"),      // apostrophe
-                                        new Case("re@port.txt", "re@"),      // @ inside the name
-                                        new Case("a \"b\" c.txt", "b c"),    // double-quote + space (git would C-quote it)
+        for (var c : List.of(new Case("pom.xml", "pom"), // slash-less top-level
+                                        new Case("my file.txt", "my file"), // space
+                                        new Case("John's.txt", "John"), // apostrophe
+                                        new Case("re@port.txt", "re@"), // @ inside the name
+                                        new Case("a \"b\" c.txt", "b c"), // double-quote + space (git would C-quote it)
                                         new Case("data (1).txt", "data ("))) { // parens + space
             Files.writeString(tmp.resolve(c.filename()), "RT:" + c.filename());
 

@@ -63,8 +63,8 @@ public final class DocumentText {
     private static String xmlToText(String xml) {
         String s = xml.replaceAll("(?i)</w:p>|</a:p>|<w:br ?/>|</text:p>", "\n"); // paragraph / line breaks
         s = s.replaceAll("<[^>]+>", " "); // strip every remaining tag
-        s = s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
-                                        .replace("&apos;", "'");
+        s = s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;",
+                                        "'");
         return s.replaceAll("[ \\t]+", " ").replaceAll(" *\\n *", "\n").replaceAll("\\n{3,}", "\n\n").strip();
     }
 

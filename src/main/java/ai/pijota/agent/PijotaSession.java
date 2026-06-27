@@ -124,8 +124,9 @@ public final class PijotaSession implements AutoCloseable {
 
     /**
      * Splits attachments: text-like files are extracted and appended to the prompt; binary media is kept as-is.
-     * {@code supported} is the active model's input modalities ({@code null} = unknown → allow all); a PDF a model can't
-     * read natively is staged to a file under {@code cwd} so it can be read with the {@code web_pdf_to_markdown} tool.
+     * {@code supported} is the active model's input modalities ({@code null} = unknown → allow all); a PDF a model
+     * can't read natively is staged to a file under {@code cwd} so it can be read with the {@code web_pdf_to_markdown}
+     * tool.
      */
     private static Normalized normalizeAttachments(String text, List<Message.Attachment> attachments,
                                     Set<Modality> supported, String cwd) {
@@ -137,20 +138,24 @@ public final class PijotaSession implements AutoCloseable {
             String name = a.filename() != null && !a.filename().isBlank() ? a.filename() : "file";
             Modality mod = Modality.fromMime(a.mime());
             if (mod != Modality.TEXT) {
-                // a PDF the model can't read natively → stage it to disk so it can be read with the web_pdf_to_markdown tool
+                // a PDF the model can't read natively → stage it to disk so it can be read with the web_pdf_to_markdown
+                // tool
                 if (mod == Modality.PDF && supported != null && !supported.contains(Modality.PDF)) {
                     String rel = stageFile(cwd, name, a.base64());
                     sb.append(rel != null
-                                                    ? "\n\n[Attached PDF \"" + name + "\" saved to " + rel + " — this model can't read PDFs "
+                                                    ? "\n\n[Attached PDF \"" + name + "\" saved to " + rel
+                                                                                    + " — this model can't read PDFs "
                                                                                     + "directly; use the web_pdf_to_markdown tool to read it.]"
                                                     : "\n\n[attachment \"" + name + "\" couldn't be saved]");
                 }
                 // image formats the providers can't read (HEIC/TIFF/BMP/…) — reject rather than let the API 400 later
                 else if (mod == Modality.IMAGE && !Modality.isSupportedImage(a.mime()))
                     sb.append("\n\n[attachment \"").append(name).append("\" omitted — ")
-                                                    .append(a.mime().substring(a.mime().indexOf('/') + 1).toUpperCase(java.util.Locale.ROOT))
+                                                    .append(a.mime().substring(a.mime().indexOf('/') + 1)
+                                                                                    .toUpperCase(java.util.Locale.ROOT))
                                                     .append(" images aren't supported; use JPEG/PNG/GIF/WebP]");
-                else if (a.approxBytes() <= Message.Attachment.MAX_BYTES) // core size floor — every frontend inherits it
+                else if (a.approxBytes() <= Message.Attachment.MAX_BYTES) // core size floor — every frontend inherits
+                                                                          // it
                     media.add(a); // image / pdf / audio / video → sent as a typed content part (gated by the model)
                 else // never drop silently — leave a note so the model (and transcript) know it was omitted
                     sb.append("\n\n[attachment \"").append(name).append("\" omitted — larger than 5 MB]");
@@ -171,7 +176,10 @@ public final class PijotaSession implements AutoCloseable {
         return new Normalized(sb.toString(), media);
     }
 
-    /** Writes an uploaded file under {@code <cwd>/.pijota/uploads/} so a tool can read it; returns the relative path or null. */
+    /**
+     * Writes an uploaded file under {@code <cwd>/.pijota/uploads/} so a tool can read it; returns the relative path or
+     * null.
+     */
     private static String stageFile(String cwd, String name, String base64) {
         try {
             Path dir = Path.of(cwd, ".pijota", "uploads");

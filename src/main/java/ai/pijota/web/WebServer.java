@@ -193,7 +193,10 @@ public final class WebServer implements AutoCloseable {
 
     private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
 
-    /** A 192-bit URL-safe pairing token — the shared way to authenticate non-loopback web access (--web / remote-control). */
+    /**
+     * A 192-bit URL-safe pairing token — the shared way to authenticate non-loopback web access (--web /
+     * remote-control).
+     */
     public static String newPairingToken() {
         byte[] bytes = new byte[24];
         TOKEN_RANDOM.nextBytes(bytes);
@@ -240,8 +243,8 @@ public final class WebServer implements AutoCloseable {
             // Persistent (not a session cookie) so a paired browser survives a restart even though the SPA strips ?t=
             // from the URL — otherwise the bootstrap secret would be gone and every request 403s. SameSite=Lax (not
             // Strict) so it rides top-level navigations/reloads reliably (state-changing POSTs are Origin-checked).
-            ex.getResponseHeaders().add("Set-Cookie",
-                                            "pijota_rc=" + authToken + "; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax");
+            ex.getResponseHeaders().add("Set-Cookie", "pijota_rc=" + authToken
+                                            + "; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax");
             return false;
         }
         send(ex, 403, "text/plain", "unauthorized".getBytes(StandardCharsets.UTF_8));
@@ -278,7 +281,9 @@ public final class WebServer implements AutoCloseable {
 
     // ---- routes ----
 
-    /** Wraps a handler so every request is token-checked first — auth is one structural gate, not a per-route checklist. */
+    /**
+     * Wraps a handler so every request is token-checked first — auth is one structural gate, not a per-route checklist.
+     */
     private HttpHandler secured(HttpHandler handler) {
         return ex -> {
             if (!authBlocked(ex))
@@ -368,7 +373,8 @@ public final class WebServer implements AutoCloseable {
                 // mid-reply: followUp steers the running turn with text only — attachments can't ride along, so don't
                 // echo media as if it was sent; tell the user to resend it after the turn.
                 if (!attachments.isEmpty())
-                    broadcast("status", Map.of("message", "Attachments aren't added mid-reply — resend after this turn.",
+                    broadcast("status", Map.of("message",
+                                                    "Attachments aren't added mid-reply — resend after this turn.",
                                                     "alert", true));
                 broadcast("user", Map.of("content", t, "images", List.of(), "files", List.of()));
                 session.followUp(t);
@@ -557,9 +563,11 @@ public final class WebServer implements AutoCloseable {
         // media modalities the active model accepts (excluding text), so the composer can gate uploads; an unknown
         // model (null) advertises all of them — the server still gates at send time.
         var mods = ai.pijota.llm.ModelRegistry.inputModalities(llm.provider(), llm.model());
-        var modalities = mods == null ? List.of("image", "pdf", "audio", "video")
+        var modalities = mods == null
+                                        ? List.of("image", "pdf", "audio", "video")
                                         : mods.stream().map(m -> m.name().toLowerCase(java.util.Locale.ROOT))
-                                                                        .filter(m -> !m.equals("text")).sorted().toList();
+                                                                        .filter(m -> !m.equals("text")).sorted()
+                                                                        .toList();
         return Map.of("model", nz(llm.provider()) + "/" + nz(llm.model()), "context", session.estimatedContextTokens(),
                                         "cost", llm.totalCost(), "modalities", modalities);
     }
@@ -609,7 +617,10 @@ public final class WebServer implements AutoCloseable {
     // Headroom above the composer's own ceiling (8 files × 5MB ≈ 55MB base64) so a full upload never truncates.
     private static final int MAX_BODY_BYTES = 64_000_000;
 
-    /** Reads the request body, or {@code null} if it exceeds {@link #MAX_BODY_BYTES} (so we reject rather than truncate). */
+    /**
+     * Reads the request body, or {@code null} if it exceeds {@link #MAX_BODY_BYTES} (so we reject rather than
+     * truncate).
+     */
     private static String readBody(HttpExchange ex) throws IOException {
         try (InputStream in = ex.getRequestBody()) {
             byte[] bytes = in.readNBytes(MAX_BODY_BYTES + 1);
@@ -617,16 +628,20 @@ public final class WebServer implements AutoCloseable {
         }
     }
 
-    /** Builds the {@code user}-message payload (content + image data URLs + named non-image chips) for live + replay. */
+    /**
+     * Builds the {@code user}-message payload (content + image data URLs + named non-image chips) for live + replay.
+     */
     private static Map<String, Object> userEvent(String content, List<Message.Attachment> attachments) {
-        return Map.of("content", content,
-                                        "images", attachments.stream()
-                                                                        .filter(a -> Modality.fromMime(a.mime()) == Modality.IMAGE)
-                                                                        .map(a -> "data:" + a.mime() + ";base64," + a.base64()).toList(),
-                                        "files", attachments.stream()
-                                                                        .filter(a -> Modality.fromMime(a.mime()) != Modality.IMAGE)
-                                                                        .map(a -> Map.of("name", a.filename() == null ? "file" : a.filename(),
-                                                                                                        "mime", nz(a.mime()))).toList());
+        return Map.of("content", content, "images", attachments.stream()
+                                        .filter(a -> Modality.fromMime(a.mime()) == Modality.IMAGE)
+                                        .map(a -> "data:" + a.mime() + ";base64," + a.base64()).toList(), "files",
+                                        attachments.stream().filter(a -> Modality.fromMime(a.mime()) != Modality.IMAGE)
+                                                                        .map(a -> Map.of("name", a.filename() == null
+                                                                                                        ? "file"
+                                                                                                        : a.filename(),
+                                                                                                        "mime",
+                                                                                                        nz(a.mime())))
+                                                                        .toList());
     }
 
     /** Parses the {@code files:[{mime,data,filename}]} array (base64, no data-URL prefix) from a /prompt body. */

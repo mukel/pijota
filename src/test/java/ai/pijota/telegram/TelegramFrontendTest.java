@@ -109,11 +109,11 @@ class TelegramFrontendTest {
 
         var photo = new TgMessage(10, new TgChat(100), null, "look",
                                         List.of(new TelegramClient.PhotoSize("small", 1, 1, 9),
-                                                        new TelegramClient.PhotoSize("big", 9, 9, 99)),
+                                                                        new TelegramClient.PhotoSize("big", 9, 9, 99)),
                                         null, null, null, null);
-        var doc = new TgMessage(11, new TgChat(100), null, "read",
-                                        null, new TelegramClient.TgFile("fid", "spec.pdf", "application/pdf", 1234),
-                                        null, null, null);
+        var doc = new TgMessage(11, new TgChat(100), null, "read", null,
+                                        new TelegramClient.TgFile("fid", "spec.pdf", "application/pdf", 1234), null,
+                                        null, null);
         f.handle(new Update(1, photo, null));
         f.handle(new Update(2, doc, null));
 

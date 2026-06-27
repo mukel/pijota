@@ -15,7 +15,8 @@ public enum Modality {
     // OpenAI take only JPEG/PNG/GIF/WebP (Gemini also accepts HEIC/HEIF), so we send the cross-provider intersection
     // and reject the rest (HEIC, TIFF, BMP, …). Transcoding them would need a native HEVC/HEIF codec, incompatible
     // with the single static native-image build — so unsupported formats are rejected with a clear message instead.
-    private static final Set<String> SUPPORTED_IMAGE_MIMES = Set.of("image/jpeg", "image/png", "image/gif", "image/webp");
+    private static final Set<String> SUPPORTED_IMAGE_MIMES = Set.of("image/jpeg", "image/png", "image/gif",
+                                    "image/webp");
 
     /** Whether this image MIME type is accepted by the vision providers (JPEG/PNG/GIF/WebP); see the note above. */
     public static boolean isSupportedImage(String mime) {

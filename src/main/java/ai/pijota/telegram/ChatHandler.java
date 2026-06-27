@@ -10,10 +10,8 @@ public interface ChatHandler {
     void onCallback(TelegramClient.CallbackQuery callback);
 
     /** A photo message (Telegram delivers an ascending list of sizes); {@code caption} may be null. */
-    default void onPhoto(java.util.List<TelegramClient.PhotoSize> photo, String caption) {
-    }
+    default void onPhoto(java.util.List<TelegramClient.PhotoSize> photo, String caption) {}
 
     /** A non-photo file message (document / audio / voice / video); {@code caption} may be null. */
-    default void onDocument(TelegramClient.TgFile file, String caption) {
-    }
+    default void onDocument(TelegramClient.TgFile file, String caption) {}
 }

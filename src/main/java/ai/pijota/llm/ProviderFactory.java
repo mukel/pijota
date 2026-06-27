@@ -84,7 +84,8 @@ public interface ProviderFactory {
             var builder = dev.langchain4j.model.anthropic.AnthropicStreamingChatModel.builder().baseUrl(baseUrl)
                                             .apiKey(apiKey).modelName(modelName).version("2023-06-01").maxTokens(4096)
                                             .customHeaders(ProviderCatalog.headers(providerName))
-                                            // cache the large static prefix (system prompt + tool schemas) re-sent every
+                                            // cache the large static prefix (system prompt + tool schemas) re-sent
+                                            // every
                                             // turn — cache reads ≈ 10% of input cost. Other providers auto-cache this.
                                             .cacheSystemMessages(true).cacheTools(true);
             if (thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF) {

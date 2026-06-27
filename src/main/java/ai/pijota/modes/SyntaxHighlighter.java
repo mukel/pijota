@@ -190,7 +190,6 @@ public final class SyntaxHighlighter {
         this.keywords = LANG_KEYWORDS.getOrDefault(this.language, KEYWORDS);
     }
 
-
     public static String languageForFilename(String filename) {
         if (filename == null || filename.isBlank())
             return "";

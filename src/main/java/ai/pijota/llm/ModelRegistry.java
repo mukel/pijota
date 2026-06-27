@@ -73,8 +73,8 @@ public final class ModelRegistry {
 
     /**
      * The model's accepted input modalities, or {@code null} when unknown. A catalog model that doesn't declare its
-     * modalities is treated as text-only; a model absent from the catalog returns {@code null} so callers can be lenient
-     * (don't block a brand-new model).
+     * modalities is treated as text-only; a model absent from the catalog returns {@code null} so callers can be
+     * lenient (don't block a brand-new model).
      */
     public static java.util.Set<Modality> inputModalities(String provider, String model) {
         if (model == null)

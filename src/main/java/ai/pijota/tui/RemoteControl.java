@@ -20,7 +20,10 @@ import java.util.function.Supplier;
  */
 final class RemoteControl {
 
-    /** The one active channel: {@code summary} labels it; {@code onStop} tears it down; {@code info} is the re-showable banner. */
+    /**
+     * The one active channel: {@code summary} labels it; {@code onStop} tears it down; {@code info} is the re-showable
+     * banner.
+     */
     private record Channel(String summary, Runnable onStop, List<String> info) {
     }
 
@@ -106,7 +109,8 @@ final class RemoteControl {
         var out = new ArrayList<String>();
         out.add("🔗 Remote control (Telegram) is live — drive this session from chat " + allowed + ".");
         if (username != null)
-            // ?start=pijota → opening the link/QR sends "/start pijota", so the bot greets with a connection confirmation
+            // ?start=pijota → opening the link/QR sends "/start pijota", so the bot greets with a connection
+            // confirmation
             out.addAll(QrTerminal.scannable("Scan to open the bot on your phone:",
                                             "https://t.me/" + username + "?start=pijota"));
         else

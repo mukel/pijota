@@ -29,9 +29,10 @@ public final class MessageConverter {
     }
 
     /**
-     * @param allowed the modalities the active model accepts; attachments of any other modality are dropped and called
-     *                out in a note so the conversation still makes sense. {@code null} means allow every modality
-     *                (e.g. an unknown model — let the provider decide).
+     * @param allowed
+     *            the modalities the active model accepts; attachments of any other modality are dropped and called out
+     *            in a note so the conversation still makes sense. {@code null} means allow every modality (e.g. an
+     *            unknown model — let the provider decide).
      */
     public static List<ChatMessage> toLangChain4j(List<Message> messages, Set<Modality> allowed) {
         var chatMessages = new ArrayList<ChatMessage>();
@@ -93,7 +94,8 @@ public final class MessageConverter {
     }
 
     // A user message becomes a multi-part message (text + one ImageContent per attachment) when it carries images and
-    // the model supports vision; langchain4j maps ImageContent to each provider's native shape (Anthropic base64 source,
+    // the model supports vision; langchain4j maps ImageContent to each provider's native shape (Anthropic base64
+    // source,
     // OpenAI image_url, Gemini inlineData). With no usable images it stays a plain text message.
     private static ChatMessage userMessage(Message.User u, Set<Modality> allowed) {
         // only binary media reaches here as attachments — text-like files are extracted & inlined upstream

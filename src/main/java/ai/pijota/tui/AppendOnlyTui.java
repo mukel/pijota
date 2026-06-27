@@ -1087,10 +1087,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * @param freshLine advance to a new line on suspend. True for programs that print to stdout (their output then
-     *     starts below the prompt). False for alternate-screen programs (fzf): the screen — and cursor — are restored on
-     *     exit, so an extra newline would leave the cursor one row below where {@link PromptLayout#eraseCurrent} expects
-     *     it, so the in-place erase misses the top separator and a stale {@code ─} rule accumulates each time.
+     * @param freshLine
+     *            advance to a new line on suspend. True for programs that print to stdout (their output then starts
+     *            below the prompt). False for alternate-screen programs (fzf): the screen — and cursor — are restored
+     *            on exit, so an extra newline would leave the cursor one row below where
+     *            {@link PromptLayout#eraseCurrent} expects it, so the in-place erase misses the top separator and a
+     *            stale {@code ─} rule accumulates each time.
      */
     public void suspendTui(boolean freshLine) {
         if (suspendDepth++ > 0)
@@ -1144,7 +1146,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(lines);
     }
 
-    /** Ctrl+T: fzf-pick a file and insert its <em>raw path</em> (no {@code @}) — for putting a path in the message text. */
+    /**
+     * Ctrl+T: fzf-pick a file and insert its <em>raw path</em> (no {@code @}) — for putting a path in the message text.
+     */
     private void pickPathWithFzf() {
         if (!activity.isBusy() && FzfFilePicker.available())
             pickFileWithFzf(false);
@@ -1152,8 +1156,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     /**
      * Opens fzf (suspending the TUI, like the editor) to pick a file. When {@code asReference}, inserts an
-     * {@code @}-reference (quoted/escaped, resolved as a file); otherwise the raw path (a leading {@code ./} trimmed) for
-     * use as plain text in the message.
+     * {@code @}-reference (quoted/escaped, resolved as a file); otherwise the raw path (a leading {@code ./} trimmed)
+     * for use as plain text in the message.
      */
     private void pickFileWithFzf(boolean asReference) {
         Path out = null;
@@ -1220,10 +1224,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void warnUnreadableAttachments(List<Message.Attachment> attachments) {
         if (attachments.isEmpty())
             return;
-        var unreadable = attachments.stream().map(a -> Modality.fromMime(a.mime()))
-                                        .filter(m -> m != Modality.TEXT
-                                                && !ModelRegistry.supports(session.llm().provider(),
-                                                                                session.llm().model(), m))
+        var unreadable = attachments.stream().map(a -> Modality.fromMime(a.mime())).filter(m -> m != Modality.TEXT
+                                        && !ModelRegistry.supports(session.llm().provider(), session.llm().model(), m))
                                         .map(m -> m.name().toLowerCase(java.util.Locale.ROOT)).distinct().toList();
         if (!unreadable.isEmpty())
             appendPlain(List.of(theme.styled("statusText", "⚠ " + session.llm().model() + " can't read "
@@ -1258,7 +1260,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(promptEcho(submitted));
         if (activity.isBusy() && session.isBusy()) {
             if (!attachments.isEmpty()) // followUp steers with text only — attachments can't ride along mid-turn
-                appendPlain(List.of(theme.styled("toolError", "attachments aren't sent mid-turn — resend after this turn")));
+                appendPlain(List.of(theme.styled("toolError",
+                                                "attachments aren't sent mid-turn — resend after this turn")));
             session.followUp(payload);
             int queued = followUps.add(payload);
             appendPlain(List.of(theme.styled("statusText", "queued follow-up (" + queued + ")")));
@@ -1682,7 +1685,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
-    /** Extension status lines, plus a persistent reminder (and security cue) whenever remote control is driving this session. */
+    /**
+     * Extension status lines, plus a persistent reminder (and security cue) whenever remote control is driving this
+     * session.
+     */
     private static final int STATUS_COLLAPSED_LINES = 3; // status rows shown before "… N more"; Ctrl+O unrolls
     private volatile boolean statusExpanded;
 
@@ -1698,7 +1704,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return collapse(all, statusExpanded, STATUS_COLLAPSED_LINES);
     }
 
-    /** Caps the status lines to {@code cap} with a "… N more · Ctrl+O" affordance, or returns them all when expanded. */
+    /**
+     * Caps the status lines to {@code cap} with a "… N more · Ctrl+O" affordance, or returns them all when expanded.
+     */
     static List<String> collapse(List<String> all, boolean expanded, int cap) {
         if (all.size() <= cap)
             return all;
@@ -1727,15 +1735,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case "telegram" -> startRemoteAsync(remoteControl::startTelegram);
             case "show" -> appendPlain(remoteControl.info()); // instant: re-show the active channel's link & QR
             case "stop" -> appendPlain(remoteControl.stop()); // fast: detach + close
-            default -> { }
+            default -> {}
         }
         redrawPrompt();
     }
 
     /**
-     * Run a remote-control start (which may block on network/socket setup) off the input thread; print its banner after.
-     * Uses a dedicated thread, NOT {@code agentExecutor} (which is single-threaded) — a network-blocking start must not
-     * queue behind a running turn, and we don't want it to block one either.
+     * Run a remote-control start (which may block on network/socket setup) off the input thread; print its banner
+     * after. Uses a dedicated thread, NOT {@code agentExecutor} (which is single-threaded) — a network-blocking start
+     * must not queue behind a running turn, and we don't want it to block one either.
      */
     private void startRemoteAsync(java.util.function.Supplier<List<String>> start) {
         appendPlain(List.of(theme.styled("statusText", "starting remote control…")));

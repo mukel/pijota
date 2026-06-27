@@ -73,8 +73,7 @@ class DocumentTextTest {
     @Test
     void ooxmlIsRecognizedByMimeWithoutExtension() throws Exception {
         byte[] docx = docx("<w:p><w:r><w:t>ByMime</w:t></w:r></w:p>");
-        String out = DocumentText.extract(
-                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        String out = DocumentText.extract("application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                         "attachment", docx);
         assertNotNull(out);
         assertTrue(out.contains("ByMime"), out);
@@ -97,7 +96,8 @@ class DocumentTextTest {
         var bos = new ByteArrayOutputStream();
         try (var zip = new ZipOutputStream(bos)) {
             zip.putNextEntry(new ZipEntry("word/document.xml"));
-            zip.write(("<?xml version=\"1.0\"?><w:document><w:body>" + body + "</w:body></w:document>").getBytes(UTF_8));
+            zip.write(("<?xml version=\"1.0\"?><w:document><w:body>" + body + "</w:body></w:document>")
+                                            .getBytes(UTF_8));
             zip.closeEntry();
         }
         return bos.toByteArray();

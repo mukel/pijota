@@ -15,9 +15,9 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Exercises {@link PijotaSession}'s attachment normalization end-to-end (the private {@code normalizeAttachments} split):
- * text-like files are extracted and inlined into the prompt, binary media is carried as attachments, and the size /
- * format / decode rejections each leave a visible note rather than dropping silently. Asserts on the stored
+ * Exercises {@link PijotaSession}'s attachment normalization end-to-end (the private {@code normalizeAttachments}
+ * split): text-like files are extracted and inlined into the prompt, binary media is carried as attachments, and the
+ * size / format / decode rejections each leave a visible note rather than dropping silently. Asserts on the stored
  * {@link Message.User} so the behavior is checked exactly as it reaches the model and the session file.
  */
 class PijotaSessionAttachmentsTest {

@@ -258,7 +258,8 @@ class TelegramChatTest {
     @Test
     void menuCommandsMergesValidExtensionCommandsAndSkipsHyphenatedOrDuplicates() {
         var ext = List.of(new SlashCommand("plan", "Toggle plan mode", List.of(), a -> {}),
-                                        new SlashCommand("remote-control", "hyphen → invalid for Telegram", List.of(), a -> {}),
+                                        new SlashCommand("remote-control", "hyphen → invalid for Telegram", List.of(),
+                                                                        a -> {}),
                                         new SlashCommand("help", "duplicate of a built-in", List.of(), a -> {}));
         var menu = TelegramChat.menuCommands(ext);
         var names = menu.stream().map(BotCommand::command).toList();
