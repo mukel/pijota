@@ -58,6 +58,8 @@ public final class InputDecoder {
             return Key.Special.CTRL_L;
         if (ch == 16)
             return Key.Special.CTRL_P;
+        if (ch == 15)
+            return Key.Special.CTRL_O; // expand/collapse the status bar
         if (ch == 18)
             return Key.Special.CTRL_R;
         if (ch == 20)

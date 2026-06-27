@@ -3,9 +3,9 @@ package ai.pijota.extensions.examples;
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionRuntime;
-import ai.pijota.util.Util;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Opt-in status line showing the prefill (prompt-processing) and decode (generation) tokens-per-second of the most
@@ -38,7 +38,9 @@ public final class TokenSpeedExtension implements Extension {
         var s = runtime.llm().lastRequestSpeed();
         if (s == null)
             return List.of();
-        return List.of("⚡ pp " + Util.fmtCount((long) s.prefillTokensPerSec()) + " · tg "
-                                        + Util.fmtCount((long) s.decodeTokensPerSec()) + " tok/s");
+        // show the real figures (not fmtCount's "2.5K" rounding): prefill is large so an integer is enough, decode is
+        // small so keep one decimal. Both are wall-clock end-to-end (prefill includes network latency to first token).
+        return List.of(String.format(Locale.ROOT, "⚡ pp %d · tg %.1f tok/s",
+                                        Math.round(s.prefillTokensPerSec()), s.decodeTokensPerSec()));
     }
 }

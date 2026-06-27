@@ -64,7 +64,7 @@
   /* transient status toasts (ephemeral feedback like "started a new conversation") — never enters the transcript */
   #toasts { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
   .toast { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 13px; box-shadow: 0 6px 24px var(--shadow-color); max-width: min(520px, 90vw); animation: toastin .18s ease both; }
-  .toast.alert { color: var(--warn-text); border-color: #d2992255; background: #d2992212; }
+  .toast.alert { color: var(--warn-text); border-color: #d29922; background: var(--panel-2); }
   .toast.out { animation: toastout .25s ease forwards; }
   @keyframes toastin { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
   @keyframes toastout { to { opacity: 0; transform: translateY(-8px); } }
@@ -423,6 +423,7 @@ window.addEventListener("DOMContentLoaded", () => {
   let pendingFiles = [];                    // {mime, data(base64), url(dataURL), name, isImage} to attach
   let modalities = ["image", "pdf", "audio", "video"]; // media the current model accepts (from the stats event)
   let lastModel = null;                     // tracks model switches to warn when downgrading to a weaker model
+  const sessionModalities = new Set();      // media modalities actually present in this chat (gates the downgrade toast)
   const toolCards = new Map();             // tool-call id -> {wrap, result placeholder}
   let commands = [], menuItems = [], menuSel = -1;
   fetch("/commands").then(r => r.json()).then(c => commands = c).catch(() => {});
@@ -530,6 +531,7 @@ window.addEventListener("DOMContentLoaded", () => {
     withAutoScroll(() => {
       renderMarkdown(m.bubble, text);
       if (images && images.length) { // data URLs echoed by the server for a sent user message
+        sessionModalities.add("image"); // track what's actually in the chat, so the downgrade toast can be relevant
         const wrap = document.createElement("div"); wrap.className = "imgs";
         images.forEach(url => { const im = document.createElement("img"); im.src = url; im.loading = "lazy"; wrap.appendChild(im); });
         m.bubble.appendChild(wrap);
@@ -537,6 +539,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (files && files.length) { // non-image attachments shown as named chips
         const wrap = document.createElement("div"); wrap.className = "filerow";
         files.forEach(f => {
+          sessionModalities.add(modalityOf(f.mime));
           const c = document.createElement("span"); c.className = "filechip";
           const ic = document.createElement("span"); ic.className = "ficon"; ic.textContent = fileGlyph(f.mime);
           const n = document.createElement("span"); n.className = "fname"; n.textContent = f.name || "file";
@@ -567,10 +570,11 @@ window.addEventListener("DOMContentLoaded", () => {
     if (Array.isArray(d.modalities)) {
       // on a real model switch to one that dropped media support, warn that existing attachments won't be sent to it
       if (lastModel !== null && d.model !== lastModel) {
-        const lost = modalities.filter(m => !d.modalities.includes(m)); // `modalities` still = the previous model's
+        // only warn about lost modalities that are ACTUALLY in this chat (no point flagging "can't read pdf" with no pdf)
+        const lost = modalities.filter(m => !d.modalities.includes(m) && sessionModalities.has(m));
         if (lost.length)
           showToast("Now on " + d.model + " — can't read " + lost.join(", ")
-                                          + "; any " + lost.join("/") + " already in this chat won't be sent to it.", true);
+                                          + "; the " + lost.join("/") + " already in this chat won't be sent to it.", true);
       }
       modalities = d.modalities; // re-gate composer uploads for this model
       updateComposer();
@@ -734,7 +738,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     es.addEventListener("history", e => {
-      thread.innerHTML = ""; toolCards.clear(); live = null;
+      thread.innerHTML = ""; toolCards.clear(); live = null; sessionModalities.clear(); // replay re-populates it
       for (const m of JSON.parse(e.data)) replayHistory(m);
       main.scrollTop = main.scrollHeight;
     });

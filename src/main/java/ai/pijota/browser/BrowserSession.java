@@ -11,6 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -47,6 +50,15 @@ public final class BrowserSession {
     private final Timings timings;
     private volatile boolean cancelled; // tripped by close() to interrupt the in-flight navigate/settle loops
 
+    // Close the spawned browser after it sits idle this long (re-launched lazily on the next use); 0 disables it.
+    private final long idleNanos = idleTimeoutNanos();
+    private volatile long lastUseNanos = System.nanoTime();
+    private final ScheduledExecutorService idleReaper = Executors.newSingleThreadScheduledExecutor(r -> {
+        var t = new Thread(r, "pijota-browser-idle");
+        t.setDaemon(true);
+        return t;
+    });
+
     public BrowserSession(BrowserBackend backend) {
         this(backend, Timings.fromEnv());
     }
@@ -54,6 +66,36 @@ public final class BrowserSession {
     BrowserSession(BrowserBackend backend, Timings timings) {
         this.backend = backend;
         this.timings = timings;
+        if (idleNanos > 0) {
+            long checkSec = Math.max(5, idleNanos / 1_000_000_000L / 4); // poll ~4x per idle window
+            idleReaper.scheduleWithFixedDelay(this::reapIfIdle, checkSec, checkSec, TimeUnit.SECONDS);
+        }
+    }
+
+    private static long idleTimeoutNanos() {
+        String v = Env.get("pijota.browser.idleSeconds", "PIJOTA_BROWSER_IDLE_SECONDS");
+        long seconds = 300; // default: close the browser after 5 min idle
+        if (v != null && !v.isBlank())
+            try {
+                seconds = Long.parseLong(v.trim());
+            } catch (NumberFormatException ignored) {}
+        return seconds <= 0 ? 0 : seconds * 1_000_000_000L;
+    }
+
+    /** Closes the browser when it's been idle past the timeout; the next visit/search/extractPdf re-launches it. */
+    private void reapIfIdle() {
+        try {
+            synchronized (this) {
+                if (shouldReap(backend.isAlive(), lastUseNanos, System.nanoTime(), idleNanos))
+                    backend.close();
+            }
+        } catch (Exception ignored) {
+            // a reaper failure must not cancel the fixed-delay schedule
+        }
+    }
+
+    static boolean shouldReap(boolean alive, long lastUseNanos, long nowNanos, long idleNanos) {
+        return alive && idleNanos > 0 && nowNanos - lastUseNanos > idleNanos;
     }
 
     public BrowserSession(int port, Path profileDir, String chromeOverride, Consumer<String> log,
@@ -86,6 +128,7 @@ public final class BrowserSession {
     /** Navigates to a URL in the real browser and returns the rendered page as markdown. */
     public synchronized String visit(String url) throws Exception {
         cancelled = false;
+        lastUseNanos = System.nanoTime();
         backend.start();
         backend.navigate(normalizeUrl(url)); // returns once the new document has loaded (event-driven in the backend)
         dismissConsent();
@@ -136,6 +179,7 @@ public final class BrowserSession {
     /** Runs a Google search in the real browser and returns the result links (+ a text snapshot) as markdown. */
     public synchronized String search(String query) throws Exception {
         cancelled = false;
+        lastUseNanos = System.nanoTime();
         backend.start();
         backend.navigate(googleSearchUrl(query)); // returns once loaded (event-driven in the backend)
         dismissConsent();
@@ -199,6 +243,7 @@ public final class BrowserSession {
      */
     public void close() {
         cancelled = true;
+        idleReaper.shutdownNow();
         backend.close();
     }
 

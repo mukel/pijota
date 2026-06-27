@@ -127,7 +127,6 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
     }
 
     record StatusBar() implements PromptRegion {
-        private static final int MAX_EXTENSION_LINES = 3;
 
         @Override
         public int height(int width, PromptSnapshot ctx) {
@@ -139,10 +138,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 h += wrappedRows(ctx.cwd(), width); // workspace info: wrapped, but stable within a turn (no jitter)
             if (hasText(ctx.warning()))
                 h += warningRows(ctx.warning(), width);
-            if (!ctx.extensionLines().isEmpty())
-                h += Math.min(MAX_EXTENSION_LINES, ctx.extensionLines().size());
-            if (ctx.extensionLines().size() > MAX_EXTENSION_LINES)
-                h += 1;
+            h += ctx.extensionLines().size(); // already collapsed/expanded by the supplier (see AppendOnlyTui.collapse)
             return h;
         }
 
@@ -193,24 +189,15 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             }
 
             if (hasExtensions) {
-                int limit = Math.min(MAX_EXTENSION_LINES, ctx.extensionLines().size());
-                for (int i = 0; i < limit; i++) {
+                // The supplier already capped/expanded the list (AppendOnlyTui.collapse); render whatever it gave,
+                // dimming the "… N more / collapse" affordance line.
+                for (String line : ctx.extensionLines()) {
                     if (!first)
                         out.print("\r\n");
                     else
                         out.print('\r');
-                    out.print(theme.styled("statusText", AnsiWidth.truncateVisual("  " + ctx.extensionLines().get(i),
-                                                    width)));
-                    out.print("\033[K");
-                    first = false;
-                }
-                int extra = ctx.extensionLines().size() - MAX_EXTENSION_LINES;
-                if (extra > 0) {
-                    if (!first)
-                        out.print("\r\n");
-                    else
-                        out.print('\r');
-                    out.print(theme.styled("dim", "  … " + extra + " more"));
+                    String style = line.startsWith("… ") ? "dim" : "statusText";
+                    out.print(theme.styled(style, AnsiWidth.truncateVisual("  " + line, width)));
                     out.print("\033[K");
                     first = false;
                 }

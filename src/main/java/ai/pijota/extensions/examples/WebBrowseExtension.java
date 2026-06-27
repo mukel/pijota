@@ -36,6 +36,7 @@ public final class WebBrowseExtension implements Extension {
     private ExtensionAPI api;
     private BrowserSession session;
     private String browser = "chrome"; // selected browser, for the launch-confirmation message
+    private volatile boolean browserApproved; // once the user approves, re-launches after idle-close skip the prompt
 
     @Override
     public String name() {
@@ -147,15 +148,19 @@ public final class WebBrowseExtension implements Extension {
     }
 
     private boolean confirmLaunch() {
+        if (browserApproved) // approved earlier this session → re-launch after an idle close without re-prompting
+            return true;
         String label = switch (browser) {
             case "firefox" -> "Firefox";
             case "safari" -> "Safari";
             default -> "Chrome";
         };
         try {
-            return Boolean.TRUE.equals(api.runtime().ui()
+            boolean ok = Boolean.TRUE.equals(api.runtime().ui()
                                             .confirm("Open a " + label + " window for pijota to browse the web?")
                                             .get(120, TimeUnit.SECONDS));
+            browserApproved = ok;
+            return ok;
         } catch (Exception e) {
             return false;
         }

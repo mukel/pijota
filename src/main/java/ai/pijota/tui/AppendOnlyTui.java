@@ -101,6 +101,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     .bind(Key.Special.CTRL_L, this::showModelSelector)
                                     .bind(Key.Special.CTRL_P, this::showCommandPalette)
                                     .bind(Key.Special.CTRL_T, this::pickPathWithFzf)
+                                    .bind(Key.Special.CTRL_O, this::toggleStatusExpanded)
                                     .bind(Key.Special.CTRL_SHIFT_P, this::cycleModel);
 
     @Override
@@ -1682,13 +1683,33 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /** Extension status lines, plus a persistent reminder (and security cue) whenever remote control is driving this session. */
+    private static final int STATUS_COLLAPSED_LINES = 3; // status rows shown before "… N more"; Ctrl+O unrolls
+    private volatile boolean statusExpanded;
+
+    private void toggleStatusExpanded() {
+        statusExpanded = !statusExpanded;
+        redrawPrompt();
+    }
+
     private List<String> statusLinesWithRemote() {
-        var base = extensionLinesSupplier.get();
-        if (remoteControl == null || !remoteControl.active())
-            return base;
-        var lines = new ArrayList<String>(base);
-        lines.add("🔗 remote control active · " + remoteControl.summary() + " · /remote-control to manage");
-        return lines;
+        var all = new ArrayList<String>(extensionLinesSupplier.get());
+        if (remoteControl != null && remoteControl.active())
+            all.add("🔗 remote control active · " + remoteControl.summary() + " · /remote-control to manage");
+        return collapse(all, statusExpanded, STATUS_COLLAPSED_LINES);
+    }
+
+    /** Caps the status lines to {@code cap} with a "… N more · Ctrl+O" affordance, or returns them all when expanded. */
+    static List<String> collapse(List<String> all, boolean expanded, int cap) {
+        if (all.size() <= cap)
+            return all;
+        if (expanded) {
+            var out = new ArrayList<>(all);
+            out.add("… Ctrl+O to collapse");
+            return out;
+        }
+        var out = new ArrayList<>(all.subList(0, cap));
+        out.add("… " + (all.size() - cap) + " more · Ctrl+O to expand");
+        return out;
     }
 
     private void confirmRemoteSelection() {

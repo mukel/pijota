@@ -11,6 +11,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class BrowserSessionTest {
 
     @Test
+    void shouldReapOnlyWhenAliveAndIdlePastTheTimeout() {
+        long idle = 300_000_000_000L; // 300s
+        long now = 1_000_000_000_000L;
+        assertTrue(BrowserSession.shouldReap(true, now - idle - 1, now, idle), "alive + idle past timeout → reap");
+        assertFalse(BrowserSession.shouldReap(true, now - 1, now, idle), "recently used → keep");
+        assertFalse(BrowserSession.shouldReap(false, now - idle - 1, now, idle), "already closed → nothing to reap");
+        assertFalse(BrowserSession.shouldReap(true, now - idle - 1, now, 0), "timeout disabled (0) → never reap");
+    }
+
+    @Test
     void googleSearchUrlEncodesTheQuery() {
         assertEquals("https://www.google.com/search?hl=en&q=java+records+%26+sealed",
                                         BrowserSession.googleSearchUrl("java records & sealed"));
