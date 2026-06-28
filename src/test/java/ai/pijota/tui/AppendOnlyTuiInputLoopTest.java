@@ -328,8 +328,11 @@ class AppendOnlyTuiInputLoopTest {
     void everySessionSlashCommandRoutesThroughTheController() throws Exception {
         // each routes handleSubmit -> TuiCommandController switch -> the tui handler; driveSession dismisses any
         // overlay (ESC) and exits (Ctrl+D). Covers the command dispatch + the session/render handlers end-to-end.
-        for (String cmd : List.of("/copy", "/context", "/export", "/save x", "/clone", "/tree", "/whoami", "/info",
-                                        "/undo", "/logs", "/skills", "/settings", "/login", "/logout", "/remote")) {
+        // /save writes to an absolute temp path — a bare "/save x" would drop a session file in the repo root.
+        String saveTarget = tempDir.resolve("saved-session.jsonl").toString();
+        for (String cmd : List.of("/copy", "/context", "/export", "/save " + saveTarget, "/clone", "/tree", "/whoami",
+                                        "/info", "/undo", "/logs", "/skills", "/settings", "/login", "/logout",
+                                        "/remote")) {
             var ts = TestSession.in(tempDir).build();
             assertDoesNotThrow(() -> driveSession(ts, (cmd + "\r").getBytes(StandardCharsets.UTF_8)), cmd);
         }
