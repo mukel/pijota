@@ -2,8 +2,10 @@ package ai.pijota.web;
 
 import ai.pijota.agent.TestSession;
 import ai.pijota.messages.Message;
+import ai.pijota.messages.ToolCall;
 import ai.pijota.testkit.Await;
 import ai.pijota.testkit.FauxLlm;
+import ai.pijota.tools.Tool;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -408,6 +410,34 @@ class WebServerTest {
             String live = readUntil(events.body(), "streamed answer", Duration.ofSeconds(5));
             assertTrue(live.contains("streamed answer"), "the live answer is pushed over SSE: " + live);
         });
+    }
+
+    @Test
+    void toolCallEventsReachTheBrowserOverSse() throws Exception {
+        var ts = TestSession.in(tempDir).tool(echoTool()).build();
+        int port = freePort();
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), java.util.List::of,
+                                        java.util.List.of())) {
+            server.start();
+            var client = HttpClient.newHttpClient();
+            String base = "http://127.0.0.1:" + port;
+            ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "echo", "{\"text\":\"hi\"}")))
+                                            .enqueue(FauxLlm.Response.contentWithUsage("done"));
+            var events = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofInputStream());
+            readUntil(events.body(), "event: history", Duration.ofSeconds(5));
+            client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"use the tool\"}"))
+                                            .build(), HttpResponse.BodyHandlers.ofString());
+            String live = readUntil(events.body(), "tool", Duration.ofSeconds(5));
+            assertTrue(live.contains("tool"), "a tool event reaches the browser: " + live);
+        }
+    }
+
+    private static Tool echoTool() {
+        return new Tool.ToolDefinition("echo", "Echoes input", java.util.Map.of(),
+                                        (id, args, cwd) -> java.util.concurrent.CompletableFuture.completedFuture(
+                                                                        Tool.ToolResult.success("ok"))).toTool();
     }
 
     @Test
