@@ -312,6 +312,17 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void everySessionSlashCommandRoutesThroughTheController() throws Exception {
+        // each routes handleSubmit -> TuiCommandController switch -> the tui handler; driveSession dismisses any
+        // overlay (ESC) and exits (Ctrl+D). Covers the command dispatch + the session/render handlers end-to-end.
+        for (String cmd : List.of("/copy", "/context", "/export", "/save x", "/clone", "/tree", "/whoami", "/info",
+                "/undo", "/logs", "/skills", "/settings", "/login", "/logout", "/remote")) {
+            var ts = TestSession.in(tempDir).build();
+            assertDoesNotThrow(() -> driveSession(ts, (cmd + "\r").getBytes(StandardCharsets.UTF_8)), cmd);
+        }
+    }
+
+    @Test
     void slashCommandsDispatchThroughTheLoop() throws Exception {
         // each command routes handleSubmit → command dispatch → its handler (session/model/theme/think pickers, etc.);
         // driveSession appends ESC (dismiss the opened overlay) + Ctrl+D (exit)
