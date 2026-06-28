@@ -13,6 +13,21 @@ import java.util.concurrent.TimeoutException;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ErrorUtilTest {
+
+    @Test
+    void messagelessNetworkErrorsBecomeActionableText() {
+        // a bare "ConnectException" tells a user nothing — message() should explain it
+        String connect = ErrorUtil.message(new java.net.ConnectException());
+        assertFalse(connect.equals("ConnectException"), connect);
+        assertTrue(connect.toLowerCase().contains("connect") || connect.toLowerCase().contains("reach"), connect);
+        // unwraps wrappers too (the agent loop completes the future with a CompletionException)
+        String wrapped = ErrorUtil.message(new CompletionException(new java.net.ConnectException()));
+        assertEquals(connect, wrapped);
+        // a timeout reads as a timeout, not the class name
+        assertTrue(ErrorUtil.message(new java.net.http.HttpTimeoutException("")).toLowerCase().contains("time"),
+                                        "timeouts should mention time");
+    }
+
     @Test
     void unwrapPeelsCompletionAndExecutionExceptions() {
         var cause = new RuntimeException("real");

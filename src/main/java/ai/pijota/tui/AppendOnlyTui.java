@@ -1288,10 +1288,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 streamRenderer.reset();
                 session.prompt(payload, attachments).join();
             } catch (CompletionException e) {
-                dispatchException(e.getCause() != null ? e.getCause() : e);
-                setStatusOverride("Error: " + ErrorUtil.message(e.getCause()));
+                // The turn already rendered the failure via the AgentEvent.Error event; just forward to extensions
+                // and reflect it in the status line (no duplicate "Exception:" line).
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                notifyExtensionsOfException(cause);
+                setStatusOverride("Error: " + ErrorUtil.message(cause));
             } catch (Throwable t) {
-                dispatchException(t);
+                notifyExtensionsOfException(t);
             } finally {
                 showSessionWarning();
                 endBusy(gen);
@@ -1981,6 +1984,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void dispatchException(Throwable t) {
         appendPlain(List.of(theme.styled("toolError", "Exception: " + ErrorUtil.message(t))));
+        notifyExtensionsOfException(t);
+    }
+
+    /**
+     * Forward an exception to extensions without rendering it — used for turn failures, which already surface to the
+     * user via the {@link AgentEvent.Error} event, so calling {@link #dispatchException} there would double-print it.
+     */
+    private void notifyExtensionsOfException(Throwable t) {
         if (session != null && session.extensionRegistry() != null) {
             session.extensionRegistry().dispatchException(t);
         }

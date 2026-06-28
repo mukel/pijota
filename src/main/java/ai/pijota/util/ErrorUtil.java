@@ -34,8 +34,26 @@ public final class ErrorUtil {
         Throwable unwrapped = unwrap(t);
         String message = unwrapped.getMessage();
         if (message == null || message.isBlank())
-            message = unwrapped.getClass().getSimpleName();
+            message = describe(unwrapped);
         return truncate(sanitize(concise(message)));
+    }
+
+    /**
+     * Human-readable fallback for exceptions that arrive with no message — a bare class name like "ConnectException"
+     * tells a user nothing. Common network failures (the model endpoint unreachable / slow / misnamed) get actionable
+     * text; anything else degrades to the class's simple name.
+     */
+    private static String describe(Throwable t) {
+        return switch (t) {
+            case java.net.ConnectException e ->
+                "couldn't reach the model server (connection refused) — is it running and is the base URL correct?";
+            case java.net.UnknownHostException e ->
+                "unknown host \"" + e.getMessage() + "\" — check the provider's base URL";
+            case java.net.http.HttpTimeoutException e -> "the model server didn't respond in time (timeout)";
+            case java.net.SocketTimeoutException e -> "the model server didn't respond in time (timeout)";
+            case java.net.NoRouteToHostException e -> "no route to the model server — check the host/port and network";
+            default -> t.getClass().getSimpleName();
+        };
     }
 
     /**
