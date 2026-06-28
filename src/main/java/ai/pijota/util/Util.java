@@ -359,6 +359,11 @@ public final class Util {
         return value.matches("[A-Za-z0-9._/@%+,:=~-]+") ? value : shellQuote(value);
     }
 
+    /** "1 item" / "3 items" — a count with its regularly-pluralized noun (the recurring {@code n==1?"":"s"} idiom). */
+    public static String plural(long n, String noun) {
+        return n + " " + noun + (n == 1 ? "" : "s");
+    }
+
     public static String firstLine(String text) {
         if (text == null || text.isBlank())
             return "";

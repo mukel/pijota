@@ -21,7 +21,8 @@
     --user: #4d8dfb; --user-bg: #4d8dfb33; --ok: #4ac26b; --err: #f9736b; --think: #b08cff;
     --code-bg: #17171b; --overlay: #000a; --shadow-color: #00000073; --err-text: #ffb4ae; --warn-text: #ffd9a8;
     --code-inline-bg: #ffffff14;
-    --radius: 12px; --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --radius: 12px; --col: 768px; /* shared content-column width: transcript + composer + menus align to it */
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   :root[data-theme="light"] {
@@ -39,7 +40,7 @@
   html, body { height: 100%; height: 100dvh; margin: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); display: flex; flex-direction: column; }
   header {
-    display: flex; align-items: center; gap: 10px; padding: 10px 18px;
+    display: flex; align-items: center; gap: 10px; padding: 12px 20px;
     border-bottom: 1px solid var(--border); background: var(--panel); flex: none;
   }
   header .logo { font-weight: 700; letter-spacing: .5px; font-size: 16px; }
@@ -50,13 +51,23 @@
   .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
   .dot.busy { background: var(--accent); box-shadow: none; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
-  main { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
-  #thread { max-width: 820px; margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 18px; }
+  ::selection { background: var(--accent-soft); } /* branded text selection */
+  main { flex: 1; overflow-y: auto; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  main::-webkit-scrollbar { width: 10px; }
+  main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  main::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  main::-webkit-scrollbar-track { background: transparent; }
+  /* keyboard focus rings for in-message interactive elements (links + the various copy buttons) */
+  .bubble a:focus-visible, .copy-btn:focus-visible, .msg-copy:focus-visible, .answer-copy:focus-visible, .think-copy:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
+  }
+  #thread { max-width: var(--col); margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 22px; }
   /* empty conversation: greeting + composer centred in the viewport (drops to the bottom once messages flow) */
-  .greeting { display: none; text-align: center; max-width: 760px; margin: 0 auto 24px; }
-  .greeting .mark { font-size: 30px; font-weight: 700; letter-spacing: .5px; }
+  .greeting { display: none; text-align: center; max-width: var(--col); margin: 0 auto 28px; }
+  .greeting .mark { font-size: 34px; font-weight: 700; letter-spacing: .5px; }
   .greeting .mark b { color: var(--accent); }
-  .greeting .hint { margin-top: 10px; color: var(--muted); font-size: 14px; }
+  .greeting .hint { margin-top: 12px; color: var(--muted); font-size: 14px; }
+  .greeting .hint code { font-family: var(--mono); font-size: 12.5px; background: var(--code-inline-bg); padding: 1px 6px; border-radius: 5px; }
   body.empty main { display: none; }
   body.empty .composer { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; }
   body.empty .greeting { display: block; }
@@ -178,14 +189,22 @@
   /* Stop is anchored to the send button's own wrapper (left:0, same width) so it's pixel-aligned above it on every screen */
   .sendwrap { position: relative; flex: none; align-self: flex-end; display: flex; }
   /* +18px clears the send button's ~8px inset inside the box, leaving ~10px between the Stop and the prompt box */
-  .stopbtn { display: none; position: absolute; left: 0; bottom: calc(100% + 18px); width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--err); color: #fff; font-size: 0; cursor: pointer; box-shadow: 0 4px 14px var(--shadow-color); align-items: center; justify-content: center; transition: transform .1s, filter .12s; }
+  /* slightly larger than the 34px send (left:-2 re-centres the 38px button over it) so it stands out while streaming */
+  .stopbtn { display: none; position: absolute; left: -2px; bottom: calc(100% + 16px); width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--err); color: #fff; font-size: 0; cursor: pointer; align-items: center; justify-content: center; transition: transform .1s, filter .12s; }
   /* the stop icon is a pixel-centred CSS square (the "■" glyph sits off-centre in its line-box); font-size:0 hides it */
-  .stopbtn::before { content: ""; width: 13px; height: 13px; border-radius: 3px; background: currentColor; }
-  .stopbtn.show { display: flex; }
+  .stopbtn::before { content: ""; width: 14px; height: 14px; border-radius: 3px; background: currentColor; }
+  .stopbtn.show { display: flex; animation: stopGlow 1.8s ease-out infinite; } /* subtle "live" beacon while streaming */
   .stopbtn:hover { filter: brightness(1.08); }
   .stopbtn:active { transform: scale(.92); }
+  /* an expanding, fading red ring — signals the turn is live and abortable, without being loud */
+  @keyframes stopGlow {
+    0%   { box-shadow: 0 4px 14px var(--shadow-color), 0 0 0 0 color-mix(in srgb, var(--err) 55%, transparent); }
+    70%  { box-shadow: 0 4px 16px var(--shadow-color), 0 0 0 11px color-mix(in srgb, var(--err) 0%, transparent); }
+    100% { box-shadow: 0 4px 14px var(--shadow-color), 0 0 0 0 color-mix(in srgb, var(--err) 0%, transparent); }
+  }
+  @media (prefers-reduced-motion: reduce) { .stopbtn.show { animation: none; box-shadow: 0 4px 14px var(--shadow-color); } }
   /* pending image attachments (paste / drop) shown above the input as removable thumbnails */
-  .attachments { display: flex; flex-wrap: wrap; gap: 8px; max-width: 760px; margin: 0 auto 8px; }
+  .attachments { display: flex; flex-wrap: wrap; gap: 8px; max-width: var(--col); margin: 0 auto 8px; }
   .attachments:empty { display: none; }
   .thumb { position: relative; width: 58px; height: 58px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
   .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -209,11 +228,12 @@
   .composer { flex: none; background: transparent; padding: 6px 18px 18px; }
   .composer .inner {
     position: relative; /* anchors the round Stop button floating above the send button */
-    max-width: 760px; width: 100%; margin: 0 auto; display: flex; gap: 8px; align-items: center;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 7px 7px 7px 18px;
-    box-shadow: 0 1px 3px var(--shadow-color); transition: border-color .15s, box-shadow .15s;
+    max-width: var(--col); width: 100%; margin: 0 auto; display: flex; gap: 8px; align-items: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 8px 8px 8px 18px;
+    box-shadow: 0 2px 16px -6px var(--shadow-color), 0 1px 2px var(--shadow-color); /* soft float, like Claude's */
+    transition: border-color .15s, box-shadow .15s;
   }
-  .composer .inner:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .composer .inner:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 2px 16px -6px var(--shadow-color); }
   textarea#input {
     /* sized to exactly one text line (no vertical padding); the flex row's align-items:center does the centering */
     flex: 1; resize: none; max-height: 200px; min-height: 22px; padding: 0; display: block;
@@ -224,13 +244,16 @@
   button.act {
     flex: none; border: none; border-radius: 50%; width: 34px; height: 34px; align-self: flex-end;
     display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1;
-    cursor: pointer; color: #fff; background: var(--accent); transition: filter .15s, background .15s, transform .1s;
+    cursor: pointer; color: #fff; background: var(--accent); box-shadow: 0 1px 3px var(--shadow-color);
+    transition: filter .15s, background .15s, transform .12s, box-shadow .15s;
   }
-  button.act:hover { filter: brightness(1.1); }
-  button.act:active { transform: scale(.92); }
+  button.act:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 3px 9px var(--shadow-color); }
+  button.act:active:not(:disabled) { transform: scale(.92); box-shadow: 0 1px 3px var(--shadow-color); }
+  /* visible keyboard focus on the composer buttons (mouse users never see it; keyboard users get a clear ring) */
+  .act:focus-visible, .attach:focus-visible, .stopbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   body.offline #send { opacity: .5; } /* visual cue while the SSE connection is down (still functional once it's back) */
 
-  .slashmenu { max-width: 760px; margin: 0 auto 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: none; box-shadow: 0 -6px 24px var(--shadow-color); }
+  .slashmenu { max-width: var(--col); margin: 0 auto 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: none; box-shadow: 0 -6px 24px var(--shadow-color); }
   .slashmenu.show { display: block; animation: slashIn .16s cubic-bezier(.22,.61,.36,1) both; }
   @keyframes slashIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .slashmenu.show { animation: none; } }

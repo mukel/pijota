@@ -3,6 +3,7 @@ package ai.pijota.telegram;
 import ai.pijota.agent.TestSession;
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.llm.ModelRegistry;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.telegram.TelegramClient.BotCommand;
 import ai.pijota.telegram.TelegramClient.InlineKeyboard;
@@ -181,7 +182,7 @@ class TelegramChatTest {
     @Test
     void modelPickerOnlyOffersModelsWhoseProviderHasAKey() {
         var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
-        var models = TelegramChat.availableModels(settings);
+        var models = ModelRegistry.availableModels(settings);
 
         assertFalse(models.isEmpty(), "openai builtins should be offered once an openai key is set");
         // The invariant the picker relies on, env-independent: never offer a model we can't actually run.

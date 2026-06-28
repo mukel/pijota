@@ -47,7 +47,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
         var sb = new StringBuilder(description);
         // Skip counts for empty/unreadable sessions (0 msgs) — they'd just read "(empty) · 0 msgs".
         if (messageCount > 0) {
-            sb.append("  ·  ").append(messageCount).append(" msg").append(messageCount == 1 ? "" : "s");
+            sb.append("  ·  ").append(Util.plural(messageCount, "msg"));
             if (estTokens > 0)
                 sb.append("  ·  ~").append(formatTokens(estTokens));
         }

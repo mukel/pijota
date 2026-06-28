@@ -12,6 +12,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 import static ai.pijota.testkit.FauxLlm.Response.contentWithUsage;
 import static org.junit.jupiter.api.Assertions.*;
@@ -66,6 +68,47 @@ class HeadlessAgentRunnerTest {
         assertNotNull(Ndjson.event(output, "tool_result"));
         assertNotNull(Ndjson.event(output, "tool_end"));
         assertEquals(1, ((Number) Ndjson.event(output, "done").get("toolCount")).intValue());
+    }
+
+    @Test
+    void writesAHumanReadableLogFileWhenRequested() throws IOException {
+        var file = tempDir.resolve("data.txt");
+        Files.writeString(file, "hi");
+        var log = tempDir.resolve("logs/run.log"); // a missing parent dir must be created
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.toolCall(new ToolCall("tc1", "read",
+                                        "{\"path\":\"" + file + "\"}"))).enqueue(contentWithUsage("done"));
+        stdio.feedInputJson(Map.of("description", "read it", "tools", List.of("read"), "cwd", tempDir.toString(),
+                                        "logFile", log.toString()));
+
+        int exitCode = HeadlessAgentRunner.run(llm, new ExtensionRegistry());
+
+        assertEquals(0, exitCode);
+        assertNotNull(Ndjson.event(stdio.out(), "log"), "emits a log event naming the file");
+        assertTrue(Files.exists(log), "log file (and its parent dir) is created");
+        assertTrue(Files.readString(log).contains("-> read"), "tool activity is written to the log");
+    }
+
+    @Test
+    void streamingDeltasEmitStreamEvents() {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("Hello ", "world\n"));
+        stdio.feedInputJson(Map.of("description", "hi", "cwd", tempDir.toString()));
+
+        int exitCode = HeadlessAgentRunner.run(llm, new ExtensionRegistry());
+
+        assertEquals(0, exitCode);
+        assertNotNull(Ndjson.event(stdio.out(), "stream"), "streaming deltas surface as stream events: " + stdio.out());
+    }
+
+    @Test
+    void taskProviderAndModelOverrideTheClient() {
+        var llm = new FauxLlm().enqueue(contentWithUsage("ok"));
+        stdio.feedInputJson(Map.of("description", "x", "cwd", tempDir.toString(), "provider", "anthropic", "model",
+                                        "claude-x", "apiKey", "sk-1"));
+
+        HeadlessAgentRunner.run(llm, new ExtensionRegistry());
+
+        assertEquals("anthropic", llm.provider(), "the task's provider overrides the client");
+        assertEquals("claude-x", llm.model());
     }
 
     @Test

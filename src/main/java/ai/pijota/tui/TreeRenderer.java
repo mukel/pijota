@@ -2,6 +2,7 @@ package ai.pijota.tui;
 
 import ai.pijota.agent.SessionDescriptor;
 import ai.pijota.theme.AnsiTheme;
+import ai.pijota.util.Util;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -139,11 +140,11 @@ final class TreeRenderer {
         label.append(theme.styled(currentTurn ? "toolLabel" : "", snippet((String) entry.get("content"), 44)));
         if (summary.toolCalls() > 0) {
             label.append(theme.styled("statusText", "  · ")).append(theme.styled("statusText",
-                                            summary.toolCalls() + " tool" + (summary.toolCalls() == 1 ? "" : "s")));
+                                            Util.plural(summary.toolCalls(), "tool")));
         }
         if (summary.errors() > 0) {
             label.append(theme.styled("toolError",
-                                            "  · " + summary.errors() + " error" + (summary.errors() == 1 ? "" : "s")));
+                                            "  · " + Util.plural(summary.errors(), "error")));
         }
         if (summary.compacted() > 0) {
             label.append(theme.styled("statusWarn", "  · compacted"));

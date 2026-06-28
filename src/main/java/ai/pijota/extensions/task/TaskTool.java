@@ -40,6 +40,19 @@ public final class TaskTool implements Tool {
     private final Map<String, List<Map<String, Object>>> chainConfigs;
     private final AtomicInteger logCounter = new AtomicInteger();
 
+    /** How one sub-agent is executed — spawns a child JVM in production; injectable so tests drive the orchestration
+     * (single/parallel/chain, aggregation, worktrees) against canned results without spawning processes. */
+    interface AgentRunner {
+        SubAgentResult run(SubAgent sub, String task, String workDir);
+    }
+
+    private AgentRunner agentRunner = this::spawnAgent;
+
+    /** Test seam: replace the real process-spawning runner with a fake one. */
+    void setAgentRunner(AgentRunner runner) {
+        this.agentRunner = runner;
+    }
+
     public TaskTool(List<SubAgent> agents, LlmClient llm, java.util.function.Supplier<List<String>> enabledToolNames,
                                     java.util.function.Supplier<String> systemPrompt,
                                     java.util.function.BiConsumer<String, String> activityHandler,
@@ -195,7 +208,7 @@ public final class TaskTool implements Tool {
                             wd = wt.toString();
                         }
                     }
-                    result = runAgent(agent.get(), desc, wd);
+                    result = agentRunner.run(agent.get(), desc, wd);
                 } else {
                     result = new SubAgentResult(agentId, "", 1, 0, 0, null,
                                                     "Unknown agent: " + agentId + ". Available: " + agentList());
@@ -288,7 +301,7 @@ public final class TaskTool implements Tool {
     // --- process-based agent execution ---
 
     private SubAgentResult runAgent(SubAgent sub, String task) {
-        return runAgent(sub, task, cwd.toString());
+        return agentRunner.run(sub, task, cwd.toString());
     }
 
     /**
@@ -315,7 +328,7 @@ public final class TaskTool implements Tool {
         return declared;
     }
 
-    private SubAgentResult runAgent(SubAgent sub, String task, String workDir) {
+    private SubAgentResult spawnAgent(SubAgent sub, String task, String workDir) {
         Path logFile;
         BufferedWriter logWriter;
         try {

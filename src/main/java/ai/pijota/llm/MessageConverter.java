@@ -1,6 +1,7 @@
 package ai.pijota.llm;
 
 import ai.pijota.messages.Message;
+import ai.pijota.util.Util;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.AudioContent;
@@ -117,7 +118,7 @@ public final class MessageConverter {
         if (!dropped.isEmpty()) {
             int total = dropped.values().stream().mapToInt(Integer::intValue).sum();
             var notes = dropped.entrySet().stream()
-                                            .map(e -> plural(e.getValue(), e.getKey().name().toLowerCase(Locale.ROOT)))
+                                            .map(e -> Util.plural(e.getValue(), e.getKey().name().toLowerCase(Locale.ROOT)))
                                             .toList();
             String note = "[" + String.join(" and ", notes) + " omitted — the current model can't read "
                                             + (total == 1 ? "it" : "them") + "]";
@@ -143,10 +144,6 @@ public final class MessageConverter {
             case VIDEO -> VideoContent.from(a.base64(), a.mime());
             case TEXT -> throw new IllegalStateException("text attachments are extracted & inlined upstream");
         };
-    }
-
-    private static String plural(int n, String noun) {
-        return n + " " + noun + (n == 1 ? "" : "s");
     }
 
     private static AiMessage assistantMessage(String text, String thinking) {

@@ -1,8 +1,11 @@
 package ai.pijota.telegram;
 
 import ai.pijota.agent.TestSession;
+import ai.pijota.messages.ToolCall;
+import ai.pijota.messages.Usage;
 import ai.pijota.testkit.Await;
 import ai.pijota.testkit.FauxLlm;
+import ai.pijota.tools.Tool;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -10,6 +13,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,6 +39,86 @@ class TelegramChatFlowTest {
         var api = new FakeTelegramApi();
         var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
         return new Chat(chat, api, ts);
+    }
+
+    @Test
+    void stopWhenIdleSaysNothingIsRunning() {
+        var c = newChat();
+        c.chat().onText("/stop");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("Nothing")), c.api().allText().toString());
+    }
+
+    @Test
+    void undoWithNothingToUndoIsReported() {
+        var c = newChat();
+        c.chat().onText("/undo");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.toLowerCase().contains("nothing to undo")),
+                                        c.api().allText().toString());
+    }
+
+    @Test
+    void usageReportsTokensInAndOut() {
+        var c = newChat();
+        c.chat().onText("/usage");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("in") && t.contains("out")),
+                                        c.api().allText().toString());
+    }
+
+    @Test
+    void nameSetsThenShowsTheConversationName() {
+        var c = newChat();
+        c.chat().onText("/name my project chat");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("my project chat")), c.api().allText().toString());
+
+        var c2 = newChat();
+        c2.chat().onText("/name");
+        assertTrue(c2.api().allText().stream().anyMatch(t -> t.toLowerCase().contains("no name")),
+                                        c2.api().allText().toString());
+    }
+
+    @Test
+    void modelOpensAPickerKeyboard() {
+        var c = newChat();
+        c.chat().onText("/model");
+        // a picker rides on an inline keyboard (the catalogue, since the test chat has null settings)
+        assertTrue(c.api().keyboards().stream().anyMatch(k -> k != null), "an inline picker keyboard is shown");
+    }
+
+    @Test
+    void thinkOpensAReasoningEffortPicker() {
+        var c = newChat();
+        c.chat().onText("/think");
+        assertTrue(c.api().keyboards().stream().anyMatch(k -> k != null), "a reasoning-effort picker is shown");
+    }
+
+    @Test
+    void newAsksForConfirmationBeforeClearing() {
+        var c = newChat();
+        c.chat().onText("/new");
+        assertTrue(c.api().keyboards().stream().anyMatch(k -> k != null), "a Yes/No confirmation is shown");
+    }
+
+    @Test
+    void undoAfterACompletedTurnRemovesIt() {
+        var c = newChat();
+        c.session().llm().enqueue(FauxLlm.Response.contentWithUsage("answer"));
+        c.chat().onText("remember this");
+        Await.until(() -> !c.session().session().isBusy(), Duration.ofSeconds(5), "turn finished");
+
+        c.chat().onText("/undo");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.toLowerCase().contains("undone")), c.api().allText().toString());
+    }
+
+    @Test
+    void exportSendsATranscriptDocumentAfterATurn() {
+        var c = newChat();
+        c.session().llm().enqueue(FauxLlm.Response.contentWithUsage("answer"));
+        c.chat().onText("a question");
+        Await.until(() -> !c.session().session().isBusy(), Duration.ofSeconds(5), "turn finished");
+
+        c.chat().onText("/export");
+        Await.until(() -> !c.api().documents().isEmpty(), Duration.ofSeconds(5), "a transcript file is sent");
+        assertTrue(c.api().documents().get(0).filename().endsWith(".md"), c.api().documents().toString());
     }
 
     @Test
@@ -155,6 +240,88 @@ class TelegramChatFlowTest {
         assertFalse(api.sent().stream().anyMatch(s -> s.contains("can't read")), api.sent().toString());
         assertTrue(ts.session().userMessages().getFirst().content().contains("web_pdf_to_markdown"),
                                         ts.session().userMessages().getFirst().content());
+    }
+
+    @Test
+    void streamingShowsAStopButtonWhileGeneratingThenFinalizesWithoutItPlusAFooter() {
+        var c = newChat();
+        c.session().llm().enqueue(FauxLlm.Response.content(new Usage(10, 5), "Hello", " world"));
+
+        c.chat().onText("hi");
+
+        Await.until(() -> c.api().allText().stream().anyMatch(t -> t.contains("Hello world")), Duration.ofSeconds(5),
+                                        "the streamed answer never arrived");
+        var kbs = c.api().keyboards();
+        assertTrue(kbs.stream().anyMatch(k -> k != null), "a Stop button is shown while streaming");
+        assertNull(kbs.get(kbs.size() - 1), "the Stop button is dropped once the turn finalizes");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("tok")), "a usage footer is appended at the end");
+    }
+
+    @Test
+    void tappingTheStopButtonAbortsTheTurnAndDropsTheButton() {
+        var c = newChat();
+        c.session().llm().blockUntilAborted();
+        c.chat().onText("go"); // starts a turn that blocks
+        Await.until(() -> c.session().session().isBusy(), Duration.ofSeconds(5), "the turn should be running");
+
+        var msg = new TelegramClient.TgMessage(500, new TelegramClient.TgChat(CHAT_ID), null);
+        c.chat().onCallback(new TelegramClient.CallbackQuery("cb1", msg, TelegramChat.ABORT_DATA));
+
+        Await.until(() -> !c.session().session().isBusy(), Duration.ofSeconds(5), "the Stop tap should abort the turn");
+        assertTrue(c.api().answeredCallbacks().contains("cb1"), "the tap is acknowledged");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("Stopped")), c.api().allText().toString());
+        assertNull(c.api().keyboards().get(c.api().keyboards().size() - 1), "the Stop button is removed");
+    }
+
+    @Test
+    void aLongAnswerIsDeliveredAsAFileAttachment() {
+        var c = newChat();
+        String big = "line\n".repeat(2200); // ~11k chars, above the attach threshold (2× the message cap)
+        c.session().llm().enqueue(FauxLlm.Response.contentWithUsage(big));
+
+        c.chat().onText("dump the file");
+
+        Await.until(() -> !c.api().documents().isEmpty(), Duration.ofSeconds(5), "the long answer was never attached");
+        assertEquals(1, c.api().documents().size());
+        assertTrue(c.api().documents().get(0).content().contains("line"), "the file holds the full answer");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("attached")), "an inline notice points to it");
+    }
+
+    @Test
+    void aFileSentWhileATurnIsRunningIsRefusedNotPromptedOver() {
+        var c = newChat();
+        c.session().llm().blockUntilAborted();
+        c.chat().onText("go"); // starts a blocking turn
+        Await.until(() -> c.session().session().isBusy(), Duration.ofSeconds(5), "the turn should be running");
+        int before = c.session().session().userMessages().size();
+
+        c.chat().onDocument(new TelegramClient.TgFile("fid", "notes.txt", "text/plain", 4), "read this");
+
+        assertTrue(c.api().sent().stream().anyMatch(s -> s.contains("Busy")), c.api().sent().toString());
+        assertEquals(before, c.session().session().userMessages().size(), "no new turn was started over the running one");
+        c.session().session().abort();
+    }
+
+    @Test
+    void aRunningToolShowsALiveHintCarryingAStopButton() {
+        var ts = TestSession.in(tempDir).tool(echoTool()).build();
+        var api = new FakeTelegramApi();
+        var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
+        ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "echo", "{\"text\":\"hi\"}")))
+                                        .enqueue(FauxLlm.Response.contentWithUsage("all done"));
+
+        chat.onText("use the tool");
+
+        Await.until(() -> api.allText().stream().anyMatch(t -> t.contains("all done")), Duration.ofSeconds(5),
+                                        "the turn never finished");
+        assertTrue(api.allText().stream().anyMatch(t -> t.contains("echo")), "a running-tool hint is shown: " + api.allText());
+        assertTrue(api.keyboards().stream().anyMatch(k -> k != null), "the tool hint carries a Stop button");
+    }
+
+    private static Tool echoTool() {
+        return new Tool.ToolDefinition("echo", "Echoes input text", Map.of(),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(
+                                                                        Tool.ToolResult.success("ok"))).toTool();
     }
 
     @Test

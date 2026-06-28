@@ -1,10 +1,124 @@
 package ai.pijota.extensions.task;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class TaskToolTest {
+
+    @TempDir
+    Path orchTempDir;
+
+    private static final SubAgent ALPHA = new SubAgent("alpha", "d", "", List.of(), null, "test");
+    private static final SubAgent BETA = new SubAgent("beta", "d", "", List.of(), null, "test");
+
+    private TaskTool toolWith(List<SubAgent> agents, TaskTool.AgentRunner runner) {
+        var tool = new TaskTool(agents, null, List::of, () -> "", (a, l) -> {}, (a, s, t) -> {}, orchTempDir, 0);
+        tool.setAgentRunner(runner); // no real sub-process spawn — canned results drive the orchestration
+        return tool;
+    }
+
+    @Test
+    void singleModeRunsTheNamedAgentAndReturnsItsOutput() {
+        var tool = toolWith(List.of(ALPHA),
+                                        (s, task, wd) -> new TaskTool.SubAgentResult(s.name(), "ran: " + task, 0, 1, 2, null, null));
+        var result = run(tool, Map.of("agent", "alpha", "description", "do it"), orchTempDir);
+        assertFalse(result.isError(), result.content());
+        assertTrue(result.content().contains("ran: do it"), result.content());
+        assertEquals("single", result.details().get("mode"));
+    }
+
+    @Test
+    void singleModeReportsAnUnknownAgent() {
+        var result = run(toolWith(List.of(), (s, t, w) -> null), Map.of("agent", "ghost", "description", "x"),
+                                        orchTempDir);
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("not found"), result.content());
+    }
+
+    @Test
+    void parallelModeRunsEveryTaskAndAggregates() {
+        var tool = toolWith(List.of(ALPHA, BETA),
+                                        (s, task, wd) -> new TaskTool.SubAgentResult(s.name(), "out-" + s.name(), 0, 1, 1, null, null));
+        var result = run(tool, Map.of("tasks", List.of(Map.of("agent", "alpha", "description", "t1"),
+                                        Map.of("agent", "beta", "description", "t2"))), orchTempDir);
+        assertFalse(result.isError(), result.content());
+        assertTrue(result.content().contains("2/2 succeeded"), result.content());
+        assertTrue(result.content().contains("out-alpha") && result.content().contains("out-beta"), result.content());
+        assertEquals(2, result.details().get("resultCount"));
+    }
+
+    @Test
+    void parallelModeRunsAgentsInGitWorktreesWhenRequested() throws Exception {
+        assumeTrue(gitAvailable(), "git not installed");
+        initGitRepo(orchTempDir);
+        var seenDirs = Collections.synchronizedList(new ArrayList<String>());
+        var tool = toolWith(List.of(ALPHA, BETA), (s, task, wd) -> {
+            seenDirs.add(wd);
+            return new TaskTool.SubAgentResult(s.name(), "ok", 0, 1, 1, null, null);
+        });
+
+        var result = run(tool, Map.of("worktree", true, "tasks", List.of(Map.of("agent", "alpha", "description", "t1"),
+                                        Map.of("agent", "beta", "description", "t2"))), orchTempDir);
+
+        assertFalse(result.isError(), result.content());
+        assertTrue(seenDirs.stream().anyMatch(d -> d.contains("wt-")), "agents run in per-task worktrees: " + seenDirs);
+    }
+
+    private static boolean gitAvailable() {
+        try {
+            return new ProcessBuilder("git", "--version").start().waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static void initGitRepo(Path dir) throws Exception {
+        git(dir, "init", "-q");
+        git(dir, "config", "user.email", "t@t");
+        git(dir, "config", "user.name", "t");
+        Files.writeString(dir.resolve("f.txt"), "x");
+        git(dir, "add", ".");
+        git(dir, "commit", "-q", "-m", "init"); // worktree add needs a committed HEAD
+    }
+
+    private static void git(Path dir, String... args) throws Exception {
+        var cmd = new ArrayList<String>(List.of("git"));
+        cmd.addAll(List.of(args));
+        new ProcessBuilder(cmd).directory(dir.toFile()).redirectErrorStream(true)
+                                        .redirectOutput(ProcessBuilder.Redirect.DISCARD).start().waitFor();
+    }
+
+    @Test
+    void chainModeStopsAtTheFirstFailure() {
+        var tool = toolWith(List.of(ALPHA, BETA), (s, task, wd) -> s.name().equals("beta")
+                                        ? new TaskTool.SubAgentResult("beta", "", 1, 1, 0, null, "boom")
+                                        : new TaskTool.SubAgentResult("alpha", "step1 done", 0, 1, 1, null, null));
+        var result = run(tool, Map.of("chain", List.of(Map.of("agent", "alpha", "description", "first"),
+                                        Map.of("agent", "beta", "description", "use {previous}"))), orchTempDir);
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("Chain stopped"), result.content());
+    }
+
+    @Test
+    void chainModeRunsAllStepsOnSuccess() {
+        var tool = toolWith(List.of(ALPHA, BETA),
+                                        (s, task, wd) -> new TaskTool.SubAgentResult(s.name(), "done-" + s.name(), 0, 1, 1, null, null));
+        var result = run(tool, Map.of("chain", List.of(Map.of("agent", "alpha", "description", "a"),
+                                        Map.of("agent", "beta", "description", "b"))), orchTempDir);
+        assertFalse(result.isError(), result.content());
+        assertTrue(result.content().contains("done-beta"), "the final step's output is returned: " + result.content());
+    }
 
     @Test
     void resolveCurrentAliasMirrorsParentModel() {
@@ -105,5 +219,39 @@ class TaskToolTest {
     void formatToolCallInvalidJson() {
         var result = TaskTool.formatToolCall("read", "not json");
         assertTrue(result.contains("read"));
+    }
+
+    @Test
+    void sanitizeReplacesUnsafeChars() {
+        assertEquals("a_b_c", TaskTool.sanitize("a b/c"));
+        assertEquals("ok-name_1.2", TaskTool.sanitize("ok-name_1.2"));
+    }
+
+    @Test
+    void fileExtractsBasenameAcrossKeyAliasesOrDefaultsToDot() {
+        assertEquals("z.txt", TaskTool.file(java.util.Map.of("path", "x/y/z.txt")));
+        assertEquals("f.java", TaskTool.file(java.util.Map.of("file_path", "a/f.java")));
+        assertEquals(".", TaskTool.file(java.util.Map.of()));
+    }
+
+    @Test
+    void shortenTruncatesWithEllipsisAndHandlesBlank() {
+        assertEquals("", TaskTool.shorten(null, 10));
+        assertEquals("", TaskTool.shorten("   ", 10));
+        assertEquals("short", TaskTool.shorten("short", 10));
+        String s = TaskTool.shorten("abcdefghij", 5);
+        assertEquals(5, s.length());
+        assertTrue(s.endsWith("\u2026"), s);
+    }
+
+    @Test
+    void detailsForResultsSummarizesModeCountsAndLogs() {
+        var ok = new TaskTool.SubAgentResult("alpha", "out", 0, 1, 2, "/tmp/alpha.log", null);
+        var bad = new TaskTool.SubAgentResult("beta", "", 1, 1, 0, null, "boom");
+        var details = TaskTool.detailsForResults("parallel", java.util.List.of(ok, bad));
+        assertEquals("parallel", details.get("mode"));
+        assertEquals(2, details.get("resultCount"));
+        assertEquals(1L, details.get("succeeded"));
+        assertTrue(details.containsKey("logFiles"), details.toString());
     }
 }

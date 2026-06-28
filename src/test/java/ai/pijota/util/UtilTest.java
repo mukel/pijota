@@ -11,6 +11,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class UtilTest {
     @Test
+    void pluralAppendsSExceptForOne() {
+        assertEquals("1 item", Util.plural(1, "item"));
+        assertEquals("0 items", Util.plural(0, "item"));
+        assertEquals("3 tools", Util.plural(3, "tool"));
+    }
+
+    @Test
     void shellQuoteIfNeededQuotesOnlyWhenNecessary() {
         assertEquals("src/Foo.java", Util.shellQuoteIfNeeded("src/Foo.java")); // safe → bare
         assertEquals("~/notes.md", Util.shellQuoteIfNeeded("~/notes.md")); // ~ kept bare so it still expands

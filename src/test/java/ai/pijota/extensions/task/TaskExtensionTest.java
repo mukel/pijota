@@ -44,4 +44,36 @@ class TaskExtensionTest {
         assertFalse(String.join("\n", lines).contains("⚙ task:"), "no aggregate line for a single agent");
         assertEquals(1, lines.size());
     }
+
+    @Test
+    void aFailedAgentShowsTheErrorIcon() {
+        var ext = new TaskExtension();
+        ext.onActivity("solo", "Bash boom");
+        ext.finished("solo", false, 500);
+
+        String all = String.join("\n", ext.statusLines());
+        assertTrue(all.contains("✗ task:solo"), "a failed agent uses the ✗ icon: " + all);
+    }
+
+    @Test
+    void noAgentsMeansNoStatusLines() {
+        assertTrue(new TaskExtension().statusLines().isEmpty(), "nothing running → no status");
+    }
+
+    @Test
+    void nameAndDescriptionAreSet() {
+        var ext = new TaskExtension();
+        assertEquals("task", ext.name());
+        assertFalse(ext.description().isBlank());
+    }
+
+    @Test
+    void activityUpdatesTheRunningAgentsLine() {
+        var ext = new TaskExtension();
+        ext.onActivity("alpha", "Read one");
+        ext.onActivity("alpha", "Edit two"); // a second activity for the same agent refreshes its line
+        String all = String.join("\n", ext.statusLines());
+        assertTrue(all.contains("task:alpha"), all);
+        assertTrue(all.contains("running"), all);
+    }
 }

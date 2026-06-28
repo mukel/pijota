@@ -9,6 +9,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
+import ai.pijota.testkit.FakeHttpClient;
 import ai.pijota.tools.WebsearchTool.SearchResult;
 
 class WebsearchToolTest {
@@ -550,6 +551,24 @@ class WebsearchToolTest {
         var tool = new WebsearchTool();
         var result = run(tool, Map.of("query", "   "), "/cwd");
         assertTrue(result.isError());
+    }
+
+    // ─── execute() against a canned response (no network) ───
+
+    @Test
+    void executeRunsADdgSearchThroughTheInjectedClient() {
+        var tool = new WebsearchTool(FakeHttpClient.ok(DDG_HTML)); // canned DDG page, no network
+        var result = run(tool, Map.of("query", "anything"), "/cwd");
+        assertFalse(result.isError(), result.content());
+        assertTrue(result.content().contains("First Result"), result.content());
+        assertTrue(result.content().contains("https://example.com/1"), result.content());
+    }
+
+    @Test
+    void executeRejectsABlankQuery() {
+        var result = run(new WebsearchTool(FakeHttpClient.ok("")), Map.of("query", "  "), "/cwd");
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("No query"));
     }
 
     // ─── live tests (opt-in via PIJOTA_LIVE=1) ───

@@ -1,6 +1,7 @@
 package ai.pijota.tui;
 
 import ai.pijota.agent.SessionDescriptor;
+import ai.pijota.util.Util;
 
 import java.nio.file.Path;
 import java.time.Instant;
@@ -42,7 +43,7 @@ public record SessionItem(Path path, String name, String description, long mtime
         String date = mtime > 0 ? DATE.format(Instant.ofEpochMilli(mtime)) : "unknown";
         // omit counts for empty/unreadable sessions (0 msgs)
         String counts = messageCount > 0
-                                        ? "  " + messageCount + " msg" + (messageCount == 1 ? "" : "s") + (estTokens > 0
+                                        ? "  " + Util.plural(messageCount, "msg") + (estTokens > 0
                                                                         ? "  ~" + SessionDescriptor.formatTokens(
                                                                                                         estTokens)
                                                                         : "")

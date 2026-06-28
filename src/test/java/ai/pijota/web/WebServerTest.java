@@ -220,6 +220,86 @@ class WebServerTest {
     }
 
     @Test
+    void interruptAndAnswerEndpointsRejectNonPost() throws Exception {
+        withServer((ts, client, base) -> {
+            for (String path : new String[] {"/interrupt", "/answer"}) {
+                var resp = client.send(HttpRequest.newBuilder(URI.create(base + path)).GET().build(),
+                                                HttpResponse.BodyHandlers.ofString());
+                assertEquals(405, resp.statusCode(), path + " should be POST-only");
+            }
+        });
+    }
+
+    @Test
+    void interruptPostedWhenIdleIsAcceptedAsANoOp() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/interrupt"))
+                                            .POST(HttpRequest.BodyPublishers.noBody()).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, resp.statusCode(), "interrupt is accepted (No Content) even with no turn running");
+        });
+    }
+
+    @Test
+    void commandsEndpointListsRegisteredCommandsWhenUnauthenticated() throws Exception {
+        // a no-token server (withServer) doesn't gate routes, so /commands returns the list
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/commands")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, resp.statusCode());
+            assertTrue(resp.headers().firstValue("Content-Type").orElse("").contains("json"), "commands as JSON");
+        });
+    }
+
+    @Test
+    void crossOriginPostIsBlocked() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .header("Origin", "http://evil.example").POST(HttpRequest.BodyPublishers
+                                                                            .ofString("{\"text\":\"hi\"}")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(403, resp.statusCode(), "a foreign Origin on a state-changing POST must be refused");
+        });
+    }
+
+    @Test
+    void promptPostRunsAnAgentTurnAndAcceptsWith204() throws Exception {
+        withServer((ts, client, base) -> {
+            ts.llm().enqueue(FauxLlm.Response.contentWithUsage("hi back"));
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .header("Content-Type", "application/json")
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"hello\"}")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, resp.statusCode());
+            Await.until(() -> !ts.session().isBusy(), Duration.ofSeconds(5), "the turn runs");
+            assertFalse(ts.session().userMessages().isEmpty(), "the prompt became a turn");
+        });
+    }
+
+    @Test
+    void blankPromptIsAcceptedWithoutStartingATurn() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .header("Content-Type", "application/json")
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"\"}")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, resp.statusCode());
+            assertTrue(ts.session().userMessages().isEmpty(), "a blank prompt starts no turn");
+        });
+    }
+
+    @Test
+    void answerEndpointResolvesAndReturns204() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/answer"))
+                                            .header("Content-Type", "application/json")
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"id\":\"q1\",\"value\":\"yes\"}"))
+                                            .build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, resp.statusCode());
+        });
+    }
+
+    @Test
     void tokenGateRejectsWithoutTokenAndAcceptsWithIt() throws Exception {
         var ts = TestSession.in(tempDir).build();
         int port = freePort();

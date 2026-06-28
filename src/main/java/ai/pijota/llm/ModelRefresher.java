@@ -53,8 +53,9 @@ public final class ModelRefresher {
         return new Result(providersChecked, models.size(), List.copyOf(errors));
     }
 
-    private static List<ModelInfo> fetchOpenAiCompatible(HttpClient client, ProviderCatalog.Provider provider,
-                                    String token, String accountId, boolean oauthToken) throws Exception {
+    // package-private: tested directly with an injected (fake) HttpClient against canned /models responses
+    static List<ModelInfo> fetchOpenAiCompatible(HttpClient client, ProviderCatalog.Provider provider, String token,
+                                    String accountId, boolean oauthToken) throws Exception {
         String baseUrl = oauthToken ? CHATGPT_CODEX_BASE_URL : provider.baseUrl();
         if (baseUrl == null || baseUrl.isBlank())
             return List.of();

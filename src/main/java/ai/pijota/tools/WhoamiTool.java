@@ -42,8 +42,7 @@ public final class WhoamiTool implements Tool {
                 return ToolResult.error("Model information not available");
             }
 
-            var info = ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model)).findFirst()
-                                            .orElse(null);
+            var info = ModelRegistry.byId(model).orElse(null);
 
             var sb = new StringBuilder();
             sb.append("id: ").append(model).append('\n');

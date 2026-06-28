@@ -1,11 +1,34 @@
 package ai.pijota.config;
 
+import ai.pijota.testkit.FakeHttpClient;
 import ai.pijota.util.Util;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class OAuthLoginTest {
+
+    @Test
+    void loginRequestsADeviceCodeAnnouncesItThenPollsForTheToken() throws Exception {
+        var device = "{\"device_code\":\"dc\",\"user_code\":\"UC-123\",\"verification_uri\":\"https://verify\",\"expires_in\":300}";
+        var token = "{\"access_token\":\"at\",\"refresh_token\":\"rt\",\"expires_in\":3600}";
+        var client = FakeHttpClient.sequence(device, token); // 1st call → device, 2nd → token
+        var out = new ArrayList<String>();
+
+        var result = OAuthLogin.login("https://dev", "https://tok", "cid", "scope", out::add, client);
+
+        assertEquals("at", result.accessToken());
+        assertEquals("rt", result.refreshToken());
+        assertTrue(out.stream().anyMatch(l -> l.contains("UC-123")), "the user code is announced: " + out);
+    }
+
+    @Test
+    void loginThrowsWhenTheDeviceCodeRequestFails() {
+        var client = FakeHttpClient.status(500, "boom");
+        assertThrows(Exception.class, () -> OAuthLogin.login("d", "t", "c", "s", s -> {}, client));
+    }
 
     @Test
     void deviceCodeStoresFields() {

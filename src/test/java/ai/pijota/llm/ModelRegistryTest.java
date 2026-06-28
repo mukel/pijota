@@ -53,6 +53,29 @@ class ModelRegistryTest {
     }
 
     @Test
+    void availableModelsNeedANonBlankKeyAndDefaultToTheCatalogueWithoutSettings() {
+        assertEquals(ModelRegistry.KNOWN_MODELS, ModelRegistry.availableModels(null),
+                                        "settings unknown → unfiltered catalogue (env-independent)");
+
+        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
+        var models = ModelRegistry.availableModels(settings);
+        assertFalse(models.isEmpty(), "an openai key set → at least the openai builtins are offered");
+        for (var m : models) { // env-independent invariant: never offer a model whose provider has no usable key
+            String key = settings.resolveApiKey(m.provider());
+            assertTrue(key != null && !key.isBlank(), "offered a model with no key for " + m.provider());
+        }
+    }
+
+    @Test
+    void byIdMatchesCaseInsensitivelyAndIsEmptyForUnknownOrNull() {
+        var any = ModelRegistry.KNOWN_MODELS.get(0).id();
+        assertTrue(ModelRegistry.byId(any).isPresent());
+        assertTrue(ModelRegistry.byId(any.toUpperCase()).isPresent(), "lookup is case-insensitive");
+        assertTrue(ModelRegistry.byId("no-such-model-xyz").isEmpty());
+        assertTrue(ModelRegistry.byId(null).isEmpty());
+    }
+
+    @Test
     void resolveProviderModelFallsBackToDefaultProvider() {
         var resolved = ModelRegistry.resolveProviderModel(null, null, null);
         assertEquals("openai", resolved.provider());

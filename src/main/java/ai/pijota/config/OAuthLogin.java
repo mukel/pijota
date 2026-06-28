@@ -24,11 +24,14 @@ public final class OAuthLogin {
 
     public static TokenResult login(String deviceEndpoint, String tokenEndpoint, String clientId, String scope,
                                     Consumer<String> out) throws Exception {
-        var client = HttpClient.newHttpClient();
+        return login(deviceEndpoint, tokenEndpoint, clientId, scope, out, HttpClient.newHttpClient());
+    }
 
+    /** Injectable-client variant — lets tests drive the device-code → poll flow against a fake HTTP client. */
+    static TokenResult login(String deviceEndpoint, String tokenEndpoint, String clientId, String scope,
+                                    Consumer<String> out, HttpClient client) throws Exception {
         var device = requestDeviceCode(client, deviceEndpoint, clientId, scope);
         announce(out, device);
-
         return pollForToken(client, tokenEndpoint, clientId, device.deviceCode());
     }
 

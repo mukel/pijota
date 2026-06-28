@@ -99,4 +99,52 @@ class GlobToolTest {
         assertFalse(result.isError());
         assertTrue(result.content().contains("sub/c.java"));
     }
+
+    @Test
+    void realBackendFindsFilesEndToEnd() throws Exception {
+        // No injected backend: exercises the production chain (rg → fd → java fallback) + relativize, whichever tool is
+        // present. The matched set is identical across backends, so the assertions are deterministic.
+        Files.createDirectories(tempDir.resolve("src"));
+        Files.createFile(tempDir.resolve("src/App.java"));
+        Files.createFile(tempDir.resolve("notes.txt"));
+
+        var result = run(new GlobTool(), Map.of("pattern", "**/*.java", "path", tempDir.toString()), tempDir.toString());
+
+        assertFalse(result.isError(), result.content());
+        assertTrue(result.content().contains("App.java"), result.content());
+        assertFalse(result.content().contains("notes.txt"), result.content());
+        assertNotNull(result.details().get("backend"), "records which backend served the search");
+    }
+
+    @Test
+    void nonRecursivePatternStaysAtTheTopLevel() throws Exception {
+        Files.createDirectories(tempDir.resolve("sub"));
+        Files.createFile(tempDir.resolve("top.java"));
+        Files.createFile(tempDir.resolve("sub/nested.java"));
+
+        var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
+                                        limit));
+        var result = run(tool, Map.of("pattern", "*.java", "path", tempDir.toString()), tempDir.toString());
+
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("top.java"), result.content());
+        assertFalse(result.content().contains("nested.java"), "a non-** pattern matches depth 1 only: " + result.content());
+    }
+
+    @Test
+    void defaultsToTheCwdWhenNoPathGiven() throws Exception {
+        Files.createFile(tempDir.resolve("root.java"));
+
+        var tool = new GlobTool((pattern, searchPath, limit, timeout) -> GlobTool.javaSearch(pattern, searchPath,
+                                        limit));
+        var result = run(tool, Map.of("pattern", "*.java"), tempDir.toString()); // no "path" → search cwd
+
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("root.java"), result.content());
+    }
+
+    @Test
+    void abortIsSafeWhenNothingIsRunning() {
+        assertDoesNotThrow(new GlobTool()::abort);
+    }
 }

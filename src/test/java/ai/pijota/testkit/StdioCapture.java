@@ -52,6 +52,20 @@ public final class StdioCapture implements BeforeEachCallback, AfterEachCallback
         System.setIn(new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8)));
     }
 
+    /**
+     * Feeds an object serialized as JSON (e.g. a {@code Map}) as {@code System.in} — so tests describe a task as a map
+     * instead of hand-building a JSON string and escaping filesystem paths.
+     */
+    public void feedInputJson(Object value) {
+        try {
+            feedInput(JSON.writeValueAsString(value));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalArgumentException("not JSON-serializable: " + value, e);
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
     /** Everything written to {@code System.out} so far this test. */
     public String out() {
         return out.toString(StandardCharsets.UTF_8);

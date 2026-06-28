@@ -8,6 +8,7 @@ import ai.pijota.util.Util;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Optional;
 
 public final class ModelRegistry {
 
@@ -49,11 +50,15 @@ public final class ModelRegistry {
         return forProvider(provider).stream().map(ModelInfo::id).findFirst().orElse(null);
     }
 
+    /** Look up a known model by its id (case-insensitive); empty if none matches. The one place that scans by id. */
+    public static Optional<ModelInfo> byId(String id) {
+        if (id == null)
+            return Optional.empty();
+        return KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(id)).findFirst();
+    }
+
     public static String providerForModel(String modelId) {
-        if (modelId == null)
-            return null;
-        return KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(modelId)).findFirst().map(ModelInfo::provider)
-                                        .orElse(null);
+        return byId(modelId).map(ModelInfo::provider).orElse(null);
     }
 
     public static long resolveContextWindow(String provider, String model) {
@@ -62,8 +67,7 @@ public final class ModelRegistry {
         return KNOWN_MODELS.stream().filter(
                                         m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model))
                                         .findFirst()
-                                        .or(() -> KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model))
-                                                                        .findFirst())
+                                        .or(() -> byId(model))
                                         .map(ModelInfo::contextWindow).orElse(DEFAULT_CONTEXT_WINDOW);
     }
 
@@ -226,6 +230,22 @@ public final class ModelRegistry {
                 return true;
         }
         return false;
+    }
+
+    /**
+     * The known models worth offering in a picker: their provider has a usable (non-blank) API key configured, and
+     * they pass the user's {@code enabled_models} allowlist. Null settings → empty (nothing is runnable without keys).
+     * The single source of truth for every frontend's model picker — TUI, web and Telegram — so "which models can I
+     * switch to" is answered identically everywhere (key check + allowlist), not re-derived per frontend.
+     */
+    public static List<ModelInfo> availableModels(SettingsManager settings) {
+        if (settings == null)
+            return KNOWN_MODELS; // settings unknown → don't filter (production always has settings; this aids tests)
+        var withKeys = KNOWN_MODELS.stream().filter(m -> {
+            String key = settings.resolveApiKey(m.provider());
+            return key != null && !key.isBlank();
+        }).toList();
+        return applyAllowlist(withKeys, settings.config().enabledModels());
     }
 
     /**

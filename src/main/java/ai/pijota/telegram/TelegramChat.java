@@ -182,6 +182,10 @@ public final class TelegramChat implements ChatHandler {
             tg.sendMessage(chatId, "⚠️ That " + kind + " is too large (max 5MB).");
             return;
         }
+        if (session.isBusy()) { // a turn may have started during the (async) download — don't prompt over it
+            tg.sendMessage(chatId, "➕ Busy now — resend the " + kind + " once the current turn finishes.");
+            return;
+        }
         var attachment = new Message.Attachment(mime, java.util.Base64.getEncoder().encodeToString(bytes), filename);
         String text = caption != null && !caption.isBlank() ? caption : "(" + kind + ": " + filename + ")";
         runTurn(text, List.of(attachment));
@@ -402,7 +406,7 @@ public final class TelegramChat implements ChatHandler {
         if (!requireIdle())
             return;
         String current = currentModelId();
-        var models = availableModels(settings);
+        var models = ModelRegistry.availableModels(settings);
         if (models.isEmpty()) {
             tg.sendMessage(chatId, "No models available (no API keys configured).");
             return;
@@ -422,15 +426,6 @@ public final class TelegramChat implements ChatHandler {
         tg.sendMessage(chatId, "🧠 switched to " + resolved.provider() + "/" + resolved.model());
     }
 
-    /** The known models whose provider has a usable API key configured — the only ones worth offering to switch to. */
-    static List<ModelInfo> availableModels(SettingsManager settings) {
-        return ModelRegistry.KNOWN_MODELS.stream().filter(m -> hasKey(settings, m.provider())).toList();
-    }
-
-    private static boolean hasKey(SettingsManager settings, String provider) {
-        String key = settings.resolveApiKey(provider);
-        return key != null && !key.isBlank();
-    }
 
     @Override
     public void onCallback(TelegramClient.CallbackQuery callback) {

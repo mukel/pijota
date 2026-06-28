@@ -1,10 +1,49 @@
 package ai.pijota.llm;
 
+import ai.pijota.config.ProviderCatalog;
+import ai.pijota.testkit.FakeHttpClient;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class ModelRefresherTest {
+
+    private static ProviderCatalog.Provider provider(String id) {
+        return new ProviderCatalog.Provider(id, id, "openai", "https://api.test/v1", null, null, null, null, null);
+    }
+
+    @Test
+    void fetchParsesTheOpenAiDataArrayAndSkipsBlankIds() throws Exception {
+        var json = "{\"data\":[{\"id\":\"gpt-x\"},{\"id\":\"gpt-y\"},{\"id\":\"\"}]}";
+
+        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("test"), "tok", null, false);
+
+        assertEquals(2, models.size(), models.toString());
+        assertEquals("gpt-x", models.get(0).id());
+        assertEquals("test", models.get(0).provider());
+    }
+
+    @Test
+    void fetchParsesTheCodexModelsArrayAndSkipsHidden() throws Exception {
+        var json = "{\"models\":[{\"slug\":\"codex-1\",\"display_name\":\"Codex One\",\"context_window\":200000},"
+                                        + "{\"slug\":\"hidden\",\"visibility\":\"none\"}]}";
+
+        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("openai"), "tok", null,
+                                        false);
+
+        assertEquals(1, models.size(), models.toString());
+        assertEquals("codex-1", models.get(0).id());
+        assertEquals("Codex One", models.get(0).displayName());
+        assertEquals(200000L, models.get(0).contextWindow());
+    }
+
+    @Test
+    void fetchThrowsOnAnHttpErrorStatus() {
+        var client = FakeHttpClient.status(500, "boom");
+        assertThrows(Exception.class,
+                                        () -> ModelRefresher.fetchOpenAiCompatible(client, provider("test"), "tok", null, false));
+    }
 
     @Test
     void displayNameConvertsKebabCase() {

@@ -23,8 +23,16 @@ public final class WebfetchTool implements Tool {
     private static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                                     + " (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
-    private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
-                                    .connectTimeout(Duration.ofSeconds(10)).build();
+    private final HttpClient http;
+
+    public WebfetchTool() {
+        this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
+                                        .connectTimeout(Duration.ofSeconds(10)).build());
+    }
+
+    WebfetchTool(HttpClient http) { // injectable for tests (a canned client, no network)
+        this.http = http;
+    }
 
     @Override
     public String name() {

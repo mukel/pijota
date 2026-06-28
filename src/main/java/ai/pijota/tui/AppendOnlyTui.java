@@ -234,10 +234,21 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private static final long TOKEN_STATUS_CACHE_MS = 1000;
     private final ContextTokenMeter tokenMeter;
 
+    /** Production entry point: builds the real system terminal. Tests use the package-private constructor below. */
     public AppendOnlyTui(PijotaSession session, AnsiTheme theme, String provider, String model,
                                     List<SlashCommand> extensionCommands, SettingsManager settings,
                                     List<SkillLoader.Skill> skills, Supplier<List<String>> extensionLinesSupplier,
                                     List<ExtensionKeybinding> extensionKeybindings) throws IOException {
+        this(session, theme, provider, model, extensionCommands, settings, skills, extensionLinesSupplier,
+                                        extensionKeybindings,
+                                        TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build());
+    }
+
+    /** Injectable-terminal constructor — lets tests drive the TUI against an in-memory terminal (no tty). */
+    AppendOnlyTui(PijotaSession session, AnsiTheme theme, String provider, String model,
+                                    List<SlashCommand> extensionCommands, SettingsManager settings,
+                                    List<SkillLoader.Skill> skills, Supplier<List<String>> extensionLinesSupplier,
+                                    List<ExtensionKeybinding> extensionKeybindings, Terminal terminal) throws IOException {
         this.commands = new SlashCommandRegistry(extensionCommands);
         this.promptEditor = new PromptEditor(commands);
         this.messageBrowser = new MessageBrowser(promptEditor, session::userMessages);
@@ -269,7 +280,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.themeCommands = new ThemeCommandHandler(host);
         this.loginCommands = new LoginCommandHandler(host);
         this.commandPalette = new CommandPaletteHandler(host);
-        this.terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build();
+        this.terminal = terminal;
         this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
         this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
         // Confirm callbacks point straight at the owning handlers; session/fork keep TUI-local restore logic.
@@ -681,14 +692,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
         @Override
         public List<ModelInfo> availableModels() {
-            return ModelRegistry.KNOWN_MODELS.stream().filter(
-                                            m -> settings != null && settings.resolveApiKey(m.provider()) != null)
-                                            .toList();
+            return ModelRegistry.availableModels(settings);
         }
 
         @Override
         public Optional<ModelInfo> model(String id) {
-            return ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equals(id)).findFirst();
+            return ModelRegistry.byId(id);
         }
 
         @Override
@@ -1584,8 +1593,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showWhoami() {
-        var info = ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model)).findFirst()
-                                        .orElse(null);
+        var info = ModelRegistry.byId(model).orElse(null);
         var lines = new ArrayList<String>();
         lines.add(theme.styled("toolLabel", "model"));
         lines.add(theme.styled("statusText", "id       " + model));

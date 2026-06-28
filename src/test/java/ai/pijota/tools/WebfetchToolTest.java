@@ -4,6 +4,8 @@ import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
 
+import ai.pijota.testkit.FakeHttpClient;
+
 import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -227,5 +229,24 @@ class WebfetchToolTest {
         var result = run(tool, java.util.Map.of("url", "http://169.254.169.254/latest/meta-data/"), "/cwd");
         assertTrue(result.isError());
         assertTrue(result.content().toLowerCase().contains("internal"), result.content());
+    }
+
+    @Test
+    void fetchesPageContentThroughTheInjectedClient() {
+        byte[] html = "<html><body><h1>Title</h1><p>Hello world</p></body></html>".getBytes(StandardCharsets.UTF_8);
+        var tool = new WebfetchTool(FakeHttpClient.ok(html)); // canned page, no network
+
+        var result = run(tool, java.util.Map.of("url", "example.com", "format", "text"), "/cwd");
+
+        assertFalse(result.isError(), result.content());
+        assertTrue(result.content().contains("Hello world"), result.content());
+    }
+
+    @Test
+    void surfacesHttpErrorStatuses() {
+        var tool = new WebfetchTool(FakeHttpClient.status(404, "nope".getBytes(StandardCharsets.UTF_8)));
+        var result = run(tool, java.util.Map.of("url", "example.com"), "/cwd");
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("404"), result.content());
     }
 }
