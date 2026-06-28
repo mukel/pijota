@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class Util {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(Util.class);
     public static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule())
                                     .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
@@ -132,6 +133,8 @@ public final class Util {
         try {
             return MAPPER.readValue(jsonArgs, Map.class);
         } catch (Exception e) {
+            // a tool then runs with NO arguments, which looks like a mysterious tool bug — record why
+            LOG.debug("Could not parse tool arguments as JSON ({}); treating as empty", e.getMessage());
             return Map.of();
         }
     }

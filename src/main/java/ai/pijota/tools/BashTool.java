@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 import java.time.Duration;
 
 public final class BashTool implements Tool {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(BashTool.class);
 
     private static final long DEFAULT_TIMEOUT_SECONDS = 120;
     private static final int MAX_OUTPUT_BYTES = 100_000;
@@ -130,7 +131,9 @@ public final class BashTool implements Tool {
                 if (!output.isBlank()) {
                     try {
                         details.put("outputPath", saveOutput(output).toString());
-                    } catch (IOException ignored) {}
+                    } catch (IOException e) {
+                        log.debug("Could not persist bash output to a file: {}", e.getMessage());
+                    }
                 }
 
                 if (result.timedOut() || result.exitCode() != 0)

@@ -1,5 +1,6 @@
 package ai.pijota.config;
 
+import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Util;
 
@@ -78,15 +79,19 @@ public final class OAuthTokenStore {
             persist();
             return result.accessToken();
         } catch (IOException e) {
-            // If the refresh token is invalid/revoked, clean up
             String msg = e.getMessage() != null ? e.getMessage() : "";
             if (msg.contains("400") || msg.contains("401") || msg.contains("403") || msg.contains("invalid_grant")) {
+                // refresh token invalid/revoked — clear it so the user is prompted to re-login
                 tokens.remove(provider);
                 persist();
+                logger.warn("OAuth refresh token for {} was rejected; cleared it — re-login required", provider);
+            } else {
+                // a transient network/IO error otherwise vanishes as a null token, looking like a revoked login
+                logger.warn("OAuth token refresh for {} failed (network/IO): {}", provider, ErrorUtil.sanitize(msg));
             }
             return null;
         } catch (Exception e) {
-            logger.warn("OAuth token refresh failed for {}: {}", provider, e.getMessage());
+            logger.warn("OAuth token refresh failed for {}: {}", provider, ErrorUtil.sanitize(e.getMessage()));
             return null;
         }
     }
@@ -111,6 +116,8 @@ public final class OAuthTokenStore {
             Map<String, Entry> map = Util.MAPPER.readValue(authFile.toFile(), type);
             return new HashMap<>(map != null ? map : Collections.emptyMap());
         } catch (Exception e) {
+            // corrupt auth.json otherwise silently logs everyone out — say so (no token contents, just the reason)
+            logger.warn("Could not read stored auth tokens ({}); starting with an empty store", ErrorUtil.message(e));
             return new HashMap<>();
         }
     }

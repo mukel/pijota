@@ -21,6 +21,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 public final class SessionManager {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SessionManager.class);
 
     private static final int SESSION_VERSION = 3;
     private final Path sessionDir;
@@ -512,7 +513,10 @@ public final class SessionManager {
                     String id = (String) e.get("id");
                     if (id != null)
                         idToEntry.put(id, e);
-                } catch (Exception ignored) {}
+                } catch (Exception ex) {
+                    // a malformed line means a corrupt/truncated session file — skip it but leave a trace
+                    log.debug("Skipping unparseable session entry: {}", ex.getMessage());
+                }
             });
         }
         return idToEntry;

@@ -58,6 +58,7 @@ public final class TelegramClient implements TelegramApi {
             var resp = http.send(request, BodyHandlers.ofByteArray());
             return resp.statusCode() == 200 ? resp.body() : null;
         } catch (Exception e) {
+            log.warn("Failed to download Telegram file {}: {}", fileId, ai.pijota.util.ErrorUtil.message(e));
             return null;
         }
     }

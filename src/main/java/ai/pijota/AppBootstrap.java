@@ -221,6 +221,11 @@ final class AppBootstrap {
         }
         mergeTranscendWorktree(parsedArgs);
 
+        // One-line record of what the agent actually started with — the first thing to check when diagnosing "why did
+        // it behave like that": resolved provider/model, enabled tool count, and cwd.
+        logger.info("bootstrap ready · {}/{} · {} tool(s) · cwd={}", provider, model,
+                                        tools.enabledToolNames().size(), cwd);
+
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
     }
 

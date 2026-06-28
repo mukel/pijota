@@ -34,6 +34,8 @@ public final class SettingsManager {
         try {
             return AppConfig.load(PijotaHome.resolve("settings.json"));
         } catch (Exception e) {
+            // A corrupt/unreadable settings.json otherwise silently reverts to defaults — surface why.
+            logger.warn("Could not read settings.json ({}); using defaults", ai.pijota.util.ErrorUtil.message(e));
             return new AppConfig();
         }
     }

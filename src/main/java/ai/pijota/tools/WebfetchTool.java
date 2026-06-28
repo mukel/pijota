@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 
 public final class WebfetchTool implements Tool {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WebfetchTool.class);
     private static final int MAX_RESPONSE_SIZE = 5 * 1024 * 1024;
     private static final long DEFAULT_TIMEOUT_SECONDS = 30;
     private static final long MAX_TIMEOUT_SECONDS = 120;
@@ -119,8 +120,10 @@ public final class WebfetchTool implements Tool {
                 }
                 return ToolResult.success(output);
             } catch (HttpTimeoutException e) {
+                log.warn("webfetch timed out for {}", args.getString("url"));
                 return ToolResult.error("Request timed out");
             } catch (IOException e) {
+                log.warn("webfetch failed for {}: {}", args.getString("url"), ai.pijota.util.ErrorUtil.message(e));
                 return ToolResult.error("Fetch error: " + e.getMessage());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

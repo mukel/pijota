@@ -22,6 +22,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 public class WebsearchTool implements Tool {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WebsearchTool.class);
     private static final int DEFAULT_NUM_RESULTS = 8;
     private static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                                     + " (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
@@ -84,6 +86,7 @@ public class WebsearchTool implements Tool {
 
                 return buildResult(results, query);
             } catch (Exception e) {
+                log.warn("websearch failed: {}", ai.pijota.util.ErrorUtil.message(e));
                 return ToolResult.error("Search error: " + e.getMessage());
             }
         });

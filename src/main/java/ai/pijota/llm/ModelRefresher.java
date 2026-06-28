@@ -69,7 +69,9 @@ public final class ModelRefresher {
         var builtRequest = request.build();
         var response = client.send(builtRequest, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new java.io.IOException("HTTP " + response.statusCode() + " - " + response.body());
+            // scrub the body: a provider's error response can echo the request (and its auth header) back
+            throw new java.io.IOException("HTTP " + response.statusCode() + " - "
+                                            + ai.pijota.util.ErrorUtil.sanitize(response.body()));
         }
 
         var node = Util.MAPPER.readTree(response.body());
