@@ -22,6 +22,25 @@ class AppBootstrapTest {
     }
 
     @Test
+    void noToolsLeavesOnlyTheBashTool() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of(), "gpt-5.5");
+        var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-tools", "--api-key", "sk-test"}),
+                                        settings);
+        assertTrue(result.tools().get("bash").isPresent(), "--no-tools still keeps bash");
+        assertTrue(result.tools().get("read").isEmpty(), "--no-tools drops the default toolset");
+    }
+
+    @Test
+    void whoamiFlagRegistersTheWhoamiTool() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of(), "gpt-5.5");
+        var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--whoami", "--api-key", "sk-test"}),
+                                        settings);
+        assertTrue(result.tools().get("whoami").isPresent(), "--whoami opts the tool in");
+    }
+
+    @Test
     void printModeResolvesThePrintAliasModel() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var settings = settings(tmp, Map.of("print", "openai/gpt-4.1-mini"), "gpt-5.5");

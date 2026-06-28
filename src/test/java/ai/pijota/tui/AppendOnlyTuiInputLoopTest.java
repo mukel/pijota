@@ -211,6 +211,32 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void emacsAndCursorNavigationKeysAreProcessed() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        // type text, then Home, Ctrl+right (word fwd), Alt+d (del word fwd), End, Delete, Ctrl+W, Ctrl+left
+        byte[] keys = {'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', ESC, '[', 'H', ESC, 'f', ESC, 'd', ESC,
+                '[', 'F', ESC, '[', '3', '~', 23, ESC, 'b'};
+        assertDoesNotThrow(() -> driveSession(ts, keys));
+    }
+
+    @Test
+    void confirmDialogAcceptedWithYStartsANewConversation() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        // "/new" opens a Yes/No confirm; 'y' accepts it
+        byte[] keys = {'/', 'n', 'e', 'w', '\r', 'y'};
+        assertDoesNotThrow(() -> driveSession(ts, keys));
+    }
+
+    @Test
+    void messageDuringARunningTurnIsQueuedAsFollowUp() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().blockUntilAborted();
+        // submit "first" (turn blocks), then type "second" + Enter → followUp queued, then double-ESC aborts
+        byte[] keys = {'f', 'i', 'r', 's', 't', '\r', 's', 'e', 'c', 'o', 'n', 'd', '\r', ESC, ESC};
+        assertDoesNotThrow(() -> driveSession(ts, keys));
+    }
+
+    @Test
     void slashCommandsDispatchThroughTheLoop() throws Exception {
         // each command routes handleSubmit → command dispatch → its handler (session/model/theme/think pickers, etc.);
         // driveSession appends ESC (dismiss the opened overlay) + Ctrl+D (exit)

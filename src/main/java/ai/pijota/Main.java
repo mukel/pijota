@@ -33,6 +33,8 @@ import java.nio.file.Path;
 public final class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
     private static final String VERSION = "0.4.0";
+    // Set at class init (≈ process start) so PIJOTA_STARTUP_TIMING can report time-to-first-paint.
+    private static final long START_NANOS = System.nanoTime();
 
     static {
         try {
@@ -83,6 +85,8 @@ public final class Main {
     private static int runFrontend(Args parsedArgs) throws Exception {
         Warmup.start(); // overlap tool class-loading with the Jackson cold-start during bootstrap
         var b = AppBootstrap.bootstrap(parsedArgs);
+        if (System.getenv("PIJOTA_STARTUP_TIMING") != null)
+            System.err.println("[startup] bootstrap done: " + (System.nanoTime() - START_NANOS) / 1_000_000 + " ms");
 
         if (parsedArgs.agent())
             return HeadlessAgentRunner.run(b.llm(), b.extensions());
@@ -117,10 +121,15 @@ public final class Main {
                                         b.extensions().keybindings());
         b.extensions().setTui(tui);
         tui.syncThinkingLevel(b.llm().thinkingLevel());
-        b.extensions().ready();
         if (parsedArgs.resume())
             tui.requestSessionPicker();
-        SelfRespawn.markStartupHealthy(); // TUI fully constructed + extensions ready → a healthy startup
+        SelfRespawn.markStartupHealthy(); // TUI constructed → a healthy startup (extensions ready in the background)
+        // Defer extension readiness off the first-paint path: MCP server connections alone block up to ~2.5s, and no
+        // onReady work is needed to draw the prompt. MCP registers its tools late (honored on the next turn) by design,
+        // so the prompt appears immediately while servers connect in the background.
+        Thread.ofPlatform().name("pijota-extensions-ready").daemon(true).start(b.extensions()::ready);
+        if (System.getenv("PIJOTA_STARTUP_TIMING") != null)
+            System.err.println("[startup] time to TUI: " + (System.nanoTime() - START_NANOS) / 1_000_000 + " ms");
         try {
             tui.run(VERSION, b.cwd());
             return 0;
@@ -145,7 +154,8 @@ public final class Main {
         var session = b.session();
         var chat = new TelegramChat(allowedChat, session, client, b.settings());
         b.extensions().setTui(chat.ui());
-        b.extensions().ready();
+        // Defer extension readiness (MCP connects block up to ~2.5s) so the bot starts polling immediately.
+        Thread.ofPlatform().name("pijota-extensions-ready").daemon(true).start(b.extensions()::ready);
 
         try {
             client.setMyCommands(TelegramChat.menuCommands(b.extensions().slashCommands()));
@@ -177,7 +187,8 @@ public final class Main {
         var server = new WebServer(session, addr.host(), addr.port(), b.llm(), b.extensions()::statusLines,
                                         b.extensions().slashCommands(), token);
         b.extensions().setTui(server.ui());
-        b.extensions().ready();
+        // Defer extension readiness (MCP connects block up to ~2.5s) so the server starts serving immediately.
+        Thread.ofPlatform().name("pijota-extensions-ready").daemon(true).start(b.extensions()::ready);
         try {
             server.start();
             SelfRespawn.markStartupHealthy();

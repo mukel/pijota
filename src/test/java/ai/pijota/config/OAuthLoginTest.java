@@ -31,6 +31,25 @@ class OAuthLoginTest {
     }
 
     @Test
+    void loginOpenAIReturnsTheTokenWhenPollingYieldsAccessToken() throws Exception {
+        var device = "{\"device_auth_id\":\"da\",\"user_code\":\"UC\",\"interval\":1}";
+        var token = "{\"access_token\":\"at\",\"refresh_token\":\"rt\",\"expires_in\":3600}";
+        var result = OAuthLogin.loginOpenAI("https://dc", "https://tok", "https://oauth", "cid", s -> {},
+                                        FakeHttpClient.sequence(device, token));
+        assertEquals("at", result.accessToken());
+    }
+
+    @Test
+    void loginOpenAIExchangesAnAuthorizationCodeForATokenWhenPollReturnsACode() throws Exception {
+        var device = "{\"device_auth_id\":\"da\",\"user_code\":\"UC\",\"interval\":1}";
+        var auth = "{\"authorization_code\":\"ac\",\"code_verifier\":\"cv\"}";
+        var token = "{\"access_token\":\"at2\",\"refresh_token\":\"rt2\",\"expires_in\":3600}";
+        var result = OAuthLogin.loginOpenAI("https://dc", "https://tok", "https://oauth", "cid", s -> {},
+                                        FakeHttpClient.sequence(device, auth, token)); // device -> code -> exchange
+        assertEquals("at2", result.accessToken());
+    }
+
+    @Test
     void deviceCodeStoresFields() {
         var device = new OAuthLogin.DeviceCode("device123", "user456", "https://verify", 600);
         assertEquals("device123", device.deviceCode());

@@ -37,8 +37,12 @@ public final class OAuthLogin {
 
     public static TokenResult loginOpenAI(String deviceCodeUrl, String tokenUrl, String oauthTokenUrl, String clientId,
                                     Consumer<String> out) throws Exception {
-        var client = HttpClient.newHttpClient();
+        return loginOpenAI(deviceCodeUrl, tokenUrl, oauthTokenUrl, clientId, out, HttpClient.newHttpClient());
+    }
 
+    /** Injectable-client variant — lets tests drive the device-auth (and code-exchange) flow against a fake client. */
+    static TokenResult loginOpenAI(String deviceCodeUrl, String tokenUrl, String oauthTokenUrl, String clientId,
+                                    Consumer<String> out, HttpClient client) throws Exception {
         var device = requestOpenAIDeviceCode(client, deviceCodeUrl, clientId);
         announce(out, device);
 
