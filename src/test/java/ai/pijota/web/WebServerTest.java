@@ -413,6 +413,26 @@ class WebServerTest {
     }
 
     @Test
+    void historyFrameReplaysAPriorTurnsMessages() throws Exception {
+        var ts = TestSession.in(tempDir).tool(echoTool()).build();
+        int port = freePort();
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), java.util.List::of,
+                                        java.util.List.of())) {
+            server.start();
+            ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "echo", "{\"text\":\"hi\"}")))
+                                            .enqueue(FauxLlm.Response.contentWithUsage("the answer"));
+            ts.session().prompt("the question", java.util.List.of()).get(5, java.util.concurrent.TimeUnit.SECONDS);
+
+            var client = HttpClient.newHttpClient();
+            var resp = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofInputStream());
+            String frames = readUntil(resp.body(), "event: history", Duration.ofSeconds(5));
+            assertTrue(frames.contains("the question"), "user message replayed: " + frames);
+            assertTrue(frames.contains("the answer"), "assistant message replayed");
+        }
+    }
+
+    @Test
     void toolCallEventsReachTheBrowserOverSse() throws Exception {
         var ts = TestSession.in(tempDir).tool(echoTool()).build();
         int port = freePort();
