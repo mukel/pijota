@@ -279,6 +279,40 @@ class TelegramChatFlowTest {
     }
 
     @Test
+    void audioFileIsSubmittedAsAttachmentOnAnAudioCapableModel() {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().provider("google").model("gemini-3.1-pro-preview"); // declares "audio" in the catalog
+        ts.llm().enqueue(FauxLlm.Response.contentWithUsage("heard it"));
+        var api = new FakeTelegramApi();
+        api.onDownload(new byte[] {1, 2, 3});
+        var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
+
+        chat.onDocument(new TelegramClient.TgFile("fid", "clip.mp3", "audio/mpeg", 3), "transcribe");
+
+        Await.until(() -> !ts.session().userMessages().isEmpty(), Duration.ofSeconds(5), "audio was never submitted");
+        var u = ts.session().userMessages().getFirst();
+        assertEquals(1, u.attachments().size());
+        assertEquals("audio/mpeg", u.attachments().getFirst().mime());
+        assertFalse(api.sent().stream().anyMatch(s -> s.contains("can't read")), api.sent().toString());
+    }
+
+    @Test
+    void voiceMessageIsRejectedOnATextOnlyModel() {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().provider("deepseek").model("deepseek-v4-pro"); // text-only — audio is disabled for it
+        var api = new FakeTelegramApi();
+        var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
+
+        // a Telegram voice message has no filename + mime audio/ogg; it routes through file() → onDocument
+        chat.onDocument(new TelegramClient.TgFile("vid", null, "audio/ogg", 100), null);
+
+        Await.until(() -> api.sent().stream().anyMatch(s -> s.contains("can't read")), Duration.ofSeconds(5),
+                                        "expected a 'can't read audio' rejection");
+        assertTrue(api.sent().stream().anyMatch(s -> s.toLowerCase().contains("audio")), api.sent().toString());
+        assertTrue(ts.session().userMessages().isEmpty(), "no turn should run for unsupported audio");
+    }
+
+    @Test
     void streamingShowsAStopButtonWhileGeneratingThenFinalizesWithoutItPlusAFooter() {
         var c = newChat();
         c.session().llm().enqueue(FauxLlm.Response.content(new Usage(10, 5), "Hello", " world"));

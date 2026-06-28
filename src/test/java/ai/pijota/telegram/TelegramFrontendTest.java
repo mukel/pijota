@@ -124,6 +124,24 @@ class TelegramFrontendTest {
     }
 
     @Test
+    void routesVoiceAndAudioMessages() {
+        var chats = new ConcurrentHashMap<Long, RecordingChat>();
+        var f = frontend(chats, new AtomicInteger(), id -> true);
+
+        // voice: no filename, mime audio/ogg (document/audio/video null) — file() must surface it
+        var voice = new TgMessage(20, new TgChat(100), null, null, null, null, null,
+                                        new TelegramClient.TgFile("vid", null, "audio/ogg", 500), null);
+        var audio = new TgMessage(21, new TgChat(100), null, "song", null, null,
+                                        new TelegramClient.TgFile("aid", "tune.mp3", "audio/mpeg", 9000), null, null);
+        f.handle(new Update(3, voice, null));
+        f.handle(new Update(4, audio, null));
+
+        var docs = chats.get(100L).docs;
+        assertTrue(docs.stream().anyMatch(d -> d.contains("audio/ogg")), docs.toString());
+        assertTrue(docs.stream().anyMatch(d -> d.contains("audio/mpeg")), docs.toString());
+    }
+
+    @Test
     void reusesOneHandlerPerChat() {
         var chats = new ConcurrentHashMap<Long, RecordingChat>();
         var created = new AtomicInteger();
