@@ -33,6 +33,37 @@ class TaskToolTest {
     }
 
     @Test
+    void renderResultFormatsSingleChainAndLoggedResults() {
+        var tool = new TaskTool(List.of(ALPHA), null, List::of, () -> "", (a, l) -> {}, (a, s, t) -> {}, orchTempDir, 0);
+
+        // single agent with a description → summary is the description, output becomes body lines
+        var single = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha", "description",
+                                        "do the thing")), ai.pijota.tools.Tool.ToolResult.success("line A\nline B"),
+                                        orchTempDir.toString());
+        assertEquals("do the thing", single.summary());
+        assertFalse(single.body().isEmpty());
+
+        // single agent without a description → summary derives from the output's first line
+        var noDesc = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha")),
+                                        ai.pijota.tools.Tool.ToolResult.success("first line\nsecond line"),
+                                        orchTempDir.toString());
+        assertTrue(noDesc.summary().contains("first line"), noDesc.summary());
+
+        // chain/parallel (has "chain") → summary is the first output line
+        var chain = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("chain", List.of())),
+                                        ai.pijota.tools.Tool.ToolResult.success("chain summary\ndetail line"),
+                                        orchTempDir.toString());
+        assertEquals("chain summary", chain.summary());
+
+        // a result carrying logFiles → a "full output" footer line per log
+        var withLogs = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha", "description", "x")),
+                                        ai.pijota.tools.Tool.ToolResult.success("out", Map.of("logFiles",
+                                                        List.of(Map.of("path", "/tmp/sub.log", "agent", "alpha")))),
+                                        orchTempDir.toString());
+        assertTrue(withLogs.body().stream().anyMatch(l -> l.contains("full output")), withLogs.body().toString());
+    }
+
+    @Test
     @Timeout(60)
     void realSpawnProducesAResultWithoutHanging() throws Exception {
         // No setAgentRunner → exercises the real spawnAgent (reinvokes the JVM as `Main --agent`). A keyless FauxLlm

@@ -67,4 +67,23 @@ class TruncatedToolExtensionTest {
         assertFalse(result.isError());
         assertTrue(result.content().contains("the hit"), result.content());
     }
+
+    @Test
+    void outputBeyondTheLineCapIsTruncatedWithANotice() {
+        var tool = rgToolWithExec(0, "match line\n".repeat(2500), ""); // > 2000-line cap
+        // also exercises the glob + path parameters
+        var result = run(tool, Map.of("pattern", "match", "glob", "*.java", "path", "src"));
+
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("[Truncated: showing"), result.content());
+    }
+
+    @Test
+    void outputBeyondTheByteCapIsTruncated() {
+        var tool = rgToolWithExec(0, ("a".repeat(500) + "\n").repeat(200), ""); // ~100KB, under the line cap
+        var result = run(tool, Map.of("pattern", "a"));
+
+        assertFalse(result.isError());
+        assertTrue(result.content().contains("[Truncated"), result.content());
+    }
 }
