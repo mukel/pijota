@@ -520,7 +520,7 @@ public final class ScheduleExtension implements Extension {
         return JobType.cron;
     }
 
-    private static String humanSchedule(String schedule, JobType type) {
+    static String humanSchedule(String schedule, JobType type) { // package-private for unit tests
         return switch (type) {
             case once -> Util.formatRelative(parseRelativeOrIso(schedule));
             case interval -> "every " + schedule;

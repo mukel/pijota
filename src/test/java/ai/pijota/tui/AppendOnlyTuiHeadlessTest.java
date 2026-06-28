@@ -196,6 +196,25 @@ class AppendOnlyTuiHeadlessTest {
     }
 
     @Test
+    void sessionCommandHandlersRunAfterAPersistedTurn() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueue(FauxLlm.Response.contentWithUsage("an answer"));
+        ts.session().prompt("a question", List.of()).get(5, TimeUnit.SECONDS); // context + a last response to act on
+        var tui = tui(ts);
+        try {
+            assertDoesNotThrow(() -> {
+                tui.showContext();
+                tui.copyLastResponse();
+                tui.exportSession("/export");
+                tui.saveSession("/save my-chat");
+                tui.cloneSession();
+            });
+        } finally {
+            tui.close();
+        }
+    }
+
+    @Test
     void treeWhoamiRemoteAndUndoRenderHeadless() throws Exception {
         var ts = TestSession.in(tempDir).build();
         var tui = tui(ts);

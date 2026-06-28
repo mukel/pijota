@@ -76,6 +76,25 @@ class TaskToolTest {
     }
 
     @Test
+    void renderResultSingleModeSummarizesFromTheDescription() {
+        var tool = toolWith(List.of(), (s, t, w) -> null);
+        var result = ai.pijota.tools.Tool.ToolResult.success("output line one\noutput line two");
+        var view = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("description", "build the feature")), result,
+                                        orchTempDir.toString());
+        assertTrue(view.summary().contains("build the feature"), view.summary());
+        assertFalse(view.body().isEmpty(), "the output preview lines are shown");
+    }
+
+    @Test
+    void renderResultMultiModeSummarizesFromTheFirstLine() {
+        var tool = toolWith(List.of(), (s, t, w) -> null);
+        var result = ai.pijota.tools.Tool.ToolResult.success("Parallel: 2/2 succeeded\nalpha ok\nbeta ok");
+        var view = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("tasks", List.of())), result,
+                                        orchTempDir.toString());
+        assertTrue(view.summary().contains("Parallel"), view.summary());
+    }
+
+    @Test
     void handleSubAgentEventParsesEachEventType() throws Exception {
         var activity = new ArrayList<String>();
         var finished = new ArrayList<String>();

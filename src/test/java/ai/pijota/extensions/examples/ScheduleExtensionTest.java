@@ -339,4 +339,16 @@ class ScheduleExtensionTest {
                                         .get(1, TimeUnit.SECONDS);
         assertTrue(list.content().contains("persist"));
     }
+
+    @org.junit.jupiter.api.Test
+    void humanScheduleFormatsIntervalAndCommonCronShapes() {
+        assertEquals("every 5m", ScheduleExtension.humanSchedule("5m", ScheduleExtension.JobType.interval));
+        assertEquals("hourly", ScheduleExtension.humanSchedule("0 0 * * * *", ScheduleExtension.JobType.cron));
+        assertEquals("daily at 9:00", ScheduleExtension.humanSchedule("0 0 9 * * *", ScheduleExtension.JobType.cron));
+        assertEquals("every minute", ScheduleExtension.humanSchedule("0 * * * * *", ScheduleExtension.JobType.cron));
+        assertEquals("every 5m", ScheduleExtension.humanSchedule("0 */5 * * * *", ScheduleExtension.JobType.cron));
+        // an unrecognized cron shape (or wrong field count) falls back to the raw string
+        assertEquals("0 0 12 * * 1", ScheduleExtension.humanSchedule("0 0 12 * * 1", ScheduleExtension.JobType.cron));
+        assertEquals("weird", ScheduleExtension.humanSchedule("weird", ScheduleExtension.JobType.cron));
+    }
 }
