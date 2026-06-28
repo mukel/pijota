@@ -132,7 +132,8 @@ public final class SessionManager {
 
     // -- Branching (in-place, within the same file) --
 
-    public String leafId() {
+    /** The current branch leaf entry id. Package-private: session-tree position is internal to the agent layer. */
+    String leafId() {
         return leafId;
     }
 

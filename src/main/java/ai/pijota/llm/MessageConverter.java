@@ -22,7 +22,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-public final class MessageConverter {
+/**
+ * Internal bridge from pijota {@link ai.pijota.messages.Message}s to langchain4j message types. Package-private so the
+ * langchain4j dependency stays an implementation detail of the LLM boundary and never leaks into the public API — only
+ * {@link LlmService} (same package) calls it.
+ */
+final class MessageConverter {
     private MessageConverter() {}
 
     public static List<ChatMessage> toLangChain4j(List<Message> messages) {
