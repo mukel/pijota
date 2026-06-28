@@ -294,8 +294,10 @@ public final class ModelRegistry {
         if (settings == null)
             return KNOWN_MODELS; // settings unknown → don't filter (production always has settings; this aids tests)
         var withKeys = KNOWN_MODELS.stream().filter(m -> {
+            // Show models we can actually use: either a key is configured, or the provider is keyless (a local /
+            // no-auth OpenAI-compatible server) — otherwise a keyless custom provider's models never show in /model.
             String key = settings.resolveApiKey(m.provider());
-            return key != null && !key.isBlank();
+            return (key != null && !key.isBlank()) || !SettingsManager.requiresApiKey(m.provider());
         }).toList();
         return applyAllowlist(withKeys, settings.config().enabledModels());
     }
