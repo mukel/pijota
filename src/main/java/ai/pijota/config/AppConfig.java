@@ -8,6 +8,7 @@ import ai.pijota.util.Util;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -55,7 +56,16 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
     public void save(Path path) throws IOException {
         Files.createDirectories(path.getParent());
         Util.restrictToOwner(path.getParent());
-        Util.MAPPER.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), this);
+        String json = Util.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(this);
+        // Skip the write when nothing changed — no churn (and no clobber risk) on a no-op save.
+        if (Files.exists(path) && json.equals(Files.readString(path)))
+            return;
+        // Atomic write: serialize to a sibling .tmp, then rename over the real file, so a crash mid-write can never
+        // truncate settings.json (which holds API keys).
+        Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+        Files.writeString(tmp, json);
+        Util.restrictToOwner(tmp);
+        Files.move(tmp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         Util.restrictToOwner(path); // settings.json holds API keys — owner-only
     }
 
