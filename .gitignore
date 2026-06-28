@@ -33,5 +33,17 @@ __pycache__/
 !/AGENTS.md
 !/CLAUDE.md
 
+# Test artifacts at repo root (session exports, ad-hoc test output)
+/*.jsonl
+/*.json
+
+# Log files
+*.log
+logs/
+
+# Temporary / scratch files
+*.tmp
+*.temp
+
 # Pijota local state (generated at runtime)
 .pijota/
