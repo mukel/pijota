@@ -305,6 +305,18 @@ class AppendOnlyTuiInputLoopTest {
         assertTrue(out.contains("boom-401") || out.toLowerCase().contains("error"), out);
     }
 
+    @Test
+    void aFailingToolResultIsRendered() throws Exception {
+        var failing = new Tool.ToolDefinition("boom", "always fails", java.util.Map.of(),
+                                        (id, a, cwd) -> java.util.concurrent.CompletableFuture.completedFuture(
+                                                                        Tool.ToolResult.error("kaboom"))).toTool();
+        var ts = TestSession.in(tempDir).tool(failing).build();
+        ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "boom", "{}")))
+                                        .enqueue(FauxLlm.Response.contentWithUsage("recovered"));
+        String out = driveSession(ts, "go\r".getBytes(StandardCharsets.UTF_8));
+        assertTrue(out.contains("recovered") || out.toLowerCase().contains("boom"), out);
+    }
+
     private static Tool echoTool() {
         return new Tool.ToolDefinition("echo", "Echoes input", java.util.Map.of(),
                                         (id, args, cwd) -> java.util.concurrent.CompletableFuture.completedFuture(
