@@ -197,6 +197,27 @@ class ScheduleExtensionTest {
     }
 
     @Test
+    void toolEnableDisableUpdateCleanupAndUnknownActions() throws Exception {
+        var api = api();
+        var ext = new ScheduleExtension();
+        ext.init(api);
+        var tool = api.tools().get(0);
+        tool.execute().execute("tc", new Tool.Args(Map.of("action", "add", "schedule", "+1h", "prompt", "p", "name",
+                                        "j1")), tempDir.toString()).get(1, TimeUnit.SECONDS);
+
+        assertFalse(tool.execute().execute("tc", new Tool.Args(Map.of("action", "disable", "job_id", "j1")),
+                                        tempDir.toString()).get(1, TimeUnit.SECONDS).isError());
+        assertFalse(tool.execute().execute("tc", new Tool.Args(Map.of("action", "enable", "job_id", "j1")),
+                                        tempDir.toString()).get(1, TimeUnit.SECONDS).isError());
+        assertFalse(tool.execute().execute("tc", new Tool.Args(Map.of("action", "update", "job_id", "j1", "schedule",
+                                        "+2h")), tempDir.toString()).get(1, TimeUnit.SECONDS).isError());
+        assertNotNull(tool.execute().execute("tc", new Tool.Args(Map.of("action", "cleanup")), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS));
+        assertTrue(tool.execute().execute("tc", new Tool.Args(Map.of("action", "bogus")), tempDir.toString())
+                                        .get(1, TimeUnit.SECONDS).isError(), "unknown action → error");
+    }
+
+    @Test
     void toolAddRejectsDuplicateName() throws Exception {
         var api = api();
         var ext = new ScheduleExtension();
