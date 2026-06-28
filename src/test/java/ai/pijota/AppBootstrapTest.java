@@ -32,6 +32,30 @@ class AppBootstrapTest {
     }
 
     @Test
+    void variousFeatureFlagsStillProduceAWiredSession() throws Exception {
+        for (String[] flags : new String[][] {{"--no-extensions"}, {"--no-skills"}, {"--no-prompt-templates"},
+                {"--no-context-files"}, {"--no-session"}, {"--append-system-prompt", "EXTRA RULES"},
+                {"--system-prompt", "CUSTOM"}, {"--tools", "read,bash"}}) {
+            Path tmp = Files.createTempDirectory("bootstrap-test");
+            var args = new java.util.ArrayList<>(java.util.List.of("--api-key", "sk-test"));
+            args.addAll(java.util.List.of(flags));
+            var result = AppBootstrap.bootstrap(ArgParser.parse(args.toArray(new String[0])),
+                                            settings(tmp, Map.of(), "gpt-5.5"));
+            assertNotNull(result.session(), "session wired for flags " + java.util.Arrays.toString(flags));
+            assertNotNull(result.extensions());
+            assertNotNull(result.llm());
+        }
+    }
+
+    @Test
+    void enabledToolsRestrictsToolsToTheAllowlist() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--tools", "read", "--api-key", "sk-test"}),
+                                        settings(tmp, Map.of(), "gpt-5.5"));
+        assertTrue(result.tools().get("read").isPresent());
+    }
+
+    @Test
     void whoamiFlagRegistersTheWhoamiTool() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var settings = settings(tmp, Map.of(), "gpt-5.5");
