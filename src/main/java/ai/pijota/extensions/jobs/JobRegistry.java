@@ -1,4 +1,4 @@
-package ai.pijota.extensions.background;
+package ai.pijota.extensions.jobs;
 
 import ai.pijota.util.ProcessRunner;
 
@@ -14,25 +14,25 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * Registry of fire-and-forget shell jobs the agent starts via {@code bash_background} and later reads or kills (via
- * {@code bash_output} / {@code bash_kill}). Each job's merged stdout+stderr is drained by a daemon thread into a capped
+ * Registry of fire-and-forget shell jobs the agent starts via {@code jobs_run} and later reads or kills (via
+ * {@code jobs_output} / {@code jobs_kill}). Each job's merged stdout+stderr is drained by a daemon thread into a capped
  * rolling buffer; {@link #read} returns only the slice produced since the previous read, so the model sees incremental
  * progress. Unlike the tmux integration this needs no external binary — plain JDK process management, always available
  * and native-image safe.
  */
-public final class BackgroundJobs {
+public final class JobRegistry {
     private static final int MAX_BUFFER = 200_000; // cap retained output per job to bound memory
 
     private final ConcurrentHashMap<String, Job> jobs = new ConcurrentHashMap<>();
     private final AtomicInteger seq = new AtomicInteger();
     private final Consumer<Completion> onComplete;
 
-    public BackgroundJobs() {
+    public JobRegistry() {
         this(c -> {});
     }
 
     /** {@code onComplete} fires (off the drain thread) when a job exits on its own — not when it's killed. */
-    public BackgroundJobs(Consumer<Completion> onComplete) {
+    public JobRegistry(Consumer<Completion> onComplete) {
         this.onComplete = onComplete == null ? c -> {} : onComplete;
         Runtime.getRuntime().addShutdownHook(new Thread(this::killAll, "bg-jobs-shutdown"));
     }
@@ -125,8 +125,10 @@ public final class BackgroundJobs {
 
     public List<Status> list() {
         var statuses = new ArrayList<Status>();
-        for (Job job : jobs.values())
-            statuses.add(new Status(job.id, job.command, job.process.isAlive()));
+        for (Job job : jobs.values()) {
+            boolean alive = job.process.isAlive();
+            statuses.add(new Status(job.id, job.command, alive, alive ? null : job.process.exitValue()));
+        }
         return statuses;
     }
 
@@ -141,7 +143,7 @@ public final class BackgroundJobs {
     public record Read(String id, String output, boolean running, Integer exitCode, boolean truncated) {
     }
 
-    public record Status(String id, String command, boolean running) {
+    public record Status(String id, String command, boolean running, Integer exitCode) {
     }
 
     /** A job that finished on its own (not killed): its id, the command, and the process exit code. */

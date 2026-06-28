@@ -1,4 +1,4 @@
-package ai.pijota.extensions.background;
+package ai.pijota.extensions.jobs;
 
 import ai.pijota.extensions.DeliverAs;
 import ai.pijota.extensions.Extension;
@@ -20,45 +20,65 @@ import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 /**
- * Opt-in background shell jobs (enable with {@code --background}). Adds three tools — {@code bash_background} to launch
- * a long-running command without blocking the turn, {@code bash_output} to poll its output, and {@code bash_kill} to
- * stop it — plus a live panel of running jobs. Unlike {@code --tmux} it needs no external binary (plain JDK process
+ * Opt-in background shell jobs (enable with {@code --jobs}). Adds three tools — {@code jobs_run} to launch a
+ * long-running command without blocking the turn, {@code jobs_output} to poll its output, and {@code jobs_kill} to stop
+ * it — plus a live panel of running jobs. Unlike {@code --tmux} it needs no external binary (plain JDK process
  * management), so it works everywhere including the native image.
  */
-public final class BackgroundJobsExtension implements Extension {
+public final class JobsExtension implements Extension {
 
     private static final int MAX_PANEL_ROWS = 6;
-    private static final int MAX_WAIT_SECONDS = 120; // cap a blocking bash_output wait
+    private static final int MAX_WAIT_SECONDS = 120; // cap a blocking jobs_output wait
     private static final int CMD_PREVIEW = 60;
 
     @Override
     public String name() {
-        return "background";
+        return "jobs";
     }
 
     @Override
     public String description() {
-        return "Opt-in background shell jobs (bash_background / bash_output / bash_kill). Enable with --background.";
+        return "Opt-in background shell jobs (jobs_run / jobs_output / jobs_kill). Enable with --jobs.";
     }
 
     @Override
     public void init(ExtensionAPI api) {
-        if (!api.runtime().getFlag("background", false))
+        if (!api.runtime().getFlag("jobs", false))
             return;
-        var jobs = new BackgroundJobs(completion -> notifyCompletion(api, completion));
+        var jobs = new JobRegistry(completion -> notifyCompletion(api, completion));
         api.registerTool(startTool(jobs));
         api.registerTool(outputTool(jobs));
+        api.registerTool(listTool(jobs));
         api.registerTool(killTool(jobs));
         api.registerStatusLines(() -> renderPanel(jobs.list()));
     }
 
-    private static ToolDefinition startTool(BackgroundJobs jobs) {
+    private static ToolDefinition listTool(JobRegistry jobs) {
+        return Tool.named("jobs_list").glyph("📋").description(
+                                        "List every background job (running and finished) with its id, status/exit code, and"
+                                                                        + " command — so you can find a job id to read with jobs_output or stop with jobs_kill.")
+                                        .run((args, cwd) -> ToolResult.success(renderList(jobs.list())));
+    }
+
+    /** One line per job: id, status (running / exit N), command. */
+    static String renderList(List<JobRegistry.Status> all) {
+        if (all.isEmpty())
+            return "(no background jobs)";
+        var sb = new StringBuilder();
+        for (var s : all) {
+            String status = s.running() ? "running" : "exit " + s.exitCode();
+            sb.append(s.id()).append("  ").append(status).append("  ").append(s.command()).append('\n');
+        }
+        return sb.toString().stripTrailing();
+    }
+
+    private static ToolDefinition startTool(JobRegistry jobs) {
         String shell = Platform.defaultShell();
         String shellFlag = Platform.shellCommandFlag(shell);
-        return Tool.named("bash_background").glyph("⏳").description(
+        return Tool.named("jobs_run").glyph("⏳").description(
                                         "Start a shell command in the background and return immediately with a job id. Use it"
                                                                         + " for long-running work (builds, test suites, dev servers); read its output with"
-                                                                        + " bash_output and stop it with bash_kill.")
+                                                                        + " jobs_output and stop it with jobs_kill.")
                                         .stringParam("command", "Shell command to run in the background", true)
                                         .stringParam("workdir", "Working directory (optional; defaults to the session dir)",
                                                                         false)
@@ -74,8 +94,8 @@ public final class BackgroundJobsExtension implements Extension {
                                             try {
                                                 String id = jobs.start(List.of(shell, shellFlag, command), workdir);
                                                 return ToolResult.success("Started background job " + id
-                                                                                + " — read with bash_output (id=\"" + id
-                                                                                + "\"), stop with bash_kill.",
+                                                                                + " — read with jobs_output (id=\"" + id
+                                                                                + "\"), stop with jobs_kill.",
                                                                                 Map.of("jobId", id));
                                             } catch (IOException e) {
                                                 return ToolResult.error("Could not start background job: "
@@ -84,12 +104,12 @@ public final class BackgroundJobsExtension implements Extension {
                                         });
     }
 
-    private static ToolDefinition outputTool(BackgroundJobs jobs) {
-        return Tool.named("bash_output").glyph("📡").description(
-                                        "Read output from a background job (bash_background) produced since your last read, plus whether"
+    private static ToolDefinition outputTool(JobRegistry jobs) {
+        return Tool.named("jobs_output").glyph("📡").description(
+                                        "Read output from a background job (jobs_run) produced since your last read, plus whether"
                                                                         + " it is still running or its exit code. Optional: filter (regex — only matching lines) and"
                                                                         + " timeout (seconds to wait for new output or exit instead of returning immediately).")
-                                        .stringParam("id", "The background job id returned by bash_background, e.g. \"bg_1\"",
+                                        .stringParam("id", "The background job id returned by jobs_run, e.g. \"bg_1\"",
                                                                         true)
                                         .stringParam("filter", "Optional regex; only output lines matching it are returned",
                                                                         false)
@@ -99,7 +119,7 @@ public final class BackgroundJobsExtension implements Extension {
     }
 
     /** Reads a job's incremental output, optionally regex-filtered and optionally waiting up to {@code timeout}s. */
-    private static ToolResult readOutput(BackgroundJobs jobs, Tool.Args args) {
+    private static ToolResult readOutput(JobRegistry jobs, Tool.Args args) {
         String id = args.getString("id");
         if (id == null || id.isBlank())
             return ToolResult.error("No job id provided");
@@ -153,21 +173,20 @@ public final class BackgroundJobsExtension implements Extension {
     }
 
     /** Monitor: when a job finishes on its own, tell the agent so it needn't poll — failures steer the run. */
-    private static void notifyCompletion(ExtensionAPI api, BackgroundJobs.Completion c) {
+    private static void notifyCompletion(ExtensionAPI api, JobRegistry.Completion c) {
         String cmd = c.command().length() > CMD_PREVIEW ? c.command().substring(0, CMD_PREVIEW - 1) + "…" : c.command();
         if (c.exitCode() == 0)
             api.sendUserMessage("⏳ background job " + c.id() + " finished · exit 0 · " + cmd
-                                            + " — read its output with bash_output (id=\"" + c.id() + "\").",
+                                            + " — read its output with jobs_output (id=\"" + c.id() + "\").",
                                             DeliverAs.NEXT_TURN);
         else
             api.sendUserMessage("⚠️ background job " + c.id() + " FAILED · exit " + c.exitCode() + " · " + cmd
-                                            + " — read its output with bash_output (id=\"" + c.id() + "\").",
+                                            + " — read its output with jobs_output (id=\"" + c.id() + "\").",
                                             DeliverAs.STEER);
     }
 
-    private static ToolDefinition killTool(BackgroundJobs jobs) {
-        return Tool.named("bash_kill").glyph("⛔")
-                                        .description("Terminate a background job started with bash_background.")
+    private static ToolDefinition killTool(JobRegistry jobs) {
+        return Tool.named("jobs_kill").glyph("⛔").description("Terminate a background job started with jobs_run.")
                                         .stringParam("id", "The background job id to kill, e.g. \"bg_1\"", true)
                                         .run((args, cwd) -> {
                                             String id = args.getString("id");
@@ -182,8 +201,8 @@ public final class BackgroundJobsExtension implements Extension {
     }
 
     /** Live footer panel: only running jobs, capped for legibility. */
-    static List<String> renderPanel(List<BackgroundJobs.Status> all) {
-        var running = all.stream().filter(BackgroundJobs.Status::running).toList();
+    static List<String> renderPanel(List<JobRegistry.Status> all) {
+        var running = all.stream().filter(JobRegistry.Status::running).toList();
         if (running.isEmpty())
             return List.of();
         var lines = new ArrayList<String>();
