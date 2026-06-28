@@ -429,7 +429,8 @@ public final class TaskTool implements Tool {
         }
     }
 
-    private void handleSubAgentEvent(String line, String agentName, BufferedWriter logWriter, String logFilePath,
+    // package-private: the NDJSON event parsing is unit-tested directly (the surrounding spawn is integration-only)
+    void handleSubAgentEvent(String line, String agentName, BufferedWriter logWriter, String logFilePath,
                                     SubAgentResult[] resultHolder, AtomicInteger toolCount) {
         try {
             @SuppressWarnings("unchecked")

@@ -392,6 +392,25 @@ class WebServerTest {
     }
 
     @Test
+    void liveAgentEventsAreStreamedToTheBrowserOverSse() throws Exception {
+        withServer((ts, client, base) -> {
+            ts.llm().enqueue(FauxLlm.Response.contentWithUsage("streamed answer"));
+            // open the SSE stream first so the connection is registered before the turn fires
+            var events = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofInputStream());
+            readUntil(events.body(), "event: history", Duration.ofSeconds(5)); // drain the initial replay frames
+
+            client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"hi\"}")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+
+            // the agent's reply must arrive as live SSE frames (onEvent → broadcast)
+            String live = readUntil(events.body(), "streamed answer", Duration.ofSeconds(5));
+            assertTrue(live.contains("streamed answer"), "the live answer is pushed over SSE: " + live);
+        });
+    }
+
+    @Test
     void promptDrivesTheAgentAndStoresTheAnswer() throws Exception {
         withServer((ts, client, base) -> {
             ts.llm().enqueue(FauxLlm.Response.contentWithUsage("hi from the agent"));

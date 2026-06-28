@@ -75,6 +75,42 @@ class TaskToolTest {
         assertTrue(seenDirs.stream().anyMatch(d -> d.contains("wt-")), "agents run in per-task worktrees: " + seenDirs);
     }
 
+    @Test
+    void handleSubAgentEventParsesEachEventType() throws Exception {
+        var activity = new ArrayList<String>();
+        var finished = new ArrayList<String>();
+        var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, l) -> activity.add(l),
+                                        (a, ok, tok) -> finished.add(a + ":" + ok + ":" + tok), orchTempDir, 0);
+        var holder = new TaskTool.SubAgentResult[1];
+        var writer = new java.io.BufferedWriter(new java.io.StringWriter());
+        var counter = new java.util.concurrent.atomic.AtomicInteger();
+
+        tool.handleSubAgentEvent("{\"type\":\"tool_start\",\"tool\":\"read\",\"args\":\"{\\\"path\\\":\\\"a/b.txt\\\"}\"}",
+                                        "alpha", writer, "/tmp/a.log", holder, counter);
+        assertEquals(1, counter.get(), "tool_start bumps the tool counter");
+
+        tool.handleSubAgentEvent("{\"type\":\"done\",\"output\":\"all good\",\"exitCode\":0,\"turns\":2,\"toolCount\":3,"
+                                        + "\"tokens\":150}", "alpha", writer, "/tmp/a.log", holder, counter);
+        assertNotNull(holder[0]);
+        assertEquals("all good", holder[0].output());
+        assertEquals(0, holder[0].exitCode());
+        assertEquals("alpha:true:150", finished.getFirst(), "done fires the finish callback with tokens");
+    }
+
+    @Test
+    void handleSubAgentEventOnMalformedLineYieldsAnErrorResult() throws Exception {
+        var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, l) -> {}, (a, ok, tok) -> {}, orchTempDir, 0);
+        var holder = new TaskTool.SubAgentResult[1];
+        var writer = new java.io.BufferedWriter(new java.io.StringWriter());
+
+        tool.handleSubAgentEvent("this is not json", "alpha", writer, "/tmp/a.log", holder,
+                                        new java.util.concurrent.atomic.AtomicInteger());
+
+        assertNotNull(holder[0], "a parse failure still produces a (failed) result, never a lost turn");
+        assertEquals(1, holder[0].exitCode());
+        assertNotNull(holder[0].error());
+    }
+
     private static boolean gitAvailable() {
         try {
             return new ProcessBuilder("git", "--version").start().waitFor() == 0;
