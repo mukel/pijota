@@ -41,6 +41,11 @@ public final class ProcessRunner {
     private boolean redirectErrorStream;
     private boolean discardStderr;
 
+    /** The program name only (never the args) — safe to log without leaking secrets passed on the command line. */
+    private String program() {
+        return command.isEmpty() ? "?" : command.get(0);
+    }
+
     private ProcessRunner(List<String> command) {
         this.command = List.copyOf(command);
     }
@@ -189,6 +194,7 @@ public final class ProcessRunner {
                 finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
                 if (!finished && !aborted.get()) {
                     timedOut = true;
+                    log.warn("process '{}' timed out after {} — killing it", program(), timeout);
                     killTree(process);
                     finished = process.waitFor(KILL_GRACE.toMillis(), TimeUnit.MILLISECONDS);
                     if (!finished)

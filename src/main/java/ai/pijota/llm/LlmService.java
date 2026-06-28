@@ -153,9 +153,18 @@ public final class LlmService implements LlmClient {
         // The custom Codex model runs its own virtual-thread SSE loop that langchain4j's StreamingHandle never reaches,
         // so track it directly and cancel it ourselves in abort().
         activeCodex.set(model instanceof CodexStreamingChatModel c ? c : null);
+        log.debug("LLM request → {}/{} · {} message(s) · {} tool(s)", providerName, modelName, messages.size(),
+                                        tools == null ? 0 : tools.size());
         var future = new CompletableFuture<StreamResult>();
         var result = new StreamResult();
+        // 300s safety net so a stalled provider never hangs the turn; log if it actually fires (was previously silent).
+        var settled = new java.util.concurrent.atomic.AtomicBoolean(false);
         future.completeOnTimeout(result, 300, TimeUnit.SECONDS);
+        future.whenComplete((r, ex) -> {
+            if (!settled.get())
+                log.warn("LLM stream did not complete within 300s for {}/{}; returning the partial response",
+                                                providerName, modelName);
+        });
 
         // Gate attachments to the active model's accepted modalities (unsupported media is dropped with a note), so we
         // never send an image/PDF/audio/video to a model that can't read it — langchain4j maps the rest natively.
@@ -231,6 +240,7 @@ public final class LlmService implements LlmClient {
                 recordSpeed(u);
                 if (handleRef != null)
                     handleRef.set(null);
+                settled.set(true);
                 future.complete(result);
             }
 
@@ -251,6 +261,7 @@ public final class LlmService implements LlmClient {
             public void onError(Throwable e) {
                 if (handleRef != null)
                     handleRef.set(null);
+                settled.set(true);
                 future.completeExceptionally(e);
             }
         });

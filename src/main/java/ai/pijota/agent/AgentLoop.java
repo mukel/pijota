@@ -124,6 +124,9 @@ public final class AgentLoop implements AgentContext {
         this.retryBaseDelayMs = retryBaseDelayMs;
         this.maxTurns = maxTurns;
         this.toolExecutor = new ToolExecutor(toolRegistry, extensionRegistry, cwd, history, this::fireEvent, aborted);
+        // Always-on diagnostic trace of the event stream (to the log file); first listener so it records before any
+        // frontend reacts. Quiet at INFO (turn/tool/usage milestones); DEBUG/TRACE add detail when diagnosing.
+        listeners.add(new AgentEventLogger()::onEvent);
     }
 
     public void addEventListener(Consumer<AgentEvent> l) {
