@@ -83,6 +83,28 @@ Inside a session, `/help` lists everything. Highlights: `/model` switch model ·
 
 ---
 
+## Optional external tools
+
+Pijota is a single self-contained binary, but a few features shell out to external CLIs when present. It probes
+`PATH` at runtime (cross-platform, `PATHEXT`-aware on Windows) and **degrades gracefully** — install only what you need.
+
+| Tool | Unlocks | If missing |
+|---|---|---|
+| **ripgrep** (`rg`) | the `grep` tool — fast file-content search | `grep` returns an install hint instead of results |
+| **fd** (`fd`) | fast `glob` file discovery | falls back to a built-in Java directory walker (slower) |
+| **fzf** | the `@`-file fuzzy picker in the TUI | falls back to inline path completion |
+| **Chrome / Chromium** | the browser tool over CDP — navigate, click, screenshot, extract page/PDF text | use Firefox/Safari instead, or the browser tool stays off |
+| **Firefox** + **geckodriver** | the browser tool over WebDriver BiDi (alternate engine) | use Chrome/Safari instead |
+| **Safari** + `safaridriver` | the browser tool on macOS over BiDi (Safari 18+) | macOS only |
+| **tmux** | the `--tmux` extension — run and observe commands in detached terminal panes | the extension reports tmux is unavailable |
+| **git** | `/transcend` self-rebuild, sub-agent worktrees, session checkpoints | those features are unavailable |
+
+Browser backends are interchangeable — any one of Chrome/Chromium, Firefox (+geckodriver), or Safari (+safaridriver)
+is enough. Pick the engine with `--browse=chrome|firefox|safari` (default `chrome`); point at a specific binary with
+`PIJOTA_BROWSER_BIN` / `-Dpijota.browse.bin` if it isn't auto-discovered on `PATH`.
+
+---
+
 ## Build from source
 
 Requires JDK 25 (a GraalVM JDK for native builds). `make` wraps `mvn` with sensible defaults.
