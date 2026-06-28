@@ -1,6 +1,9 @@
 package ai.pijota.extensions.task;
 
+import ai.pijota.testkit.FauxLlm;
+
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
@@ -9,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
@@ -26,6 +30,19 @@ class TaskToolTest {
         var tool = new TaskTool(agents, null, List::of, () -> "", (a, l) -> {}, (a, s, t) -> {}, orchTempDir, 0);
         tool.setAgentRunner(runner); // no real sub-process spawn — canned results drive the orchestration
         return tool;
+    }
+
+    @Test
+    @Timeout(60)
+    void realSpawnProducesAResultWithoutHanging() throws Exception {
+        // No setAgentRunner → exercises the real spawnAgent (reinvokes the JVM as `Main --agent`). A keyless FauxLlm
+        // means the spawned sub-agent fails fast, so this verifies the spawn/stream/result-collection path produces a
+        // result (typically an error) rather than hanging — without a working LLM.
+        var tool = new TaskTool(List.of(ALPHA), new FauxLlm(), List::of, () -> "", (a, l) -> {}, (a, s, t) -> {},
+                                        orchTempDir, 0);
+        var result = tool.execute("id", new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha", "description", "x")),
+                                        orchTempDir.toString()).get(45, TimeUnit.SECONDS);
+        assertNotNull(result, "the real spawn path always yields a ToolResult");
     }
 
     @Test
