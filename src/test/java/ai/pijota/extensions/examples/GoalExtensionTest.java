@@ -20,6 +20,18 @@ class GoalExtensionTest {
     }
 
     @Test
+    void goalSlashCommandRendersTheActiveGoal() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        execute(fake.tool("create_goal"), Map.of("objective", "ship the feature"));
+
+        fake.slashCommand("goal").handler().accept(""); // /goal with no args → showGoal
+
+        assertTrue(fake.sentMessages().stream().anyMatch(m -> m.content() != null
+                                        && m.content().contains("ship the feature")), fake.sentMessages().toString());
+    }
+
+    @Test
     void createGoalToolStartsActiveGoal() {
         var fake = new FakeExtensionAPI();
         new GoalExtension().init(fake);
