@@ -17,12 +17,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class BiDiBackendIntegrationTest {
 
     private static boolean geckodriverAvailable() {
-        try {
-            return new ProcessBuilder("geckodriver", "--version").redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                                            .redirectError(ProcessBuilder.Redirect.DISCARD).start().waitFor() == 0;
-        } catch (Exception e) {
-            return false;
-        }
+        return ai.pijota.util.Executables.isAvailable("geckodriver");
     }
 
     private static int freePort() throws Exception {

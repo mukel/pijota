@@ -64,10 +64,12 @@ class BrowserSessionTest {
     }
 
     @Test
-    void firstExecutablePicksTheFirstMatch() {
-        var candidates = List.of(Path.of("/nope/a"), Path.of("/yes/b"), Path.of("/yes/c"));
-        assertEquals(Path.of("/yes/b"), CdpBackend.firstExecutable(candidates, p -> p.startsWith("/yes")));
-        assertNull(CdpBackend.firstExecutable(candidates, p -> false));
+    void findChromeReturnsNullWhenNoCandidateResolves() {
+        org.junit.jupiter.api.Assumptions.assumeFalse(
+                                        ai.pijota.util.Executables.anyAvailable(List.of("google-chrome-stable",
+                                                                        "google-chrome", "chromium", "chrome")),
+                                        "chrome is installed, so the not-found path can't be exercised here");
+        assertNull(CdpBackend.findChrome(null), "no chrome anywhere → null");
     }
 
     @Test

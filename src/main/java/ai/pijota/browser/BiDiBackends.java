@@ -1,12 +1,11 @@
 package ai.pijota.browser;
 
 import ai.pijota.util.Env;
+import ai.pijota.util.Executables;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.io.File;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,14 +53,10 @@ final class BiDiBackends {
         String configured = Env.get(sysProp, envVar);
         if (configured != null)
             return Path.of(configured);
-        var candidates = new ArrayList<Path>();
-        String path = System.getenv("PATH");
-        if (path != null)
-            for (String dir : path.split(File.pathSeparator))
-                candidates.add(Path.of(dir, name));
-        for (String c : extraCandidates)
-            candidates.add(Path.of(c));
-        Path found = CdpBackend.firstExecutable(candidates, Files::isExecutable);
+        var candidates = new ArrayList<String>();
+        candidates.add(name); // resolved on PATH (cross-OS, PATHEXT-aware)
+        candidates.addAll(List.of(extraCandidates));
+        Path found = Executables.findAny(candidates);
         if (found == null)
             throw new IllegalStateException(name + " not found. Install it or set " + envVar + " / -D" + sysProp
                                             + "=/path/to/" + name + ".");

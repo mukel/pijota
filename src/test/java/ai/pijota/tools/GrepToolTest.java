@@ -16,12 +16,7 @@ class GrepToolTest {
     Path tempDir;
 
     private static boolean ripgrepAvailable() {
-        try {
-            return new ProcessBuilder("rg", "--version").redirectError(ProcessBuilder.Redirect.DISCARD)
-                                            .redirectOutput(ProcessBuilder.Redirect.DISCARD).start().waitFor() == 0;
-        } catch (Exception e) {
-            return false;
-        }
+        return ai.pijota.util.Executables.isAvailable("rg");
     }
 
     @Test

@@ -1,9 +1,8 @@
 package ai.pijota.tui;
 
+import ai.pijota.util.Executables;
 import ai.pijota.util.Util;
 
-import java.io.File;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -23,7 +22,7 @@ final class FzfFilePicker {
     private FzfFilePicker() {}
 
     static boolean available() {
-        return onPath("fzf");
+        return Executables.isAvailable("fzf");
     }
 
     /**
@@ -74,15 +73,5 @@ final class FzfFilePicker {
             return FileReferenceResolver.reference(selection);
         String path = selection.startsWith("./") ? selection.substring(2) : selection;
         return Util.shellQuoteIfNeeded(path);
-    }
-
-    private static boolean onPath(String exe) {
-        String path = System.getenv("PATH");
-        if (path == null)
-            return false;
-        for (String dir : path.split(File.pathSeparator))
-            if (!dir.isBlank() && Files.isExecutable(Path.of(dir, exe)))
-                return true;
-        return false;
     }
 }

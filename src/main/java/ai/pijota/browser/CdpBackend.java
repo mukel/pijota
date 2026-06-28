@@ -1,5 +1,6 @@
 package ai.pijota.browser;
 
+import ai.pijota.util.Executables;
 import ai.pijota.util.Platform;
 import ai.pijota.util.Util;
 
@@ -18,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * {@link BrowserBackend} over the Chrome DevTools Protocol — drives a real (visible) Chrome/Chromium. A dedicated
@@ -237,42 +237,26 @@ public final class CdpBackend implements BrowserBackend {
     static Path findChrome(String override) {
         if (override != null && !override.isBlank())
             return Path.of(override);
-        var candidates = new ArrayList<Path>();
+        var candidates = new ArrayList<String>();
         if (Platform.isWindows()) {
-            var names = List.of("chrome.exe", "chromium.exe", "msedge.exe");
             for (String env : List.of("ProgramFiles", "ProgramFiles(x86)", "LocalAppData")) {
                 String base = System.getenv(env);
                 if (base != null && !base.isBlank()) {
-                    candidates.add(Path.of(base, "Google", "Chrome", "Application", "chrome.exe"));
-                    candidates.add(Path.of(base, "Microsoft", "Edge", "Application", "msedge.exe"));
+                    candidates.add(Path.of(base, "Google", "Chrome", "Application", "chrome.exe").toString());
+                    candidates.add(Path.of(base, "Microsoft", "Edge", "Application", "msedge.exe").toString());
                 }
             }
-            String path = System.getenv("PATH");
-            if (path != null)
-                for (String dir : path.split(java.io.File.pathSeparator))
-                    for (String name : names)
-                        candidates.add(Path.of(dir, name));
-            return firstExecutable(candidates, Files::isExecutable);
+            candidates.addAll(List.of("chrome", "chromium", "msedge")); // PATH, resolved via PATHEXT
+        } else {
+            candidates.addAll(List.of("/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/usr/bin/chromium",
+                                            "/usr/bin/chromium-browser", "/snap/bin/chromium",
+                                            "/opt/google/chrome/chrome",
+                                            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                                            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+                                            // …then bare names on PATH
+                                            "google-chrome-stable", "google-chrome", "chromium", "chromium-browser",
+                                            "chrome"));
         }
-        for (String p : List.of("/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/usr/bin/chromium",
-                                        "/usr/bin/chromium-browser", "/snap/bin/chromium", "/opt/google/chrome/chrome",
-                                        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-                                        "/Applications/Chromium.app/Contents/MacOS/Chromium"))
-            candidates.add(Path.of(p));
-        String path = System.getenv("PATH");
-        if (path != null) {
-            var names = List.of("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome");
-            for (String dir : path.split(java.io.File.pathSeparator))
-                for (String name : names)
-                    candidates.add(Path.of(dir, name));
-        }
-        return firstExecutable(candidates, Files::isExecutable);
-    }
-
-    static Path firstExecutable(List<Path> candidates, Predicate<Path> isExecutable) {
-        for (Path p : candidates)
-            if (isExecutable.test(p))
-                return p;
-        return null;
+        return Executables.findAny(candidates);
     }
 }
