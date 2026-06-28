@@ -1,13 +1,54 @@
 package ai.pijota.extensions.task;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class SubAgentTest {
+
+    @Test
+    void loadJsonReadsTheAgentDefinition(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("coder.json");
+        Files.writeString(f, "{\"name\":\"coder\",\"description\":\"writes code\",\"tools\":[\"read\",\"edit\"],"
+                                        + "\"model\":\"gpt-x\"}");
+        var agent = SubAgent.loadJson(f, "user");
+        assertEquals("coder", agent.name());
+        assertEquals("writes code", agent.description());
+        assertEquals(List.of("read", "edit"), agent.tools());
+        assertEquals("gpt-x", agent.model());
+    }
+
+    @Test
+    void loadJsonOnMalformedFileYieldsAFailedPlaceholder(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("broken.json");
+        Files.writeString(f, "{ not json");
+        var agent = SubAgent.loadJson(f, "user");
+        assertEquals("broken", agent.name());
+        assertTrue(agent.description().startsWith("failed:"), agent.description());
+    }
+
+    @Test
+    void loadAllPicksUpProjectJsonAgentsAndAppliesOverrides(@TempDir Path cwd) throws Exception {
+        Path agentsDir = cwd.resolve(".pijota/agents");
+        Files.createDirectories(agentsDir);
+        Files.writeString(agentsDir.resolve("coder.json"), "{\"name\":\"coder\",\"model\":\"gpt-x\"}");
+        Files.writeString(agentsDir.resolve("tester.json"), "{\"name\":\"tester\"}");
+        Files.writeString(cwd.resolve(".pijota/subagents.json"),
+                                        "{\"agentOverrides\":{\"tester\":{\"disabled\":true},"
+                                                                        + "\"coder\":{\"model\":\"override-model\"}}}");
+
+        var agents = SubAgent.loadAll(cwd);
+
+        var coder = agents.stream().filter(a -> a.name().equals("coder")).findFirst().orElseThrow();
+        assertEquals("override-model", coder.model(), "the override is applied");
+        assertTrue(agents.stream().noneMatch(a -> a.name().equals("tester")), "the disabled agent is removed");
+    }
 
     @Test
     void recordStoresFields() {
