@@ -8,35 +8,38 @@ import ai.pijota.tools.ToolRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Exercises the {@code /logs} flow against the real {@link TaskExtension}: discovery, the opaque
  * {@code UiContext.select} picker, and opening a log in the in-TUI {@code UiContext.viewer} (no external pager, no
- * process spawn, no terminal suspend), plus the headless static-list fallback.
+ * process spawn, no terminal suspend), plus the headless static-list fallback. The sub-agent log dir is redirected
+ * into a per-test {@code @TempDir} so discovery is isolated from other tests and the shared system temp dir.
  */
 class TaskLogPickerTest {
 
-    private static final Path LOG_DIR = Path.of("/tmp", "pijota-logs");
-    private final List<Path> created = new ArrayList<>();
+    @TempDir
+    Path logDir;
+
+    @BeforeEach
+    void isolateLogDir() {
+        System.setProperty("pijota.log.dir", logDir.toString());
+    }
 
     @AfterEach
-    void cleanup() throws IOException {
-        for (Path p : created)
-            Files.deleteIfExists(p);
+    void clearLogDir() {
+        System.clearProperty("pijota.log.dir");
     }
 
     private Path writeLog(String suffix) throws IOException {
-        Files.createDirectories(LOG_DIR);
-        Path log = LOG_DIR.resolve("sub-" + suffix + ".log");
+        Path log = logDir.resolve("sub-" + suffix + ".log");
         Files.writeString(log, "log body for " + suffix + "\n");
-        created.add(log);
         return log;
     }
 

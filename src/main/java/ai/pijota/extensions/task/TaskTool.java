@@ -580,8 +580,11 @@ public final class TaskTool implements Tool {
         return name.replaceAll("[^a-zA-Z0-9._-]", "_");
     }
 
-    private static Path logDir() {
-        Path dir = Path.of(System.getProperty("java.io.tmpdir"), "pijota-logs");
+    /** Directory holding sub-agent logs. Override with {@code -Dpijota.log.dir=…} (tests isolate it this way). */
+    static Path logDir() {
+        String override = System.getProperty("pijota.log.dir");
+        Path dir = override != null && !override.isBlank() ? Path.of(override)
+                                        : Path.of(System.getProperty("java.io.tmpdir"), "pijota-logs");
         try {
             Files.createDirectories(dir);
         } catch (IOException ignored) {}

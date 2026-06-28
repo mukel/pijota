@@ -71,9 +71,16 @@ class TaskToolTest {
         // result (typically an error) rather than hanging — without a working LLM.
         var tool = new TaskTool(List.of(ALPHA), new FauxLlm(), List::of, () -> "", (a, l) -> {}, (a, s, t) -> {},
                                         orchTempDir, 0);
-        var result = tool.execute("id", new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha", "description", "x")),
-                                        orchTempDir.toString()).get(45, TimeUnit.SECONDS);
-        assertNotNull(result, "the real spawn path always yields a ToolResult");
+        // Isolate the sub-agent log dir into the test's @TempDir so the spawn doesn't pollute the shared
+        // tmpdir/pijota-logs that the log-picker tests scan.
+        System.setProperty("pijota.log.dir", orchTempDir.resolve("logs").toString());
+        try {
+            var result = tool.execute("id", new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha", "description", "x")),
+                                            orchTempDir.toString()).get(45, TimeUnit.SECONDS);
+            assertNotNull(result, "the real spawn path always yields a ToolResult");
+        } finally {
+            System.clearProperty("pijota.log.dir");
+        }
     }
 
     @Test
