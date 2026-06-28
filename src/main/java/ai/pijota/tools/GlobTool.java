@@ -124,7 +124,7 @@ public final class GlobTool implements Tool {
         }
     }
 
-    private SearchResult fdSearch(String pattern, Path searchPath, int limit, long timeoutSeconds) {
+    SearchResult fdSearch(String pattern, Path searchPath, int limit, long timeoutSeconds) {
         try {
             var command = List.of("fd", "--hidden", "--type", "f", "--glob", "--max-results", Integer.toString(limit),
                                             "--", pattern, searchPath.toString());

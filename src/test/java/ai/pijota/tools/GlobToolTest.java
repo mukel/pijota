@@ -9,10 +9,25 @@ import java.util.Map;
 
 import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class GlobToolTest {
     @TempDir
     Path tempDir;
+
+    @Test
+    void fdBackendListsMatchingFilesDirectly() throws Exception {
+        assumeTrue(ai.pijota.util.Executables.isAvailable("fd"), "fd not installed");
+        Files.createDirectories(tempDir.resolve("src"));
+        Files.createFile(tempDir.resolve("src/App.java"));
+        Files.createFile(tempDir.resolve("notes.txt"));
+
+        var result = new GlobTool().fdSearch("*.java", tempDir, 100, 5); // the fd path is otherwise shadowed by rg
+
+        assertEquals("fd", result.backend());
+        assertTrue(result.lines().stream().anyMatch(l -> l.contains("App.java")), result.lines().toString());
+        assertFalse(result.lines().stream().anyMatch(l -> l.contains("notes.txt")), result.lines().toString());
+    }
 
     @Test
     void findsFilesByPatternWithInjectedBackend() throws Exception {
