@@ -57,6 +57,26 @@ class AppBootstrapTest {
     }
 
     @Test
+    void continueLoadsTheMostRecentSessionForTheCwd() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of(), "gpt-5.5");
+        // pre-create a session for the current cwd in the session dir, so --continue resolves + loads it
+        var sm = new ai.pijota.agent.SessionManager(settings.sessionDir());
+        String cwd = System.getProperty("user.dir");
+        var file = sm.createSession(cwd);
+        sm.saveMessages(file, java.util.List.of(new ai.pijota.messages.Message.User("a prior question"),
+                                        new ai.pijota.messages.Message.Assistant("a prior answer", java.util.List.of(),
+                                                                        "")),
+                                        cwd);
+
+        var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--continue", "--api-key", "sk-test"}),
+                                        settings);
+
+        assertTrue(result.session().messages().stream().anyMatch(m -> m instanceof ai.pijota.messages.Message.User u
+                                        && u.content().contains("a prior question")), "the prior session is continued");
+    }
+
+    @Test
     void whoamiFlagRegistersTheWhoamiTool() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var settings = settings(tmp, Map.of(), "gpt-5.5");
