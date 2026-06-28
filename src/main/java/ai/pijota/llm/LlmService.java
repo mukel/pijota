@@ -39,6 +39,7 @@ public final class LlmService implements LlmClient {
     private volatile java.util.function.BiConsumer<String, String> modelChangeCallback;
 
     private final AtomicReference<StreamingHandle> activeHandle = new AtomicReference<>();
+    private final AtomicReference<CodexStreamingChatModel> activeCodex = new AtomicReference<>();
     private volatile LlmClient.RequestSpeed lastRequestSpeed;
 
     @Override
@@ -149,6 +150,9 @@ public final class LlmService implements LlmClient {
     private CompletableFuture<StreamResult> streamLangChain4j(StreamingChatModel model, List<Message> messages,
                                     List<ToolSpecification> tools, BiConsumer<String, String> onPartial,
                                     AtomicReference<StreamingHandle> handleRef) {
+        // The custom Codex model runs its own virtual-thread SSE loop that langchain4j's StreamingHandle never reaches,
+        // so track it directly and cancel it ourselves in abort().
+        activeCodex.set(model instanceof CodexStreamingChatModel c ? c : null);
         var future = new CompletableFuture<StreamResult>();
         var result = new StreamResult();
         future.completeOnTimeout(result, 300, TimeUnit.SECONDS);
@@ -297,6 +301,10 @@ public final class LlmService implements LlmClient {
         var handle = activeHandle.getAndSet(null);
         if (handle != null) {
             handle.cancel();
+        }
+        var codex = activeCodex.getAndSet(null);
+        if (codex != null) {
+            codex.abort();
         }
         modelCache.clear();
     }

@@ -39,15 +39,28 @@ final class CodexStreamingChatModel implements StreamingChatModel {
     private static final Logger log = LoggerFactory.getLogger(CodexStreamingChatModel.class);
     private static final String DEFAULT_BASE_URL = "https://chatgpt.com/backend-api";
 
-    private final HttpClient client = HttpClient.newHttpClient();
+    private final HttpClient client;
     private final String baseUrl;
     private final String apiKey;
     private final String modelName;
     private final String providerName;
     private final ThinkingLevel thinkingLevel;
 
+    // Cancellation: the in-flight SSE stream, closed by abort() to unblock the reading virtual thread immediately
+    // (langchain4j's StreamingHandle does not reach this custom model, so we cancel it ourselves).
+    private final java.util.concurrent.atomic.AtomicReference<java.io.Closeable> inflight =
+                                    new java.util.concurrent.atomic.AtomicReference<>();
+    private volatile boolean aborted;
+
     CodexStreamingChatModel(String baseUrl, String apiKey, String modelName, String providerName,
                                     ThinkingLevel thinkingLevel) {
+        this(HttpClient.newHttpClient(), baseUrl, apiKey, modelName, providerName, thinkingLevel);
+    }
+
+    /** Test seam: inject the HTTP client so streaming + cancellation can be exercised without a live endpoint. */
+    CodexStreamingChatModel(HttpClient client, String baseUrl, String apiKey, String modelName, String providerName,
+                                    ThinkingLevel thinkingLevel) {
+        this.client = client;
         this.baseUrl = baseUrl != null && !baseUrl.isBlank() ? baseUrl : DEFAULT_BASE_URL;
         this.apiKey = apiKey;
         this.modelName = modelName;
@@ -57,6 +70,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
 
     @Override
     public void doChat(ChatRequest request, StreamingChatResponseHandler handler) {
+        aborted = false;
         Thread.startVirtualThread(() -> {
             try {
                 var body = requestBody(request);
@@ -70,6 +84,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                                                 .header("content-type", "application/json")
                                                 .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
                 var response = client.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
+                inflight.set(response.body()); // so abort() can close it and unblock the read
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
                     String error = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
                     throw new IOException("Codex request failed: HTTP " + response.statusCode() + " - " + error);
@@ -77,8 +92,23 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                 streamResponse(response, handler);
             } catch (Throwable e) {
                 handler.onError(e);
+            } finally {
+                inflight.set(null);
             }
         });
+    }
+
+    /** Cancel an in-flight stream (ESC / turn abort). Closes the SSE stream so the reading thread stops immediately. */
+    void abort() {
+        aborted = true;
+        var stream = inflight.getAndSet(null);
+        if (stream != null) {
+            try {
+                stream.close();
+            } catch (IOException ignored) {
+                // closing solely to interrupt the blocking read; nothing actionable if it fails
+            }
+        }
     }
 
     private ObjectNode requestBody(ChatRequest request) {
@@ -188,6 +218,8 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                if (aborted)
+                    break; // turn was cancelled — stop consuming the stream
                 if (!line.startsWith("data:"))
                     continue;
                 String data = line.substring(5).trim();

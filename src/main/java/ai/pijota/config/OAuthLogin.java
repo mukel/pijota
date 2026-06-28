@@ -71,7 +71,7 @@ public final class OAuthLogin {
         String body = "client_id=" + urlEncode(clientId) + "&scope=" + urlEncode(scope);
         var request = HttpRequest.newBuilder().uri(URI.create(endpoint))
                                         .header("Content-Type", "application/x-www-form-urlencoded")
-                                        .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30)).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException("Device code request failed: HTTP " + response.statusCode() + " - "
@@ -91,7 +91,7 @@ public final class OAuthLogin {
                                             + urlEncode(clientId) + "&device_code=" + urlEncode(deviceCode);
             var request = HttpRequest.newBuilder().uri(URI.create(endpoint))
                                             .header("Content-Type", "application/x-www-form-urlencoded")
-                                            .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+                                            .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30)).build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 var node = Util.MAPPER.readTree(response.body());
@@ -111,7 +111,7 @@ public final class OAuthLogin {
                                     throws Exception {
         var body = Util.MAPPER.createObjectNode().put("client_id", clientId).toString();
         var request = HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json")
-                                        .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30)).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 404) {
             throw new IOException("Device code login not enabled. Enable it in ChatGPT Settings → Security →\n"
@@ -137,7 +137,7 @@ public final class OAuthLogin {
             var body = Util.MAPPER.createObjectNode().put("device_auth_id", device.deviceCode())
                                             .put("user_code", device.userCode()).toString();
             var request = HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json")
-                                            .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+                                            .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30)).build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 var node = Util.MAPPER.readTree(response.body());
@@ -166,7 +166,7 @@ public final class OAuthLogin {
                                         + urlEncode(redirectUri);
         var request = HttpRequest.newBuilder().uri(URI.create(tokenUrl))
                                         .header("Content-Type", "application/x-www-form-urlencoded")
-                                        .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30)).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException("OpenAI token exchange failed: HTTP " + response.statusCode() + " - "

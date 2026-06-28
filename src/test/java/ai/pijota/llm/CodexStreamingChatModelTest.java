@@ -1,22 +1,123 @@
 package ai.pijota.llm;
 
+import ai.pijota.testkit.FakeHttpClient;
 import ai.pijota.util.Util;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.PartialResponse;
+import dev.langchain4j.model.chat.response.PartialResponseContext;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class CodexStreamingChatModelTest {
+
+    /** An SSE stream that yields its preloaded bytes, then blocks on read() until closed — mimics a live socket. */
+    private static final class BlockingStream extends InputStream {
+        private final byte[] preloaded;
+        private int pos;
+        private final CountDownLatch closed = new CountDownLatch(1);
+
+        BlockingStream(String preloaded) {
+            this.preloaded = preloaded.getBytes(StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public int read() {
+            byte[] one = new byte[1];
+            int n = read(one, 0, 1);
+            return n == -1 ? -1 : one[0] & 0xff;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) {
+            // Return available bytes immediately (like a socket) — don't block to fill the buffer, or the reader would
+            // never surface the first line. Once preloaded is drained, block until close(), then signal EOF.
+            if (pos < preloaded.length) {
+                int n = Math.min(len, preloaded.length - pos);
+                System.arraycopy(preloaded, pos, b, off, n);
+                pos += n;
+                return n;
+            }
+            try {
+                closed.await(); // block until abort() closes us
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return -1; // EOF once closed
+        }
+
+        @Override
+        public void close() {
+            closed.countDown();
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void abortUnblocksTheReaderAndStopsTheStream() throws Exception {
+        // first delta is delivered, then the stream blocks; abort() must close it and end the read promptly
+        var stream = new BlockingStream("data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n");
+        // a minimal JWT carrying the chatgpt account id so request building succeeds without a live OAuth store
+        String payload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                                        "{\"https://api.openai.com/auth\":{\"chatgpt_account_id\":\"acct-test\"}}"
+                                                                        .getBytes(StandardCharsets.UTF_8));
+        var model = new CodexStreamingChatModel(FakeHttpClient.ok(stream), null, "h." + payload + ".s", "m",
+                                        "openai-codex", ThinkingLevel.OFF);
+
+        var gotPartial = new CountDownLatch(1);
+        var finished = new CountDownLatch(1);
+        var lastText = new AtomicReference<String>();
+        model.chat(ChatRequest.builder().messages(UserMessage.from("hi")).build(),
+                                        new StreamingChatResponseHandler() {
+                                            @Override
+                                            public void onPartialResponse(String t) {
+                                                lastText.set(t);
+                                                gotPartial.countDown();
+                                            }
+
+                                            @Override
+                                            public void onPartialResponse(PartialResponse pr,
+                                                                            PartialResponseContext ctx) {
+                                                lastText.set(pr.text()); // the variant the model actually calls
+                                                gotPartial.countDown();
+                                            }
+
+                                            @Override
+                                            public void onCompleteResponse(ChatResponse r) {
+                                                finished.countDown();
+                                            }
+
+                                            @Override
+                                            public void onError(Throwable e) {
+                                                finished.countDown();
+                                            }
+                                        });
+
+        assertTrue(gotPartial.await(5, TimeUnit.SECONDS), "the first delta should stream");
+        assertEquals("hi", lastText.get());
+
+        model.abort(); // closes the blocking stream → readLine returns → loop ends
+        assertTrue(finished.await(5, TimeUnit.SECONDS), "abort must unblock the reader and terminate the stream");
+    }
 
     @Test
     void padBase64AddsOnePaddingChar() {

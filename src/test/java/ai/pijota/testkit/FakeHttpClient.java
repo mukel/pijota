@@ -61,6 +61,11 @@ public final class FakeHttpClient extends HttpClient {
         return new FakeHttpClient(200, body);
     }
 
+    /** For code that uses {@code BodyHandlers.ofInputStream()} (e.g. SSE streaming). */
+    public static FakeHttpClient ok(java.io.InputStream body) {
+        return new FakeHttpClient(200, body);
+    }
+
     public static FakeHttpClient status(int code, String body) {
         return new FakeHttpClient(code, body);
     }
