@@ -14,6 +14,7 @@ import ai.pijota.llm.ModelRegistry;
 import ai.pijota.tools.BashTool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.tools.WhoamiTool;
+import ai.pijota.util.CliErrorReporter;
 import ai.pijota.util.ProcessRunner;
 
 import ai.pijota.util.SelfRespawn;
@@ -86,6 +87,20 @@ final class AppBootstrap {
             if (!parsedArgs.agent()) {
                 throw new IllegalStateException("No API key. Set " + settings.apiKeyHint(provider) + ".");
             }
+        }
+
+        // Pre-flight typo check: an explicitly chosen model that isn't in a catalogued provider's list is usually a
+        // typo. Suggest the closest known model up front instead of letting the provider API reject it after a wasted
+        // round-trip. Non-fatal — new/uncatalogued models still pass straight through.
+        if (parsedArgs.model() != null && !ModelRegistry.isKnownProviderModel(provider, model)
+                                        && !ModelRegistry.forProvider(provider).isEmpty()) {
+            String chosenProvider = provider;
+            String chosenModel = model;
+            ModelRegistry.closestModel(chosenProvider, chosenModel)
+                                            .ifPresent(suggestion -> CliErrorReporter.warn("'" + chosenModel
+                                                                            + "' is not a known " + chosenProvider
+                                                                            + " model — did you mean '" + suggestion
+                                                                            + "'? Proceeding anyway."));
         }
 
         var sessions = new SessionManager(settings.sessionDir());

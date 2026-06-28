@@ -33,4 +33,10 @@ public final class CliErrorReporter {
         System.err.println("Error: " + message);
         return 1;
     }
+
+    /** Logs and prints a concise, non-fatal warning to stderr (the file log alone is invisible to a CLI user). */
+    public static void warn(String message) {
+        logger.warn(message);
+        System.err.println("Warning: " + message);
+    }
 }

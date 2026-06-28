@@ -14,6 +14,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ModelRegistryTest {
 
+    @Test
+    void closestModelSuggestsTheNearestCatalogueEntryForATypo() {
+        // the reported bug: `-m deepseek/deepseek-v4-fast` → should nudge toward the real `deepseek-v4-flash`
+        assertEquals("deepseek-v4-flash",
+                                        ModelRegistry.closestModel("deepseek", "deepseek-v4-fast").orElseThrow());
+    }
+
+    @Test
+    void closestModelReturnsEmptyForAGenuinelyUnknownModel() {
+        // far from anything catalogued → no misleading suggestion (new/uncatalogued models pass through silently)
+        assertTrue(ModelRegistry.closestModel("deepseek", "totally-different-xyz-9000").isEmpty());
+        assertTrue(ModelRegistry.closestModel("deepseek", null).isEmpty());
+        assertTrue(ModelRegistry.closestModel(null, "x").isEmpty());
+    }
+
     private List<ModelInfo> savedKnownModels;
 
     @AfterEach

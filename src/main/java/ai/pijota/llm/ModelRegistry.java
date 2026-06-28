@@ -8,6 +8,7 @@ import ai.pijota.util.Util;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public final class ModelRegistry {
@@ -59,6 +60,40 @@ public final class ModelRegistry {
 
     public static String providerForModel(String modelId) {
         return byId(modelId).map(ModelInfo::provider).orElse(null);
+    }
+
+    /**
+     * The catalogued model for {@code provider} closest to {@code model} — a likely-typo suggestion. Returns a result
+     * only when a known id is near enough (small edit distance) to be a confident "did you mean", so genuinely new /
+     * uncatalogued models yield {@link Optional#empty()} rather than a misleading nudge.
+     */
+    public static Optional<String> closestModel(String provider, String model) {
+        if (provider == null || model == null || model.isBlank())
+            return Optional.empty();
+        String lower = model.toLowerCase(java.util.Locale.ROOT);
+        int threshold = Math.max(2, model.length() / 3);
+        return forProvider(provider).stream().map(ModelInfo::id)
+                                        .map(id -> Map.entry(id, levenshtein(lower, id.toLowerCase(java.util.Locale.ROOT))))
+                                        .min(java.util.Comparator.comparingInt(Map.Entry::getValue))
+                                        .filter(e -> e.getValue() <= threshold).map(Map.Entry::getKey);
+    }
+
+    private static int levenshtein(String a, String b) {
+        int[] prev = new int[b.length() + 1];
+        int[] cur = new int[b.length() + 1];
+        for (int j = 0; j <= b.length(); j++)
+            prev[j] = j;
+        for (int i = 1; i <= a.length(); i++) {
+            cur[0] = i;
+            for (int j = 1; j <= b.length(); j++) {
+                int cost = a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1;
+                cur[j] = Math.min(Math.min(cur[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
+            }
+            int[] tmp = prev;
+            prev = cur;
+            cur = tmp;
+        }
+        return prev[b.length()];
     }
 
     public static long resolveContextWindow(String provider, String model) {
