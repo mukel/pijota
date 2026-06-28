@@ -13,6 +13,16 @@ class SettingsManagerTest {
     }
 
     @Test
+    void constructionNeverPersistsSettings() {
+        // Guards against the footgun where startup rewrote settings.json every launch (project_dir auto-save),
+        // risking clobbering the user's file. project_dir is resolved in-memory; nothing is written on construction.
+        var saves = new java.util.concurrent.atomic.AtomicInteger();
+        var sm = new SettingsManager(new AppConfig(), c -> saves.incrementAndGet()); // project_dir unset
+        assertEquals(0, saves.get(), "constructing a SettingsManager must not write settings.json");
+        assertNotNull(sm.projectDir(), "project_dir is still resolved on demand");
+    }
+
+    @Test
     void defaultConfigContextFilesEnabled() {
         var sm = managerWith(new AppConfig());
         assertTrue(sm.contextFilesEnabled());
