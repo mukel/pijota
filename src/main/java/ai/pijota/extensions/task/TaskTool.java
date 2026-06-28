@@ -221,9 +221,15 @@ public final class TaskTool implements Tool {
             }, pool));
         }
 
+        int launched = futures.size();
         try {
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(5, TimeUnit.MINUTES);
-        } catch (Exception ignored) {} finally {
+            // A bit beyond the per-agent 5-minute cap so each agent's own timeout fires first and yields a proper
+            // "timed out" result, rather than this overall net abandoning it with no record.
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(6, TimeUnit.MINUTES);
+        } catch (Exception ignored) {
+            // Per-agent failures/timeouts already surface as their own results below; anything still unfinished here is
+            // reported as "did not complete" so the count is never silently wrong.
+        } finally {
             pool.shutdownNow();
             for (var wt : worktrees)
                 deleteWorktree(wt);
@@ -232,8 +238,12 @@ public final class TaskTool implements Tool {
         results.sort(Comparator.comparing(SubAgentResult::agent));
 
         int success = (int) results.stream().filter(r -> r.exitCode == 0).count();
+        int incomplete = launched - results.size();
         var sb = new StringBuilder();
-        sb.append("Parallel: ").append(success).append("/").append(results.size()).append(" succeeded\n\n");
+        sb.append("Parallel: ").append(success).append("/").append(launched).append(" succeeded");
+        if (incomplete > 0)
+            sb.append(" · ").append(incomplete).append(" did not complete (timed out)");
+        sb.append("\n\n");
         for (var r : results) {
             String icon = r.exitCode == 0 ? "(ok)" : "(failed)";
             sb.append("  ").append(r.agent).append(" ").append(icon).append("  ").append(r.turns).append(" turn(s)")
