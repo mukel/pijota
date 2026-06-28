@@ -26,9 +26,9 @@ public final class SettingsManager {
     public SettingsManager(AppConfig config, Consumer<AppConfig> onSave) {
         this.config = config;
         this.onSave = onSave;
-        // Resolve project_dir in-memory when unset, but DON'T persist it: rewriting settings.json on every startup is a
-        // gratuitous write that risks clobbering the file (and thrashes project_dir when run across repos). projectDir()
-        // recomputes the git root on demand, so persistence is unnecessary. Settings are saved only on explicit changes.
+        // Resolve project_dir in-memory when unset, but DON'T persist it. Rewriting settings.json on every startup is a
+        // gratuitous write that risked clobbering the file; projectDir() recomputes the git root on demand, so there's
+        // no need to save it. Settings are written only on an explicit change.
         if (config.projectDir() == null || config.projectDir().isBlank()) {
             this.config = config.withProjectDir(SelfRespawn.findGitRoot(System.getProperty("user.dir")));
         }
