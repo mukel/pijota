@@ -12,6 +12,28 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolLabelsTest {
 
     @Test
+    void detailForEachToolTypeSummarizesTheKeyArgument() {
+        assertTrue(ToolLabels.detail("read", () -> "{\"filePath\":\"src/Foo.java\"}", "/cwd", PathDisplay.COMPACT)
+                                        .contains("Foo.java"));
+        assertTrue(ToolLabels.detail("write", () -> "{\"filePath\":\"out.txt\"}", "/cwd", PathDisplay.COMPACT)
+                                        .contains("out.txt"));
+        assertTrue(ToolLabels.detail("edit", () -> "{\"filePath\":\"a/b.java\"}", "/cwd", PathDisplay.COMPACT)
+                                        .contains("b.java"));
+        assertTrue(ToolLabels.detail("bash", () -> "{\"command\":\"npm test\"}", "/cwd", PathDisplay.COMPACT)
+                                        .contains("npm test"));
+        assertTrue(ToolLabels.detail("grep", () -> "{\"pattern\":\"TODO\"}", "/cwd", PathDisplay.COMPACT)
+                                        .contains("TODO"));
+        assertTrue(ToolLabels.detail("glob", () -> "{\"pattern\":\"**/*.java\"}", "/cwd", PathDisplay.COMPACT)
+                                        .contains("*.java"));
+        assertTrue(ToolLabels.detail("webfetch", () -> "{\"url\":\"https://example.com\"}", "/cwd", PathDisplay.COMPACT)
+                                        .contains("example.com"));
+        assertTrue(ToolLabels.detail("websearch", () -> "{\"query\":\"java native image\"}", "/cwd",
+                                        PathDisplay.COMPACT).contains("java native"));
+        assertNotNull(ToolLabels.detail("ls", () -> "{\"path\":\".\"}", "/cwd", PathDisplay.COMPACT));
+        assertNotNull(ToolLabels.detail("unknown", () -> "{}", "/cwd", PathDisplay.COMPACT));
+    }
+
+    @Test
     void traceRead() {
         var trace = ToolLabels.trace("read", () -> "{\"filePath\":\"/tmp/file.txt\"}", "/home/user",
                                         PathDisplay.COMPACT);

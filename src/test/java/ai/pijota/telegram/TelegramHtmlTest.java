@@ -7,6 +7,24 @@ import static org.junit.jupiter.api.Assertions.*;
 class TelegramHtmlTest {
 
     @Test
+    void blockElementsRenderToTelegramHtml() {
+        // links → <a href>; bullets/numbered lists kept readable; blockquotes; multiple paragraphs joined
+        assertTrue(TelegramHtml.toHtml("[pijota](https://example.com)").contains("href=\"https://example.com\""));
+        assertTrue(TelegramHtml.toHtml("- one\n- two").contains("one"), "bullet list renders");
+        assertTrue(TelegramHtml.toHtml("1. first\n2. second").contains("first"), "numbered list renders");
+        assertTrue(TelegramHtml.toHtml("> quoted").contains("quoted"), "blockquote renders");
+        String paras = TelegramHtml.toHtml("para one\n\npara two");
+        assertTrue(paras.contains("para one") && paras.contains("para two"), paras);
+    }
+
+    @Test
+    void htmlSpecialCharsAreEscapedInPlainText() {
+        // &, <, > must be escaped so Telegram's HTML parse_mode doesn't choke / inject
+        String out = TelegramHtml.toHtml("a < b && c > d");
+        assertTrue(out.contains("&lt;") && out.contains("&gt;") && out.contains("&amp;"), out);
+    }
+
+    @Test
     void inlineMarksMapToTelegramTags() {
         assertEquals("<b>bold</b>", TelegramHtml.toHtml("**bold**"));
         assertEquals("<i>it</i>", TelegramHtml.toHtml("*it*"));

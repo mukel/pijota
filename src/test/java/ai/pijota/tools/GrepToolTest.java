@@ -9,10 +9,33 @@ import java.util.Map;
 
 import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class GrepToolTest {
     @TempDir
     Path tempDir;
+
+    private static boolean ripgrepAvailable() {
+        try {
+            return new ProcessBuilder("rg", "--version").redirectError(ProcessBuilder.Redirect.DISCARD)
+                                            .redirectOutput(ProcessBuilder.Redirect.DISCARD).start().waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Test
+    void realRipgrepSearchFindsMatchingLines() throws Exception {
+        assumeTrue(ripgrepAvailable(), "ripgrep not installed");
+        Files.writeString(tempDir.resolve("a.txt"), "hello world\nfoo bar\n");
+        Files.writeString(tempDir.resolve("b.txt"), "nothing relevant here\n");
+
+        var result = run(new GrepTool(), Map.of("pattern", "hello", "path", tempDir.toString()), tempDir.toString());
+
+        assertFalse(result.isError(), result.content());
+        assertTrue(result.content().contains("hello world"), result.content());
+        assertFalse(result.content().contains("nothing relevant"), result.content());
+    }
 
     @Test
     void parseMatchParsesRipgrepJsonOutput() {
