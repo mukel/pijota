@@ -48,43 +48,40 @@ public final class ArgParser {
         var promptArgs = new ArrayList<String>();
         var extensionFlags = new LinkedHashMap<String, String>();
 
-        for (int i = 0; i < rawArgs.length; i++) {
-            String arg = rawArgs[i];
+        var cursor = new Cursor(rawArgs);
+        while (cursor.hasNext()) {
+            String arg = cursor.next();
             switch (arg) {
-                case "--provider" -> provider = nextArg(rawArgs, i++);
+                case "--provider" -> provider = cursor.value(arg);
                 case "--model", "-m" -> {
-                    var pm = ModelRegistry.parseProviderModel(nextArg(rawArgs, i++));
+                    var pm = ModelRegistry.parseProviderModel(cursor.value(arg));
                     if (pm.provider() != null)
                         provider = pm.provider();
                     model = pm.model();
                 }
-                case "--api-key" -> apiKey = nextArg(rawArgs, i++);
-                case "--system-prompt" -> systemPrompt = nextArg(rawArgs, i++);
-                case "--append-system-prompt" -> appendSystemPrompts.add(nextArg(rawArgs, i++));
-                case "--thinking" -> thinkingLevel = nextArg(rawArgs, i++);
-                case "--mode" -> outputMode = parseMode(nextArg(rawArgs, i++));
-                case "--session", "-s", "--session-path" -> sessionPath = nextArg(rawArgs, i++);
-                case "--fork" -> forkPath = nextArg(rawArgs, i++);
-                case "--export" -> exportPath = nextArg(rawArgs, i++);
-                case "--tools", "-t" -> enabledTools.addAll(parseList(nextArg(rawArgs, i++)));
-                case "--extension", "-e" -> extensionPaths.add(nextArg(rawArgs, i++));
-                case "--skill" -> skillPaths.add(nextArg(rawArgs, i++));
-                case "--theme" -> themePaths.add(nextArg(rawArgs, i++));
+                case "--api-key" -> apiKey = cursor.value(arg);
+                case "--system-prompt" -> systemPrompt = cursor.value(arg);
+                case "--append-system-prompt" -> appendSystemPrompts.add(cursor.value(arg));
+                case "--thinking" -> thinkingLevel = checkThinking(cursor.value(arg));
+                case "--mode" -> outputMode = parseMode(cursor.value(arg));
+                case "--session", "-s", "--session-path" -> sessionPath = cursor.value(arg);
+                case "--fork" -> forkPath = cursor.value(arg);
+                case "--export" -> exportPath = cursor.value(arg);
+                case "--tools", "-t" -> enabledTools.addAll(parseList(cursor.value(arg)));
+                case "--extension", "-e" -> extensionPaths.add(cursor.value(arg));
+                case "--skill" -> skillPaths.add(cursor.value(arg));
+                case "--theme" -> themePaths.add(cursor.value(arg));
                 case "--list-models" -> {
                     listModels = true;
-                    if (i + 1 < rawArgs.length && !rawArgs[i + 1].startsWith("-")) {
-                        listModelsFilter = rawArgs[++i];
-                    }
+                    String filter = cursor.optionalValue();
+                    if (filter != null)
+                        listModelsFilter = filter;
                 }
                 case "--print", "-p" -> {
                     print = true;
-                    if (i + 1 < rawArgs.length) {
-                        String next = rawArgs[i + 1];
-                        if (!next.startsWith("@") && (!next.startsWith("-") || next.startsWith("---"))) {
-                            promptArgs.add(next);
-                            i++;
-                        }
-                    }
+                    String prompt = cursor.optionalPromptValue();
+                    if (prompt != null)
+                        promptArgs.add(prompt);
                 }
                 case "--resume", "-r" -> resume = true;
                 case "--continue", "-c" -> continueSession = true;
@@ -96,7 +93,7 @@ public final class ArgParser {
                 case "--no-themes" -> noThemes = true;
                 case "--no-context-files", "-nc" -> noContextFiles = true;
                 case "--no-prompt-templates", "-np" -> noPromptTemplates = true;
-                case "--prompt-template", "--template" -> promptTemplatePaths.add(nextArg(rawArgs, i++));
+                case "--prompt-template", "--template" -> promptTemplatePaths.add(cursor.value(arg));
                 case "--verbose" -> verbose = true;
                 case "--help", "-h" -> help = true;
                 case "--version", "-v" -> version = true;
@@ -108,10 +105,9 @@ public final class ArgParser {
                         int eq = name.indexOf('=');
                         if (eq > 0) {
                             extensionFlags.put(name.substring(0, eq), name.substring(eq + 1));
-                        } else if (i + 1 < rawArgs.length && !rawArgs[i + 1].startsWith("-")) {
-                            extensionFlags.put(name, rawArgs[++i]);
                         } else {
-                            extensionFlags.put(name, "true");
+                            String value = cursor.optionalValue();
+                            extensionFlags.put(name, value != null ? value : "true");
                         }
                     } else if (arg.startsWith("@")) {
                         fileArgs.add(arg.substring(1));
@@ -146,12 +142,12 @@ public final class ArgParser {
                                           --api-key <key>           API key
                                           --system-prompt <text>    Custom system prompt
                                           --append-system-prompt <text>  Append to system prompt (repeatable)
-                                          --thinking <level>        Thinking level (off, low, medium, high)
+                                          --thinking <level>        Thinking level (off, minimal, low, medium, high)
                                           --mode <mode>             Output mode: text, json, rpc
                                           --print, -p [prompt]      Non-interactive single-shot mode
                                           --session, -s <id>        Session file path or partial UUID
                                           --continue, -c            Continue last session
-                                          --recover               Recover from failed transcendence
+                                          --recover                 Recover the last interrupted session
                                           --resume, -r              Interactive session picker
                                           --fork <id>               Fork a session
                                           --no-session              Don't save session
@@ -173,6 +169,8 @@ public final class ArgParser {
                                           --todo                    Enable todo-list tool
                                           --token-speed             Show token speed metrics
                                           --whoami                  Show model/provider info tool
+
+                                        MISC:
                                           --export <file>           Export session to Markdown
                                           --list-models [filter]    List available models
                                           --verbose                 Verbose output
@@ -190,19 +188,73 @@ public final class ArgParser {
                                         """);
     }
 
-    private static String nextArg(String[] args, int i) {
-        if (i + 1 >= args.length) {
-            throw new IllegalArgumentException("Missing value for " + args[i]);
+    /**
+     * Walks the raw argv left to right. {@link #value} consumes a required value for the flag just read; the
+     * {@code optional*} variants consume the next token only when it looks like a value rather than the next flag —
+     * which is the whole point of the cursor: callers never touch the index, so a flag can't accidentally swallow the
+     * next flag or skip its own value.
+     */
+    private static final class Cursor {
+        private final String[] args;
+        private int i = -1;
+
+        Cursor(String[] args) {
+            this.args = args;
         }
-        return args[i + 1];
+
+        boolean hasNext() {
+            return i + 1 < args.length;
+        }
+
+        String next() {
+            return args[++i];
+        }
+
+        /** The required value for the flag just returned by {@link #next}; throws if argv ended. */
+        String value(String flag) {
+            if (i + 1 >= args.length)
+                throw new IllegalArgumentException("Missing value for " + flag);
+            return args[++i];
+        }
+
+        /** An optional value, consumed only if the next token isn't itself a flag (a leading {@code -}); else null. */
+        String optionalValue() {
+            if (i + 1 >= args.length || args[i + 1].startsWith("-"))
+                return null;
+            return args[++i];
+        }
+
+        /** Like {@link #optionalValue} but for a prompt: rejects {@code @file} args, allows a literal {@code ---…}. */
+        String optionalPromptValue() {
+            if (i + 1 >= args.length)
+                return null;
+            String next = args[i + 1];
+            if (next.startsWith("@") || (next.startsWith("-") && !next.startsWith("---")))
+                return null;
+            return args[++i];
+        }
     }
 
     private static OutputMode parseMode(String mode) {
         return switch (mode.toLowerCase()) {
+            case "text" -> OutputMode.TEXT;
             case "json" -> OutputMode.JSON;
             case "rpc" -> OutputMode.RPC;
-            default -> OutputMode.TEXT;
+            default -> {
+                System.err.println("pijota: unknown --mode '" + mode + "' (expected: text, json, rpc), using text");
+                yield OutputMode.TEXT;
+            }
         };
+    }
+
+    private static final List<String> THINKING_LEVELS = List.of("off", "minimal", "low", "medium", "high");
+
+    /** Warns on an unrecognized --thinking value (still defaulted downstream) so typos don't pass silently. */
+    private static String checkThinking(String level) {
+        if (!THINKING_LEVELS.contains(level.toLowerCase()))
+            System.err.println("pijota: unknown --thinking '" + level + "' (expected: "
+                                            + String.join(", ", THINKING_LEVELS) + "), using medium");
+        return level;
     }
 
     private static List<String> parseList(String csv) {

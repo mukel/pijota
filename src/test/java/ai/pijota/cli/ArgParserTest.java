@@ -70,6 +70,20 @@ class ArgParserTest {
     }
 
     @Test
+    void unknownModeFallsBackToText() {
+        // an unrecognized mode warns (stderr) but stays usable rather than blowing up
+        var args = ArgParser.parse(new String[] {"--mode", "jsn"});
+        assertEquals(Args.OutputMode.TEXT, args.outputMode());
+    }
+
+    @Test
+    void thinkingValuePassesThroughVerbatim() {
+        assertEquals("high", ArgParser.parse(new String[] {"--thinking", "high"}).thinkingLevel());
+        // unknown value still passes through (warned, defaulted downstream) — parser doesn't reject it
+        assertEquals("hgh", ArgParser.parse(new String[] {"--thinking", "hgh"}).thinkingLevel());
+    }
+
+    @Test
     void parseModeRpc() {
         var args = ArgParser.parse(new String[] {"--mode", "rpc"});
         assertEquals(Args.OutputMode.RPC, args.outputMode());
