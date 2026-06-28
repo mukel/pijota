@@ -3,6 +3,7 @@ package ai.pijota.tui;
 import ai.pijota.agent.TestSession;
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.testkit.FauxLlm;
 import ai.pijota.theme.AnsiTheme;
 
 import org.jline.terminal.Terminal;
@@ -14,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -169,6 +171,24 @@ class AppendOnlyTuiHeadlessTest {
                 tui.handleSkillCommand("/skills");
                 tui.showLogoutSelector();
                 tui.appendStatus("done");
+            });
+        } finally {
+            tui.close();
+        }
+    }
+
+    @Test
+    void sessionPickerLoadAndForkRunAfterAPersistedTurn() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueue(FauxLlm.Response.contentWithUsage("hi"));
+        ts.session().prompt("remember this", List.of()).get(5, TimeUnit.SECONDS); // persist a session on disk
+        String name = ts.session().sessionName();
+        var tui = tui(ts);
+        try {
+            assertDoesNotThrow(() -> {
+                tui.showSessionPicker("");
+                tui.loadSession("/load " + name);
+                tui.forkSession("/fork " + name);
             });
         } finally {
             tui.close();
