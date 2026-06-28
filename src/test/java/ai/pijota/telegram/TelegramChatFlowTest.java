@@ -122,6 +122,23 @@ class TelegramChatFlowTest {
     }
 
     @Test
+    void aFileExceedingTheSizeCapIsRejected() {
+        var c = newChat();
+        c.api().onDownload(new byte[5 * 1024 * 1024 + 1]); // > Attachment.MAX_BYTES
+        c.chat().onDocument(new TelegramClient.TgFile("fid", "big.txt", "text/plain", 5 * 1024 * 1024 + 1), "");
+        Await.until(() -> c.api().allText().stream().anyMatch(t -> t.toLowerCase().contains("too large")),
+                                        Duration.ofSeconds(5), "an oversized file is refused: " + c.api().allText());
+    }
+
+    @Test
+    void aFailedDownloadIsReported() {
+        var c = newChat(); // no onDownload stub → downloadFile returns null
+        c.chat().onDocument(new TelegramClient.TgFile("fid", "x.txt", "text/plain", 10), "");
+        Await.until(() -> c.api().allText().stream().anyMatch(t -> t.contains("Couldn't download")),
+                                        Duration.ofSeconds(5), "a failed download is reported: " + c.api().allText());
+    }
+
+    @Test
     void helpCommandIsAnsweredLocallyAndNotForwardedToTheAgent() {
         var c = newChat();
         c.chat().onText("/help");
