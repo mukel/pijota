@@ -72,4 +72,32 @@ class BackgroundJobsExtensionTest {
         }
         assertTrue(out.toString().contains("hi"), out.toString());
     }
+
+    @Test
+    void bashOutputFilterReturnsOnlyMatchingLines() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var api = initWithFlag(true);
+        String id = (String) run(api, "bash_background", Map.of("command", "printf 'apple\\nbanana\\ncherry\\n'"))
+                                        .details().get("jobId");
+
+        // wait up to 5s for output, return only the "banana" line
+        var out = run(api, "bash_output", Map.of("id", id, "filter", "banana", "timeout", 5)).content();
+        assertTrue(out.contains("banana"), out);
+        assertFalse(out.contains("apple"), out);
+        assertFalse(out.contains("cherry"), out);
+    }
+
+    @Test
+    void bashOutputWaitsForLateOutput() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var api = initWithFlag(true);
+        String id = (String) run(api, "bash_background", Map.of("command", "sleep 1; echo ready")).details()
+                                        .get("jobId");
+
+        long start = System.currentTimeMillis();
+        var out = run(api, "bash_output", Map.of("id", id, "timeout", 5)).content();
+        assertTrue(out.contains("ready"), out);
+        assertTrue(System.currentTimeMillis() - start >= 500,
+                                        "should have blocked until output arrived, not returned now");
+    }
 }

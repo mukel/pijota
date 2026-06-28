@@ -7,6 +7,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -57,6 +59,30 @@ class BackgroundJobsTest {
         while (jobs.read(id).running() && System.currentTimeMillis() < deadline)
             Thread.sleep(20);
         assertFalse(jobs.read(id).running(), "killed job should no longer be running");
+    }
+
+    @Test
+    void firesCompletionWithExitCodeWhenAJobEndsOnItsOwn() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var completions = new ArrayBlockingQueue<BackgroundJobs.Completion>(4);
+        var jobs = new BackgroundJobs(completions::add);
+
+        jobs.start(sh("exit 3"), tempDir);
+        var c = completions.poll(5, TimeUnit.SECONDS);
+        assertNotNull(c, "completion should fire when the job exits");
+        assertEquals(3, c.exitCode());
+    }
+
+    @Test
+    void doesNotFireCompletionForAnIntentionalKill() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var completions = new ArrayBlockingQueue<BackgroundJobs.Completion>(4);
+        var jobs = new BackgroundJobs(completions::add);
+
+        String id = jobs.start(sh("sleep 30"), tempDir);
+        Thread.sleep(100);
+        jobs.kill(id);
+        assertNull(completions.poll(2, TimeUnit.SECONDS), "a killed job must not be reported as a completion");
     }
 
     @Test

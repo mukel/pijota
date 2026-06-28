@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * Registry of fire-and-forget shell jobs the agent starts via {@code bash_background} and later reads or kills (via
@@ -24,8 +25,15 @@ public final class BackgroundJobs {
 
     private final ConcurrentHashMap<String, Job> jobs = new ConcurrentHashMap<>();
     private final AtomicInteger seq = new AtomicInteger();
+    private final Consumer<Completion> onComplete;
 
     public BackgroundJobs() {
+        this(c -> {});
+    }
+
+    /** {@code onComplete} fires (off the drain thread) when a job exits on its own — not when it's killed. */
+    public BackgroundJobs(Consumer<Completion> onComplete) {
+        this.onComplete = onComplete == null ? c -> {} : onComplete;
         Runtime.getRuntime().addShutdownHook(new Thread(this::killAll, "bg-jobs-shutdown"));
     }
 
@@ -36,6 +44,7 @@ public final class BackgroundJobs {
         final StringBuilder out = new StringBuilder(); // guarded by this
         int readOffset; // guarded by this
         boolean truncated; // guarded by this
+        volatile boolean killed; // set before an intentional kill so its exit isn't reported as completion
 
         Job(String id, String command, Process process) {
             this.id = id;
@@ -76,6 +85,15 @@ public final class BackgroundJobs {
         } catch (IOException ignored) {
             // stream closed because the process ended or was killed — nothing more to drain
         }
+        // EOF means the process has exited (or was killed) and all output is buffered: report completion so the agent
+        // is notified instead of having to poll. waitFor() yields the exit code; intentional kills are not reported.
+        try {
+            int code = job.process.waitFor();
+            if (!job.killed)
+                onComplete.accept(new Completion(job.id, job.command, code));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /** Output produced since the previous read for this job plus its status, or {@code null} if the id is unknown. */
@@ -100,6 +118,7 @@ public final class BackgroundJobs {
         Job job = jobs.get(id);
         if (job == null)
             return false;
+        job.killed = true;
         ProcessRunner.killTree(job.process);
         return true;
     }
@@ -113,13 +132,19 @@ public final class BackgroundJobs {
 
     public void killAll() {
         for (Job job : jobs.values())
-            if (job.process.isAlive())
+            if (job.process.isAlive()) {
+                job.killed = true;
                 ProcessRunner.killTree(job.process);
+            }
     }
 
     public record Read(String id, String output, boolean running, Integer exitCode, boolean truncated) {
     }
 
     public record Status(String id, String command, boolean running) {
+    }
+
+    /** A job that finished on its own (not killed): its id, the command, and the process exit code. */
+    public record Completion(String id, String command, int exitCode) {
     }
 }
