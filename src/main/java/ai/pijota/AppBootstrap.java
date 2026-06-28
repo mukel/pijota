@@ -11,6 +11,7 @@ import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.extensions.examples.BtwExtension;
 import ai.pijota.extensions.examples.ContextFilesExtension;
+import ai.pijota.extensions.background.BackgroundJobsExtension;
 import ai.pijota.extensions.examples.CoreCommandsExtension;
 import ai.pijota.extensions.examples.FilterOutputExtension;
 import ai.pijota.extensions.examples.GoalExtension;
@@ -181,6 +182,7 @@ final class AppBootstrap {
         ext.register(new WebBrowseExtension()); // opt-in (--browse)
         ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
         ext.register(new TmuxExtension()); // opt-in (--tmux)
+        ext.register(new BackgroundJobsExtension()); // opt-in (--background)
         if (!parsedArgs.noSkills())
             ext.register(new SkillExtension(parsedArgs.skillPaths()));
 
