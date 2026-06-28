@@ -31,11 +31,17 @@ public final class TelegramClient implements TelegramApi {
                                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                                     .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final HttpClient http;
     private final String base;
     private final String fileBase;
 
     public TelegramClient(String token) {
+        this(token, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
+    }
+
+    /** Injectable-client constructor — lets tests drive the API methods against a fake HTTP client. */
+    TelegramClient(String token, HttpClient http) {
+        this.http = http;
         this.base = "https://api.telegram.org/bot" + token;
         this.fileBase = "https://api.telegram.org/file/bot" + token; // downloads use a different host path than the API
     }

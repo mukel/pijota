@@ -2,6 +2,7 @@ package ai.pijota.telegram;
 
 import ai.pijota.telegram.TelegramClient.InlineKeyboard;
 import ai.pijota.telegram.TelegramClient.Update;
+import ai.pijota.testkit.FakeHttpClient;
 
 import org.junit.jupiter.api.Test;
 
@@ -10,6 +11,36 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Verifies the snake_case wire mapping (the only fiddly part) with canned payloads — no network needed. */
 class TelegramClientTest {
+
+    @Test
+    void sendMessageReturnsTheNewMessageId() {
+        var tg = new TelegramClient("tok", FakeHttpClient.ok("{\"ok\":true,\"result\":{\"message_id\":42}}"));
+        assertEquals(42, tg.sendMessage(1, "hi"));
+    }
+
+    @Test
+    void getUpdatesParsesTheUpdateList() {
+        var tg = new TelegramClient("tok", FakeHttpClient.ok("{\"ok\":true,\"result\":[{\"update_id\":7,"
+                                        + "\"message\":{\"message_id\":1,\"chat\":{\"id\":5},\"text\":\"hi\"}}]}"));
+        var updates = tg.getUpdates(0, 0);
+        assertEquals(1, updates.size());
+        assertEquals(7, updates.getFirst().updateId());
+        assertEquals("hi", updates.getFirst().message().text());
+    }
+
+    @Test
+    void aRateLimitedCallIsRetried() {
+        var tg = new TelegramClient("tok", FakeHttpClient.sequence(
+                                        "{\"ok\":false,\"error_code\":429,\"parameters\":{\"retry_after\":1}}",
+                                        "{\"ok\":true,\"result\":{\"message_id\":9}}"));
+        assertEquals(9, tg.sendMessage(1, "hi"), "the 429 is retried, then the second response succeeds");
+    }
+
+    @Test
+    void anApiErrorThrows() {
+        var tg = new TelegramClient("tok", FakeHttpClient.ok("{\"ok\":false,\"description\":\"Bad Request\"}"));
+        assertThrows(TelegramException.class, () -> tg.sendMessage(1, "hi"));
+    }
 
     @Test
     void parsesATextMessageUpdate() throws Exception {
