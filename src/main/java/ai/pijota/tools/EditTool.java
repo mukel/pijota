@@ -80,7 +80,7 @@ public final class EditTool implements Tool {
         String lineEnding = Util.detectLineEnding(original);
         String content = Util.normalizeToLF(rawContent);
 
-        var matches = new ArrayList<MatchResult>();
+        var matches = new ArrayList<Match>();
         var errors = new ArrayList<String>();
         for (int i = 0; i < edits.size(); i++) {
             var edit = edits.get(i);
@@ -91,27 +91,28 @@ public final class EditTool implements Tool {
             if (oldLF.isEmpty()) {
                 errors.add("edit[" + i + "]: oldText must not be empty.");
             } else if (exactCount == 1) {
-                matches.add(new ExactMatch(i, oldLF, newLF, content.indexOf(oldLF)));
+                matches.add(new Match(i, newLF, content.indexOf(oldLF), oldLF.length(), null));
             } else if (exactCount > 1) {
                 errors.add("edit[" + i + "]: oldText matches " + exactCount
                                                 + " locations (must be unique). Add more surrounding context.");
             } else {
-                var fuzzy = tryFuzzyMatch(content, oldLF, newLF, i);
+                var fuzzy = fuzzyMatch(content, oldLF, newLF, i);
                 if (fuzzy != null)
                     matches.add(fuzzy);
                 else
-                    errors.add("edit[" + i + "]: oldText not found in file.");
+                    errors.add("edit[" + i + "]: oldText not found (tried exact and whitespace/indentation-insensitive"
+                                                    + " matching). Re-read the file and copy the text to replace verbatim.");
             }
         }
 
         if (!errors.isEmpty())
             return ToolResult.error(String.join("\n", errors));
 
-        matches.sort(Comparator.comparingInt(MatchResult::start));
+        matches.sort(Comparator.comparingInt(Match::start));
         for (int i = 1; i < matches.size(); i++) {
             var previous = matches.get(i - 1);
             var current = matches.get(i);
-            if (previous.start() + previous.oldText().length() > current.start()) {
+            if (previous.start() + previous.length() > current.start()) {
                 errors.add("edits[" + previous.index() + "] and edits[" + current.index()
                                                 + "] overlap. Merge them into one edit or target disjoint regions.");
             }
@@ -119,21 +120,12 @@ public final class EditTool implements Tool {
         if (!errors.isEmpty())
             return ToolResult.error(String.join("\n", errors));
 
+        // Apply right-to-left so earlier offsets stay valid. Each match (exact or fuzzy) is a real [start, start+len)
+        // span in the original content, so only the matched regions change and the rest of the file is byte-preserved.
         String result = content;
-        boolean usedFuzzy = matches.stream().anyMatch(m -> m instanceof FuzzyMatch);
-        if (usedFuzzy) {
-            result = normalizeForFuzzyMatch(content);
-            for (var m : matches) {
-                String oldNormalized = m instanceof FuzzyMatch ? normalizeForFuzzyMatch(m.oldText()) : m.oldText();
-                result = result.substring(0, m.start()) + m.newText()
-                                                + result.substring(m.start() + oldNormalized.length());
-            }
-        } else {
-            matches.sort(Comparator.comparingInt(MatchResult::start).reversed());
-            for (var m : matches) {
-                result = result.substring(0, m.start()) + m.newText()
-                                                + result.substring(m.start() + m.oldText().length());
-            }
+        matches.sort(Comparator.comparingInt(Match::start).reversed());
+        for (var m : matches) {
+            result = result.substring(0, m.start()) + m.newText() + result.substring(m.start() + m.length());
         }
 
         if (content.equals(result)) {
@@ -193,37 +185,71 @@ public final class EditTool implements Tool {
     private record Edit(String oldText, String newText) {
     }
 
-    private sealed interface MatchResult permits ExactMatch, FuzzyMatch {
-        int index();
-
-        String oldText();
-
-        String newText();
-
-        int start();
+    /** A located replacement: overwrite {@code content[start, start+length)} with {@code newText}. */
+    private record Match(int index, String newText, int start, int length, String fuzzyReason) {
     }
 
-    private record ExactMatch(int index, String oldText, String newText, int start) implements MatchResult {
+    /** Half-open char range of one line within the content, excluding its trailing newline. */
+    private record Line(int start, int end) {
     }
 
-    private record FuzzyMatch(int index, String oldText, String newText, int start,
-                                    String reason) implements MatchResult {
-    }
-
-    private static FuzzyMatch tryFuzzyMatch(String content, String oldLF, String newLF, int idx) {
-        String oldTrimmed = oldLF.replaceAll("(?m)\\s+$", "");
-        String contentTrimmed = content.replaceAll("(?m)\\s+$", "");
-        if (contentTrimmed.contains(oldTrimmed) && Util.countOccurrences(contentTrimmed, oldTrimmed) == 1) {
-            return new FuzzyMatch(idx, oldTrimmed, newLF, contentTrimmed.indexOf(oldTrimmed), "trailing-whitespace");
-        }
-        String oldNorm = normalizeForFuzzyMatch(oldLF);
-        if (!oldNorm.equals(oldLF)) {
-            String contentNorm = normalizeForFuzzyMatch(content);
-            if (contentNorm.contains(oldNorm) && Util.countOccurrences(contentNorm, oldNorm) == 1) {
-                return new FuzzyMatch(idx, oldNorm, newLF, contentNorm.indexOf(oldNorm), "unicode-normalization");
+    private static List<Line> splitLines(String s) {
+        var lines = new ArrayList<Line>();
+        int start = 0;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == '\n') {
+                lines.add(new Line(start, i));
+                start = i + 1;
             }
         }
-        return null;
+        lines.add(new Line(start, s.length())); // trailing line (possibly empty)
+        return lines;
+    }
+
+    /** Canonical key for one line: indentation/whitespace-insensitive, folding Unicode quote/dash/space variants. */
+    private static String canonLine(String line) {
+        return normalizeForFuzzyMatch(line).strip();
+    }
+
+    /**
+     * Whole-line fuzzy match: locates the unique run of file lines whose canonical form equals oldText's lines —
+     * ignoring leading/trailing whitespace (so a block copied at a different indent still matches) and Unicode
+     * variants. Returns a real span in {@code content}, so only the matched region is rewritten. Null when there is no
+     * match, more than one, or the pattern is blank.
+     */
+    private static Match fuzzyMatch(String content, String oldLF, String newLF, int idx) {
+        var contentLines = splitLines(content);
+        String[] patternLines = oldLF.split("\n", -1);
+        String[] patternKey = new String[patternLines.length];
+        boolean allBlank = true;
+        for (int j = 0; j < patternLines.length; j++) {
+            patternKey[j] = canonLine(patternLines[j]);
+            if (!patternKey[j].isEmpty())
+                allBlank = false;
+        }
+        if (allBlank)
+            return null; // never anchor a fuzzy match on blank/whitespace-only oldText
+
+        int foundLine = -1, count = 0;
+        for (int i = 0; i + patternKey.length <= contentLines.size(); i++) {
+            boolean ok = true;
+            for (int j = 0; j < patternKey.length; j++) {
+                var ln = contentLines.get(i + j);
+                if (!canonLine(content.substring(ln.start(), ln.end())).equals(patternKey[j])) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok && ++count == 1)
+                foundLine = i;
+            if (count > 1)
+                return null; // ambiguous — caller asks the model to add context
+        }
+        if (count != 1)
+            return null;
+        int start = contentLines.get(foundLine).start();
+        int end = contentLines.get(foundLine + patternKey.length - 1).end();
+        return new Match(idx, newLF, start, end - start, "whitespace/indentation");
     }
 
     private static String unifiedPatch(String path, String oldText, String newText) {

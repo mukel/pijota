@@ -168,6 +168,60 @@ class EditToolTest {
     }
 
     @Test
+    void fuzzyMatchesAcrossIndentationDifference() throws Exception {
+        // file is tab-indented; the model reproduces the line with spaces — not a literal substring, so only the
+        // whitespace-insensitive fuzzy path can match it
+        var path = tempDir.resolve("indent.py");
+        Files.writeString(path, "if x:\n\tdo_thing()\n");
+
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "    do_thing()", "newText", "\tdo_other()"))),
+                                        tempDir);
+
+        assertFalse(result.isError(), result.content());
+        assertEquals("if x:\n\tdo_other()\n", Files.readString(path));
+    }
+
+    @Test
+    void fuzzyMatchesMultiLineBlockAtDifferentIndent() throws Exception {
+        var path = tempDir.resolve("block.py");
+        Files.writeString(path, "def g():\n    a = 1\n    b = 2\n    return a + b\n");
+
+        // dedented two-line block from the model
+        var edits = List.of(Map.of("oldText", "a = 1\nb = 2", "newText", "    a = 10\n    b = 20"));
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits", edits), tempDir);
+
+        assertFalse(result.isError(), result.content());
+        assertEquals("def g():\n    a = 10\n    b = 20\n    return a + b\n", Files.readString(path));
+    }
+
+    @Test
+    void fuzzyEditDoesNotRewriteTheRestOfTheFile() throws Exception {
+        // a line elsewhere has trailing whitespace + a smart quote; a fuzzy edit must leave it byte-for-byte intact
+        var path = tempDir.resolve("local.txt");
+        Files.writeString(path, "keep me   \ntarget line\n‘untouched’\n");
+
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "  target line  ", "newText", "changed"))), tempDir);
+
+        assertFalse(result.isError(), result.content());
+        assertEquals("keep me   \nchanged\n‘untouched’\n", Files.readString(path));
+    }
+
+    @Test
+    void ambiguousFuzzyMatchIsRejected() throws Exception {
+        var path = tempDir.resolve("dup.txt");
+        Files.writeString(path, "  foo\n    foo\nbar\n"); // two lines canonicalize to "foo"
+
+        // trailing space => not a literal substring (forces the fuzzy path), which then finds two candidates
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "foo ", "newText", "baz"))), tempDir);
+
+        assertTrue(result.isError());
+        assertTrue(result.content().contains("not found"), result.content());
+    }
+
+    @Test
     void unicodeNormalizationFuzzyMatch() throws Exception {
         var path = tempDir.resolve("uni.txt");
         Files.writeString(path, "‘ello world");
