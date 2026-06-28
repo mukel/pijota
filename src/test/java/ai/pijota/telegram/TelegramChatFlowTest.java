@@ -1,6 +1,8 @@
 package ai.pijota.telegram;
 
 import ai.pijota.agent.TestSession;
+import ai.pijota.config.AppConfig;
+import ai.pijota.config.SettingsManager;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.messages.Usage;
 import ai.pijota.testkit.Await;
@@ -119,6 +121,21 @@ class TelegramChatFlowTest {
         c.chat().onText("/export");
         Await.until(() -> !c.api().documents().isEmpty(), Duration.ofSeconds(5), "a transcript file is sent");
         assertTrue(c.api().documents().get(0).filename().endsWith(".md"), c.api().documents().toString());
+    }
+
+    @Test
+    void tappingAModelInThePickerSwitchesTheModel() {
+        var ts = TestSession.in(tempDir).build();
+        var api = new FakeTelegramApi();
+        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
+        var chat = new TelegramChat(CHAT_ID, ts.session(), api, settings);
+
+        chat.onText("/model"); // sends the picker as message id 100 with a model keyboard
+        chat.onCallback(new TelegramClient.CallbackQuery("cb",
+                                        new TelegramClient.TgMessage(100, new TelegramClient.TgChat(CHAT_ID), null),
+                                        "0")); // tap the first model
+
+        assertTrue(api.allText().stream().anyMatch(t -> t.contains("switched to")), api.allText().toString());
     }
 
     @Test
