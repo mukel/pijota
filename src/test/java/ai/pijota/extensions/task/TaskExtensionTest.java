@@ -1,13 +1,43 @@
 package ai.pijota.extensions.task;
 
+import ai.pijota.extensions.testkit.FakeExtensionAPI;
+import ai.pijota.extensions.testkit.FakeExtensionRuntime;
+import ai.pijota.testkit.FauxLlm;
+import ai.pijota.tools.ToolRegistry;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Status-line formatting for sub-agent activity: per-agent elapsed, the parallel aggregate, and linger semantics. */
 class TaskExtensionTest {
+
+    @Test
+    void logsCommandPicksAndOpensSubAgentLogs(@TempDir Path tmp) throws Exception {
+        var runtime = new FakeExtensionRuntime();
+        runtime.setCwd(tmp);
+        runtime.setToolRegistry(new ToolRegistry());
+        runtime.setLlm(new FauxLlm());
+        var fake = new FakeExtensionAPI(runtime);
+        var ext = new TaskExtension();
+        ext.init(fake);
+        Path log = tmp.resolve("sub-alpha.log");
+        Files.writeString(log, "tool: read\nline of output\n");
+        ext.onActivity("alpha", "log: " + log); // register it in activeLogs (collectLogs picks it up)
+
+        assertDoesNotThrow(() -> {
+            fake.slashCommand("logs").handler().accept(""); // picker / static list
+            fake.slashCommand("logs").handler().accept("latest"); // open the latest
+            fake.slashCommand("logs").handler().accept("sub-alpha"); // open by name match
+            fake.slashCommand("logs").handler().accept("1"); // open by index
+            fake.slashCommand("logs").handler().accept("nomatch"); // no match -> status
+        });
+    }
 
     @Test
     void parallelRunShowsAggregateAndPerAgentElapsed() {
