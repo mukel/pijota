@@ -9,6 +9,28 @@ import static org.junit.jupiter.api.Assertions.*;
 class ProviderFactoryTest {
 
     @Test
+    void createBuildsAStreamingModelForEachProvider() {
+        // model construction only (no network); covers the builder paths incl. the thinking-enabled branch
+        assertNotNull(new ProviderFactory.OpenAiCompatible().create("https://api.openai.com/v1", "sk", "gpt-4",
+                                        "openai", ThinkingLevel.OFF));
+        assertNotNull(new ProviderFactory.OpenAiCompatible().create("https://api.openai.com/v1", "sk", "gpt-4",
+                                        "openai", ThinkingLevel.HIGH));
+        assertNotNull(new ProviderFactory.GoogleProvider().create(null, "key", "gemini-2.0", "google",
+                                        ThinkingLevel.OFF));
+        assertNotNull(new ProviderFactory.AnthropicProvider().create("https://api.anthropic.com", "sk", "claude-x",
+                                        "anthropic", ThinkingLevel.OFF));
+        assertNotNull(new ProviderFactory.AnthropicProvider().create("https://api.anthropic.com", "sk", "claude-x",
+                                        "anthropic", ThinkingLevel.HIGH)); // thinkingType/budget branch
+    }
+
+    @Test
+    void openAiCompatibleUsesTheCodexModelForTheOpenAiCodexProvider() {
+        var model = new ProviderFactory.OpenAiCompatible().create("https://chatgpt.com/backend-api", "sk",
+                                        "gpt-5-codex", "openai-codex", ThinkingLevel.OFF);
+        assertInstanceOf(CodexStreamingChatModel.class, model);
+    }
+
+    @Test
     void openAiCompatibleSupportsOpenAiProviders() {
         var factory = new ProviderFactory.OpenAiCompatible();
         assertTrue(factory.supports("deepseek"));
