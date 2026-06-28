@@ -410,6 +410,14 @@
                 <buildArg>--initialize-at-build-time=com.fasterxml.jackson,dev.langchain4j.model.anthropic</buildArg>
                 <buildArg>--initialize-at-run-time=ai.pijota,org.slf4j,ch.qos.logback</buildArg>
               </buildArgs>
+              <!-- HARMLESS native-image warning (build still succeeds): langchain4j-anthropic 1.16.3 ships a stale
+                   META-INF/native-image proxy-config.json registering a dynamic proxy for the Retrofit interface
+                   dev.langchain4j.model.anthropic.internal.api.AnthropicApi, which 1.16.3 REMOVED (it now speaks HTTP
+                   via the JDK client, so no proxy is needed). native-image then warns that it "cannot register dynamic
+                   proxy ... AnthropicApi not found" plus a deprecated proxy-config notice. It cannot be suppressed
+                   here: the exclude-config option does not cover the legacy proxy-config scan, and native-image has no
+                   flag to ignore it. The clean fix is upstream (langchain4j dropping the stale file); repackaging the
+                   dependency just to strip one config file is not worth shading this carefully-tuned build. -->
             </configuration>
             <executions>
               <execution>
