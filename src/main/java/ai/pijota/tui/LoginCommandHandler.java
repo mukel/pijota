@@ -8,6 +8,7 @@ import ai.pijota.llm.ModelRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 final class LoginCommandHandler {
     interface Host extends TuiHost {
@@ -44,8 +45,7 @@ final class LoginCommandHandler {
     }
 
     interface OAuthClient {
-        OAuthLogin.TokenResult login(ProviderCatalog.OAuth oauth, java.util.function.Consumer<String> out)
-                                        throws Exception;
+        OAuthLogin.TokenResult login(ProviderCatalog.OAuth oauth, Consumer<String> out) throws Exception;
     }
 
     interface DefaultModelResolver {
@@ -181,8 +181,7 @@ final class LoginCommandHandler {
         host.redrawPrompt();
     }
 
-    private static OAuthLogin.TokenResult login(ProviderCatalog.OAuth oauth, java.util.function.Consumer<String> out)
-                                    throws Exception {
+    private static OAuthLogin.TokenResult login(ProviderCatalog.OAuth oauth, Consumer<String> out) throws Exception {
         if (oauth.oauthTokenEndpoint() != null && !oauth.oauthTokenEndpoint().isBlank()) {
             return OAuthLogin.loginOpenAI(oauth.deviceEndpoint(), oauth.tokenEndpoint(), oauth.oauthTokenEndpoint(),
                                             oauth.clientId(), out);

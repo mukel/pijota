@@ -1,17 +1,27 @@
 package ai.pijota.telegram;
 
+import ai.pijota.util.ErrorUtil;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -22,7 +32,7 @@ import java.util.stream.Stream;
  * camelCase records with no annotations. Blocking and thread-confined to the caller's poll loop.
  */
 public final class TelegramClient implements TelegramApi {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TelegramClient.class);
+    private static final Logger log = LoggerFactory.getLogger(TelegramClient.class);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60); // must exceed the long-poll timeout
 
     // Telegram speaks snake_case and sends many fields we ignore; this mapper translates both ways and never throws on
@@ -58,7 +68,7 @@ public final class TelegramClient implements TelegramApi {
             var resp = http.send(request, BodyHandlers.ofByteArray());
             return resp.statusCode() == 200 ? resp.body() : null;
         } catch (Exception e) {
-            log.warn("Failed to download Telegram file {}: {}", fileId, ai.pijota.util.ErrorUtil.message(e));
+            log.warn("Failed to download Telegram file {}: {}", fileId, ErrorUtil.message(e));
             return null;
         }
     }
@@ -120,7 +130,7 @@ public final class TelegramClient implements TelegramApi {
      */
     public String getMyUsername() {
         try {
-            String username = call("getMe", java.util.Map.of()).path("username").asText(null);
+            String username = call("getMe", Map.of()).path("username").asText(null);
             return username == null || username.isBlank() ? null : username;
         } catch (RuntimeException e) {
             return null;
@@ -160,7 +170,7 @@ public final class TelegramClient implements TelegramApi {
                                             .POST(HttpRequest.BodyPublishers.ofString(TG.writeValueAsString(payload)))
                                             .build();
             return dispatch(method, request);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             throw new TelegramException("telegram payload encode failed: " + method, e);
         }
     }
@@ -189,7 +199,7 @@ public final class TelegramClient implements TelegramApi {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new TelegramException("telegram call interrupted: " + method, e);
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             throw new TelegramException("telegram call failed: " + method + ": " + e.getMessage(), e);
         }
     }
@@ -211,7 +221,7 @@ public final class TelegramClient implements TelegramApi {
 
     /** Builds a {@code multipart/form-data} body carrying {@code chat_id}, an optional caption, and the file part. */
     static byte[] multipartBody(String boundary, long chatId, String filename, byte[] content, String caption) {
-        var out = new java.io.ByteArrayOutputStream();
+        var out = new ByteArrayOutputStream();
         writeField(out, boundary, "chat_id", Long.toString(chatId));
         if (caption != null && !caption.isBlank())
             writeField(out, boundary, "caption", caption);
@@ -223,15 +233,15 @@ public final class TelegramClient implements TelegramApi {
         return out.toByteArray();
     }
 
-    private static void writeField(java.io.ByteArrayOutputStream out, String boundary, String name, String value) {
+    private static void writeField(ByteArrayOutputStream out, String boundary, String name, String value) {
         writeBytes(out, "--" + boundary + "\r\n");
         writeBytes(out, "Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n");
         writeBytes(out, value);
         writeBytes(out, "\r\n");
     }
 
-    private static void writeBytes(java.io.ByteArrayOutputStream out, String s) {
-        out.writeBytes(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    private static void writeBytes(ByteArrayOutputStream out, String s) {
+        out.writeBytes(s.getBytes(StandardCharsets.UTF_8));
     }
 
     static List<Update> updatesFrom(JsonNode resultArray) {

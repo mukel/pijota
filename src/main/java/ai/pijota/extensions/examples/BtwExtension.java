@@ -10,6 +10,7 @@ import ai.pijota.modes.SlashCommand;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
@@ -151,7 +152,7 @@ public final class BtwExtension implements Extension {
 
     @Override
     public void onShutdown(ExtensionRuntime runtime) {
-        if (executor instanceof java.util.concurrent.ExecutorService es)
+        if (executor instanceof ExecutorService es)
             es.shutdownNow();
     }
 }

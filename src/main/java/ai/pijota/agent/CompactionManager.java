@@ -2,6 +2,7 @@ package ai.pijota.agent;
 
 import ai.pijota.config.AppConfig;
 import ai.pijota.messages.Message;
+import ai.pijota.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public final class CompactionManager {
     private static final int DEFAULT_CONTEXT_WINDOW = 128_000;
@@ -51,7 +53,7 @@ public final class CompactionManager {
     }
 
     public CompactionResult checkAndCompact(List<Message> messages, long realContextTokens,
-                                    java.util.function.Consumer<List<Message>> onCompact) {
+                                    Consumer<List<Message>> onCompact) {
 
         int estimatedChars = estimateChars(messages);
         // Trust the provider's real prompt size when available: it captures tool-schema tokens + true tokenization
@@ -68,13 +70,11 @@ public final class CompactionManager {
         return new CompactionResult(true, estimatedChars, contextTokens, compactedCount);
     }
 
-    public CompactionResult compactNow(List<Message> messages, String instructions,
-                                    java.util.function.Consumer<List<Message>> onCompact) {
+    public CompactionResult compactNow(List<Message> messages, String instructions, Consumer<List<Message>> onCompact) {
         return compactNow(messages, instructions, onCompact, null);
     }
 
-    public CompactionResult compactNow(List<Message> messages, String instructions,
-                                    java.util.function.Consumer<List<Message>> onCompact,
+    public CompactionResult compactNow(List<Message> messages, String instructions, Consumer<List<Message>> onCompact,
                                     BiConsumer<String, String> onPartial) {
         int estimatedChars = estimateChars(messages);
         int estimatedTokens = estimateTokens(messages);
@@ -82,8 +82,7 @@ public final class CompactionManager {
         return new CompactionResult(compactedCount > 0, estimatedChars, estimatedTokens, compactedCount);
     }
 
-    private int compact(List<Message> messages, String instructions,
-                                    java.util.function.Consumer<List<Message>> onCompact,
+    private int compact(List<Message> messages, String instructions, Consumer<List<Message>> onCompact,
                                     BiConsumer<String, String> onPartial) {
         int keepFrom = messages.size();
         int recentTokens = 0;
@@ -124,7 +123,7 @@ public final class CompactionManager {
         if (summary == null || summary.isBlank()) {
             summary = "[degraded — LLM summarizer unavailable] " + summarize(toSummarize);
         }
-        summary = ai.pijota.util.Util.stripSystemReminders(summary).strip();
+        summary = Util.stripSystemReminders(summary).strip();
         previousSummary = summary;
 
         var compactedList = new ArrayList<Message>();
@@ -212,7 +211,7 @@ public final class CompactionManager {
     }
 
     private static String strip(String value) {
-        return value == null ? null : ai.pijota.util.Util.stripSystemReminders(value);
+        return value == null ? null : Util.stripSystemReminders(value);
     }
 
     public static int estimateChars(List<Message> messages) {

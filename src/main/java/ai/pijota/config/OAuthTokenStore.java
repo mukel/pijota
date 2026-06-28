@@ -87,11 +87,11 @@ public final class OAuthTokenStore {
                 logger.warn("OAuth refresh token for {} was rejected; cleared it — re-login required", provider);
             } else {
                 // a transient network/IO error otherwise vanishes as a null token, looking like a revoked login
-                logger.warn("OAuth token refresh for {} failed (network/IO): {}", provider, ErrorUtil.sanitize(msg));
+                logger.warn("OAuth token refresh for {} failed (network/IO): {}", provider, ErrorUtil.message(e));
             }
             return null;
         } catch (Exception e) {
-            logger.warn("OAuth token refresh failed for {}: {}", provider, ErrorUtil.sanitize(e.getMessage()));
+            logger.warn("OAuth token refresh failed for {}: {}", provider, ErrorUtil.message(e));
             return null;
         }
     }

@@ -42,7 +42,7 @@ class WebsearchToolTest {
     @Test
     void schemaHasQueryRequired() {
         var tool = new WebsearchTool();
-        assertTrue(tool.schema().get("required") instanceof java.util.List);
+        assertTrue(tool.schema().get("required") instanceof List);
     }
 
     // ─── stripHtml ───

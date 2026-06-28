@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -152,7 +153,7 @@ public final class PijotaSession implements AutoCloseable {
                 else if (mod == Modality.IMAGE && !Modality.isSupportedImage(a.mime()))
                     sb.append("\n\n[attachment \"").append(name).append("\" omitted — ")
                                                     .append(a.mime().substring(a.mime().indexOf('/') + 1)
-                                                                                    .toUpperCase(java.util.Locale.ROOT))
+                                                                                    .toUpperCase(Locale.ROOT))
                                                     .append(" images aren't supported; use JPEG/PNG/GIF/WebP]");
                 else if (a.approxBytes() <= Message.Attachment.MAX_BYTES) // core size floor — every frontend inherits
                                                                           // it

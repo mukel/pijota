@@ -3,6 +3,8 @@ package ai.pijota.util;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -115,7 +117,7 @@ class ErrorUtilTest {
     @Test
     void retryAfterDelayParsesHttpDate() {
         String retryAfter = DateTimeFormatter.RFC_1123_DATE_TIME
-                                        .format(java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).plusSeconds(60));
+                                        .format(ZonedDateTime.now(ZoneOffset.UTC).plusSeconds(60));
         var ex = new RuntimeException("retry later") {
             public Object response() {
                 return this;

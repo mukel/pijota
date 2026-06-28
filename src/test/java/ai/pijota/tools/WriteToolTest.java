@@ -6,6 +6,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
@@ -69,8 +71,7 @@ class WriteToolTest {
     @Test
     void renderResultPreviewTruncatesAfterFiveLines() {
         var tool = new WriteTool();
-        var content = java.util.stream.IntStream.range(0, 10).mapToObj(i -> "line" + i)
-                                        .collect(java.util.stream.Collectors.joining("\n"));
+        var content = IntStream.range(0, 10).mapToObj(i -> "line" + i).collect(Collectors.joining("\n"));
         var result = Tool.ToolResult.success("wrote file");
         var view = tool.renderResult(new Tool.Args(Map.of("content", content)), result, "/tmp");
         assertEquals("wrote file", view.summary());

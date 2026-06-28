@@ -6,6 +6,8 @@ import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
@@ -22,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 class LlmServiceTest {
 
@@ -33,7 +36,7 @@ class LlmServiceTest {
         return new LlmService(provider, model, _ -> "test-key", null, List.of(new FakeProviderFactory(fake)), null);
     }
 
-    private static LlmService serviceWithKeyResolver(java.util.function.Function<String, String> resolver) {
+    private static LlmService serviceWithKeyResolver(Function<String, String> resolver) {
         return new LlmService("openai", "gpt-4o", resolver, null,
                                         List.of(new FakeProviderFactory(new FakeModel().withContent("ok"))), null);
     }
@@ -283,13 +286,12 @@ class LlmServiceTest {
         service.streamMessages(List.of(new Message.User("hi")), List.of(toolB, toolA), (_c, _t) -> {}).join();
 
         var request = fake.requests().get(0);
-        assertEquals(List.of("a-tool", "b-tool"), request.tools().stream()
-                                        .map(dev.langchain4j.agent.tool.ToolSpecification::name).toList());
+        assertEquals(List.of("a-tool", "b-tool"), request.tools().stream().map(ToolSpecification::name).toList());
     }
 
     // -- fakes --------------------------------------------------------------
 
-    private record FakeRequest(List<Message> messages, List<dev.langchain4j.agent.tool.ToolSpecification> tools) {
+    private record FakeRequest(List<Message> messages, List<ToolSpecification> tools) {
     }
 
     private static final class FakeModel implements StreamingChatModel {
@@ -344,7 +346,7 @@ class LlmServiceTest {
                 content.append(delta);
                 handler.onPartialResponse(new PartialResponse(content.toString()), null);
             }
-            var ai = dev.langchain4j.data.message.AiMessage.builder().text(content.toString())
+            var ai = AiMessage.builder().text(content.toString())
                                             .thinking(thinkingDeltas.isEmpty() ? null : String.join("", thinkingDeltas))
                                             .toolExecutionRequests(toolCalls.isEmpty() ? null : toolCalls).build();
             var builder = ChatResponse.builder().aiMessage(ai);

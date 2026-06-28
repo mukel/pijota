@@ -1,10 +1,13 @@
 package ai.pijota.llm;
 
-import ai.pijota.config.SettingsManager;
 import ai.pijota.config.OAuthTokenStore;
 import ai.pijota.config.ProviderCatalog;
+import ai.pijota.config.SettingsManager;
 import ai.pijota.util.Util;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -70,7 +73,7 @@ public final class ModelRefresher {
         var response = client.send(builtRequest, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             // scrub the body: a provider's error response can echo the request (and its auth header) back
-            throw new java.io.IOException("HTTP " + response.statusCode() + " - "
+            throw new IOException("HTTP " + response.statusCode() + " - "
                                             + ai.pijota.util.ErrorUtil.sanitize(response.body()));
         }
 
@@ -93,7 +96,7 @@ public final class ModelRefresher {
         return out;
     }
 
-    private static List<ModelInfo> parseCodexModels(String providerId, com.fasterxml.jackson.databind.JsonNode models) {
+    private static List<ModelInfo> parseCodexModels(String providerId, JsonNode models) {
         var out = new ArrayList<ModelInfo>();
         for (var item : models) {
             var slug = item.get("slug");
@@ -111,7 +114,7 @@ public final class ModelRefresher {
         return out;
     }
 
-    static long firstLong(com.fasterxml.jackson.databind.JsonNode node, String first, String second, long fallback) {
+    static long firstLong(JsonNode node, String first, String second, long fallback) {
         if (node.has(first) && node.get(first).canConvertToLong())
             return node.get(first).asLong();
         if (node.has(second) && node.get(second).canConvertToLong())

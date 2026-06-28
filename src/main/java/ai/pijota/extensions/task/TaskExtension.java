@@ -9,6 +9,7 @@ import ai.pijota.modes.SlashCommand;
 import ai.pijota.util.Util;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -279,16 +280,15 @@ public final class TaskExtension implements Extension {
     /** Reads a log's lines, lenient on non-UTF-8 bytes; returns a one-line notice instead of throwing on I/O error. */
     private static List<String> readLogLines(Path file) {
         try {
-            return List.of(new String(Files.readAllBytes(file), java.nio.charset.StandardCharsets.UTF_8).split("\n",
-                                            -1));
+            return List.of(new String(Files.readAllBytes(file), StandardCharsets.UTF_8).split("\n", -1));
         } catch (IOException e) {
             return List.of("(cannot read log: " + e.getMessage() + ")");
         }
     }
 
-    private static long modifiedAt(java.nio.file.Path path) {
+    private static long modifiedAt(Path path) {
         try {
-            return java.nio.file.Files.getLastModifiedTime(path).toMillis();
+            return Files.getLastModifiedTime(path).toMillis();
         } catch (Exception ignored) {
             return 0L;
         }

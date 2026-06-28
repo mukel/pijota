@@ -1,6 +1,7 @@
 package ai.pijota.extensions.mcp;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  * A bidirectional, line-delimited message channel to a single MCP server. MCP's stdio transport frames each JSON-RPC
@@ -27,6 +28,6 @@ interface McpTransport extends AutoCloseable {
     /** Factory used by the extension to open a transport for a configured server (production: spawns a process). */
     @FunctionalInterface
     interface Factory {
-        McpTransport open(McpServerConfig config, java.nio.file.Path cwd) throws IOException;
+        McpTransport open(McpServerConfig config, Path cwd) throws IOException;
     }
 }

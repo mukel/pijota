@@ -1,7 +1,11 @@
 package ai.pijota.tools;
 
 import ai.pijota.llm.ToolSchema;
+import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -9,6 +13,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
@@ -17,7 +22,7 @@ import java.util.regex.Pattern;
 
 public final class WebfetchTool implements Tool {
 
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WebfetchTool.class);
+    private static final Logger log = LoggerFactory.getLogger(WebfetchTool.class);
     private static final int MAX_RESPONSE_SIZE = 5 * 1024 * 1024;
     private static final long DEFAULT_TIMEOUT_SECONDS = 30;
     private static final long MAX_TIMEOUT_SECONDS = 120;
@@ -123,7 +128,7 @@ public final class WebfetchTool implements Tool {
                 log.warn("webfetch timed out for {}", args.getString("url"));
                 return ToolResult.error("Request timed out");
             } catch (IOException e) {
-                log.warn("webfetch failed for {}: {}", args.getString("url"), ai.pijota.util.ErrorUtil.message(e));
+                log.warn("webfetch failed for {}: {}", args.getString("url"), ErrorUtil.message(e));
                 return ToolResult.error("Fetch error: " + e.getMessage());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -211,7 +216,7 @@ public final class WebfetchTool implements Tool {
         var m = Pattern.compile("(?i)charset\\s*=\\s*([^\\s;]+)").matcher(contentType);
         if (m.find()) {
             try {
-                return java.nio.charset.Charset.forName(m.group(1)).name();
+                return Charset.forName(m.group(1)).name();
             } catch (Exception ignored) {}
         }
         if (body.length >= 3 && body[0] == (byte) 0xEF && body[1] == (byte) 0xBB && body[2] == (byte) 0xBF)

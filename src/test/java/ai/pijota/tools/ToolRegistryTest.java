@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -263,9 +265,9 @@ class ToolRegistryTest {
         // many threads register into the shared registry at once while another thread reads the enabled set.
         var r = new ToolRegistry();
         int n = 500;
-        var pool = java.util.concurrent.Executors.newFixedThreadPool(16);
-        var start = new java.util.concurrent.CountDownLatch(1);
-        var done = new java.util.concurrent.CountDownLatch(n);
+        var pool = Executors.newFixedThreadPool(16);
+        var start = new CountDownLatch(1);
+        var done = new CountDownLatch(n);
         var reads = new AtomicBoolean(true);
         // a concurrent reader, to surface read/write races too
         var reader = new Thread(() -> {

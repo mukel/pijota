@@ -4,6 +4,8 @@ import ai.pijota.extensions.UiContext;
 import ai.pijota.tools.SlashCommandTool;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -12,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Implements the agent's interactive callbacks ({@link UiContext}) over the web frontend. Each interactive request
@@ -48,7 +51,7 @@ public final class WebUiContext implements UiContext {
     }
 
     private void status(String message, boolean alert) {
-        var map = new java.util.HashMap<String, Object>();
+        var map = new HashMap<String, Object>();
         map.put("message", message == null ? "" : message);
         if (alert)
             map.put("alert", true);
@@ -64,7 +67,7 @@ public final class WebUiContext implements UiContext {
     }
 
     @Override
-    public void viewer(String title, java.util.function.Supplier<List<String>> source) {
+    public void viewer(String title, Supplier<List<String>> source) {
         // The web has no live-tailing viewer; snapshot once. Cheap + non-throwing per the UiContext contract.
         viewer(title, source == null ? List.of() : source.get());
     }
@@ -147,7 +150,7 @@ public final class WebUiContext implements UiContext {
     /** Registers a pending dialog (id + handler + replayable payload) and pushes it to connected tabs. */
     private void openDialog(Map<String, Object> fields, Consumer<String> handler) {
         String id = Long.toString(ids.incrementAndGet());
-        var payload = new java.util.LinkedHashMap<String, Object>();
+        var payload = new LinkedHashMap<String, Object>();
         payload.put("id", id);
         payload.putAll(fields);
         dialogs.put(id, new Pending(handler, payload));

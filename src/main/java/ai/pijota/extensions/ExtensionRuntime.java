@@ -5,6 +5,7 @@ import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -32,7 +33,7 @@ public interface ExtensionRuntime {
 
     /** Whether {@link #projectDir()} is inside a git repository. */
     default boolean isGitRepo() {
-        return projectDir() != null && java.nio.file.Files.isDirectory(projectDir().resolve(".git"));
+        return projectDir() != null && Files.isDirectory(projectDir().resolve(".git"));
     }
 
     String systemPrompt();

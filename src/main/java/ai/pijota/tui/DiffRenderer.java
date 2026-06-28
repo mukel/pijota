@@ -6,6 +6,7 @@ import ai.pijota.util.DiffAlgorithm;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 final class DiffRenderer {
@@ -131,6 +132,6 @@ final class DiffRenderer {
     }
 
     private static String pad(int value, int width) {
-        return String.format(java.util.Locale.ROOT, "%" + width + "d", value);
+        return String.format(Locale.ROOT, "%" + width + "d", value);
     }
 }

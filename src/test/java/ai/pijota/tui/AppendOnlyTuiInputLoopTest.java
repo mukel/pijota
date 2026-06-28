@@ -19,6 +19,7 @@ import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -307,10 +308,8 @@ class AppendOnlyTuiInputLoopTest {
 
     @Test
     void aFailingToolResultIsRendered() throws Exception {
-        var failing = new Tool.ToolDefinition("boom", "always fails", java.util.Map.of(),
-                                        (id, a, cwd) -> java.util.concurrent.CompletableFuture.completedFuture(
-                                                                        Tool.ToolResult.error("kaboom")))
-                                        .toTool();
+        var failing = new Tool.ToolDefinition("boom", "always fails", Map.of(), (id, a, cwd) -> CompletableFuture
+                                        .completedFuture(Tool.ToolResult.error("kaboom"))).toTool();
         var ts = TestSession.in(tempDir).tool(failing).build();
         ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "boom", "{}")))
                                         .enqueue(FauxLlm.Response.contentWithUsage("recovered"));
@@ -319,8 +318,8 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     private static Tool echoTool() {
-        return new Tool.ToolDefinition("echo", "Echoes input", java.util.Map.of(),
-                                        (id, args, cwd) -> java.util.concurrent.CompletableFuture
+        return new Tool.ToolDefinition("echo", "Echoes input", Map.of(),
+                                        (id, args, cwd) -> CompletableFuture
                                                                         .completedFuture(Tool.ToolResult.success("ok")))
                                         .toTool();
     }

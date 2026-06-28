@@ -14,11 +14,20 @@ import ai.pijota.modes.SlashCommand;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -32,7 +41,7 @@ import java.util.stream.Collectors;
  * agent's streaming thread. The few shared fields are {@code volatile}; a chat only has one turn in flight at a time.
  */
 public final class TelegramChat implements ChatHandler {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TelegramChat.class);
+    private static final Logger log = LoggerFactory.getLogger(TelegramChat.class);
     private static final int MAX_MESSAGE_LEN = 4096; // Telegram's hard limit
     private static final long EDIT_INTERVAL_MS = 1500; // don't edit the streamed message faster than this
 
@@ -63,7 +72,7 @@ public final class TelegramChat implements ChatHandler {
     public static List<TelegramClient.BotCommand> menuCommands(List<SlashCommand> extensionCommands) {
         var menu = new ArrayList<>(COMMANDS);
         var seen = COMMANDS.stream().map(TelegramClient.BotCommand::command)
-                                        .collect(Collectors.toCollection(java.util.HashSet::new));
+                                        .collect(Collectors.toCollection(HashSet::new));
         for (SlashCommand c : extensionCommands) {
             String name = c.name();
             if (name == null || !name.matches("[a-z0-9_]{1,32}") || !seen.add(name))
@@ -130,7 +139,7 @@ public final class TelegramChat implements ChatHandler {
     }
 
     @Override
-    public void onPhoto(java.util.List<TelegramClient.PhotoSize> photo, String caption) {
+    public void onPhoto(List<TelegramClient.PhotoSize> photo, String caption) {
         // Telegram orders sizes ascending → the last is the highest resolution; photos are always JPEG.
         submitFile(photo.get(photo.size() - 1).fileId(), "image/jpeg", "photo.jpg", caption, "image");
     }
@@ -159,7 +168,7 @@ public final class TelegramChat implements ChatHandler {
         if (modality != Modality.TEXT && modality != Modality.PDF && !ModelRegistry.supports(session.llm().provider(),
                                         session.llm().model(), modality)) {
             tg.sendMessage(chatId, "⚠️ " + session.llm().model() + " can't read "
-                                            + modality.name().toLowerCase(java.util.Locale.ROOT)
+                                            + modality.name().toLowerCase(Locale.ROOT)
                                             + " files — switch with /model, then resend.");
             return;
         }
@@ -169,7 +178,7 @@ public final class TelegramChat implements ChatHandler {
         }
         // The download is multi-MB and blocking — run it off the single poll/dispatch thread so other chats aren't
         // stalled.
-        java.util.concurrent.CompletableFuture.runAsync(() -> downloadAndSubmit(fileId, mime, filename, caption, kind));
+        CompletableFuture.runAsync(() -> downloadAndSubmit(fileId, mime, filename, caption, kind));
     }
 
     private void downloadAndSubmit(String fileId, String mime, String filename, String caption, String kind) {
@@ -186,7 +195,7 @@ public final class TelegramChat implements ChatHandler {
             tg.sendMessage(chatId, "➕ Busy now — resend the " + kind + " once the current turn finishes.");
             return;
         }
-        var attachment = new Message.Attachment(mime, java.util.Base64.getEncoder().encodeToString(bytes), filename);
+        var attachment = new Message.Attachment(mime, Base64.getEncoder().encodeToString(bytes), filename);
         String text = caption != null && !caption.isBlank() ? caption : "(" + kind + ": " + filename + ")";
         runTurn(text, List.of(attachment));
     }
@@ -243,7 +252,7 @@ public final class TelegramChat implements ChatHandler {
                                                         session.newSession(); // fresh session file; clears in-context
                                                                               // history
                                                         tg.sendMessage(chatId, "🆕 Started a new conversation.");
-                                                    } catch (java.io.IOException e) {
+                                                    } catch (IOException e) {
                                                         tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
                                                     }
                                                 });
@@ -383,7 +392,7 @@ public final class TelegramChat implements ChatHandler {
                 session.setSessionName(arg);
                 tg.sendMessage(chatId, "🏷 named: " + arg);
             }
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
         }
     }
@@ -533,7 +542,7 @@ public final class TelegramChat implements ChatHandler {
             sb.append("/").append(c.command()).append(" — ").append(c.description()).append('\n');
         var builtin = COMMANDS.stream().map(TelegramClient.BotCommand::command).collect(Collectors.toSet());
         var extras = session.extensionRegistry().slashCommands().stream().filter(c -> !builtin.contains(c.name()))
-                                        .sorted(java.util.Comparator.comparing(SlashCommand::name)).toList();
+                                        .sorted(Comparator.comparing(SlashCommand::name)).toList();
         if (!extras.isEmpty()) {
             sb.append("\nMore (extensions):\n");
             for (var c : extras)

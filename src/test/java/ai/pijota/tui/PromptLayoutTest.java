@@ -22,8 +22,7 @@ class PromptLayoutTest {
         }
 
         @Override
-        public CursorPos render(java.io.PrintWriter out, int width, ai.pijota.theme.AnsiTheme theme,
-                                        PromptSnapshot ctx) {
+        public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
             return NO_CURSOR;
         }
     }

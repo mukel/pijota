@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -317,7 +318,7 @@ public final class McpExtension implements Extension {
     /** Mutable per-server connection state (visibility via volatile; tool list is a concurrent collection). */
     private static final class ServerState {
         final String name;
-        final List<String> toolNames = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final List<String> toolNames = new CopyOnWriteArrayList<>();
         volatile McpServerConfig config; // the config last used to connect (for reconnect + reload diffing)
         volatile McpClient client;
         volatile String error;

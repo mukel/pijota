@@ -11,6 +11,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -298,7 +299,7 @@ public final class EditTool implements Tool {
     }
 
     private static String normalizeForFuzzyMatch(String s) {
-        s = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC);
+        s = Normalizer.normalize(s, Normalizer.Form.NFKC);
         s = s.replaceAll("(?m)[ \\t]+$", "");
         s = s.replaceAll("[\u2018\u2019\u201A\u201B]", "'");
         s = s.replaceAll("[\u201C\u201D\u201E\u201F]", "\"");

@@ -1,6 +1,7 @@
 package ai.pijota.cli;
 
 import ai.pijota.cli.Args.OutputMode;
+import ai.pijota.llm.ModelRegistry;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -52,7 +53,7 @@ public final class ArgParser {
             switch (arg) {
                 case "--provider" -> provider = nextArg(rawArgs, i++);
                 case "--model", "-m" -> {
-                    var pm = ai.pijota.llm.ModelRegistry.parseProviderModel(nextArg(rawArgs, i++));
+                    var pm = ModelRegistry.parseProviderModel(nextArg(rawArgs, i++));
                     if (pm.provider() != null)
                         provider = pm.provider();
                     model = pm.model();

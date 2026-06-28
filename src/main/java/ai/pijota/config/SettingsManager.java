@@ -1,5 +1,6 @@
 package ai.pijota.config;
 
+import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Platform;
 import ai.pijota.util.SelfRespawn;
@@ -7,20 +8,22 @@ import ai.pijota.util.SelfRespawn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Consumer;
 
 public final class SettingsManager {
     private static final Logger logger = LoggerFactory.getLogger(SettingsManager.class);
 
     private AppConfig config;
-    private final java.util.function.Consumer<AppConfig> onSave;
+    private final Consumer<AppConfig> onSave;
 
     public SettingsManager() {
         this(loadConfig(), SettingsManager::persistConfig);
     }
 
-    public SettingsManager(AppConfig config, java.util.function.Consumer<AppConfig> onSave) {
+    public SettingsManager(AppConfig config, Consumer<AppConfig> onSave) {
         this.config = config;
         this.onSave = onSave;
         if (config.projectDir() == null || config.projectDir().isBlank()) {
@@ -35,7 +38,7 @@ public final class SettingsManager {
             return AppConfig.load(PijotaHome.resolve("settings.json"));
         } catch (Exception e) {
             // A corrupt/unreadable settings.json otherwise silently reverts to defaults — surface why.
-            logger.warn("Could not read settings.json ({}); using defaults", ai.pijota.util.ErrorUtil.message(e));
+            logger.warn("Could not read settings.json ({}); using defaults", ErrorUtil.message(e));
             return new AppConfig();
         }
     }
@@ -133,18 +136,18 @@ public final class SettingsManager {
         onSave.accept(config);
     }
 
-    public void saveApiKey(String provider, String apiKey, String defaultModel) throws java.io.IOException {
+    public void saveApiKey(String provider, String apiKey, String defaultModel) throws IOException {
         config = config.withApiKey(provider, apiKey).withDefaultProviderModel(provider, defaultModel);
         onSave.accept(config);
     }
 
-    public void removeApiKey(String provider) throws java.io.IOException {
+    public void removeApiKey(String provider) throws IOException {
         config = config.withoutApiKey(provider);
         onSave.accept(config);
     }
 
     /** Set the default provider/model without storing an API key (for OAuth). */
-    public void setDefaultModelForProvider(String provider, String model) throws java.io.IOException {
+    public void setDefaultModelForProvider(String provider, String model) throws IOException {
         config = config.withDefaultProviderModel(provider, model);
         onSave.accept(config);
     }

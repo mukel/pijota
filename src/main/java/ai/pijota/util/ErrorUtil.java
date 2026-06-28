@@ -7,6 +7,9 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+
+import java.io.IOException;
 
 public final class ErrorUtil {
     private ErrorUtil() {}
@@ -121,8 +124,7 @@ public final class ErrorUtil {
                                         || msg.contains("500") || msg.contains("timeout") || msg.contains("timed out")
                                         || msg.contains("connection reset") || msg.contains("connection refused")
                                         || msg.contains("temporarily unavailable") || msg.contains("internal error")
-                                        || unwrapped instanceof java.io.IOException
-                                        || unwrapped instanceof java.util.concurrent.TimeoutException;
+                                        || unwrapped instanceof IOException || unwrapped instanceof TimeoutException;
     }
 
     public static long retryAfterDelayMs(Throwable ex, long defaultDelayMs) {

@@ -3,7 +3,9 @@ package ai.pijota.llm;
 import java.util.ArrayList;
 
 import ai.pijota.config.ProviderCatalog;
+import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 
 import java.time.Duration;
@@ -66,8 +68,7 @@ public interface ProviderFactory {
         @Override
         public StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName,
                                         ThinkingLevel thinkingLevel) {
-            return dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel.builder().apiKey(apiKey)
-                                            .modelName(modelName).build();
+            return GoogleAiGeminiStreamingChatModel.builder().apiKey(apiKey).modelName(modelName).build();
         }
 
         @Override
@@ -81,8 +82,8 @@ public interface ProviderFactory {
         @Override
         public StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName,
                                         ThinkingLevel thinkingLevel) {
-            var builder = dev.langchain4j.model.anthropic.AnthropicStreamingChatModel.builder().baseUrl(baseUrl)
-                                            .apiKey(apiKey).modelName(modelName).version("2023-06-01").maxTokens(4096)
+            var builder = AnthropicStreamingChatModel.builder().baseUrl(baseUrl).apiKey(apiKey).modelName(modelName)
+                                            .version("2023-06-01").maxTokens(4096)
                                             .customHeaders(ProviderCatalog.headers(providerName))
                                             // cache the large static prefix (system prompt + tool schemas) re-sent
                                             // every

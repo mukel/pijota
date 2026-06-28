@@ -8,6 +8,7 @@ import ai.pijota.tools.Tool;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * The registration and control surface exposed to {@link Extension#init}. Subscribe to events for observe-only or
@@ -60,15 +61,15 @@ public interface ExtensionAPI {
 
     void registerSkills(List<SkillLoader.Skill> skills);
 
-    void registerStatusLines(java.util.function.Supplier<List<String>> lines);
+    void registerStatusLines(Supplier<List<String>> lines);
 
-    void registerFooterLines(java.util.function.Supplier<List<String>> lines);
+    void registerFooterLines(Supplier<List<String>> lines);
 
     void registerExceptionHandler(ExceptionHandler handler);
 
-    void registerSystemPrompt(java.util.function.Supplier<String> prompt);
+    void registerSystemPrompt(Supplier<String> prompt);
 
-    void registerThinkingHeaderText(java.util.function.Supplier<String> text);
+    void registerThinkingHeaderText(Supplier<String> text);
 
     // ---- message injection ----
 

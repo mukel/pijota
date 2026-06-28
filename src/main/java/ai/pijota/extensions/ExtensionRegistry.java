@@ -11,6 +11,7 @@ import ai.pijota.util.ProcessRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Core registry that loads, registers, and dispatches to all extensions. Owns the lifecycle: loads extensions from
@@ -40,14 +42,14 @@ public final class ExtensionRegistry {
     private final List<SkillLoader.Skill> skills = new CopyOnWriteArrayList<>();
     private final List<ExtensionKeybinding> keybindings = new CopyOnWriteArrayList<>();
     private final Map<Class<? extends ExtensionEvent>, List<Function<ExtensionEvent, Object>>> listeners = new ConcurrentHashMap<>();
-    private final List<java.util.function.Supplier<List<String>>> statusLineProviders = new CopyOnWriteArrayList<>();
-    private final List<java.util.function.Supplier<List<String>>> footerLineProviders = new CopyOnWriteArrayList<>();
+    private final List<Supplier<List<String>>> statusLineProviders = new CopyOnWriteArrayList<>();
+    private final List<Supplier<List<String>>> footerLineProviders = new CopyOnWriteArrayList<>();
     private final List<Function<Message, ExtensionResult.MessageRender>> messageRenderers = new CopyOnWriteArrayList<>();
     private final List<ExceptionHandler> exceptionHandlers = new CopyOnWriteArrayList<>();
     private final List<URLClassLoader> extensionClassLoaders = new CopyOnWriteArrayList<>();
     private final Map<String, String> keyedStatuses = new ConcurrentSkipListMap<>();
-    private final List<java.util.function.Supplier<String>> systemPromptProviders = new CopyOnWriteArrayList<>();
-    private final List<java.util.function.Supplier<String>> thinkingHeaderTextProviders = new CopyOnWriteArrayList<>();
+    private final List<Supplier<String>> systemPromptProviders = new CopyOnWriteArrayList<>();
+    private final List<Supplier<String>> thinkingHeaderTextProviders = new CopyOnWriteArrayList<>();
     private final ExtensionAPIImpl api = new ExtensionAPIImpl();
     private final ExtensionRuntimeImpl runtime = new ExtensionRuntimeImpl();
     private ToolRegistry toolRegistry;
@@ -57,7 +59,7 @@ public final class ExtensionRegistry {
     private Path cwd;
     private String sessionName;
     private String systemPrompt;
-    private java.util.function.Supplier<Path> sessionFileSupplier;
+    private Supplier<Path> sessionFileSupplier;
     private Path projectDir;
     private Map<String, String> extensionFlags = Map.of();
 
@@ -98,7 +100,7 @@ public final class ExtensionRegistry {
     }
 
     private void loadJarExtensions(Path jar) throws Exception {
-        var loader = URLClassLoader.newInstance(new java.net.URL[] {jar.toUri().toURL()},
+        var loader = URLClassLoader.newInstance(new URL[] {jar.toUri().toURL()},
                                         Thread.currentThread().getContextClassLoader());
         extensionClassLoaders.add(loader);
         for (var ext : ServiceLoader.load(Extension.class, loader)) {
@@ -142,7 +144,7 @@ public final class ExtensionRegistry {
         this.cwd = c;
     }
 
-    public void setSessionFile(java.util.function.Supplier<Path> supplier) {
+    public void setSessionFile(Supplier<Path> supplier) {
         this.sessionFileSupplier = supplier;
     }
 
@@ -501,13 +503,13 @@ public final class ExtensionRegistry {
         }
 
         @Override
-        public void registerStatusLines(java.util.function.Supplier<List<String>> lines) {
+        public void registerStatusLines(Supplier<List<String>> lines) {
             if (lines != null)
                 statusLineProviders.add(lines);
         }
 
         @Override
-        public void registerFooterLines(java.util.function.Supplier<List<String>> lines) {
+        public void registerFooterLines(Supplier<List<String>> lines) {
             if (lines != null)
                 footerLineProviders.add(lines);
         }
@@ -519,13 +521,13 @@ public final class ExtensionRegistry {
         }
 
         @Override
-        public void registerSystemPrompt(java.util.function.Supplier<String> prompt) {
+        public void registerSystemPrompt(Supplier<String> prompt) {
             if (prompt != null)
                 systemPromptProviders.add(prompt);
         }
 
         @Override
-        public void registerThinkingHeaderText(java.util.function.Supplier<String> text) {
+        public void registerThinkingHeaderText(Supplier<String> text) {
             if (text != null)
                 thinkingHeaderTextProviders.add(text);
         }

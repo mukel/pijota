@@ -6,13 +6,18 @@ import ai.pijota.config.SettingsManager;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
 
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.BiFunction;
 
 import static ai.pijota.util.Util.fmtCount;
 
@@ -54,7 +59,7 @@ final class SessionCommands {
         else if (path.startsWith("/save"))
             path = path.substring(5).trim();
         if (path.isBlank()) {
-            String ts = java.time.Instant.now().toString().replace(":", "-").substring(0, 19);
+            String ts = Instant.now().toString().replace(":", "-").substring(0, 19);
             path = "pijota-session-" + ts + ".jsonl";
         }
         try {
@@ -153,25 +158,25 @@ final class SessionCommands {
         if (pricing == null) {
             return "  rate    unknown for " + (model != null ? model : "current model");
         }
-        String line = String.format(java.util.Locale.ROOT, "  rate    $%.2f in / $%.2f out per 1M  (%s)",
-                                        pricing.inputPerMTok(), pricing.outputPerMTok(), model);
+        String line = String.format(Locale.ROOT, "  rate    $%.2f in / $%.2f out per 1M  (%s)", pricing.inputPerMTok(),
+                                        pricing.outputPerMTok(), model);
         return hasUnpriced ? line + " — some usage on unpriced models" : line;
     }
 
     /** Formats the cumulative session-usage block. Pure given the totals and a styler, so it is unit-testable. */
     static List<String> usageReport(long input, long output, double cost, Double budget, String rateLine,
-                                    java.util.function.BiFunction<String, String, String> styled) {
+                                    BiFunction<String, String, String> styled) {
         var lines = new ArrayList<String>();
         lines.add(styled.apply("toolLabel", "usage  (this session)"));
         lines.add(styled.apply("statusText", "  input   " + fmtCount(input) + " tokens"));
         lines.add(styled.apply("statusText", "  output  " + fmtCount(output) + " tokens"));
         lines.add(styled.apply("statusText", "  total   " + fmtCount(input + output) + " tokens"));
-        lines.add(styled.apply("commandMeta", String.format(java.util.Locale.ROOT, "  cost    ~$%.4f est", cost)));
+        lines.add(styled.apply("commandMeta", String.format(Locale.ROOT, "  cost    ~$%.4f est", cost)));
         lines.add(styled.apply("commandMeta", rateLine));
         if (budget != null && budget > 0) {
             int pct = (int) Math.round(100.0 * cost / budget);
-            lines.add(styled.apply("commandMeta", String.format(java.util.Locale.ROOT, "  budget  $%.2f / $%.2f (%d%%)",
-                                            cost, budget, pct)));
+            lines.add(styled.apply("commandMeta", String.format(Locale.ROOT, "  budget  $%.2f / $%.2f (%d%%)", cost,
+                                            budget, pct)));
         }
         return lines;
     }
@@ -200,8 +205,8 @@ final class SessionCommands {
             return;
         }
         try {
-            var clipboard = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
-            clipboard.setContents(new java.awt.datatransfer.StringSelection(last), null);
+            var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(new StringSelection(last), null);
             host.appendPlain(List.of(host.styled("statusText", "copied last response to clipboard")));
         } catch (Exception e) {
             host.appendPlain(List.of(host.styled("toolError", "clipboard unavailable: " + e.getMessage())));

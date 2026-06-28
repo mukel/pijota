@@ -14,7 +14,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -102,7 +104,7 @@ public final class WebBrowseExtension implements Extension {
 
     private static String readPdfBase64(String cwd, String path) throws IOException {
         Path p = Path.of(cwd).resolve(path).normalize();
-        return java.util.Base64.getEncoder().encodeToString(java.nio.file.Files.readAllBytes(p));
+        return Base64.getEncoder().encodeToString(Files.readAllBytes(p));
     }
 
     @Override

@@ -1,6 +1,7 @@
 package ai.pijota.modes;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +34,7 @@ class SlashCommandTest {
 
     @Test
     void equalityByFields() {
-        var handler = (java.util.function.Consumer<String>) s -> {};
+        var handler = (Consumer<String>) s -> {};
         var a = new SlashCommand("/a", "desc", List.of(), handler);
         var b = new SlashCommand("/a", "desc", List.of(), handler);
         assertEquals(a, b);
@@ -41,7 +42,7 @@ class SlashCommandTest {
 
     @Test
     void notEqualWhenNameDiffers() {
-        var handler = (java.util.function.Consumer<String>) s -> {};
+        var handler = (Consumer<String>) s -> {};
         var a = new SlashCommand("/a", "desc", List.of(), handler);
         var b = new SlashCommand("/b", "desc", List.of(), handler);
         assertNotEquals(a, b);

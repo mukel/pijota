@@ -302,12 +302,12 @@ public interface Tool {
      * @param body
      *            additional lines rendered below the summary (diff, output preview, etc.)
      */
-    record ToolResultView(String summary, java.util.List<String> body) {
+    record ToolResultView(String summary, List<String> body) {
         public static ToolResultView of(String summary) {
-            return new ToolResultView(summary, java.util.List.of());
+            return new ToolResultView(summary, List.of());
         }
 
-        public static ToolResultView of(String summary, java.util.List<String> body) {
+        public static ToolResultView of(String summary, List<String> body) {
             return new ToolResultView(summary, body);
         }
     }

@@ -1,5 +1,9 @@
 package ai.pijota.tools;
 
+import ai.pijota.llm.ModelInfo;
+import ai.pijota.llm.ModelRegistry;
+
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -39,10 +43,9 @@ class WhoamiToolTest {
 
     @Test
     void executeWithModelInfoReturnsDetails() {
-        var oldModels = ai.pijota.llm.ModelRegistry.KNOWN_MODELS;
+        var oldModels = ModelRegistry.KNOWN_MODELS;
         try {
-            ai.pijota.llm.ModelRegistry.KNOWN_MODELS = java.util.List
-                                            .of(new ai.pijota.llm.ModelInfo("gpt-4o", "openai", "GPT-4o", 128_000));
+            ModelRegistry.KNOWN_MODELS = List.of(new ModelInfo("gpt-4o", "openai", "GPT-4o", 128_000));
 
             var tool = new WhoamiTool();
             tool.setModelInfo("openai", "gpt-4o");
@@ -54,7 +57,7 @@ class WhoamiToolTest {
             assertTrue(result.content().contains("GPT-4o"));
             assertTrue(result.content().contains("128000"));
         } finally {
-            ai.pijota.llm.ModelRegistry.KNOWN_MODELS = oldModels;
+            ModelRegistry.KNOWN_MODELS = oldModels;
         }
     }
 

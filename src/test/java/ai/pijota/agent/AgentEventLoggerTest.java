@@ -3,6 +3,7 @@ package ai.pijota.agent;
 import ai.pijota.messages.Message;
 
 import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
@@ -23,7 +24,7 @@ class AgentEventLoggerTest {
 
     @Test
     void tracesTheEventStreamAtTheRightLevels() {
-        var logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("ai.pijota.agent.events");
+        var logger = (Logger) LoggerFactory.getLogger("ai.pijota.agent.events");
         var appender = new ListAppender<ILoggingEvent>();
         appender.start();
         Level saved = logger.getLevel();
@@ -52,7 +53,7 @@ class AgentEventLoggerTest {
 
     @Test
     void onlyTheFinalAssistantMessageWithUsageLogsAtInfo() {
-        var logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("ai.pijota.agent.events");
+        var logger = (Logger) LoggerFactory.getLogger("ai.pijota.agent.events");
         var appender = new ListAppender<ILoggingEvent>();
         appender.start();
         Level saved = logger.getLevel();
@@ -61,10 +62,9 @@ class AgentEventLoggerTest {
         try {
             var sut = new AgentEventLogger();
             // per-chunk streaming update (null usage) — must NOT flood INFO
-            sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("partial", java.util.List.of(), null),
-                                            null));
+            sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("partial", List.of(), null), null));
             // final completion (has usage) — the one INFO line worth keeping
-            sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("done", java.util.List.of(), null),
+            sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("done", List.of(), null),
                                             new ai.pijota.messages.Usage(1500, 42)));
 
             var infoMsgs = appender.list.stream().filter(e -> e.getLevel() == Level.INFO)
@@ -79,7 +79,7 @@ class AgentEventLoggerTest {
 
     @Test
     void toolArgumentsAreScrubbedAndFailuresNeverThrow() {
-        var logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("ai.pijota.agent.events");
+        var logger = (Logger) LoggerFactory.getLogger("ai.pijota.agent.events");
         var appender = new ListAppender<ILoggingEvent>();
         appender.start();
         Level saved = logger.getLevel();

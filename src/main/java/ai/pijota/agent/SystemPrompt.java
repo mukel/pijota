@@ -1,5 +1,6 @@
 package ai.pijota.agent;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public final class SystemPrompt {
@@ -61,7 +62,7 @@ public final class SystemPrompt {
 
         sb.append("\nENVIRONMENT:\n");
         sb.append("- Working directory: ").append(cwd).append('\n');
-        sb.append("- Date: ").append(java.time.LocalDate.now()).append('\n');
+        sb.append("- Date: ").append(LocalDate.now()).append('\n');
         sb.append("- Platform: ").append(System.getProperty("os.name")).append('\n');
         sb.append("- Shell: ").append(System.getenv().getOrDefault("SHELL", "/bin/bash")).append('\n');
 

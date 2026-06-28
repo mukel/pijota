@@ -21,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Internal bridge from pijota {@link ai.pijota.messages.Message}s to langchain4j message types. Package-private so the
@@ -65,8 +66,7 @@ final class MessageConverter {
                             chatMessages.add(AiMessage.builder().text(text).thinking(nonBlank(a.thinking()))
                                                             .toolExecutionRequests(tcList).build());
                             pendingToolResultIds = a.toolCalls().stream().map(tc -> tc.id())
-                                                            .collect(java.util.stream.Collectors.toCollection(
-                                                                                            LinkedHashSet::new));
+                                                            .collect(Collectors.toCollection(LinkedHashSet::new));
                         } else {
                             pendingToolResultIds = new LinkedHashSet<>();
                             if (hasText(a.content()) || hasText(a.thinking())) {
@@ -166,7 +166,7 @@ final class MessageConverter {
     private static boolean hasCompleteImmediateToolResults(List<Message> messages, int assistantIndex) {
         var assistant = (Message.Assistant) messages.get(assistantIndex);
         var ids = assistant.toolCalls().stream().map(tc -> tc.id())
-                                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+                                        .collect(Collectors.toCollection(LinkedHashSet::new));
         for (int i = assistantIndex + 1; i < messages.size(); i++) {
             if (!(messages.get(i) instanceof Message.ToolResult tr))
                 break;

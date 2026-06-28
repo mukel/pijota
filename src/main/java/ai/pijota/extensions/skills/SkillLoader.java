@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 public final class SkillLoader {
@@ -61,12 +62,12 @@ public final class SkillLoader {
         } catch (IOException ignored) {}
     }
 
-    private static java.util.Optional<Skill> loadSkill(Path path) {
+    private static Optional<Skill> loadSkill(Path path) {
         try {
             if (Files.isDirectory(path)) {
                 Path skillMd = path.resolve("SKILL.md");
                 if (!Files.isRegularFile(skillMd))
-                    return java.util.Optional.empty();
+                    return Optional.empty();
                 return loadFromFile(skillMd, path.getFileName().toString());
             }
             if (Files.isRegularFile(path) && path.toString().endsWith(".md")) {
@@ -74,13 +75,13 @@ public final class SkillLoader {
                 int dot = name.lastIndexOf('.');
                 return loadFromFile(path, dot > 0 ? name.substring(0, dot) : name);
             }
-            return java.util.Optional.empty();
+            return Optional.empty();
         } catch (IOException e) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
     }
 
-    private static java.util.Optional<Skill> loadFromFile(Path file, String defaultName) throws IOException {
+    private static Optional<Skill> loadFromFile(Path file, String defaultName) throws IOException {
         String raw = Files.readString(file);
         var parsed = parseFrontmatter(raw);
         String name = parsed.frontmatter().containsKey("name")
@@ -90,8 +91,8 @@ public final class SkillLoader {
                                         ? parsed.frontmatter().get("description").toString()
                                         : "";
         if (description.isBlank())
-            return java.util.Optional.empty();
-        return java.util.Optional.of(new Skill(name, description, parsed.body(), file));
+            return Optional.empty();
+        return Optional.of(new Skill(name, description, parsed.body(), file));
     }
 
     record Parsed(Map<String, Object> frontmatter, String body) {

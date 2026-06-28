@@ -5,12 +5,32 @@ import ai.pijota.agent.SessionManager;
 import ai.pijota.agent.SystemPrompt;
 import ai.pijota.cli.Args;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.config.TrustStore;
+import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.extensions.ExtensionRuntime;
+import ai.pijota.extensions.examples.BtwExtension;
+import ai.pijota.extensions.examples.ContextFilesExtension;
+import ai.pijota.extensions.examples.CoreCommandsExtension;
+import ai.pijota.extensions.examples.FilterOutputExtension;
+import ai.pijota.extensions.examples.GoalExtension;
+import ai.pijota.extensions.examples.InlineBashExtension;
+import ai.pijota.extensions.examples.ScheduleExtension;
+import ai.pijota.extensions.examples.SecurityExtension;
+import ai.pijota.extensions.examples.TodoExtension;
+import ai.pijota.extensions.examples.TokenSpeedExtension;
+import ai.pijota.extensions.examples.WebBrowseExtension;
+import ai.pijota.extensions.examples.WhimsicalExtension;
+import ai.pijota.extensions.mcp.McpExtension;
 import ai.pijota.extensions.plan.PlanExtension;
+import ai.pijota.extensions.prompts.PromptTemplateExtension;
+import ai.pijota.extensions.skills.SkillExtension;
 import ai.pijota.extensions.task.TaskExtension;
+import ai.pijota.extensions.tmux.TmuxExtension;
+import ai.pijota.extensions.transcend.TranscendenceExtension;
 import ai.pijota.llm.LlmService;
 import ai.pijota.llm.ModelRegistry;
+import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.tools.BashTool;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.tools.WhoamiTool;
@@ -116,7 +136,7 @@ final class AppBootstrap {
             effectiveThinking = settings.config().thinkingLevel();
         }
         if (effectiveThinking != null && !effectiveThinking.isBlank()) {
-            llm.setThinkingLevel(ai.pijota.llm.ThinkingLevel.fromString(effectiveThinking));
+            llm.setThinkingLevel(ThinkingLevel.fromString(effectiveThinking));
         }
 
         var ext = new ExtensionRegistry();
@@ -132,7 +152,7 @@ final class AppBootstrap {
             ext.loadFromDirectory(Path.of(System.getProperty("user.home"), ".pi", "extensions"));
             // Project-local extensions are executable code from the cwd — only load them from a TRUSTED folder, so a
             // cloned/untrusted repo can't auto-run code on startup. Trust with /trust (takes effect next launch).
-            if (new ai.pijota.config.TrustStore().isTrusted(cwd))
+            if (new TrustStore().isTrusted(cwd))
                 ext.loadFromDirectory(Path.of(cwd, ".pi", "extensions"));
             else if (Path.of(cwd, ".pi", "extensions").toFile().isDirectory())
                 logger.info("Skipped untrusted project extensions in {}/.pi/extensions — run /trust to enable them.",
@@ -143,28 +163,28 @@ final class AppBootstrap {
         // Self-modification (on by default; --no-transcendence to disable). The extension declares itself unavailable
         // on a native image, so the registry skips it there — transcendence is JVM-only.
         if (!flagOn(flags, "no-transcendence"))
-            ext.register(new ai.pijota.extensions.transcend.TranscendenceExtension());
-        ext.register(new ai.pijota.extensions.examples.InlineBashExtension());
-        ext.register(new ai.pijota.extensions.examples.FilterOutputExtension());
-        ext.register(new ai.pijota.extensions.examples.SecurityExtension());
-        ext.register(new ai.pijota.extensions.examples.WhimsicalExtension());
-        ext.register(new ai.pijota.extensions.examples.GoalExtension());
-        ext.register(new ai.pijota.extensions.examples.ScheduleExtension());
-        ext.register(new ai.pijota.extensions.mcp.McpExtension());
+            ext.register(new TranscendenceExtension());
+        ext.register(new InlineBashExtension());
+        ext.register(new FilterOutputExtension());
+        ext.register(new SecurityExtension());
+        ext.register(new WhimsicalExtension());
+        ext.register(new GoalExtension());
+        ext.register(new ScheduleExtension());
+        ext.register(new McpExtension());
         ext.setExtensionFlags(parsedArgs.extensionFlags());
-        ext.register(new ai.pijota.extensions.examples.TodoExtension()); // opt-in (--todo); registered after flags
-        ext.register(new ai.pijota.extensions.examples.TokenSpeedExtension()); // opt-in (--token-speed)
-        ext.register(new ai.pijota.extensions.examples.WebBrowseExtension()); // opt-in (--browse)
-        ext.register(new ai.pijota.extensions.examples.BtwExtension()); // /btw side-conversation (slash commands only)
-        ext.register(new ai.pijota.extensions.tmux.TmuxExtension()); // opt-in (--tmux)
+        ext.register(new TodoExtension()); // opt-in (--todo); registered after flags
+        ext.register(new TokenSpeedExtension()); // opt-in (--token-speed)
+        ext.register(new WebBrowseExtension()); // opt-in (--browse)
+        ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
+        ext.register(new TmuxExtension()); // opt-in (--tmux)
         if (!parsedArgs.noSkills())
-            ext.register(new ai.pijota.extensions.skills.SkillExtension(parsedArgs.skillPaths()));
+            ext.register(new SkillExtension(parsedArgs.skillPaths()));
 
         if (!parsedArgs.noPromptTemplates())
-            ext.register(new ai.pijota.extensions.prompts.PromptTemplateExtension(parsedArgs.promptTemplatePaths()));
+            ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths()));
 
         if (!parsedArgs.noContextFiles() && settings.contextFilesEnabled())
-            ext.register(new ai.pijota.extensions.examples.ContextFilesExtension(cwd));
+            ext.register(new ContextFilesExtension(cwd));
 
         if (!parsedArgs.enabledTools().isEmpty())
             tools.enableOnly(parsedArgs.enabledTools());
@@ -182,7 +202,7 @@ final class AppBootstrap {
                                         contextWindow, settings.config().compaction(), settings.maxTurns());
         ext.setSessionFile(session::sessionFile);
         // Generic built-in commands (e.g. /model) usable by every frontend — registered once the session exists.
-        ext.register(new ai.pijota.extensions.examples.CoreCommandsExtension(session, settings));
+        ext.register(new CoreCommandsExtension(session, settings));
         boolean loadedSession = false;
         try {
             if (parsedArgs.sessionPath() != null) {
@@ -210,7 +230,7 @@ final class AppBootstrap {
         } catch (IOException e) {
             logger.warn("Failed to load session ({}); starting fresh", e.getMessage());
         }
-        ext.fire(new ai.pijota.extensions.ExtensionEvent.SessionStart(session.sessionFile()));
+        ext.fire(new ExtensionEvent.SessionStart(session.sessionFile()));
         if (loadedSession) {
             session.checkCacheTarget();
         } else {

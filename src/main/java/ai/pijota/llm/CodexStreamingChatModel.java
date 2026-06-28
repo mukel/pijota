@@ -22,6 +22,7 @@ import dev.langchain4j.model.output.TokenUsage;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -30,6 +31,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -211,7 +213,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         return tools;
     }
 
-    private void streamResponse(HttpResponse<java.io.InputStream> response, StreamingChatResponseHandler handler)
+    private void streamResponse(HttpResponse<InputStream> response, StreamingChatResponseHandler handler)
                                     throws IOException {
         var text = new StringBuilder();
         var toolCalls = new ArrayList<ToolExecutionRequest>();
@@ -293,8 +295,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                 return null;
             // Parse via String, not byte[]: Jackson's byte[] encoding-detection path returns null/throws under a
             // native image (Jackson is initialized at build time), whereas the char-based readTree(String) works.
-            String json = new String(java.util.Base64.getUrlDecoder().decode(padBase64(parts[1])),
-                                            java.nio.charset.StandardCharsets.UTF_8);
+            String json = new String(Base64.getUrlDecoder().decode(padBase64(parts[1])), StandardCharsets.UTF_8);
             var node = Util.MAPPER.readTree(json);
             var auth = node.get("https://api.openai.com/auth");
             return auth != null && auth.has("chatgpt_account_id") ? auth.get("chatgpt_account_id").asText() : null;

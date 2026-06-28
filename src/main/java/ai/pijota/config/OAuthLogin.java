@@ -2,17 +2,24 @@ package ai.pijota.config;
 
 import ai.pijota.util.Util;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.function.Consumer;
 
 public final class OAuthLogin {
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(3);
     private static final Duration TIMEOUT = Duration.ofMinutes(10);
+    // per-request cap so a dead/slow endpoint can't hang the login flow
+    private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(30);
 
     public record DeviceCode(String deviceCode, String userCode, String verificationUri, int expiresIn) {
     }
@@ -71,8 +78,7 @@ public final class OAuthLogin {
         String body = "client_id=" + urlEncode(clientId) + "&scope=" + urlEncode(scope);
         var request = HttpRequest.newBuilder().uri(URI.create(endpoint))
                                         .header("Content-Type", "application/x-www-form-urlencoded")
-                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30))
-                                        .build();
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(HTTP_TIMEOUT).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException("Device code request failed: HTTP " + response.statusCode() + " - "
@@ -92,8 +98,8 @@ public final class OAuthLogin {
                                             + urlEncode(clientId) + "&device_code=" + urlEncode(deviceCode);
             var request = HttpRequest.newBuilder().uri(URI.create(endpoint))
                                             .header("Content-Type", "application/x-www-form-urlencoded")
-                                            .POST(HttpRequest.BodyPublishers.ofString(body))
-                                            .timeout(Duration.ofSeconds(30)).build();
+                                            .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(HTTP_TIMEOUT)
+                                            .build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 var node = Util.MAPPER.readTree(response.body());
@@ -113,8 +119,7 @@ public final class OAuthLogin {
                                     throws Exception {
         var body = Util.MAPPER.createObjectNode().put("client_id", clientId).toString();
         var request = HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json")
-                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30))
-                                        .build();
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(HTTP_TIMEOUT).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 404) {
             throw new IOException("Device code login not enabled. Enable it in ChatGPT Settings → Security →\n"
@@ -140,8 +145,8 @@ public final class OAuthLogin {
             var body = Util.MAPPER.createObjectNode().put("device_auth_id", device.deviceCode())
                                             .put("user_code", device.userCode()).toString();
             var request = HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json")
-                                            .POST(HttpRequest.BodyPublishers.ofString(body))
-                                            .timeout(Duration.ofSeconds(30)).build();
+                                            .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(HTTP_TIMEOUT)
+                                            .build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 var node = Util.MAPPER.readTree(response.body());
@@ -170,8 +175,7 @@ public final class OAuthLogin {
                                         + urlEncode(redirectUri);
         var request = HttpRequest.newBuilder().uri(URI.create(tokenUrl))
                                         .header("Content-Type", "application/x-www-form-urlencoded")
-                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30))
-                                        .build();
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(HTTP_TIMEOUT).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException("OpenAI token exchange failed: HTTP " + response.statusCode() + " - "
@@ -194,8 +198,7 @@ public final class OAuthLogin {
                                         + urlEncode(refreshToken);
         var request = HttpRequest.newBuilder().uri(URI.create(tokenUrl))
                                         .header("Content-Type", "application/x-www-form-urlencoded")
-                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(Duration.ofSeconds(30))
-                                        .build();
+                                        .POST(HttpRequest.BodyPublishers.ofString(body)).timeout(HTTP_TIMEOUT).build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
             throw new IOException("Token refresh failed: HTTP " + response.statusCode() + " - " + response.body());
@@ -207,11 +210,11 @@ public final class OAuthLogin {
         return buildTokenResult(node);
     }
 
-    private static TokenResult buildTokenResult(com.fasterxml.jackson.databind.JsonNode node) {
+    private static TokenResult buildTokenResult(JsonNode node) {
         return buildTokenResult(node, System.currentTimeMillis());
     }
 
-    static TokenResult buildTokenResult(com.fasterxml.jackson.databind.JsonNode node, long nowMs) {
+    static TokenResult buildTokenResult(JsonNode node, long nowMs) {
         String accessToken = node.get("access_token").asText();
         String refreshToken = node.has("refresh_token") ? node.get("refresh_token").asText() : null;
         int expiresIn = node.has("expires_in") ? node.get("expires_in").asInt() : 3600;
@@ -233,8 +236,7 @@ public final class OAuthLogin {
                 return null;
             int pad = (4 - parts[1].length() % 4) % 4;
             // Parse via String, not byte[]: Jackson's byte[] path fails under a native image (build-time init).
-            String json = new String(java.util.Base64.getUrlDecoder().decode(parts[1] + "=".repeat(pad)),
-                                            java.nio.charset.StandardCharsets.UTF_8);
+            String json = new String(Base64.getUrlDecoder().decode(parts[1] + "=".repeat(pad)), StandardCharsets.UTF_8);
             var auth = Util.MAPPER.readTree(json).get("https://api.openai.com/auth");
             return auth != null && auth.has("chatgpt_account_id") ? auth.get("chatgpt_account_id").asText() : null;
         } catch (Exception e) {
@@ -243,7 +245,7 @@ public final class OAuthLogin {
     }
 
     static String urlEncode(String value) {
-        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     static String clickableLink(String url, String text) {

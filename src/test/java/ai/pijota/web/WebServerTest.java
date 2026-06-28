@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -417,12 +418,11 @@ class WebServerTest {
     void historyFrameReplaysAPriorTurnsMessages() throws Exception {
         var ts = TestSession.in(tempDir).tool(echoTool()).build();
         int port = freePort();
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), java.util.List::of,
-                                        java.util.List.of())) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of())) {
             server.start();
             ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "echo", "{\"text\":\"hi\"}")))
                                             .enqueue(FauxLlm.Response.contentWithUsage("the answer"));
-            ts.session().prompt("the question", java.util.List.of()).get(5, java.util.concurrent.TimeUnit.SECONDS);
+            ts.session().prompt("the question", List.of()).get(5, TimeUnit.SECONDS);
 
             var client = HttpClient.newHttpClient();
             var resp = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/events")).build(),
@@ -437,8 +437,7 @@ class WebServerTest {
     void toolCallEventsReachTheBrowserOverSse() throws Exception {
         var ts = TestSession.in(tempDir).tool(echoTool()).build();
         int port = freePort();
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), java.util.List::of,
-                                        java.util.List.of())) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of())) {
             server.start();
             var client = HttpClient.newHttpClient();
             String base = "http://127.0.0.1:" + port;
@@ -456,8 +455,8 @@ class WebServerTest {
     }
 
     private static Tool echoTool() {
-        return new Tool.ToolDefinition("echo", "Echoes input", java.util.Map.of(),
-                                        (id, args, cwd) -> java.util.concurrent.CompletableFuture
+        return new Tool.ToolDefinition("echo", "Echoes input", Map.of(),
+                                        (id, args, cwd) -> CompletableFuture
                                                                         .completedFuture(Tool.ToolResult.success("ok")))
                                         .toTool();
     }
@@ -534,7 +533,7 @@ class WebServerTest {
         });
         try {
             return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (java.util.concurrent.TimeoutException e) {
+        } catch (TimeoutException e) {
             return ""; // marker never arrived; caller asserts
         }
     }

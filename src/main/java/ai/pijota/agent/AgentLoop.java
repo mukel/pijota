@@ -22,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -226,9 +227,8 @@ public final class AgentLoop implements AgentContext {
 
     @FunctionalInterface
     private interface CompactionStrategy {
-        CompactionManager.CompactionResult apply(List<Message> messages,
-                                        java.util.function.Consumer<List<Message>> callback,
-                                        java.util.function.BiConsumer<String, String> partialCallback);
+        CompactionManager.CompactionResult apply(List<Message> messages, Consumer<List<Message>> callback,
+                                        BiConsumer<String, String> partialCallback);
     }
 
     private CompactionManager.CompactionResult runCompaction(String reason, CompactionStrategy strategy) {

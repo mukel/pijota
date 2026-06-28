@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -18,6 +19,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 public final class TaskTool implements Tool {
     private static final int MAX_CONCURRENCY = 4;
@@ -25,9 +28,9 @@ public final class TaskTool implements Tool {
 
     private final List<SubAgent> agents;
     private final LlmClient llm;
-    private final java.util.function.Supplier<List<String>> enabledToolNames;
-    private final java.util.function.Supplier<String> systemPrompt;
-    private final java.util.function.BiConsumer<String, String> activityHandler;
+    private final Supplier<List<String>> enabledToolNames;
+    private final Supplier<String> systemPrompt;
+    private final BiConsumer<String, String> activityHandler;
     private final FinishHandler finishedHandler;
     private final Path cwd;
 
@@ -55,9 +58,8 @@ public final class TaskTool implements Tool {
         this.agentRunner = runner;
     }
 
-    public TaskTool(List<SubAgent> agents, LlmClient llm, java.util.function.Supplier<List<String>> enabledToolNames,
-                                    java.util.function.Supplier<String> systemPrompt,
-                                    java.util.function.BiConsumer<String, String> activityHandler,
+    public TaskTool(List<SubAgent> agents, LlmClient llm, Supplier<List<String>> enabledToolNames,
+                                    Supplier<String> systemPrompt, BiConsumer<String, String> activityHandler,
                                     FinishHandler finishedHandler, Path cwd, int depth) {
         this.agents = agents;
         this.llm = llm;
@@ -605,7 +607,7 @@ public final class TaskTool implements Tool {
     }
 
     private Path createLogFile(String agentName) throws IOException {
-        String ts = java.time.LocalDateTime.now().toString().replace(":", "").substring(0, 15);
+        String ts = LocalDateTime.now().toString().replace(":", "").substring(0, 15);
         int seq = logCounter.getAndIncrement();
         return logDir().resolve("sub-" + sanitize(agentName) + "-" + ts + "-" + seq + ".log");
     }

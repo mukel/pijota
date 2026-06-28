@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -119,7 +120,7 @@ class TranscendenceToolTest {
 
     @Test
     void schemaHasActionRequired() {
-        assertTrue(new TranscendenceTool().schema().get("required") instanceof java.util.List);
+        assertTrue(new TranscendenceTool().schema().get("required") instanceof List);
     }
 
     @Test

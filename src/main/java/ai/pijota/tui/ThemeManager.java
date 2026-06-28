@@ -4,10 +4,12 @@ import ai.pijota.theme.AnsiTheme;
 import ai.pijota.util.PijotaHome;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.jar.JarFile;
 
 final class ThemeManager {
     interface Host extends TuiHost {
@@ -90,14 +92,14 @@ final class ThemeManager {
     private static List<String> builtinNames() {
         var names = new ArrayList<String>();
         try {
-            java.net.URL dir = AnsiTheme.class.getClassLoader().getResource("themes");
+            URL dir = AnsiTheme.class.getClassLoader().getResource("themes");
             if (dir != null && "jar".equals(dir.getProtocol())) {
                 String path = dir.getPath();
                 int bang = path.indexOf('!');
                 if (bang < 0)
                     return names;
                 String jarPath = path.substring(5, bang);
-                try (java.util.jar.JarFile jar = new java.util.jar.JarFile(jarPath)) {
+                try (JarFile jar = new JarFile(jarPath)) {
                     jar.stream().filter(e -> e.getName().startsWith("themes/") && e.getName().endsWith(".json"))
                                                     .map(e -> e.getName().substring(7, e.getName().length() - 5))
                                                     .sorted().forEach(names::add);

@@ -1,5 +1,6 @@
 package ai.pijota.testkit;
 
+import java.io.InputStream;
 import java.net.Authenticator;
 import java.net.CookieHandler;
 import java.net.ProxySelector;
@@ -62,7 +63,7 @@ public final class FakeHttpClient extends HttpClient {
     }
 
     /** For code that uses {@code BodyHandlers.ofInputStream()} (e.g. SSE streaming). */
-    public static FakeHttpClient ok(java.io.InputStream body) {
+    public static FakeHttpClient ok(InputStream body) {
         return new FakeHttpClient(200, body);
     }
 

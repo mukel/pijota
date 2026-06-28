@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 
 import ai.pijota.testkit.FakeHttpClient;
 
+import java.util.Map;
+
 import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -192,21 +194,21 @@ class WebfetchToolTest {
     @Test
     void executeWithNullUrlReturnsError() {
         var tool = new WebfetchTool();
-        var result = run(tool, java.util.Map.of(), "/cwd");
+        var result = run(tool, Map.of(), "/cwd");
         assertTrue(result.isError());
     }
 
     @Test
     void executeWithBlankUrlReturnsError() {
         var tool = new WebfetchTool();
-        var result = run(tool, java.util.Map.of("url", "  "), "/cwd");
+        var result = run(tool, Map.of("url", "  "), "/cwd");
         assertTrue(result.isError());
     }
 
     @Test
     void executeWithInvalidUrlReturnsError() {
         var tool = new WebfetchTool();
-        var result = run(tool, java.util.Map.of("url", "not a url"), "/cwd");
+        var result = run(tool, Map.of("url", "not a url"), "/cwd");
         assertTrue(result.isError());
     }
 
@@ -226,7 +228,7 @@ class WebfetchToolTest {
     @Test
     void executeRefusesInternalUrl() {
         var tool = new WebfetchTool();
-        var result = run(tool, java.util.Map.of("url", "http://169.254.169.254/latest/meta-data/"), "/cwd");
+        var result = run(tool, Map.of("url", "http://169.254.169.254/latest/meta-data/"), "/cwd");
         assertTrue(result.isError());
         assertTrue(result.content().toLowerCase().contains("internal"), result.content());
     }
@@ -236,7 +238,7 @@ class WebfetchToolTest {
         byte[] html = "<html><body><h1>Title</h1><p>Hello world</p></body></html>".getBytes(StandardCharsets.UTF_8);
         var tool = new WebfetchTool(FakeHttpClient.ok(html)); // canned page, no network
 
-        var result = run(tool, java.util.Map.of("url", "example.com", "format", "text"), "/cwd");
+        var result = run(tool, Map.of("url", "example.com", "format", "text"), "/cwd");
 
         assertFalse(result.isError(), result.content());
         assertTrue(result.content().contains("Hello world"), result.content());
@@ -245,7 +247,7 @@ class WebfetchToolTest {
     @Test
     void surfacesHttpErrorStatuses() {
         var tool = new WebfetchTool(FakeHttpClient.status(404, "nope".getBytes(StandardCharsets.UTF_8)));
-        var result = run(tool, java.util.Map.of("url", "example.com"), "/cwd");
+        var result = run(tool, Map.of("url", "example.com"), "/cwd");
         assertTrue(result.isError());
         assertTrue(result.content().contains("404"), result.content());
     }

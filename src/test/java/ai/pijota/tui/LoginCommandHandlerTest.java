@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -170,7 +171,7 @@ class LoginCommandHandlerTest {
     }
 
     private static final class FakeTokenStore implements LoginCommandHandler.TokenStore {
-        final Map<String, String> accessTokens = new java.util.HashMap<>();
+        final Map<String, String> accessTokens = new HashMap<>();
         String savedAccessToken;
         String savedTokenUrl;
         String savedClientId;

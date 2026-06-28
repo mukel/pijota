@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -87,8 +88,8 @@ class UtilTest {
 
     @Test
     void getIntReturnsNumberOrDefault() {
-        assertEquals(10, Util.getInt(java.util.Map.of("x", (Object) 10), "x", 0));
-        assertEquals(0, Util.getInt(java.util.Map.of(), "x", 0));
+        assertEquals(10, Util.getInt(Map.of("x", (Object) 10), "x", 0));
+        assertEquals(0, Util.getInt(Map.of(), "x", 0));
     }
 
     @Test
@@ -114,7 +115,7 @@ class UtilTest {
     @Test
     void getIntFallsBackForWrongType() {
         assertEquals(5, Util.getInt(Map.of("x", "not a number"), "x", 5));
-        var withNull = new java.util.HashMap<String, Object>();
+        var withNull = new HashMap<String, Object>();
         withNull.put("x", null);
         assertEquals(5, Util.getInt(withNull, "x", 5));
         assertEquals(5, Util.getInt(Map.of(), "x", 5));

@@ -1,5 +1,11 @@
 package ai.pijota.tui;
 
+import ai.pijota.theme.AnsiTheme;
+
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -40,7 +46,7 @@ class SelectorRegionTest {
 
     @Test
     void heightWithManyItems() {
-        var items = new java.util.ArrayList<SelectorItem>();
+        var items = new ArrayList<SelectorItem>();
         for (int i = 0; i < 20; i++)
             items.add(new CompletionItem("item" + i, "desc" + i));
         var selector = new Selector<>(items);
@@ -55,8 +61,8 @@ class SelectorRegionTest {
     void renderReturnsNoCursorWhenInactive() {
         var selector = new Selector<>(List.of());
         var region = new SelectorRegion<>(selector);
-        var out = new java.io.PrintWriter(java.io.OutputStream.nullOutputStream());
-        var theme = ai.pijota.theme.AnsiTheme.dark();
+        var out = new PrintWriter(OutputStream.nullOutputStream());
+        var theme = AnsiTheme.dark();
         var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
         assertEquals(PromptRegion.NO_CURSOR, region.render(out, 80, theme, snapshot));
     }
@@ -68,9 +74,9 @@ class SelectorRegionTest {
         selector.activate("");
         var region = new SelectorRegion<>(selector);
 
-        var sw = new java.io.StringWriter();
-        var out = new java.io.PrintWriter(sw);
-        var theme = ai.pijota.theme.AnsiTheme.dark();
+        var sw = new StringWriter();
+        var out = new PrintWriter(sw);
+        var theme = AnsiTheme.dark();
         var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
 
         region.render(out, 80, theme, snapshot);
@@ -89,9 +95,9 @@ class SelectorRegionTest {
         selector.activate("");
         var region = new SelectorRegion<>(selector);
 
-        var sw = new java.io.StringWriter();
-        var out = new java.io.PrintWriter(sw);
-        var theme = ai.pijota.theme.AnsiTheme.dark();
+        var sw = new StringWriter();
+        var out = new PrintWriter(sw);
+        var theme = AnsiTheme.dark();
         var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
 
         region.render(out, 80, theme, snapshot);
@@ -103,7 +109,7 @@ class SelectorRegionTest {
 
     @Test
     void renderWithScrollIndicators() {
-        var items = new java.util.ArrayList<SelectorItem>();
+        var items = new ArrayList<SelectorItem>();
         for (int i = 0; i < 12; i++)
             items.add(new CompletionItem("item" + i, "desc" + i));
         var selector = new Selector<>(items);
@@ -116,9 +122,9 @@ class SelectorRegionTest {
 
         assertTrue(region.height(80, snapshot) > 5);
 
-        var sw = new java.io.StringWriter();
-        var out = new java.io.PrintWriter(sw);
-        var theme = ai.pijota.theme.AnsiTheme.dark();
+        var sw = new StringWriter();
+        var out = new PrintWriter(sw);
+        var theme = AnsiTheme.dark();
         region.render(out, 80, theme, snapshot);
         out.flush();
         var rendered = sw.toString();

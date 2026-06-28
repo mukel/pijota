@@ -1,7 +1,11 @@
 package ai.pijota.tui;
 
+import ai.pijota.theme.AnsiTheme;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -32,7 +36,7 @@ class ThemeManagerTest {
 
     @Test
     void switchToBuiltinTheme() {
-        var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+        var host = new FakeHost(AnsiTheme.dark());
         var manager = new ThemeManager(host);
 
         manager.switchTo("dark");
@@ -44,7 +48,7 @@ class ThemeManagerTest {
 
     @Test
     void switchToMissingBuiltinReportsError() {
-        var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+        var host = new FakeHost(AnsiTheme.dark());
         var manager = new ThemeManager(host);
 
         manager.switchTo("definitely-missing-theme");
@@ -58,7 +62,7 @@ class ThemeManagerTest {
         var file = tmp.resolve("custom.json");
         Files.writeString(file, "{\"name\":\"custom\",\"enabled\":true,\"text\":\"#ffffff\"}");
 
-        var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+        var host = new FakeHost(AnsiTheme.dark());
         var manager = new ThemeManager(host);
 
         manager.switchToPath(file.toString());
@@ -70,7 +74,7 @@ class ThemeManagerTest {
 
     @Test
     void switchToPathMissingReportsError() {
-        var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+        var host = new FakeHost(AnsiTheme.dark());
         var manager = new ThemeManager(host);
 
         manager.switchToPath("/nonexistent/theme/file.json");
@@ -84,7 +88,7 @@ class ThemeManagerTest {
         var file = tmp.resolve("bad.json");
         Files.writeString(file, "not json");
 
-        var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+        var host = new FakeHost(AnsiTheme.dark());
         var manager = new ThemeManager(host);
 
         manager.switchToPath(file.toString());
@@ -103,7 +107,7 @@ class ThemeManagerTest {
         String previousHome = System.getProperty("user.home");
         System.setProperty("user.home", tmp.toString());
         try {
-            var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+            var host = new FakeHost(AnsiTheme.dark());
             var manager = new ThemeManager(host);
 
             var items = manager.discover();
@@ -128,7 +132,7 @@ class ThemeManagerTest {
         String previousHome = System.getProperty("user.home");
         System.setProperty("user.home", tmp.toString());
         try {
-            var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+            var host = new FakeHost(AnsiTheme.dark());
             var manager = new ThemeManager(host);
             manager.switchTo("custom");
             assertEquals("custom", host.theme.name);
@@ -147,7 +151,7 @@ class ThemeManagerTest {
         String previousDir = System.getProperty("user.dir");
         System.setProperty("user.dir", tmp.toString());
         try {
-            var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+            var host = new FakeHost(AnsiTheme.dark());
             var manager = new ThemeManager(host);
             manager.switchToPath("rel.json");
             assertEquals("rel", host.theme.name);
@@ -161,7 +165,7 @@ class ThemeManagerTest {
         String previousHome = System.getProperty("user.home");
         System.setProperty("user.home", tmp.toString());
         try {
-            var host = new FakeHost(ai.pijota.theme.AnsiTheme.dark());
+            var host = new FakeHost(AnsiTheme.dark());
             var manager = new ThemeManager(host);
             var items = manager.discover();
             var names = items.stream().map(ThemeItem::name).toList();
@@ -173,21 +177,21 @@ class ThemeManagerTest {
     }
 
     private static final class FakeHost implements ThemeManager.Host {
-        private final java.util.List<String> errors = new java.util.ArrayList<>();
-        private final java.util.List<String> statuses = new java.util.ArrayList<>();
-        private ai.pijota.theme.AnsiTheme theme;
+        private final List<String> errors = new ArrayList<>();
+        private final List<String> statuses = new ArrayList<>();
+        private AnsiTheme theme;
 
-        FakeHost(ai.pijota.theme.AnsiTheme theme) {
+        FakeHost(AnsiTheme theme) {
             this.theme = theme;
         }
 
         @Override
-        public ai.pijota.theme.AnsiTheme theme() {
+        public AnsiTheme theme() {
             return theme;
         }
 
         @Override
-        public void setTheme(ai.pijota.theme.AnsiTheme theme) {
+        public void setTheme(AnsiTheme theme) {
             this.theme = theme;
         }
 

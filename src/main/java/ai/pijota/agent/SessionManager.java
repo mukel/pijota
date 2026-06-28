@@ -11,17 +11,23 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public final class SessionManager {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SessionManager.class);
+    private static final Logger log = LoggerFactory.getLogger(SessionManager.class);
 
     private static final int SESSION_VERSION = 3;
     private final Path sessionDir;
@@ -141,8 +147,7 @@ public final class SessionManager {
     // -- Entry types --
 
     private void appendEntry(Path sessionFile, String entryId, String type,
-                                    java.util.function.Consumer<java.util.LinkedHashMap<String, Object>> fields,
-                                    boolean dsync) throws IOException {
+                                    Consumer<LinkedHashMap<String, Object>> fields, boolean dsync) throws IOException {
         lockAndWrite(sessionFile, () -> {
             String parentId = leafId != null ? leafId : findLastEntryId(sessionFile);
             var entry = new LinkedHashMap<String, Object>();
@@ -408,7 +413,7 @@ public final class SessionManager {
 
     public static List<Map<String, Object>> buildBranchPath(Map<String, Map<String, Object>> idToEntry, String leafId) {
         var path = new ArrayList<Map<String, Object>>();
-        var visited = new java.util.HashSet<String>();
+        var visited = new HashSet<String>();
         String currentId = leafId;
 
         while (currentId != null && visited.add(currentId)) {
@@ -418,7 +423,7 @@ public final class SessionManager {
             path.add(entry);
             currentId = (String) entry.get("parentId");
         }
-        java.util.Collections.reverse(path);
+        Collections.reverse(path);
         return path;
     }
 
@@ -592,7 +597,7 @@ public final class SessionManager {
     private static List<Message.Attachment> deserializeAttachments(Object raw) {
         if (!(raw instanceof List<?> list))
             return List.of();
-        var out = new java.util.ArrayList<Message.Attachment>();
+        var out = new ArrayList<Message.Attachment>();
         for (Object o : list)
             if (o instanceof Map<?, ?> m)
                 out.add(new Message.Attachment((String) m.get("mime"), (String) m.get("base64"),
@@ -607,9 +612,9 @@ public final class SessionManager {
                 entry.put("role", "user");
                 entry.put("content", u.content());
                 if (!u.attachments().isEmpty()) {
-                    var atts = new java.util.ArrayList<Map<String, Object>>();
+                    var atts = new ArrayList<Map<String, Object>>();
                     for (var a : u.attachments()) {
-                        var m = new java.util.LinkedHashMap<String, Object>();
+                        var m = new LinkedHashMap<String, Object>();
                         m.put("mime", a.mime());
                         m.put("base64", a.base64());
                         if (a.filename() != null)

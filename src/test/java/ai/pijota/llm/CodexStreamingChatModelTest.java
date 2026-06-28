@@ -3,9 +3,11 @@ package ai.pijota.llm;
 import ai.pijota.testkit.FakeHttpClient;
 import ai.pijota.util.Util;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -15,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -77,7 +80,7 @@ class CodexStreamingChatModelTest {
         // first delta is delivered, then the stream blocks; abort() must close it and end the read promptly
         var stream = new BlockingStream("data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n");
         // a minimal JWT carrying the chatgpt account id so request building succeeds without a live OAuth store
-        String payload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+        String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(
                                         "{\"https://api.openai.com/auth\":{\"chatgpt_account_id\":\"acct-test\"}}"
                                                                         .getBytes(StandardCharsets.UTF_8));
         var model = new CodexStreamingChatModel(FakeHttpClient.ok(stream), null, "h." + payload + ".s", "m",
@@ -185,7 +188,7 @@ class CodexStreamingChatModelTest {
         auth.put("chatgpt_account_id", "acc-12345");
         payload.set("https://api.openai.com/auth", auth);
         String payloadJson = Util.MAPPER.writeValueAsString(payload);
-        String body = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(payloadJson.getBytes());
+        String body = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadJson.getBytes());
         String token = "header." + body + ".sig";
         assertEquals("acc-12345", CodexStreamingChatModel.extractAccountId(token));
     }
@@ -199,7 +202,7 @@ class CodexStreamingChatModelTest {
     void extractAccountIdReturnsNullForMissingAuth() throws Exception {
         var payload = Util.MAPPER.createObjectNode();
         String payloadJson = Util.MAPPER.writeValueAsString(payload);
-        String body = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(payloadJson.getBytes());
+        String body = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadJson.getBytes());
         String token = "h." + body + ".s";
         assertNull(CodexStreamingChatModel.extractAccountId(token));
     }
@@ -209,7 +212,7 @@ class CodexStreamingChatModelTest {
         var payload = Util.MAPPER.createObjectNode();
         payload.putNull("https://api.openai.com/auth");
         String payloadJson = Util.MAPPER.writeValueAsString(payload);
-        String body = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(payloadJson.getBytes());
+        String body = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadJson.getBytes());
         String token = "h." + body + ".s";
         assertNull(CodexStreamingChatModel.extractAccountId(token));
     }
@@ -230,14 +233,13 @@ class CodexStreamingChatModelTest {
 
     @Test
     void systemPromptReturnsSystemMessage() {
-        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(SystemMessage.from("You are a bot"),
-                                        UserMessage.from("hello"));
+        var msgs = List.<ChatMessage>of(SystemMessage.from("You are a bot"), UserMessage.from("hello"));
         assertEquals("You are a bot", CodexStreamingChatModel.systemPrompt(msgs));
     }
 
     @Test
     void systemPromptDefaultsWhenNoSystemMessage() {
-        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(UserMessage.from("hello"));
+        var msgs = List.<ChatMessage>of(UserMessage.from("hello"));
         assertEquals("You are a helpful assistant.", CodexStreamingChatModel.systemPrompt(msgs));
     }
 
@@ -326,8 +328,7 @@ class CodexStreamingChatModelTest {
 
     @Test
     void inputMessagesConvertsUserAndAi() {
-        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(UserMessage.from("hello"),
-                                        AiMessage.from("response"));
+        var msgs = List.<ChatMessage>of(UserMessage.from("hello"), AiMessage.from("response"));
         var result = CodexStreamingChatModel.inputMessages(msgs);
         assertEquals(2, result.size());
         assertEquals("message", result.get(0).get("type").asText());
@@ -386,7 +387,7 @@ class CodexStreamingChatModelTest {
         var toolCalls = new ArrayList<ToolExecutionRequest>();
         var seen = new HashSet<String>();
 
-        assertThrows(java.io.IOException.class, () -> CodexStreamingChatModel.processSseLine(
+        assertThrows(IOException.class, () -> CodexStreamingChatModel.processSseLine(
                                         "{\"type\":\"response.failed\",\"error\":\"boom\"}", text, toolCalls, seen));
     }
 
@@ -404,8 +405,8 @@ class CodexStreamingChatModelTest {
 
     @Test
     void buildRequestBodySetsModelAndStream() {
-        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(UserMessage.from("hello"));
-        var request = dev.langchain4j.model.chat.request.ChatRequest.builder().messages(msgs).build();
+        var msgs = List.<ChatMessage>of(UserMessage.from("hello"));
+        var request = ChatRequest.builder().messages(msgs).build();
 
         var body = CodexStreamingChatModel.buildRequestBody(request, "gpt-4", ThinkingLevel.OFF);
         assertEquals("gpt-4", body.get("model").asText());
@@ -415,10 +416,9 @@ class CodexStreamingChatModelTest {
 
     @Test
     void buildRequestBodyIncludesToolsWhenPresent() {
-        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(UserMessage.from("hello"));
+        var msgs = List.<ChatMessage>of(UserMessage.from("hello"));
         var spec = ToolSpecification.builder().name("search").description("Search").build();
-        var request = dev.langchain4j.model.chat.request.ChatRequest.builder().messages(msgs)
-                                        .toolSpecifications(List.of(spec)).build();
+        var request = ChatRequest.builder().messages(msgs).toolSpecifications(List.of(spec)).build();
 
         var body = CodexStreamingChatModel.buildRequestBody(request, "gpt-4", ThinkingLevel.OFF);
         assertTrue(body.has("tools"));
@@ -428,8 +428,8 @@ class CodexStreamingChatModelTest {
 
     @Test
     void buildRequestBodyAddsReasoningWhenThinkingEnabled() {
-        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(UserMessage.from("hello"));
-        var request = dev.langchain4j.model.chat.request.ChatRequest.builder().messages(msgs).build();
+        var msgs = List.<ChatMessage>of(UserMessage.from("hello"));
+        var request = ChatRequest.builder().messages(msgs).build();
 
         var body = CodexStreamingChatModel.buildRequestBody(request, "gpt-4", ThinkingLevel.HIGH);
         assertTrue(body.has("reasoning"));
@@ -470,7 +470,7 @@ class CodexStreamingChatModelTest {
 
     @Test
     void inputMessagesSkipsSystemMessages() {
-        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(SystemMessage.from("system"));
+        var msgs = List.<ChatMessage>of(SystemMessage.from("system"));
         var result = CodexStreamingChatModel.inputMessages(msgs);
         assertTrue(result.isEmpty());
     }
@@ -478,7 +478,7 @@ class CodexStreamingChatModelTest {
     @Test
     void inputMessagesHandlesAiMessageWithOnlyToolCalls() {
         var call = ToolExecutionRequest.builder().id("tc1").name("search").arguments("{}").build();
-        var msgs = List.<dev.langchain4j.data.message.ChatMessage>of(AiMessage.from(List.of(call)));
+        var msgs = List.<ChatMessage>of(AiMessage.from(List.of(call)));
         var result = CodexStreamingChatModel.inputMessages(msgs);
         assertEquals(1, result.size());
         assertEquals("function_call", result.get(0).get("type").asText());

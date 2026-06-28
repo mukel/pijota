@@ -38,6 +38,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletableFuture;
@@ -151,7 +152,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     @Override
-    public void viewer(String title, java.util.function.Supplier<List<String>> source) {
+    public void viewer(String title, Supplier<List<String>> source) {
         logViewer.showLive(title, source);
         redrawPrompt();
     }
@@ -1236,7 +1237,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         var unreadable = attachments.stream().map(a -> Modality.fromMime(a.mime())).filter(m -> m != Modality.TEXT
                                         && !ModelRegistry.supports(session.llm().provider(), session.llm().model(), m))
-                                        .map(m -> m.name().toLowerCase(java.util.Locale.ROOT)).distinct().toList();
+                                        .map(m -> m.name().toLowerCase(Locale.ROOT)).distinct().toList();
         if (!unreadable.isEmpty())
             appendPlain(List.of(theme.styled("statusText", "⚠ " + session.llm().model() + " can't read "
                                             + String.join("/", unreadable) + " — sending text only")));
@@ -1754,7 +1755,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * after. Uses a dedicated thread, NOT {@code agentExecutor} (which is single-threaded) — a network-blocking start
      * must not queue behind a running turn, and we don't want it to block one either.
      */
-    private void startRemoteAsync(java.util.function.Supplier<List<String>> start) {
+    private void startRemoteAsync(Supplier<List<String>> start) {
         appendPlain(List.of(theme.styled("statusText", "starting remote control…")));
         Thread.ofPlatform().daemon().name("pijota-remote-start").start(() -> {
             appendPlain(start.get()); // appendPlain marshals to the terminal thread, so it's safe from here

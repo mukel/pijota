@@ -3,6 +3,8 @@ package ai.pijota.llm;
 import ai.pijota.config.ProviderCatalog;
 import ai.pijota.testkit.FakeHttpClient;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -83,28 +85,28 @@ class ModelRefresherTest {
 
     @Test
     void firstLongReturnsFirstWhenPresent() throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var mapper = new ObjectMapper();
         var node = mapper.readTree("{\"a\": 42, \"b\": 99}");
         assertEquals(42, ModelRefresher.firstLong(node, "a", "b", 0));
     }
 
     @Test
     void firstLongFallsBackToSecond() throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var mapper = new ObjectMapper();
         var node = mapper.readTree("{\"b\": 99}");
         assertEquals(99, ModelRefresher.firstLong(node, "a", "b", 0));
     }
 
     @Test
     void firstLongReturnsFallbackWhenBothMissing() throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var mapper = new ObjectMapper();
         var node = mapper.readTree("{}");
         assertEquals(100L, ModelRefresher.firstLong(node, "a", "b", 100));
     }
 
     @Test
     void firstLongReturnsFallbackWhenNotConvertible() throws Exception {
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var mapper = new ObjectMapper();
         var node = mapper.readTree("{\"a\": \"not-a-number\"}");
         assertEquals(100L, ModelRefresher.firstLong(node, "a", "b", 100));
     }

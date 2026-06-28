@@ -6,6 +6,7 @@ import ai.pijota.modes.SlashCommand;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class SkillExtension implements Extension {
     private final List<String> explicitPaths;
@@ -14,7 +15,7 @@ public final class SkillExtension implements Extension {
 
     public SkillExtension(List<String> explicitPaths) {
         this.explicitPaths = explicitPaths == null ? List.of() : List.copyOf(explicitPaths);
-        this.skills = new java.util.concurrent.CopyOnWriteArrayList<>();
+        this.skills = new CopyOnWriteArrayList<>();
     }
 
     @Override

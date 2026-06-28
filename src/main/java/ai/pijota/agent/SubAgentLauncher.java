@@ -6,6 +6,7 @@ import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -134,7 +135,7 @@ public final class SubAgentLauncher {
         } catch (Exception ignored) {}
         Path cwdClasses = Path.of(cwd).resolve("target/classes");
         if (Files.isDirectory(cwdClasses) && Files.exists(cwdClasses.resolve("ai/pijota/Main.class")))
-            return cwdClasses + java.io.File.pathSeparator + System.getProperty("java.class.path", "");
+            return cwdClasses + File.pathSeparator + System.getProperty("java.class.path", "");
         return ".";
     }
 }

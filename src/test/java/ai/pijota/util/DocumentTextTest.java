@@ -3,6 +3,7 @@ package ai.pijota.util;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -90,7 +91,7 @@ class DocumentTextTest {
         assertNull(DocumentText.extract("text/plain", "x.txt", null));
     }
 
-    private static final java.nio.charset.Charset UTF_8 = StandardCharsets.UTF_8;
+    private static final Charset UTF_8 = StandardCharsets.UTF_8;
 
     private static byte[] docx(String body) throws Exception {
         var bos = new ByteArrayOutputStream();

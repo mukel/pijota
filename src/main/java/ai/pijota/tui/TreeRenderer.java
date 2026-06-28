@@ -4,6 +4,7 @@ import ai.pijota.agent.SessionDescriptor;
 import ai.pijota.theme.AnsiTheme;
 import ai.pijota.util.Util;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -249,7 +250,7 @@ final class TreeRenderer {
         if (!(entry.get("timestamp") instanceof String ts))
             return null;
         try {
-            return SessionDescriptor.relativeAge(java.time.Instant.parse(ts).toEpochMilli());
+            return SessionDescriptor.relativeAge(Instant.parse(ts).toEpochMilli());
         } catch (Exception e) {
             return null;
         }

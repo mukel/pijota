@@ -7,9 +7,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.lang.reflect.Modifier;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -207,7 +211,7 @@ public class AnsiTheme {
     }
 
     private boolean isLightTheme() {
-        return name != null && name.toLowerCase(java.util.Locale.ROOT).contains("light");
+        return name != null && name.toLowerCase(Locale.ROOT).contains("light");
     }
 
     private static String blendHex(String fg, String bg, double opacity) {
@@ -221,7 +225,7 @@ public class AnsiTheme {
         int r = (int) Math.round(br + (fr - br) * a);
         int g = (int) Math.round(bgG + (fgG - bgG) * a);
         int b = (int) Math.round(bb + (fb - bb) * a);
-        return String.format(java.util.Locale.ROOT, "#%02x%02x%02x", r, g, b);
+        return String.format(Locale.ROOT, "#%02x%02x%02x", r, g, b);
     }
 
     private static String ansiHex(String raw) {
@@ -242,7 +246,7 @@ public class AnsiTheme {
         try (InputStream in = AnsiTheme.class.getClassLoader().getResourceAsStream(resource)) {
             if (in == null)
                 throw new IOException("Theme resource not found: " + resource);
-            return loadRaw(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8), resource);
+            return loadRaw(new String(in.readAllBytes(), StandardCharsets.UTF_8), resource);
         }
     }
 
@@ -420,7 +424,7 @@ public class AnsiTheme {
     private static String specToAnsi(String spec) {
         if (spec == null || spec.isBlank())
             return "";
-        var codes = new java.util.ArrayList<Integer>();
+        var codes = new ArrayList<Integer>();
         String hex = null;
         String bgHex = null;
         for (String part : spec.split(";")) {
@@ -481,7 +485,7 @@ public class AnsiTheme {
         return sb.toString();
     }
 
-    private static void appendAnsiColor(java.util.List<Integer> codes, String raw, boolean bg) {
+    private static void appendAnsiColor(List<Integer> codes, String raw, boolean bg) {
         try {
             int n = Integer.parseInt(raw);
             if (n >= 0 && n <= 255) {

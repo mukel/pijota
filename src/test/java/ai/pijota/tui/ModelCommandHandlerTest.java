@@ -2,6 +2,7 @@ package ai.pijota.tui;
 
 import ai.pijota.llm.ModelInfo;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -158,7 +159,7 @@ class ModelCommandHandlerTest {
 
     @Test
     void cycleModelRefusesWhenBusy() {
-        var captured = new java.util.ArrayList<String>();
+        var captured = new ArrayList<String>();
         var host = busyHost("openai", "gpt-4", captured);
         var handler = new ModelCommandHandler(host);
         handler.cycleModel(1);
@@ -167,7 +168,7 @@ class ModelCommandHandlerTest {
 
     @Test
     void showModelSelectorRefusesWhenBusy() {
-        var captured = new java.util.ArrayList<String>();
+        var captured = new ArrayList<String>();
         var host = busyHost("openai", "gpt-4", captured);
         var handler = new ModelCommandHandler(host);
         handler.showModelSelector();
@@ -176,7 +177,7 @@ class ModelCommandHandlerTest {
 
     @Test
     void showModelSelectorWithEmptyModelsReportsError() {
-        var captured = new java.util.ArrayList<String>();
+        var captured = new ArrayList<String>();
         var host = capturingHost("openai", "gpt-4", captured);
         var handler = new ModelCommandHandler(host);
         handler.showModelSelector(List.of());

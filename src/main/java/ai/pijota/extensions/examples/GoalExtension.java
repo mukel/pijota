@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * Codex-style goal tracking and auto-continuation. When the model is rate-limited or idled mid-task, the goal is
@@ -131,7 +132,7 @@ public final class GoalExtension implements Extension {
         state.set(latest);
     }
 
-    private void updateState(java.util.function.Function<GoalState, GoalState> transform) {
+    private void updateState(Function<GoalState, GoalState> transform) {
         GoalState previous;
         GoalState next;
         do {

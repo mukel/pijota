@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -135,7 +136,7 @@ public final class ApplyPatchTool implements Tool {
         int start = Math.min(Math.max(from, 0), list.size());
         if (sub.isEmpty())
             return start; // pure-insertion hunk: anchor at the cursor
-        int rel = java.util.Collections.indexOfSubList(list.subList(start, list.size()), sub);
+        int rel = Collections.indexOfSubList(list.subList(start, list.size()), sub);
         return rel < 0 ? -1 : rel + start;
     }
 

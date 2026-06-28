@@ -6,9 +6,16 @@ import ai.pijota.config.ProviderCatalog;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.util.Util;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.io.InputStream;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 public final class ModelRegistry {
 
@@ -19,7 +26,7 @@ public final class ModelRegistry {
     public static volatile List<ModelInfo> KNOWN_MODELS = BUILTIN_MODELS.stream().toList();
 
     public static synchronized void replaceDiscovered(List<ModelInfo> discovered) {
-        var byKey = new java.util.LinkedHashMap<String, ModelInfo>();
+        var byKey = new LinkedHashMap<String, ModelInfo>();
         for (var model : BUILTIN_MODELS) {
             byKey.put(key(model), model);
         }
@@ -69,12 +76,12 @@ public final class ModelRegistry {
     public static Optional<String> closestModel(String provider, String model) {
         if (provider == null || model == null || model.isBlank())
             return Optional.empty();
-        String lower = model.toLowerCase(java.util.Locale.ROOT);
+        String lower = model.toLowerCase(Locale.ROOT);
         int threshold = Math.max(2, model.length() / 3);
         String best = null;
         int bestDistance = Integer.MAX_VALUE;
         for (var info : forProvider(provider)) {
-            int distance = levenshtein(lower, info.id().toLowerCase(java.util.Locale.ROOT));
+            int distance = levenshtein(lower, info.id().toLowerCase(Locale.ROOT));
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = info.id();
@@ -119,15 +126,15 @@ public final class ModelRegistry {
      * modalities is treated as text-only; a model absent from the catalog returns {@code null} so callers can be
      * lenient (don't block a brand-new model).
      */
-    public static java.util.Set<Modality> inputModalities(String provider, String model) {
+    public static Set<Modality> inputModalities(String provider, String model) {
         if (model == null)
-            return java.util.EnumSet.of(Modality.TEXT);
+            return EnumSet.of(Modality.TEXT);
         var found = KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model)
                                         && (provider == null || provider.equalsIgnoreCase(m.provider()))).findFirst();
         if (found.isEmpty())
             return null;
         var mods = found.get().inputModalities();
-        return mods != null ? mods : java.util.EnumSet.of(Modality.TEXT);
+        return mods != null ? mods : EnumSet.of(Modality.TEXT);
     }
 
     /** Whether the model accepts the given modality; an unknown model (null modalities) is allowed (not blocked). */
@@ -308,7 +315,7 @@ public final class ModelRegistry {
             else if (c == '?')
                 sb.append('.');
             else
-                sb.append(java.util.regex.Pattern.quote(String.valueOf(c)));
+                sb.append(Pattern.quote(String.valueOf(c)));
         }
         return sb.toString();
     }
@@ -335,7 +342,7 @@ public final class ModelRegistry {
         return model.provider().toLowerCase() + "/" + model.id().toLowerCase();
     }
 
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private record ModelCatalog(List<ModelInfo> models) {
         public ModelCatalog {
             models = models == null ? List.of() : List.copyOf(models);

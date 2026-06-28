@@ -2,6 +2,7 @@ package ai.pijota.tools;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
@@ -175,9 +176,8 @@ class ToolManifestTest {
         }
 
         @Override
-        public java.util.concurrent.CompletableFuture<Tool.ToolResult> execute(String toolCallId, Tool.Args arguments,
-                                        String sessionCwd) {
-            return java.util.concurrent.CompletableFuture.completedFuture(Tool.ToolResult.success("ok"));
+        public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Tool.Args arguments, String sessionCwd) {
+            return CompletableFuture.completedFuture(Tool.ToolResult.success("ok"));
         }
     }
 }

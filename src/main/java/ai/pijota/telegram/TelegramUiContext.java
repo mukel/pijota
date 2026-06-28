@@ -3,6 +3,7 @@ package ai.pijota.telegram;
 import ai.pijota.extensions.UiContext;
 import ai.pijota.telegram.TelegramClient.InlineKeyboard;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +96,7 @@ public final class TelegramUiContext implements UiContext {
         if (body.isBlank())
             tg.sendMessage(chatId, title);
         else
-            tg.sendDocument(chatId, "view.txt", body.getBytes(java.nio.charset.StandardCharsets.UTF_8), title);
+            tg.sendDocument(chatId, "view.txt", body.getBytes(StandardCharsets.UTF_8), title);
     }
 
     /** Routes a button tap to whoever opened that keyboard. Returns true if it belonged to a pending choice. */

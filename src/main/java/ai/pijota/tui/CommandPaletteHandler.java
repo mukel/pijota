@@ -2,6 +2,7 @@ package ai.pijota.tui;
 
 import ai.pijota.llm.ModelInfo;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -71,7 +72,7 @@ final class CommandPaletteHandler {
     }
 
     private List<CompletionItem> items() {
-        var items = new java.util.ArrayList<CompletionItem>();
+        var items = new ArrayList<CompletionItem>();
         for (var cmd : host.commands()) {
             items.add(new CompletionItem(cmd.name(), "[cmd] " + cmd.description()));
         }

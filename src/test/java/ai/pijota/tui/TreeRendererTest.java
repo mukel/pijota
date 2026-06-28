@@ -2,6 +2,7 @@ package ai.pijota.tui;
 
 import ai.pijota.theme.AnsiTheme;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +96,7 @@ class TreeRendererTest {
     void renderShowsRelativeTimestampWhenPresent() {
         var renderer = new TreeRenderer(fakeTheme());
         var u = e("u1", null, "message", "user", "hello");
-        u.put("timestamp", java.time.Instant.now().toString());
+        u.put("timestamp", Instant.now().toString());
         var all = String.join("\n", renderer.render(List.of(u), List.of(u), "u1"));
         assertTrue(all.contains("ago") || all.contains("just now"), all);
     }

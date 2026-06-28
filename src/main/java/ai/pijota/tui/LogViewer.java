@@ -4,6 +4,7 @@ import ai.pijota.theme.AnsiTheme;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 /**
@@ -238,9 +239,9 @@ final class LogViewer {
     /** Recollects match line indices for the current query (e.g. after a live refresh), clamping the cursor. */
     private void recomputeMatches() {
         matches.clear();
-        String needle = query.toLowerCase(java.util.Locale.ROOT);
+        String needle = query.toLowerCase(Locale.ROOT);
         for (int i = 0; i < lines.size(); i++) {
-            if (lines.get(i).toLowerCase(java.util.Locale.ROOT).contains(needle))
+            if (lines.get(i).toLowerCase(Locale.ROOT).contains(needle))
                 matches.add(i);
         }
         matchPos = matches.isEmpty() ? -1 : clamp(matchPos < 0 ? 0 : matchPos, 0, matches.size() - 1);

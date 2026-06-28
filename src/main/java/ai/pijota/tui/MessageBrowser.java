@@ -3,15 +3,16 @@ package ai.pijota.tui;
 import ai.pijota.messages.Message;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 final class MessageBrowser {
     private final PromptEditor editor;
-    private final java.util.function.Supplier<List<Message.User>> userMessagesSupplier;
+    private final Supplier<List<Message.User>> userMessagesSupplier;
 
     private List<Message.User> messages = List.of();
     private int idx = -1;
 
-    MessageBrowser(PromptEditor editor, java.util.function.Supplier<List<Message.User>> userMessagesSupplier) {
+    MessageBrowser(PromptEditor editor, Supplier<List<Message.User>> userMessagesSupplier) {
         this.editor = editor;
         this.userMessagesSupplier = userMessagesSupplier;
     }

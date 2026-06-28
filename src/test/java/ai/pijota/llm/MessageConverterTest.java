@@ -2,10 +2,13 @@ package ai.pijota.llm;
 
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
+import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.AudioContent;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.PdfFileContent;
+import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.TextContent;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.message.VideoContent;
 
@@ -23,34 +26,34 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.User("hello"));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(1, result.size());
-        assertTrue(result.get(0) instanceof dev.langchain4j.data.message.UserMessage);
-        assertEquals("hello", ((dev.langchain4j.data.message.UserMessage) result.get(0)).singleText());
+        assertTrue(result.get(0) instanceof UserMessage);
+        assertEquals("hello", ((UserMessage) result.get(0)).singleText());
     }
 
     @Test
     void userImageBecomesMultipartUserMessageWhenModalityAllowed() {
         var user = new Message.User("what is this?", List.of(new Message.Attachment("image/png", "QQ==", "x.png")));
-        var result = MessageConverter.toLangChain4j(List.<Message>of(user), java.util.Set.of(Modality.IMAGE));
-        var um = (dev.langchain4j.data.message.UserMessage) result.get(0);
+        var result = MessageConverter.toLangChain4j(List.<Message>of(user), Set.of(Modality.IMAGE));
+        var um = (UserMessage) result.get(0);
         assertEquals(2, um.contents().size(), "text part + image part");
-        assertTrue(um.contents().get(0) instanceof dev.langchain4j.data.message.TextContent);
-        assertTrue(um.contents().get(1) instanceof dev.langchain4j.data.message.ImageContent);
+        assertTrue(um.contents().get(0) instanceof TextContent);
+        assertTrue(um.contents().get(1) instanceof ImageContent);
     }
 
     @Test
     void pdfBecomesPdfFileContentWhenAllowed() {
         var user = new Message.User("read this", List.of(new Message.Attachment("application/pdf", "QQ==", "d.pdf")));
-        var result = MessageConverter.toLangChain4j(List.<Message>of(user), java.util.Set.of(Modality.PDF));
-        var um = (dev.langchain4j.data.message.UserMessage) result.get(0);
-        assertTrue(um.contents().stream().anyMatch(c -> c instanceof dev.langchain4j.data.message.PdfFileContent));
+        var result = MessageConverter.toLangChain4j(List.<Message>of(user), Set.of(Modality.PDF));
+        var um = (UserMessage) result.get(0);
+        assertTrue(um.contents().stream().anyMatch(c -> c instanceof PdfFileContent));
     }
 
     @Test
     void mediaDroppedWithNoteWhenModalityNotAllowed() {
         var user = new Message.User("what is this?", List.of(new Message.Attachment("image/png", "QQ==", "x.png")));
-        var result = MessageConverter.toLangChain4j(List.<Message>of(user), java.util.Set.of(Modality.TEXT));
-        var um = (dev.langchain4j.data.message.UserMessage) result.get(0);
-        assertTrue(um.contents().stream().noneMatch(c -> c instanceof dev.langchain4j.data.message.ImageContent),
+        var result = MessageConverter.toLangChain4j(List.<Message>of(user), Set.of(Modality.TEXT));
+        var um = (UserMessage) result.get(0);
+        assertTrue(um.contents().stream().noneMatch(c -> c instanceof ImageContent),
                                         "no image sent when the model doesn't accept images");
         assertTrue(um.singleText().contains("omitted"), um.singleText());
     }
@@ -103,8 +106,8 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.System("you are a bot"));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(1, result.size());
-        assertTrue(result.get(0) instanceof dev.langchain4j.data.message.SystemMessage);
-        assertEquals("you are a bot", ((dev.langchain4j.data.message.SystemMessage) result.get(0)).text());
+        assertTrue(result.get(0) instanceof SystemMessage);
+        assertEquals("you are a bot", ((SystemMessage) result.get(0)).text());
     }
 
     @Test
@@ -112,8 +115,8 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.Assistant("response", List.of(), ""));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(1, result.size());
-        assertTrue(result.get(0) instanceof dev.langchain4j.data.message.AiMessage);
-        assertEquals("response", ((dev.langchain4j.data.message.AiMessage) result.get(0)).text());
+        assertTrue(result.get(0) instanceof AiMessage);
+        assertEquals("response", ((AiMessage) result.get(0)).text());
     }
 
     @Test
@@ -121,7 +124,7 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.Assistant("response", List.of(), "thinking..."));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(1, result.size());
-        var aiMsg = (dev.langchain4j.data.message.AiMessage) result.get(0);
+        var aiMsg = (AiMessage) result.get(0);
         assertEquals("thinking...", aiMsg.thinking());
     }
 
@@ -132,10 +135,10 @@ class MessageConverterTest {
                                         new Message.ToolResult("call-1", "read", "contents", false));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(2, result.size());
-        var aiMsg = (dev.langchain4j.data.message.AiMessage) result.get(0);
+        var aiMsg = (AiMessage) result.get(0);
         assertFalse(aiMsg.toolExecutionRequests().isEmpty());
         assertEquals("call-1", aiMsg.toolExecutionRequests().get(0).id());
-        assertTrue(result.get(1) instanceof dev.langchain4j.data.message.ToolExecutionResultMessage);
+        assertTrue(result.get(1) instanceof ToolExecutionResultMessage);
     }
 
     @Test
@@ -144,7 +147,7 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.Assistant("text", calls, ""));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(1, result.size());
-        var aiMsg = (dev.langchain4j.data.message.AiMessage) result.get(0);
+        var aiMsg = (AiMessage) result.get(0);
         assertTrue(aiMsg.toolExecutionRequests().isEmpty());
     }
 
@@ -154,7 +157,7 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.Assistant("", calls, ""),
                                         new Message.ToolResult("call-1", "read", "content", false));
         var result = MessageConverter.toLangChain4j(msgs);
-        var toolMsg = (dev.langchain4j.data.message.ToolExecutionResultMessage) result.get(1);
+        var toolMsg = (ToolExecutionResultMessage) result.get(1);
         assertEquals("call-1", toolMsg.id());
         assertEquals("read", toolMsg.toolName());
         assertEquals("content", toolMsg.text());
@@ -167,7 +170,7 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.Assistant("", calls, ""),
                                         new Message.ToolResult("call-1", "bash", "failed", true));
         var result = MessageConverter.toLangChain4j(msgs);
-        var toolMsg = (dev.langchain4j.data.message.ToolExecutionResultMessage) result.get(1);
+        var toolMsg = (ToolExecutionResultMessage) result.get(1);
         assertEquals(Boolean.TRUE, toolMsg.isError());
     }
 
@@ -176,8 +179,8 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.CompactionSummary("summarized"));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(1, result.size());
-        assertTrue(result.get(0) instanceof dev.langchain4j.data.message.UserMessage);
-        assertTrue(((dev.langchain4j.data.message.UserMessage) result.get(0)).singleText().contains("summarized"));
+        assertTrue(result.get(0) instanceof UserMessage);
+        assertTrue(((UserMessage) result.get(0)).singleText().contains("summarized"));
     }
 
     @Test
@@ -185,7 +188,7 @@ class MessageConverterTest {
         var msgs = List.<Message>of(new Message.BranchSummary("branch context"));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(1, result.size());
-        var text = ((dev.langchain4j.data.message.UserMessage) result.get(0)).singleText();
+        var text = ((UserMessage) result.get(0)).singleText();
         assertTrue(text.contains("Branch context"));
         assertTrue(text.contains("branch context"));
     }
@@ -205,7 +208,7 @@ class MessageConverterTest {
                                         new Message.ToolResult("c2", "glob", "found", false));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(3, result.size());
-        var aiMsg = (dev.langchain4j.data.message.AiMessage) result.get(0);
+        var aiMsg = (AiMessage) result.get(0);
         assertEquals(2, aiMsg.toolExecutionRequests().size());
     }
 
@@ -216,7 +219,7 @@ class MessageConverterTest {
                                         new Message.ToolResult("c1", "read", "found", false));
         var result = MessageConverter.toLangChain4j(msgs);
         assertEquals(1, result.size());
-        var aiMsg = (dev.langchain4j.data.message.AiMessage) result.get(0);
+        var aiMsg = (AiMessage) result.get(0);
         assertTrue(aiMsg.toolExecutionRequests().isEmpty());
     }
 
@@ -235,17 +238,17 @@ class MessageConverterTest {
                                         new Message.Assistant("Here is the content", List.of(), ""));
         var result = MessageConverter.toLangChain4j(msgs);
 
-        assertTrue(result.get(0) instanceof dev.langchain4j.data.message.UserMessage);
-        assertTrue(result.get(1) instanceof dev.langchain4j.data.message.AiMessage);
-        assertTrue(result.get(2) instanceof dev.langchain4j.data.message.ToolExecutionResultMessage);
-        assertTrue(result.get(3) instanceof dev.langchain4j.data.message.AiMessage);
+        assertTrue(result.get(0) instanceof UserMessage);
+        assertTrue(result.get(1) instanceof AiMessage);
+        assertTrue(result.get(2) instanceof ToolExecutionResultMessage);
+        assertTrue(result.get(3) instanceof AiMessage);
     }
 
     @Test
     void nullAssistantContentTreatedAsEmpty() {
         var msgs = List.<Message>of(new Message.Assistant(null, List.of(), ""));
         var result = MessageConverter.toLangChain4j(msgs);
-        var aiMsg = (dev.langchain4j.data.message.AiMessage) result.get(0);
+        var aiMsg = (AiMessage) result.get(0);
         assertEquals("", aiMsg.text());
     }
 }

@@ -5,6 +5,7 @@ import ai.pijota.config.ProviderCatalog;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Set;
 
 final class ToolCallIdNormalizer {
     private ToolCallIdNormalizer() {}
@@ -18,7 +19,7 @@ final class ToolCallIdNormalizer {
         };
     }
 
-    static String unique(String id, String provider, java.util.Set<String> used) {
+    static String unique(String id, String provider, Set<String> used) {
         String normalized = normalize(id, provider);
         if (used.add(normalized))
             return normalized;

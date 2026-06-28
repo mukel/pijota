@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -24,7 +27,7 @@ import java.util.function.Consumer;
  */
 public final class BiDiBackend implements BrowserBackend {
 
-    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(BiDiBackend.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BiDiBackend.class);
     private static final long DRIVER_TIMEOUT_MS = 20_000;
     private static final long CONNECT_TIMEOUT_MS = 15_000;
     private static final long CALL_TIMEOUT_MS = 30_000;

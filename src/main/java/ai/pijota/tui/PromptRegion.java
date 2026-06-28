@@ -1,9 +1,10 @@
 package ai.pijota.tui;
 
-import java.util.ArrayList;
-
 import ai.pijota.theme.AnsiTheme;
+
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 
 public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.StatusBar, PromptRegion.Completions,
                                 PromptRegion.Custom {
@@ -14,7 +15,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
     static final CursorPos NO_CURSOR = new CursorPos(-1, -1);
 
     /** Writes pre-rendered lines as a region body: each cleared to end-of-line, separated by CR/LF. */
-    static void writeLines(PrintWriter out, java.util.List<String> lines) {
+    static void writeLines(PrintWriter out, List<String> lines) {
         for (int i = 0; i < lines.size(); i++) {
             if (i > 0)
                 out.print("\r\n");
@@ -75,7 +76,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             return ctx.cursorRow() == lastRow && ctx.cursorCol() == lastLine.length();
         }
 
-        private static java.util.ArrayList<VisLine> visualLines(PromptSnapshot ctx, int width) {
+        private static ArrayList<VisLine> visualLines(PromptSnapshot ctx, int width) {
             var out = new ArrayList<VisLine>();
             int bodyWidth = Math.max(1, width - 2);
             boolean continuation = ctx.promptState() == PromptSnapshot.PromptState.CONTINUATION;

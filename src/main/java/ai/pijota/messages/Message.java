@@ -1,6 +1,8 @@
 package ai.pijota.messages;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -116,8 +118,8 @@ public sealed interface Message {
         // Map.copyOf rejects null values, but older persisted snapshots can carry one (e.g. a goal entry written as
         // {"json":null} before that key was omitted) — tolerate it so reloading those sessions doesn't throw.
         private static Map<String, Object> copyOfNullable(Map<String, Object> details) {
-            var copy = new java.util.HashMap<String, Object>(details);
-            return java.util.Collections.unmodifiableMap(copy);
+            var copy = new HashMap<String, Object>(details);
+            return Collections.unmodifiableMap(copy);
         }
     }
 }

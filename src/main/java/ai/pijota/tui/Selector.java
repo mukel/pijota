@@ -2,6 +2,7 @@ package ai.pijota.tui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 final class Selector<T extends SelectorItem> {
     static final int MAX_VISIBLE = 5;
@@ -38,7 +39,7 @@ final class Selector<T extends SelectorItem> {
         selected = visibleIndices.isEmpty() ? -1 : 0;
     }
 
-    void selectFirst(java.util.function.Predicate<T> test) {
+    void selectFirst(Predicate<T> test) {
         for (int i = 0; i < visibleIndices.size(); i++) {
             if (test.test(allItems.get(visibleIndices.get(i)))) {
                 selected = i;

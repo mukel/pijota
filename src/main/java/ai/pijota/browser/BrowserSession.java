@@ -6,6 +6,7 @@ import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -293,7 +294,7 @@ public final class BrowserSession {
         // reachable; legitimate local services go through the bash tool.
         String host;
         try {
-            host = java.net.URI.create(u).getHost();
+            host = URI.create(u).getHost();
         } catch (RuntimeException e) {
             host = null;
         }

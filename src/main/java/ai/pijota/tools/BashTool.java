@@ -7,6 +7,9 @@ import ai.pijota.util.Platform;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,10 +18,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.time.Duration;
 
 public final class BashTool implements Tool {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(BashTool.class);
+    private static final Logger log = LoggerFactory.getLogger(BashTool.class);
 
     private static final long DEFAULT_TIMEOUT_SECONDS = 120;
     private static final int MAX_OUTPUT_BYTES = 100_000;
@@ -33,8 +37,7 @@ public final class BashTool implements Tool {
     @FunctionalInterface
     interface CommandExecutor {
         ProcessRunner.Result execute(List<String> command, Path workDir, Duration timeout, int maxOutputBytes,
-                                        boolean redirectErrorStream, java.util.function.Consumer<Process> onStart)
-                                        throws IOException;
+                                        boolean redirectErrorStream, Consumer<Process> onStart) throws IOException;
     }
 
     public BashTool(String shellPath, String shellPrefix) {

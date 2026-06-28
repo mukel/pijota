@@ -14,9 +14,14 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class Util {
-    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(Util.class);
+    private static final Logger LOG = LoggerFactory.getLogger(Util.class);
     public static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule())
                                     .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
@@ -152,10 +157,10 @@ public final class Util {
         return text.replaceAll("(?s)<system-reminder>.*?</system-reminder>", "");
     }
 
-    public static java.nio.file.Path resolveSearchPath(java.nio.file.Path base, String rawPath) {
+    public static Path resolveSearchPath(Path base, String rawPath) {
         if (rawPath == null || rawPath.isBlank())
             return base.toAbsolutePath().normalize();
-        java.nio.file.Path path = java.nio.file.Path.of(rawPath);
+        Path path = Path.of(rawPath);
         return path.isAbsolute() ? path.normalize() : base.resolve(path).normalize();
     }
 
@@ -311,15 +316,15 @@ public final class Util {
     }
 
     public static String shortUuid() {
-        return java.util.UUID.randomUUID().toString().substring(0, 8);
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 
     public static String shortUuid(int len) {
-        return java.util.UUID.randomUUID().toString().replace("-", "").substring(0, Math.min(len, 32));
+        return UUID.randomUUID().toString().replace("-", "").substring(0, Math.min(len, 32));
     }
 
     /** Tool names whose {@code command} argument is a shell command (the {@code bash} tool and tmux's runner). */
-    public static final java.util.Set<String> SHELL_TOOL_NAMES = java.util.Set.of("bash", "tmux_bash");
+    public static final Set<String> SHELL_TOOL_NAMES = Set.of("bash", "tmux_bash");
 
     public static String parseBashArgs(String argsJson) {
         return parseJsonArgs(argsJson).get("command") instanceof String s ? s : null;

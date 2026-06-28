@@ -4,12 +4,15 @@ import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.config.PathDisplay;
 import ai.pijota.llm.LlmClient;
+import ai.pijota.llm.ModelRegistry;
 import ai.pijota.llm.Modality;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.tools.ToolLabels;
 import ai.pijota.util.ErrorUtil;
+import ai.pijota.util.Net;
+import ai.pijota.util.QrTerminal;
 import ai.pijota.util.Util;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -21,27 +24,29 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.net.URLDecoder;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * A tiny web frontend for a {@link PijotaSession}: the chat <em>is</em> the conversation, served as a single page. The
@@ -210,11 +215,11 @@ public final class WebServer implements AutoCloseable {
     public static List<String> accessBanner(String bindHost, int port, String token) {
         String displayHost = bindHost;
         if ("0.0.0.0".equals(bindHost)) {
-            String lan = ai.pijota.util.Net.lanAddress(); // enumerate interfaces once, not twice
+            String lan = Net.lanAddress(); // enumerate interfaces once, not twice
             displayHost = lan != null ? lan : DEFAULT_HOST;
         }
         String url = "http://" + displayHost + ":" + port + "/" + (token == null ? "" : "?t=" + token);
-        return ai.pijota.util.QrTerminal.scannable("scan to open on your phone:", url);
+        return QrTerminal.scannable("scan to open on your phone:", url);
     }
 
     @Override
@@ -473,7 +478,7 @@ public final class WebServer implements AutoCloseable {
         for (Message m : session.messages()) {
             switch (m) {
                 case Message.User u -> {
-                    var e = new java.util.LinkedHashMap<String, Object>();
+                    var e = new LinkedHashMap<String, Object>();
                     e.put("role", "user");
                     e.putAll(userEvent(nz(u.content()), u.attachments())); // include images/files so reload keeps them
                     out.add(e);
@@ -562,10 +567,10 @@ public final class WebServer implements AutoCloseable {
             return Map.of();
         // media modalities the active model accepts (excluding text), so the composer can gate uploads; an unknown
         // model (null) advertises all of them — the server still gates at send time.
-        var mods = ai.pijota.llm.ModelRegistry.inputModalities(llm.provider(), llm.model());
+        var mods = ModelRegistry.inputModalities(llm.provider(), llm.model());
         var modalities = mods == null
                                         ? List.of("image", "pdf", "audio", "video")
-                                        : mods.stream().map(m -> m.name().toLowerCase(java.util.Locale.ROOT))
+                                        : mods.stream().map(m -> m.name().toLowerCase(Locale.ROOT))
                                                                         .filter(m -> !m.equals("text")).sorted()
                                                                         .toList();
         return Map.of("model", nz(llm.provider()) + "/" + nz(llm.model()), "context", session.estimatedContextTokens(),

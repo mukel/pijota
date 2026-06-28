@@ -2,6 +2,9 @@ package ai.pijota.telegram;
 
 import ai.pijota.telegram.TelegramClient.Update;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -15,7 +18,7 @@ import java.util.function.LongPredicate;
  * is unit-testable with a fake {@link TelegramApi} and fake handlers.
  */
 public final class TelegramFrontend {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TelegramFrontend.class);
+    private static final Logger log = LoggerFactory.getLogger(TelegramFrontend.class);
     private static final int POLL_TIMEOUT_SECONDS = 30;
     private static final long ERROR_BACKOFF_MS = 2000;
 

@@ -1,6 +1,8 @@
 package ai.pijota.tui;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 public final class PromptEditor {
     public record Result(boolean changed, Optional<String> submitted, boolean exit) {
@@ -164,7 +166,7 @@ public final class PromptEditor {
     /**
      * Runs a text-mutating buffer op, recording its pre-state for undo (coalesced per {@code kind}) when it changes.
      */
-    private Result mutating(UndoStack.Kind kind, java.util.function.Supplier<PromptTextBuffer.Effect> op) {
+    private Result mutating(UndoStack.Kind kind, Supplier<PromptTextBuffer.Effect> op) {
         // Capture the pre-edit snapshot only when this edit starts a new undo step; a coalesced keystroke (the common
         // case while typing) would discard it, so we avoid the O(n) buffer copy entirely.
         var before = undoStack.beginsNewStep(kind) ? state() : null;
@@ -175,7 +177,7 @@ public final class PromptEditor {
     }
 
     /** Like {@link #mutating} but also pushes the removed text onto the kill ring (each kill is its own undo step). */
-    private Result killing(java.util.function.Supplier<PromptTextBuffer.Effect> op) {
+    private Result killing(Supplier<PromptTextBuffer.Effect> op) {
         var before = state();
         PromptTextBuffer.Effect effect = op.get();
         if (effect != PromptTextBuffer.Effect.UNCHANGED) {
@@ -411,7 +413,7 @@ public final class PromptEditor {
     }
 
     /** Seed up/down input history (e.g. from a loaded session's user messages), replacing any prior entries. */
-    public synchronized void seedHistory(java.util.List<String> entries) {
+    public synchronized void seedHistory(List<String> entries) {
         history.replaceAll(entries);
     }
 

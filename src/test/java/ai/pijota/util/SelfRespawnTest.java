@@ -9,6 +9,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -151,8 +152,8 @@ class SelfRespawnTest {
         Path jar2 = targetDir.resolve("pijota-2.jar");
         Files.writeString(jar1, "v1");
         Files.writeString(jar2, "v2");
-        Files.setLastModifiedTime(jar1, java.nio.file.attribute.FileTime.fromMillis(1000));
-        Files.setLastModifiedTime(jar2, java.nio.file.attribute.FileTime.fromMillis(2000));
+        Files.setLastModifiedTime(jar1, FileTime.fromMillis(1000));
+        Files.setLastModifiedTime(jar2, FileTime.fromMillis(2000));
 
         assertEquals(jar2, SelfRespawn.findJarIn(dir));
 

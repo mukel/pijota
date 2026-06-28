@@ -1,20 +1,24 @@
 package ai.pijota.llm;
 
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * A model in the catalog. {@code inputCostPerMTok}/{@code outputCostPerMTok} are USD per 1M tokens and may be
  * {@code null} when the rate is unknown (cost tracking then reports the spend as unpriced rather than guessing).
  */
 public record ModelInfo(String id, String provider, String displayName, long contextWindow, Double inputCostPerMTok,
-                                Double outputCostPerMTok, java.util.List<String> input) {
+                                Double outputCostPerMTok, List<String> input) {
 
     /**
      * The model's declared input modalities, or {@code null} when the catalog doesn't specify them. Unknown tokens are
      * ignored; an explicit empty list parses to an empty set (text-only).
      */
-    public java.util.Set<Modality> inputModalities() {
+    public Set<Modality> inputModalities() {
         if (input == null)
             return null;
-        var set = java.util.EnumSet.of(Modality.TEXT); // text is implicit for every model
+        var set = EnumSet.of(Modality.TEXT); // text is implicit for every model
         for (String name : input) {
             Modality m = Modality.parse(name);
             if (m != null)
