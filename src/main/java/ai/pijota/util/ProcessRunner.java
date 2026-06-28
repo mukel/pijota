@@ -19,7 +19,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public final class ProcessRunner {
+    private static final Logger log = LoggerFactory.getLogger(ProcessRunner.class);
     private static final Duration KILL_GRACE = Duration.ofMillis(300);
     private static final Duration GOBBLER_JOIN = Duration.ofMinutes(5);
 
@@ -317,7 +321,10 @@ public final class ProcessRunner {
                     out.write(stdinFeeder.get());
                     out.flush();
                 }
-            } catch (IOException ignored) {}
+            } catch (IOException e) {
+                // usually benign: the process closed stdin / exited before reading all input (broken pipe)
+                log.debug("stdin feeder stopped: {}", e.getMessage());
+            }
         });
     }
 
@@ -329,9 +336,14 @@ public final class ProcessRunner {
                 while ((line = reader.readLine()) != null) {
                     try {
                         stdoutLineHandler.accept(line);
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) {
+                        // a buggy handler must not abort streaming, but the dropped line shouldn't vanish silently
+                        log.debug("stdout line handler threw, dropping a line: {}", e.toString());
+                    }
                 }
-            } catch (IOException ignored) {}
+            } catch (IOException e) {
+                log.debug("stdout reader stopped: {}", e.getMessage());
+            }
         });
     }
 
