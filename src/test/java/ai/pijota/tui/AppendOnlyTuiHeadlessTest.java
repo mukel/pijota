@@ -215,6 +215,23 @@ class AppendOnlyTuiHeadlessTest {
     }
 
     @Test
+    void askQuestionsRendersAQuestionDialog() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        var tui = tui(ts);
+        try {
+            var q = new ai.pijota.tools.SlashCommandTool.Question("Pick one?", "Choice",
+                                            List.of(new ai.pijota.tools.SlashCommandTool.Option("A", "first"),
+                                                            new ai.pijota.tools.SlashCommandTool.Option("B", "second")),
+                                            false);
+            var future = tui.askQuestions(List.of(q));
+            assertNotNull(future, "the question dialog returns a pending answer future");
+            assertFalse(future.isDone(), "it awaits the user's selection");
+        } finally {
+            tui.close();
+        }
+    }
+
+    @Test
     void usageInfoAndNewSessionRunHeadless() throws Exception {
         var ts = TestSession.in(tempDir).build();
         ts.llm().enqueue(FauxLlm.Response.contentWithUsage("hi"));

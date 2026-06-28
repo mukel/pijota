@@ -35,7 +35,8 @@ class AppBootstrapTest {
     void variousFeatureFlagsStillProduceAWiredSession() throws Exception {
         for (String[] flags : new String[][] {{"--no-extensions"}, {"--no-skills"}, {"--no-prompt-templates"},
                 {"--no-context-files"}, {"--no-session"}, {"--append-system-prompt", "EXTRA RULES"},
-                {"--system-prompt", "CUSTOM"}, {"--tools", "read,bash"}}) {
+                {"--system-prompt", "CUSTOM"}, {"--tools", "read,bash"}, {"--continue"}, {"--recover"},
+                {"--no-transcendence"}}) {
             Path tmp = Files.createTempDirectory("bootstrap-test");
             var args = new java.util.ArrayList<>(java.util.List.of("--api-key", "sk-test"));
             args.addAll(java.util.List.of(flags));
