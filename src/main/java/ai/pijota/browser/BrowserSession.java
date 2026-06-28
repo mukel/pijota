@@ -225,8 +225,15 @@ public final class BrowserSession {
     private void dismissConsent() {
         try {
             evaluate(CONSENT_JS);
-            Thread.sleep(timings.consentMs());
+            cancellableSleep(timings.consentMs());
         } catch (Exception ignored) {}
+    }
+
+    /** Sleep up to {@code totalMs}, waking early if the session is {@link #cancelled} (close()), so a teardown mid-wait
+     *  isn't blocked. Mirrors the cancellation checks in the settle loops. */
+    private void cancellableSleep(long totalMs) throws InterruptedException {
+        for (long slept = 0; slept < totalMs && !cancelled; slept += 100)
+            Thread.sleep(Math.min(100, totalMs - slept));
     }
 
     private String fullDomHtml() throws Exception {
