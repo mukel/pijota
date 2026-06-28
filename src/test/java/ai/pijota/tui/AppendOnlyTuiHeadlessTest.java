@@ -215,6 +215,23 @@ class AppendOnlyTuiHeadlessTest {
     }
 
     @Test
+    void usageInfoAndNewSessionRunHeadless() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueue(FauxLlm.Response.contentWithUsage("hi"));
+        ts.session().prompt("q", List.of()).get(5, TimeUnit.SECONDS);
+        var tui = tui(ts);
+        try {
+            assertDoesNotThrow(() -> {
+                tui.showUsage();
+                tui.showSessionInfo();
+                tui.startNewSession();
+            });
+        } finally {
+            tui.close();
+        }
+    }
+
+    @Test
     void treeWhoamiRemoteAndUndoRenderHeadless() throws Exception {
         var ts = TestSession.in(tempDir).build();
         var tui = tui(ts);

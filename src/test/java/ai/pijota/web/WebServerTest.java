@@ -411,6 +411,21 @@ class WebServerTest {
     }
 
     @Test
+    void aSlashCommandViaPromptIsRoutedToRunCommand() throws Exception {
+        withServer((ts, client, base) -> {
+            var events = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofInputStream());
+            readUntil(events.body(), "event: history", Duration.ofSeconds(5));
+            // no commands are registered on this server, so an unknown /cmd is reported back (covers runCommand)
+            client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"/nope\"}")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            String live = readUntil(events.body(), "unknown command", Duration.ofSeconds(5));
+            assertTrue(live.contains("unknown command"), live);
+        });
+    }
+
+    @Test
     void promptDrivesTheAgentAndStoresTheAnswer() throws Exception {
         withServer((ts, client, base) -> {
             ts.llm().enqueue(FauxLlm.Response.contentWithUsage("hi from the agent"));
