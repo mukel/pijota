@@ -309,7 +309,8 @@ class AppendOnlyTuiInputLoopTest {
     void aFailingToolResultIsRendered() throws Exception {
         var failing = new Tool.ToolDefinition("boom", "always fails", java.util.Map.of(),
                                         (id, a, cwd) -> java.util.concurrent.CompletableFuture.completedFuture(
-                                                                        Tool.ToolResult.error("kaboom"))).toTool();
+                                                                        Tool.ToolResult.error("kaboom")))
+                                        .toTool();
         var ts = TestSession.in(tempDir).tool(failing).build();
         ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "boom", "{}")))
                                         .enqueue(FauxLlm.Response.contentWithUsage("recovered"));
@@ -319,8 +320,9 @@ class AppendOnlyTuiInputLoopTest {
 
     private static Tool echoTool() {
         return new Tool.ToolDefinition("echo", "Echoes input", java.util.Map.of(),
-                                        (id, args, cwd) -> java.util.concurrent.CompletableFuture.completedFuture(
-                                                                        Tool.ToolResult.success("ok"))).toTool();
+                                        (id, args, cwd) -> java.util.concurrent.CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
+                                        .toTool();
     }
 
     @Test
@@ -328,7 +330,7 @@ class AppendOnlyTuiInputLoopTest {
         // each routes handleSubmit -> TuiCommandController switch -> the tui handler; driveSession dismisses any
         // overlay (ESC) and exits (Ctrl+D). Covers the command dispatch + the session/render handlers end-to-end.
         for (String cmd : List.of("/copy", "/context", "/export", "/save x", "/clone", "/tree", "/whoami", "/info",
-                "/undo", "/logs", "/skills", "/settings", "/login", "/logout", "/remote")) {
+                                        "/undo", "/logs", "/skills", "/settings", "/login", "/logout", "/remote")) {
             var ts = TestSession.in(tempDir).build();
             assertDoesNotThrow(() -> driveSession(ts, (cmd + "\r").getBytes(StandardCharsets.UTF_8)), cmd);
         }

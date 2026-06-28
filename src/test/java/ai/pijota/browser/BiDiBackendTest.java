@@ -2,6 +2,8 @@ package ai.pijota.browser;
 
 import ai.pijota.util.Util;
 
+import java.nio.file.Path;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
@@ -74,7 +76,7 @@ class BiDiBackendTest {
 
     @Test
     void resolveDriverHonorsTheExplicitOverride() {
-        assertEquals(java.nio.file.Path.of("/opt/geckodriver"), BiDiBackends.resolveDriver("/opt/geckodriver",
+        assertEquals(Path.of("/opt/geckodriver"), BiDiBackends.resolveDriver("/opt/geckodriver",
                                         "pijota.browse.geckodriver", "PIJOTA_GECKODRIVER", "geckodriver"));
     }
 }

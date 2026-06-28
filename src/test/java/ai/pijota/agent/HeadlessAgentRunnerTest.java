@@ -75,8 +75,9 @@ class HeadlessAgentRunnerTest {
         var file = tempDir.resolve("data.txt");
         Files.writeString(file, "hi");
         var log = tempDir.resolve("logs/run.log"); // a missing parent dir must be created
-        var llm = new FauxLlm().enqueue(FauxLlm.Response.toolCall(new ToolCall("tc1", "read",
-                                        "{\"path\":\"" + file + "\"}"))).enqueue(contentWithUsage("done"));
+        var llm = new FauxLlm().enqueue(FauxLlm.Response
+                                        .toolCall(new ToolCall("tc1", "read", "{\"path\":\"" + file + "\"}")))
+                                        .enqueue(contentWithUsage("done"));
         stdio.feedInputJson(Map.of("description", "read it", "tools", List.of("read"), "cwd", tempDir.toString(),
                                         "logFile", log.toString()));
 

@@ -7,11 +7,13 @@ import ai.pijota.extensions.testkit.FakeUiContext;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
@@ -135,7 +137,7 @@ class McpExtensionTest {
 
         McpTransport.Factory factory = (cfg, cwd) -> {
             if (cfg.name().equals("bad"))
-                throw new java.io.IOException("spawn failed");
+                throw new IOException("spawn failed");
             return new FakeMcpTransport(List.of(List.of(FakeMcpTransport.tool("echo", "Echo"))),
                                             (t, a) -> FakeMcpTransport.Outcome.result("ok"));
         };
@@ -265,7 +267,7 @@ class McpExtensionTest {
         var api = new FakeExtensionAPI(runtime);
 
         // mutable config source the reload re-reads
-        var config = new java.util.concurrent.atomic.AtomicReference<List<McpServerConfig>>(
+        var config = new AtomicReference<List<McpServerConfig>>(
                                         List.of(server("a", List.of()), server("b", List.of())));
         McpTransport.Factory factory = (cfg, cwd) -> new FakeMcpTransport(
                                         List.of(List.of(FakeMcpTransport.tool("echo", "Echo"))),

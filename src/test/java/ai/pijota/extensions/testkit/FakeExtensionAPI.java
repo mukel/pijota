@@ -1,5 +1,6 @@
 package ai.pijota.extensions.testkit;
 
+import ai.pijota.extensions.DeliverAs;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.ExtensionKeybinding;
@@ -297,7 +298,7 @@ public class FakeExtensionAPI implements ExtensionAPI {
     }
 
     @Override
-    public void sendUserMessage(String content, ai.pijota.extensions.DeliverAs deliverAs) {
+    public void sendUserMessage(String content, DeliverAs deliverAs) {
         sentUserMessages.add(content + "|" + deliverAs.name());
     }
 }

@@ -66,9 +66,8 @@ public final class ModelRegistry {
             return DEFAULT_CONTEXT_WINDOW;
         return KNOWN_MODELS.stream().filter(
                                         m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model))
-                                        .findFirst()
-                                        .or(() -> byId(model))
-                                        .map(ModelInfo::contextWindow).orElse(DEFAULT_CONTEXT_WINDOW);
+                                        .findFirst().or(() -> byId(model)).map(ModelInfo::contextWindow)
+                                        .orElse(DEFAULT_CONTEXT_WINDOW);
     }
 
     /** Per-million-token USD rates for a catalog model, or {@code null} when the model's pricing is unknown. */
@@ -233,10 +232,10 @@ public final class ModelRegistry {
     }
 
     /**
-     * The known models worth offering in a picker: their provider has a usable (non-blank) API key configured, and
-     * they pass the user's {@code enabled_models} allowlist. Null settings → empty (nothing is runnable without keys).
-     * The single source of truth for every frontend's model picker — TUI, web and Telegram — so "which models can I
-     * switch to" is answered identically everywhere (key check + allowlist), not re-derived per frontend.
+     * The known models worth offering in a picker: their provider has a usable (non-blank) API key configured, and they
+     * pass the user's {@code enabled_models} allowlist. Null settings → empty (nothing is runnable without keys). The
+     * single source of truth for every frontend's model picker — TUI, web and Telegram — so "which models can I switch
+     * to" is answered identically everywhere (key check + allowlist), not re-derived per frontend.
      */
     public static List<ModelInfo> availableModels(SettingsManager settings) {
         if (settings == null)

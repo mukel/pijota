@@ -1,5 +1,8 @@
 package ai.pijota.testkit;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -59,12 +62,12 @@ public final class StdioCapture implements BeforeEachCallback, AfterEachCallback
     public void feedInputJson(Object value) {
         try {
             feedInput(JSON.writeValueAsString(value));
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("not JSON-serializable: " + value, e);
         }
     }
 
-    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     /** Everything written to {@code System.out} so far this test. */
     public String out() {

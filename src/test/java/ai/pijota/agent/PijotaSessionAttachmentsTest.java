@@ -6,6 +6,7 @@ import ai.pijota.testkit.FauxLlm;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
@@ -48,7 +49,7 @@ class PijotaSessionAttachmentsTest {
 
     @Test
     void imageIsKeptAsBinaryMedia() throws Exception {
-        var att = new Message.Attachment("image/png", b64("PNG-ish"), "x.png");
+        var att = new Message.Attachment("image/png", b64("\u0089PNG-ish"), "x.png");
         var u = runWith("look", List.of(att));
 
         assertEquals(1, u.attachments().size());
@@ -107,7 +108,7 @@ class PijotaSessionAttachmentsTest {
         assertTrue(u.attachments().isEmpty(), "a staged PDF is not also sent as base64 media");
         assertTrue(u.content().contains("web_pdf_to_markdown"), u.content());
         assertTrue(u.content().contains(".pijota/uploads"), u.content());
-        assertTrue(java.nio.file.Files.exists(tempDir.resolve(".pijota/uploads/spec.pdf")), "PDF written to disk");
+        assertTrue(Files.exists(tempDir.resolve(".pijota/uploads/spec.pdf")), "PDF written to disk");
     }
 
     @Test

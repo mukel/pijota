@@ -1,5 +1,7 @@
 package ai.pijota.extensions.mcp;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,8 +20,8 @@ class McpServerConfigTest {
 
     @Test
     void collectionsAreDefensivelyCopiedAndImmutable() {
-        var args = new java.util.ArrayList<>(List.of("a"));
-        var env = new java.util.HashMap<>(Map.of("K", "V"));
+        var args = new ArrayList<>(List.of("a"));
+        var env = new HashMap<>(Map.of("K", "V"));
         var cfg = new McpServerConfig("srv", "cmd", args, env, true);
 
         args.add("b");

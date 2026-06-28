@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,7 +14,7 @@ class SessionDescriptorTest {
 
     private static Path sessionFile(Path dir, String name, String... lines) throws Exception {
         Path p = dir.resolve(name);
-        Files.write(p, java.util.List.of(lines));
+        Files.write(p, List.of(lines));
         return p;
     }
 

@@ -1,5 +1,6 @@
 package ai.pijota.extensions;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -77,7 +78,7 @@ class ExtensionResultTest {
 
     @Test
     void messageRenderLinesIsImmutable() {
-        var mutable = new java.util.ArrayList<>(List.of("a"));
+        var mutable = new ArrayList<>(List.of("a"));
         var render = new ExtensionResult.MessageRender(mutable);
         assertThrows(UnsupportedOperationException.class, () -> render.lines().add("b"));
     }

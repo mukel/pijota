@@ -17,7 +17,8 @@ class ModelRefresherTest {
     void fetchParsesTheOpenAiDataArrayAndSkipsBlankIds() throws Exception {
         var json = "{\"data\":[{\"id\":\"gpt-x\"},{\"id\":\"gpt-y\"},{\"id\":\"\"}]}";
 
-        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("test"), "tok", null, false);
+        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("test"), "tok", null,
+                                        false);
 
         assertEquals(2, models.size(), models.toString());
         assertEquals("gpt-x", models.get(0).id());
@@ -41,8 +42,8 @@ class ModelRefresherTest {
     @Test
     void fetchThrowsOnAnHttpErrorStatus() {
         var client = FakeHttpClient.status(500, "boom");
-        assertThrows(Exception.class,
-                                        () -> ModelRefresher.fetchOpenAiCompatible(client, provider("test"), "tok", null, false));
+        assertThrows(Exception.class, () -> ModelRefresher.fetchOpenAiCompatible(client, provider("test"), "tok", null,
+                                        false));
     }
 
     @Test

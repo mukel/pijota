@@ -3,6 +3,7 @@ package ai.pijota.telegram;
 import ai.pijota.telegram.TelegramClient.InlineKeyboard;
 import ai.pijota.telegram.TelegramClient.Update;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -18,7 +19,8 @@ final class FakeTelegramApi implements TelegramApi {
     private final List<String> edits = new ArrayList<>();
     private final List<String> actions = new ArrayList<>();
     private final List<String> answeredCallbacks = new ArrayList<>();
-    private final List<InlineKeyboard> keyboards = new ArrayList<>(); // keyboard on each keyboard-bearing send/edit, in order
+    private final List<InlineKeyboard> keyboards = new ArrayList<>(); // keyboard on each keyboard-bearing send/edit, in
+                                                                      // order
     private final List<Doc> documents = new ArrayList<>();
     private final AtomicLong nextMessageId = new AtomicLong(100);
 
@@ -26,9 +28,12 @@ final class FakeTelegramApi implements TelegramApi {
     record Doc(String filename, String content, String caption) {
     }
 
-    /** Every keyboard passed to a streamed send/edit, in order — e.g. assert a Stop button appeared then was dropped. */
+    /**
+     * Every keyboard passed to a streamed send/edit, in order — e.g. assert a Stop button appeared then was dropped.
+     */
     synchronized List<InlineKeyboard> keyboards() {
-        return new ArrayList<>(keyboards); // ArrayList (not List.copyOf): the list intentionally holds nulls (no keyboard)
+        return new ArrayList<>(keyboards); // ArrayList (not List.copyOf): the list intentionally holds nulls (no
+                                           // keyboard)
     }
 
     synchronized List<Doc> documents() {
@@ -89,7 +94,7 @@ final class FakeTelegramApi implements TelegramApi {
 
     @Override
     public synchronized long sendDocument(long chatId, String filename, byte[] content, String caption) {
-        documents.add(new Doc(filename, new String(content, java.nio.charset.StandardCharsets.UTF_8), caption));
+        documents.add(new Doc(filename, new String(content, StandardCharsets.UTF_8), caption));
         return nextMessageId.getAndIncrement();
     }
 

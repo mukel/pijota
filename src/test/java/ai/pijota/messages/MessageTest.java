@@ -1,7 +1,10 @@
 package ai.pijota.messages;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
@@ -19,9 +22,9 @@ class MessageTest {
 
     @Test
     void userMessageFullConstructor() {
-        var id = java.util.UUID.randomUUID();
-        var ts = java.time.Instant.now();
-        var msg = new Message.User(id, ts, "hi", java.util.List.of());
+        var id = UUID.randomUUID();
+        var ts = Instant.now();
+        var msg = new Message.User(id, ts, "hi", List.of());
         assertEquals(id, msg.id());
         assertEquals(ts, msg.timestamp());
     }
@@ -116,8 +119,7 @@ class MessageTest {
         assertTrue(new Message.User("hi").attachments().isEmpty(), "1-arg ctor → no attachments");
         assertTrue(new Message.User("hi", null).attachments().isEmpty(), "null attachments → empty list");
 
-        var mutable = new java.util.ArrayList<Message.Attachment>(
-                                        List.of(new Message.Attachment("image/png", "QQ==", "x.png")));
+        var mutable = new ArrayList<Message.Attachment>(List.of(new Message.Attachment("image/png", "QQ==", "x.png")));
         var msg = new Message.User("look", mutable);
         mutable.clear(); // the message must keep its own copy
         assertEquals(1, msg.attachments().size());

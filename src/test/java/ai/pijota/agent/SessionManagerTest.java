@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -65,11 +66,11 @@ class SessionManagerTest {
         var messages = List.<Message>of(new Message.System("system prompt"), new Message.User("q"),
                                         new Message.Assistant("a", List.of(new ToolCall("t1", "bash",
                                                                         "{\"command\":\"ls\"}"),
-                                                        new ToolCall("t2", "read", "{}")), ""),
+                                                                        new ToolCall("t2", "read", "{}")), ""),
                                         new Message.ToolResult("t1", "bash", "boom", true), // an error result
                                         new Message.CompactionSummary("a compaction summary"),
                                         new Message.BranchSummary("a branch summary"),
-                                        new Message.Custom("note", "a side note", java.util.Map.of("silent", true)));
+                                        new Message.Custom("note", "a side note", Map.of("silent", true)));
 
         manager.saveMessages(file, messages, "/ws");
         var loaded = manager.loadMessages(file);

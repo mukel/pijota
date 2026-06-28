@@ -208,7 +208,7 @@ class AgentLoopTest {
         var llm = new FauxLlm().enqueue(FauxLlm.Response.content("hi"));
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
         var events = new ArrayList<AgentEvent>();
-        java.util.function.Consumer<AgentEvent> listener = events::add;
+        Consumer<AgentEvent> listener = events::add;
         agent.addEventListener(listener);
         agent.removeEventListener(listener);
 

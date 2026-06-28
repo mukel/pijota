@@ -206,7 +206,7 @@ class AppendOnlyTuiHeadlessTest {
                 tui.showContext();
                 tui.copyLastResponse();
                 tui.exportSession("/export");
-                tui.saveSession("/save my-chat");
+                tui.saveSession("/save " + tempDir.resolve("my-chat"));
                 tui.cloneSession();
             });
         } finally {
@@ -219,10 +219,9 @@ class AppendOnlyTuiHeadlessTest {
         var ts = TestSession.in(tempDir).build();
         var tui = tui(ts);
         try {
-            var q = new ai.pijota.tools.SlashCommandTool.Question("Pick one?", "Choice",
-                                            List.of(new ai.pijota.tools.SlashCommandTool.Option("A", "first"),
-                                                            new ai.pijota.tools.SlashCommandTool.Option("B", "second")),
-                                            false);
+            var q = new ai.pijota.tools.SlashCommandTool.Question("Pick one?", "Choice", List.of(
+                                            new ai.pijota.tools.SlashCommandTool.Option("A", "first"),
+                                            new ai.pijota.tools.SlashCommandTool.Option("B", "second")), false);
             var future = tui.askQuestions(List.of(q));
             assertNotNull(future, "the question dialog returns a pending answer future");
             assertFalse(future.isDone(), "it awaits the user's selection");

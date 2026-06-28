@@ -6,6 +6,8 @@ import ai.pijota.testkit.FauxLlm;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 
 /**
@@ -80,8 +82,8 @@ public record TestSession(PijotaSession session, FauxLlm llm, ToolRegistry tools
                 var session = new PijotaSession(llm, tools, sessionManager, extensions, systemPrompt, dir.toString(),
                                                 noSession, contextWindow, compaction, AppConfig.DEFAULT_MAX_TURNS);
                 return new TestSession(session, llm, tools, sessionManager);
-            } catch (java.io.IOException e) {
-                throw new java.io.UncheckedIOException(e);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
     }

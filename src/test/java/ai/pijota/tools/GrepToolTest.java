@@ -1,8 +1,11 @@
 package ai.pijota.tools;
 
+import ai.pijota.util.Executables;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -16,7 +19,7 @@ class GrepToolTest {
     Path tempDir;
 
     private static boolean ripgrepAvailable() {
-        return ai.pijota.util.Executables.isAvailable("rg");
+        return Executables.isAvailable("rg");
     }
 
     @Test
@@ -119,7 +122,7 @@ class GrepToolTest {
     void missingRipgrepReturnsAnActionableInstallMessage() {
         // backend throws the JVM "binary not on PATH" IOException, as the real ripgrep spawn would
         var tool = new GrepTool((p, sp, ic, lit, g, lim, to) -> {
-            throw new java.io.IOException("Cannot run program \"rg\": error=2, No such file or directory");
+            throw new IOException("Cannot run program \"rg\": error=2, No such file or directory");
         });
 
         var result = run(tool, Map.of("pattern", "x"), tempDir.toString());

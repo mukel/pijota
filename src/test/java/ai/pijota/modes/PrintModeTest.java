@@ -9,6 +9,7 @@ import ai.pijota.tools.ToolRegistry;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +50,7 @@ class PrintModeTest {
 
     @Test
     void textModeDeltasDoNotReprintCommonPrefix() {
-        var llm = new FauxLlm().enqueue(FauxLlm.Response.thinkingAndContent(java.util.List.of(), "Hello", " world"));
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.thinkingAndContent(List.of(), "Hello", " world"));
         var loop = AgentLoop.builder(llm, new ToolRegistry(), "/tmp").build();
         int code = PrintMode.run("hi", loop, Args.OutputMode.TEXT);
         assertEquals(0, code);

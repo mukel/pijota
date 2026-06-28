@@ -139,12 +139,11 @@ final class TreeRenderer {
         label.append("  ");
         label.append(theme.styled(currentTurn ? "toolLabel" : "", snippet((String) entry.get("content"), 44)));
         if (summary.toolCalls() > 0) {
-            label.append(theme.styled("statusText", "  · ")).append(theme.styled("statusText",
-                                            Util.plural(summary.toolCalls(), "tool")));
+            label.append(theme.styled("statusText", "  · ")).append(
+                                            theme.styled("statusText", Util.plural(summary.toolCalls(), "tool")));
         }
         if (summary.errors() > 0) {
-            label.append(theme.styled("toolError",
-                                            "  · " + Util.plural(summary.errors(), "error")));
+            label.append(theme.styled("toolError", "  · " + Util.plural(summary.errors(), "error")));
         }
         if (summary.compacted() > 0) {
             label.append(theme.styled("statusWarn", "  · compacted"));

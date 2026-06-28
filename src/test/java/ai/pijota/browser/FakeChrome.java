@@ -3,8 +3,10 @@ package ai.pijota.browser;
 import ai.pijota.util.Util;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,6 +17,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -77,7 +80,7 @@ public final class FakeChrome implements AutoCloseable {
                                         + "/devtools/page/T\"}";
     }
 
-    private static void reply(com.sun.net.httpserver.HttpExchange ex, String body) throws IOException {
+    private static void reply(HttpExchange ex, String body) throws IOException {
         byte[] b = body.getBytes(StandardCharsets.UTF_8);
         ex.sendResponseHeaders(200, b.length);
         try (OutputStream os = ex.getResponseBody()) {
@@ -135,7 +138,7 @@ public final class FakeChrome implements AutoCloseable {
 
     /** Reads one client message (accumulating continuation frames until FIN); returns null on close/EOF. */
     private static String readFrame(InputStream in) throws IOException {
-        var msg = new java.io.ByteArrayOutputStream();
+        var msg = new ByteArrayOutputStream();
         int firstOpcode = -1;
         while (true) {
             int b0 = in.read();
@@ -193,7 +196,7 @@ public final class FakeChrome implements AutoCloseable {
 
     // ---- CDP JSON-RPC scripting ----
 
-    private java.util.List<String> respond(String json) {
+    private List<String> respond(String json) {
         try {
             JsonNode n = Util.MAPPER.readTree(json);
             int id = n.path("id").asInt();
@@ -221,11 +224,10 @@ public final class FakeChrome implements AutoCloseable {
             // Real Chrome fires Page.loadEventFired once the navigated document finishes loading; CdpBackend.navigate
             // now blocks on it, so the fake must send it too (after the navigate reply).
             if ("Page.navigate".equals(method) && navigateError.isEmpty())
-                return java.util.List.of(replyJson,
-                                                "{\"method\":\"Page.loadEventFired\",\"params\":{\"timestamp\":0}}");
-            return java.util.List.of(replyJson);
+                return List.of(replyJson, "{\"method\":\"Page.loadEventFired\",\"params\":{\"timestamp\":0}}");
+            return List.of(replyJson);
         } catch (Exception e) {
-            return java.util.List.of();
+            return List.of();
         }
     }
 

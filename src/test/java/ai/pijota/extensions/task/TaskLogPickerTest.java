@@ -19,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Exercises the {@code /logs} flow against the real {@link TaskExtension}: discovery, the opaque
  * {@code UiContext.select} picker, and opening a log in the in-TUI {@code UiContext.viewer} (no external pager, no
- * process spawn, no terminal suspend), plus the headless static-list fallback. The sub-agent log dir is redirected
- * into a per-test {@code @TempDir} so discovery is isolated from other tests and the shared system temp dir.
+ * process spawn, no terminal suspend), plus the headless static-list fallback. The sub-agent log dir is redirected into
+ * a per-test {@code @TempDir} so discovery is isolated from other tests and the shared system temp dir.
  */
 class TaskLogPickerTest {
 

@@ -117,8 +117,8 @@ public final class MessageConverter {
         String text = u.content();
         if (!dropped.isEmpty()) {
             int total = dropped.values().stream().mapToInt(Integer::intValue).sum();
-            var notes = dropped.entrySet().stream()
-                                            .map(e -> Util.plural(e.getValue(), e.getKey().name().toLowerCase(Locale.ROOT)))
+            var notes = dropped.entrySet().stream().map(
+                                            e -> Util.plural(e.getValue(), e.getKey().name().toLowerCase(Locale.ROOT)))
                                             .toList();
             String note = "[" + String.join(" and ", notes) + " omitted — the current model can't read "
                                             + (total == 1 ? "it" : "them") + "]";

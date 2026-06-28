@@ -411,9 +411,7 @@ public final class ScheduleExtension implements Extension {
 
     private List<String> statusLine() {
         long count = jobs.values().stream().filter(j -> j.enabled).count();
-        return count == 0
-                                        ? List.of()
-                                        : List.of(Emojis.CLOCK + " " + Util.plural(count, "scheduled prompt"));
+        return count == 0 ? List.of() : List.of(Emojis.CLOCK + " " + Util.plural(count, "scheduled prompt"));
     }
 
     // ---- schedule parsing ----

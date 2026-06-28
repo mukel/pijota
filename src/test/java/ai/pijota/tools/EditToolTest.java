@@ -5,8 +5,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
@@ -130,7 +133,7 @@ class EditToolTest {
         var path = tempDir.resolve("legacy.txt");
         Files.writeString(path, "foo bar");
 
-        var args = new java.util.HashMap<String, Object>();
+        var args = new HashMap<String, Object>();
         args.put("path", path.toString());
         args.put("oldText", "foo");
         args.put("newText", "baz");
@@ -209,8 +212,8 @@ class EditToolTest {
     @Test
     void renderResultTruncatesLongDiff() {
         var tool = new EditTool();
-        var diff = java.util.stream.IntStream.range(0, 25).mapToObj(i -> (i % 2 == 0 ? "-" : "+") + i + " line")
-                                        .collect(java.util.stream.Collectors.joining("\n"));
+        var diff = IntStream.range(0, 25).mapToObj(i -> (i % 2 == 0 ? "-" : "+") + i + " line")
+                                        .collect(Collectors.joining("\n"));
         var result = Tool.ToolResult.success("ok", Map.of("diff", diff));
         var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
         assertEquals("ok", view.summary());

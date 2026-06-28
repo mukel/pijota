@@ -2,6 +2,8 @@ package ai.pijota.config;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class ProviderCatalogTest {
@@ -46,7 +48,7 @@ class ProviderCatalogTest {
     @Test
     void noDuplicateProviderIds() {
         var ids = ProviderCatalog.providers().stream().map(ProviderCatalog.Provider::id).toList();
-        var unique = new java.util.HashSet<>(ids);
+        var unique = new HashSet<>(ids);
         assertEquals(unique.size(), ids.size(), "duplicate provider ids: " + ids);
     }
 

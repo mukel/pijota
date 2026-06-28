@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -110,15 +111,15 @@ class ToolManifestTest {
     void canonicalSchemaHandlesLists() {
         @SuppressWarnings("unchecked")
         var result = (Map<String, Object>) ToolManifest
-                                        .canonicalSchema(Map.<String, Object>of("items", java.util.List.of("z", "a")));
-        assertEquals(java.util.List.of("z", "a"), result.get("items"));
+                                        .canonicalSchema(Map.<String, Object>of("items", List.of("z", "a")));
+        assertEquals(List.of("z", "a"), result.get("items"));
     }
 
     @Test
     void canonicalSchemaHandlesNestedListOfMaps() {
-        var schema = Map.<String, Object>of("list", java.util.List.of(Map.of("b", 2, "a", 1)));
+        var schema = Map.<String, Object>of("list", List.of(Map.of("b", 2, "a", 1)));
         @SuppressWarnings("unchecked")
-        var list = (java.util.List<Map<String, Object>>) ToolManifest.canonicalSchema(schema).get("list");
+        var list = (List<Map<String, Object>>) ToolManifest.canonicalSchema(schema).get("list");
         assertEquals(1, list.size());
         var keys = list.get(0).keySet().iterator();
         assertEquals("a", keys.next());

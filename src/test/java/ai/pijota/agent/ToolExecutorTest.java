@@ -6,6 +6,7 @@ import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.ExtensionRegistry;
+import ai.pijota.extensions.ExtensionResult;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
@@ -78,7 +79,7 @@ class ToolExecutorTest {
         var tools = new ToolRegistry();
         tools.register(fastTool("read"));
         var history = new MessageHistory();
-        var events = new java.util.ArrayList<AgentEvent>();
+        var events = new ArrayList<AgentEvent>();
         var executor = new ToolExecutor(tools, null, "/cwd", history, events::add, new AtomicBoolean(false));
 
         executor.execute(List.of(new ToolCall("call-1", "read", "{\"file\":\"x.txt\"}"))).get();
@@ -94,7 +95,7 @@ class ToolExecutorTest {
         var tools = new ToolRegistry();
         tools.register(fastTool("read"));
         var history = new MessageHistory();
-        var events = new java.util.ArrayList<AgentEvent>();
+        var events = new ArrayList<AgentEvent>();
         var executor = new ToolExecutor(tools, null, "/cwd", history, events::add, new AtomicBoolean(false));
 
         executor.execute(List.of(new ToolCall("call-1", "read", "{\"file\":\"x.txt\"}"))).get();
@@ -468,7 +469,7 @@ class ToolExecutorTest {
 
             @Override
             public void init(ExtensionAPI api) {
-                api.onToolCall(event -> new ai.pijota.extensions.ExtensionResult.Block(reason));
+                api.onToolCall(event -> new ExtensionResult.Block(reason));
             }
         };
     }

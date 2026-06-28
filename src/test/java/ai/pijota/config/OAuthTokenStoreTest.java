@@ -3,6 +3,7 @@ package ai.pijota.config;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -93,7 +94,7 @@ class OAuthTokenStoreTest {
         assertNull(new OAuthTokenStore(tmp.resolve("absent.json")).getAccessToken("openai"));
 
         var corrupt = tmp.resolve("corrupt.json");
-        java.nio.file.Files.writeString(corrupt, "{ this is not valid json");
+        Files.writeString(corrupt, "{ this is not valid json");
         assertDoesNotThrow(() -> new OAuthTokenStore(corrupt).getAccessToken("openai"));
     }
 }

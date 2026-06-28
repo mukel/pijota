@@ -123,7 +123,8 @@ class GlobToolTest {
         Files.createFile(tempDir.resolve("src/App.java"));
         Files.createFile(tempDir.resolve("notes.txt"));
 
-        var result = run(new GlobTool(), Map.of("pattern", "**/*.java", "path", tempDir.toString()), tempDir.toString());
+        var result = run(new GlobTool(), Map.of("pattern", "**/*.java", "path", tempDir.toString()),
+                                        tempDir.toString());
 
         assertFalse(result.isError(), result.content());
         assertTrue(result.content().contains("App.java"), result.content());
@@ -143,7 +144,8 @@ class GlobToolTest {
 
         assertFalse(result.isError());
         assertTrue(result.content().contains("top.java"), result.content());
-        assertFalse(result.content().contains("nested.java"), "a non-** pattern matches depth 1 only: " + result.content());
+        assertFalse(result.content().contains("nested.java"),
+                                        "a non-** pattern matches depth 1 only: " + result.content());
     }
 
     @Test

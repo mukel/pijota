@@ -59,7 +59,7 @@ class McpToolBridgeTest {
     @Test
     void buildsAToolDefinitionWithNamespacedName() {
         var desc = new McpToolDescriptor("echo", "Echo a string", Map.of("type", "object"));
-        Tool.ToolDefinition def = McpToolBridge.toDefinition("srv", desc, null, java.time.Duration.ofSeconds(1));
+        Tool.ToolDefinition def = McpToolBridge.toDefinition("srv", desc, null, Duration.ofSeconds(1));
         assertEquals("mcp__srv__echo", def.name());
         assertEquals("Echo a string", def.description());
     }

@@ -3,8 +3,12 @@ package ai.pijota.config;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
+
+import org.junit.jupiter.api.Assumptions;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -107,15 +111,13 @@ class AppConfigTest {
     @Test
     void saveRestrictsSettingsToOwnerOnly() throws IOException {
         // settings.json holds API keys — it (and the config dir) must not be readable by other local users.
-        var fs = java.nio.file.FileSystems.getDefault();
-        org.junit.jupiter.api.Assumptions.assumeTrue(fs.supportedFileAttributeViews().contains("posix"));
+        var fs = FileSystems.getDefault();
+        Assumptions.assumeTrue(fs.supportedFileAttributeViews().contains("posix"));
         Path dir = Files.createTempDirectory("pijota-sec");
         Path file = dir.resolve("nested").resolve("settings.json");
         new AppConfig().withApiKey("openai", "sk-secret").save(file);
-        assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions
-                                        .toString(Files.getPosixFilePermissions(file)));
-        assertEquals("rwx------", java.nio.file.attribute.PosixFilePermissions
-                                        .toString(Files.getPosixFilePermissions(file.getParent())));
+        assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(file)));
+        assertEquals("rwx------", PosixFilePermissions.toString(Files.getPosixFilePermissions(file.getParent())));
     }
 
     @Test

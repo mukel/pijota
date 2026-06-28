@@ -2,6 +2,7 @@ package ai.pijota.tools;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,7 +35,7 @@ class FileMutationQueueTest {
         var file = tmp.resolve("shared.txt");
         Files.writeString(file, "initial");
 
-        var order = new java.util.ArrayList<Integer>();
+        var order = new ArrayList<Integer>();
         var latch = new CountDownLatch(1);
 
         var t1 = new Thread(() -> {

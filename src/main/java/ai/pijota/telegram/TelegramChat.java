@@ -426,7 +426,6 @@ public final class TelegramChat implements ChatHandler {
         tg.sendMessage(chatId, "🧠 switched to " + resolved.provider() + "/" + resolved.model());
     }
 
-
     @Override
     public void onCallback(TelegramClient.CallbackQuery callback) {
         tg.answerCallback(callback.id());

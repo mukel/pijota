@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,6 +19,7 @@ import java.util.concurrent.Executor;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 
 /**
  * A canned {@link HttpClient} for unit tests: every {@code send}/{@code sendAsync} returns the configured status and
@@ -36,18 +38,19 @@ import javax.net.ssl.SSLParameters;
  * }</pre>
  */
 public final class FakeHttpClient extends HttpClient {
-    private record Resp(int status, Object body) {} // body: String (ofString) or byte[] (ofByteArray)
+    private record Resp(int status, Object body) {
+    } // body: String (ofString) or byte[] (ofByteArray)
 
-    private final java.util.List<Resp> responses; // returned in order; the last one repeats for further calls
+    private final List<Resp> responses; // returned in order; the last one repeats for further calls
     private int callIndex = 0;
     private volatile HttpRequest lastRequest;
 
-    private FakeHttpClient(java.util.List<Resp> responses) {
+    private FakeHttpClient(List<Resp> responses) {
         this.responses = responses;
     }
 
     private FakeHttpClient(int status, Object body) {
-        this(java.util.List.of(new Resp(status, body)));
+        this(List.of(new Resp(status, body)));
     }
 
     public static FakeHttpClient ok(String body) {
@@ -68,7 +71,7 @@ public final class FakeHttpClient extends HttpClient {
 
     /** Returns each body (HTTP 200) in order across successive calls; the last repeats — for poll/retry flows. */
     public static FakeHttpClient sequence(String... bodies) {
-        var list = new java.util.ArrayList<Resp>();
+        var list = new ArrayList<Resp>();
         for (String b : bodies)
             list.add(new Resp(200, b));
         return new FakeHttpClient(list);
@@ -162,7 +165,7 @@ public final class FakeHttpClient extends HttpClient {
         }
 
         @Override
-        public Optional<javax.net.ssl.SSLSession> sslSession() {
+        public Optional<SSLSession> sslSession() {
             return Optional.empty();
         }
 

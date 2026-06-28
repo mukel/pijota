@@ -9,6 +9,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class FakeUiContext implements UiContext {
 
@@ -83,7 +84,7 @@ public class FakeUiContext implements UiContext {
     }
 
     @Override
-    public void viewer(String title, java.util.function.Supplier<List<String>> source) {
+    public void viewer(String title, Supplier<List<String>> source) {
         viewer(title, source.get()); // capture the live source's current snapshot
     }
 

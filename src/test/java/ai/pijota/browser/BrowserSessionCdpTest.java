@@ -3,6 +3,7 @@ package ai.pijota.browser;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -19,7 +20,7 @@ class BrowserSessionCdpTest {
         return session(fake, () -> true);
     }
 
-    private BrowserSession session(FakeChrome fake, java.util.concurrent.Callable<Boolean> confirm) {
+    private BrowserSession session(FakeChrome fake, Callable<Boolean> confirm) {
         return new BrowserSession(fake.port(), PROFILE, null, null, confirm);
     }
 

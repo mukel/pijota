@@ -248,7 +248,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     AppendOnlyTui(PijotaSession session, AnsiTheme theme, String provider, String model,
                                     List<SlashCommand> extensionCommands, SettingsManager settings,
                                     List<SkillLoader.Skill> skills, Supplier<List<String>> extensionLinesSupplier,
-                                    List<ExtensionKeybinding> extensionKeybindings, Terminal terminal) throws IOException {
+                                    List<ExtensionKeybinding> extensionKeybindings, Terminal terminal)
+                                    throws IOException {
         this.commands = new SlashCommandRegistry(extensionCommands);
         this.promptEditor = new PromptEditor(commands);
         this.messageBrowser = new MessageBrowser(promptEditor, session::userMessages);

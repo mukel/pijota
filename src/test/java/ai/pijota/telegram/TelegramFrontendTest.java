@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongPredicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -80,7 +82,7 @@ class TelegramFrontendTest {
     }
 
     private TelegramFrontend frontend(ConcurrentHashMap<Long, RecordingChat> chats, AtomicInteger created,
-                                    java.util.function.LongPredicate allow) {
+                                    LongPredicate allow) {
         return new TelegramFrontend(new StubApi(), chatId -> {
             created.incrementAndGet();
             return chats.computeIfAbsent(chatId, id -> new RecordingChat());
@@ -168,8 +170,7 @@ class TelegramFrontendTest {
             public void onCallback(CallbackQuery callback) {}
         };
         // one batch: a broken chat's update, then a good chat's update; the good one must still be delivered
-        var batch = new java.util.concurrent.atomic.AtomicReference<List<Update>>(
-                                        List.of(textUpdate(1, 1, "boom"), textUpdate(2, 2, "ok")));
+        var batch = new AtomicReference<List<Update>>(List.of(textUpdate(1, 1, "boom"), textUpdate(2, 2, "ok")));
         TelegramApi api = new TelegramApi() {
             @Override
             public List<Update> getUpdates(long offset, int timeout) {

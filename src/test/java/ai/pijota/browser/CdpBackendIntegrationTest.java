@@ -72,7 +72,8 @@ class CdpBackendIntegrationTest {
             assertEquals("Hello DOM", backend.evaluate("document.getElementById('x').textContent").asText(),
                                             "reads the rendered DOM");
             assertEquals("T", backend.evaluate("document.title").asText());
-            assertEquals(99, backend.evaluate("window.__pijotaInit").asInt(), "the init script ran on the new document");
+            assertEquals(99, backend.evaluate("window.__pijotaInit").asInt(),
+                                            "the init script ran on the new document");
         } finally {
             backend.close();
         }

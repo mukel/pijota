@@ -26,8 +26,8 @@ public final class WebfetchTool implements Tool {
     private final HttpClient http;
 
     public WebfetchTool() {
-        this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
-                                        .connectTimeout(Duration.ofSeconds(10)).build());
+        this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(10))
+                                        .build());
     }
 
     WebfetchTool(HttpClient http) { // injectable for tests (a canned client, no network)

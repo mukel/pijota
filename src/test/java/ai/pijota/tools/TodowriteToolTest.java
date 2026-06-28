@@ -2,6 +2,7 @@ package ai.pijota.tools;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
@@ -104,7 +105,7 @@ class TodowriteToolTest {
 
     @Test
     void updateConsumerReceivesTheFullParsedList() {
-        var captured = new java.util.concurrent.atomic.AtomicReference<List<TodowriteTool.Todo>>();
+        var captured = new AtomicReference<List<TodowriteTool.Todo>>();
         var tool = new TodowriteTool(captured::set);
         run(tool, Map.of("todos", List.of(Map.of("content", "A", "status", "in_progress", "priority", "high"),
                                         Map.of("content", "B", "status", "pending", "priority", "low"))), "/cwd");

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Map;
 
 import static ai.pijota.testkit.ToolRunner.run;
@@ -116,7 +117,7 @@ class ReadToolTest {
     @Test
     void truncatesByByteLimit() throws Exception {
         var file = tempDir.resolve("bytelimit.txt");
-        var lines = new java.util.ArrayList<String>();
+        var lines = new ArrayList<String>();
         for (int i = 0; i < 40; i++)
             lines.add("x".repeat(2000));
         Files.write(file, lines);

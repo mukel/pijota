@@ -1,11 +1,15 @@
 package ai.pijota.extensions.task;
 
 import ai.pijota.testkit.FauxLlm;
+import ai.pijota.tools.Tool;
+import ai.pijota.util.Env;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.BufferedWriter;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -13,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static ai.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
@@ -34,31 +39,30 @@ class TaskToolTest {
 
     @Test
     void renderResultFormatsSingleChainAndLoggedResults() {
-        var tool = new TaskTool(List.of(ALPHA), null, List::of, () -> "", (a, l) -> {}, (a, s, t) -> {}, orchTempDir, 0);
+        var tool = new TaskTool(List.of(ALPHA), null, List::of, () -> "", (a, l) -> {}, (a, s, t) -> {}, orchTempDir,
+                                        0);
 
         // single agent with a description → summary is the description, output becomes body lines
-        var single = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha", "description",
-                                        "do the thing")), ai.pijota.tools.Tool.ToolResult.success("line A\nline B"),
-                                        orchTempDir.toString());
+        var single = tool.renderResult(new Tool.Args(Map.of("agent", "alpha", "description", "do the thing")),
+                                        Tool.ToolResult.success("line A\nline B"), orchTempDir.toString());
         assertEquals("do the thing", single.summary());
         assertFalse(single.body().isEmpty());
 
         // single agent without a description → summary derives from the output's first line
-        var noDesc = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha")),
-                                        ai.pijota.tools.Tool.ToolResult.success("first line\nsecond line"),
-                                        orchTempDir.toString());
+        var noDesc = tool.renderResult(new Tool.Args(Map.of("agent", "alpha")),
+                                        Tool.ToolResult.success("first line\nsecond line"), orchTempDir.toString());
         assertTrue(noDesc.summary().contains("first line"), noDesc.summary());
 
         // chain/parallel (has "chain") → summary is the first output line
-        var chain = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("chain", List.of())),
-                                        ai.pijota.tools.Tool.ToolResult.success("chain summary\ndetail line"),
-                                        orchTempDir.toString());
+        var chain = tool.renderResult(new Tool.Args(Map.of("chain", List.of())),
+                                        Tool.ToolResult.success("chain summary\ndetail line"), orchTempDir.toString());
         assertEquals("chain summary", chain.summary());
 
         // a result carrying logFiles → a "full output" footer line per log
-        var withLogs = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha", "description", "x")),
-                                        ai.pijota.tools.Tool.ToolResult.success("out", Map.of("logFiles",
-                                                        List.of(Map.of("path", "/tmp/sub.log", "agent", "alpha")))),
+        var withLogs = tool.renderResult(new Tool.Args(Map.of("agent", "alpha", "description", "x")),
+                                        Tool.ToolResult.success("out", Map.of("logFiles",
+                                                                        List.of(Map.of("path", "/tmp/sub.log", "agent",
+                                                                                                        "alpha")))),
                                         orchTempDir.toString());
         assertTrue(withLogs.body().stream().anyMatch(l -> l.contains("full output")), withLogs.body().toString());
     }
@@ -75,7 +79,7 @@ class TaskToolTest {
         // tmpdir/pijota-logs that the log-picker tests scan.
         System.setProperty("pijota.log.dir", orchTempDir.resolve("logs").toString());
         try {
-            var result = tool.execute("id", new ai.pijota.tools.Tool.Args(Map.of("agent", "alpha", "description", "x")),
+            var result = tool.execute("id", new Tool.Args(Map.of("agent", "alpha", "description", "x")),
                                             orchTempDir.toString()).get(45, TimeUnit.SECONDS);
             assertNotNull(result, "the real spawn path always yields a ToolResult");
         } finally {
@@ -85,8 +89,8 @@ class TaskToolTest {
 
     @Test
     void singleModeRunsTheNamedAgentAndReturnsItsOutput() {
-        var tool = toolWith(List.of(ALPHA),
-                                        (s, task, wd) -> new TaskTool.SubAgentResult(s.name(), "ran: " + task, 0, 1, 2, null, null));
+        var tool = toolWith(List.of(ALPHA), (s, task, wd) -> new TaskTool.SubAgentResult(s.name(), "ran: " + task, 0, 1,
+                                        2, null, null));
         var result = run(tool, Map.of("agent", "alpha", "description", "do it"), orchTempDir);
         assertFalse(result.isError(), result.content());
         assertTrue(result.content().contains("ran: do it"), result.content());
@@ -103,10 +107,12 @@ class TaskToolTest {
 
     @Test
     void parallelModeRunsEveryTaskAndAggregates() {
-        var tool = toolWith(List.of(ALPHA, BETA),
-                                        (s, task, wd) -> new TaskTool.SubAgentResult(s.name(), "out-" + s.name(), 0, 1, 1, null, null));
-        var result = run(tool, Map.of("tasks", List.of(Map.of("agent", "alpha", "description", "t1"),
-                                        Map.of("agent", "beta", "description", "t2"))), orchTempDir);
+        var tool = toolWith(List.of(ALPHA, BETA), (s, task, wd) -> new TaskTool.SubAgentResult(s.name(),
+                                        "out-" + s.name(), 0, 1, 1, null, null));
+        var result = run(tool, Map.of("tasks",
+                                        List.of(Map.of("agent", "alpha", "description", "t1"),
+                                                                        Map.of("agent", "beta", "description", "t2"))),
+                                        orchTempDir);
         assertFalse(result.isError(), result.content());
         assertTrue(result.content().contains("2/2 succeeded"), result.content());
         assertTrue(result.content().contains("out-alpha") && result.content().contains("out-beta"), result.content());
@@ -123,8 +129,10 @@ class TaskToolTest {
             return new TaskTool.SubAgentResult(s.name(), "ok", 0, 1, 1, null, null);
         });
 
-        var result = run(tool, Map.of("worktree", true, "tasks", List.of(Map.of("agent", "alpha", "description", "t1"),
-                                        Map.of("agent", "beta", "description", "t2"))), orchTempDir);
+        var result = run(tool, Map.of("worktree", true, "tasks",
+                                        List.of(Map.of("agent", "alpha", "description", "t1"),
+                                                                        Map.of("agent", "beta", "description", "t2"))),
+                                        orchTempDir);
 
         assertFalse(result.isError(), result.content());
         assertTrue(seenDirs.stream().anyMatch(d -> d.contains("wt-")), "agents run in per-task worktrees: " + seenDirs);
@@ -133,8 +141,8 @@ class TaskToolTest {
     @Test
     void renderResultSingleModeSummarizesFromTheDescription() {
         var tool = toolWith(List.of(), (s, t, w) -> null);
-        var result = ai.pijota.tools.Tool.ToolResult.success("output line one\noutput line two");
-        var view = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("description", "build the feature")), result,
+        var result = Tool.ToolResult.success("output line one\noutput line two");
+        var view = tool.renderResult(new Tool.Args(Map.of("description", "build the feature")), result,
                                         orchTempDir.toString());
         assertTrue(view.summary().contains("build the feature"), view.summary());
         assertFalse(view.body().isEmpty(), "the output preview lines are shown");
@@ -143,9 +151,8 @@ class TaskToolTest {
     @Test
     void renderResultMultiModeSummarizesFromTheFirstLine() {
         var tool = toolWith(List.of(), (s, t, w) -> null);
-        var result = ai.pijota.tools.Tool.ToolResult.success("Parallel: 2/2 succeeded\nalpha ok\nbeta ok");
-        var view = tool.renderResult(new ai.pijota.tools.Tool.Args(Map.of("tasks", List.of())), result,
-                                        orchTempDir.toString());
+        var result = Tool.ToolResult.success("Parallel: 2/2 succeeded\nalpha ok\nbeta ok");
+        var view = tool.renderResult(new Tool.Args(Map.of("tasks", List.of())), result, orchTempDir.toString());
         assertTrue(view.summary().contains("Parallel"), view.summary());
     }
 
@@ -156,8 +163,8 @@ class TaskToolTest {
         var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, l) -> activity.add(l),
                                         (a, ok, tok) -> finished.add(a + ":" + ok + ":" + tok), orchTempDir, 0);
         var holder = new TaskTool.SubAgentResult[1];
-        var writer = new java.io.BufferedWriter(new java.io.StringWriter());
-        var counter = new java.util.concurrent.atomic.AtomicInteger();
+        var writer = new BufferedWriter(new StringWriter());
+        var counter = new AtomicInteger();
 
         tool.handleSubAgentEvent("{\"type\":\"tool_start\",\"tool\":\"read\",\"args\":\"{\\\"path\\\":\\\"a/b.txt\\\"}\"}",
                                         "alpha", writer, "/tmp/a.log", holder, counter);
@@ -175,10 +182,9 @@ class TaskToolTest {
     void handleSubAgentEventOnMalformedLineYieldsAnErrorResult() throws Exception {
         var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, l) -> {}, (a, ok, tok) -> {}, orchTempDir, 0);
         var holder = new TaskTool.SubAgentResult[1];
-        var writer = new java.io.BufferedWriter(new java.io.StringWriter());
+        var writer = new BufferedWriter(new StringWriter());
 
-        tool.handleSubAgentEvent("this is not json", "alpha", writer, "/tmp/a.log", holder,
-                                        new java.util.concurrent.atomic.AtomicInteger());
+        tool.handleSubAgentEvent("this is not json", "alpha", writer, "/tmp/a.log", holder, new AtomicInteger());
 
         assertNotNull(holder[0], "a parse failure still produces a (failed) result, never a lost turn");
         assertEquals(1, holder[0].exitCode());
@@ -214,18 +220,22 @@ class TaskToolTest {
         var tool = toolWith(List.of(ALPHA, BETA), (s, task, wd) -> s.name().equals("beta")
                                         ? new TaskTool.SubAgentResult("beta", "", 1, 1, 0, null, "boom")
                                         : new TaskTool.SubAgentResult("alpha", "step1 done", 0, 1, 1, null, null));
-        var result = run(tool, Map.of("chain", List.of(Map.of("agent", "alpha", "description", "first"),
-                                        Map.of("agent", "beta", "description", "use {previous}"))), orchTempDir);
+        var result = run(tool, Map.of("chain",
+                                        List.of(Map.of("agent", "alpha", "description", "first"), Map.of("agent",
+                                                                        "beta", "description", "use {previous}"))),
+                                        orchTempDir);
         assertTrue(result.isError());
         assertTrue(result.content().contains("Chain stopped"), result.content());
     }
 
     @Test
     void chainModeRunsAllStepsOnSuccess() {
-        var tool = toolWith(List.of(ALPHA, BETA),
-                                        (s, task, wd) -> new TaskTool.SubAgentResult(s.name(), "done-" + s.name(), 0, 1, 1, null, null));
-        var result = run(tool, Map.of("chain", List.of(Map.of("agent", "alpha", "description", "a"),
-                                        Map.of("agent", "beta", "description", "b"))), orchTempDir);
+        var tool = toolWith(List.of(ALPHA, BETA), (s, task, wd) -> new TaskTool.SubAgentResult(s.name(),
+                                        "done-" + s.name(), 0, 1, 1, null, null));
+        var result = run(tool, Map.of("chain",
+                                        List.of(Map.of("agent", "alpha", "description", "a"),
+                                                                        Map.of("agent", "beta", "description", "b"))),
+                                        orchTempDir);
         assertFalse(result.isError(), result.content());
         assertTrue(result.content().contains("done-beta"), "the final step's output is returned: " + result.content());
     }
@@ -245,13 +255,13 @@ class TaskToolTest {
 
     @Test
     void subAgentModelPrefersPerAgentOverride() {
-        var sub = new SubAgent("a", "d", "p", java.util.List.of(), "claude-haiku-4-5", "builtin");
+        var sub = new SubAgent("a", "d", "p", List.of(), "claude-haiku-4-5", "builtin");
         assertEquals("claude-haiku-4-5", TaskTool.subAgentModel(sub));
     }
 
     @Test
     void subAgentModelFallsBackToGlobalRoutingProperty() {
-        var sub = new SubAgent("a", "d", "p", java.util.List.of(), null, "builtin");
+        var sub = new SubAgent("a", "d", "p", List.of(), null, "builtin");
         String prev = System.getProperty("pijota.subagent.model");
         System.setProperty("pijota.subagent.model", "gpt-5.4-mini");
         try {
@@ -266,9 +276,9 @@ class TaskToolTest {
 
     @Test
     void subAgentModelNullInheritsParent() {
-        var sub = new SubAgent("a", "d", "p", java.util.List.of(), null, "builtin");
+        var sub = new SubAgent("a", "d", "p", List.of(), null, "builtin");
         // No per-agent override and no routing property set → inherit parent (null).
-        if (ai.pijota.util.Env.get("pijota.subagent.model", "PIJOTA_SUBAGENT_MODEL") == null)
+        if (Env.get("pijota.subagent.model", "PIJOTA_SUBAGENT_MODEL") == null)
             assertNull(TaskTool.subAgentModel(sub));
     }
 
@@ -339,9 +349,9 @@ class TaskToolTest {
 
     @Test
     void fileExtractsBasenameAcrossKeyAliasesOrDefaultsToDot() {
-        assertEquals("z.txt", TaskTool.file(java.util.Map.of("path", "x/y/z.txt")));
-        assertEquals("f.java", TaskTool.file(java.util.Map.of("file_path", "a/f.java")));
-        assertEquals(".", TaskTool.file(java.util.Map.of()));
+        assertEquals("z.txt", TaskTool.file(Map.of("path", "x/y/z.txt")));
+        assertEquals("f.java", TaskTool.file(Map.of("file_path", "a/f.java")));
+        assertEquals(".", TaskTool.file(Map.of()));
     }
 
     @Test
@@ -358,7 +368,7 @@ class TaskToolTest {
     void detailsForResultsSummarizesModeCountsAndLogs() {
         var ok = new TaskTool.SubAgentResult("alpha", "out", 0, 1, 2, "/tmp/alpha.log", null);
         var bad = new TaskTool.SubAgentResult("beta", "", 1, 1, 0, null, "boom");
-        var details = TaskTool.detailsForResults("parallel", java.util.List.of(ok, bad));
+        var details = TaskTool.detailsForResults("parallel", List.of(ok, bad));
         assertEquals("parallel", details.get("mode"));
         assertEquals(2, details.get("resultCount"));
         assertEquals(1L, details.get("succeeded"));

@@ -2,8 +2,12 @@ package ai.pijota.config;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
+
+import org.junit.jupiter.api.Assumptions;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -89,11 +93,10 @@ class TrustStoreTest {
 
     @Test
     void persistedStoreFileIsOwnerOnly() throws Exception {
-        var fs = java.nio.file.FileSystems.getDefault();
-        org.junit.jupiter.api.Assumptions.assumeTrue(fs.supportedFileAttributeViews().contains("posix"));
+        var fs = FileSystems.getDefault();
+        Assumptions.assumeTrue(fs.supportedFileAttributeViews().contains("posix"));
         Path file = tempStore();
         new TrustStore(file).trust("/home/u/proj");
-        assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions
-                                        .toString(Files.getPosixFilePermissions(file)));
+        assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(file)));
     }
 }

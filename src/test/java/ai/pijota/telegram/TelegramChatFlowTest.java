@@ -70,7 +70,8 @@ class TelegramChatFlowTest {
     void nameSetsThenShowsTheConversationName() {
         var c = newChat();
         c.chat().onText("/name my project chat");
-        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("my project chat")), c.api().allText().toString());
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("my project chat")),
+                                        c.api().allText().toString());
 
         var c2 = newChat();
         c2.chat().onText("/name");
@@ -108,7 +109,8 @@ class TelegramChatFlowTest {
         Await.until(() -> !c.session().session().isBusy(), Duration.ofSeconds(5), "turn finished");
 
         c.chat().onText("/undo");
-        assertTrue(c.api().allText().stream().anyMatch(t -> t.toLowerCase().contains("undone")), c.api().allText().toString());
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.toLowerCase().contains("undone")),
+                                        c.api().allText().toString());
     }
 
     @Test
@@ -288,7 +290,8 @@ class TelegramChatFlowTest {
         var kbs = c.api().keyboards();
         assertTrue(kbs.stream().anyMatch(k -> k != null), "a Stop button is shown while streaming");
         assertNull(kbs.get(kbs.size() - 1), "the Stop button is dropped once the turn finalizes");
-        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("tok")), "a usage footer is appended at the end");
+        assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("tok")),
+                                        "a usage footer is appended at the end");
     }
 
     @Test
@@ -332,7 +335,8 @@ class TelegramChatFlowTest {
         c.chat().onDocument(new TelegramClient.TgFile("fid", "notes.txt", "text/plain", 4), "read this");
 
         assertTrue(c.api().sent().stream().anyMatch(s -> s.contains("Busy")), c.api().sent().toString());
-        assertEquals(before, c.session().session().userMessages().size(), "no new turn was started over the running one");
+        assertEquals(before, c.session().session().userMessages().size(),
+                                        "no new turn was started over the running one");
         c.session().session().abort();
     }
 
@@ -348,14 +352,16 @@ class TelegramChatFlowTest {
 
         Await.until(() -> api.allText().stream().anyMatch(t -> t.contains("all done")), Duration.ofSeconds(5),
                                         "the turn never finished");
-        assertTrue(api.allText().stream().anyMatch(t -> t.contains("echo")), "a running-tool hint is shown: " + api.allText());
+        assertTrue(api.allText().stream().anyMatch(t -> t.contains("echo")),
+                                        "a running-tool hint is shown: " + api.allText());
         assertTrue(api.keyboards().stream().anyMatch(k -> k != null), "the tool hint carries a Stop button");
     }
 
     private static Tool echoTool() {
         return new Tool.ToolDefinition("echo", "Echoes input text", Map.of(),
-                                        (id, args, cwd) -> CompletableFuture.completedFuture(
-                                                                        Tool.ToolResult.success("ok"))).toTool();
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
+                                        .toTool();
     }
 
     @Test

@@ -27,8 +27,9 @@ class GoalExtensionTest {
 
         fake.slashCommand("goal").handler().accept(""); // /goal with no args → showGoal
 
-        assertTrue(fake.sentMessages().stream().anyMatch(m -> m.content() != null
-                                        && m.content().contains("ship the feature")), fake.sentMessages().toString());
+        assertTrue(fake.sentMessages().stream()
+                                        .anyMatch(m -> m.content() != null && m.content().contains("ship the feature")),
+                                        fake.sentMessages().toString());
     }
 
     @Test

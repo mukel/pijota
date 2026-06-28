@@ -2,13 +2,19 @@ package ai.pijota;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import ai.pijota.agent.SessionManager;
 import ai.pijota.cli.Args;
 import ai.pijota.cli.ArgParser;
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.llm.ThinkingLevel;
+import ai.pijota.messages.Message;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -38,11 +44,11 @@ class AppBootstrapTest {
                 {"--system-prompt", "CUSTOM"}, {"--tools", "read,bash"}, {"--continue"}, {"--recover"},
                 {"--no-transcendence"}}) {
             Path tmp = Files.createTempDirectory("bootstrap-test");
-            var args = new java.util.ArrayList<>(java.util.List.of("--api-key", "sk-test"));
-            args.addAll(java.util.List.of(flags));
+            var args = new ArrayList<>(List.of("--api-key", "sk-test"));
+            args.addAll(List.of(flags));
             var result = AppBootstrap.bootstrap(ArgParser.parse(args.toArray(new String[0])),
                                             settings(tmp, Map.of(), "gpt-5.5"));
-            assertNotNull(result.session(), "session wired for flags " + java.util.Arrays.toString(flags));
+            assertNotNull(result.session(), "session wired for flags " + Arrays.toString(flags));
             assertNotNull(result.extensions());
             assertNotNull(result.llm());
         }
@@ -61,19 +67,18 @@ class AppBootstrapTest {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         // pre-create a session for the current cwd in the session dir, so --continue resolves + loads it
-        var sm = new ai.pijota.agent.SessionManager(settings.sessionDir());
+        var sm = new SessionManager(settings.sessionDir());
         String cwd = System.getProperty("user.dir");
         var file = sm.createSession(cwd);
-        sm.saveMessages(file, java.util.List.of(new ai.pijota.messages.Message.User("a prior question"),
-                                        new ai.pijota.messages.Message.Assistant("a prior answer", java.util.List.of(),
-                                                                        "")),
-                                        cwd);
+        sm.saveMessages(file, List.of(new Message.User("a prior question"),
+                                        new Message.Assistant("a prior answer", List.of(), "")), cwd);
 
         var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--continue", "--api-key", "sk-test"}),
                                         settings);
 
-        assertTrue(result.session().messages().stream().anyMatch(m -> m instanceof ai.pijota.messages.Message.User u
-                                        && u.content().contains("a prior question")), "the prior session is continued");
+        assertTrue(result.session().messages().stream().anyMatch(
+                                        m -> m instanceof Message.User u && u.content().contains("a prior question")),
+                                        "the prior session is continued");
     }
 
     @Test
@@ -169,7 +174,7 @@ class AppBootstrapTest {
 
         var result = AppBootstrap.bootstrap(args, settings);
 
-        assertEquals(ai.pijota.llm.ThinkingLevel.LOW, result.llm().thinkingLevel());
+        assertEquals(ThinkingLevel.LOW, result.llm().thinkingLevel());
     }
 
     @Test
@@ -182,6 +187,6 @@ class AppBootstrapTest {
 
         var result = AppBootstrap.bootstrap(args, settings);
 
-        assertEquals(ai.pijota.llm.ThinkingLevel.HIGH, result.llm().thinkingLevel());
+        assertEquals(ThinkingLevel.HIGH, result.llm().thinkingLevel());
     }
 }

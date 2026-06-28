@@ -39,9 +39,8 @@ class SubAgentTest {
         Files.createDirectories(agentsDir);
         Files.writeString(agentsDir.resolve("coder.json"), "{\"name\":\"coder\",\"model\":\"gpt-x\"}");
         Files.writeString(agentsDir.resolve("tester.json"), "{\"name\":\"tester\"}");
-        Files.writeString(cwd.resolve(".pijota/subagents.json"),
-                                        "{\"agentOverrides\":{\"tester\":{\"disabled\":true},"
-                                                                        + "\"coder\":{\"model\":\"override-model\"}}}");
+        Files.writeString(cwd.resolve(".pijota/subagents.json"), "{\"agentOverrides\":{\"tester\":{\"disabled\":true},"
+                                        + "\"coder\":{\"model\":\"override-model\"}}}");
 
         var agents = SubAgent.loadAll(cwd);
 
@@ -101,19 +100,18 @@ class SubAgentTest {
     }
 
     @Test
-    void markdownModelNullLiteralBecomesNullNotTheStringNull(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
-                                    throws Exception {
+    void markdownModelNullLiteralBecomesNullNotTheStringNull(@TempDir Path dir) throws Exception {
         // `model: null` means "no override, inherit parent" — must NOT become the literal model "null" (Codex 400s on
         // it).
         var file = dir.resolve("summarize.md");
-        java.nio.file.Files.writeString(file, "---\nname: summarize\nmodel: null\n---\nbody");
+        Files.writeString(file, "---\nname: summarize\nmodel: null\n---\nbody");
         assertNull(SubAgent.loadMarkdown(file, "test").model());
     }
 
     @Test
-    void markdownConcreteModelIsKept(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+    void markdownConcreteModelIsKept(@TempDir Path dir) throws Exception {
         var file = dir.resolve("fast.md");
-        java.nio.file.Files.writeString(file, "---\nname: fast\nmodel: gpt-5.5\n---\nbody");
+        Files.writeString(file, "---\nname: fast\nmodel: gpt-5.5\n---\nbody");
         assertEquals("gpt-5.5", SubAgent.loadMarkdown(file, "test").model());
     }
 

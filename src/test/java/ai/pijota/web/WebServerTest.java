@@ -257,8 +257,8 @@ class WebServerTest {
     void crossOriginPostIsBlocked() throws Exception {
         withServer((ts, client, base) -> {
             var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
-                                            .header("Origin", "http://evil.example").POST(HttpRequest.BodyPublishers
-                                                                            .ofString("{\"text\":\"hi\"}")).build(),
+                                            .header("Origin", "http://evil.example")
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"hi\"}")).build(),
                                             HttpResponse.BodyHandlers.ofString());
             assertEquals(403, resp.statusCode(), "a foreign Origin on a state-changing POST must be refused");
         });
@@ -295,7 +295,8 @@ class WebServerTest {
         withServer((ts, client, base) -> {
             var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/answer"))
                                             .header("Content-Type", "application/json")
-                                            .POST(HttpRequest.BodyPublishers.ofString("{\"id\":\"q1\",\"value\":\"yes\"}"))
+                                            .POST(HttpRequest.BodyPublishers.ofString(
+                                                                            "{\"id\":\"q1\",\"value\":\"yes\"}"))
                                             .build(), HttpResponse.BodyHandlers.ofString());
             assertEquals(204, resp.statusCode());
         });
@@ -456,8 +457,9 @@ class WebServerTest {
 
     private static Tool echoTool() {
         return new Tool.ToolDefinition("echo", "Echoes input", java.util.Map.of(),
-                                        (id, args, cwd) -> java.util.concurrent.CompletableFuture.completedFuture(
-                                                                        Tool.ToolResult.success("ok"))).toTool();
+                                        (id, args, cwd) -> java.util.concurrent.CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
+                                        .toTool();
     }
 
     @Test

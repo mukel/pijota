@@ -43,7 +43,7 @@ class PijotaEndToEndTest {
         session.saveMessages(saveFile);
         assertTrue(Files.exists(saveFile));
 
-        var markdown = ai.pijota.agent.SessionExporter.toMarkdown(session.sessionFile());
+        var markdown = SessionExporter.toMarkdown(session.sessionFile());
         assertTrue(markdown.contains("first question"), "export should contain question");
         assertTrue(markdown.contains("second question"), "export should contain question");
 
@@ -230,7 +230,7 @@ class PijotaEndToEndTest {
         llm.enqueue(contentWithUsage("AI response"));
         session.prompt("test question").get(2, TimeUnit.SECONDS);
 
-        var markdown = ai.pijota.agent.SessionExporter.toMarkdown(session.sessionFile());
+        var markdown = SessionExporter.toMarkdown(session.sessionFile());
         assertNotNull(markdown);
         assertTrue(markdown.contains("test question"), "export should contain user question");
         assertTrue(markdown.contains("AI response"), "export should contain assistant response");

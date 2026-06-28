@@ -4,7 +4,9 @@ import ai.pijota.testkit.FakeHttpClient;
 import ai.pijota.util.Util;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -133,8 +135,7 @@ class OAuthLoginTest {
         auth.put("chatgpt_account_id", "acc-from-idtoken");
         var claims = Util.MAPPER.createObjectNode();
         claims.set("https://api.openai.com/auth", auth);
-        String payload = java.util.Base64.getUrlEncoder().withoutPadding()
-                                        .encodeToString(Util.MAPPER.writeValueAsBytes(claims));
+        String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(Util.MAPPER.writeValueAsBytes(claims));
 
         var json = Util.MAPPER.createObjectNode();
         json.put("access_token", "at");
@@ -158,8 +159,8 @@ class OAuthLoginTest {
     // ---- chatgptAccountIdFromIdToken: JWT payload parsing (auth) ----
 
     private static String jwt(String payloadJson) {
-        String payload = java.util.Base64.getUrlEncoder().withoutPadding()
-                                        .encodeToString(payloadJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String payload = Base64.getUrlEncoder().withoutPadding()
+                                        .encodeToString(payloadJson.getBytes(StandardCharsets.UTF_8));
         return "header." + payload + ".signature";
     }
 

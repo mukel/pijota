@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.function.Function;
 
 public class FakeExtensionRuntime implements ExtensionRuntime {
 
@@ -38,10 +39,10 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
     private boolean closed;
     private boolean aborted;
     private boolean compacted;
-    private java.util.function.Function<List<String>, ExecResult> execStub;
+    private Function<List<String>, ExecResult> execStub;
 
     /** Stubs {@link #exec} so tests can simulate a missing/erroring binary without shelling out. */
-    public void setExecStub(java.util.function.Function<List<String>, ExecResult> stub) {
+    public void setExecStub(Function<List<String>, ExecResult> stub) {
         this.execStub = stub;
     }
 
@@ -210,7 +211,7 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
         String val = flags.get(name);
         if (val == null)
             return defaultValue;
-        return ai.pijota.extensions.ExtensionRuntime.truthy(val);
+        return ExtensionRuntime.truthy(val);
     }
 
     @Override

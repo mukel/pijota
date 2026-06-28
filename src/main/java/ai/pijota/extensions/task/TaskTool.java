@@ -40,8 +40,10 @@ public final class TaskTool implements Tool {
     private final Map<String, List<Map<String, Object>>> chainConfigs;
     private final AtomicInteger logCounter = new AtomicInteger();
 
-    /** How one sub-agent is executed — spawns a child JVM in production; injectable so tests drive the orchestration
-     * (single/parallel/chain, aggregation, worktrees) against canned results without spawning processes. */
+    /**
+     * How one sub-agent is executed — spawns a child JVM in production; injectable so tests drive the orchestration
+     * (single/parallel/chain, aggregation, worktrees) against canned results without spawning processes.
+     */
     interface AgentRunner {
         SubAgentResult run(SubAgent sub, String task, String workDir);
     }
@@ -583,7 +585,8 @@ public final class TaskTool implements Tool {
     /** Directory holding sub-agent logs. Override with {@code -Dpijota.log.dir=…} (tests isolate it this way). */
     static Path logDir() {
         String override = System.getProperty("pijota.log.dir");
-        Path dir = override != null && !override.isBlank() ? Path.of(override)
+        Path dir = override != null && !override.isBlank()
+                                        ? Path.of(override)
                                         : Path.of(System.getProperty("java.io.tmpdir"), "pijota-logs");
         try {
             Files.createDirectories(dir);

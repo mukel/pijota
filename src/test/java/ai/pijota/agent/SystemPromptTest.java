@@ -1,5 +1,6 @@
 package ai.pijota.agent;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -71,7 +72,7 @@ class SystemPromptTest {
 
     @Test
     void buildSkipsBlankExtensionPrompts() {
-        var prompt = SystemPrompt.build(null, null, "/cwd", new java.util.ArrayList<>(List.of("  ", "\n")));
+        var prompt = SystemPrompt.build(null, null, "/cwd", new ArrayList<>(List.of("  ", "\n")));
         assertFalse(prompt.contains("ADDITIONAL INSTRUCTIONS"));
     }
 }

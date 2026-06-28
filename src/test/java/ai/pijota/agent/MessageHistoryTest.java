@@ -1,6 +1,9 @@
 package ai.pijota.agent;
 
 import ai.pijota.messages.Message;
+
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,9 +25,9 @@ class MessageHistoryTest {
     void undoLastUserTurnRemovesUserAndEverythingAfter() {
         var h = new MessageHistory();
         h.add(new Message.User("first"));
-        h.add(new Message.Assistant("a1", java.util.List.of(), null));
+        h.add(new Message.Assistant("a1", List.of(), null));
         h.add(new Message.User("second"));
-        h.add(new Message.Assistant("a2", java.util.List.of(), null));
+        h.add(new Message.Assistant("a2", List.of(), null));
 
         var result = h.undoLastUserTurn();
 
@@ -53,7 +56,7 @@ class MessageHistoryTest {
     void stripSystemRemindersCleansUserMessages() {
         var h = new MessageHistory();
         h.add(new Message.User("before <system-reminder>x</system-reminder> after"));
-        h.add(new Message.Assistant("assistant", java.util.List.of(), null));
+        h.add(new Message.Assistant("assistant", List.of(), null));
 
         h.stripSystemReminders();
 
@@ -65,9 +68,9 @@ class MessageHistoryTest {
     void lastAssistantContentFindsLatestAssistant() {
         var h = new MessageHistory();
         h.add(new Message.User("hi"));
-        h.add(new Message.Assistant("first", java.util.List.of(), null));
+        h.add(new Message.Assistant("first", List.of(), null));
         h.add(new Message.User("more"));
-        h.add(new Message.Assistant("second", java.util.List.of(), null));
+        h.add(new Message.Assistant("second", List.of(), null));
 
         assertEquals("second", h.lastAssistantContent());
     }
@@ -77,7 +80,7 @@ class MessageHistoryTest {
         var h = new MessageHistory();
         h.add(new Message.User("old"));
 
-        h.restore(java.util.List.of(new Message.User("new"), new Message.Assistant("a", java.util.List.of(), null)));
+        h.restore(List.of(new Message.User("new"), new Message.Assistant("a", List.of(), null)));
 
         assertEquals(2, h.snapshot().size());
         assertEquals("new", ((Message.User) h.snapshot().get(0)).content());

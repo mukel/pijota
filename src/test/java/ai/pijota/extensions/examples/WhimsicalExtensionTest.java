@@ -1,5 +1,7 @@
 package ai.pijota.extensions.examples;
 
+import java.util.Arrays;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,6 +38,6 @@ class WhimsicalExtensionTest {
                 "powering up the crystal ball", "downloading wisdom", "performing arcane rituals",
                 "untangling spaghetti", "feeding the algorithm", "one moment, human"};
         var phrase = WhimsicalExtension.randomPhrase();
-        assertTrue(java.util.Arrays.asList(phrases).contains(phrase), "unexpected phrase: " + phrase);
+        assertTrue(Arrays.asList(phrases).contains(phrase), "unexpected phrase: " + phrase);
     }
 }

@@ -1,7 +1,13 @@
 package ai.pijota.browser;
 
+import ai.pijota.util.Executables;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -59,15 +65,14 @@ class BrowserSessionTest {
     @Test
     void findChromeWithoutOverrideScansCommonLocationsAndPath() {
         Path chrome = CdpBackend.findChrome(null); // exercises the candidate-list build + PATH scan + firstExecutable
-        org.junit.jupiter.api.Assumptions.assumeTrue(chrome != null, "no chrome on this machine");
-        assertTrue(java.nio.file.Files.isExecutable(chrome), "the discovered chrome is executable: " + chrome);
+        Assumptions.assumeTrue(chrome != null, "no chrome on this machine");
+        assertTrue(Files.isExecutable(chrome), "the discovered chrome is executable: " + chrome);
     }
 
     @Test
     void findChromeReturnsNullWhenNoCandidateResolves() {
-        org.junit.jupiter.api.Assumptions.assumeFalse(
-                                        ai.pijota.util.Executables.anyAvailable(List.of("google-chrome-stable",
-                                                                        "google-chrome", "chromium", "chrome")),
+        Assumptions.assumeFalse(Executables.anyAvailable(
+                                        List.of("google-chrome-stable", "google-chrome", "chromium", "chrome")),
                                         "chrome is installed, so the not-found path can't be exercised here");
         assertNull(CdpBackend.findChrome(null), "no chrome anywhere → null");
     }
@@ -84,7 +89,7 @@ class BrowserSessionTest {
     @Test
     void strHandlesNullAndMissingNodes() {
         assertEquals("", BrowserSession.str(null));
-        assertEquals("", BrowserSession.str(com.fasterxml.jackson.databind.node.NullNode.getInstance()));
-        assertEquals("x", BrowserSession.str(com.fasterxml.jackson.databind.node.TextNode.valueOf("x")));
+        assertEquals("", BrowserSession.str(NullNode.getInstance()));
+        assertEquals("x", BrowserSession.str(TextNode.valueOf("x")));
     }
 }
