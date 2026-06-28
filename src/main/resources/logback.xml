@@ -14,7 +14,9 @@
     <!-- File is the sole sink: full diagnostics go here, while user-facing text is owned by CliErrorReporter /
          System.out. A stderr console appender would double-print (CliErrorReporter already writes to stderr) and
          dump stack traces over the otherwise-clean terminal. -->
-    <root level="INFO">
+    <!-- Default INFO; raise without a rebuild via env: PIJOTA_LOG_LEVEL=DEBUG (or TRACE) pijota …
+         DEBUG adds tool arguments + LLM request lines; TRACE adds the per-token stream firehose. -->
+    <root level="${PIJOTA_LOG_LEVEL:-INFO}">
         <appender-ref ref="FILE" />
     </root>
 </configuration>
