@@ -237,6 +237,38 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void killYankUndoAndRedoKeysAreProcessed() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        // type, Ctrl+U (kill line=21), Ctrl+Y (yank=25), Ctrl+_ (undo=31), Alt+_ (redo = ESC _)
+        byte[] keys = {'a', 'b', 'c', 'd', 21, 25, 31, ESC, '_'};
+        assertDoesNotThrow(() -> driveSession(ts, keys));
+    }
+
+    @Test
+    void tabCompletionOnASlashPrefixIsHandled() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        byte[] keys = {'/', 'm', 'o', 9}; // type "/mo" then Tab → completion
+        assertDoesNotThrow(() -> driveSession(ts, keys));
+    }
+
+    @Test
+    void commandPaletteFiltersAndNavigatesThenCancels() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        // Ctrl+P palette, type to filter, Down/Up, then ESC (driveSession's trailing ESC) cancels
+        byte[] keys = {16, 'm', 'o', 'd', ESC, '[', 'B', ESC, '[', 'A'};
+        assertDoesNotThrow(() -> driveSession(ts, keys));
+    }
+
+    @Test
+    void homeEndDeleteAndPageKeysAreProcessed() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        // type, Home, End, Delete, PageUp, PageDown
+        byte[] keys = {'x', 'y', 'z', ESC, '[', 'H', ESC, '[', 'F', ESC, '[', '3', '~', ESC, '[', '5', '~', ESC, '[',
+                '6', '~'};
+        assertDoesNotThrow(() -> driveSession(ts, keys));
+    }
+
+    @Test
     void slashCommandsDispatchThroughTheLoop() throws Exception {
         // each command routes handleSubmit → command dispatch → its handler (session/model/theme/think pickers, etc.);
         // driveSession appends ESC (dismiss the opened overlay) + Ctrl+D (exit)
