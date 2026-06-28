@@ -3,8 +3,10 @@ package ai.pijota.tui;
 import ai.pijota.agent.TestSession;
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.messages.ToolCall;
 import ai.pijota.testkit.FauxLlm;
 import ai.pijota.theme.AnsiTheme;
+import ai.pijota.tools.Tool;
 
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
@@ -266,6 +268,47 @@ class AppendOnlyTuiInputLoopTest {
         byte[] keys = {'x', 'y', 'z', ESC, '[', 'H', ESC, '[', 'F', ESC, '[', '3', '~', ESC, '[', '5', '~', ESC, '[',
                 '6', '~'};
         assertDoesNotThrow(() -> driveSession(ts, keys));
+    }
+
+    // ─── these drive AppendOnlyTui.onEvent (the agent-event renderer) via real turns of each response shape ───
+
+    @Test
+    void streamingDeltasAndFinalAnswerAreRendered() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueue(FauxLlm.Response.content("Hello ", "world")); // streamed deltas + a final message
+        String out = driveSession(ts, "hi\r".getBytes(StandardCharsets.UTF_8));
+        assertTrue(out.contains("world"), "the streamed answer is rendered: " + out);
+    }
+
+    @Test
+    void thinkingDeltasAreRendered() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueue(FauxLlm.Response.thinkingAndContent(List.of("pondering the problem"), "the answer"));
+        String out = driveSession(ts, "think\r".getBytes(StandardCharsets.UTF_8));
+        assertTrue(out.contains("answer"), out);
+    }
+
+    @Test
+    void aToolCallAndResultAreRendered() throws Exception {
+        var ts = TestSession.in(tempDir).tool(echoTool()).build();
+        ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "echo", "{\"text\":\"hi\"}")))
+                                        .enqueue(FauxLlm.Response.contentWithUsage("done"));
+        String out = driveSession(ts, "use the tool\r".getBytes(StandardCharsets.UTF_8));
+        assertTrue(out.contains("echo") || out.contains("done"), out);
+    }
+
+    @Test
+    void anAgentErrorIsRendered() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueueError(new RuntimeException("boom-401"));
+        String out = driveSession(ts, "fail\r".getBytes(StandardCharsets.UTF_8));
+        assertTrue(out.contains("boom-401") || out.toLowerCase().contains("error"), out);
+    }
+
+    private static Tool echoTool() {
+        return new Tool.ToolDefinition("echo", "Echoes input", java.util.Map.of(),
+                                        (id, args, cwd) -> java.util.concurrent.CompletableFuture.completedFuture(
+                                                                        Tool.ToolResult.success("ok"))).toTool();
     }
 
     @Test

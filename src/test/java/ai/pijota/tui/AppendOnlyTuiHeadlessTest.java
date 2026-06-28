@@ -176,6 +176,22 @@ class AppendOnlyTuiHeadlessTest {
     }
 
     @Test
+    void treeWhoamiRemoteAndUndoRenderHeadless() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        var tui = tui(ts);
+        try {
+            assertDoesNotThrow(() -> {
+                tui.showTree();
+                tui.showWhoami();
+                tui.showRemoteControl();
+                tui.undoLastTurn();
+            });
+        } finally {
+            tui.close();
+        }
+    }
+
+    @Test
     void viewerWithASupplierRendersHeadless() throws Exception {
         var ts = TestSession.in(tempDir).build();
         var tui = tui(ts);
