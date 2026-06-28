@@ -57,6 +57,13 @@ class BrowserSessionTest {
     }
 
     @Test
+    void findChromeWithoutOverrideScansCommonLocationsAndPath() {
+        Path chrome = CdpBackend.findChrome(null); // exercises the candidate-list build + PATH scan + firstExecutable
+        org.junit.jupiter.api.Assumptions.assumeTrue(chrome != null, "no chrome on this machine");
+        assertTrue(java.nio.file.Files.isExecutable(chrome), "the discovered chrome is executable: " + chrome);
+    }
+
+    @Test
     void firstExecutablePicksTheFirstMatch() {
         var candidates = List.of(Path.of("/nope/a"), Path.of("/yes/b"), Path.of("/yes/c"));
         assertEquals(Path.of("/yes/b"), CdpBackend.firstExecutable(candidates, p -> p.startsWith("/yes")));
