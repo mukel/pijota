@@ -8,7 +8,6 @@ import ai.pijota.util.Util;
 
 import java.io.InputStream;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public final class ModelRegistry {
@@ -72,10 +71,16 @@ public final class ModelRegistry {
             return Optional.empty();
         String lower = model.toLowerCase(java.util.Locale.ROOT);
         int threshold = Math.max(2, model.length() / 3);
-        return forProvider(provider).stream().map(ModelInfo::id)
-                                        .map(id -> Map.entry(id, levenshtein(lower, id.toLowerCase(java.util.Locale.ROOT))))
-                                        .min(java.util.Comparator.comparingInt(Map.Entry::getValue))
-                                        .filter(e -> e.getValue() <= threshold).map(Map.Entry::getKey);
+        String best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (var info : forProvider(provider)) {
+            int distance = levenshtein(lower, info.id().toLowerCase(java.util.Locale.ROOT));
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = info.id();
+            }
+        }
+        return bestDistance <= threshold ? Optional.of(best) : Optional.empty();
     }
 
     private static int levenshtein(String a, String b) {

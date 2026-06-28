@@ -17,8 +17,7 @@ class ModelRegistryTest {
     @Test
     void closestModelSuggestsTheNearestCatalogueEntryForATypo() {
         // the reported bug: `-m deepseek/deepseek-v4-fast` → should nudge toward the real `deepseek-v4-flash`
-        assertEquals("deepseek-v4-flash",
-                                        ModelRegistry.closestModel("deepseek", "deepseek-v4-fast").orElseThrow());
+        assertEquals("deepseek-v4-flash", ModelRegistry.closestModel("deepseek", "deepseek-v4-fast").orElseThrow());
     }
 
     @Test

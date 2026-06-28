@@ -6,12 +6,20 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class AgentEventLoggerTest {
+
+    /** True if some line contains all of {@code parts} — keeps the assertions short and readable. */
+    private static boolean has(List<String> lines, String... parts) {
+        return lines.stream().anyMatch(line -> Arrays.stream(parts).allMatch(line::contains));
+    }
 
     @Test
     void tracesTheEventStreamAtTheRightLevels() {
@@ -31,13 +39,38 @@ class AgentEventLoggerTest {
             sut.onEvent(new AgentEvent.TurnEnd(1));
 
             var lines = appender.list.stream().map(e -> e.getLevel() + " " + e.getFormattedMessage()).toList();
-            assertTrue(lines.stream().anyMatch(m -> m.contains("INFO") && m.contains("turn 1") && m.contains("start")),
-                                            lines.toString());
-            assertTrue(lines.stream().anyMatch(m -> m.contains("INFO") && m.contains("tool ▶ bash")), lines.toString());
-            assertTrue(lines.stream().anyMatch(m -> m.contains("INFO") && m.contains("tool ■ bash")
-                                            && m.contains("ok")), lines.toString());
-            assertTrue(lines.stream().anyMatch(m -> m.contains("TRACE") && m.contains("delta")), lines.toString());
-            assertTrue(lines.stream().anyMatch(m -> m.contains("ERROR") && m.contains("boom")), lines.toString());
+            assertTrue(has(lines, "INFO", "turn 1", "start"), lines.toString());
+            assertTrue(has(lines, "INFO", "tool ▶ bash"), lines.toString());
+            assertTrue(has(lines, "INFO", "tool ■ bash", "ok"), lines.toString());
+            assertTrue(has(lines, "TRACE", "delta"), lines.toString());
+            assertTrue(has(lines, "ERROR", "boom"), lines.toString());
+        } finally {
+            logger.setLevel(saved);
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void onlyTheFinalAssistantMessageWithUsageLogsAtInfo() {
+        var logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("ai.pijota.agent.events");
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        Level saved = logger.getLevel();
+        logger.addAppender(appender);
+        logger.setLevel(Level.TRACE);
+        try {
+            var sut = new AgentEventLogger();
+            // per-chunk streaming update (null usage) — must NOT flood INFO
+            sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("partial", java.util.List.of(), null),
+                                            null));
+            // final completion (has usage) — the one INFO line worth keeping
+            sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("done", java.util.List.of(), null),
+                                            new ai.pijota.messages.Usage(1500, 42)));
+
+            var infoMsgs = appender.list.stream().filter(e -> e.getLevel() == Level.INFO)
+                                            .map(ILoggingEvent::getFormattedMessage).toList();
+            assertEquals(1, infoMsgs.size(), "one INFO line — the final completion, not the streaming update");
+            assertTrue(infoMsgs.getFirst().contains("in=1500 out=42"), infoMsgs.toString());
         } finally {
             logger.setLevel(saved);
             logger.detachAppender(appender);

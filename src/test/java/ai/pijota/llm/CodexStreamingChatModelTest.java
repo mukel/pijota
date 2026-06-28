@@ -86,31 +86,29 @@ class CodexStreamingChatModelTest {
         var gotPartial = new CountDownLatch(1);
         var finished = new CountDownLatch(1);
         var lastText = new AtomicReference<String>();
-        model.chat(ChatRequest.builder().messages(UserMessage.from("hi")).build(),
-                                        new StreamingChatResponseHandler() {
-                                            @Override
-                                            public void onPartialResponse(String t) {
-                                                lastText.set(t);
-                                                gotPartial.countDown();
-                                            }
+        model.chat(ChatRequest.builder().messages(UserMessage.from("hi")).build(), new StreamingChatResponseHandler() {
+            @Override
+            public void onPartialResponse(String t) {
+                lastText.set(t);
+                gotPartial.countDown();
+            }
 
-                                            @Override
-                                            public void onPartialResponse(PartialResponse pr,
-                                                                            PartialResponseContext ctx) {
-                                                lastText.set(pr.text()); // the variant the model actually calls
-                                                gotPartial.countDown();
-                                            }
+            @Override
+            public void onPartialResponse(PartialResponse pr, PartialResponseContext ctx) {
+                lastText.set(pr.text()); // the variant the model actually calls
+                gotPartial.countDown();
+            }
 
-                                            @Override
-                                            public void onCompleteResponse(ChatResponse r) {
-                                                finished.countDown();
-                                            }
+            @Override
+            public void onCompleteResponse(ChatResponse r) {
+                finished.countDown();
+            }
 
-                                            @Override
-                                            public void onError(Throwable e) {
-                                                finished.countDown();
-                                            }
-                                        });
+            @Override
+            public void onError(Throwable e) {
+                finished.countDown();
+            }
+        });
 
         assertTrue(gotPartial.await(5, TimeUnit.SECONDS), "the first delta should stream");
         assertEquals("hi", lastText.get());

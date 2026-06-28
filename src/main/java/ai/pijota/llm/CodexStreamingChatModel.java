@@ -20,6 +20,7 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.output.TokenUsage;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
@@ -31,6 +32,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,8 +50,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
 
     // Cancellation: the in-flight SSE stream, closed by abort() to unblock the reading virtual thread immediately
     // (langchain4j's StreamingHandle does not reach this custom model, so we cancel it ourselves).
-    private final java.util.concurrent.atomic.AtomicReference<java.io.Closeable> inflight =
-                                    new java.util.concurrent.atomic.AtomicReference<>();
+    private final AtomicReference<Closeable> inflight = new AtomicReference<>();
     private volatile boolean aborted;
 
     CodexStreamingChatModel(String baseUrl, String apiKey, String modelName, String providerName,

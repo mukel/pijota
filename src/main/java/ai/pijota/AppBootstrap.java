@@ -96,11 +96,9 @@ final class AppBootstrap {
                                         && !ModelRegistry.forProvider(provider).isEmpty()) {
             String chosenProvider = provider;
             String chosenModel = model;
-            ModelRegistry.closestModel(chosenProvider, chosenModel)
-                                            .ifPresent(suggestion -> CliErrorReporter.warn("'" + chosenModel
-                                                                            + "' is not a known " + chosenProvider
-                                                                            + " model — did you mean '" + suggestion
-                                                                            + "'? Proceeding anyway."));
+            ModelRegistry.closestModel(chosenProvider, chosenModel).ifPresent(suggestion -> CliErrorReporter.warn("'"
+                                            + chosenModel + "' is not a known " + chosenProvider
+                                            + " model — did you mean '" + suggestion + "'? Proceeding anyway."));
         }
 
         var sessions = new SessionManager(settings.sessionDir());
@@ -223,8 +221,8 @@ final class AppBootstrap {
 
         // One-line record of what the agent actually started with — the first thing to check when diagnosing "why did
         // it behave like that": resolved provider/model, enabled tool count, and cwd.
-        logger.info("bootstrap ready · {}/{} · {} tool(s) · cwd={}", provider, model,
-                                        tools.enabledToolNames().size(), cwd);
+        logger.info("bootstrap ready · {}/{} · {} tool(s) · cwd={}", provider, model, tools.enabledToolNames().size(),
+                                        cwd);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
     }

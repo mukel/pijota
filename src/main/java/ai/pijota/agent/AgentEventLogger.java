@@ -30,11 +30,18 @@ final class AgentEventLogger {
             case AgentEvent.TurnStart e -> log.info("turn {} ▶ start", e.turn());
             case AgentEvent.TurnEnd e -> log.info("turn {} ■ end", e.turn());
             case AgentEvent.AssistantMessage e -> {
-                var m = e.message();
-                int calls = m.toolCalls() == null ? 0 : m.toolCalls().size();
-                long in = e.usage() == null ? 0 : e.usage().inputTokens();
-                long out = e.usage() == null ? 0 : e.usage().outputTokens();
-                log.info("assistant message · {} tool call(s) · tokens in={} out={}", calls, in, out);
+                // Only the final completion carries token usage; the pre-stream placeholder and the per-chunk streaming
+                // updates have null usage and would flood INFO, so they drop to TRACE — the MessageStreamDelta firehose
+                // already covers the streaming detail. (A provider that omits token counts logs its completion at TRACE
+                // too, but the surrounding turn/tool events still trace the turn at INFO.)
+                if (e.usage() != null) {
+                    var m = e.message();
+                    int calls = m.toolCalls() == null ? 0 : m.toolCalls().size();
+                    log.info("assistant message · {} tool call(s) · tokens in={} out={}", calls,
+                                                    e.usage().inputTokens(), e.usage().outputTokens());
+                } else {
+                    log.trace("assistant message (streaming/placeholder)");
+                }
             }
             case AgentEvent.ToolStart e -> {
                 log.info("tool ▶ {} [{}]", e.toolName(), e.toolCallId());
@@ -43,19 +50,18 @@ final class AgentEventLogger {
             }
             case AgentEvent.ToolResult e -> {
                 var m = e.message();
-                log.info("tool ■ {} [{}] · {} · {} chars", m.toolName(), m.toolCallId(),
-                                                m.isError() ? "ERROR" : "ok", m.content() == null ? 0
-                                                                                : m.content().length());
+                log.info("tool ■ {} [{}] · {} · {} chars", m.toolName(), m.toolCallId(), m.isError() ? "ERROR" : "ok",
+                                                m.content() == null ? 0 : m.content().length());
             }
-            case AgentEvent.Compaction e -> log.info("compaction · {} → {} messages · ~{} tokens",
-                                            e.oldCount(), e.compactedMessages().size(), e.estimatedTokens());
+            case AgentEvent.Compaction e -> log.info("compaction · {} → {} messages · ~{} tokens", e.oldCount(),
+                                            e.compactedMessages().size(), e.estimatedTokens());
             case AgentEvent.Error e -> log.error("turn error: {}", ErrorUtil.message(e.throwable()));
             case AgentEvent.MessageStreamStart e -> log.debug("stream ▶ {}", e.messageType());
             case AgentEvent.MessageStreamEnd e -> log.debug("stream ■ {}", e.messageType());
             case AgentEvent.HistoryChanged e -> log.debug("history changed · {}", e.reason());
             case AgentEvent.CustomMessage e -> log.debug("custom message · {}", e.message().customType());
-            case AgentEvent.MessageStreamDelta e -> log.trace("delta · {} chars",
-                                            e.delta() == null ? 0 : e.delta().length());
+            case AgentEvent.MessageStreamDelta e ->
+                log.trace("delta · {} chars", e.delta() == null ? 0 : e.delta().length());
             case AgentEvent.CompactionStream e -> log.trace("compaction stream delta");
             case AgentEvent.CompactionStreamEnd e -> log.trace("compaction stream end");
         }
