@@ -15,6 +15,31 @@ class ProviderCatalogTest {
     }
 
     @Test
+    void userProvidersFromSettingsMergeIntoTheCatalog() {
+        // a local OpenAI-compatible server defined in settings.json's "providers"
+        var local = new ProviderCatalog.Provider("local", "Local", "openai", "http://localhost:8080/v1",
+                                        java.util.List.of(), "my-model", java.util.Map.of(), null, null);
+        try {
+            ProviderCatalog.registerUserProviders(java.util.List.of(local));
+            assertEquals("http://localhost:8080/v1", ProviderCatalog.baseUrl("local"));
+            assertEquals("openai", ProviderCatalog.apiType("local"));
+            assertEquals("my-model", ProviderCatalog.defaultModel("local"));
+            assertTrue(ProviderCatalog.envNames("local").isEmpty(), "keyless local provider");
+            assertNotNull(ProviderCatalog.baseUrl("openai"), "builtin providers still present");
+        } finally {
+            ProviderCatalog.registerUserProviders(java.util.List.of()); // reset shared static state
+        }
+    }
+
+    @Test
+    void appConfigParsesProvidersFromJson() throws Exception {
+        String json = "{\"providers\":[{\"id\":\"local\",\"apiType\":\"openai\",\"baseUrl\":\"http://x/v1\"}]}";
+        var config = ai.pijota.util.Util.MAPPER.readValue(json, AppConfig.class);
+        assertEquals(1, config.providers().size());
+        assertEquals("http://x/v1", config.providers().getFirst().baseUrl());
+    }
+
+    @Test
     void findKnownProvider() {
         var deepseek = ProviderCatalog.find("deepseek");
         assertTrue(deepseek.isPresent());

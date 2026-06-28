@@ -61,6 +61,10 @@ final class AppBootstrap {
     static Result bootstrap(Args parsedArgs, SettingsManager settings) throws Exception {
         String cwd = System.getProperty("user.dir");
 
+        // Overlay any user-defined providers (settings.json "providers") onto the catalog before resolving the model,
+        // so a custom/local provider's base URL, api type, and default model are visible to every lookup below.
+        ai.pijota.config.ProviderCatalog.registerUserProviders(settings.config().providers());
+
         String apiKey = parsedArgs.apiKey();
 
         // Per-role model: print/-p uses the "print" alias when set and no explicit --model was given, so

@@ -30,7 +30,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("path_display") String pathDisplay,
                                 @JsonProperty("compaction") CompactionConfig compaction,
                                 @JsonProperty("aliases") Map<String, String> aliases,
-                                @JsonProperty("max_turns") Integer maxTurns) {
+                                @JsonProperty("max_turns") Integer maxTurns,
+                                @JsonProperty("providers") List<ProviderCatalog.Provider> providers) {
 
     /** Default per-prompt agent-turn cap when {@code max_turns} is unset. {@code 0} (or negative) means unlimited. */
     public static final int DEFAULT_MAX_TURNS = 256;
@@ -40,7 +41,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         // path that wouldn't exist on Windows. The bash tool stays bash (the model emits bash syntax), not the user's
         // $SHELL.
         this(null, null, Map.of(), "medium", Platform.defaultShell(), null, null, null, null, List.of(), List.of(),
-                                        true, false, false, "dots", null, new CompactionConfig(), Map.of(), null);
+                                        true, false, false, "dots", null, new CompactionConfig(), Map.of(), null,
+                                        List.of());
     }
 
     public static AppConfig load(Path path) throws IOException {
@@ -139,6 +141,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         private CompactionConfig compaction;
         private Map<String, String> aliases;
         private Integer maxTurns;
+        private List<ProviderCatalog.Provider> providers;
 
         private Builder(AppConfig c) {
             this.defaultProvider = c.defaultProvider;
@@ -160,6 +163,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             this.compaction = c.compaction;
             this.aliases = c.aliases;
             this.maxTurns = c.maxTurns;
+            this.providers = c.providers;
         }
 
         public Builder defaultProvider(String v) {
@@ -237,11 +241,16 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             return this;
         }
 
+        public Builder providers(List<ProviderCatalog.Provider> v) {
+            this.providers = v;
+            return this;
+        }
+
         public AppConfig build() {
             return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
                                             sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
                                             hideThinking, quietStartup, workingAnimation, pathDisplay, compaction,
-                                            aliases, maxTurns);
+                                            aliases, maxTurns, providers);
         }
     }
 

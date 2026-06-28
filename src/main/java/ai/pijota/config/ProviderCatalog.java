@@ -10,11 +10,26 @@ import java.util.Optional;
 
 public final class ProviderCatalog {
     private static final Catalog CATALOG = load();
+    // User-defined providers from settings.json (e.g. a local OpenAI-compatible server); registered at startup and
+    // overlaid on the bundled catalog by id, so they flow through every lookup (baseUrl/apiType/env/model) uniformly.
+    private static volatile List<Provider> userProviders = List.of();
 
     private ProviderCatalog() {}
 
+    /** Overlay user-defined providers (settings.json {@code providers}); an id reuse overrides a builtin. */
+    public static void registerUserProviders(List<Provider> providers) {
+        userProviders = providers == null ? List.of() : List.copyOf(providers);
+    }
+
     public static List<Provider> providers() {
-        return CATALOG.providers();
+        if (userProviders.isEmpty())
+            return CATALOG.providers();
+        var byId = new java.util.LinkedHashMap<String, Provider>();
+        for (var p : CATALOG.providers())
+            byId.put(p.id(), p);
+        for (var p : userProviders)
+            byId.put(p.id(), p); // user entry wins on id collision
+        return List.copyOf(byId.values());
     }
 
     public static Optional<Provider> find(String id) {
