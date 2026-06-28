@@ -51,10 +51,16 @@ public final class ModelRegistry {
 
     public static String defaultModelForProvider(String provider) {
         String fromCatalog = ProviderCatalog.defaultModel(provider);
+        // A catalogued provider default that's also a known model is the best pick. Otherwise fall back to the first
+        // known model for the provider — but if there are none (e.g. a user-defined/local provider whose models aren't
+        // in the catalog), honor the declared default verbatim; model ids are free-form and reach the API as-is.
         if (fromCatalog != null && !fromCatalog.isBlank() && isKnownProviderModel(provider, fromCatalog)) {
             return fromCatalog;
         }
-        return forProvider(provider).stream().map(ModelInfo::id).findFirst().orElse(null);
+        String firstKnown = forProvider(provider).stream().map(ModelInfo::id).findFirst().orElse(null);
+        if (firstKnown != null)
+            return firstKnown;
+        return fromCatalog != null && !fromCatalog.isBlank() ? fromCatalog : null;
     }
 
     /** Look up a known model by its id (case-insensitive); empty if none matches. The one place that scans by id. */
