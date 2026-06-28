@@ -59,6 +59,31 @@ class SessionManagerTest {
     }
 
     @Test
+    void richMessageTypesRoundTripThroughTheSessionFile() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = tempDir.resolve("rich.jsonl");
+        var messages = List.<Message>of(new Message.User("q"),
+                                        new Message.Assistant("a", List.of(new ToolCall("t1", "bash",
+                                                                        "{\"command\":\"ls\"}"),
+                                                        new ToolCall("t2", "read", "{}")), ""),
+                                        new Message.ToolResult("t1", "bash", "boom", true), // an error result
+                                        new Message.Custom("note", "a side note", java.util.Map.of("silent", true)));
+
+        manager.saveMessages(file, messages, "/ws");
+        var loaded = manager.loadMessages(file);
+
+        var asst = (Message.Assistant) loaded.stream().filter(m -> m instanceof Message.Assistant).findFirst()
+                                        .orElseThrow();
+        assertEquals(2, asst.toolCalls().size(), "multiple tool calls round-trip");
+        var tr = (Message.ToolResult) loaded.stream().filter(m -> m instanceof Message.ToolResult).findFirst()
+                                        .orElseThrow();
+        assertTrue(tr.isError(), "the error flag round-trips");
+        var custom = (Message.Custom) loaded.stream().filter(m -> m instanceof Message.Custom).findFirst()
+                                        .orElseThrow();
+        assertEquals("a side note", custom.content());
+    }
+
+    @Test
     void userAttachmentsRoundTripThroughTheSessionFile() throws Exception {
         var manager = new SessionManager(tempDir);
         var file = tempDir.resolve("attachments.jsonl");
