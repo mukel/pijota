@@ -329,6 +329,7 @@ class AppendOnlyTuiInputLoopTest {
         // each routes handleSubmit -> TuiCommandController switch -> the tui handler; driveSession dismisses any
         // overlay (ESC) and exits (Ctrl+D). Covers the command dispatch + the session/render handlers end-to-end.
         // /save writes to an absolute temp path — a bare "/save x" would drop a session file in the repo root.
+        // (/export writes "<id>-export.md" into the session's cwd, which TestSession sets to tempDir — no litter.)
         String saveTarget = tempDir.resolve("saved-session.jsonl").toString();
         for (String cmd : List.of("/copy", "/context", "/export", "/save " + saveTarget, "/clone", "/tree", "/whoami",
                                         "/info", "/undo", "/logs", "/skills", "/settings", "/login", "/logout",

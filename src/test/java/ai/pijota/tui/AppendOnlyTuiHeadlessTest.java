@@ -205,7 +205,7 @@ class AppendOnlyTuiHeadlessTest {
             assertDoesNotThrow(() -> {
                 tui.showContext();
                 tui.copyLastResponse();
-                tui.exportSession("/export");
+                tui.exportSession("/export"); // writes into the session's cwd (the temp dir), not the repo root
                 tui.saveSession("/save " + tempDir.resolve("my-chat"));
                 tui.cloneSession();
             });

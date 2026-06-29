@@ -221,7 +221,9 @@ final class SessionCommands {
         try {
             String md = SessionExporter.toMarkdown(host.session().sessionFile());
             String base = host.session().sessionFile().getFileName().toString().replace(".jsonl", "");
-            Path out = Path.of(System.getProperty("user.dir")).resolve(base + "-export.md");
+            // Write into the session's working directory (where pijota was launched) — the threaded cwd, not the global
+            // user.dir property, so it's consistent with the rest of the app and isolatable in tests.
+            Path out = Path.of(host.session().cwd()).resolve(base + "-export.md");
             Files.writeString(out, md, StandardCharsets.UTF_8);
             host.appendPlain(List.of(host.styled("statusText", "exported to " + out)));
         } catch (Exception e) {
