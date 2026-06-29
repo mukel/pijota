@@ -104,6 +104,15 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void leadingSpaceEscapesSlashCommandIntoAMessage() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueue(FauxLlm.Response.contentWithUsage("ok"));
+        driveSession(ts, " /help\r".getBytes(StandardCharsets.UTF_8)); // leading space → literal message, not a command
+        assertFalse(ts.session().userMessages().isEmpty(),
+                                        "a space-prefixed \"/help\" is sent to the model as a message, not run as a command");
+    }
+
+    @Test
     void lineEditingKeysAreProcessed() throws Exception {
         var ts = TestSession.in(tempDir).build();
         // type "abcdef", two backspaces (127), Ctrl+U (21) to clear — exercises the editor key paths in the loop

@@ -21,7 +21,7 @@ final class TuiCommandController {
         String cmd = commandName(input);
         String arg = commandArgs(input, cmd);
         switch (cmd) {
-            case "/help" -> tui.showHelpOverlay();
+            case "/help" -> tui.showHelpOverlay(arg);
             case "/quit" -> tui.stop();
             case "/model" -> handleModel(arg);
             case "/settings" -> tui.showSettingsSelector();

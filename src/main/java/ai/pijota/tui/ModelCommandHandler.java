@@ -44,7 +44,8 @@ final class ModelCommandHandler {
             return;
         }
         if (models.isEmpty()) {
-            host.appendPlain(List.of(host.styled("toolError", "no models found")));
+            host.appendPlain(List.of(host.styled("toolError", "no models found"), host.styled("statusText",
+                                            "run /login, set an API key, or /refresh models")));
             return;
         }
         var items = models.stream().map(m -> new ModelItem(m, m.id().equals(host.model()))).toList();

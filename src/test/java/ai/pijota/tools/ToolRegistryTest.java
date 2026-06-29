@@ -115,6 +115,102 @@ class ToolRegistryTest {
     }
 
     @Test
+    void manifestSnapshotIsCachedUntilRegistryChanges() {
+        var r = new ToolRegistry();
+        r.register(TestTools.fake("a", true));
+
+        var first = ToolManifest.snapshot(r);
+        assertSame(first, ToolManifest.snapshot(r), "unchanged registries reuse the computed manifest");
+
+        r.register(TestTools.fake("b", true));
+        var second = ToolManifest.snapshot(r);
+        assertNotSame(first, second, "registering a tool invalidates the cache");
+        assertTrue(second.json().contains("b"));
+    }
+
+    @Test
+    void manifestSnapshotInvalidatesWhenToolIsUnregistered() {
+        var r = new ToolRegistry();
+        r.register(TestTools.fake("a", true));
+        r.register(TestTools.fake("b", true));
+        var first = ToolManifest.snapshot(r);
+
+        r.unregister("b");
+        var second = ToolManifest.snapshot(r);
+
+        assertNotSame(first, second);
+        assertTrue(second.json().contains("\"name\":\"a\""));
+        assertFalse(second.json().contains("\"name\":\"b\""));
+        assertSame(second, ToolManifest.snapshot(r), "new snapshot is cached after unregister");
+    }
+
+    @Test
+    void manifestSnapshotInvalidatesWhenAllowlistChanges() {
+        var r = new ToolRegistry();
+        r.register(TestTools.fake("a", true));
+        r.register(TestTools.fake("b", true));
+        var first = ToolManifest.snapshot(r);
+
+        r.enableOnly(List.of("a"));
+        var second = ToolManifest.snapshot(r);
+
+        assertNotSame(first, second);
+        assertTrue(second.json().contains("\"name\":\"a\""));
+        assertFalse(second.json().contains("\"name\":\"b\""));
+    }
+
+    @Test
+    void manifestSnapshotExcludesDefaultDisabledToolsUntilEnabled() {
+        var r = new ToolRegistry();
+        r.register(TestTools.fake("enabled", true));
+        r.register(TestTools.fake("disabled", false));
+
+        var first = ToolManifest.snapshot(r);
+        assertTrue(first.json().contains("\"name\":\"enabled\""));
+        assertFalse(first.json().contains("\"name\":\"disabled\""));
+
+        r.enableOnly(List.of("disabled"));
+        var second = ToolManifest.snapshot(r);
+        assertFalse(second.json().contains("\"name\":\"enabled\""));
+        assertTrue(second.json().contains("\"name\":\"disabled\""));
+    }
+
+    @Test
+    void manifestSnapshotCanonicalizesSchemaFieldOrderForStableHashes() {
+        var schemaOne = Map.<String, Object>of("type", "object", "properties",
+                                        Map.of("b", Map.of("type", "string"), "a", Map.of("type", "integer")));
+        var schemaTwo = new java.util.LinkedHashMap<String, Object>();
+        schemaTwo.put("properties", Map.of("a", Map.of("type", "integer"), "b", Map.of("type", "string")));
+        schemaTwo.put("type", "object");
+        var one = new ToolRegistry();
+        var two = new ToolRegistry();
+        one.register(new Tool.ToolDefinition("same", "same", schemaOne,
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
+                                        .toTool());
+        two.register(new Tool.ToolDefinition("same", "same", schemaTwo,
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
+                                        .toTool());
+
+        assertEquals(ToolManifest.snapshot(one).hash(), ToolManifest.snapshot(two).hash());
+        assertEquals(ToolManifest.snapshot(one).json(), ToolManifest.snapshot(two).json());
+    }
+
+    @Test
+    void manifestSnapshotCanBeExplicitlyInvalidatedForMutableTools() {
+        var r = new ToolRegistry();
+        r.register(TestTools.fake("a", true));
+        var first = ToolManifest.snapshot(r);
+
+        r.invalidateManifestSnapshot();
+        var second = ToolManifest.snapshot(r);
+
+        assertNotSame(first, second);
+        assertEquals(first.json(), second.json());
+    }
+
+    @Test
     void abortRunningToolsCallsAbort() {
         var r = new ToolRegistry();
         var aborted = new AtomicBoolean();

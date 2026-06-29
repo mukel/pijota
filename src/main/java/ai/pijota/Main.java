@@ -9,6 +9,7 @@ import ai.pijota.cli.FileProcessor;
 import ai.pijota.config.OAuthLogin;
 import ai.pijota.config.OAuthTokenStore;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.llm.ModelDisplay;
 import ai.pijota.llm.ModelRegistry;
 import ai.pijota.config.ProviderCatalog;
 import ai.pijota.modes.PrintMode;
@@ -22,6 +23,7 @@ import ai.pijota.util.CliErrorReporter;
 import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Platform;
 import ai.pijota.util.SelfRespawn;
+import ai.pijota.util.StartupTimer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,8 +36,6 @@ import java.nio.file.Path;
 public final class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
     private static final String VERSION = "0.4.0";
-    // Set at class init (≈ process start) so PIJOTA_STARTUP_TIMING can report time-to-first-paint.
-    private static final long START_NANOS = System.nanoTime();
 
     static {
         try {
@@ -87,9 +87,9 @@ public final class Main {
 
     private static int runFrontend(Args parsedArgs) throws Exception {
         Warmup.start(); // overlap tool class-loading with the Jackson cold-start during bootstrap
+        StartupTimer.mark("warmup started");
         var b = AppBootstrap.bootstrap(parsedArgs);
-        if (System.getenv("PIJOTA_STARTUP_TIMING") != null)
-            System.err.println("[startup] bootstrap done: " + (System.nanoTime() - START_NANOS) / 1_000_000 + " ms");
+        StartupTimer.mark("bootstrap returned");
 
         if (parsedArgs.agent())
             return HeadlessAgentRunner.run(b.llm(), b.extensions());
@@ -131,8 +131,7 @@ public final class Main {
         // onReady work is needed to draw the prompt. MCP registers its tools late (honored on the next turn) by design,
         // so the prompt appears immediately while servers connect in the background.
         Thread.ofPlatform().name("pijota-extensions-ready").daemon(true).start(b.extensions()::ready);
-        if (System.getenv("PIJOTA_STARTUP_TIMING") != null)
-            System.err.println("[startup] time to TUI: " + (System.nanoTime() - START_NANOS) / 1_000_000 + " ms");
+        StartupTimer.mark("tui ready");
         try {
             tui.run(VERSION, b.cwd());
             return 0;
@@ -294,8 +293,9 @@ public final class Main {
         var models = ModelRegistry.filter(filter);
         System.out.println("Available models:");
         for (var m : models)
-            System.out.printf("  %-45s [%-12s] context: %dK%n", m.provider() + "/" + m.id(), m.provider(),
-                                            m.contextWindow() / 1024);
+            System.out.printf("  %-45s [%-12s] context: %-5s input: %-14s price: %s%n", m.provider() + "/" + m.id(),
+                                            m.provider(), ModelDisplay.context(m), ModelDisplay.modalities(m),
+                                            ModelDisplay.pricing(m));
         System.out.println("\n" + models.size() + " model(s)");
     }
 

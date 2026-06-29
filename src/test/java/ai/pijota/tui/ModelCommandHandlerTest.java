@@ -182,6 +182,8 @@ class ModelCommandHandlerTest {
         var handler = new ModelCommandHandler(host);
         handler.showModelSelector(List.of());
         assertTrue(captured.stream().anyMatch(l -> l.contains("no models")), "should report no models for empty list");
+        assertTrue(captured.stream().anyMatch(l -> l.contains("/login") && l.contains("/refresh")),
+                                        "empty model picker should explain onboarding next steps");
     }
 
     private static ModelCommandHandler.Host busyHost(String provider, String model, List<String> output) {

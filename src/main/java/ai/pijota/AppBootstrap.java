@@ -4,6 +4,7 @@ import ai.pijota.agent.PijotaSession;
 import ai.pijota.agent.SessionManager;
 import ai.pijota.agent.SystemPrompt;
 import ai.pijota.cli.Args;
+import ai.pijota.config.ProviderCatalog;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.config.TrustStore;
 import ai.pijota.extensions.ExtensionEvent;
@@ -38,6 +39,7 @@ import ai.pijota.util.CliErrorReporter;
 import ai.pijota.util.ProcessRunner;
 
 import ai.pijota.util.SelfRespawn;
+import ai.pijota.util.StartupTimer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,11 +60,13 @@ final class AppBootstrap {
 
     // package-visible for tests so callers can inject a SettingsManager backed by a temp directory.
     static Result bootstrap(Args parsedArgs, SettingsManager settings) throws Exception {
+        StartupTimer.mark("bootstrap start");
         String cwd = System.getProperty("user.dir");
 
         // Overlay any user-defined providers (settings.json "providers") onto the catalog before resolving the model,
         // so a custom/local provider's base URL, api type, and default model are visible to every lookup below.
         ai.pijota.config.ProviderCatalog.registerUserProviders(settings.config().providers());
+        StartupTimer.mark("settings/providers loaded");
 
         String apiKey = parsedArgs.apiKey();
 
@@ -88,6 +92,7 @@ final class AppBootstrap {
                                             + "'. Define it under \"aliases\" in settings.json (name -> provider/model).");
         String provider = resolved.provider();
         String model = resolved.model();
+        StartupTimer.mark("model resolved");
 
         if (apiKey == null || apiKey.isBlank()) {
             if (provider != null && !provider.isBlank())
@@ -108,7 +113,7 @@ final class AppBootstrap {
         }
         if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
             if (!parsedArgs.agent()) {
-                throw new IllegalStateException("No API key. Set " + settings.apiKeyHint(provider) + ".");
+                throw new IllegalStateException(missingApiKeyMessage(provider, model, settings));
             }
         }
 
@@ -128,8 +133,10 @@ final class AppBootstrap {
         var tools = parsedArgs.noTools() ? new ToolRegistry() : ToolRegistry.createDefault();
         var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix());
         tools.register(bashTool);
+        StartupTimer.mark("tools registered");
 
         var llm = new LlmService(provider, model, settings::resolveApiKey);
+        StartupTimer.mark("llm initialized");
         String effectiveThinking = parsedArgs.thinkingLevel();
         if (effectiveThinking == null || effectiveThinking.isBlank()) {
             effectiveThinking = settings.config().thinkingLevel();
@@ -195,6 +202,7 @@ final class AppBootstrap {
         ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
         ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths())); // --no-prompt-templates disables
         ext.register(new ContextFilesExtension(cwd)); // --no-context-files / context_files setting disables
+        StartupTimer.mark("extensions registered");
 
         if (!parsedArgs.enabledTools().isEmpty())
             tools.enableOnly(parsedArgs.enabledTools());
@@ -205,11 +213,13 @@ final class AppBootstrap {
         String systemPrompt = SystemPrompt.build(parsedArgs.systemPrompt(), appendPrompt, cwd,
                                         ext.systemPromptContributions());
         ext.setSystemPrompt(systemPrompt);
+        StartupTimer.mark("system prompt built");
 
         int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
 
         var session = new PijotaSession(llm, tools, sessions, ext, systemPrompt, cwd, parsedArgs.noSession(),
                                         contextWindow, settings.config().compaction(), settings.maxTurns());
+        StartupTimer.mark("session initialized");
         ext.setSessionFile(session::sessionFile);
         // Generic built-in commands (e.g. /model) usable by every frontend — registered once the session exists.
         ext.register(new CoreCommandsExtension(session, settings));
@@ -248,6 +258,7 @@ final class AppBootstrap {
             session.recordInitialModelState();
         }
         mergeTranscendWorktree(parsedArgs);
+        StartupTimer.mark("bootstrap complete");
 
         // One-line record of what the agent actually started with — the first thing to check when diagnosing "why did
         // it behave like that": resolved provider/model, enabled tool count, and cwd.
@@ -255,6 +266,18 @@ final class AppBootstrap {
                                         cwd);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
+    }
+
+    private static String missingApiKeyMessage(String provider, String model, SettingsManager settings) {
+        String hint = settings.apiKeyHint(provider);
+        StringBuilder sb = new StringBuilder("No API key for ").append(provider).append('/').append(model).append('.');
+        if (hint != null && !hint.isBlank())
+            sb.append(" Set ").append(hint).append('.');
+        if (ProviderCatalog.oauth(provider).isPresent())
+            sb.append(" Or run `pijota login ").append(provider).append("`.");
+        sb.append(" Use `pijota --list-models ").append(provider).append("` to see available models.");
+        sb.append(" For a local/OpenAI-compatible server, add a keyless provider in ~/.pijota/settings.json.");
+        return sb.toString();
     }
 
     private static void mergeTranscendWorktree(Args args) {

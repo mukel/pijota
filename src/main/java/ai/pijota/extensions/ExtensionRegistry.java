@@ -583,7 +583,11 @@ public final class ExtensionRegistry {
         @Override
         public void sendUserMessage(String content) {
             if (agentContext != null) {
-                agentContext.sendUserMessage(content);
+                UiContext ui = runtime.ui();
+                if (ui != null)
+                    ui.submitUserMessage(content);
+                else
+                    agentContext.sendUserMessage(content);
             }
         }
 

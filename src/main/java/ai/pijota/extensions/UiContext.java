@@ -77,6 +77,9 @@ public interface UiContext {
      */
     default void cancelPending() {}
 
+    /** Submit a user message through the active frontend, preserving normal echo/busy/error handling. */
+    default void submitUserMessage(String content) {}
+
     /** Opens a modal, scrollable, searchable read-only viewer over {@code lines} (e.g. a sub-agent log). */
     default void viewer(String title, List<String> lines) {}
 

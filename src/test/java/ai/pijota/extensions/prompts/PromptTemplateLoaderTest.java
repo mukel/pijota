@@ -39,7 +39,13 @@ class PromptTemplateLoaderTest {
     }
 
     @Test
-    void expandNoArgsReturnsContent() {
+    void expandNoArgsClearsVariadicPlaceholders() {
+        var result = PromptTemplateLoader.expand("Review\n$@\n$ARGUMENTS\n${@:2}", new String[] {});
+        assertEquals("Review\n\n\n", result);
+    }
+
+    @Test
+    void expandNoArgsLeavesPositionalPlaceholders() {
         var result = PromptTemplateLoader.expand("unchanged $1", new String[] {});
         assertEquals("unchanged $1", result);
     }

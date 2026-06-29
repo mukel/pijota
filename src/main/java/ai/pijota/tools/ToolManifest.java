@@ -22,6 +22,9 @@ public final class ToolManifest {
     }
 
     public static Snapshot snapshot(ToolRegistry registry) {
+        var cached = registry.cachedManifestSnapshot();
+        if (cached != null)
+            return cached;
         var tools = registry.enabledTools().stream().sorted(Comparator.comparing(Tool::name)).map(tool -> {
             var item = new LinkedHashMap<String, Object>();
             item.put("name", tool.name());
@@ -31,7 +34,9 @@ public final class ToolManifest {
         }).toList();
         try {
             String json = Util.MAPPER.writeValueAsString(tools);
-            return new Snapshot(json, sha256(json));
+            var snapshot = new Snapshot(json, sha256(json));
+            registry.cacheManifestSnapshot(snapshot);
+            return snapshot;
         } catch (Exception e) {
             throw new IllegalStateException("failed to build tool manifest", e);
         }

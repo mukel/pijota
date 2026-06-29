@@ -23,22 +23,26 @@ public final class ToolRegistry {
     // A LinkedHashMap preserves registration order; the per-turn cost of these short critical sections is negligible.
     private final Map<String, Tool> tools = new LinkedHashMap<>();
     private final Set<String> enabledNames = new HashSet<>();
+    private ToolManifest.Snapshot cachedManifestSnapshot;
 
     public synchronized void register(Tool tool) {
         tools.put(tool.name(), tool);
         if (tool.defaultEnabled())
             enabledNames.add(tool.name());
+        cachedManifestSnapshot = null;
     }
 
     /** Removes a tool (and disables it). No-op if it was never registered. Used for dynamic tools (e.g. MCP). */
     public synchronized void unregister(String name) {
         tools.remove(name);
         enabledNames.remove(name);
+        cachedManifestSnapshot = null;
     }
 
     public synchronized void enableOnly(Collection<String> names) {
         enabledNames.clear();
         enabledNames.addAll(names);
+        cachedManifestSnapshot = null;
     }
 
     public synchronized List<Tool> enabledTools() {
@@ -175,6 +179,21 @@ public final class ToolRegistry {
         if (value instanceof Boolean b)
             return "boolean " + b;
         return value.getClass().getSimpleName();
+    }
+
+    /**
+     * Invalidates the cached provider-facing tool manifest. Call when a registered tool's metadata changes in place.
+     */
+    public synchronized void invalidateManifestSnapshot() {
+        cachedManifestSnapshot = null;
+    }
+
+    synchronized ToolManifest.Snapshot cachedManifestSnapshot() {
+        return cachedManifestSnapshot;
+    }
+
+    synchronized void cacheManifestSnapshot(ToolManifest.Snapshot snapshot) {
+        cachedManifestSnapshot = snapshot;
     }
 
     public static ToolRegistry createDefault() {

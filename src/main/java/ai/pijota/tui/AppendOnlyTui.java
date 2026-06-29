@@ -2,6 +2,7 @@ package ai.pijota.tui;
 
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
+import ai.pijota.llm.ModelDisplay;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.llm.ModelInfo;
 import ai.pijota.llm.Modality;
@@ -155,6 +156,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     public void viewer(String title, Supplier<List<String>> source) {
         logViewer.showLive(title, source);
         redrawPrompt();
+    }
+
+    @Override
+    public void submitUserMessage(String content) {
+        handleSubmit(content);
     }
 
     public void appendStatus(String msg) {
@@ -1244,7 +1250,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void handleSubmit(String text) {
-        String submitted = Util.stripSystemReminders(text).strip();
+        String cleaned = Util.stripSystemReminders(text);
+        // A leading space escapes command/shell syntax: " /review …" or " !cmd" is sent to the model as a literal
+        // message; only an unindented "/" or "!" is treated as a command.
+        boolean literal = !cleaned.isEmpty() && Character.isWhitespace(cleaned.charAt(0));
+        String submitted = cleaned.strip();
         if (submitted.isBlank())
             return;
         var expansion = fileRefs.expand(submitted);
@@ -1255,15 +1265,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         String payload = submitted;
         session.stripSystemRemindersFromContext();
-        if (payload.startsWith("/")) {
+        if (!literal && payload.startsWith("/")) {
             commandController.handle(payload.strip());
             return;
         }
-        if (payload.startsWith("!!")) {
+        if (!literal && payload.startsWith("!!")) {
             shellCommands.run(payload.substring(2).strip(), false);
             return;
         }
-        if (payload.startsWith("!")) {
+        if (!literal && payload.startsWith("!")) {
             shellCommands.run(payload.substring(1).strip(), true);
             return;
         }
@@ -1443,15 +1453,23 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         showHelpOverlay(false);
     }
 
+    void showHelpOverlay(String filter) {
+        showHelpOverlay(false, filter);
+    }
+
     /**
      * @param shortcutsFirst
      *            /hotkeys lists keyboard shortcuts before commands; /help lists commands first.
      */
     void showHelpOverlay(boolean shortcutsFirst) {
+        showHelpOverlay(shortcutsFirst, null);
+    }
+
+    private void showHelpOverlay(boolean shortcutsFirst, String filter) {
         // Render help in the scrollable log viewer (one modal viewer for /help and /logs) so the full command list
         // and shortcuts scroll and fit the terminal, rather than being capped.
-        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values(),
-                                        shortcutsFirst));
+        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values(), shortcutsFirst,
+                                        filter));
         redrawPrompt();
     }
 
@@ -1480,8 +1498,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         applyModel(chosen.provider(), chosen.id(), key, chosen.contextWindow(), true);
-        appendPlain(List.of(theme.styled("statusText", provider + "/" + chosen.id() + "  "
-                                        + (int) (chosen.contextWindow() / 1024) + "K")));
+        appendPlain(List.of(theme.styled("statusText",
+                                        provider + "/" + chosen.id() + "  " + ModelDisplay.summary(chosen))));
     }
 
     private void applyModel(String newProvider, String newModel, String key, long newContextWindow, boolean persist) {

@@ -130,6 +130,88 @@ class AppBootstrapTest {
     }
 
     @Test
+    void missingApiKeyErrorIncludesProviderModelAndNextSteps() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var provider = new ai.pijota.config.ProviderCatalog.Provider("missing-test", "Missing Test", "openai",
+                                        "https://example.invalid/v1", List.of("PIJOTA_MISSING_TEST_API_KEY"),
+                                        "test-model", Map.of(), null, null);
+        var config = new AppConfig().withDefaultProviderModel("missing-test", "test-model")
+                                        .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
+                                        .build();
+        var settings = new SettingsManager(config, _ -> {});
+
+        var ex = assertThrows(IllegalStateException.class, () -> AppBootstrap.bootstrap(
+                                        ArgParser.parse(new String[] {"--provider", "missing-test"}), settings));
+
+        assertTrue(ex.getMessage().contains("missing-test/test-model"));
+        assertTrue(ex.getMessage().contains("PIJOTA_MISSING_TEST_API_KEY"));
+        assertTrue(ex.getMessage().contains("--list-models missing-test"));
+        assertTrue(ex.getMessage().contains("local/OpenAI-compatible server"));
+        assertFalse(ex.getMessage().contains("pijota login missing-test"),
+                                        "non-OAuth providers should not suggest login");
+    }
+
+    @Test
+    void missingOauthProviderKeySuggestsLogin() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var oauth = new ai.pijota.config.ProviderCatalog.OAuth("https://device.example", "https://token.example",
+                                        "https://oauth.example", "client", "scope");
+        var provider = new ai.pijota.config.ProviderCatalog.Provider("oauth-test", "OAuth Test", "openai",
+                                        "https://example.invalid/v1", List.of(), "oauth-model", Map.of(), oauth, null);
+        var config = new AppConfig().withDefaultProviderModel("oauth-test", "oauth-model")
+                                        .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
+                                        .build();
+        var settings = new SettingsManager(config, _ -> {});
+
+        var ex = assertThrows(IllegalStateException.class, () -> AppBootstrap.bootstrap(
+                                        ArgParser.parse(new String[] {"--provider", "oauth-test"}), settings));
+
+        assertTrue(ex.getMessage().contains("oauth-test/oauth-model"));
+        assertTrue(ex.getMessage().contains("pijota login oauth-test"));
+        assertTrue(ex.getMessage().contains("--list-models oauth-test"));
+    }
+
+    @Test
+    void missingApiKeyDoesNotBlockHeadlessAgentBootstrap() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var provider = new ai.pijota.config.ProviderCatalog.Provider("agent-missing-test", "Agent Missing Test",
+                                        "openai", "https://example.invalid/v1",
+                                        List.of("PIJOTA_AGENT_MISSING_TEST_API_KEY"), "test-model", Map.of(), null,
+                                        null);
+        var config = new AppConfig().withDefaultProviderModel("agent-missing-test", "test-model")
+                                        .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
+                                        .build();
+        var settings = new SettingsManager(config, _ -> {});
+
+        var result = AppBootstrap.bootstrap(
+                                        ArgParser.parse(new String[] {"--agent", "--provider", "agent-missing-test"}),
+                                        settings);
+
+        assertEquals("agent-missing-test", result.llm().provider());
+        assertEquals("test-model", result.llm().model());
+    }
+
+    @Test
+    void missingApiKeyMessageUsesExplicitProviderAndModel() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var provider = new ai.pijota.config.ProviderCatalog.Provider("explicit-missing-test", "Explicit Missing Test",
+                                        "openai", "https://example.invalid/v1",
+                                        List.of("PIJOTA_EXPLICIT_MISSING_TEST_API_KEY"), "default-model", Map.of(),
+                                        null, null);
+        var config = new AppConfig().withDefaultProviderModel("explicit-missing-test", "default-model")
+                                        .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
+                                        .build();
+        var settings = new SettingsManager(config, _ -> {});
+
+        var ex = assertThrows(IllegalStateException.class, () -> AppBootstrap.bootstrap(
+                                        ArgParser.parse(new String[] {"--model", "explicit-missing-test/custom-model"}),
+                                        settings));
+
+        assertTrue(ex.getMessage().contains("explicit-missing-test/custom-model"));
+        assertTrue(ex.getMessage().contains("PIJOTA_EXPLICIT_MISSING_TEST_API_KEY"));
+    }
+
+    @Test
     void bootstrapAgentModeReturnsWiredResult() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")

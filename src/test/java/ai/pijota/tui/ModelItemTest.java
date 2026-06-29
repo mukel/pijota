@@ -36,7 +36,16 @@ class ModelItemTest {
         var info = new ModelInfo("gpt-4", "openai", "GPT-4", 128_000);
         var item = new ModelItem(info, false);
         assertTrue(item.detailText().contains("openai"));
-        assertTrue(item.detailText().contains("125K"));
+        assertTrue(item.detailText().contains("context 125K"));
+    }
+
+    @Test
+    void detailTextShowsCapabilitiesAndPricing() {
+        var info = new ModelInfo("vision", "openai", "Vision", 128_000, 1.25, 10.0, java.util.List.of("image"));
+        var item = new ModelItem(info, false);
+
+        assertTrue(item.detailText().contains("input image,text"), item.detailText());
+        assertTrue(item.detailText().contains("price $1.25/$10/MTok"), item.detailText());
     }
 
     @Test

@@ -34,9 +34,6 @@ public final class PromptTemplateLoader {
 
     /** Replace shell-style variables: $1..$9, $@, $ARGUMENTS, ${@:N}, ${@:N:L}. */
     public static String expand(String content, String[] args) {
-        if (args.length == 0)
-            return content;
-
         String expanded = content;
 
         // positional: $1..$9 (do first to avoid re-substitution)

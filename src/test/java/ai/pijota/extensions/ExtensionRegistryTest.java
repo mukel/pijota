@@ -628,14 +628,26 @@ class ExtensionRegistryTest {
     }
 
     @Test
-    void apiSendUserMessageRequiresAgentContext() {
+    void apiSendUserMessageUsesUiWhenAttached() {
         var agent = new FakeAgentContext();
-        var reg = registry(agent, new FakeUiContext());
+        var ui = new FakeUiContext();
+        var reg = registry(agent, ui);
         reg.register(simple("sender", api -> {
             api.sendUserMessage("hello");
             api.sendUserMessage("hello", DeliverAs.NEXT_TURN);
         }));
-        assertEquals(List.of("hello", "hello|NEXT_TURN"), agent.sent);
+
+        assertEquals(List.of("hello"), ui.submittedUserMessages());
+        assertEquals(List.of("hello|NEXT_TURN"), agent.sent);
+    }
+
+    @Test
+    void apiSendUserMessageFallsBackToAgentWithoutUi() {
+        var agent = new FakeAgentContext();
+        var reg = registry(agent, null);
+        reg.register(simple("sender", api -> api.sendUserMessage("hello")));
+
+        assertEquals(List.of("hello"), agent.sent);
     }
 
     @Test

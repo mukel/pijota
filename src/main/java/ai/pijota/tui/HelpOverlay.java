@@ -37,8 +37,17 @@ final class HelpOverlay {
      */
     static List<String> content(List<String> commandHelp, Collection<ExtensionKeybinding> keybindings,
                                     boolean shortcutsFirst) {
+        return content(commandHelp, keybindings, shortcutsFirst, null);
+    }
+
+    static List<String> content(List<String> commandHelp, Collection<ExtensionKeybinding> keybindings,
+                                    boolean shortcutsFirst, String filter) {
         var shortcuts = shortcutsBlock(keybindings);
         var out = new ArrayList<String>();
+        out.add("help tips");
+        out.add("  type /help <term> to filter commands and shortcuts");
+        out.add("  press Ctrl+P for the command palette; /hotkeys shows shortcuts first");
+        out.add("");
         if (shortcutsFirst) {
             out.addAll(shortcuts);
             out.add("");
@@ -48,6 +57,39 @@ final class HelpOverlay {
             out.add("");
             out.addAll(shortcuts);
         }
+        return filter(out, filter);
+    }
+
+    private static List<String> filter(List<String> lines, String query) {
+        if (query == null || query.isBlank())
+            return lines;
+        String q = query.toLowerCase();
+        var out = new ArrayList<String>();
+        out.add("help filtered by \"" + query + "\"");
+        String currentSection = null;
+        boolean sectionAdded = false;
+        for (String line : lines) {
+            if (line.isBlank()) {
+                sectionAdded = false;
+                continue;
+            }
+            boolean heading = !line.startsWith(" ");
+            if (heading) {
+                currentSection = line;
+                sectionAdded = false;
+            }
+            if (!line.toLowerCase().contains(q))
+                continue;
+            if (!heading && currentSection != null && !sectionAdded) {
+                out.add(currentSection);
+                sectionAdded = true;
+            }
+            out.add(line);
+            if (heading)
+                sectionAdded = true;
+        }
+        if (out.size() == 1)
+            out.add("  no help entries matched");
         return out;
     }
 

@@ -20,6 +20,7 @@ public class FakeUiContext implements UiContext {
     private List<String> lastSelectLabels = List.of();
     private int selectChoice = -1;
     private final List<String> viewerTitles = new ArrayList<>();
+    private final List<String> submittedUserMessages = new ArrayList<>();
     private List<String> lastViewerLines = List.of();
 
     public List<String> statuses() {
@@ -86,6 +87,15 @@ public class FakeUiContext implements UiContext {
     @Override
     public void viewer(String title, Supplier<List<String>> source) {
         viewer(title, source.get()); // capture the live source's current snapshot
+    }
+
+    @Override
+    public void submitUserMessage(String content) {
+        submittedUserMessages.add(content);
+    }
+
+    public List<String> submittedUserMessages() {
+        return List.copyOf(submittedUserMessages);
     }
 
     public List<String> viewerTitles() {
