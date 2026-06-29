@@ -47,14 +47,14 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 
-final class AppBootstrap {
+public final class AppBootstrap {
     private static final Logger logger = LoggerFactory.getLogger(AppBootstrap.class);
 
-    record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
+    public record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
                                     SessionManager sessions, SettingsManager settings, Args args, String cwd) {
     }
 
-    static Result bootstrap(Args parsedArgs) throws Exception {
+    public static Result bootstrap(Args parsedArgs) throws Exception {
         return bootstrap(parsedArgs, new SettingsManager());
     }
 

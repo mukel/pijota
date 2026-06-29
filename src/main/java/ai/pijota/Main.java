@@ -59,6 +59,8 @@ public final class Main {
                 return logout(args);
             if (args.length > 0 && "worktree".equals(args[0]))
                 return ai.pijota.worktree.WorktreeCommand.run(args);
+            if (args.length > 0 && "loop".equals(args[0]))
+                return ai.pijota.loop.LoopCommand.run(args);
 
             var parsedArgs = ArgParser.parse(args);
             if (parsedArgs.help()) {
