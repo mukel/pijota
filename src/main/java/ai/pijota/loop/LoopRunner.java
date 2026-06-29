@@ -38,6 +38,7 @@ public final class LoopRunner {
     }
 
     private static final int MAX_CONSECUTIVE_FAILURES = 3;
+    private static final String TOO_MANY_FAILURES = "too many consecutive failures";
 
     private LoopRunner() {}
 
@@ -70,9 +71,7 @@ public final class LoopRunner {
             try {
                 lastText = step.run(prompt);
             } catch (Exception e) {
-                consecutiveFailures++;
-                log.accept("iteration failed (" + consecutiveFailures + "/" + MAX_CONSECUTIVE_FAILURES + "): "
-                                                + rootMessage(e));
+                boolean capped = recordFailure(log, "iteration", ++consecutiveFailures, e);
                 if (opts.commit()) {
                     try {
                         git.rollback();
@@ -80,8 +79,8 @@ public final class LoopRunner {
                         log.accept("rollback failed: " + rootMessage(re));
                     }
                 }
-                if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                    stop = "too many consecutive failures";
+                if (capped) {
+                    stop = TOO_MANY_FAILURES;
                     break;
                 }
                 backoff(opts.backoffBaseMs(), consecutiveFailures);
@@ -107,11 +106,8 @@ public final class LoopRunner {
                     }
                 } catch (Exception e) {
                     // A commit/push failure keeps the work (no rollback) but counts as a failure toward the cap.
-                    consecutiveFailures++;
-                    log.accept("commit failed (" + consecutiveFailures + "/" + MAX_CONSECUTIVE_FAILURES + "): "
-                                                    + rootMessage(e));
-                    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                        stop = "too many consecutive failures";
+                    if (recordFailure(log, "commit", ++consecutiveFailures, e)) {
+                        stop = TOO_MANY_FAILURES;
                         break;
                     }
                 }
@@ -139,6 +135,14 @@ public final class LoopRunner {
 
         @Override
         public void push() {}
+    }
+
+    /**
+     * Log a failure ({@code "<what> failed (n/MAX): <cause>"}) and report whether the consecutive-failure cap is hit.
+     */
+    private static boolean recordFailure(Consumer<String> log, String what, int count, Throwable e) {
+        log.accept(what + " failed (" + count + "/" + MAX_CONSECUTIVE_FAILURES + "): " + rootMessage(e));
+        return count >= MAX_CONSECUTIVE_FAILURES;
     }
 
     private static void backoff(long baseMs, int failures) {

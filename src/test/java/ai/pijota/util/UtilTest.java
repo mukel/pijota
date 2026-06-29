@@ -44,6 +44,9 @@ class UtilTest {
         assertEquals("5s", Util.formatDuration(5_000));
         assertEquals("2m30s", Util.formatDuration(150_000));
         assertEquals("10m", Util.formatDuration(600_000));
+        assertEquals("1h", Util.formatDuration(3_600_000));
+        assertEquals("1h1m5s", Util.formatDuration(3_665_000));
+        assertEquals("2h30s", Util.formatDuration(7_230_000));
     }
 
     @Test

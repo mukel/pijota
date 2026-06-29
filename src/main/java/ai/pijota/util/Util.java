@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -299,7 +300,20 @@ public final class Util {
             return seconds + "s";
         long minutes = seconds / 60;
         seconds %= 60;
-        return minutes + "m" + (seconds > 0 ? seconds + "s" : "");
+        if (minutes < 60)
+            return minutes + "m" + (seconds > 0 ? seconds + "s" : "");
+        long hours = minutes / 60;
+        minutes %= 60;
+        return hours + "h" + (minutes > 0 ? minutes + "m" : "") + (seconds > 0 ? seconds + "s" : "");
+    }
+
+    /** Reads all of stdin as UTF-8 and strips it; returns {@code null} on any read error. */
+    public static String readStdin() {
+        try {
+            return new String(System.in.readAllBytes(), StandardCharsets.UTF_8).strip();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public static String formatRelative(long epochMs) {

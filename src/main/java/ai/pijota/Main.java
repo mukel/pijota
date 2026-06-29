@@ -24,6 +24,7 @@ import ai.pijota.util.PijotaHome;
 import ai.pijota.util.Platform;
 import ai.pijota.util.SelfRespawn;
 import ai.pijota.util.StartupTimer;
+import ai.pijota.util.Util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,7 +104,9 @@ public final class Main {
             return runWeb(b, parsedArgs.extensionFlags().get("web"));
 
         if (parsedArgs.print() || !parsedArgs.promptArgs().isEmpty() || stdinRedirected()) {
-            String raw = !parsedArgs.promptArgs().isEmpty() ? String.join(" ", parsedArgs.promptArgs()) : readStdin();
+            String raw = !parsedArgs.promptArgs().isEmpty()
+                                            ? String.join(" ", parsedArgs.promptArgs())
+                                            : Util.readStdin();
             String prompt = FileProcessor.processFileReferences(parsedArgs.fileArgs(), raw);
             if (prompt == null || prompt.isBlank())
                 return CliErrorReporter.fatal("No prompt provided");
@@ -316,10 +319,4 @@ public final class Main {
                                         && args.outputMode() != Args.OutputMode.RPC && !stdinRedirected();
     }
 
-    private static String readStdin() {
-        try {
-            return new String(System.in.readAllBytes(), StandardCharsets.UTF_8).strip();
-        } catch (Exception ignored) {}
-        return null;
-    }
 }

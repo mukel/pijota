@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static ai.pijota.loop.LoopTestSupport.opts;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -35,10 +36,6 @@ class LoopIntegrationTest {
         Files.writeString(repo.resolve("seed.txt"), "seed");
         git("add", "-A");
         git("commit", "-q", "-m", "init");
-    }
-
-    private static LoopRunner.Options opts(int maxIter, long maxTokens, boolean commit) {
-        return new LoopRunner.Options(maxIter, maxTokens, commit, false, 0);
     }
 
     @Test

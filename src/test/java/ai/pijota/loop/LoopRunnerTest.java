@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static ai.pijota.loop.LoopTestSupport.opts;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Pure unit tests for the loop core — no git, no LLM, all collaborators faked. */
@@ -22,10 +23,6 @@ class LoopRunnerTest {
             prompts.add(prompt);
             return "did: " + prompt;
         }
-    }
-
-    private static LoopRunner.Options opts(int maxIter, long maxTokens, boolean commit) {
-        return new LoopRunner.Options(maxIter, maxTokens, commit, false, 0);
     }
 
     @Test

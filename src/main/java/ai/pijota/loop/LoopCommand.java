@@ -8,6 +8,7 @@ import ai.pijota.cli.Args;
 import ai.pijota.messages.Message;
 import ai.pijota.util.Executables;
 import ai.pijota.util.ProcessRunner;
+import ai.pijota.util.Util;
 import ai.pijota.worktree.WorktreePool;
 
 import java.nio.file.Path;
@@ -50,8 +51,8 @@ public final class LoopCommand {
     static LoopConfig parse(String[] argv) {
         Args a = ArgParser.parse(argv);
         Map<String, String> flags = a.extensionFlags();
-        int maxIterations = intFlag(flags, "max-iterations");
-        long maxTokens = longFlag(flags, "max-tokens");
+        int maxIterations = (int) numericFlag(flags, "max-iterations");
+        long maxTokens = numericFlag(flags, "max-tokens");
         boolean push = flags.containsKey("push");
         boolean commit = push || flags.containsKey("commit");
         boolean worktree = flags.containsKey("worktree");
@@ -62,7 +63,7 @@ public final class LoopCommand {
 
     public static int run(String[] args) {
         LoopConfig cfg = parse(Arrays.copyOfRange(args, 1, args.length));
-        String objective = cfg.objective().isEmpty() ? readStdin() : cfg.objective();
+        String objective = cfg.objective().isEmpty() ? Util.readStdin() : cfg.objective();
         if (objective == null || objective.isBlank()) {
             System.err.println("pijota loop: provide an objective as an argument or on stdin");
             System.err.println("  e.g. pijota loop \"tidy the README\" --max-iterations 3 --commit");
@@ -161,42 +162,16 @@ public final class LoopCommand {
         System.out.println("  tokens     : " + s.tokens());
         System.out.printf("  cost       : $%.4f%n", s.cost());
         System.out.println("  commits    : " + s.commits());
-        System.out.println("  elapsed    : " + formatDuration(elapsedMs));
+        System.out.println("  elapsed    : " + Util.formatDuration(elapsedMs));
         System.out.println("  stopped    : " + (s.stopReason() != null ? s.stopReason() : "completed"));
     }
 
-    private static String formatDuration(long ms) {
-        long s = ms / 1000;
-        if (s < 60)
-            return s + "s";
-        long m = s / 60;
-        s %= 60;
-        if (m < 60)
-            return m + "m " + s + "s";
-        return (m / 60) + "h " + (m % 60) + "m " + s + "s";
-    }
-
-    private static String readStdin() {
-        try {
-            return new String(System.in.readAllBytes()).strip();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static int intFlag(Map<String, String> flags, String name) {
-        String v = flags.get(name);
-        if (v == null || v.isBlank() || "true".equals(v))
-            return 0;
-        try {
-            return Math.max(0, Integer.parseInt(v.trim()));
-        } catch (NumberFormatException e) {
-            System.err.println("pijota loop: ignoring invalid --" + name + " '" + v + "'");
-            return 0;
-        }
-    }
-
-    private static long longFlag(Map<String, String> flags, String name) {
+    /**
+     * A non-negative numeric loop flag (e.g. {@code --max-iterations}, {@code --max-tokens}). Missing/blank or a bare
+     * {@code --flag} (parsed as {@code "true"}) means "unlimited" → {@code 0}; an unparseable value warns and falls
+     * back to {@code 0}. Returned as {@code long}; callers needing an {@code int} cap cast it.
+     */
+    private static long numericFlag(Map<String, String> flags, String name) {
         String v = flags.get(name);
         if (v == null || v.isBlank() || "true".equals(v))
             return 0;

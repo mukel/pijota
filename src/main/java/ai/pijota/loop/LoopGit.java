@@ -49,8 +49,7 @@ final class LoopGit implements LoopRunner.Git {
     }
 
     private ProcessRunner.Result git(int timeoutSeconds, String... args) throws Exception {
-        var cmd = new ArrayList<String>();
-        cmd.add("git");
+        var cmd = new ArrayList<>(List.of("git"));
         cmd.addAll(List.of(args));
         return ProcessRunner.command(cmd).workDir(cwd).timeout(timeoutSeconds, TimeUnit.SECONDS).run();
     }
