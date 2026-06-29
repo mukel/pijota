@@ -324,8 +324,11 @@ public final class Util {
         return UUID.randomUUID().toString().replace("-", "").substring(0, Math.min(len, 32));
     }
 
-    /** Tool names whose {@code command} argument is a shell command (the {@code bash} tool and tmux's runner). */
-    public static final Set<String> SHELL_TOOL_NAMES = Set.of("bash", "tmux_bash");
+    /**
+     * Tool names whose {@code command} argument is a shell command — so security/permission gates (which key on this
+     * set) inspect them like the {@code bash} tool: the bash tool, tmux's runner, and the background-jobs runner.
+     */
+    public static final Set<String> SHELL_TOOL_NAMES = Set.of("bash", "tmux_bash", "jobs_run");
 
     public static String parseBashArgs(String argsJson) {
         return parseJsonArgs(argsJson).get("command") instanceof String s ? s : null;

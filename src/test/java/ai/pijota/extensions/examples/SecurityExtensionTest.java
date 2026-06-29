@@ -76,6 +76,17 @@ class SecurityExtensionTest {
     }
 
     @Test
+    void toolCallBlocksDangerousJobsRunCommand() {
+        // jobs_run spawns shell commands in the background — it must be gated by the same guard, not a bypass
+        var api = new FakeExtensionAPI();
+        var ext = new SecurityExtension();
+        ext.init(api);
+        var result = api.fireToolCall("jobs_run", "rm -rf /");
+        assertInstanceOf(ExtensionResult.Block.class, result);
+        assertTrue(((ExtensionResult.Block) result).reason().contains("recursive delete"));
+    }
+
+    @Test
     void toolCallAllowsSafeBashCommand() {
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();
