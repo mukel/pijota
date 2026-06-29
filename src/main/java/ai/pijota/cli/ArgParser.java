@@ -17,6 +17,7 @@ public final class ArgParser {
         var systemPrompt = (String) null;
         var appendSystemPrompts = new ArrayList<String>();
         var thinkingLevel = (String) null;
+        var maxTurns = (Integer) null;
         var outputMode = OutputMode.TEXT;
         var sessionPath = (String) null;
         var noSession = false;
@@ -63,6 +64,7 @@ public final class ArgParser {
                 case "--system-prompt" -> systemPrompt = cursor.value(arg);
                 case "--append-system-prompt" -> appendSystemPrompts.add(cursor.value(arg));
                 case "--thinking" -> thinkingLevel = checkThinking(cursor.value(arg));
+                case "--max-turns" -> maxTurns = parseMaxTurns(cursor.value(arg));
                 case "--mode" -> outputMode = parseMode(cursor.value(arg));
                 case "--session", "-s", "--session-path" -> sessionPath = cursor.value(arg);
                 case "--fork" -> forkPath = cursor.value(arg);
@@ -127,7 +129,7 @@ public final class ArgParser {
                                         noContextFiles, noPromptTemplates, enabledTools, extensionPaths, skillPaths,
                                         themePaths, promptTemplatePaths, print, resume, continueSession, recoverSession,
                                         forkPath, exportPath, listModels, listModelsFilter, help, version, verbose,
-                                        agent, worker, fileArgs, promptArgs, Map.copyOf(extensionFlags));
+                                        agent, worker, fileArgs, promptArgs, Map.copyOf(extensionFlags), maxTurns);
     }
 
     public static void printHelp() {
@@ -143,6 +145,7 @@ public final class ArgParser {
                                           --system-prompt <text>    Custom system prompt
                                           --append-system-prompt <text>  Append to system prompt (repeatable)
                                           --thinking <level>        Thinking level (off, minimal, low, medium, high)
+                                          --max-turns <n>           Max tool-call turns per prompt (0 = unlimited)
                                           --mode <mode>             Output mode: text, json, rpc
                                           --print, -p [prompt]      Non-interactive single-shot mode
                                           --session, -s <id>        Session file path or partial UUID
@@ -252,6 +255,16 @@ public final class ArgParser {
             System.err.println("pijota: unknown --thinking '" + level + "' (expected: "
                                             + String.join(", ", THINKING_LEVELS) + "), using medium");
         return level;
+    }
+
+    /** Parses {@code --max-turns} (non-negative; 0 = unlimited). Invalid → null, so the configured default applies. */
+    private static Integer parseMaxTurns(String v) {
+        try {
+            return Math.max(0, Integer.parseInt(v.trim()));
+        } catch (NumberFormatException e) {
+            System.err.println("pijota: ignoring invalid --max-turns '" + v + "'");
+            return null;
+        }
     }
 
     private static List<String> parseList(String csv) {

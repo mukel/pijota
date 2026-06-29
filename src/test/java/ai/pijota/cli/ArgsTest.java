@@ -13,7 +13,7 @@ class ArgsTest {
         return new Args(null, null, null, null, List.of(), null, null, null, false, false, false, false, false, false,
                                         false, List.of(), List.of(), List.of(), List.of(), List.of(), false, false,
                                         false, false, null, null, false, null, false, false, false, false, false,
-                                        List.of(), List.of(), Map.of());
+                                        List.of(), List.of(), Map.of(), null);
     }
 
     @Test
@@ -34,7 +34,7 @@ class ArgsTest {
         var args = new Args("openai", "gpt-4", null, null, List.of(), null, null, null, false, false, false, false,
                                         false, false, false, List.of(), List.of(), List.of(), List.of(), List.of(),
                                         false, false, false, false, null, null, false, null, false, false, false, false,
-                                        false, List.of(), List.of(), Map.of());
+                                        false, List.of(), List.of(), Map.of(), null);
         assertEquals("openai", args.provider());
         assertEquals("gpt-4", args.model());
         assertFalse(args.noSession());
@@ -46,7 +46,7 @@ class ArgsTest {
         var args = new Args(null, null, null, null, List.of(), null, null, null, true, true, false, false, false, false,
                                         false, List.of(), List.of(), List.of(), List.of(), List.of(), false, false,
                                         false, false, null, null, false, null, false, false, false, false, false,
-                                        List.of(), List.of(), Map.of());
+                                        List.of(), List.of(), Map.of(), null);
         assertTrue(args.noSession());
         assertTrue(args.noTools());
     }
@@ -66,7 +66,7 @@ class ArgsTest {
         var args = new Args(null, null, null, null, List.of(), null, null, null, false, false, false, false, false,
                                         false, false, List.of(), List.of(), List.of(), List.of(), List.of(), false,
                                         false, false, false, null, null, false, null, false, false, false, false, false,
-                                        List.of(), List.of(), Map.of("key", "value"));
+                                        List.of(), List.of(), Map.of("key", "value"), null);
         assertEquals(Map.of("key", "value"), args.extensionFlags());
     }
 }

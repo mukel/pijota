@@ -58,6 +58,14 @@ class ArgParserTest {
     }
 
     @Test
+    void parseMaxTurns() {
+        assertNull(ArgParser.parse(new String[] {}).maxTurns(), "unset → null → config default applies");
+        assertEquals(12, ArgParser.parse(new String[] {"--max-turns", "12"}).maxTurns());
+        assertEquals(0, ArgParser.parse(new String[] {"--max-turns", "0"}).maxTurns(), "0 = unlimited");
+        assertNull(ArgParser.parse(new String[] {"--max-turns", "abc"}).maxTurns(), "invalid → null (warned)");
+    }
+
+    @Test
     void parseModeText() {
         var args = ArgParser.parse(new String[] {"--mode", "text"});
         assertEquals(Args.OutputMode.TEXT, args.outputMode());

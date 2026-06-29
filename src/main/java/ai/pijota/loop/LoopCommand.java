@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     --push               push after each committed iteration (implies --commit)
  *     --worktree           run isolated in a pooled git worktree
  *     --iteration-timeout N  abort an iteration that runs longer than N seconds (default: unlimited)
- *     [-m/--model, --provider, --thinking, …]  standard session flags, passed through
+ *     [-m/--model, --provider, --thinking, --max-turns, …]  standard session flags, passed through
  * </pre>
  */
 public final class LoopCommand {

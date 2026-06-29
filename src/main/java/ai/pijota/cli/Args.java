@@ -12,7 +12,7 @@ public record Args(String provider, String model, String apiKey, String systemPr
                                 boolean continueSession, boolean recoverSession, String forkPath, String exportPath,
                                 boolean listModels, String listModelsFilter, boolean help, boolean version,
                                 boolean verbose, boolean agent, boolean worker, List<String> fileArgs,
-                                List<String> promptArgs, Map<String, String> extensionFlags) {
+                                List<String> promptArgs, Map<String, String> extensionFlags, Integer maxTurns) {
     public enum OutputMode {
         TEXT, JSON, RPC
     }
