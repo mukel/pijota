@@ -163,13 +163,10 @@ public final class ArgParser {
                                           --no-prompt-templates, -np Skip prompt template auto-discovery
                                           --prompt-template <path>   Load prompt template (repeatable)
 
-                                        EXTENSION FLAGS (opt-in):
-                                          --tmux                    Enable tmux integration for long-running processes
-                                          --browse                  Enable web browsing
-                                          --todo                    Enable todo-list tool
-                                          --token-speed             Show token speed metrics
-                                          --whoami                  Show model/provider info tool
-
+                                        """);
+        System.out.println(ai.pijota.extensions.BuiltinExtensions.helpSection());
+        System.out.println();
+        System.out.println("""
                                         MISC:
                                           --export <file>           Export session to Markdown
                                           --list-models [filter]    List available models

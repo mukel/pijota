@@ -857,4 +857,106 @@ class ExtensionRegistryTest {
         assertEquals(1, list.size());
         assertThrows(UnsupportedOperationException.class, () -> list.add(t -> {}));
     }
+
+    // ---- enablement resolution: declared default -> settings.json -> CLI --x/--no-x ----
+
+    /** A toggleable extension that records whether init() ran and the config value getFlag returned. */
+    private static final class Toggle implements Extension {
+        final String extName;
+        final boolean def;
+        boolean inited;
+        String configValue;
+
+        Toggle(String name, boolean def) {
+            this.extName = name;
+            this.def = def;
+        }
+
+        @Override
+        public String name() {
+            return extName;
+        }
+
+        @Override
+        public String description() {
+            return extName;
+        }
+
+        @Override
+        public boolean enabledByDefault() {
+            return def;
+        }
+
+        @Override
+        public void init(ExtensionAPI api) {
+            inited = true;
+            api.runtime().getFlag(extName).ifPresent(v -> configValue = v);
+        }
+    }
+
+    @Test
+    void isEnabledFollowsDefaultThenSettingsThenFlags() {
+        var r = new ExtensionRegistry();
+        assertTrue(r.isEnabled("x", true));
+        assertFalse(r.isEnabled("x", false));
+
+        r.setExtensionsConfig(Map.of("a", false, "b", true, "browse", "firefox"));
+        assertFalse(r.isEnabled("a", true), "settings false overrides default true");
+        assertTrue(r.isEnabled("b", false), "settings true overrides default false");
+        assertTrue(r.isEnabled("browse", false), "a settings config string implies enabled");
+
+        r.setExtensionFlags(Map.of("a", "true", "no-b", "true", "c", "true"));
+        assertTrue(r.isEnabled("a", true), "--a re-enables despite settings false");
+        assertFalse(r.isEnabled("b", false), "--no-b disables despite settings true");
+        assertTrue(r.isEnabled("c", false), "--c enables a default-off extension");
+    }
+
+    @Test
+    void noFlagDisablesADefaultOnExtension() {
+        var r = new ExtensionRegistry();
+        r.setExtensionFlags(Map.of("no-core", "true"));
+        assertFalse(r.isEnabled("core", true), "--no-core disables a default-on extension");
+    }
+
+    @Test
+    void registerGatesOnResolvedEnablement() {
+        var r = new ExtensionRegistry();
+        r.setExtensionFlags(Map.of("no-on", "true", "wanted", "true"));
+        var on = new Toggle("on", true); // default on, but --no-on
+        var off = new Toggle("off", false); // default off, no flag
+        var wanted = new Toggle("wanted", false); // default off, but --wanted
+        r.register(on);
+        r.register(off);
+        r.register(wanted);
+        assertFalse(on.inited, "disabled by --no-on");
+        assertFalse(off.inited, "default off, not requested");
+        assertTrue(wanted.inited, "default off but --wanted enables");
+    }
+
+    @Test
+    void settingsConfigValueReachesExtensionAndCliWins() {
+        var r = new ExtensionRegistry();
+        r.setExtensionsConfig(Map.of("browse", "firefox")); // string enables + configures
+        var ext = new Toggle("browse", false);
+        r.register(ext);
+        assertTrue(ext.inited, "a settings config string enables a default-off extension");
+        assertEquals("firefox", ext.configValue, "getFlag merges the settings config value");
+
+        var r2 = new ExtensionRegistry();
+        r2.setExtensionsConfig(Map.of("browse", "firefox"));
+        r2.setExtensionFlags(Map.of("browse", "safari"));
+        var ext2 = new Toggle("browse", false);
+        r2.register(ext2);
+        assertEquals("safari", ext2.configValue, "CLI --browse=safari overrides settings firefox");
+    }
+
+    @Test
+    void builtinExtensionsHelpSectionListsToggleables() {
+        String help = BuiltinExtensions.helpSection();
+        assertTrue(help.contains("--browse"), help);
+        assertTrue(help.contains("--no-skills"), help); // a default-on shows its disable flag
+        assertTrue(help.contains("--transcendence"), help); // now opt-in
+        assertTrue(help.contains("[default: off]"));
+        assertTrue(help.contains("[default: on]"));
+    }
 }

@@ -135,7 +135,7 @@ Sessions are durable JSONL files with branching tree structure:
 
 ### Self-modifying (Transcendence)
 
-`/transcend "add a /foo command"` edits, rebuilds, and respawns pijota itself:
+Opt-in (it's the riskiest capability) — enable with `--transcendence` (or `extensions.transcendence: true` in `settings.json`). `/transcend "add a /foo command"` then edits, rebuilds, and respawns pijota itself:
 
 - **Build** — runs `mvn package` in a git worktree (isolated branch)
 - **Test** — `mvn test` before respawn
@@ -156,6 +156,20 @@ The `task` tool launches isolated sub-agent processes for parallel or delegated 
 - **Log viewer** — `/logs` opens a live-tail viewer for sub-agent output
 - **Multi-agent** — aggregate status bar showing all running agents
 - **Allowlist** — sub-agents see only a subset of tools configured per agent
+
+### Extensions
+
+Optional capabilities are extensions, toggled **uniformly**: `--<name>` enables (and `--<name>=value` configures), `--no-<name>` disables — for any of them. Each has a sensible default (core on; heavy/risky/niche off), listed by `pijota --help`. Persist your choices in `settings.json`:
+
+```jsonc
+"extensions": {
+  "browse": "firefox",      // enable + configure the engine
+  "jobs": true,             // enable
+  "transcendence": false    // disable
+}
+```
+
+Precedence: built-in default → `settings.json` → CLI flag (a flag overrides a persisted setting). Off by default: `browse`, `jobs`, `tmux`, `todo`, `token-speed`, `transcendence`, `whoami`. On by default (disable with `--no-…`): `skills`, `prompt-templates`, `context-files`.
 
 ### Browser
 
