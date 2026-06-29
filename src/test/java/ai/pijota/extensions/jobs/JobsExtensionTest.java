@@ -10,7 +10,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -42,11 +41,12 @@ class JobsExtensionTest {
     @Test
     void registersAllJobToolsAndPanelWithTheFlag() {
         var api = initWithFlag(true);
+        assertEquals(4, api.tools().size(), "exactly four jobs tools");
         assertNotNull(api.tool("jobs_run"));
         assertNotNull(api.tool("jobs_output"));
         assertNotNull(api.tool("jobs_list"));
         assertNotNull(api.tool("jobs_kill"));
-        assertNotNull(api.tool("jobs_signal"));
+        assertNull(api.tool("jobs_signal"), "jobs_signal was merged into jobs_kill");
         assertFalse(api.statusLineSuppliers().isEmpty());
     }
 
@@ -68,7 +68,6 @@ class JobsExtensionTest {
         assertTrue(run(api, "jobs_run", Map.of()).isError(), "missing command");
         assertTrue(run(api, "jobs_output", Map.of("id", "bg_999")).content().contains("No background job"));
         assertTrue(run(api, "jobs_kill", Map.of("id", "bg_999")).isError());
-        assertTrue(run(api, "jobs_signal", Map.of("id", "bg_999")).isError());
     }
 
     @Test
@@ -285,54 +284,6 @@ class JobsExtensionTest {
         assertTrue(elapsed >= 800, "wait_for_completion should have blocked ~1s, but took " + elapsed + "ms");
     }
 
-    // ---- jobs_output: multi-job ----
-
-    @Test
-    void jobsOutputWithMultipleIdsWaitsForAll() throws Exception {
-        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
-        var api = initWithFlag(true);
-        String id1 = (String) run(api, "jobs_run", Map.of("command", "sleep 1; echo alpha")).details().get("jobId");
-        String id2 = (String) run(api, "jobs_run", Map.of("command", "sleep 1; echo beta")).details().get("jobId");
-        var r = run(api, "jobs_output", Map.of("ids", List.of(id1, id2), "wait_for_completion", true));
-        String content = r.content();
-        assertTrue(content.contains("alpha"), content);
-        assertTrue(content.contains("beta"), content);
-        assertTrue(content.contains("exited with code 0"), content);
-        // details should have a "jobs" list
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobResults = (List<Map<String, Object>>) r.details().get("jobs");
-        assertNotNull(jobResults);
-        assertEquals(2, jobResults.size());
-        for (var jr : jobResults) {
-            assertNotNull(jr.get("id"));
-            assertFalse((boolean) jr.get("running"));
-            assertEquals(0, jr.get("exitCode"));
-        }
-    }
-
-    @Test
-    void jobsOutputMultiJobReportsUnknownId() throws Exception {
-        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
-        var api = initWithFlag(true);
-        String id1 = (String) run(api, "jobs_run", Map.of("command", "sleep 1")).details().get("jobId");
-        var r = run(api, "jobs_output", Map.of("ids", List.of(id1, "bg_999")));
-        assertTrue(r.isError());
-        assertTrue(r.content().contains("bg_999"), r.content());
-        run(api, "jobs_kill", Map.of("id", id1));
-    }
-
-    @Test
-    void jobsOutputWithSingleIdViaIdsListUsesSinglePath() throws Exception {
-        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
-        var api = initWithFlag(true);
-        String id = (String) run(api, "jobs_run", Map.of("command", "echo solo")).details().get("jobId");
-        var r = run(api, "jobs_output", Map.of("ids", List.of(id), "wait_for_completion", true));
-        assertTrue(r.content().contains("solo"), r.content());
-        // Single-element ids list uses the single-job path
-        assertEquals(0, r.details().get("exitCode"));
-        assertFalse((boolean) r.details().get("running"));
-    }
-
     // ---- jobs_list: output size + truncated ----
 
     @Test
@@ -375,55 +326,49 @@ class JobsExtensionTest {
         assertTrue(r.content().contains("Killed background job " + id), r.content());
     }
 
-    // ---- jobs_signal ----
-
     @Test
-    void jobsSignalRejectsInvalidSignalName() throws Exception {
+    void jobsKillRejectsInvalidSignalName() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);
         String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
-        var r = run(api, "jobs_signal", Map.of("id", id, "signal", "SIGHUP"));
+        var r = run(api, "jobs_kill", Map.of("id", id, "signal", "SIGINT")); // SIGINT no longer supported
         assertTrue(r.isError(), "unsupported signal should error");
         assertTrue(r.content().contains("Unsupported signal"), r.content());
         run(api, "jobs_kill", Map.of("id", id));
     }
 
     @Test
-    void jobsSignalDefaultIsSigterm() throws Exception {
+    void jobsKillDefaultsToSigkill() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);
         String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
-        var r = run(api, "jobs_signal", Map.of("id", id)); // no signal → SIGTERM
+        var r = run(api, "jobs_kill", Map.of("id", id)); // no signal → SIGKILL
+        assertFalse(r.isError(), r.content());
+        assertTrue(r.content().contains("Killed"), r.content());
+        Thread.sleep(100);
+        assertTrue(run(api, "jobs_list", Map.of()).content().contains("exit"), "job should be dead");
+    }
+
+    @Test
+    void jobsKillSigtermStopsGracefully() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var api = initWithFlag(true);
+        String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
+        var r = run(api, "jobs_kill", Map.of("id", id, "signal", "SIGTERM"));
         assertFalse(r.isError(), r.content());
         assertTrue(r.content().contains("SIGTERM"), r.content());
-        // Give it a moment to die
         Thread.sleep(100);
-        // Should be dead now
-        var listed = run(api, "jobs_list", Map.of()).content();
-        assertTrue(listed.contains("exit"), "job should be dead after SIGTERM: " + listed);
+        assertTrue(run(api, "jobs_list", Map.of()).content().contains("exit"), "job should be dead after SIGTERM");
     }
 
     @Test
-    void jobsSignalSigkillTerminatesJob() throws Exception {
-        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
-        var api = initWithFlag(true);
-        String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
-        var r = run(api, "jobs_signal", Map.of("id", id, "signal", "SIGKILL"));
-        assertFalse(r.isError(), r.content());
-        Thread.sleep(100);
-        var listed = run(api, "jobs_list", Map.of()).content();
-        assertTrue(listed.contains("exit"), "job should be dead after SIGKILL: " + listed);
-    }
-
-    @Test
-    void jobsSignalOnAlreadyFinishedJobReturnsError() throws Exception {
+    void jobsKillOnAlreadyFinishedJobSucceedsIdempotently() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);
         String id = (String) run(api, "jobs_run", Map.of("command", "echo done")).details().get("jobId");
-        // Wait for it to finish
         readUntil(api, id, s -> s.contains("exited"), 5000);
-        var r = run(api, "jobs_signal", Map.of("id", id, "signal", "SIGTERM"));
-        assertTrue(r.isError(), "signalling finished job should error: " + r.content());
+        var r = run(api, "jobs_kill", Map.of("id", id));
+        assertFalse(r.isError(), "killing a finished (but known) job is a no-op success: " + r.content());
     }
 
     // ---- monitor (completion notifications) ----
@@ -457,58 +402,13 @@ class JobsExtensionTest {
     }
 
     @Test
-    void monitorStaysSilentWhenAJobIsSignalled() throws Exception {
+    void monitorStillNotifiesAfterSigterm() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);
+        // SIGTERM is graceful and does NOT suppress completion — the resulting exit must still reach the agent
         String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
-        run(api, "jobs_signal", Map.of("id", id, "signal", "SIGKILL"));
-        Thread.sleep(600);
-        assertFalse(api.sentUserMessages().stream().anyMatch(m -> m.contains("finished") || m.contains("FAILED")),
-                                        "intentional kill via signal should not fire monitor: "
-                                                                        + api.sentUserMessages());
-    }
-
-    // ---- unified read: regression guards for the bugs this fixed ----
-
-    @Test
-    void multiReadReturnsOutputOfAlreadyFinishedJobs() throws Exception {
-        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
-        var api = initWithFlag(true);
-        String a = (String) run(api, "jobs_run", Map.of("command", "echo aaa")).details().get("jobId");
-        String b = (String) run(api, "jobs_run", Map.of("command", "echo bbb")).details().get("jobId");
-        Thread.sleep(300); // both finish before we read — output must NOT be pre-consumed by validation
-
-        var content = run(api, "jobs_output", Map.of("ids", List.of(a, b))).content();
-        assertTrue(content.contains("aaa"), content);
-        assertTrue(content.contains("bbb"), content);
-    }
-
-    @Test
-    void multiReadReturnsEarlyWhenOutputIsAvailable() throws Exception {
-        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
-        var api = initWithFlag(true);
-        String fast = (String) run(api, "jobs_run", Map.of("command", "echo ready")).details().get("jobId");
-        String slow = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
-
-        long t0 = System.currentTimeMillis();
-        var content = run(api, "jobs_output", Map.of("ids", List.of(fast, slow), "timeout", 10)).content();
-        long elapsed = System.currentTimeMillis() - t0;
-        assertTrue(content.contains("ready"), content);
-        assertTrue(elapsed < 5000, "multi-read must return early on available output, not block the full timeout: "
-                                        + elapsed + "ms");
-        run(api, "jobs_kill", Map.of("id", slow));
-    }
-
-    @Test
-    void duplicateIdIsReadOnce() throws Exception {
-        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
-        var api = initWithFlag(true);
-        String id = (String) run(api, "jobs_run", Map.of("command", "echo hello")).details().get("jobId");
-        // same id via both 'id' and 'ids' must de-dup to a single job (no doubled/empty section)
-        var content = run(api, "jobs_output", Map.of("id", id, "ids", List.of(id), "wait_for_completion", true))
-                                        .content();
-        assertEquals(1, content.split("hello", -1).length - 1, "output should appear exactly once: " + content);
-        assertFalse(content.contains("---"), "single de-duped job uses the single-job format: " + content);
+        run(api, "jobs_kill", Map.of("id", id, "signal", "SIGTERM"));
+        assertTrue(awaitUserMessage(api, "background job " + id, 5000), api.sentUserMessages().toString());
     }
 
     // ---- helpers ----

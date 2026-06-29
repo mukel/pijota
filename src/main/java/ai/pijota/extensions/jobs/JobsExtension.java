@@ -7,6 +7,7 @@ import ai.pijota.tools.Tool;
 import ai.pijota.tools.Tool.ToolDefinition;
 import ai.pijota.tools.Tool.ToolResult;
 import ai.pijota.util.Platform;
+import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 
 import java.io.IOException;
@@ -14,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -22,18 +22,20 @@ import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 /**
- * Opt-in background shell jobs (enable with {@code --jobs}). Adds five tools — {@code jobs_run} to launch a
- * long-running command without blocking the turn, {@code jobs_output} to poll or await its output (one or many jobs),
- * {@code jobs_list} to inspect all jobs, {@code jobs_kill} to force-stop, and {@code jobs_signal} to send
- * SIGTERM/SIGKILL — plus a live panel of running jobs. Unlike {@code --tmux} it needs no external binary (plain JDK
- * process management), so it works everywhere including the native image.
+ * Opt-in background shell jobs (enable with {@code --jobs}). Adds four tools — {@code jobs_run} to launch a
+ * long-running command without blocking the turn, {@code jobs_output} to poll or await its output, {@code jobs_list} to
+ * inspect all jobs, and {@code jobs_kill} to stop one (SIGKILL by default, or SIGTERM for graceful shutdown) — plus a
+ * live panel of running jobs and a completion notice when a job exits. Cross-platform by construction: the command runs
+ * through {@link Platform#defaultShell()} (cmd/bash per OS) and lifecycle uses only the Java {@code Process}/
+ * {@code ProcessHandle} API — no external {@code kill}/{@code sh}. Unlike {@code --tmux} it needs no external binary,
+ * so it works everywhere including the native image.
  */
 public final class JobsExtension implements Extension {
 
     private static final int MAX_PANEL_ROWS = 6;
     private static final int MAX_WAIT_SECONDS = 120; // cap a blocking jobs_output wait
     private static final int CMD_PREVIEW = 60;
-    private static final List<String> SUPPORTED_SIGNALS = List.of("SIGTERM", "SIGKILL");
+    private static final List<String> SUPPORTED_SIGNALS = List.of("SIGKILL", "SIGTERM");
 
     private volatile JobRegistry jobs; // created in init() when enabled; reaped in onShutdown()
 
@@ -56,7 +58,6 @@ public final class JobsExtension implements Extension {
         api.registerTool(outputTool(jobs));
         api.registerTool(listTool(jobs));
         api.registerTool(killTool(jobs));
-        api.registerTool(signalTool(jobs));
         api.registerStatusLines(() -> renderPanel(jobs.list()));
     }
 
@@ -100,6 +101,10 @@ public final class JobsExtension implements Extension {
                                                                                 + "\"), stop with jobs_kill.",
                                                                                 Map.of("jobId", id));
                                             } catch (IOException e) {
+                                                if (ProcessRunner.isCommandNotFound(e))
+                                                    return ToolResult.error("Couldn't start the shell (" + shell
+                                                                                    + "). On Windows, install Git Bash or WSL, or set"
+                                                                                    + " shell_path in settings.");
                                                 return ToolResult.error("Could not start background job: "
                                                                                 + e.getMessage());
                                             }
@@ -115,36 +120,33 @@ public final class JobsExtension implements Extension {
         return env;
     }
 
-    // -- jobs_output (one or many jobs) --
+    // -- jobs_output --
 
     private static ToolDefinition outputTool(JobRegistry jobs) {
         return Tool.named("jobs_output").glyph("📡").description(
-                                        "Read output from one or more background jobs produced since your last read, plus whether each"
-                                                                        + " is still running or its exit code. Optional: filter (regex — only matching lines),"
-                                                                        + " timeout (seconds to wait for new output or exit), and wait_for_completion (block until"
-                                                                        + " the job(s) exit). Pass a single id, or a list via 'ids' to read several at once.")
-                                        .stringParam("id", "A background job id returned by jobs_run, e.g. \"bg_1\"",
-                                                                        false)
-                                        .listParam("ids", "List of job ids to read/wait on simultaneously", false)
+                                        "Read a background job's output produced since your last read, plus whether it is still running"
+                                                                        + " or its exit code. Optional: filter (regex — only matching lines), timeout (seconds to"
+                                                                        + " wait for new output or exit), and wait_for_completion (block until the job exits).")
+                                        .stringParam("id", "The background job id returned by jobs_run, e.g. \"bg_1\"",
+                                                                        true)
                                         .stringParam("filter", "Optional regex; only output lines matching it are returned",
                                                                         false)
                                         .intParam("timeout", "Optional seconds to wait for new output or exit (default 0 = return now)",
                                                                         false)
                                         .boolParam("wait_for_completion",
-                                                                        "Block until the job(s) exit (max 120s); overrides timeout",
+                                                                        "Block until the job exits (max 120s); overrides timeout",
                                                                         false)
                                         .run((args, cwd) -> readOutput(jobs, args));
     }
 
     /**
-     * Unified read for 1..N jobs: poll each job, accumulating the output it produces (so a job that finishes between
-     * polls never loses its tail — the bug the old pre-consume validation loop had), until every targeted job has
-     * exited, the deadline passes, or — unless waiting for completion — any job has matching output to show.
+     * Polls one job, accumulating the output it produces (so a job that finishes between polls never loses its tail),
+     * until it exits, the deadline passes, or — unless waiting for completion — it has matching output to show.
      */
     private static ToolResult readOutput(JobRegistry jobs, Tool.Args args) {
-        var ids = collectIds(args);
-        if (ids.isEmpty())
-            return ToolResult.error("No job id provided; use 'id' (single) or pass a list via 'ids'");
+        String id = args.getString("id");
+        if (isBlank(id))
+            return ToolResult.error("No job id provided");
         Pattern filter;
         try {
             String f = args.getString("filter");
@@ -158,34 +160,14 @@ public final class JobsExtension implements Extension {
                                         : Math.min(Math.max(args.getInt("timeout", 0), 0), MAX_WAIT_SECONDS);
         long deadline = System.currentTimeMillis() + seconds * 1000L;
 
-        var acc = new LinkedHashMap<String, StringBuilder>();
-        var last = new LinkedHashMap<String, JobRegistry.Read>();
-        for (String id : ids)
-            acc.put(id, new StringBuilder());
-
-        boolean first = true;
+        var acc = new StringBuilder();
+        JobRegistry.Read read = jobs.read(id);
+        if (read == null)
+            return ToolResult.error("No background job " + id);
         while (true) {
-            boolean anyRunning = false;
-            boolean anyNew = false;
-            for (String id : ids) {
-                var read = jobs.read(id);
-                if (read == null) {
-                    if (first)
-                        return ToolResult.error("No background job " + id);
-                    continue; // jobs are never removed once seen, so this can't happen after the first pass
-                }
-                last.put(id, read);
-                if (!read.output().isEmpty()) {
-                    acc.get(id).append(read.output());
-                    anyNew = true;
-                }
-                if (read.running())
-                    anyRunning = true;
-            }
-            first = false;
-            boolean ready = !waitCompletion && anyNew && acc.values().stream()
-                                            .anyMatch(b -> !filtered(b.toString(), filter).isEmpty());
-            if (!anyRunning || ready || System.currentTimeMillis() >= deadline)
+            acc.append(read.output());
+            boolean ready = !waitCompletion && !filtered(acc.toString(), filter).isEmpty();
+            if (!read.running() || ready || System.currentTimeMillis() >= deadline)
                 break;
             try {
                 Thread.sleep(100);
@@ -193,28 +175,10 @@ public final class JobsExtension implements Extension {
                 Thread.currentThread().interrupt();
                 break;
             }
+            read = jobs.read(id);
         }
 
-        return ids.size() == 1 ? formatSingle(ids.get(0), acc, last, filter) : formatMulti(ids, acc, last, filter);
-    }
-
-    /** Job ids from a single 'id' and/or an 'ids' list, de-duplicated and order-preserving. */
-    private static List<String> collectIds(Tool.Args args) {
-        var ids = new LinkedHashSet<String>();
-        String single = args.getString("id");
-        if (single != null && !single.isBlank())
-            ids.add(single);
-        if (args.get("ids") instanceof List<?> list)
-            for (Object item : list)
-                if (item != null && !item.toString().isBlank())
-                    ids.add(item.toString());
-        return new ArrayList<>(ids);
-    }
-
-    private static ToolResult formatSingle(String id, Map<String, StringBuilder> acc,
-                                    Map<String, JobRegistry.Read> last, Pattern filter) {
-        var read = last.get(id);
-        String shown = filtered(acc.get(id).toString(), filter);
+        String shown = filtered(acc.toString(), filter);
         var body = new StringBuilder(shown);
         if (filter != null && shown.isEmpty())
             body.append("(no lines matching filter yet)");
@@ -224,28 +188,6 @@ public final class JobsExtension implements Extension {
             body.append('\n');
         body.append(statusLine(read));
         return ToolResult.success(body.toString(), statusDetails(read));
-    }
-
-    private static ToolResult formatMulti(List<String> ids, Map<String, StringBuilder> acc,
-                                    Map<String, JobRegistry.Read> last, Pattern filter) {
-        var sb = new StringBuilder();
-        var jobsDetail = new ArrayList<Map<String, Object>>();
-        boolean anyTruncated = false;
-        for (String id : ids) {
-            var read = last.get(id);
-            if (read == null)
-                continue;
-            String shown = filtered(acc.get(id).toString(), filter);
-            anyTruncated |= read.truncated();
-            sb.append("--- ").append(id).append(' ').append(statusLine(read)).append(" ---\n");
-            sb.append(shown.isEmpty() && filter != null ? "(no lines matching filter)" : shown);
-            if (sb.charAt(sb.length() - 1) != '\n')
-                sb.append('\n');
-            jobsDetail.add(statusDetails(read));
-        }
-        if (anyTruncated)
-            sb.append("[output truncated]\n");
-        return ToolResult.success(sb.toString().stripTrailing(), Map.of("jobs", jobsDetail));
     }
 
     private static String statusLine(JobRegistry.Read read) {
@@ -269,7 +211,7 @@ public final class JobsExtension implements Extension {
         return text.lines().filter(line -> filter.matcher(line).find()).collect(Collectors.joining("\n"));
     }
 
-    // -- jobs_list / jobs_kill / jobs_signal --
+    // -- jobs_list / jobs_kill --
 
     private static ToolDefinition listTool(JobRegistry jobs) {
         return Tool.named("jobs_list").glyph("📋").description(
@@ -297,41 +239,24 @@ public final class JobsExtension implements Extension {
 
     private static ToolDefinition killTool(JobRegistry jobs) {
         return Tool.named("jobs_kill").glyph("⛔").description(
-                                        "Terminate a background job started with jobs_run (SIGKILL to the whole process tree)."
-                                                                        + " Use jobs_signal SIGTERM for graceful shutdown first.")
-                                        .stringParam("id", "The background job id to kill, e.g. \"bg_1\"", true)
+                                        "Stop a background job by signalling its whole process tree. Defaults to SIGKILL (force);"
+                                                                        + " pass signal=SIGTERM to ask it to shut down gracefully first.")
+                                        .stringParam("id", "The background job id to stop, e.g. \"bg_1\"", true)
+                                        .enumParam("signal", "SIGKILL (force, default) or SIGTERM (graceful)", false,
+                                                                        SUPPORTED_SIGNALS)
                                         .run((args, cwd) -> {
                                             String id = args.getString("id");
                                             if (isBlank(id))
                                                 return ToolResult.error("No job id provided");
-                                            return jobs.kill(id)
-                                                                            ? ToolResult.success("Killed background job "
-                                                                                                            + id)
-                                                                            : ToolResult.error("No background job "
-                                                                                                            + id);
-                                        });
-    }
-
-    private static ToolDefinition signalTool(JobRegistry jobs) {
-        return Tool.named("jobs_signal").glyph("📶").description(
-                                        "Send a signal to a background job's process tree: SIGTERM (graceful termination) or SIGKILL"
-                                                                        + " (force kill). Prefer SIGTERM before falling back to jobs_kill.")
-                                        .stringParam("id", "The background job id, e.g. \"bg_1\"", true)
-                                        .enumParam("signal", "Signal to send", false, SUPPORTED_SIGNALS)
-                                        .run((args, cwd) -> {
-                                            String id = args.getString("id");
-                                            if (isBlank(id))
-                                                return ToolResult.error("No job id provided");
-                                            String signal = args.getString("signal", "SIGTERM").toUpperCase();
+                                            String signal = args.getString("signal", "SIGKILL").toUpperCase();
                                             if (!SUPPORTED_SIGNALS.contains(signal))
                                                 return ToolResult.error("Unsupported signal: " + signal
                                                                                 + ". Supported: " + SUPPORTED_SIGNALS);
-                                            return jobs.signal(id, signal)
-                                                                            ? ToolResult.success("Sent " + signal
-                                                                                                            + " to background job "
-                                                                                                            + id)
-                                                                            : ToolResult.error("No running background job "
-                                                                                                            + id);
+                                            boolean force = signal.equals("SIGKILL");
+                                            if (!jobs.stop(id, force))
+                                                return ToolResult.error("No background job " + id);
+                                            return ToolResult.success((force ? "Killed" : "Sent SIGTERM to")
+                                                                            + " background job " + id);
                                         });
     }
 

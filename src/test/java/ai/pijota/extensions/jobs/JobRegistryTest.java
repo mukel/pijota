@@ -56,7 +56,7 @@ class JobRegistryTest {
         assertTrue(jobs.read(id).running(), "should be running");
         assertTrue(jobs.list().stream().anyMatch(s -> s.id().equals(id) && s.running()));
 
-        assertTrue(jobs.kill(id));
+        assertTrue(jobs.stop(id, true));
         long deadline = System.currentTimeMillis() + 3000;
         while (jobs.read(id).running() && System.currentTimeMillis() < deadline)
             Thread.sleep(20);
@@ -83,7 +83,7 @@ class JobRegistryTest {
 
         String id = jobs.start(sh("sleep 30"), tempDir);
         Thread.sleep(100);
-        jobs.kill(id);
+        jobs.stop(id, true);
         assertNull(completions.poll(2, TimeUnit.SECONDS), "a killed job must not be reported as a completion");
     }
 
@@ -91,7 +91,7 @@ class JobRegistryTest {
     void unknownJobIdReadsAndKillsCleanly() {
         var jobs = new JobRegistry();
         assertNull(jobs.read("bg_999"));
-        assertFalse(jobs.kill("bg_999"));
+        assertFalse(jobs.stop("bg_999", true));
     }
 
     @Test
@@ -141,7 +141,7 @@ class JobRegistryTest {
         var r = jobs.read(id);
         assertTrue(r.running());
         assertNull(r.exitCode());
-        jobs.kill(id);
+        jobs.stop(id, true);
     }
 
     @Test
@@ -198,7 +198,7 @@ class JobRegistryTest {
         var jobs = new JobRegistry();
         String id = jobs.start(sh("echo hi"), tempDir);
         drainUntilDone(jobs, id);
-        assertTrue(jobs.kill(id), "the job still exists in the registry even after it finished");
+        assertTrue(jobs.stop(id, true), "the job still exists in the registry even after it finished");
     }
 
     /** Accumulate a job's incremental output until it finishes; returns combined output + whether it was truncated. */
@@ -264,7 +264,7 @@ class JobRegistryTest {
         String id = jobs.start(sh("sleep 30"), tempDir);
         Thread.sleep(100);
 
-        assertTrue(jobs.signal(id, "SIGTERM"));
+        assertTrue(jobs.stop(id, false));
         // SIGTERM is graceful — killed is NOT set, so the natural exit must still fire a completion
         var c = completions.poll(5, TimeUnit.SECONDS);
         assertNotNull(c, "a SIGTERM'd job that exits must still report completion");
@@ -279,7 +279,7 @@ class JobRegistryTest {
         String id = jobs.start(sh("sleep 30"), tempDir);
         Thread.sleep(100);
 
-        assertTrue(jobs.signal(id, "SIGKILL"));
+        assertTrue(jobs.stop(id, true));
         long deadline = System.currentTimeMillis() + 3000;
         while (jobs.isRunning(id) && System.currentTimeMillis() < deadline)
             Thread.sleep(20);
@@ -288,12 +288,12 @@ class JobRegistryTest {
     }
 
     @Test
-    void signalRejectsSigintAndUnknownOrDeadJobs() throws Exception {
+    void stopRejectsUnknownJobsAndIsIdempotentOnKnownOnes() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var jobs = new JobRegistry();
-        assertFalse(jobs.signal("bg_999", "SIGTERM"), "unknown job");
+        assertFalse(jobs.stop("bg_999", false), "unknown job");
         String id = jobs.start(sh("sleep 30"), tempDir);
-        assertFalse(jobs.signal(id, "SIGINT"), "SIGINT is no longer supported");
-        jobs.kill(id);
+        assertTrue(jobs.stop(id, false), "known job — SIGTERM");
+        jobs.stop(id, true); // and a forced stop is fine afterward
     }
 }

@@ -282,12 +282,6 @@ public interface Tool {
             return this;
         }
 
-        /** Declares a string-array parameter (e.g. job ids). */
-        public Builder listParam(String name, String description, boolean required) {
-            schema.array(name, description, required, Map.of("type", "string"));
-            return this;
-        }
-
         /** Declares a free-form key→value map (string→string) parameter (e.g. environment variables). */
         public Builder mapParam(String name, String description, boolean required) {
             schema.openObject(name, description, required);

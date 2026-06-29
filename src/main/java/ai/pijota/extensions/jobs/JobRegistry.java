@@ -137,52 +137,27 @@ public final class JobRegistry {
         return job != null && job.process.isAlive();
     }
 
-    /** Terminates the job (and its child process tree). Returns false if the id is unknown. */
-    public boolean kill(String id) {
+    /**
+     * Stops a job by signalling its whole process tree (not just the shell wrapper). {@code force=true} is SIGKILL —
+     * forced, and suppresses the completion notification since the exit is intentional; {@code force=false} is SIGTERM
+     * — graceful, so a process that traps it and later exits on its own is still reported complete. Idempotent: returns
+     * {@code true} for any known job (a no-op if it already finished), {@code false} only if the id is unknown. Uses
+     * the Java {@code ProcessHandle} API throughout, so it works the same on Linux, macOS, and Windows.
+     */
+    public boolean stop(String id, boolean force) {
         Job job = jobs.get(id);
         if (job == null)
             return false;
-        job.killed = true;
-        ProcessRunner.killTree(job.process);
-        return true;
-    }
-
-    /**
-     * Signals the job's whole process tree (like {@link #kill}, not just the shell wrapper): SIGTERM via
-     * {@code destroy()} (graceful — a process that traps it and later exits on its own is still reported complete),
-     * SIGKILL via {@code destroyForcibly()} (forced — suppresses the completion notification, same as {@code kill}).
-     * Returns false if the job id is unknown or the process is no longer alive.
-     */
-    public boolean signal(String id, String signal) {
-        Job job = jobs.get(id);
-        if (job == null || !job.process.isAlive())
-            return false;
-        String s = signal != null ? signal.toUpperCase() : "SIGTERM";
-        switch (s) {
-            case "SIGTERM" -> signalTree(job.process, false);
-            case "SIGKILL" -> {
+        if (job.process.isAlive()) {
+            if (force) {
                 job.killed = true; // a forced kill is intentional — don't report it as a natural completion
-                signalTree(job.process, true);
-            }
-            default -> {
-                return false;
+                ProcessRunner.killTree(job.process);
+            } else {
+                job.process.descendants().forEach(ProcessHandle::destroy);
+                job.process.destroy();
             }
         }
         return true;
-    }
-
-    /** Sends SIGTERM ({@code force=false}) or SIGKILL ({@code force=true}) to the process and all its descendants. */
-    private static void signalTree(Process process, boolean force) {
-        process.descendants().forEach(h -> {
-            if (force)
-                h.destroyForcibly();
-            else
-                h.destroy();
-        });
-        if (force)
-            process.destroyForcibly();
-        else
-            process.destroy();
     }
 
     public List<Status> list() {
@@ -202,11 +177,8 @@ public final class JobRegistry {
     }
 
     public void killAll() {
-        for (Job job : jobs.values())
-            if (job.process.isAlive()) {
-                job.killed = true;
-                ProcessRunner.killTree(job.process);
-            }
+        for (String id : jobs.keySet())
+            stop(id, true);
     }
 
     public record Read(String id, String output, boolean running, Integer exitCode, boolean truncated,
