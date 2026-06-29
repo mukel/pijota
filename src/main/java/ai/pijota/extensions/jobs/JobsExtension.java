@@ -45,14 +45,17 @@ public final class JobsExtension implements Extension {
     }
 
     @Override
+    public boolean enabledByDefault() {
+        return false; // opt-in: --jobs
+    }
+
+    @Override
     public String description() {
         return "Opt-in background shell jobs (jobs_run / jobs_output / jobs_kill). Enable with --jobs.";
     }
 
     @Override
     public void init(ExtensionAPI api) {
-        if (!api.runtime().getFlag("jobs", false))
-            return;
         jobs = new JobRegistry(completion -> notifyCompletion(api, completion));
         api.registerTool(startTool(jobs));
         api.registerTool(outputTool(jobs));

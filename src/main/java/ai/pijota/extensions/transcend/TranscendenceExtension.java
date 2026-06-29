@@ -25,6 +25,11 @@ public final class TranscendenceExtension implements Extension {
     }
 
     @Override
+    public boolean enabledByDefault() {
+        return false; // opt-in: --transcendence (self-modification is the riskiest capability)
+    }
+
+    @Override
     public String description() {
         return "Self-modification: edit, build, test, and respawn pijota's own source.";
     }

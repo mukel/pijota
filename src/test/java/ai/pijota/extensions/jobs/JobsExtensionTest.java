@@ -33,9 +33,9 @@ class JobsExtensionTest {
     }
 
     @Test
-    void noToolsWithoutTheFlag() {
-        var api = initWithFlag(false);
-        assertTrue(api.tools().isEmpty(), "background tools must be opt-in (--background)");
+    void jobsIsOffByDefault() {
+        // opt-in (--jobs): the extension declares itself off; ExtensionRegistry gates registration on that default.
+        assertFalse(new JobsExtension().enabledByDefault(), "jobs must be opt-in (--jobs)");
     }
 
     @Test

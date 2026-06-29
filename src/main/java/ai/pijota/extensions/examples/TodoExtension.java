@@ -26,14 +26,17 @@ public final class TodoExtension implements Extension {
     }
 
     @Override
+    public boolean enabledByDefault() {
+        return false; // opt-in: --todo
+    }
+
+    @Override
     public String description() {
         return "Opt-in structured todo list (todowrite) with a live panel. Enable with --todo.";
     }
 
     @Override
     public void init(ExtensionAPI api) {
-        if (!api.runtime().getFlag("todo", false))
-            return;
         api.registerTool(new TodowriteTool(todos::set)); // every write replaces the panel's list
         api.registerStatusLines(() -> renderPanel(todos.get()));
     }

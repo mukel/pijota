@@ -62,6 +62,7 @@ public final class ExtensionRegistry {
     private Supplier<Path> sessionFileSupplier;
     private Path projectDir;
     private Map<String, String> extensionFlags = Map.of();
+    private Map<String, Object> extensionsConfig = Map.of(); // settings.json "extensions": {name: bool|string}
 
     public ExtensionRegistry() {}
 
@@ -160,6 +161,42 @@ public final class ExtensionRegistry {
         this.extensionFlags = flags != null ? Map.copyOf(flags) : Map.of();
     }
 
+    /** The {@code settings.json} {@code "extensions"} map (values are Boolean or String); set before registration. */
+    public void setExtensionsConfig(Map<String, Object> config) {
+        this.extensionsConfig = config != null ? Map.copyOf(config) : Map.of();
+    }
+
+    /**
+     * Resolves whether an extension is on, with precedence (lowest first): declared {@code defaultEnabled} →
+     * {@code settings.json extensions[name]} → CLI {@code --name}/{@code --name=value} (enable) and {@code --no-name}
+     * (disable). The flag layer wins, so a per-run flag overrides a persisted setting.
+     */
+    public boolean isEnabled(String name, boolean defaultEnabled) {
+        boolean enabled = defaultEnabled;
+        Object setting = extensionsConfig.get(name); // settings.json layer
+        if (setting instanceof Boolean b)
+            enabled = b;
+        else if (setting instanceof String s)
+            enabled = true; // a config string (e.g. "firefox") implies enabled
+        if (extensionFlags.containsKey(name)) // CLI --name / --name=value
+            enabled = ExtensionRuntime.truthy(extensionFlags.get(name)) || !isBoolFlag(extensionFlags.get(name));
+        if (ExtensionRuntime.truthy(extensionFlags.get("no-" + name))) // CLI --no-name wins last
+            enabled = false;
+        return enabled;
+    }
+
+    /**
+     * True when the flag value is an explicit boolean-ish toggle ("true"/"false"/…); a config value like "firefox" is
+     * not.
+     */
+    private static boolean isBoolFlag(String value) {
+        if (value == null)
+            return true;
+        String v = value.trim().toLowerCase(java.util.Locale.ROOT);
+        return v.equals("true") || v.equals("false") || v.equals("1") || v.equals("0") || v.equals("yes")
+                                        || v.equals("no") || v.equals("on") || v.equals("off");
+    }
+
     public ExtensionAPI api() {
         return api;
     }
@@ -168,6 +205,10 @@ public final class ExtensionRegistry {
         var reason = ext.unavailableReason();
         if (reason.isPresent()) {
             log.info("Extension {} not loaded: {}", ext.name(), reason.get());
+            return;
+        }
+        if (!isEnabled(ext.name(), ext.enabledByDefault())) {
+            log.info("Extension {} disabled by config/flag", ext.name());
             return;
         }
         extensions.add(ext);
@@ -677,15 +718,25 @@ public final class ExtensionRegistry {
 
         @Override
         public boolean getFlag(String name, boolean defaultValue) {
+            // CLI flag wins, then settings.json extensions[name] (Boolean or non-blank String = on), else the default.
             String val = extensionFlags != null ? extensionFlags.get(name) : null;
-            if (val == null)
-                return defaultValue;
-            return ExtensionRuntime.truthy(val);
+            if (val != null)
+                return ExtensionRuntime.truthy(val);
+            Object setting = extensionsConfig.get(name);
+            if (setting instanceof Boolean b)
+                return b;
+            if (setting instanceof String s)
+                return ExtensionRuntime.truthy(s) || !s.isBlank();
+            return defaultValue;
         }
 
         @Override
         public Optional<String> getFlag(String name) {
-            return Optional.ofNullable(extensionFlags != null ? extensionFlags.get(name) : null);
+            // The config value: CLI --name=value first, then a settings.json string value.
+            String cli = extensionFlags != null ? extensionFlags.get(name) : null;
+            if (cli != null)
+                return Optional.of(cli);
+            return extensionsConfig.get(name) instanceof String s ? Optional.of(s) : Optional.empty();
         }
 
         @Override

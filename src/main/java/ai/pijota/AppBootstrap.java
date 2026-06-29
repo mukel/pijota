@@ -8,7 +8,6 @@ import ai.pijota.config.SettingsManager;
 import ai.pijota.config.TrustStore;
 import ai.pijota.extensions.ExtensionEvent;
 import ai.pijota.extensions.ExtensionRegistry;
-import ai.pijota.extensions.ExtensionRuntime;
 import ai.pijota.extensions.examples.BtwExtension;
 import ai.pijota.extensions.examples.ContextFilesExtension;
 import ai.pijota.extensions.examples.CoreCommandsExtension;
@@ -45,7 +44,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Map;
 
 final class AppBootstrap {
     private static final Logger logger = LoggerFactory.getLogger(AppBootstrap.class);
@@ -130,10 +128,6 @@ final class AppBootstrap {
         var tools = parsedArgs.noTools() ? new ToolRegistry() : ToolRegistry.createDefault();
         var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix());
         tools.register(bashTool);
-        // Niche tools, opt-in to keep the default prompt lean: whoami (--whoami).
-        var flags = parsedArgs.extensionFlags();
-        if (flagOn(flags, "whoami"))
-            tools.register(new WhoamiTool());
 
         var llm = new LlmService(provider, model, settings::resolveApiKey);
         String effectiveThinking = parsedArgs.thinkingLevel();
@@ -163,12 +157,28 @@ final class AppBootstrap {
                 logger.info("Skipped untrusted project extensions in {}/.pi/extensions — run /trust to enable them.",
                                                 cwd);
         }
+        // Resolve extension enablement uniformly: declared default → settings.json "extensions" → CLI --x / --no-x.
+        // Fold the legacy typed --no-* flags into the SAME resolution so they keep working as aliases (the --tools
+        // registry switch and --no-extensions discovery toggle are separate axes and stay above).
+        var flags = new java.util.LinkedHashMap<>(parsedArgs.extensionFlags());
+        if (parsedArgs.noSkills())
+            flags.put("no-skills", "true");
+        if (parsedArgs.noPromptTemplates())
+            flags.put("no-prompt-templates", "true");
+        if (parsedArgs.noContextFiles() || !settings.contextFilesEnabled())
+            flags.put("no-context-files", "true"); // also honors the legacy "context_files" setting
+        ext.setExtensionFlags(flags);
+        ext.setExtensionsConfig(settings.config().extensions());
+
+        // Niche tool, opt-in (--whoami) — gated through the same resolution as extensions.
+        if (ext.isEnabled("whoami", false))
+            tools.register(new WhoamiTool());
+
+        // Every extension is registered unconditionally; ExtensionRegistry.register() gates each via isEnabled() on the
+        // declared default + settings + flags. (TranscendenceExtension is also JVM-only via its unavailableReason.)
         ext.register(new TaskExtension());
         ext.register(new PlanExtension());
-        // Self-modification (on by default; --no-transcendence to disable). The extension declares itself unavailable
-        // on a native image, so the registry skips it there — transcendence is JVM-only.
-        if (!flagOn(flags, "no-transcendence"))
-            ext.register(new TranscendenceExtension());
+        ext.register(new TranscendenceExtension()); // opt-in --transcendence
         ext.register(new InlineBashExtension());
         ext.register(new FilterOutputExtension());
         ext.register(new SecurityExtension());
@@ -176,21 +186,15 @@ final class AppBootstrap {
         ext.register(new GoalExtension());
         ext.register(new ScheduleExtension());
         ext.register(new McpExtension());
-        ext.setExtensionFlags(parsedArgs.extensionFlags());
-        ext.register(new TodoExtension()); // opt-in (--todo); registered after flags
-        ext.register(new TokenSpeedExtension()); // opt-in (--token-speed)
-        ext.register(new WebBrowseExtension()); // opt-in (--browse)
+        ext.register(new TodoExtension()); // opt-in --todo
+        ext.register(new TokenSpeedExtension()); // opt-in --token-speed
+        ext.register(new WebBrowseExtension()); // opt-in --browse[=engine]
         ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
-        ext.register(new TmuxExtension()); // opt-in (--tmux)
-        ext.register(new JobsExtension()); // opt-in (--jobs)
-        if (!parsedArgs.noSkills())
-            ext.register(new SkillExtension(parsedArgs.skillPaths()));
-
-        if (!parsedArgs.noPromptTemplates())
-            ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths()));
-
-        if (!parsedArgs.noContextFiles() && settings.contextFilesEnabled())
-            ext.register(new ContextFilesExtension(cwd));
+        ext.register(new TmuxExtension()); // opt-in --tmux
+        ext.register(new JobsExtension()); // opt-in --jobs
+        ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
+        ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths())); // --no-prompt-templates disables
+        ext.register(new ContextFilesExtension(cwd)); // --no-context-files / context_files setting disables
 
         if (!parsedArgs.enabledTools().isEmpty())
             tools.enableOnly(parsedArgs.enabledTools());
@@ -251,11 +255,6 @@ final class AppBootstrap {
                                         cwd);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
-    }
-
-    /** Whether an opt-in extension flag is truthy (true/1/yes). */
-    private static boolean flagOn(Map<String, String> flags, String name) {
-        return ExtensionRuntime.truthy(flags.get(name));
     }
 
     private static void mergeTranscendWorktree(Args args) {

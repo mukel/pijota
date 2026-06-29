@@ -22,14 +22,17 @@ public final class TokenSpeedExtension implements Extension {
     }
 
     @Override
+    public boolean enabledByDefault() {
+        return false; // opt-in: --token-speed
+    }
+
+    @Override
     public String description() {
         return "Opt-in prefill/decode tokens-per-second in the status bar. Enable with --token-speed.";
     }
 
     @Override
     public void init(ExtensionAPI api) {
-        if (!api.runtime().getFlag("token-speed", false))
-            return;
         this.runtime = api.runtime();
         api.registerStatusLines(this::statusLines);
     }

@@ -29,9 +29,9 @@ class WebBrowseExtensionTest {
     }
 
     @Test
-    void registersNoToolsWhenFlagIsOff() {
-        var api = apiWith(new FakeExtensionRuntime()); // no --browse flag
-        assertTrue(api.tools().isEmpty(), "browser tools must be opt-in");
+    void browseIsOffByDefault() {
+        // opt-in (--browse): the extension declares itself off; ExtensionRegistry gates registration on that default.
+        assertFalse(new WebBrowseExtension().enabledByDefault(), "browse must be opt-in (--browse)");
     }
 
     @Test

@@ -15,10 +15,8 @@ class TodoExtensionTest {
 
     @Test
     void todowriteIsOffByDefault() {
-        var api = new FakeExtensionAPI(new FakeExtensionRuntime());
-        new TodoExtension().init(api);
-        assertTrue(api.tools().isEmpty(), "todowrite must not be registered without --todo");
-        assertTrue(api.statusLineSuppliers().isEmpty(), "no live panel without --todo");
+        // opt-in (--todo): the extension declares itself off; ExtensionRegistry gates registration on that default.
+        assertFalse(new TodoExtension().enabledByDefault(), "todo must be opt-in (--todo)");
     }
 
     @Test

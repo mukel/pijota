@@ -46,6 +46,11 @@ public final class WebBrowseExtension implements Extension {
     }
 
     @Override
+    public boolean enabledByDefault() {
+        return false; // opt-in: --browse[=chrome|firefox|safari]
+    }
+
+    @Override
     public String description() {
         return "Opt-in web browsing via a real browser (web_google_search, web_visit_page). Enable with --browse; "
                                         + "select the engine with --browse=chrome|firefox|safari (default chrome).";
@@ -54,9 +59,6 @@ public final class WebBrowseExtension implements Extension {
     @Override
     public void init(ExtensionAPI api) {
         ExtensionRuntime rt = api.runtime();
-        if (rt.getFlag("browse").isEmpty()) // present (bare or =engine) → enabled; the value, if any, selects the
-                                            // engine
-            return;
         this.api = api;
         // --browse[=chrome|firefox|safari]: the flag's value selects the engine; a bare --browse falls back to the
         // PIJOTA_BROWSER env var, then chrome.

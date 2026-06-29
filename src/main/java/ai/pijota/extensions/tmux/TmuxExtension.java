@@ -62,6 +62,11 @@ public final class TmuxExtension implements Extension {
     }
 
     @Override
+    public boolean enabledByDefault() {
+        return false; // opt-in: --tmux (previously registered unconditionally — that was a bug)
+    }
+
+    @Override
     public String description() {
         return "Run and supervise long-lived shell processes via tmux (--tmux)";
     }

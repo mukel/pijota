@@ -27,6 +27,16 @@ public interface Extension {
         return Optional.empty();
     }
 
+    /**
+     * Whether this extension is on unless the user says otherwise. Default {@code true} (core extensions); opt-in ones
+     * (browse, jobs, tmux, todo, token-speed, plan, transcendence) override to {@code false}. The effective state is
+     * resolved centrally by {@link ExtensionRegistry} as: this default → {@code settings.json} {@code extensions[name]}
+     * → CLI {@code --name}/{@code --no-name}. Distinct from {@link #unavailableReason} (hard environment gating).
+     */
+    default boolean enabledByDefault() {
+        return true;
+    }
+
     /** Called once at load time — register hooks, tools, commands, etc. via {@code api}. */
     default void init(ExtensionAPI api) throws Exception {}
 
