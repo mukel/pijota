@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -227,8 +228,8 @@ public final class TaskExtension implements Extension {
             if (bytes < 1024)
                 return bytes + "B";
             if (bytes < 1024 * 1024)
-                return String.format("%.1fK", bytes / 1024.0);
-            return String.format("%.1fM", bytes / (1024.0 * 1024));
+                return String.format(Locale.ROOT, "%.1fK", bytes / 1024.0);
+            return String.format(Locale.ROOT, "%.1fM", bytes / (1024.0 * 1024));
         } catch (IOException e) {
             return "?";
         }

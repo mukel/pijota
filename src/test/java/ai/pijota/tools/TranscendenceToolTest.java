@@ -132,20 +132,25 @@ class TranscendenceToolTest {
 
     @Test
     void resolveProjectRootUsesWorktreeWhenProvided() {
-        var path = TranscendenceTool.resolveProjectRoot("/custom/worktree");
+        var path = TranscendenceTool.resolveProjectRoot("/custom/worktree", "/ignored/session/cwd");
         assertEquals(Path.of("/custom/worktree").toAbsolutePath().normalize(), path);
     }
 
     @Test
+    void resolveProjectRootUsesSessionCwdWhenNoWorktree() {
+        assertEquals(Path.of("/some/session/dir"), TranscendenceTool.resolveProjectRoot(null, "/some/session/dir"));
+    }
+
+    @Test
     void resolveProjectRootFallsBackWhenNull() {
-        assertNotNull(TranscendenceTool.resolveProjectRoot(null));
-        assertTrue(TranscendenceTool.resolveProjectRoot(null).isAbsolute());
+        assertNotNull(TranscendenceTool.resolveProjectRoot(null, null));
+        assertTrue(TranscendenceTool.resolveProjectRoot(null, null).isAbsolute());
     }
 
     @Test
     void resolveProjectRootFallsBackWhenBlank() {
-        assertNotNull(TranscendenceTool.resolveProjectRoot("  "));
-        assertTrue(TranscendenceTool.resolveProjectRoot("  ").isAbsolute());
+        assertNotNull(TranscendenceTool.resolveProjectRoot("  ", "  "));
+        assertTrue(TranscendenceTool.resolveProjectRoot("  ", "  ").isAbsolute());
     }
 
     // ─── failure() ───

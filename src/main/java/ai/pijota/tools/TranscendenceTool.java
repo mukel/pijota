@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -56,9 +57,9 @@ public class TranscendenceTool implements Tool {
 
                 String worktree = args.getString("worktree");
                 String mergeBranch = args.getString("mergeBranch");
-                Path projectRoot = resolveProjectRoot(worktree);
+                Path projectRoot = resolveProjectRoot(worktree, sessionCwd);
 
-                return switch (action.strip().toLowerCase()) {
+                return switch (action.strip().toLowerCase(Locale.ROOT)) {
                     case "build" -> doBuild(projectRoot);
                     case "test" -> doTest(projectRoot);
                     case "respawn" -> doRespawn(projectRoot, mergeBranch);
@@ -72,11 +73,13 @@ public class TranscendenceTool implements Tool {
         });
     }
 
-    static Path resolveProjectRoot(String worktree) {
+    static Path resolveProjectRoot(String worktree, String sessionCwd) {
         if (worktree != null && !worktree.isBlank()) {
             return Path.of(worktree).toAbsolutePath().normalize();
         }
-        return Path.of(System.getProperty("user.dir"));
+        // Prefer the agent's threaded cwd over the global process cwd; user.dir only as a last resort.
+        String dir = sessionCwd != null && !sessionCwd.isBlank() ? sessionCwd : System.getProperty("user.dir");
+        return Path.of(dir);
     }
 
     ToolResult doBuild(Path projectRoot) throws IOException {

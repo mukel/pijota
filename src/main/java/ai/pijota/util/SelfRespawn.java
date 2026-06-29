@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -458,7 +459,7 @@ public final class SelfRespawn {
         String cmd = ProcessHandle.current().info().command().orElse("");
         if (!cmd.isBlank())
             return cmd;
-        String os = System.getProperty("os.name", "").toLowerCase();
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         return os.contains("win") ? "java.exe" : "java";
     }
 

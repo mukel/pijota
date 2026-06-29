@@ -1,5 +1,6 @@
 package ai.pijota.config;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -7,6 +8,12 @@ import java.util.HashSet;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ProviderCatalogTest {
+
+    /** Reset the process-wide user-provider overlay so it can't bleed into other tests in the same JVM fork. */
+    @AfterEach
+    void clearUserProviders() {
+        ProviderCatalog.registerUserProviders(java.util.List.of());
+    }
 
     @Test
     void providersListIsNotEmpty() {
@@ -19,16 +26,12 @@ class ProviderCatalogTest {
         // a local OpenAI-compatible server defined in settings.json's "providers"
         var local = new ProviderCatalog.Provider("local", "Local", "openai", "http://localhost:8080/v1",
                                         java.util.List.of(), "my-model", java.util.Map.of(), null, null);
-        try {
-            ProviderCatalog.registerUserProviders(java.util.List.of(local));
-            assertEquals("http://localhost:8080/v1", ProviderCatalog.baseUrl("local"));
-            assertEquals("openai", ProviderCatalog.apiType("local"));
-            assertEquals("my-model", ProviderCatalog.defaultModel("local"));
-            assertTrue(ProviderCatalog.envNames("local").isEmpty(), "keyless local provider");
-            assertNotNull(ProviderCatalog.baseUrl("openai"), "builtin providers still present");
-        } finally {
-            ProviderCatalog.registerUserProviders(java.util.List.of()); // reset shared static state
-        }
+        ProviderCatalog.registerUserProviders(java.util.List.of(local));
+        assertEquals("http://localhost:8080/v1", ProviderCatalog.baseUrl("local"));
+        assertEquals("openai", ProviderCatalog.apiType("local"));
+        assertEquals("my-model", ProviderCatalog.defaultModel("local"));
+        assertTrue(ProviderCatalog.envNames("local").isEmpty(), "keyless local provider");
+        assertNotNull(ProviderCatalog.baseUrl("openai"), "builtin providers still present");
     }
 
     @Test

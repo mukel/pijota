@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletionException;
 
 final class TranscendenceOrchestrator {
@@ -215,7 +216,8 @@ final class TranscendenceOrchestrator {
             double buildSec = (System.currentTimeMillis() - buildStart) / 1000.0;
             appendPlain(List.of(styled("statusText", "  ") + stepIcon("✓") + styled("statusText", " compiled ")
                                             + styled("statusText", jar.getFileName().toString())
-                                            + styled("commandMeta", "  (" + String.format("%.1f", buildSec) + "s)")));
+                                            + styled("commandMeta", "  (" + String.format(Locale.ROOT, "%.1f", buildSec)
+                                                                            + "s)")));
 
             Path sessionFile = sessionFile();
 
@@ -508,7 +510,7 @@ final class TranscendenceOrchestrator {
             slug = slug.substring(0, 30).replaceAll("-$", "");
         if (slug.isBlank())
             slug = "update";
-        String ts = String.format("%tH%<tM%<tS", System.currentTimeMillis());
+        String ts = String.format(Locale.ROOT, "%tH%<tM%<tS", System.currentTimeMillis());
         return "feat/" + slug + "-" + ts;
     }
 

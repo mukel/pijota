@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Console;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -281,7 +282,7 @@ public final class Main {
         }
         System.err.print(prompt);
         try {
-            return new String(System.in.readAllBytes()).strip();
+            return new String(System.in.readAllBytes(), StandardCharsets.UTF_8).strip();
         } catch (Exception e) {
             return null;
         }
@@ -313,7 +314,7 @@ public final class Main {
 
     private static String readStdin() {
         try {
-            return new String(System.in.readAllBytes()).strip();
+            return new String(System.in.readAllBytes(), StandardCharsets.UTF_8).strip();
         } catch (Exception ignored) {}
         return null;
     }

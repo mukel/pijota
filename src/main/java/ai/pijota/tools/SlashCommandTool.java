@@ -16,6 +16,10 @@ public final class SlashCommandTool implements Tool {
         CompletableFuture<String> ask(List<Question> questions);
     }
 
+    // Process-wide handler: the agent runs one active UI owner at a time, and ExtensionRegistry re-points this whenever
+    // that owner changes (and sets it to null when none is attached), so a single static reflects the live invariant.
+    // Kept static rather than per-instance to avoid coupling ExtensionRegistry to the ToolRegistry just to find the
+    // registered tool instance; if multiple concurrent UIs ever exist, this must become instance-scoped.
     private static volatile QuestionHandler questionHandler;
 
     public static void setQuestionHandler(QuestionHandler handler) {

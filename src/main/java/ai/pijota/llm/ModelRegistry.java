@@ -39,10 +39,10 @@ public final class ModelRegistry {
     public static List<ModelInfo> filter(String search) {
         if (search == null || search.isBlank())
             return KNOWN_MODELS;
-        String lower = search.toLowerCase();
-        return KNOWN_MODELS.stream().filter(m -> m.id().toLowerCase().contains(lower)
-                                        || m.provider().toLowerCase().contains(lower)
-                                        || m.displayName().toLowerCase().contains(lower)).toList();
+        String lower = search.toLowerCase(Locale.ROOT);
+        return KNOWN_MODELS.stream().filter(m -> m.id().toLowerCase(Locale.ROOT).contains(lower)
+                                        || m.provider().toLowerCase(Locale.ROOT).contains(lower)
+                                        || m.displayName().toLowerCase(Locale.ROOT).contains(lower)).toList();
     }
 
     public static List<ModelInfo> forProvider(String provider) {
@@ -347,7 +347,7 @@ public final class ModelRegistry {
     }
 
     private static String key(ModelInfo model) {
-        return model.provider().toLowerCase() + "/" + model.id().toLowerCase();
+        return model.provider().toLowerCase(Locale.ROOT) + "/" + model.id().toLowerCase(Locale.ROOT);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
