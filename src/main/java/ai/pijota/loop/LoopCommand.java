@@ -2,6 +2,7 @@ package ai.pijota.loop;
 
 import ai.pijota.AppBootstrap;
 import ai.pijota.agent.AgentEvent;
+import ai.pijota.agent.AgentLoop;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.cli.ArgParser;
 import ai.pijota.cli.Args;
@@ -15,6 +16,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -30,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     --commit             commit each successful iteration; roll back the tree on failure
  *     --push               push after each committed iteration (implies --commit)
  *     --worktree           run isolated in a pooled git worktree
+ *     --iteration-timeout N  abort an iteration that runs longer than N seconds (default: unlimited)
  *     [-m/--model, --provider, --thinking, …]  standard session flags, passed through
  * </pre>
  */
@@ -40,7 +44,8 @@ public final class LoopCommand {
     private LoopCommand() {}
 
     /** The loop config extracted from argv plus the {@link Args} carrying the pass-through session flags. */
-    record LoopConfig(String objective, LoopRunner.Options options, boolean worktree, Args sessionArgs) {
+    record LoopConfig(String objective, LoopRunner.Options options, boolean worktree, long iterationTimeoutSec,
+                                    Args sessionArgs) {
     }
 
     /**
@@ -56,9 +61,10 @@ public final class LoopCommand {
         boolean push = flags.containsKey("push");
         boolean commit = push || flags.containsKey("commit");
         boolean worktree = flags.containsKey("worktree");
+        long iterationTimeoutSec = numericFlag(flags, "iteration-timeout");
         String objective = String.join(" ", a.promptArgs()).strip();
         var options = new LoopRunner.Options(maxIterations, maxTokens, commit, push, BACKOFF_BASE_MS);
-        return new LoopConfig(objective, options, worktree, a);
+        return new LoopConfig(objective, options, worktree, iterationTimeoutSec, a);
     }
 
     public static int run(String[] args) {
@@ -102,16 +108,19 @@ public final class LoopCommand {
             });
 
             var interrupted = new AtomicBoolean();
-            Thread hook = new Thread(() -> {
-                interrupted.set(true);
-                agentLoop.abort();
-                System.err.println("\n⏹ interrupted — stopping after the current iteration");
-            });
-            Runtime.getRuntime().addShutdownHook(hook);
+            installInterruptHandler(agentLoop, interrupted);
 
             LoopRunner.Git git = cfg.options().commit() ? new LoopGit(loopCwd) : new LoopRunner.NoGit();
+            long timeoutSec = cfg.iterationTimeoutSec();
             LoopRunner.Step step = prompt -> {
-                List<Message> messages = session.prompt(prompt).get();
+                var future = session.prompt(prompt);
+                List<Message> messages;
+                try {
+                    messages = timeoutSec > 0 ? future.get(timeoutSec, TimeUnit.SECONDS) : future.get();
+                } catch (TimeoutException te) {
+                    agentLoop.abort(); // cancel the hung iteration so the next one starts fresh
+                    throw new RuntimeException("iteration timed out after " + timeoutSec + "s", te);
+                }
                 System.out.println();
                 return lastAssistantText(messages);
             };
@@ -123,7 +132,6 @@ public final class LoopCommand {
                                             msg -> System.out.println("  · " + msg));
             long elapsedMs = (System.nanoTime() - start) / 1_000_000;
 
-            removeHook(hook);
             printSummary(summary, elapsedMs);
             return summary.stopReason() != null && summary.stopReason().startsWith("too many") ? 1 : 0;
         } catch (Exception e) {
@@ -183,11 +191,30 @@ public final class LoopCommand {
         }
     }
 
-    private static void removeHook(Thread hook) {
+    /**
+     * Handle Ctrl-C via SIGINT directly rather than a JVM shutdown hook (which only runs once the JVM is already
+     * tearing down — too late to stop the loop gracefully). The first interrupt requests a graceful stop: abort the
+     * in-flight iteration and wake the loop (so it breaks at the next stop check); a second forces an immediate exit.
+     * Falls back to a shutdown hook on platforms where SIGINT can't be installed.
+     */
+    private static void installInterruptHandler(AgentLoop agentLoop, AtomicBoolean interrupted) {
+        Thread main = Thread.currentThread();
         try {
-            Runtime.getRuntime().removeShutdownHook(hook);
-        } catch (IllegalStateException ignored) {
-            // JVM already shutting down — nothing to remove.
+            sun.misc.Signal.handle(new sun.misc.Signal("INT"), sig -> {
+                if (interrupted.compareAndSet(false, true)) {
+                    System.err.println("\n⏹ interrupted — stopping after this iteration (Ctrl-C again to force quit)");
+                    agentLoop.abort();
+                    main.interrupt(); // wake a blocked prompt().get() or a backoff sleep
+                } else {
+                    System.err.println("\n⏹ force quit");
+                    Runtime.getRuntime().halt(130);
+                }
+            });
+        } catch (Throwable e) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                interrupted.set(true);
+                agentLoop.abort();
+            }));
         }
     }
 }

@@ -124,6 +124,22 @@ class LoopRunnerTest {
     }
 
     @Test
+    void interruptDuringAnIterationStopsCleanlyNotAsFailure() {
+        var git = new FakeGit();
+        git.dirty = true;
+        var interrupted = new java.util.concurrent.atomic.AtomicBoolean(false);
+        // Ctrl-C lands mid-iteration: the step throws (as an aborted prompt would) with the flag now set.
+        LoopRunner.Step abortedStep = p -> {
+            interrupted.set(true);
+            throw new RuntimeException("aborted");
+        };
+        var s = LoopRunner.run("obj", opts(0, 0, true), abortedStep, () -> 0, () -> 0, git, interrupted::get, m -> {});
+        assertEquals(0, s.iterations());
+        assertEquals("interrupted", s.stopReason());
+        assertEquals(0, git.rollbacks, "an interrupt is not an iteration failure → no rollback");
+    }
+
+    @Test
     void oneLineTakesFirstNonBlankAndCaps() {
         assertEquals("(no summary)", LoopRunner.oneLine(null));
         assertEquals("(no summary)", LoopRunner.oneLine("   \n  "));

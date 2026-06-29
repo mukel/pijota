@@ -71,6 +71,11 @@ public final class LoopRunner {
             try {
                 lastText = step.run(prompt);
             } catch (Exception e) {
+                if (interrupted.getAsBoolean()) {
+                    // Ctrl-C landed during the iteration — stop cleanly; an interrupt isn't an iteration failure.
+                    stop = "interrupted";
+                    break;
+                }
                 boolean capped = recordFailure(log, "iteration", ++consecutiveFailures, e);
                 if (opts.commit()) {
                     try {

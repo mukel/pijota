@@ -68,6 +68,12 @@ class LoopCommandTest {
     }
 
     @Test
+    void iterationTimeoutFlagParsedDefaultUnlimited() {
+        assertEquals(0, LoopCommand.parse(new String[] {"go"}).iterationTimeoutSec());
+        assertEquals(120, LoopCommand.parse(new String[] {"--iteration-timeout", "120", "go"}).iterationTimeoutSec());
+    }
+
+    @Test
     void sessionFlagsPassThrough() {
         var cfg = LoopCommand.parse(new String[] {"--thinking", "high", "go"});
         assertEquals("high", cfg.sessionArgs().thinkingLevel());
