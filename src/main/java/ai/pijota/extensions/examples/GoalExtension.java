@@ -27,6 +27,7 @@ public final class GoalExtension implements Extension {
 
     private static final String CUSTOM_TYPE = "goal";
     private static final long MAX_OBJECTIVE_LENGTH = 8000;
+    private static final int DEFAULT_MAX_ITERATIONS = 25;
 
     private final AtomicReference<GoalState> state = new AtomicReference<>(GoalState.idle());
     private volatile long lastContinueMs;
@@ -49,6 +50,10 @@ public final class GoalExtension implements Extension {
         api.registerSlashCommand(new SlashCommand("goal", "View or manage the current goal", List.of(),
                                         this::handleGoalCommand));
 
+        api.registerSlashCommand(new SlashCommand("loop",
+                                        "Start (/loop <objective>) or stop (/loop stop) an autonomous loop", List.of(),
+                                        this::handleLoopCommand));
+
         api.registerTool(Tool.named("create_goal").description(
                                         "Create a goal with an objective and optional token budget. Fails if a non-complete goal exists unless replace_existing is true.")
                                         .stringParam("objective", "What the agent should accomplish", true)
@@ -58,6 +63,8 @@ public final class GoalExtension implements Extension {
                                                                         "Optional condition that determines when the goal is satisfied",
                                                                         false)
                                         .boolParam("continue_on_idle", "Whether the agent should continue working when idle",
+                                                                        false)
+                                        .intParam("max_iterations", "Max auto-continue iterations before stopping (0 = unlimited)",
                                                                         false)
                                         .boolParam("replace_existing", "Replace current goal even if not complete",
                                                                         false)
@@ -102,11 +109,18 @@ public final class GoalExtension implements Extension {
                 updateState(s -> s.markBudgetLimited(System.currentTimeMillis()));
                 return;
             }
-            if (current.continueOnIdle() && api.runtime().isIdle()) {
+            if (current.continueOnIdle()) {
+                if (current.iterationCapReached()) {
+                    updateState(s -> s.markIterationLimited(System.currentTimeMillis()));
+                    return;
+                }
                 long now = System.currentTimeMillis();
                 if (now - lastContinueMs > 1000) {
                     lastContinueMs = now;
-                    api.sendUserMessage("Continue working on the goal: " + current.objective(), DeliverAs.STEER);
+                    updateState(GoalState::incrementIteration);
+                    // FOLLOW_UP (not STEER) re-prompts after a turn that ended with no tool calls; gate on goal state,
+                    // not isIdle() (still true at TurnEnd).
+                    api.sendUserMessage("Continue toward the objective: " + current.objective(), DeliverAs.FOLLOW_UP);
                 }
             }
         });
@@ -180,6 +194,7 @@ public final class GoalExtension implements Extension {
         sb.append(" · ").append(Util.formatDuration(elapsed));
         if (current.hasBudget())
             sb.append(" · ").append(Util.fmtCount(used)).append("/").append(Util.fmtCount(current.tokenBudget()));
+        appendIterations(sb, current);
         if (!current.completionCriterion().isEmpty())
             sb.append(" · criterion: ").append(current.completionCriterion());
         if (!current.progress().isEmpty())
@@ -264,6 +279,93 @@ public final class GoalExtension implements Extension {
         api.runtime().setStatus("Progress added");
     }
 
+    // ---- /loop ----
+
+    private void handleLoopCommand(String args) {
+        String trimmed = args == null ? "" : args.strip();
+        if (trimmed.isEmpty()) {
+            showGoal();
+            return;
+        }
+        if (trimmed.equalsIgnoreCase("stop")) {
+            doStopLoop();
+            return;
+        }
+        startLoop(trimmed);
+    }
+
+    /** Default iteration cap, overridable via the {@code loop-max-iterations} flag (CLI / settings.json extensions). */
+    private int defaultMaxIterations() {
+        return api.runtime().getFlag("loop-max-iterations").map(v -> {
+            try {
+                return Math.max(0, Integer.parseInt(v.strip()));
+            } catch (NumberFormatException e) {
+                return DEFAULT_MAX_ITERATIONS;
+            }
+        }).orElse(DEFAULT_MAX_ITERATIONS);
+    }
+
+    private void startLoop(String input) {
+        int maxIterations = defaultMaxIterations();
+        boolean continueOnIdle = true;
+        // Strip the few inline overrides out of the objective text; everything else is the objective.
+        var words = new ArrayList<String>();
+        String[] parts = input.split("\\s+");
+        for (int i = 0; i < parts.length; i++) {
+            String p = parts[i];
+            if (p.equals("--no-continue")) {
+                continueOnIdle = false;
+            } else if (p.equals("--max-iterations") && i + 1 < parts.length) {
+                maxIterations = parseCap(parts[++i], maxIterations);
+            } else if (p.startsWith("--max-iterations=")) {
+                maxIterations = parseCap(p.substring("--max-iterations=".length()), maxIterations);
+            } else {
+                words.add(p);
+            }
+        }
+        String objective = String.join(" ", words).strip();
+        if (objective.isEmpty()) {
+            api.runtime().setStatus("Usage: /loop <objective> [--max-iterations N] [--no-continue]");
+            return;
+        }
+        if (objective.length() > MAX_OBJECTIVE_LENGTH) {
+            api.runtime().setStatus("Objective too long (max " + MAX_OBJECTIVE_LENGTH + " chars)");
+            return;
+        }
+        GoalState current = state.get();
+        if (!current.isTerminal()) {
+            api.runtime().setStatus("A goal/loop is already active. Use /loop stop or /goal clear first.");
+            return;
+        }
+        long now = System.currentTimeMillis();
+        var llm = api.runtime().llm();
+        int cap = maxIterations;
+        boolean cont = continueOnIdle;
+        updateState(s -> GoalState.start(objective, 0, "", cont, cap, llm.totalInputTokens(), llm.totalOutputTokens(),
+                                        now));
+        api.runtime().setStatus(Emojis.DART + " Loop: " + objective + (cap > 0 ? "  (≤" + cap + " iterations)" : ""));
+    }
+
+    private static int parseCap(String value, int fallback) {
+        try {
+            return Math.max(0, Integer.parseInt(value.strip()));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private void doStopLoop() {
+        GoalState current = state.get();
+        if (current.status() == GoalState.Status.IDLE) {
+            api.runtime().setStatus("No active loop to stop");
+            return;
+        }
+        // Halt auto-continuation portably: clearing → idle, so the TurnEnd hook won't re-launch. The in-flight turn (if
+        // any) is stopped via the frontend's own interrupt (Esc / /stop / /interrupt).
+        updateState(GoalState::clear);
+        api.runtime().setStatus(Emojis.PAUSE + " Loop stopped");
+    }
+
     // ---- model tools ----
 
     private Tool.ToolResult doCreateGoal(Map<String, Object> args) {
@@ -280,10 +382,12 @@ public final class GoalExtension implements Extension {
         long tokenBudget = budget != null ? Math.max(0, budget.longValue()) : 0;
         String criterion = (String) args.get("completion_criterion");
         boolean continueOnIdle = Boolean.TRUE.equals(args.get("continue_on_idle"));
+        Number maxIter = (Number) args.get("max_iterations");
+        int maxIterations = maxIter != null ? Math.max(0, maxIter.intValue()) : 0;
         long now = System.currentTimeMillis();
         var llm = api.runtime().llm();
-        GoalState next = GoalState.start(objective, tokenBudget, criterion, continueOnIdle, llm.totalInputTokens(),
-                                        llm.totalOutputTokens(), now);
+        GoalState next = GoalState.start(objective, tokenBudget, criterion, continueOnIdle, maxIterations,
+                                        llm.totalInputTokens(), llm.totalOutputTokens(), now);
         updateState(s -> next);
         return Tool.ToolResult.success(renderGoal(next));
     }
@@ -369,6 +473,7 @@ public final class GoalExtension implements Extension {
         sb.append(" · ").append(Util.formatDuration(elapsed));
         if (current.hasBudget())
             sb.append(" · ").append(Util.fmtCount(used)).append("/").append(Util.fmtCount(current.tokenBudget()));
+        appendIterations(sb, current);
         return List.of(sb.toString());
     }
 
@@ -377,12 +482,18 @@ public final class GoalExtension implements Extension {
         return goalState.currentUsage(llm.totalInputTokens(), llm.totalOutputTokens());
     }
 
+    private static void appendIterations(StringBuilder sb, GoalState g) {
+        if (g.maxIterations() > 0 || g.iterations() > 0)
+            sb.append(" · iter ").append(g.iterations()).append(g.maxIterations() > 0 ? "/" + g.maxIterations() : "");
+    }
+
     static String statusLabel(GoalState.Status status) {
         return switch (status) {
             case ACTIVE -> "active";
             case PAUSED -> "paused";
             case COMPLETE -> "complete";
             case BUDGET_LIMITED -> "budget-limited";
+            case ITERATION_LIMITED -> "iteration-limited";
             case IDLE -> "idle";
         };
     }

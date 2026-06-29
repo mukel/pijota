@@ -13,21 +13,27 @@ import java.util.Objects;
  */
 record GoalState(String objective, Status status, long tokenBudget, String completionCriterion, boolean continueOnIdle,
                                 long inputTokensAtStart, long outputTokensAtStart, long startedAtMs, long totalPausedMs,
-                                long pausedAtMs, List<String> progress) {
+                                long pausedAtMs, List<String> progress, int maxIterations, int iterations) {
 
     enum Status {
-        IDLE, ACTIVE, PAUSED, COMPLETE, BUDGET_LIMITED
+        IDLE, ACTIVE, PAUSED, COMPLETE, BUDGET_LIMITED, ITERATION_LIMITED
     }
 
     private static final long MAX_OBJECTIVE_LENGTH = 8000;
     private static final int MAX_PROGRESS_ENTRIES = 20;
 
     static GoalState idle() {
-        return new GoalState("", Status.IDLE, 0, "", false, 0, 0, 0, 0, -1, List.of());
+        return new GoalState("", Status.IDLE, 0, "", false, 0, 0, 0, 0, -1, List.of(), 0, 0);
     }
 
     static GoalState start(String objective, long tokenBudget, String completionCriterion, boolean continueOnIdle,
                                     long inputTokensAtStart, long outputTokensAtStart, long nowMs) {
+        return start(objective, tokenBudget, completionCriterion, continueOnIdle, 0, inputTokensAtStart,
+                                        outputTokensAtStart, nowMs);
+    }
+
+    static GoalState start(String objective, long tokenBudget, String completionCriterion, boolean continueOnIdle,
+                                    int maxIterations, long inputTokensAtStart, long outputTokensAtStart, long nowMs) {
         Objects.requireNonNull(objective, "objective");
         if (objective.isBlank())
             throw new IllegalArgumentException("objective is required");
@@ -36,7 +42,8 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
         String criterion = completionCriterion == null ? "" : completionCriterion;
         return new GoalState(objective.strip(), Status.ACTIVE, Math.max(0, tokenBudget), criterion.strip(),
                                         continueOnIdle, Math.max(0, inputTokensAtStart),
-                                        Math.max(0, outputTokensAtStart), nowMs, 0, -1, List.of());
+                                        Math.max(0, outputTokensAtStart), nowMs, 0, -1, List.of(),
+                                        Math.max(0, maxIterations), 0);
     }
 
     GoalState pause(long nowMs) {
@@ -44,7 +51,7 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
             throw new IllegalStateException("Cannot pause goal in state " + status);
         return new GoalState(objective, Status.PAUSED, tokenBudget, completionCriterion, continueOnIdle,
                                         inputTokensAtStart, outputTokensAtStart, startedAtMs, totalPausedMs, nowMs,
-                                        progress);
+                                        progress, maxIterations, iterations);
     }
 
     GoalState resume(long nowMs) {
@@ -53,7 +60,7 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
         long additionalPause = pausedAtMs > 0 ? Math.max(0, nowMs - pausedAtMs) : 0;
         return new GoalState(objective, Status.ACTIVE, tokenBudget, completionCriterion, continueOnIdle,
                                         inputTokensAtStart, outputTokensAtStart, startedAtMs,
-                                        totalPausedMs + additionalPause, -1, progress);
+                                        totalPausedMs + additionalPause, -1, progress, maxIterations, iterations);
     }
 
     GoalState complete(long nowMs) {
@@ -66,6 +73,23 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
         if (status != Status.ACTIVE)
             return this;
         return withStatus(Status.BUDGET_LIMITED, nowMs);
+    }
+
+    GoalState markIterationLimited(long nowMs) {
+        if (status != Status.ACTIVE)
+            return this;
+        return withStatus(Status.ITERATION_LIMITED, nowMs);
+    }
+
+    GoalState incrementIteration() {
+        return new GoalState(objective, status, tokenBudget, completionCriterion, continueOnIdle, inputTokensAtStart,
+                                        outputTokensAtStart, startedAtMs, totalPausedMs, pausedAtMs, progress,
+                                        maxIterations, iterations + 1);
+    }
+
+    /** True when a positive iteration cap has been reached (0 = unlimited, never reached). */
+    boolean iterationCapReached() {
+        return maxIterations > 0 && iterations >= maxIterations;
     }
 
     GoalState clear() {
@@ -82,7 +106,7 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
             updated.removeFirst();
         return new GoalState(objective, status, tokenBudget, completionCriterion, continueOnIdle, inputTokensAtStart,
                                         outputTokensAtStart, startedAtMs, totalPausedMs, pausedAtMs,
-                                        Collections.unmodifiableList(updated));
+                                        Collections.unmodifiableList(updated), maxIterations, iterations);
     }
 
     boolean isActive() {
@@ -128,6 +152,8 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
         node.put("started_at_ms", startedAtMs);
         node.put("total_paused_ms", totalPausedMs);
         node.put("paused_at_ms", pausedAtMs);
+        node.put("max_iterations", maxIterations);
+        node.put("iterations", iterations);
         var progressNode = node.putArray("progress");
         for (String entry : progress)
             progressNode.add(entry);
@@ -167,7 +193,9 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
                                             node.has("started_at_ms") ? node.get("started_at_ms").asLong(0) : 0,
                                             node.has("total_paused_ms") ? node.get("total_paused_ms").asLong(0) : 0,
                                             node.has("paused_at_ms") ? node.get("paused_at_ms").asLong(-1) : -1,
-                                            Collections.unmodifiableList(progress));
+                                            Collections.unmodifiableList(progress),
+                                            node.has("max_iterations") ? node.get("max_iterations").asInt(0) : 0,
+                                            node.has("iterations") ? node.get("iterations").asInt(0) : 0);
         } catch (Exception e) {
             return idle();
         }
@@ -178,10 +206,11 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
             long additionalPause = Math.max(0, nowMs - pausedAtMs);
             return new GoalState(objective, newStatus, tokenBudget, completionCriterion, continueOnIdle,
                                             inputTokensAtStart, outputTokensAtStart, startedAtMs,
-                                            totalPausedMs + additionalPause, -1, progress);
+                                            totalPausedMs + additionalPause, -1, progress, maxIterations, iterations);
         }
         return new GoalState(objective, newStatus, tokenBudget, completionCriterion, continueOnIdle, inputTokensAtStart,
-                                        outputTokensAtStart, startedAtMs, totalPausedMs, pausedAtMs, progress);
+                                        outputTokensAtStart, startedAtMs, totalPausedMs, pausedAtMs, progress,
+                                        maxIterations, iterations);
     }
 
     private static String formatProgressEntry(String note, long nowMs) {
@@ -194,6 +223,7 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
             case "paused" -> Status.PAUSED;
             case "complete" -> Status.COMPLETE;
             case "budget-limited", "budget_limited" -> Status.BUDGET_LIMITED;
+            case "iteration-limited", "iteration_limited" -> Status.ITERATION_LIMITED;
             default -> Status.IDLE;
         };
     }

@@ -151,4 +151,30 @@ class GoalStateTest {
         assertEquals(1, restored.progress().size());
         assertTrue(restored.progress().getFirst().contains("done"));
     }
+
+    @Test
+    void maxIterationsAndCounterRoundTripThroughJson() {
+        var state = GoalState.start("loop X", 0, "", true, 3, 0, 0, 1000).incrementIteration().incrementIteration();
+        assertEquals(3, state.maxIterations());
+        assertEquals(2, state.iterations());
+        var restored = GoalState.fromJson(state.toJson());
+        assertEquals(3, restored.maxIterations());
+        assertEquals(2, restored.iterations());
+    }
+
+    @Test
+    void iterationCapReachedRespectsUnlimited() {
+        var unlimited = GoalState.start("x", 0, "", true, 0, 0, 0, 0); // maxIterations 0 = unlimited
+        assertFalse(unlimited.incrementIteration().incrementIteration().iterationCapReached());
+        var capped = GoalState.start("x", 0, "", true, 2, 0, 0, 0);
+        assertFalse(capped.incrementIteration().iterationCapReached()); // 1 < 2
+        assertTrue(capped.incrementIteration().incrementIteration().iterationCapReached()); // 2 >= 2
+    }
+
+    @Test
+    void markIterationLimitedOnlyFromActive() {
+        var active = GoalState.start("x", 0, "", true, 2, 0, 0, 0);
+        assertEquals(GoalState.Status.ITERATION_LIMITED, active.markIterationLimited(1000).status());
+        assertEquals(GoalState.Status.COMPLETE, active.complete(1000).markIterationLimited(1000).status());
+    }
 }

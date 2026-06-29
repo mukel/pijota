@@ -251,6 +251,47 @@ class GoalExtensionTest {
         assertTrue(get.content().contains("status: idle"));
     }
 
+    @Test
+    void loopSlashCommandStartsAContinuingGoalThatRePromptsViaFollowUp() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+
+        fake.slashCommand("loop").handler().accept("tidy the readme");
+        assertTrue(fake.status().contains("tidy the readme"), fake.status());
+
+        fake.fireTurnEnd(1);
+        assertTrue(fake.sentUserMessages().stream().anyMatch(m -> m.contains("FOLLOW_UP")),
+                                        "continuation must re-prompt via FOLLOW_UP: " + fake.sentUserMessages());
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("status: active"));
+    }
+
+    @Test
+    void loopStopsAtTheIterationCap() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        execute(fake.tool("create_goal"), Map.of("objective", "x", "continue_on_idle", true, "max_iterations", 1));
+
+        fake.fireTurnEnd(1); // iterations 0 -> 1, sends one continuation
+        assertEquals(1, fake.sentUserMessages().size());
+
+        fake.fireTurnEnd(2); // cap reached (1 >= 1) -> iteration-limited, no further continuation
+        assertEquals(1, fake.sentUserMessages().size());
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("status: iteration-limited"));
+    }
+
+    @Test
+    void loopStopHaltsContinuation() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("loop").handler().accept("keep going");
+
+        fake.slashCommand("loop").handler().accept("stop");
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("status: idle"));
+
+        fake.fireTurnEnd(1);
+        assertTrue(fake.sentUserMessages().isEmpty(), "a stopped loop must not re-prompt: " + fake.sentUserMessages());
+    }
+
     private static Tool.ToolResult execute(Tool.ToolDefinition tool, Map<String, Object> args) {
         return tool.execute().execute("id", new Tool.Args(args), ".").join();
     }
