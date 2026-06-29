@@ -223,8 +223,8 @@ class JobRegistryTest {
     @Test
     void panelShowsOnlyRunningJobsAndIsEmptyOtherwise() {
         assertEquals(List.of(), JobsExtension.renderPanel(List.of()));
-        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", true, null),
-                                        new JobRegistry.Status("bg_2", "old", false, 0));
+        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false),
+                                        new JobRegistry.Status("bg_2", "old", "old", false, 0, 0, false));
         var panel = JobsExtension.renderPanel(statuses);
         assertTrue(panel.get(0).contains("1 running"), panel.toString());
         assertTrue(panel.stream().anyMatch(l -> l.contains("bg_1") && l.contains("npm test")));
@@ -235,12 +235,12 @@ class JobRegistryTest {
     void panelCapsRowsAndShortensLongCommands() {
         var many = new ArrayList<JobRegistry.Status>();
         for (int i = 1; i <= 8; i++)
-            many.add(new JobRegistry.Status("bg_" + i, "cmd" + i, true, null));
+            many.add(new JobRegistry.Status("bg_" + i, "cmd" + i, "cmd" + i, true, null, 0, false));
         var panel = JobsExtension.renderPanel(many);
         assertTrue(panel.get(0).contains("8 running"), panel.toString());
         assertTrue(panel.stream().anyMatch(l -> l.contains("+2 more")), panel.toString()); // 8 jobs − 6 row cap
 
-        var longCmd = List.of(new JobRegistry.Status("bg_1", "x".repeat(120), true, null));
+        var longCmd = List.of(new JobRegistry.Status("bg_1", "x".repeat(120), "x".repeat(120), true, null, 0, false));
         assertTrue(JobsExtension.renderPanel(longCmd).stream().anyMatch(l -> l.contains("…")),
                                         "a long command is elided");
     }
@@ -248,9 +248,52 @@ class JobRegistryTest {
     @Test
     void renderListShowsStatusExitAndCommand() {
         assertEquals("(no background jobs)", JobsExtension.renderList(List.of()));
-        var rows = JobsExtension.renderList(List.of(new JobRegistry.Status("bg_1", "npm run dev", true, null),
-                                        new JobRegistry.Status("bg_2", "mvn test", false, 1)));
-        assertTrue(rows.contains("bg_1  running  npm run dev"), rows);
-        assertTrue(rows.contains("bg_2  exit 1  mvn test"), rows);
+        var rows = JobsExtension.renderList(List.of(
+                                        new JobRegistry.Status("bg_1", "npm run dev", "npm run dev", true, null, 0,
+                                                                        false),
+                                        new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, false)));
+        assertTrue(rows.contains("bg_1  running  0B  npm run dev"), rows);
+        assertTrue(rows.contains("bg_2  exit 1  0B  mvn test"), rows);
+    }
+
+    @Test
+    void sigtermTerminatesButStillReportsCompletion() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var completions = new ArrayBlockingQueue<JobRegistry.Completion>(2);
+        var jobs = new JobRegistry(completions::add);
+        String id = jobs.start(sh("sleep 30"), tempDir);
+        Thread.sleep(100);
+
+        assertTrue(jobs.signal(id, "SIGTERM"));
+        // SIGTERM is graceful — killed is NOT set, so the natural exit must still fire a completion
+        var c = completions.poll(5, TimeUnit.SECONDS);
+        assertNotNull(c, "a SIGTERM'd job that exits must still report completion");
+        assertEquals(id, c.id());
+    }
+
+    @Test
+    void sigkillStopsAndSuppressesCompletion() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var completions = new ArrayBlockingQueue<JobRegistry.Completion>(2);
+        var jobs = new JobRegistry(completions::add);
+        String id = jobs.start(sh("sleep 30"), tempDir);
+        Thread.sleep(100);
+
+        assertTrue(jobs.signal(id, "SIGKILL"));
+        long deadline = System.currentTimeMillis() + 3000;
+        while (jobs.isRunning(id) && System.currentTimeMillis() < deadline)
+            Thread.sleep(20);
+        assertFalse(jobs.isRunning(id), "SIGKILL stops the job");
+        assertNull(completions.poll(1, TimeUnit.SECONDS), "a forced kill is intentional — no completion");
+    }
+
+    @Test
+    void signalRejectsSigintAndUnknownOrDeadJobs() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var jobs = new JobRegistry();
+        assertFalse(jobs.signal("bg_999", "SIGTERM"), "unknown job");
+        String id = jobs.start(sh("sleep 30"), tempDir);
+        assertFalse(jobs.signal(id, "SIGINT"), "SIGINT is no longer supported");
+        jobs.kill(id);
     }
 }

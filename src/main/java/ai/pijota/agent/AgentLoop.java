@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -35,8 +36,10 @@ public final class AgentLoop implements AgentContext {
     private final List<Consumer<AgentEvent>> listeners = new CopyOnWriteArrayList<>();
     private final ExtensionRegistry extensionRegistry;
     private final CompactionManager compaction;
-    private final List<String> steeringMessages = new ArrayList<>();
-    private final List<String> followUpMessages = new ArrayList<>();
+    // Synchronized: extensions can inject messages from background threads (e.g. a finished background job, a scheduled
+    // prompt) concurrently with the turn thread draining them — see sendUserMessage / drainAndProcess.
+    private final List<String> steeringMessages = Collections.synchronizedList(new ArrayList<>());
+    private final List<String> followUpMessages = Collections.synchronizedList(new ArrayList<>());
     private final ToolExecutor toolExecutor;
     private final AtomicBoolean aborted = new AtomicBoolean(false);
     private final AtomicReference<CompletableFuture<List<Message>>> activeResult = new AtomicReference<>();
@@ -471,10 +474,14 @@ public final class AgentLoop implements AgentContext {
     }
 
     private void drainAndProcess(List<String> list) {
-        for (String msg : List.copyOf(list)) {
+        List<String> pending;
+        synchronized (list) { // atomic snapshot+clear so a concurrent background add() is never lost or double-read
+            pending = List.copyOf(list);
+            list.clear();
+        }
+        for (String msg : pending) {
             history.add(new Message.User(msg));
         }
-        list.clear();
     }
 
     private void fireEvent(AgentEvent event) {

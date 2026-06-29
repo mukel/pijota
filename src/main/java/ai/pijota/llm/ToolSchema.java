@@ -78,6 +78,19 @@ public final class ToolSchema {
             return add(name, required, m);
         }
 
+        /**
+         * Adds an open object property (no {@code additionalProperties} constraint) with string values. Suitable for
+         * free-form maps like environment variables.
+         */
+        public Builder openObject(String name, String description, boolean required) {
+            var m = new LinkedHashMap<String, Object>();
+            m.put("type", "object");
+            if (description != null)
+                m.put("description", description);
+            m.put("additionalProperties", Map.of("type", "string"));
+            return add(name, required, m);
+        }
+
         private Builder add(String name, boolean required, Map<String, Object> schema) {
             properties.put(name, schema);
             if (required)

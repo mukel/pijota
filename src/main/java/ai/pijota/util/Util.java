@@ -272,7 +272,8 @@ public final class Util {
                                         + text.substring(text.length() - tailChars);
     }
 
-    private static String formatSize(int bytes) {
+    /** Human-readable size (B/KB/MB), locale-independent (always a {@code .} decimal). */
+    public static String formatSize(int bytes) {
         if (bytes < 1024)
             return bytes + "B";
         if (bytes < 1024 * 1024)
