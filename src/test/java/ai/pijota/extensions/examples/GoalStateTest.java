@@ -177,4 +177,38 @@ class GoalStateTest {
         assertEquals(GoalState.Status.ITERATION_LIMITED, active.markIterationLimited(1000).status());
         assertEquals(GoalState.Status.COMPLETE, active.complete(1000).markIterationLimited(1000).status());
     }
+
+    @Test
+    void maxTimeRoundTripsAndTimeExceededRespectsElapsed() {
+        var state = GoalState.start("loop X", 0, "", true, 0, 5000, 0, 0, 1000); // 5s budget, started at t=1000
+        assertEquals(5000, state.maxTimeMs());
+        assertTrue(state.hasTimeLimit());
+        assertFalse(state.timeExceeded(5000)); // elapsed 4000 < 5000
+        assertTrue(state.timeExceeded(6000)); // elapsed 5000 >= 5000
+        assertEquals(2000, state.remainingMs(4000)); // 5000 - 3000 elapsed
+        var restored = GoalState.fromJson(state.toJson());
+        assertEquals(5000, restored.maxTimeMs());
+    }
+
+    @Test
+    void timeBudgetIsPausedTimeAware() {
+        var state = GoalState.start("x", 0, "", true, 0, 5000, 0, 0, 1000).pause(3000).resume(8000);
+        assertFalse(state.timeExceeded(9000)); // elapsed excludes the 5000ms pause → 3000 < 5000
+        assertTrue(state.timeExceeded(11_000)); // elapsed 5000 >= 5000
+    }
+
+    @Test
+    void markTimeLimitedOnlyFromActive() {
+        var active = GoalState.start("x", 0, "", true, 0, 5000, 0, 0, 0);
+        assertEquals(GoalState.Status.TIME_LIMITED, active.markTimeLimited(1000).status());
+        assertEquals(GoalState.Status.COMPLETE, active.complete(1000).markTimeLimited(1000).status());
+    }
+
+    @Test
+    void noTimeLimitWhenZero() {
+        var state = GoalState.start("x", 0, "", true, 0, 0, 0, 0, 0);
+        assertFalse(state.hasTimeLimit());
+        assertFalse(state.timeExceeded(1_000_000));
+        assertEquals(-1, state.remainingMs(1000));
+    }
 }

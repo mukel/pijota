@@ -1,6 +1,7 @@
 package ai.pijota.extensions.examples;
 
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
+import ai.pijota.extensions.testkit.FakeExtensionRuntime;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 
@@ -290,6 +291,74 @@ class GoalExtensionTest {
 
         fake.fireTurnEnd(1);
         assertTrue(fake.sentUserMessages().isEmpty(), "a stopped loop must not re-prompt: " + fake.sentUserMessages());
+    }
+
+    @Test
+    void loopParsesTokenTimeAndStopWhenFlags() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("loop").handler().accept(
+                                        "refactor X --max-tokens 100 --max-time 30m --stop-when \"tests pass\"");
+        var content = execute(fake.tool("get_goal"), Map.of()).content();
+        assertTrue(content.contains("/100"), content); // token budget
+        assertTrue(content.contains("time left"), content); // time limit set
+        assertTrue(content.contains("tests pass"), content); // stop-when criterion
+    }
+
+    @Test
+    void loopContinuationIncludesStopWhenCriterion() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("loop").handler().accept("ship it --stop-when all tests green");
+        fake.fireTurnEnd(1);
+        assertTrue(fake.sentUserMessages().stream().anyMatch(m -> m.contains("all tests green")),
+                                        fake.sentUserMessages().toString());
+    }
+
+    @Test
+    void createGoalHonorsMaxSeconds() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        execute(fake.tool("create_goal"), Map.of("objective", "x", "max_seconds", 1800));
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("time left"));
+    }
+
+    @Test
+    void loopUsesDefaultIterationCapWhenNoFlag() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("loop").handler().accept("just loop");
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("0/25"));
+    }
+
+    @Test
+    void loopMaxTokensDefaultComesFromConfigFlag() {
+        var fake = new FakeExtensionAPI();
+        ((FakeExtensionRuntime) fake.runtime()).setFlag("loop-max-tokens", "500");
+        new GoalExtension().init(fake);
+        fake.slashCommand("loop").handler().accept("do stuff");
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("/500"));
+    }
+
+    @Test
+    void loopStopsAtTimeLimit() throws InterruptedException {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("loop").handler().accept("tick --max-time 1s");
+        Thread.sleep(1200);
+        fake.fireTurnEnd(1);
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("status: time-limited"));
+    }
+
+    @Test
+    void parseDurationHandlesUnitsAndBareSeconds() {
+        assertEquals(90_000, GoalExtension.parseDuration("90s", -1));
+        assertEquals(1_800_000, GoalExtension.parseDuration("30m", -1));
+        assertEquals(7_200_000, GoalExtension.parseDuration("2h", -1));
+        assertEquals(5_400_000, GoalExtension.parseDuration("1h30m", -1));
+        assertEquals(45_000, GoalExtension.parseDuration("45", -1)); // bare number = seconds
+        assertEquals(-1, GoalExtension.parseDuration("abc", -1)); // invalid → fallback
+        assertEquals(-1, GoalExtension.parseDuration("10x", -1)); // bad unit → fallback
     }
 
     private static Tool.ToolResult execute(Tool.ToolDefinition tool, Map<String, Object> args) {
