@@ -229,13 +229,14 @@ class AgentLoopTest {
     }
 
     @Test
-    void retryGivesUpAfterThreeAttempts() {
-        var llm = new FauxLlm().enqueueError("server error 500").enqueueError("server error 500")
-                                        .enqueueError("server error 500");
+    void retryGivesUpAfterMaxAttempts() {
+        var llm = new FauxLlm();
+        for (int i = 0; i < 6; i++)
+            llm.enqueueError("server error 500");
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").retryBaseDelayMs(1).build();
 
-        assertThrows(ExecutionException.class, () -> agent.prompt("hi").get(2, TimeUnit.SECONDS));
-        assertEquals(3, llm.requests().size()); // initial + 2 retries, then give up
+        assertThrows(ExecutionException.class, () -> agent.prompt("hi").get(5, TimeUnit.SECONDS));
+        assertEquals(6, llm.requests().size()); // initial + 5 retries, then give up
     }
 
     @Test

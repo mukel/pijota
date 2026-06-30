@@ -462,6 +462,9 @@ public final class ExtensionRegistry {
             case AgentEvent.MessageStreamStart _ -> fire(new ExtensionEvent.MessageStart());
             case AgentEvent.MessageStreamDelta(var delta) -> fire(new ExtensionEvent.MessageUpdate(delta));
             case AgentEvent.MessageStreamEnd _ -> fire(new ExtensionEvent.MessageEnd());
+            case AgentEvent.Error(var throwable) ->
+                fire(new ExtensionEvent.Error(ai.pijota.util.ErrorUtil.message(throwable),
+                                                ai.pijota.util.ErrorUtil.isRetryable(throwable)));
             default -> {}
         }
     }

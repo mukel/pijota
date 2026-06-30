@@ -16,7 +16,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -28,10 +33,19 @@ public final class GoalExtension implements Extension {
     private static final String CUSTOM_TYPE = "goal";
     private static final long MAX_OBJECTIVE_LENGTH = 8000;
     private static final int DEFAULT_MAX_ITERATIONS = 25;
+    // Long-running resilience: a transient LLM/tool failure shouldn't kill an autonomous loop. Back off and retry the
+    // continuation, giving up only after this many consecutive failures.
+    private static final int MAX_CONSECUTIVE_FAILURES = 5;
+    private static final long BACKOFF_BASE_MS = 2_000;
+    private static final long BACKOFF_CAP_MS = 60_000;
 
     private final AtomicReference<GoalState> state = new AtomicReference<>(GoalState.idle());
+    private final AtomicInteger consecutiveFailures = new AtomicInteger();
     private volatile long lastContinueMs;
     private ExtensionAPI api;
+    private ScheduledExecutorService scheduler;
+    /** Schedules a backed-off continuation retry. Package-private so tests can run it synchronously. */
+    BiConsumer<Runnable, Long> backoffScheduler;
 
     @Override
     public String name() {
@@ -56,47 +70,44 @@ public final class GoalExtension implements Extension {
                                         "Autonomous goal (auto-continues): /loop <objective> [flags]; /loop stop",
                                         List.of(), args -> handleCommand(args, true)));
 
-        api.registerTool(Tool.named("create_goal").description(
-                                        "Create a goal with an objective and optional token budget. Fails if a non-complete goal exists unless replace_existing is true.")
+        // Model-facing surface is deliberately tiny — work, and say when done. The rich management verbs
+        // (pause/resume/stop/progress, status) stay human-side on /goal + /loop. Caps are forgiving strings the model
+        // copies verbatim (no arithmetic — small models drop digits when converting "30m"→1800 or "1M"→1000000).
+        api.registerTool(Tool.named("set_goal").description(
+                                        "Set the objective the agent should work toward, with optional limits. Replaces any existing goal.")
                                         .stringParam("objective", "What the agent should accomplish", true)
-                                        .intParam("token_budget", "Maximum tokens to use before marking budget-limited",
+                                        .stringParam("max_time", "Wall-clock limit as a duration string — e.g. \"30m\", \"2h\", \"90s\", \"1h30m\". Pass the user's phrasing directly; do NOT convert to seconds.",
                                                                         false)
-                                        .stringParam("completion_criterion",
-                                                                        "Optional condition that determines when the goal is satisfied",
-                                                                        false)
-                                        .boolParam("continue_on_idle", "Whether the agent should continue working when idle",
+                                        .stringParam("max_tokens", "Token budget — e.g. \"500k\", \"1M\", \"2.5M\". Copy the user's figure; do NOT expand to a raw integer.",
                                                                         false)
                                         .intParam("max_iterations", "Max auto-continue iterations before stopping (0 = unlimited)",
                                                                         false)
-                                        .intParam("max_seconds", "Max wall-clock seconds before stopping (0 = unlimited)",
+                                        .stringParam("stop_when", "A natural-language done-condition; the agent self-completes when it is satisfied",
                                                                         false)
-                                        .boolParam("replace_existing", "Replace current goal even if not complete",
+                                        .boolParam("continue_on_idle", "Keep working automatically until done or a limit (loop mode)",
                                                                         false)
-                                        .resultRenderer(createGoalRenderer())
-                                        .run((args, cwd) -> doCreateGoal(args.map())));
+                                        .resultRenderer(setGoalRenderer()).run((args, cwd) -> doSetGoal(args.map())));
 
-        api.registerTool(Tool.named("get_goal").description(
-                                        "Returns the current goal state including objective, status, budget, progress, and usage.")
-                                        .run((args, cwd) -> doGetGoal()));
-
-        api.registerTool(Tool.named("update_goal").description(
-                                        "Update the goal status. Supports status: complete, pause, resume, idle.")
-                                        .enumParam("status", "Set to complete, pause, resume, or idle", true,
-                                                                        List.of("complete", "pause", "resume", "idle"))
-                                        .resultRenderer(updateGoalRenderer())
-                                        .run((args, cwd) -> doUpdateGoal(args.map())));
-
-        api.registerTool(Tool.named("add_goal_progress")
-                                        .description("Append a progress note or milestone to the current goal.")
-                                        .stringParam("note", "Progress note or milestone", true)
-                                        .resultRenderer(addProgressRenderer())
-                                        .run((args, cwd) -> doAddProgress(args.map())));
+        api.registerTool(Tool.named("complete_goal")
+                                        .description("Declare the current goal/objective fully done. Stops any loop.")
+                                        .resultRenderer(completeGoalRenderer()).run((args, cwd) -> doCompleteGoal()));
 
         api.registerStatusLines(this::statusLine);
+
+        scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "goal-loop-backoff");
+            t.setDaemon(true);
+            return t;
+        });
+        backoffScheduler = (r, delayMs) -> {
+            if (scheduler != null && !scheduler.isShutdown())
+                scheduler.schedule(r, delayMs, TimeUnit.MILLISECONDS);
+        };
 
         api.on(ExtensionEvent.TurnStart.class, _ -> enforceHardLimits());
 
         api.on(ExtensionEvent.TurnEnd.class, _ -> {
+            consecutiveFailures.set(0); // a turn completed normally — clear the transient failure streak
             if (enforceHardLimits())
                 return;
             GoalState current = state.get();
@@ -116,6 +127,35 @@ public final class GoalExtension implements Extension {
             }
         });
 
+        // A failed turn fires Error (not TurnEnd), leaving the agent idle. For an autonomous loop, recover: back off
+        // and re-prompt to wake it; give up only after MAX_CONSECUTIVE_FAILURES so a persistent outage can't spin.
+        api.on(ExtensionEvent.Error.class, this::onTurnError);
+    }
+
+    private void onTurnError(ExtensionEvent.Error e) {
+        GoalState current = state.get();
+        if (!current.isActive() || !current.continueOnIdle())
+            return;
+        int fails = consecutiveFailures.incrementAndGet();
+        if (fails >= MAX_CONSECUTIVE_FAILURES) {
+            updateState(s -> s.markFailed(System.currentTimeMillis()));
+            api.runtime().setStatus("⚠ Loop stopped: too many consecutive errors (" + fails + ")");
+            return;
+        }
+        long delay = Math.min(BACKOFF_BASE_MS * (1L << (fails - 1)), BACKOFF_CAP_MS);
+        backoffScheduler.accept(() -> {
+            GoalState g = state.get();
+            // The agent went idle after the failure — single-arg sendUserMessage wakes it (FOLLOW_UP only drains at a
+            // turn boundary, which a failed turn never reaches).
+            if (g.isActive() && g.continueOnIdle())
+                api.sendUserMessage(continuationPrompt(g));
+        }, delay);
+    }
+
+    @Override
+    public void onShutdown(ExtensionRuntime runtime) {
+        if (scheduler != null)
+            scheduler.shutdownNow();
     }
 
     /** Apply the token-budget + time hard caps; returns true if the goal isn't active or was just stopped by a cap. */
@@ -140,16 +180,26 @@ public final class GoalExtension implements Extension {
      * The re-prompt sent on each idle continuation; folds in the stop-when criterion so the model can self-complete.
      */
     private static String continuationPrompt(GoalState g) {
-        String base = "Continue toward the objective: " + g.objective();
+        String base = "Keep working toward the objective: " + g.objective()
+                                        + ". When it is fully done, call complete_goal to stop; otherwise continue.";
         if (!g.completionCriterion().isEmpty())
-            base += ". When this is satisfied — " + g.completionCriterion()
-                                            + " — call update_goal with status complete and stop.";
+            base += " It is done when: " + g.completionCriterion() + ".";
         return base;
     }
 
     @Override
     public void onReady(ExtensionRuntime runtime) {
         loadFromSession();
+        // Resume after --continue: if a loop was active when the session was saved, nothing fires a TurnEnd, so the
+        // agent would sit idle. Wake it once (single-arg) to pick the loop back up.
+        GoalState restored = state.get();
+        if (restored.isActive() && restored.continueOnIdle())
+            api.sendUserMessage(continuationPrompt(restored));
+    }
+
+    /** The current goal state — package-private for tests (the model reads it via tools; humans via /goal). */
+    GoalState currentState() {
+        return state.get();
     }
 
     private void loadFromSession() {
@@ -322,9 +372,9 @@ public final class GoalExtension implements Extension {
             } else if (p.startsWith("--max-iterations=")) {
                 maxIterations = parseCap(p.substring("--max-iterations=".length()), 0);
             } else if (p.equals("--max-tokens") && i + 1 < parts.length) {
-                tokenBudget = parseLongCap(parts[++i], 0);
+                tokenBudget = parseTokens(parts[++i], 0);
             } else if (p.startsWith("--max-tokens=")) {
-                tokenBudget = parseLongCap(p.substring("--max-tokens=".length()), 0);
+                tokenBudget = parseTokens(p.substring("--max-tokens=".length()), 0);
             } else if (p.equals("--max-time") && i + 1 < parts.length) {
                 maxTimeMs = parseDuration(parts[++i], 0);
             } else if (p.startsWith("--max-time=")) {
@@ -402,9 +452,26 @@ public final class GoalExtension implements Extension {
         }
     }
 
-    private static long parseLongCap(String value, long fallback) {
+    /** Parse a token budget: {@code 500k}, {@code 1M}, {@code 2.5M}, {@code 1_000_000}, or a raw integer. */
+    static long parseTokens(String value, long fallback) {
+        if (value == null)
+            return fallback;
+        String v = value.strip().toLowerCase().replace("_", "").replace(",", "");
+        if (v.isEmpty())
+            return fallback;
+        double mult = 1;
+        char last = v.charAt(v.length() - 1);
+        if (last == 'k' || last == 'm' || last == 'b') {
+            mult = switch (last) {
+                case 'k' -> 1_000d;
+                case 'm' -> 1_000_000d;
+                default -> 1_000_000_000d;
+            };
+            v = v.substring(0, v.length() - 1).strip();
+        }
         try {
-            return Math.max(0, Long.parseLong(value.strip()));
+            double n = Double.parseDouble(v);
+            return n > 0 ? Math.max(0, (long) (n * mult)) : fallback;
         } catch (NumberFormatException e) {
             return fallback;
         }
@@ -461,90 +528,45 @@ public final class GoalExtension implements Extension {
     }
 
     private long defaultMaxTokens() {
-        return api.runtime().getFlag("loop-max-tokens").map(v -> parseLongCap(v, 0L)).orElse(0L);
+        return api.runtime().getFlag("loop-max-tokens").map(v -> parseTokens(v, 0L)).orElse(0L);
     }
 
     private long defaultMaxTimeMs() {
         return api.runtime().getFlag("loop-max-time").map(v -> parseDuration(v, 0L)).orElse(0L);
     }
 
-    // ---- model tools ----
+    // ---- model tools (just two: set the objective, declare it done) ----
 
-    private Tool.ToolResult doCreateGoal(Map<String, Object> args) {
+    private Tool.ToolResult doSetGoal(Map<String, Object> args) {
         String objective = (String) args.get("objective");
         if (objective == null || objective.isBlank())
             return Tool.ToolResult.error("objective is required");
         if (objective.length() > MAX_OBJECTIVE_LENGTH)
             return Tool.ToolResult.error("objective exceeds " + MAX_OBJECTIVE_LENGTH + " chars");
-        boolean replace = Boolean.TRUE.equals(args.get("replace_existing"));
-        GoalState current = state.get();
-        if (!replace && !current.isTerminal())
-            return Tool.ToolResult.error("Goal already exists. Use replace_existing: true to override.");
-        Number budget = (Number) args.get("token_budget");
-        long tokenBudget = budget != null ? Math.max(0, budget.longValue()) : 0;
-        String criterion = (String) args.get("completion_criterion");
-        boolean continueOnIdle = Boolean.TRUE.equals(args.get("continue_on_idle"));
+        long tokenBudget = parseTokens(asString(args.get("max_tokens")), 0); // strings: model copies, we parse
+        long maxTimeMs = parseDuration(asString(args.get("max_time")), 0);
         Number maxIter = (Number) args.get("max_iterations");
         int maxIterations = maxIter != null ? Math.max(0, maxIter.intValue()) : 0;
-        Number maxSec = (Number) args.get("max_seconds");
-        long maxTimeMs = maxSec != null ? Math.max(0, maxSec.longValue()) * 1000L : 0;
+        String criterion = asString(args.get("stop_when"));
+        boolean continueOnIdle = Boolean.TRUE.equals(args.get("continue_on_idle"));
         long now = System.currentTimeMillis();
         var llm = api.runtime().llm();
         GoalState next = GoalState.start(objective, tokenBudget, criterion, continueOnIdle, maxIterations, maxTimeMs,
                                         llm.totalInputTokens(), llm.totalOutputTokens(), now);
+        consecutiveFailures.set(0);
         updateState(s -> next);
         return Tool.ToolResult.success(renderGoal(next));
     }
 
-    private Tool.ToolResult doGetGoal() {
+    private Tool.ToolResult doCompleteGoal() {
+        if (state.get().status() == GoalState.Status.IDLE)
+            return Tool.ToolResult.error("No active goal to complete");
+        updateState(s -> s.complete(System.currentTimeMillis()));
         return Tool.ToolResult.success(renderGoal(state.get()));
     }
 
-    private Tool.ToolResult doUpdateGoal(Map<String, Object> args) {
-        String newStatus = (String) args.get("status");
-        if (newStatus == null)
-            return Tool.ToolResult.error("status is required");
-        GoalState current = state.get();
-        long now = System.currentTimeMillis();
-        return switch (newStatus.toLowerCase()) {
-            case "complete" -> {
-                if (current.status() == GoalState.Status.IDLE)
-                    yield Tool.ToolResult.error("No active goal to complete");
-                updateState(s -> s.complete(now));
-                yield Tool.ToolResult.success(renderGoal(state.get()));
-            }
-            case "pause" -> {
-                if (current.status() != GoalState.Status.ACTIVE && current.status() != GoalState.Status.BUDGET_LIMITED)
-                    yield Tool.ToolResult.error("No active goal to pause");
-                updateState(s -> s.pause(now));
-                yield Tool.ToolResult.success(renderGoal(state.get()));
-            }
-            case "resume" -> {
-                if (current.status() != GoalState.Status.PAUSED)
-                    yield Tool.ToolResult.error("No paused goal to resume");
-                updateState(s -> s.resume(now));
-                yield Tool.ToolResult.success(renderGoal(state.get()));
-            }
-            case "idle", "clear" -> {
-                if (current.status() == GoalState.Status.IDLE)
-                    yield Tool.ToolResult.error("No goal to clear");
-                updateState(GoalState::clear);
-                yield Tool.ToolResult.success("Goal cleared");
-            }
-            default -> Tool.ToolResult.error("Unsupported status: " + newStatus);
-        };
-    }
-
-    private Tool.ToolResult doAddProgress(Map<String, Object> args) {
-        String note = (String) args.get("note");
-        if (note == null || note.isBlank())
-            return Tool.ToolResult.error("note is required");
-        GoalState current = state.get();
-        if (current.status() == GoalState.Status.IDLE)
-            return Tool.ToolResult.error("No active goal");
-        long now = System.currentTimeMillis();
-        updateState(s -> s.addProgress(note, now));
-        return Tool.ToolResult.success(renderGoal(state.get()));
+    private static String asString(Object o) {
+        return o == null ? "" : String.valueOf(o);
     }
 
     // ---- internals ----
@@ -579,6 +601,9 @@ public final class GoalExtension implements Extension {
             sb.append(" · ").append(Util.fmtCount(used)).append("/").append(Util.fmtCount(current.tokenBudget()));
         appendIterations(sb, current);
         appendTime(sb, current, System.currentTimeMillis());
+        int fails = consecutiveFailures.get();
+        if (fails > 0 && current.isActive())
+            sb.append(" · retrying… (").append(fails).append('/').append(MAX_CONSECUTIVE_FAILURES).append(')');
         return List.of(sb.toString());
     }
 
@@ -605,35 +630,23 @@ public final class GoalExtension implements Extension {
             case BUDGET_LIMITED -> "budget-limited";
             case ITERATION_LIMITED -> "iteration-limited";
             case TIME_LIMITED -> "time-limited";
+            case FAILED -> "failed";
             case IDLE -> "idle";
         };
     }
 
-    private static Tool.ResultRenderer createGoalRenderer() {
+    private static Tool.ResultRenderer setGoalRenderer() {
         return (args, result, cwd) -> {
             if (result.isError())
-                return Tool.ToolResultView.of("Failed to create goal");
+                return Tool.ToolResultView.of("Failed to set goal");
             String objective = String.valueOf(args.getOrDefault("objective", ""));
-            return Tool.ToolResultView.of("Created goal: " + Util.truncate(objective, 60));
+            return Tool.ToolResultView.of("Goal set: " + Util.truncate(objective, 60));
         };
     }
 
-    private static Tool.ResultRenderer updateGoalRenderer() {
-        return (args, result, cwd) -> {
-            if (result.isError())
-                return Tool.ToolResultView.of("Goal update failed");
-            String status = String.valueOf(args.getOrDefault("status", ""));
-            return Tool.ToolResultView.of("Goal status updated to " + status);
-        };
-    }
-
-    private static Tool.ResultRenderer addProgressRenderer() {
-        return (args, result, cwd) -> {
-            if (result.isError())
-                return Tool.ToolResultView.of("Failed to add progress");
-            String note = String.valueOf(args.getOrDefault("note", ""));
-            return Tool.ToolResultView.of("Progress: " + Util.truncate(note, 60));
-        };
+    private static Tool.ResultRenderer completeGoalRenderer() {
+        return (args, result, cwd) -> Tool.ToolResultView
+                                        .of(result.isError() ? "No goal to complete" : "Goal completed");
     }
 
     private String renderGoal(GoalState goalState) {

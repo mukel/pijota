@@ -137,6 +137,10 @@ public class FakeExtensionAPI implements ExtensionAPI {
         fire(new ExtensionEvent.TurnEnd(turnNumber));
     }
 
+    public void fireError(String message, boolean retryable) {
+        fire(new ExtensionEvent.Error(message, retryable));
+    }
+
     /** Fires a tool call carrying a {@code {"command": ...}} body — the shape the bash/tmux guards inspect. */
     public Object fireToolCall(String tool, String command) {
         return fire(new ExtensionEvent.ToolCall("id", tool, "{\"command\":\"" + command + "\"}", true));

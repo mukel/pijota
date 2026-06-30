@@ -17,7 +17,7 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
                                 long maxTimeMs) {
 
     enum Status {
-        IDLE, ACTIVE, PAUSED, COMPLETE, BUDGET_LIMITED, ITERATION_LIMITED, TIME_LIMITED
+        IDLE, ACTIVE, PAUSED, COMPLETE, BUDGET_LIMITED, ITERATION_LIMITED, TIME_LIMITED, FAILED
     }
 
     private static final long MAX_OBJECTIVE_LENGTH = 8000;
@@ -94,6 +94,12 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
         if (status != Status.ACTIVE)
             return this;
         return withStatus(Status.TIME_LIMITED, nowMs);
+    }
+
+    GoalState markFailed(long nowMs) {
+        if (status != Status.ACTIVE)
+            return this;
+        return withStatus(Status.FAILED, nowMs);
     }
 
     GoalState incrementIteration() {

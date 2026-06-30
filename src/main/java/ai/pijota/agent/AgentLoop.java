@@ -528,14 +528,18 @@ public final class AgentLoop implements AgentContext {
         return retry(task, 0);
     }
 
+    private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final long MAX_RETRY_DELAY_MS = 60_000L;
+
     private <T> CompletableFuture<T> retry(Supplier<CompletableFuture<T>> task, int attempt) {
         return task.get().exceptionallyCompose(ex -> {
-            if (attempt >= 2 || !ErrorUtil.isRetryable(ex))
+            if (attempt >= MAX_RETRY_ATTEMPTS || !ErrorUtil.isRetryable(ex))
                 return CompletableFuture.failedFuture(ex);
             long defaultDelay = (long) (retryBaseDelayMs * Math.pow(2.0, attempt));
-            long delay = ErrorUtil.retryAfterDelayMs(ex, defaultDelay);
-            log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}", attempt + 1, 3, delay,
-                                            ErrorUtil.message(ex));
+            // Honor Retry-After but cap the wait so a long server-requested delay can't stall the turn indefinitely.
+            long delay = Math.min(ErrorUtil.retryAfterDelayMs(ex, defaultDelay), MAX_RETRY_DELAY_MS);
+            log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}", attempt + 1, MAX_RETRY_ATTEMPTS + 1,
+                                            delay, ErrorUtil.message(ex));
             var delayed = new CompletableFuture<T>();
             CompletableFuture.delayedExecutor(delay, TimeUnit.MILLISECONDS).execute(() -> retry(task, attempt + 1)
                                             .thenAccept(delayed::complete).exceptionally(e -> {

@@ -37,6 +37,7 @@ public sealed interface ExtensionEvent {
             case UserBash _ -> "user_bash";
             case BashToolCall _ -> "bash_tool_call";
             case Input e -> e.handled() ? "input_handled" : "input";
+            case Error _ -> "error";
         };
     }
     /** A new session file has been created or loaded — emitted once per session. */
@@ -102,6 +103,14 @@ public sealed interface ExtensionEvent {
 
     /** The model invoked the bash tool — can be blocked or modified. */
     record BashToolCall(String toolCallId, String command, String workdir, long timeoutSec) implements ExtensionEvent {
+    }
+
+    /**
+     * An agent turn failed (LLM/tool error after retries). Fired in addition to completing the turn exceptionally, so
+     * extensions (e.g. an autonomous loop) can recover — {@code retryable} hints whether a backed-off retry is
+     * sensible.
+     */
+    record Error(String message, boolean retryable) implements ExtensionEvent {
     }
 
     /** Raw user input before processing — {@code handled} short-circuits remaining handlers. */
