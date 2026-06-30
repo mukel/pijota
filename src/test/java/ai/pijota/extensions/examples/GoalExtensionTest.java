@@ -361,6 +361,60 @@ class GoalExtensionTest {
         assertEquals(-1, GoalExtension.parseDuration("10x", -1)); // bad unit → fallback
     }
 
+    @Test
+    void goalContinueFlagMakesItAutonomousLikeLoop() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("goal").handler().accept("ship it --continue");
+        fake.fireTurnEnd(1);
+        assertTrue(fake.sentUserMessages().stream().anyMatch(m -> m.contains("FOLLOW_UP")),
+                                        "/goal --continue must auto-continue: " + fake.sentUserMessages());
+    }
+
+    @Test
+    void loopNoContinueFlagMakesItASinglePass() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("loop").handler().accept("just once --no-continue");
+        fake.fireTurnEnd(1);
+        assertTrue(fake.sentUserMessages().isEmpty(),
+                                        "/loop --no-continue must not auto-continue: " + fake.sentUserMessages());
+    }
+
+    @Test
+    void goalParsesTheSameLimitFlagsAsLoop() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("goal").handler().accept("x --max-time 30m --max-tokens 100 --max-iterations 5");
+        var get = execute(fake.tool("get_goal"), Map.of());
+        assertTrue(get.content().contains("usage: 0/100"), get.content());
+        assertTrue(get.content().contains("iterations: 0/5"), get.content());
+        assertTrue(get.content().contains("time left:"), get.content());
+    }
+
+    @Test
+    void stopSubverbWorksOnGoalToo() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("goal").handler().accept("track me");
+        fake.slashCommand("goal").handler().accept("stop"); // stop now works on /goal, not just /loop
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("status: idle"));
+    }
+
+    @Test
+    void plainGoalHasNoCapsWhileLoopGetsTheConfigDefault() {
+        var fake = new FakeExtensionAPI();
+        new GoalExtension().init(fake);
+        fake.slashCommand("goal").handler().accept("track only");
+        assertFalse(execute(fake.tool("get_goal"), Map.of()).content().contains("iterations:"),
+                                        "plain /goal (no --continue) has no iteration cap");
+
+        fake.slashCommand("goal").handler().accept("clear");
+        fake.slashCommand("loop").handler().accept("auto");
+        assertTrue(execute(fake.tool("get_goal"), Map.of()).content().contains("iterations: 0/25"),
+                                        "/loop applies the default iteration cap");
+    }
+
     private static Tool.ToolResult execute(Tool.ToolDefinition tool, Map<String, Object> args) {
         return tool.execute().execute("id", new Tool.Args(args), ".").join();
     }

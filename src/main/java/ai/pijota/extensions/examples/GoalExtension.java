@@ -47,12 +47,14 @@ public final class GoalExtension implements Extension {
     public void init(ExtensionAPI api) {
         this.api = api;
 
-        api.registerSlashCommand(new SlashCommand("goal", "View or manage the current goal", List.of(),
-                                        this::handleGoalCommand));
+        // /goal and /loop are one command; /loop just defaults continue-on-idle ON (autonomous).
+        api.registerSlashCommand(new SlashCommand("goal",
+                                        "Track a goal: /goal <objective> [flags]; pause/resume/stop/progress",
+                                        List.of(), args -> handleCommand(args, false)));
 
         api.registerSlashCommand(new SlashCommand("loop",
-                                        "Start (/loop <objective>) or stop (/loop stop) an autonomous loop", List.of(),
-                                        this::handleLoopCommand));
+                                        "Autonomous goal (auto-continues): /loop <objective> [flags]; /loop stop",
+                                        List.of(), args -> handleCommand(args, true)));
 
         api.registerTool(Tool.named("create_goal").description(
                                         "Create a goal with an objective and optional token budget. Fails if a non-complete goal exists unless replace_existing is true.")
@@ -176,26 +178,28 @@ public final class GoalExtension implements Extension {
         }
     }
 
-    // ---- slash command ----
+    // ---- slash command (/goal and /loop share one handler; /loop defaults continue-on-idle ON) ----
 
-    private void handleGoalCommand(String args) {
+    private void handleCommand(String args, boolean defaultContinue) {
         String trimmed = args == null ? "" : args.strip();
         if (trimmed.isEmpty()) {
             showGoal();
             return;
         }
-        switch (trimmed.toLowerCase()) {
-            case "pause" -> doPause();
-            case "resume" -> doResume();
-            case "clear" -> doClear();
-            default -> {
-                if (trimmed.toLowerCase().startsWith("progress ")) {
-                    doAddProgressFromCommand(trimmed.substring(8).strip());
-                } else {
-                    startOrReplace(trimmed);
-                }
-            }
-        }
+        // Sub-verbs are exact matches (an objective like "pause the build" still starts a goal); progress takes a note.
+        String lower = trimmed.toLowerCase();
+        if (lower.equals("pause"))
+            doPause();
+        else if (lower.equals("resume"))
+            doResume();
+        else if (lower.equals("stop") || lower.equals("clear"))
+            doClearOrStop();
+        else if (lower.equals("progress"))
+            doAddProgressFromCommand("");
+        else if (lower.startsWith("progress "))
+            doAddProgressFromCommand(trimmed.substring("progress ".length()).strip());
+        else
+            startGoal(trimmed, defaultContinue);
     }
 
     private void showGoal() {
@@ -233,27 +237,6 @@ public final class GoalExtension implements Extension {
         return new String[] {obj, criterion};
     }
 
-    private void startOrReplace(String objective) {
-        if (objective.length() > MAX_OBJECTIVE_LENGTH) {
-            api.runtime().setStatus("Objective too long (max " + MAX_OBJECTIVE_LENGTH + " chars)");
-            return;
-        }
-        GoalState current = state.get();
-        if (current.status() == GoalState.Status.ACTIVE || current.status() == GoalState.Status.PAUSED
-                                        || current.status() == GoalState.Status.BUDGET_LIMITED) {
-            api.runtime().setStatus("Goal already active. Use /goal clear first or /goal pause.");
-            return;
-        }
-        String[] parsed = parseObjective(objective);
-        String obj = parsed[0];
-        String criterion = parsed[1];
-        long now = System.currentTimeMillis();
-        var llm = api.runtime().llm();
-        updateState(s -> GoalState.start(obj, 0, criterion, false, llm.totalInputTokens(), llm.totalOutputTokens(),
-                                        now));
-        api.runtime().setStatus(Emojis.DART + " Goal: " + obj);
-    }
-
     private void doPause() {
         GoalState current = state.get();
         if (current.status() != GoalState.Status.ACTIVE && current.status() != GoalState.Status.BUDGET_LIMITED) {
@@ -274,14 +257,17 @@ public final class GoalExtension implements Extension {
         api.runtime().setStatus(Emojis.PLAY + " Goal resumed: " + state.get().objective());
     }
 
-    private void doClear() {
+    /** Stop/clear (both verbs): clearing → idle halts the TurnEnd auto-continuation portably. */
+    private void doClearOrStop() {
         GoalState current = state.get();
         if (current.status() == GoalState.Status.IDLE) {
-            api.runtime().setStatus("No goal to clear");
+            api.runtime().setStatus("Nothing active to stop");
             return;
         }
+        boolean wasLoop = current.continueOnIdle();
+        // The in-flight turn (if any) is stopped via the frontend's own interrupt (Esc / /stop / /interrupt).
         updateState(GoalState::clear);
-        api.runtime().setStatus("Goal cleared");
+        api.runtime().setStatus(wasLoop ? Emojis.PAUSE + " Loop stopped" : "Goal cleared");
     }
 
     private void doAddProgressFromCommand(String note) {
@@ -298,20 +284,7 @@ public final class GoalExtension implements Extension {
         api.runtime().setStatus("Progress added");
     }
 
-    // ---- /loop ----
-
-    private void handleLoopCommand(String args) {
-        String trimmed = args == null ? "" : args.strip();
-        if (trimmed.isEmpty()) {
-            showGoal();
-            return;
-        }
-        if (trimmed.equalsIgnoreCase("stop")) {
-            doStopLoop();
-            return;
-        }
-        startLoop(trimmed);
-    }
+    // ---- start (shared by /goal and /loop) ----
 
     /** Default iteration cap, overridable via the {@code loop-max-iterations} flag (CLI / settings.json extensions). */
     private int defaultMaxIterations() {
@@ -324,49 +297,64 @@ public final class GoalExtension implements Extension {
         }).orElse(DEFAULT_MAX_ITERATIONS);
     }
 
-    private void startLoop(String input) {
-        int maxIterations = defaultMaxIterations();
-        long tokenBudget = defaultMaxTokens();
-        long maxTimeMs = defaultMaxTimeMs();
+    /**
+     * Shared start path for {@code /goal} and {@code /loop}: parse the objective + inline flags;
+     * {@code defaultContinue} is the verb's continue-on-idle default ({@code false} for /goal, {@code true} for /loop).
+     * Explicit flags always win; the config-backed cap defaults apply only when continuing and the cap is unset.
+     */
+    private void startGoal(String input, boolean defaultContinue) {
+        Integer maxIterations = null;
+        Long tokenBudget = null;
+        Long maxTimeMs = null;
+        Boolean continueFlag = null;
         String criterion = "";
-        boolean continueOnIdle = true;
-        // Strip the inline overrides out of the objective text; everything else is the objective.
+        boolean criterionFromFlag = false;
         var words = new ArrayList<String>();
         String[] parts = input.split("\\s+");
         for (int i = 0; i < parts.length; i++) {
             String p = parts[i];
-            if (p.equals("--no-continue")) {
-                continueOnIdle = false;
+            if (p.equals("--continue")) {
+                continueFlag = true;
+            } else if (p.equals("--no-continue")) {
+                continueFlag = false;
             } else if (p.equals("--max-iterations") && i + 1 < parts.length) {
-                maxIterations = parseCap(parts[++i], maxIterations);
+                maxIterations = parseCap(parts[++i], 0);
             } else if (p.startsWith("--max-iterations=")) {
-                maxIterations = parseCap(p.substring("--max-iterations=".length()), maxIterations);
+                maxIterations = parseCap(p.substring("--max-iterations=".length()), 0);
             } else if (p.equals("--max-tokens") && i + 1 < parts.length) {
-                tokenBudget = parseLongCap(parts[++i], tokenBudget);
+                tokenBudget = parseLongCap(parts[++i], 0);
             } else if (p.startsWith("--max-tokens=")) {
-                tokenBudget = parseLongCap(p.substring("--max-tokens=".length()), tokenBudget);
+                tokenBudget = parseLongCap(p.substring("--max-tokens=".length()), 0);
             } else if (p.equals("--max-time") && i + 1 < parts.length) {
-                maxTimeMs = parseDuration(parts[++i], maxTimeMs);
+                maxTimeMs = parseDuration(parts[++i], 0);
             } else if (p.startsWith("--max-time=")) {
-                maxTimeMs = parseDuration(p.substring("--max-time=".length()), maxTimeMs);
+                maxTimeMs = parseDuration(p.substring("--max-time=".length()), 0);
             } else if (p.startsWith("--stop-when=")) {
                 criterion = stripQuotes(p.substring("--stop-when=".length()));
+                criterionFromFlag = true;
             } else if (p.equals("--stop-when")) {
                 // The condition is free text — consume the rest of the line (so put --stop-when last).
                 var rest = new ArrayList<String>();
                 while (i + 1 < parts.length)
                     rest.add(parts[++i]);
                 criterion = stripQuotes(String.join(" ", rest));
+                criterionFromFlag = true;
             } else if (p.startsWith("--")) {
-                api.runtime().setStatus("Unknown /loop flag: " + p + " — " + LOOP_USAGE);
+                api.runtime().setStatus("Unknown flag: " + p + " — " + USAGE);
                 return;
             } else {
                 words.add(p);
             }
         }
         String objective = String.join(" ", words).strip();
+        if (!criterionFromFlag) {
+            // back-compat: "objective | criterion"
+            String[] split = parseObjective(objective);
+            objective = split[0];
+            criterion = split[1];
+        }
         if (objective.isEmpty()) {
-            api.runtime().setStatus(LOOP_USAGE);
+            api.runtime().setStatus(USAGE);
             return;
         }
         if (objective.length() > MAX_OBJECTIVE_LENGTH) {
@@ -374,23 +362,26 @@ public final class GoalExtension implements Extension {
             return;
         }
         GoalState current = state.get();
-        if (!current.isTerminal()) {
+        if (current.status() == GoalState.Status.ACTIVE || current.status() == GoalState.Status.PAUSED) {
             api.runtime().setStatus("A goal/loop is already active. Use /loop stop or /goal clear first.");
             return;
         }
+        boolean cont = continueFlag != null ? continueFlag : defaultContinue;
+        // Config-backed defaults apply only to a continuing goal with the cap left unset; explicit flags always win.
+        int cap = maxIterations != null ? maxIterations : (cont ? defaultMaxIterations() : 0);
+        long budget = tokenBudget != null ? tokenBudget : (cont ? defaultMaxTokens() : 0);
+        long timeMs = maxTimeMs != null ? maxTimeMs : (cont ? defaultMaxTimeMs() : 0);
+        String crit = criterion;
+        String obj = objective;
         long now = System.currentTimeMillis();
         var llm = api.runtime().llm();
-        int cap = maxIterations;
-        long budget = tokenBudget;
-        long timeMs = maxTimeMs;
-        String crit = criterion;
-        boolean cont = continueOnIdle;
-        updateState(s -> GoalState.start(objective, budget, crit, cont, cap, timeMs, llm.totalInputTokens(),
+        updateState(s -> GoalState.start(obj, budget, crit, cont, cap, timeMs, llm.totalInputTokens(),
                                         llm.totalOutputTokens(), now));
-        api.runtime().setStatus(Emojis.DART + " Loop: " + objective + loopCapsSummary(cap, budget, timeMs));
+        api.runtime().setStatus(Emojis.DART + " " + (cont ? "Loop: " : "Goal: ") + objective
+                                        + loopCapsSummary(cap, budget, timeMs));
     }
 
-    private static final String LOOP_USAGE = "Usage: /loop <objective> [--max-iterations N] [--max-tokens N] [--max-time 30m] [--stop-when \"…\"] [--no-continue]";
+    private static final String USAGE = "Usage: /goal|/loop <objective> [--max-iterations N] [--max-tokens N] [--max-time 30m] [--stop-when \"…\"] [--continue|--no-continue]";
 
     private static String loopCapsSummary(int cap, long tokenBudget, long maxTimeMs) {
         var caps = new ArrayList<String>();
@@ -475,18 +466,6 @@ public final class GoalExtension implements Extension {
 
     private long defaultMaxTimeMs() {
         return api.runtime().getFlag("loop-max-time").map(v -> parseDuration(v, 0L)).orElse(0L);
-    }
-
-    private void doStopLoop() {
-        GoalState current = state.get();
-        if (current.status() == GoalState.Status.IDLE) {
-            api.runtime().setStatus("No active loop to stop");
-            return;
-        }
-        // Halt auto-continuation portably: clearing → idle, so the TurnEnd hook won't re-launch. The in-flight turn (if
-        // any) is stopped via the frontend's own interrupt (Esc / /stop / /interrupt).
-        updateState(GoalState::clear);
-        api.runtime().setStatus(Emojis.PAUSE + " Loop stopped");
     }
 
     // ---- model tools ----
