@@ -50,11 +50,11 @@ import java.nio.file.Path;
 public final class AppBootstrap {
     private static final Logger logger = LoggerFactory.getLogger(AppBootstrap.class);
 
-    public record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
+    record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
                                     SessionManager sessions, SettingsManager settings, Args args, String cwd) {
     }
 
-    public static Result bootstrap(Args parsedArgs) throws Exception {
+    static Result bootstrap(Args parsedArgs) throws Exception {
         return bootstrap(parsedArgs, new SettingsManager());
     }
 
