@@ -255,7 +255,9 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
 
             out.print('\r');
             out.print("\033[K");
-            out.print(theme.styled("hr", "suggestions"));
+            // Every row is clamped to width: height() promises 1+visible+1 rows, so a row that overflowed and
+            // terminal-auto-wrapped would draw more rows than measured and desync the frame (stacking separators).
+            out.print(AnsiWidth.truncateVisual(theme.styled("hr", "suggestions"), width));
 
             int start = 0;
             if (total > MAX_VISIBLE) {
@@ -266,25 +268,30 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
 
             for (int i = start; i < end; i++) {
                 var item = list.get(i);
+                String row = i == sel
+                                                ? theme.styled("statusText", "→ ")
+                                                                                + theme.styled("heading", item.name())
+                                                                                + theme.styled("statusText", padRight(
+                                                                                                                item.description(),
+                                                                                                                maxLen,
+                                                                                                                item.name(),
+                                                                                                                width))
+                                                : "  " + theme.styled("statusText", item.name() + padRight(
+                                                                                item.description(), maxLen, item.name(),
+                                                                                width));
                 out.print("\r\n");
                 out.print('\r');
                 out.print("\033[K");
-                if (i == sel) {
-                    out.print(theme.styled("statusText", "→ "));
-                    out.print(theme.styled("heading", item.name()));
-                    out.print(theme.styled("statusText", padRight(item.description(), maxLen, item.name(), width)));
-                } else {
-                    out.print("  ");
-                    out.print(theme.styled("statusText", item.name()
-                                                    + padRight(item.description(), maxLen, item.name(), width)));
-                }
+                out.print(AnsiWidth.truncateVisual(row, width));
             }
 
             out.print("\r\n");
             out.print('\r');
             out.print("\033[K");
-            out.print(theme.styled("statusText", "  " + (sel + 1) + "/" + total));
-            out.print(theme.styled("dim", "  · Enter · ↑/↓"));
+            out.print(AnsiWidth.truncateVisual(
+                                            theme.styled("statusText", "  " + (sel + 1) + "/" + total)
+                                                                            + theme.styled("dim", "  · Enter · ↑/↓"),
+                                            width));
 
             return NO_CURSOR;
         }
