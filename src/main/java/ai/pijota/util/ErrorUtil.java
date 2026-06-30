@@ -145,6 +145,18 @@ public final class ErrorUtil {
                                         || unwrapped instanceof IOException || unwrapped instanceof TimeoutException;
     }
 
+    /** Default cap for backoff waits, so a long server-requested or computed delay can't stall a turn/loop forever. */
+    public static final long MAX_BACKOFF_MS = 60_000L;
+
+    /** Exponential backoff in ms: {@code baseMs * 2^attempt} (0-based), capped at {@code capMs}. */
+    public static long backoffMs(long baseMs, int attempt, long capMs) {
+        if (attempt <= 0)
+            return Math.min(baseMs, capMs);
+        if (attempt >= 62) // the cap dominates long before this; guard the shift from overflow
+            return capMs;
+        return Math.min(baseMs << attempt, capMs);
+    }
+
     public static long retryAfterDelayMs(Throwable ex, long defaultDelayMs) {
         if (ex == null)
             return defaultDelayMs;

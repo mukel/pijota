@@ -10,6 +10,7 @@ import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.tools.Tool;
 import ai.pijota.util.Emojis;
+import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
 import java.util.ArrayList;
@@ -37,7 +38,6 @@ public final class GoalExtension implements Extension {
     // continuation, giving up only after this many consecutive failures.
     private static final int MAX_CONSECUTIVE_FAILURES = 5;
     private static final long BACKOFF_BASE_MS = 2_000;
-    private static final long BACKOFF_CAP_MS = 60_000;
 
     private final AtomicReference<GoalState> state = new AtomicReference<>(GoalState.idle());
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
@@ -112,10 +112,6 @@ public final class GoalExtension implements Extension {
                 return;
             GoalState current = state.get();
             if (current.continueOnIdle()) {
-                if (current.iterationCapReached()) {
-                    updateState(s -> s.markIterationLimited(System.currentTimeMillis()));
-                    return;
-                }
                 long now = System.currentTimeMillis();
                 if (now - lastContinueMs > 1000) {
                     lastContinueMs = now;
@@ -142,7 +138,7 @@ public final class GoalExtension implements Extension {
             api.runtime().setStatus("⚠ Loop stopped: too many consecutive errors (" + fails + ")");
             return;
         }
-        long delay = Math.min(BACKOFF_BASE_MS * (1L << (fails - 1)), BACKOFF_CAP_MS);
+        long delay = ErrorUtil.backoffMs(BACKOFF_BASE_MS, fails - 1, ErrorUtil.MAX_BACKOFF_MS);
         backoffScheduler.accept(() -> {
             GoalState g = state.get();
             // The agent went idle after the failure — single-arg sendUserMessage wakes it (FOLLOW_UP only drains at a
@@ -158,12 +154,18 @@ public final class GoalExtension implements Extension {
             scheduler.shutdownNow();
     }
 
-    /** Apply the token-budget + time hard caps; returns true if the goal isn't active or was just stopped by a cap. */
+    /**
+     * Apply the iteration + token-budget + time hard caps; returns true if the goal isn't active or a cap stopped it.
+     */
     private boolean enforceHardLimits() {
         GoalState current = state.get();
         if (!current.isActive())
             return true;
         long now = System.currentTimeMillis();
+        if (current.iterationCapReached()) {
+            updateState(s -> s.markIterationLimited(now));
+            return true;
+        }
         var llm = api.runtime().llm();
         if (current.hasBudget() && current.wouldExceedBudget(llm.totalInputTokens(), llm.totalOutputTokens())) {
             updateState(s -> s.markBudgetLimited(now));
@@ -453,10 +455,10 @@ public final class GoalExtension implements Extension {
     }
 
     /** Parse a token budget: {@code 500k}, {@code 1M}, {@code 2.5M}, {@code 1_000_000}, or a raw integer. */
-    static long parseTokens(String value, long fallback) {
+    static long parseTokens(Object value, long fallback) {
         if (value == null)
             return fallback;
-        String v = value.strip().toLowerCase().replace("_", "").replace(",", "");
+        String v = String.valueOf(value).strip().toLowerCase().replace("_", "").replace(",", "");
         if (v.isEmpty())
             return fallback;
         double mult = 1;
@@ -480,10 +482,10 @@ public final class GoalExtension implements Extension {
     /**
      * Parse a duration like {@code 90s}, {@code 30m}, {@code 2h}, {@code 1h30m}; a bare number is seconds. ms result.
      */
-    static long parseDuration(String value, long fallback) {
+    static long parseDuration(Object value, long fallback) {
         if (value == null)
             return fallback;
-        String v = value.strip().toLowerCase();
+        String v = String.valueOf(value).strip().toLowerCase();
         if (v.isEmpty())
             return fallback;
         if (v.matches("\\d+")) {
@@ -543,11 +545,11 @@ public final class GoalExtension implements Extension {
             return Tool.ToolResult.error("objective is required");
         if (objective.length() > MAX_OBJECTIVE_LENGTH)
             return Tool.ToolResult.error("objective exceeds " + MAX_OBJECTIVE_LENGTH + " chars");
-        long tokenBudget = parseTokens(asString(args.get("max_tokens")), 0); // strings: model copies, we parse
-        long maxTimeMs = parseDuration(asString(args.get("max_time")), 0);
+        long tokenBudget = parseTokens(args.get("max_tokens"), 0); // forgiving strings: the model copies, we parse
+        long maxTimeMs = parseDuration(args.get("max_time"), 0);
         Number maxIter = (Number) args.get("max_iterations");
         int maxIterations = maxIter != null ? Math.max(0, maxIter.intValue()) : 0;
-        String criterion = asString(args.get("stop_when"));
+        String criterion = args.get("stop_when") instanceof String s ? s : "";
         boolean continueOnIdle = Boolean.TRUE.equals(args.get("continue_on_idle"));
         long now = System.currentTimeMillis();
         var llm = api.runtime().llm();
@@ -563,10 +565,6 @@ public final class GoalExtension implements Extension {
             return Tool.ToolResult.error("No active goal to complete");
         updateState(s -> s.complete(System.currentTimeMillis()));
         return Tool.ToolResult.success(renderGoal(state.get()));
-    }
-
-    private static String asString(Object o) {
-        return o == null ? "" : String.valueOf(o);
     }
 
     // ---- internals ----
