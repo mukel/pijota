@@ -3,6 +3,7 @@ package ai.pijota.tools;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
@@ -51,18 +52,18 @@ public final class LsTool implements Tool {
                     return Tool.ToolResult.error("Not a directory: " + path);
                 }
 
-                var sb = new StringBuilder();
-                try (var stream = Files.list(path).limit(limit)) {
-                    stream.sorted().forEach(entry -> {
-                        String suffix = Files.isDirectory(entry) ? "/" : "";
-                        sb.append(entry.getFileName()).append(suffix).append('\n');
-                    });
+                List<Path> entries;
+                try (var stream = Files.list(path)) {
+                    entries = stream.limit(limit).sorted().toList();
                 }
+                if (entries.isEmpty())
+                    return Tool.ToolResult.success("(empty directory)", Map.of("count", 0));
 
-                if (sb.isEmpty()) {
-                    return Tool.ToolResult.success("(empty directory)");
-                }
-                return Tool.ToolResult.success(sb.toString().stripTrailing());
+                var sb = new StringBuilder();
+                for (Path entry : entries)
+                    sb.append(entry.getFileName()).append(Files.isDirectory(entry) ? "/" : "").append('\n');
+                // count goes in details so the TUI summary reads a field, like grep/glob — no text re-parsing.
+                return Tool.ToolResult.success(sb.toString().stripTrailing(), Map.of("count", entries.size()));
             } catch (IOException e) {
                 return Tool.ToolResult.error("Error listing directory: " + e.getMessage());
             }

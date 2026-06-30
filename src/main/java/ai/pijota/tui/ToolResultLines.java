@@ -26,25 +26,33 @@ final class ToolResultLines {
                                     AnsiTheme theme, String rawCwd, PathDisplay pathDisplay, long elapsedMs,
                                     String glyph) {
         String slot = msg.isError() ? "toolError" : "toolResult";
-        var parts = new ArrayList<String>();
+        String nameSlot = msg.isError() ? "toolError" : "toolLabel";
         String marker = msg.isError() ? "✖" : glyph; // the tool supplies its glyph; ✖ marks any failure
-        parts.add(theme.styled(msg.isError() ? "toolError" : "toolLabel", marker));
-        parts.add(theme.styled("statusText", msg.toolName()));
+
+        // Head: marker · tool name (accent) · target detail (muted).
+        var head = new StringBuilder();
+        head.append(theme.styled(nameSlot, marker)).append(' ').append(theme.styled(nameSlot, msg.toolName()));
         String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay);
         if (!detail.isBlank())
-            parts.add(theme.styled("statusText", detail));
+            head.append(' ').append(theme.styled("statusText", detail));
+
+        // Trailing meta — summary, bash exit code, elapsed — set off by dim middle-dot separators for rhythm.
+        var meta = new ArrayList<String>();
         String summary = rendered != null ? rendered.summary() : toolResultSummary(msg);
         if (!summary.isBlank())
-            parts.add(theme.styled(slot, summary));
+            meta.add(theme.styled(slot, summary));
         if ("bash".equals(msg.toolName())) {
             Map<String, Object> details = msg.details() == null ? Map.of() : msg.details();
             if (details.get("exitCode") instanceof Number ec)
-                parts.add(theme.styled(ec.intValue() == 0 ? "statusText" : "toolError", "exit " + ec.intValue()));
+                meta.add(theme.styled(ec.intValue() == 0 ? "statusText" : "toolError", "exit " + ec.intValue()));
         }
         if (elapsedMs >= 1000) // sub-second tools are instant; only annotate the ones the user actually waits on
-            parts.add(theme.styled("commandMeta", Util.formatDuration(elapsedMs)));
+            meta.add(theme.styled("commandMeta", Util.formatDuration(elapsedMs)));
+        if (!meta.isEmpty())
+            head.append("  ").append(String.join(theme.styled("commandMeta", " · "), meta));
+
         var lines = new ArrayList<String>();
-        lines.add(String.join(" ", parts));
+        lines.add(head.toString());
         if (rendered != null && !rendered.body().isEmpty())
             for (String line : rendered.body())
                 lines.add(renderToolBodyLine(line, theme));
@@ -74,6 +82,9 @@ final class ToolResultLines {
             case "task" -> details.get("resultCount") != null
                                             ? details.get("mode") + ": " + details.get("succeeded") + "/"
                                                                             + details.get("resultCount") + " ok"
+                                            : Util.firstLine(msg.content());
+            case "ls" -> details.get("count") instanceof Number n
+                                            ? n.intValue() + (n.intValue() == 1 ? " entry" : " entries")
                                             : Util.firstLine(msg.content());
             default -> Util.firstLine(msg.content());
         };

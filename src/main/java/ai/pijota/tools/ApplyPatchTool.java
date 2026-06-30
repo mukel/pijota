@@ -1,5 +1,6 @@
 package ai.pijota.tools;
 
+import ai.pijota.config.PathDisplay;
 import ai.pijota.llm.ToolSchema;
 import ai.pijota.util.Util;
 
@@ -95,13 +96,14 @@ public final class ApplyPatchTool implements Tool {
 
     private static Planned plan(String cwd, FilePatch fp) throws Exception {
         if (fp.newPath() == null) // +++ /dev/null → delete
-            return new Planned(resolve(cwd, fp.oldPath()), null, "deleted " + fp.oldPath());
+            return new Planned(resolve(cwd, fp.oldPath()), null, "deleted "
+                                            + ToolLabels.displayPath(fp.oldPath(), cwd, PathDisplay.COMPACT));
         if (fp.oldPath() == null) { // --- /dev/null → create
             var added = fp.hunks().stream().flatMap(h -> h.lines().stream()).filter(l -> l.type() == '+')
                                             .map(Line::text).toList();
             String body = String.join("\n", added);
-            return new Planned(resolve(cwd, fp.newPath()), body.isEmpty() ? "" : body + "\n",
-                                            "created " + fp.newPath());
+            return new Planned(resolve(cwd, fp.newPath()), body.isEmpty() ? "" : body + "\n", "created "
+                                            + ToolLabels.displayPath(fp.newPath(), cwd, PathDisplay.COMPACT));
         }
         Path path = resolve(cwd, fp.oldPath());
         if (!Files.exists(path) || !Files.isRegularFile(path))
@@ -128,7 +130,7 @@ public final class ApplyPatchTool implements Tool {
             cursor = idx + after.size();
         }
         return new Planned(path, Util.restoreLineEndings(String.join("\n", lines), lineEnding),
-                                        "patched " + fp.oldPath());
+                                        "patched " + ToolLabels.displayPath(fp.oldPath(), cwd, PathDisplay.COMPACT));
     }
 
     /** First index >= {@code from} where {@code sub} occurs as a contiguous block in {@code list}; -1 if absent. */

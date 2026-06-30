@@ -137,7 +137,8 @@ public final class EditTool implements Tool {
         var details = Map.<String, Object>of("diff", displayDiff(content, result), "patch",
                                         unifiedPatch(path.toString(), content, result), "firstChangedLine",
                                         firstChangedLine(content, result));
-        return ToolResult.success("Successfully replaced " + matches.size() + " block(s) in " + path + ".", details);
+        // No path here: the tool-call detail already shows the file, so repeating it duplicates the path in the TUI.
+        return ToolResult.success("Successfully replaced " + matches.size() + " block(s).", details);
     }
 
     @SuppressWarnings("unchecked")

@@ -56,8 +56,8 @@ public final class WriteTool implements Tool {
                 });
 
                 long lineCount = content.lines().count();
-                return Tool.ToolResult.success("Wrote " + content.length() + " bytes (" + lineCount + " lines) to "
-                                                + path,
+                // No path here: the tool-call detail already shows the file, so repeating it duplicates the path.
+                return Tool.ToolResult.success("Wrote " + content.length() + " bytes (" + lineCount + " lines)",
                                                 Map.of("bytes", content.length(), "lines", lineCount, "path",
                                                                                 path.toString()));
             } catch (Exception e) {
