@@ -73,7 +73,7 @@ public final class GoalExtension implements Extension {
         // Model-facing surface is deliberately tiny — work, and say when done. The rich management verbs
         // (pause/resume/stop/progress, status) stay human-side on /goal + /loop. Caps are forgiving strings the model
         // copies verbatim (no arithmetic — small models drop digits when converting "30m"→1800 or "1M"→1000000).
-        api.registerTool(Tool.named("set_goal").description(
+        api.registerTool(Tool.named("goal_set").description(
                                         "Set the objective the agent should work toward, with optional limits. Replaces any existing goal.")
                                         .stringParam("objective", "What the agent should accomplish", true)
                                         .stringParam("max_time", "Wall-clock limit as a duration string — e.g. \"30m\", \"2h\", \"90s\", \"1h30m\". Pass the user's phrasing directly; do NOT convert to seconds.",
@@ -88,7 +88,7 @@ public final class GoalExtension implements Extension {
                                                                         false)
                                         .resultRenderer(setGoalRenderer()).run((args, cwd) -> doSetGoal(args.map())));
 
-        api.registerTool(Tool.named("complete_goal")
+        api.registerTool(Tool.named("goal_complete")
                                         .description("Declare the current goal/objective fully done. Stops any loop.")
                                         .resultRenderer(completeGoalRenderer()).run((args, cwd) -> doCompleteGoal()));
 
@@ -181,7 +181,7 @@ public final class GoalExtension implements Extension {
      */
     private static String continuationPrompt(GoalState g) {
         String base = "Keep working toward the objective: " + g.objective()
-                                        + ". When it is fully done, call complete_goal to stop; otherwise continue.";
+                                        + ". When it is fully done, call goal_complete to stop; otherwise continue.";
         if (!g.completionCriterion().isEmpty())
             base += " It is done when: " + g.completionCriterion() + ".";
         return base;

@@ -37,14 +37,14 @@ class GoalExtensionTest {
         var fake = new FakeExtensionAPI();
         started(fake);
         var names = fake.tools().stream().map(Tool.ToolDefinition::name).sorted().toList();
-        assertEquals(List.of("complete_goal", "set_goal"), names);
+        assertEquals(List.of("goal_complete", "goal_set"), names);
     }
 
     @Test
     void setGoalStartsActiveGoal() {
         var fake = new FakeExtensionAPI();
         var ext = started(fake);
-        var result = execute(fake.tool("set_goal"), Map.of("objective", "write tests"));
+        var result = execute(fake.tool("goal_set"), Map.of("objective", "write tests"));
         assertFalse(result.isError());
         assertEquals("write tests", ext.currentState().objective());
         assertEquals(GoalState.Status.ACTIVE, ext.currentState().status());
@@ -54,15 +54,15 @@ class GoalExtensionTest {
     void setGoalRequiresObjective() {
         var fake = new FakeExtensionAPI();
         started(fake);
-        assertTrue(execute(fake.tool("set_goal"), Map.of("objective", "")).isError());
+        assertTrue(execute(fake.tool("goal_set"), Map.of("objective", "")).isError());
     }
 
     @Test
     void setGoalReplacesAnExistingGoal() {
         var fake = new FakeExtensionAPI();
         var ext = started(fake);
-        execute(fake.tool("set_goal"), Map.of("objective", "first"));
-        var result = execute(fake.tool("set_goal"), Map.of("objective", "second"));
+        execute(fake.tool("goal_set"), Map.of("objective", "first"));
+        var result = execute(fake.tool("goal_set"), Map.of("objective", "second"));
         assertFalse(result.isError());
         assertEquals("second", ext.currentState().objective());
     }
@@ -71,7 +71,7 @@ class GoalExtensionTest {
     void setGoalParsesHumanFriendlyStrings() {
         var fake = new FakeExtensionAPI();
         var ext = started(fake);
-        execute(fake.tool("set_goal"), Map.of("objective", "x", "max_time", "30m", "max_tokens", "1M", "max_iterations",
+        execute(fake.tool("goal_set"), Map.of("objective", "x", "max_time", "30m", "max_tokens", "1M", "max_iterations",
                                         50, "continue_on_idle", true));
         var g = ext.currentState();
         assertEquals(1_800_000L, g.maxTimeMs(), "30m → 1800000ms");
@@ -84,7 +84,7 @@ class GoalExtensionTest {
     void setGoalRendererSummary() {
         var fake = new FakeExtensionAPI();
         started(fake);
-        var tool = fake.tool("set_goal").toTool();
+        var tool = fake.tool("goal_set").toTool();
         var result = tool.execute("id", new Tool.Args(Map.of("objective", "write tests")), ".").join();
         var view = tool.renderResult(new Tool.Args(Map.of("objective", "write tests")), result, ".");
         assertTrue(view.summary().contains("write tests"));
@@ -95,7 +95,7 @@ class GoalExtensionTest {
         var fake = new FakeExtensionAPI();
         var ext = started(fake);
         fake.slashCommand("loop").handler().accept("do it");
-        var result = execute(fake.tool("complete_goal"), Map.of());
+        var result = execute(fake.tool("goal_complete"), Map.of());
         assertFalse(result.isError());
         assertEquals(GoalState.Status.COMPLETE, ext.currentState().status());
     }
@@ -104,7 +104,7 @@ class GoalExtensionTest {
     void completeGoalWithNoGoalErrors() {
         var fake = new FakeExtensionAPI();
         started(fake);
-        assertTrue(execute(fake.tool("complete_goal"), Map.of()).isError());
+        assertTrue(execute(fake.tool("goal_complete"), Map.of()).isError());
     }
 
     @Test
@@ -207,7 +207,7 @@ class GoalExtensionTest {
     void loopStopsAtTheIterationCap() {
         var fake = new FakeExtensionAPI();
         var ext = started(fake);
-        execute(fake.tool("set_goal"), Map.of("objective", "x", "continue_on_idle", true, "max_iterations", 1));
+        execute(fake.tool("goal_set"), Map.of("objective", "x", "continue_on_idle", true, "max_iterations", 1));
         fake.fireTurnEnd(1); // 0 → 1, one continuation
         assertEquals(1, fake.sentUserMessages().size());
         fake.fireTurnEnd(2); // cap reached → iteration-limited
@@ -220,7 +220,7 @@ class GoalExtensionTest {
         var fake = new FakeExtensionAPI();
         fake.tokens(0, 0);
         var ext = started(fake);
-        execute(fake.tool("set_goal"), Map.of("objective", "x", "max_tokens", "100"));
+        execute(fake.tool("goal_set"), Map.of("objective", "x", "max_tokens", "100"));
         fake.tokens(60, 50); // 110 > 100
         fake.fireTurnEnd(1);
         assertEquals(GoalState.Status.BUDGET_LIMITED, ext.currentState().status());
@@ -230,7 +230,7 @@ class GoalExtensionTest {
     void continueOnIdleIsDebounced() throws InterruptedException {
         var fake = new FakeExtensionAPI();
         var ext = started(fake);
-        execute(fake.tool("set_goal"), Map.of("objective", "x", "continue_on_idle", true));
+        execute(fake.tool("goal_set"), Map.of("objective", "x", "continue_on_idle", true));
         fake.fireTurnEnd(1);
         fake.fireTurnEnd(2);
         fake.fireTurnEnd(3);
