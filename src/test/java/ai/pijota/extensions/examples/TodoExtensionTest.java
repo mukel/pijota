@@ -2,7 +2,7 @@ package ai.pijota.extensions.examples;
 
 import ai.pijota.extensions.testkit.FakeExtensionAPI;
 import ai.pijota.extensions.testkit.FakeExtensionRuntime;
-import ai.pijota.tools.TodowriteTool.Todo;
+import ai.pijota.tools.TodoTool.Todo;
 
 import org.junit.jupiter.api.Test;
 
@@ -14,18 +14,18 @@ import static org.junit.jupiter.api.Assertions.*;
 class TodoExtensionTest {
 
     @Test
-    void todowriteIsOffByDefault() {
+    void todoIsOffByDefault() {
         // opt-in (--todo): the extension declares itself off; ExtensionRegistry gates registration on that default.
         assertFalse(new TodoExtension().enabledByDefault(), "todo must be opt-in (--todo)");
     }
 
     @Test
-    void todowriteAndPanelRegisteredWhenFlagEnabled() {
+    void todoAndPanelRegisteredWhenFlagEnabled() {
         var runtime = new FakeExtensionRuntime();
         runtime.setFlag("todo", "true");
         var api = new FakeExtensionAPI(runtime);
         new TodoExtension().init(api);
-        assertNotNull(api.tool("todowrite"), "todowrite must be registered with --todo");
+        assertNotNull(api.tool("todo"), "todo must be registered with --todo");
         assertFalse(api.statusLineSuppliers().isEmpty(), "a live todo panel is registered with --todo");
     }
 

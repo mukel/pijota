@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-public final class TodowriteTool implements Tool {
+public final class TodoTool implements Tool {
 
     /**
      * One todo item. {@code status}: pending | in_progress | completed | cancelled. {@code priority}: high|medium|low.
@@ -18,18 +18,18 @@ public final class TodowriteTool implements Tool {
 
     private final Consumer<List<Todo>> onUpdate;
 
-    public TodowriteTool() {
+    public TodoTool() {
         this(todos -> {});
     }
 
     /** {@code onUpdate} receives the full list on every write — lets a frontend surface a live todo panel. */
-    public TodowriteTool(Consumer<List<Todo>> onUpdate) {
+    public TodoTool(Consumer<List<Todo>> onUpdate) {
         this.onUpdate = onUpdate;
     }
 
     @Override
     public String name() {
-        return "todowrite";
+        return "todo";
     }
 
     @Override
@@ -69,7 +69,7 @@ public final class TodowriteTool implements Tool {
                 onUpdate.accept(List.copyOf(parsed)); // replace-the-whole-list semantics, mirrored to the live panel
                 return ToolResult.success(render(parsed));
             } catch (Exception e) {
-                return ToolResult.error("todowrite error: " + e.getMessage());
+                return ToolResult.error("todo error: " + e.getMessage());
             }
         });
     }

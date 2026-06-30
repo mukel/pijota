@@ -2,15 +2,15 @@ package ai.pijota.extensions.examples;
 
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
-import ai.pijota.tools.TodowriteTool;
-import ai.pijota.tools.TodowriteTool.Todo;
+import ai.pijota.tools.TodoTool;
+import ai.pijota.tools.TodoTool.Todo;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Opt-in structured todo list via the {@code todowrite} tool, plus a live, always-visible panel of the current list
+ * Opt-in structured todo list via the {@code todo} tool, plus a live, always-visible panel of the current list
  * (frontend-agnostic status lines — terminal, web, Telegram). The tool adds weight to every prompt and only helps
  * multi-step work, so it is OFF by default — enable with the {@code --todo} flag.
  */
@@ -32,12 +32,12 @@ public final class TodoExtension implements Extension {
 
     @Override
     public String description() {
-        return "Opt-in structured todo list (todowrite) with a live panel. Enable with --todo.";
+        return "Opt-in structured todo list (todo) with a live panel. Enable with --todo.";
     }
 
     @Override
     public void init(ExtensionAPI api) {
-        api.registerTool(new TodowriteTool(todos::set)); // every write replaces the panel's list
+        api.registerTool(new TodoTool(todos::set)); // every write replaces the panel's list
         api.registerStatusLines(() -> renderPanel(todos.get()));
     }
 
@@ -53,7 +53,7 @@ public final class TodoExtension implements Extension {
         lines.add("📋 todos · " + done + "/" + todos.size());
         int shown = Math.min(todos.size(), MAX_PANEL_ROWS);
         for (int i = 0; i < shown; i++)
-            lines.add("  " + TodowriteTool.icon(todos.get(i).status()) + " " + todos.get(i).content());
+            lines.add("  " + TodoTool.icon(todos.get(i).status()) + " " + todos.get(i).content());
         if (todos.size() > MAX_PANEL_ROWS)
             lines.add("   … +" + (todos.size() - MAX_PANEL_ROWS) + " more");
         return lines;

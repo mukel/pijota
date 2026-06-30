@@ -89,7 +89,7 @@ Pijota ships with a comprehensive tool set that the agent uses to read, edit, se
 | `websearch` | Web search via DuckDuckGo / Exa / Parallel.ai backends |
 | `task` | Launch sub-agents with process isolation and model delegation |
 | `question` | Ask the user structured questions (single, multi, or choice-based) |
-| `todowrite` | Maintain a structured todo list with status and priority |
+| `todo` | Maintain a structured todo list with status and priority |
 | `whoami` | Report current model, provider, and context window |
 
 See [`/help`](src/main/java/ai/pijota/tui/HelpOverlay.java) in-session for the full command reference.
