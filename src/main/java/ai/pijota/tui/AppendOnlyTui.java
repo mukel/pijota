@@ -1327,10 +1327,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         clearStatusOverride();
     }
 
-    boolean runExtensionCommand(SlashCommand extCmd, String input, String cmd) {
+    boolean runExtensionCommand(SlashCommand extCmd, String input) {
         if (extCmd == null || extCmd.handler() == null)
             return false;
-        extCmd.handler().accept(TuiCommandController.commandArgs(input, cmd));
+        extCmd.handler().accept(SlashCommand.argsOf(input));
         promptEditor.setText("");
         redrawPrompt();
         return true;
@@ -1377,7 +1377,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void showLogSelector() {
         var cmd = extensionCommand("/logs");
-        runExtensionCommand(cmd, "/logs", "/logs");
+        runExtensionCommand(cmd, "/logs");
     }
 
     @Override

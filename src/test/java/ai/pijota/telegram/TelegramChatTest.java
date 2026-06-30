@@ -155,13 +155,6 @@ class TelegramChatTest {
     }
 
     @Test
-    void commandArgsExtractsTextAfterTheCommand() {
-        assertEquals("", TelegramChat.commandArgs("/plan"));
-        assertEquals("what is X", TelegramChat.commandArgs("/btw what is X"));
-        assertEquals("a b", TelegramChat.commandArgs("  /cmd   a b  "));
-    }
-
-    @Test
     void contextLineShowsFractionAndPercentOrNothingWhenUnknown() {
         assertEquals("", TelegramChat.contextLine(1000, 0), "no window → no line");
         String line = TelegramChat.contextLine(12_300, 200_000);

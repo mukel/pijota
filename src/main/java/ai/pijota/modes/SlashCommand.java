@@ -19,6 +19,21 @@ public record SlashCommand(String name, String description, List<String> aliases
         return false;
     }
 
+    /**
+     * The argument text after the command word — everything past the first whitespace-delimited token, stripped. e.g.
+     * {@code "/btw what is X"} → {@code "what is X"}, {@code "/plan"} → {@code ""}. Tab- and multi-space-tolerant, so
+     * every frontend parses command arguments the same way.
+     */
+    public static String argsOf(String input) {
+        if (input == null)
+            return "";
+        String s = input.strip();
+        for (int i = 0; i < s.length(); i++)
+            if (Character.isWhitespace(s.charAt(i)))
+                return s.substring(i + 1).strip();
+        return "";
+    }
+
     private static boolean matchesToken(String token, String input) {
         return strip(token).equalsIgnoreCase(strip(input));
     }

@@ -19,7 +19,7 @@ final class TuiCommandController {
 
     void handle(String input) {
         String cmd = commandName(input);
-        String arg = commandArgs(input, cmd);
+        String arg = SlashCommand.argsOf(input);
         switch (cmd) {
             case "/help" -> tui.showHelpOverlay(arg);
             case "/quit" -> tui.stop();
@@ -88,7 +88,7 @@ final class TuiCommandController {
         }
 
         SlashCommand extCmd = tui.extensionCommand(cmd);
-        if (tui.runExtensionCommand(extCmd, input, cmd))
+        if (tui.runExtensionCommand(extCmd, input))
             return;
         if (extCmd != null) {
             tui.session().prompt(input);
@@ -110,10 +110,6 @@ final class TuiCommandController {
 
     static String commandName(String input) {
         return input.split("\\s+", 2)[0].toLowerCase();
-    }
-
-    static String commandArgs(String input, String cmd) {
-        return input.length() > cmd.length() ? input.substring(cmd.length()).trim() : "";
     }
 
     private static List<ModelInfo> searchModels(String query) {

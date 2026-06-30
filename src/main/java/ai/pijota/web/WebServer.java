@@ -408,7 +408,7 @@ public final class WebServer implements AutoCloseable {
      */
     private void runCommand(String line) {
         String name = line.split("\\s+", 2)[0].substring(1); // drop leading '/' (matches() is case-insensitive)
-        String args = line.length() > name.length() + 1 ? line.substring(name.length() + 1).strip() : "";
+        String args = SlashCommand.argsOf(line);
         SlashCommand cmd = commands.stream().filter(c -> c.matches(name)).findFirst().orElse(null);
         if (cmd == null) {
             broadcast("status", Map.of("message", "unknown command: /" + name, "alert", true));

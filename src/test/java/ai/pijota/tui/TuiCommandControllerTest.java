@@ -28,30 +28,4 @@ class TuiCommandControllerTest {
     void commandNameWithMultipleSpaces() {
         assertEquals("/theme", TuiCommandController.commandName("/theme   dark"));
     }
-
-    @Test
-    void commandArgsExtractsRemaining() {
-        assertEquals("gpt-4", TuiCommandController.commandArgs("/model gpt-4", "/model"));
-        assertEquals("arg1 arg2", TuiCommandController.commandArgs("/cmd arg1 arg2", "/cmd"));
-    }
-
-    @Test
-    void commandArgsEmptyWhenNoArgs() {
-        assertEquals("", TuiCommandController.commandArgs("/help", "/help"));
-    }
-
-    @Test
-    void commandArgsEmptyWhenInputEqualsCommand() {
-        assertEquals("", TuiCommandController.commandArgs("/quit", "/quit"));
-    }
-
-    @Test
-    void commandArgsKeepsCase() {
-        assertEquals("Dark Mode", TuiCommandController.commandArgs("/theme Dark Mode", "/theme"));
-    }
-
-    @Test
-    void commandArgsWithSlashInArguments() {
-        assertEquals("sub/command", TuiCommandController.commandArgs("/load sub/command", "/load"));
-    }
 }

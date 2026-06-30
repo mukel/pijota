@@ -261,7 +261,7 @@ public final class TelegramChat implements ChatHandler {
             case "/model" -> showModelPicker();
             case "/think" -> showThinkPicker();
             case "/export" -> exportTranscript();
-            case "/name" -> nameConversation(commandArgs(text));
+            case "/name" -> nameConversation(SlashCommand.argsOf(text));
             default -> {
                 if (!runExtensionCommand(cmd, text))
                     tg.sendMessage(chatId, "Unknown command " + cmd + ".\n\n" + helpText());
@@ -282,18 +282,11 @@ public final class TelegramChat implements ChatHandler {
         if (match.isEmpty())
             return false;
         try {
-            match.get().handler().accept(commandArgs(text));
+            match.get().handler().accept(SlashCommand.argsOf(text));
         } catch (RuntimeException e) {
             tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
         }
         return true;
-    }
-
-    /** The argument text after the command word, e.g. {@code "/btw what is X"} → {@code "what is X"}. */
-    static String commandArgs(String text) {
-        String t = text.strip();
-        int sp = t.indexOf(' ');
-        return sp < 0 ? "" : t.substring(sp + 1).strip();
     }
 
     /** A short {@code ": <why>"} suffix for a tool failure, or "" when the tool gave no detail. */
