@@ -124,6 +124,20 @@ class StreamingMarkdownFormatterTest {
     }
 
     @Test
+    void tableWithShortDashDelimiterStillRenders() {
+        // GFM allows 1–2 dashes per delimiter cell; a stricter -{3,} dropped such tables to raw markdown.
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        formatter.format("| | a | b |");
+        formatter.format("|--|--|--|");
+        formatter.format("| x | 1 | 2 |");
+        var flushed = formatter.flush();
+
+        var joined = flushed.stream().map(l -> AnsiStripper.strip(l.text())).toList();
+        assertTrue(joined.stream().anyMatch(s -> s.contains("│")), "table must render with borders: " + joined);
+        assertFalse(joined.stream().anyMatch(s -> s.contains("|--|")), "raw delimiter must not leak: " + joined);
+    }
+
+    @Test
     void tableFlushedOnBlankLine() {
         var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
         formatter.format("| a | b |");
@@ -205,9 +219,10 @@ class StreamingMarkdownFormatterTest {
 
     @Test
     void invalidTableSeparatorDoesNotFormTable() {
+        // A delimiter cell needs at least one hyphen (GFM); colons alone are not a separator, so no table forms.
         var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
         formatter.format("| a | b |");
-        var result = formatter.format("| - | - |");
+        var result = formatter.format("| : | : |");
         var joined = result.stream().map(l -> AnsiStripper.strip(l.text())).toList();
         assertTrue(joined.stream().anyMatch(s -> s.contains("| a | b |")));
     }

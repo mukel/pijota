@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 final class StreamingMarkdownFormatter {
-    private static final Pattern TABLE_SEPARATOR_CELL = Pattern.compile(":?-{3,}:?");
+    // GFM requires only one-or-more hyphens per delimiter cell (with optional alignment colons); a stricter -{3,}
+    // wrongly rejects valid tables whose separators use 1–2 dashes (e.g. "|--|--|"), dropping them to raw markdown.
+    private static final Pattern TABLE_SEPARATOR_CELL = Pattern.compile(":?-+:?");
 
     private final TerminalMarkdownRenderer renderer;
     private AnsiTheme theme;
