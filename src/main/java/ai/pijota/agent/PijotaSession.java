@@ -365,8 +365,13 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public long estimatedContextTokens() {
-        // Prefer the provider's real prompt size (captures tool schemas/tokenization); fall back to the byte estimate.
-        return Math.max(agentLoop.llm().lastContextTokens(), CompactionManager.estimateTokens(agentLoop.messages()));
+        // Anchor on the provider's real prompt size: the byte estimate of the current messages plus the fixed overhead
+        // (system prompt + tool schemas + tokenizer diff) the provider reported last time. So the count stays within
+        // tokenizer error of reality and grows immediately as messages — including the streaming response — are added,
+        // instead of sitting at the stale real value until the next response. Before any real usage the overhead is 0,
+        // so this falls back to the plain byte estimate.
+        long base = CompactionManager.estimateTokens(agentLoop.messages());
+        return Math.max(1, base + agentLoop.contextOverhead());
     }
 
     /** Cumulative input tokens billed this session. */

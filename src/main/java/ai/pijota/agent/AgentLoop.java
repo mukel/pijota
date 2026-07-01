@@ -8,6 +8,7 @@ import ai.pijota.llm.LlmClient;
 import ai.pijota.llm.StreamResult;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.ToolCall;
+import ai.pijota.messages.Usage;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
@@ -49,6 +50,10 @@ public final class AgentLoop implements AgentContext {
     private int sessionTurn;
     private final long retryBaseDelayMs;
     private final int maxTurns; // per-prompt turn cap; <= 0 means unlimited
+    // Real prompt size (from the provider) minus our byte estimate of the same messages: the fixed overhead the
+    // estimate misses (system prompt + tool schemas + tokenizer differences). See recordContextAnchor / the session's
+    // estimatedContextTokens, which adds it back so the live count tracks reality instead of re-estimating everything.
+    private volatile long contextOverhead;
 
     public static Builder builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
         return new Builder(llm, toolRegistry, cwd);
@@ -159,6 +164,21 @@ public final class AgentLoop implements AgentContext {
 
     public List<Message> messages() {
         return history.all();
+    }
+
+    /** The provider/estimate gap (system prompt + tool schemas + tokenizer diff) captured at the last real usage. */
+    public long contextOverhead() {
+        return contextOverhead;
+    }
+
+    /**
+     * After a response with real token usage, record how far the byte estimate of the current messages undershoots the
+     * provider's actual prompt size. Adding this gap back (see {@code estimatedContextTokens}) keeps the displayed
+     * context within tokenizer error of the truth, and lets it grow live as messages are appended.
+     */
+    private void recordContextAnchor(Usage usage) {
+        if (usage != null && usage.inputTokens() > 0)
+            contextOverhead = llm.lastContextTokens() - CompactionManager.estimateTokens(history.all());
     }
 
     public void clearMessages() {
@@ -408,6 +428,7 @@ public final class AgentLoop implements AgentContext {
                                             .withSource(requestProvider, requestModel);
             fireEvent(new AgentEvent.AssistantMessage(assistantMsg, streamResult.usage()));
             history.set(history.size() - 1, assistantMsg);
+            recordContextAnchor(streamResult.usage());
 
             if (!streamResult.hasToolCalls()) {
                 fireEvent(new AgentEvent.TurnEnd(turn));

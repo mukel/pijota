@@ -238,7 +238,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
     private static final long INTERRUPT_WINDOW_MS = 1200;
     private static final long EXIT_WINDOW_MS = 800;
-    private static final long TOKEN_STATUS_CACHE_MS = 1000;
+    // Short TTL so the context meter visibly tracks the streaming response (the count grows within a single message,
+    // which doesn't change the message-count cache key). The estimate is cheap, so refreshing a few times a second is
+    // fine.
+    private static final long TOKEN_STATUS_CACHE_MS = 150;
     private final ContextTokenMeter tokenMeter;
 
     /** Production entry point: builds the real system terminal. Tests use the package-private constructor below. */
@@ -1130,7 +1133,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * repaint when {@code fg} continues us. {@code Signal.raise} blocks here until SIGCONT.
      */
     private void suspendProcess() {
-        if (ai.pijota.util.Platform.isWindows())
+        if (Platform.isWindows())
             return; // no SIGTSTP / job control on Windows
         suspendTui();
         try {
@@ -2146,7 +2149,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private static long resolveContextWindow(String provider, String model) {
-        return ai.pijota.llm.ModelRegistry.resolveContextWindow(provider, model);
+        return ModelRegistry.resolveContextWindow(provider, model);
     }
 
     static int pendingHeight(int width, PromptSnapshot ctx) {
