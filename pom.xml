@@ -393,7 +393,10 @@
               <imageName>pijota</imageName>
               <mainClass>ai.pijota.Main</mainClass>
               <buildArgs>
-                <buildArg>--no-fallback</buildArg>
+                <!-- Correctness flags (no-fallback, https url protocol, Jackson build-time init, pijota / logging
+                     run-time init) are embedded so ANY native-image build gets them (bare native-image, jbang app
+                     install with native, etc.): src/main/resources/META-INF/native-image/ai.pijota/pijota/
+                     native-image.properties. Only this distribution's size/CPU tuning stays here. -->
                 <buildArg>-Os</buildArg>
                 <!-- optimize for binary size (default is -O2, tuned for speed) -->
                 <!-- Portable distribution: target a baseline CPU instead of the build host's (default targets the
@@ -402,13 +405,7 @@
                 <buildArg>-march=compatibility</buildArg>
                 <buildArg>${pgo.arg}</buildArg>
                 <!-- no-op by default; set by `make native-pgo-*` (see Makefile) -->
-                <buildArg>--enable-url-protocols=https</buildArg>
                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
-                <!-- Jackson must be build-time-initialized: a build-time-initialized object (the anthropic model /
-                     static ObjectMappers) holds an ObjectMapper in the image heap, which fails if Jackson is left to
-                     default run-time init. This is the documented Jackson-on-native approach, not gratuitous. -->
-                <buildArg>--initialize-at-build-time=com.fasterxml.jackson,dev.langchain4j.model.anthropic</buildArg>
-                <buildArg>--initialize-at-run-time=ai.pijota,org.slf4j,ch.qos.logback</buildArg>
               </buildArgs>
               <!-- HARMLESS native-image warning (build still succeeds): langchain4j-anthropic 1.16.3 ships a stale
                    META-INF/native-image proxy-config.json registering a dynamic proxy for the Retrofit interface

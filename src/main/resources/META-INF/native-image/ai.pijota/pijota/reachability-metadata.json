@@ -1,6 +1,10 @@
 {
   "reflection": [
     {
+      "type": "ch.qos.logback.core.status.NopStatusListener",
+      "allPublicConstructors": true
+    },
+    {
       "type": "ai.pijota.agent.HeadlessAgentRunner$DoneEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,

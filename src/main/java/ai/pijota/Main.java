@@ -18,6 +18,7 @@ import ai.pijota.telegram.TelegramChat;
 import ai.pijota.telegram.TelegramClient;
 import ai.pijota.telegram.TelegramFrontend;
 import ai.pijota.web.WebServer;
+import ai.pijota.worktree.WorktreeCommand;
 import ai.pijota.tui.AppendOnlyTui;
 import ai.pijota.util.CliErrorReporter;
 import ai.pijota.util.PijotaHome;
@@ -35,6 +36,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class Main {
+    static {
+        // Silence logback's startup status BEFORE the first logger (below) initializes the context — the console
+        // belongs to the TUI / CliErrorReporter (see logback.xml). Set as a system property, not a <statusListener> in
+        // logback.xml, because these messages are emitted during logback's bootstrap, before it parses the config: a
+        // native image built from a shaded jar can't read logback's version from the merged manifest, WARNs about it,
+        // and then dumps its whole status trail to stdout. This installs a no-op listener first, so nothing prints.
+        if (System.getProperty("logback.statusListenerClass") == null)
+            System.setProperty("logback.statusListenerClass", "ch.qos.logback.core.status.NopStatusListener");
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
     private static final String VERSION = "0.4.0";
 
@@ -59,7 +70,7 @@ public final class Main {
             if (args.length > 0 && "logout".equals(args[0]))
                 return logout(args);
             if (args.length > 0 && "worktree".equals(args[0]))
-                return ai.pijota.worktree.WorktreeCommand.run(args);
+                return WorktreeCommand.run(args);
 
             var parsedArgs = ArgParser.parse(args);
             if (parsedArgs.help()) {
