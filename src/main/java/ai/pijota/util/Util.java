@@ -396,6 +396,13 @@ public final class Util {
         return text.stripTrailing().lines().findFirst().orElse("");
     }
 
+    /**
+     * Wrap {@code text} in an OSC 8 terminal hyperlink to {@code url} (terminals without support just show the text).
+     */
+    public static String osc8Link(String url, String text) {
+        return "\033]8;;" + url + "\033\\" + text + "\033]8;;\033\\";
+    }
+
     public static String stackTrace(Throwable t) {
         var sw = new StringWriter();
         var pw = new PrintWriter(sw, true);

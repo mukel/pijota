@@ -65,9 +65,9 @@ final class RichMarkdownRenderer implements MarkdownRenderer {
         // Dedent before parsing: a line indented 4+ spaces (a deeply nested list item streamed on its own) parses as
         // an indented code block, not a list. Strip the common indent, parse, then re-apply it to the output so the
         // nesting stays visible.
-        int indent = commonIndent(markdown);
+        int indent = MarkdownTableRenderer.commonIndent(markdown);
         var blocks = new ArrayList<StyledLine>();
-        var doc = PARSER.parse(indent == 0 ? markdown : stripIndent(markdown, indent));
+        var doc = PARSER.parse(indent == 0 ? markdown : MarkdownTableRenderer.stripIndent(markdown, indent));
         for (Node block = doc.getFirstChild(); block != null; block = block.getNext())
             renderBlock(block, base, defaultItalic, 0, blocks);
         if (blocks.isEmpty()) // whitespace-only or unparsed — echo it styled with the base slot
@@ -79,29 +79,6 @@ final class RichMarkdownRenderer implements MarkdownRenderer {
         for (StyledLine l : blocks)
             out.add(l.text().isBlank() ? l : StyledLine.of(pad + l.text()));
         return out;
-    }
-
-    private static int commonIndent(String md) {
-        int min = Integer.MAX_VALUE;
-        for (String line : md.split("\n", -1)) {
-            if (line.isBlank())
-                continue;
-            int i = 0;
-            while (i < line.length() && (line.charAt(i) == ' ' || line.charAt(i) == '\t'))
-                i++;
-            min = Math.min(min, i);
-        }
-        return min == Integer.MAX_VALUE ? 0 : min;
-    }
-
-    private static String stripIndent(String md, int n) {
-        var sb = new StringBuilder();
-        for (String line : md.split("\n", -1)) {
-            if (!sb.isEmpty())
-                sb.append('\n');
-            sb.append(line.length() >= n ? line.substring(n) : line.stripLeading());
-        }
-        return sb.toString();
     }
 
     private void renderBlock(Node node, String base, boolean italic, int depth, List<StyledLine> out) {
@@ -144,7 +121,7 @@ final class RichMarkdownRenderer implements MarkdownRenderer {
     }
 
     private void renderCode(String literal, String info, List<StyledLine> out) {
-        String lang = info == null ? "" : info.strip().split("\\s+", 2)[0];
+        String lang = StreamingMarkdownFormatter.fenceLanguage(info); // normalize + alias (js->javascript, ...)
         SyntaxHighlighter hl = lang.isBlank() ? null : new SyntaxHighlighter(lang, theme);
         String[] rows = literal.split("\n", -1);
         int end = rows.length > 0 && rows[rows.length - 1].isEmpty() ? rows.length - 1 : rows.length; // trailing \n

@@ -16,8 +16,8 @@ final class StreamingMarkdownFormatter {
     private AnsiTheme theme;
     private final String defaultTextSlot;
     private final boolean defaultItalic;
-    private final StringBuilder table = new StringBuilder();
-    private final StringBuilder quote = new StringBuilder();
+    private final LineBuffer table = new LineBuffer();
+    private final LineBuffer quote = new LineBuffer();
     private String pendingTableHeader;
     private boolean inFence;
     private SyntaxHighlighter fenceHighlighter;
@@ -79,8 +79,8 @@ final class StreamingMarkdownFormatter {
     }
 
     public void reset() {
-        table.setLength(0);
-        quote.setLength(0);
+        table.clear();
+        quote.clear();
         pendingTableHeader = null;
         leaveFence();
         previousNonBlank = false;
@@ -124,8 +124,8 @@ final class StreamingMarkdownFormatter {
             line = "";
 
         if (line.isBlank()) {
-            flushQuoteInto(out);
-            flushTableInto(out);
+            quote.flushInto(out);
+            table.flushInto(out);
             flushPendingHeaderInto(out);
             out.add("");
             return out;
@@ -134,30 +134,30 @@ final class StreamingMarkdownFormatter {
         // Blockquotes buffer their whole run (like tables) so a table or code block nested inside parses with full
         // context — every line of a quote starts with '>' (after optional indent), so the run is self-delimiting.
         if (line.stripLeading().startsWith(">")) {
-            flushTableInto(out);
+            table.flushInto(out);
             flushPendingHeaderInto(out);
-            appendQuoteLine(line);
+            quote.add(line);
             return out;
         }
-        if (inQuote())
-            flushQuoteInto(out); // a non-quote line ends the quote; fall through to normal handling
+        if (quote.active())
+            quote.flushInto(out); // a non-quote line ends the quote; fall through to normal handling
 
         String stripped = line.strip();
         if (pendingTableHeader != null) {
             if (isTableSeparator(stripped)) {
-                appendTableLine(pendingTableHeader);
+                table.add(pendingTableHeader);
                 pendingTableHeader = null;
-                appendTableLine(line);
+                table.add(line);
                 return out;
             }
             flushPendingHeaderInto(out);
         }
 
-        if (inTable()) {
+        if (table.active()) {
             if (line.indexOf('|') >= 0) {
-                appendTableLine(line);
+                table.add(line);
             } else {
-                flushTableInto(out);
+                table.flushInto(out);
                 out.add(line);
             }
             return out;
@@ -172,44 +172,10 @@ final class StreamingMarkdownFormatter {
 
     private List<String> flushBufferedMarkdown() {
         var out = new ArrayList<String>();
-        flushQuoteInto(out);
-        flushTableInto(out);
+        quote.flushInto(out);
+        table.flushInto(out);
         flushPendingHeaderInto(out);
         return out;
-    }
-
-    private boolean inQuote() {
-        return !quote.isEmpty();
-    }
-
-    private void appendQuoteLine(String line) {
-        if (!quote.isEmpty())
-            quote.append('\n');
-        quote.append(line);
-    }
-
-    private void flushQuoteInto(List<String> out) {
-        if (!inQuote())
-            return;
-        out.add(quote.toString());
-        quote.setLength(0);
-    }
-
-    private boolean inTable() {
-        return !table.isEmpty();
-    }
-
-    private void appendTableLine(String line) {
-        if (!table.isEmpty())
-            table.append('\n');
-        table.append(line);
-    }
-
-    private void flushTableInto(List<String> out) {
-        if (!inTable())
-            return;
-        out.add(table.toString());
-        table.setLength(0);
     }
 
     private void flushPendingHeaderInto(List<String> out) {
@@ -245,7 +211,7 @@ final class StreamingMarkdownFormatter {
         return null;
     }
 
-    private static String fenceLanguage(String info) {
+    static String fenceLanguage(String info) {
         if (info == null || info.isBlank())
             return "";
         String lang = info.strip().split("\\s+", 2)[0].toLowerCase();

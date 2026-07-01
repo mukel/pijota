@@ -61,6 +61,12 @@ final class MarkdownTableRenderer {
     }
 
     static String dedent(String markdown) {
+        int n = commonIndent(markdown);
+        return n == 0 ? markdown : stripIndent(markdown, n);
+    }
+
+    /** Smallest leading-whitespace (space/tab) count across non-blank lines; 0 if none, or all lines are blank. */
+    static int commonIndent(String markdown) {
         int min = Integer.MAX_VALUE;
         for (String line : markdown.split("\n", -1)) {
             if (line.isBlank())
@@ -70,13 +76,16 @@ final class MarkdownTableRenderer {
                 i++;
             min = Math.min(min, i);
         }
-        if (min <= 0 || min == Integer.MAX_VALUE)
-            return markdown;
+        return min == Integer.MAX_VALUE ? 0 : min;
+    }
+
+    /** Remove up to {@code n} leading whitespace characters from every line. */
+    static String stripIndent(String markdown, int n) {
         var sb = new StringBuilder();
         for (String line : markdown.split("\n", -1)) {
             if (!sb.isEmpty())
                 sb.append('\n');
-            sb.append(line.length() >= min ? line.substring(min) : line.stripLeading());
+            sb.append(line.length() >= n ? line.substring(n) : line.stripLeading());
         }
         return sb.toString();
     }

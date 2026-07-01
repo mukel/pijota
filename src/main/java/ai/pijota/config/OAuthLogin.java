@@ -249,6 +249,6 @@ public final class OAuthLogin {
     }
 
     static String clickableLink(String url, String text) {
-        return "\033]8;;" + url + "\033\\" + text + "\033]8;;\033\\";
+        return Util.osc8Link(url, text);
     }
 }

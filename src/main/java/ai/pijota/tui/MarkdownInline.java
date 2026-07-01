@@ -1,6 +1,7 @@
 package ai.pijota.tui;
 
 import ai.pijota.theme.AnsiTheme;
+import ai.pijota.util.Util;
 
 import org.commonmark.ext.gfm.strikethrough.Strikethrough;
 import org.commonmark.node.Code;
@@ -214,7 +215,7 @@ final class MarkdownInline {
     // ---- shared helpers ----
 
     private static String osc8(String url, String visible) {
-        return "\033]8;;" + url + "\033\\" + visible + "\033]8;;\033\\";
+        return Util.osc8Link(url, visible);
     }
 
     private String styled(String slot, String text) {
