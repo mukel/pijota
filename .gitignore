@@ -17,6 +17,15 @@ default.iprof
 *.swp
 *~
 
+# AI agent local state (Claude, Codex, etc.)
+.claude/
+.codex/
+.agents/
+
+# Native-image build output / GraalVM AWT extraction (dropped in the repo root when running the native binary)
+/pijota-0.1.0-SNAPSHOT
+/*.so
+
 # OS
 .DS_Store
 Thumbs.db
