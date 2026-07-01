@@ -1,6 +1,7 @@
 package ai.pijota.cli;
 
 import ai.pijota.cli.Args.OutputMode;
+import ai.pijota.extensions.BuiltinExtensions;
 import ai.pijota.llm.ModelRegistry;
 
 import java.util.ArrayList;
@@ -22,12 +23,14 @@ public final class ArgParser {
         var sessionPath = (String) null;
         var noSession = false;
         var noTools = false;
+        var noBuiltinTools = false;
         var noExtensions = false;
         var noSkills = false;
         var noThemes = false;
         var noContextFiles = false;
         var noPromptTemplates = false;
         var enabledTools = new ArrayList<String>();
+        var excludeTools = new ArrayList<String>();
         var extensionPaths = new ArrayList<String>();
         var skillPaths = new ArrayList<String>();
         var themePaths = new ArrayList<String>();
@@ -70,6 +73,7 @@ public final class ArgParser {
                 case "--fork" -> forkPath = cursor.value(arg);
                 case "--export" -> exportPath = cursor.value(arg);
                 case "--tools", "-t" -> enabledTools.addAll(parseList(cursor.value(arg)));
+                case "--exclude-tools", "-xt" -> excludeTools.addAll(parseList(cursor.value(arg)));
                 case "--extension", "-e" -> extensionPaths.add(cursor.value(arg));
                 case "--skill" -> skillPaths.add(cursor.value(arg));
                 case "--theme" -> themePaths.add(cursor.value(arg));
@@ -90,6 +94,7 @@ public final class ArgParser {
                 case "--recover" -> recoverSession = true;
                 case "--no-session" -> noSession = true;
                 case "--no-tools", "-nt" -> noTools = true;
+                case "--no-builtin-tools", "-nbt" -> noBuiltinTools = true;
                 case "--no-extensions", "-ne" -> noExtensions = true;
                 case "--no-skills", "-ns" -> noSkills = true;
                 case "--no-themes" -> noThemes = true;
@@ -125,11 +130,12 @@ public final class ArgParser {
         }
 
         return new Args(provider, model, apiKey, systemPrompt, appendSystemPrompts, thinkingLevel, outputMode,
-                                        sessionPath, noSession, noTools, noExtensions, noSkills, noThemes,
-                                        noContextFiles, noPromptTemplates, enabledTools, extensionPaths, skillPaths,
-                                        themePaths, promptTemplatePaths, print, resume, continueSession, recoverSession,
-                                        forkPath, exportPath, listModels, listModelsFilter, help, version, verbose,
-                                        agent, worker, fileArgs, promptArgs, Map.copyOf(extensionFlags), maxTurns);
+                                        sessionPath, noSession, noTools, noBuiltinTools, noExtensions, noSkills,
+                                        noThemes, noContextFiles, noPromptTemplates, enabledTools, excludeTools,
+                                        extensionPaths, skillPaths, themePaths, promptTemplatePaths, print, resume,
+                                        continueSession, recoverSession, forkPath, exportPath, listModels,
+                                        listModelsFilter, help, version, verbose, agent, worker, fileArgs, promptArgs,
+                                        Map.copyOf(extensionFlags), maxTurns);
     }
 
     public static void printHelp() {
@@ -154,8 +160,10 @@ public final class ArgParser {
                                           --resume, -r              Interactive session picker
                                           --fork <id>               Fork a session
                                           --no-session              Don't save session
-                                          --tools, -t <names>       Comma-separated tool allowlist
-                                          --no-tools, -nt           Disable all tools
+                                          --tools, -t <names>       Enable only these tools (allowlist, any source)
+                                          --exclude-tools, -xt <names> Disable these tools (denylist, any source)
+                                          --no-tools, -nt           Disable all tools (built-in and extension)
+                                          --no-builtin-tools, -nbt  Disable built-in tools, keep extension tools
                                           --no-extensions, -ne      Skip extension auto-discovery
                                           --no-skills, -ns          Skip skill auto-discovery
                                           --extension, -e <path>    Load extension
@@ -167,7 +175,7 @@ public final class ArgParser {
                                           --prompt-template <path>   Load prompt template (repeatable)
 
                                         """);
-        System.out.println(ai.pijota.extensions.BuiltinExtensions.helpSection());
+        System.out.println(BuiltinExtensions.helpSection());
         System.out.println();
         System.out.println("""
                                         MISC:

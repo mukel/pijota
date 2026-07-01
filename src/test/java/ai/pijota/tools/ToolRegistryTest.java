@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -353,6 +354,42 @@ class ToolRegistryTest {
         assertFalse(r.enabledToolNames().contains("drop"));
         assertEquals(List.of("keep"), r.enabledToolNames());
         assertDoesNotThrow(() -> r.unregister("never-registered")); // no-op
+    }
+
+    @Test
+    void policyNoneDisablesAllToolsIncludingBuiltins() {
+        var r = new ToolRegistry();
+        r.registerBuiltin(TestTools.fake("bash", true));
+        r.register(TestTools.fake("task", true));
+        r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.NONE, Set.of(), Set.of()));
+        assertTrue(r.enabledToolNames().isEmpty(), "--no-tools disables built-in and extension tools alike");
+    }
+
+    @Test
+    void policyExtensionOnlyDropsBuiltinsButKeepsExtensionTools() {
+        var r = new ToolRegistry();
+        r.registerBuiltin(TestTools.fake("bash", true));
+        r.register(TestTools.fake("task", true));
+        r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.EXTENSION_ONLY, Set.of(), Set.of()));
+        assertEquals(List.of("task"), r.enabledToolNames());
+    }
+
+    @Test
+    void policyAllowlistForceEnablesExactlyItsMembers() {
+        var r = new ToolRegistry();
+        r.registerBuiltin(TestTools.fake("read", true));
+        r.register(TestTools.fake("offByDefault", false));
+        r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.ALL, Set.of("offByDefault"), Set.of()));
+        assertEquals(List.of("offByDefault"), r.enabledToolNames(), "allowlist is authoritative, ignores default-off");
+    }
+
+    @Test
+    void policyDenylistWinsOverDefaultsAndAllowlist() {
+        var r = new ToolRegistry();
+        r.registerBuiltin(TestTools.fake("bash", true));
+        r.register(TestTools.fake("task", true));
+        r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.ALL, Set.of("bash", "task"), Set.of("bash")));
+        assertEquals(List.of("task"), r.enabledToolNames());
     }
 
     @Test

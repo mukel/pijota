@@ -23,12 +23,32 @@ public final class ToolRegistry {
     // A LinkedHashMap preserves registration order; the per-turn cost of these short critical sections is negligible.
     private final Map<String, Tool> tools = new LinkedHashMap<>();
     private final Set<String> enabledNames = new HashSet<>();
+    private final Set<String> builtinNames = new HashSet<>(); // origin, for --no-builtin-tools
     private ToolManifest.Snapshot cachedManifestSnapshot;
 
     public synchronized void register(Tool tool) {
         tools.put(tool.name(), tool);
         if (tool.defaultEnabled())
             enabledNames.add(tool.name());
+        cachedManifestSnapshot = null;
+    }
+
+    /** Register a first-party (non-extension) tool; distinguished only so {@code --no-builtin-tools} can target it. */
+    public synchronized void registerBuiltin(Tool tool) {
+        register(tool);
+        builtinNames.add(tool.name());
+    }
+
+    /**
+     * Recompute the active set from a {@link ToolPolicy} — the one-time bootstrap filter for the {@code --tools} /
+     * {@code --exclude-tools} / {@code --no-tools} / {@code --no-builtin-tools} flags. Like {@link #enableOnly} this is
+     * a snapshot: tools registered afterwards (e.g. MCP) enable by their own default and aren't retroactively filtered.
+     */
+    public synchronized void applyPolicy(ToolPolicy policy) {
+        enabledNames.clear();
+        for (Tool tool : tools.values())
+            if (policy.keep(tool.name(), builtinNames.contains(tool.name()), tool.defaultEnabled()))
+                enabledNames.add(tool.name());
         cachedManifestSnapshot = null;
     }
 
@@ -198,16 +218,16 @@ public final class ToolRegistry {
 
     public static ToolRegistry createDefault() {
         var registry = new ToolRegistry();
-        registry.register(new ReadTool());
-        registry.register(new WriteTool());
-        registry.register(new EditTool());
-        registry.register(new ApplyPatchTool());
-        registry.register(new GlobTool());
-        registry.register(new GrepTool());
-        registry.register(new LsTool());
-        registry.register(new SlashCommandTool());
-        registry.register(new WebfetchTool());
-        registry.register(new WebsearchTool());
+        registry.registerBuiltin(new ReadTool());
+        registry.registerBuiltin(new WriteTool());
+        registry.registerBuiltin(new EditTool());
+        registry.registerBuiltin(new ApplyPatchTool());
+        registry.registerBuiltin(new GlobTool());
+        registry.registerBuiltin(new GrepTool());
+        registry.registerBuiltin(new LsTool());
+        registry.registerBuiltin(new SlashCommandTool());
+        registry.registerBuiltin(new WebfetchTool());
+        registry.registerBuiltin(new WebsearchTool());
         return registry;
     }
 }

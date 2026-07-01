@@ -4,6 +4,7 @@ import ai.pijota.agent.PijotaSession;
 import ai.pijota.agent.SessionManager;
 import ai.pijota.agent.SystemPrompt;
 import ai.pijota.cli.Args;
+import ai.pijota.config.ProviderCatalog;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.config.TrustStore;
 import ai.pijota.extensions.ExtensionEvent;
@@ -33,6 +34,7 @@ import ai.pijota.llm.ModelRegistry;
 import ai.pijota.llm.ModelResolver;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.tools.BashTool;
+import ai.pijota.tools.ToolPolicy;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.tools.WhoamiTool;
 import ai.pijota.util.ProcessRunner;
@@ -64,7 +66,7 @@ public final class AppBootstrap {
 
         // Overlay any user-defined providers (settings.json "providers") onto the catalog before resolving the model,
         // so a custom/local provider's base URL, api type, and default model are visible to every lookup below.
-        ai.pijota.config.ProviderCatalog.registerUserProviders(settings.config().providers());
+        ProviderCatalog.registerUserProviders(settings.config().providers());
         StartupTimer.mark("settings/providers loaded");
 
         var resolved = ModelResolver.resolve(parsedArgs, settings);
@@ -74,9 +76,11 @@ public final class AppBootstrap {
         StartupTimer.mark("model resolved");
 
         var sessions = new SessionManager(settings.sessionDir());
-        var tools = parsedArgs.noTools() ? new ToolRegistry() : ToolRegistry.createDefault();
+        // Register everything; the tool policy (below) decides what's active. --no-tools etc. filter, not skip
+        // registration, so the flags compose with the allow/deny lists in one place.
+        var tools = ToolRegistry.createDefault();
         var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix());
-        tools.register(bashTool);
+        tools.registerBuiltin(bashTool);
         StartupTimer.mark("tools registered");
 
         var llm = new LlmService(provider, model, settings::resolveApiKey);
@@ -123,7 +127,7 @@ public final class AppBootstrap {
 
         // Niche tool, opt-in (--whoami) — gated through the same resolution as extensions.
         if (ext.isEnabled("whoami", false))
-            tools.register(new WhoamiTool());
+            tools.registerBuiltin(new WhoamiTool());
 
         // Every extension is registered unconditionally; ExtensionRegistry.register() gates each via isEnabled() on the
         // declared default + settings + flags. (TranscendenceExtension is also JVM-only via its unavailableReason.)
@@ -148,8 +152,15 @@ public final class AppBootstrap {
         ext.register(new ContextFilesExtension(cwd)); // --no-context-files / context_files setting disables
         StartupTimer.mark("extensions registered");
 
-        if (!parsedArgs.enabledTools().isEmpty())
-            tools.enableOnly(parsedArgs.enabledTools());
+        // Resolve the active tool set once, after every source has registered: base scope (--no-tools /
+        // --no-builtin-tools) then allowlist (--tools) / denylist (--exclude-tools), all by name across sources.
+        var toolScope = parsedArgs.noTools()
+                                        ? ToolPolicy.Scope.NONE
+                                        : parsedArgs.noBuiltinTools()
+                                                                        ? ToolPolicy.Scope.EXTENSION_ONLY
+                                                                        : ToolPolicy.Scope.ALL;
+        tools.applyPolicy(new ToolPolicy(toolScope, java.util.Set.copyOf(parsedArgs.enabledTools()),
+                                        java.util.Set.copyOf(parsedArgs.excludeTools())));
 
         String appendPrompt = parsedArgs.appendSystemPrompts().isEmpty()
                                         ? null
