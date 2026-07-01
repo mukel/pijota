@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import ai.pijota.util.Util;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ public final class SessionExporter {
             if (first != null) {
                 try {
                     @SuppressWarnings("unchecked")
-                    var h = (Map<String, Object>) ai.pijota.util.Util.MAPPER.readValue(first, Map.class);
+                    var h = (Map<String, Object>) Util.MAPPER.readValue(first, Map.class);
                     if ("session".equals(h.get("type")))
                         header = h;
                 } catch (Exception ignored) {}

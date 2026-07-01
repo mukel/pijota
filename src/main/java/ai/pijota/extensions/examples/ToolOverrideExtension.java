@@ -2,6 +2,7 @@ package ai.pijota.extensions.examples;
 
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
+import ai.pijota.modes.SlashCommand;
 import ai.pijota.tools.Tool;
 
 import java.io.IOException;
@@ -72,9 +73,8 @@ public final class ToolOverrideExtension implements Extension {
                                             }
                                         }));
 
-        api.registerSlashCommand(new ai.pijota.modes.SlashCommand("read-log", "Show the file access log", List.of(),
-                                        _args -> api.runtime().setStatus(
-                                                                        "read-log: no persistent log in this example")));
+        api.registerSlashCommand(new SlashCommand("read-log", "Show the file access log", List.of(), _args -> api
+                                        .runtime().setStatus("read-log: no persistent log in this example")));
     }
 
     static boolean isBlocked(String path) {

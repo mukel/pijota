@@ -1,7 +1,10 @@
 package ai.pijota.extensions.task;
 
+import ai.pijota.agent.SubAgentLauncher;
 import ai.pijota.llm.LlmClient;
+import ai.pijota.llm.ModelRegistry;
 import ai.pijota.tools.Tool;
+import ai.pijota.util.Env;
 import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.Util;
 import java.io.BufferedWriter;
@@ -326,7 +329,7 @@ public final class TaskTool implements Tool {
     static String subAgentModel(SubAgent sub) {
         if (sub.model() != null && !sub.model().isBlank())
             return sub.model();
-        return ai.pijota.util.Env.get("pijota.subagent.model", "PIJOTA_SUBAGENT_MODEL");
+        return Env.get("pijota.subagent.model", "PIJOTA_SUBAGENT_MODEL");
     }
 
     /**
@@ -335,8 +338,7 @@ public final class TaskTool implements Tool {
      * unchanged (the child resolves those itself).
      */
     static String resolveCurrentAlias(String declared, String currentProvider, String currentModel) {
-        String currentSpec = ai.pijota.llm.ModelRegistry.ALIAS_PROVIDER + "/"
-                                        + ai.pijota.llm.ModelRegistry.CURRENT_ALIAS;
+        String currentSpec = ModelRegistry.ALIAS_PROVIDER + "/" + ModelRegistry.CURRENT_ALIAS;
         if (currentSpec.equalsIgnoreCase(declared) && currentProvider != null && currentModel != null)
             return currentProvider + "/" + currentModel;
         return declared;
@@ -385,7 +387,7 @@ public final class TaskTool implements Tool {
                 taskJson.put("apiKey", parentApiKey);
             }
 
-            var procArgs = ai.pijota.agent.SubAgentLauncher.agentCommand(cwd.toString());
+            var procArgs = SubAgentLauncher.agentCommand(cwd.toString());
             procArgs.add("--agent");
             procArgs.add("--no-session");
             if (subModel != null) {

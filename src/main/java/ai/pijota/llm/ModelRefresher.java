@@ -3,6 +3,7 @@ package ai.pijota.llm;
 import ai.pijota.config.OAuthTokenStore;
 import ai.pijota.config.ProviderCatalog;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -73,8 +74,7 @@ public final class ModelRefresher {
         var response = client.send(builtRequest, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             // scrub the body: a provider's error response can echo the request (and its auth header) back
-            throw new IOException("HTTP " + response.statusCode() + " - "
-                                            + ai.pijota.util.ErrorUtil.sanitize(response.body()));
+            throw new IOException("HTTP " + response.statusCode() + " - " + ErrorUtil.sanitize(response.body()));
         }
 
         var node = Util.MAPPER.readTree(response.body());

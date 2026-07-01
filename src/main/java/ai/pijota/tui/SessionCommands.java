@@ -3,6 +3,7 @@ package ai.pijota.tui;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.agent.SessionExporter;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.llm.ModelRegistry;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
 
@@ -154,7 +155,7 @@ final class SessionCommands {
 
     /** The {@code /usage} per-model rate line: the catalog's $/1M rates for the active model, or "unknown". */
     static String rateLine(String provider, String model, boolean hasUnpriced) {
-        var pricing = ai.pijota.llm.ModelRegistry.pricingFor(provider, model);
+        var pricing = ModelRegistry.pricingFor(provider, model);
         if (pricing == null) {
             return "  rate    unknown for " + (model != null ? model : "current model");
         }

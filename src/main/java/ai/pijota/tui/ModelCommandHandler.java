@@ -1,5 +1,7 @@
 package ai.pijota.tui;
 
+import ai.pijota.agent.PijotaSession;
+import ai.pijota.config.SettingsManager;
 import ai.pijota.llm.ModelInfo;
 import ai.pijota.llm.ModelRefresher;
 import ai.pijota.llm.ModelRegistry;
@@ -24,9 +26,9 @@ final class ModelCommandHandler {
 
         PromptEditor promptEditor();
 
-        ai.pijota.agent.PijotaSession session();
+        PijotaSession session();
 
-        ai.pijota.config.SettingsManager settings();
+        SettingsManager settings();
     }
 
     ModelCommandHandler(Host host) {

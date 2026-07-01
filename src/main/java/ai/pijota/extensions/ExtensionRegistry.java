@@ -2,11 +2,14 @@ package ai.pijota.extensions;
 
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.extensions.skills.SkillLoader;
+import ai.pijota.llm.LlmClient;
 import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
+import ai.pijota.tools.SlashCommandTool;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolRegistry;
+import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.ProcessRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,7 +141,7 @@ public final class ExtensionRegistry {
         this.uiContext = t;
         // The interactive /question tool follows the active UI owner — route it to t's askQuestions (null → text
         // fallback).
-        ai.pijota.tools.SlashCommandTool.setQuestionHandler(t == null ? null : t::askQuestions);
+        SlashCommandTool.setQuestionHandler(t == null ? null : t::askQuestions);
     }
 
     public void setCwd(Path c) {
@@ -463,8 +466,7 @@ public final class ExtensionRegistry {
             case AgentEvent.MessageStreamDelta(var delta) -> fire(new ExtensionEvent.MessageUpdate(delta));
             case AgentEvent.MessageStreamEnd _ -> fire(new ExtensionEvent.MessageEnd());
             case AgentEvent.Error(var throwable) ->
-                fire(new ExtensionEvent.Error(ai.pijota.util.ErrorUtil.message(throwable),
-                                                ai.pijota.util.ErrorUtil.isRetryable(throwable)));
+                fire(new ExtensionEvent.Error(ErrorUtil.message(throwable), ErrorUtil.isRetryable(throwable)));
             default -> {}
         }
     }
@@ -609,7 +611,7 @@ public final class ExtensionRegistry {
 
     private class ExtensionRuntimeImpl implements ExtensionRuntime {
         @Override
-        public ai.pijota.llm.LlmClient llm() {
+        public LlmClient llm() {
             return agentContext != null ? agentContext.llm() : llm;
         }
 

@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import ai.pijota.config.PathDisplay;
 import ai.pijota.llm.ThinkingLevel;
 
 import java.util.List;
@@ -36,9 +37,9 @@ final class SettingsCommandHandler {
         void setTransientStatus(String status, long millis);
     }
 
-    record SettingsSnapshot(boolean contextFilesEnabled, boolean compactionEnabled,
-                                    ai.pijota.config.PathDisplay pathDisplay, ThinkingLevel thinkingLevel,
-                                    boolean hideThinking, boolean quietStartup, String workingAnimation) {
+    record SettingsSnapshot(boolean contextFilesEnabled, boolean compactionEnabled, PathDisplay pathDisplay,
+                                    ThinkingLevel thinkingLevel, boolean hideThinking, boolean quietStartup,
+                                    String workingAnimation) {
     }
 
     private final Host host;

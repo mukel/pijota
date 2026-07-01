@@ -1,6 +1,7 @@
 package ai.pijota.extensions.examples;
 
 import ai.pijota.extensions.ExtensionEvent;
+import ai.pijota.extensions.ExtensionResult;
 
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
@@ -57,9 +58,9 @@ public final class FilterOutputExtension implements Extension {
 
         api.onInput(text -> {
             if (!enabled)
-                return new ai.pijota.extensions.ExtensionResult.InputResult(text, false);
+                return new ExtensionResult.InputResult(text, false);
             String redacted = redactString(text);
-            return new ai.pijota.extensions.ExtensionResult.InputResult(redacted != null ? redacted : text, false);
+            return new ExtensionResult.InputResult(redacted != null ? redacted : text, false);
         });
 
         api.on(ExtensionEvent.BeforeProviderRequest.class, event -> {
