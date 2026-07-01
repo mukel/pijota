@@ -348,7 +348,7 @@ class MarkdownTableRendererTest {
 
     @Test
     void nextMarkFindsHighlight() {
-        var mark = MarkdownTableRenderer.nextMark("==text==", 0);
+        var mark = MarkdownInline.nextMark("==text==", 0);
         assertNotNull(mark);
         assertEquals(0, mark.start());
         assertEquals("==", mark.marker());
@@ -357,7 +357,7 @@ class MarkdownTableRendererTest {
 
     @Test
     void nextMarkFindsDiffAdd() {
-        var mark = MarkdownTableRenderer.nextMark("++text++", 0);
+        var mark = MarkdownInline.nextMark("++text++", 0);
         assertNotNull(mark);
         assertEquals(0, mark.start());
         assertEquals("++", mark.marker());
@@ -366,7 +366,7 @@ class MarkdownTableRendererTest {
 
     @Test
     void nextMarkFindsDiffDelete() {
-        var mark = MarkdownTableRenderer.nextMark("--text--", 0);
+        var mark = MarkdownInline.nextMark("--text--", 0);
         assertNotNull(mark);
         assertEquals(0, mark.start());
         assertEquals("--", mark.marker());
@@ -375,22 +375,22 @@ class MarkdownTableRendererTest {
 
     @Test
     void nextMarkReturnsNullWhenNoMarkers() {
-        assertNull(MarkdownTableRenderer.nextMark("plain text", 0));
+        assertNull(MarkdownInline.nextMark("plain text", 0));
     }
 
     @Test
     void nextMarkReturnsNullForEmptyString() {
-        assertNull(MarkdownTableRenderer.nextMark("", 0));
+        assertNull(MarkdownInline.nextMark("", 0));
     }
 
     @Test
     void nextMarkReturnsNullWhenFromPastEnd() {
-        assertNull(MarkdownTableRenderer.nextMark("==text==", 100));
+        assertNull(MarkdownInline.nextMark("==text==", 100));
     }
 
     @Test
     void nextMarkFindsEarliestMarker() {
-        var mark = MarkdownTableRenderer.nextMark("a ==b ++c --d", 0);
+        var mark = MarkdownInline.nextMark("a ==b ++c --d", 0);
         assertNotNull(mark);
         assertEquals(2, mark.start());
         assertEquals("==", mark.marker());
@@ -398,7 +398,7 @@ class MarkdownTableRendererTest {
 
     @Test
     void nextMarkSkipsMarkersBeforeFrom() {
-        var mark = MarkdownTableRenderer.nextMark("==a ++b", 3);
+        var mark = MarkdownInline.nextMark("==a ++b", 3);
         assertNotNull(mark);
         assertEquals(4, mark.start());
         assertEquals("++", mark.marker());
@@ -406,7 +406,7 @@ class MarkdownTableRendererTest {
 
     @Test
     void nextMarkAllAtSamePositionReturnsFirstInList() {
-        var mark = MarkdownTableRenderer.nextMark("==++--", 0);
+        var mark = MarkdownInline.nextMark("==++--", 0);
         assertNotNull(mark);
         assertEquals(0, mark.start());
         assertEquals("==", mark.marker());
@@ -414,7 +414,7 @@ class MarkdownTableRendererTest {
 
     @Test
     void nextMarkFindsMarkersAfterFrom() {
-        var mark = MarkdownTableRenderer.nextMark("no marks here ==found==", 0);
+        var mark = MarkdownInline.nextMark("no marks here ==found==", 0);
         assertNotNull(mark);
         assertEquals(14, mark.start());
     }

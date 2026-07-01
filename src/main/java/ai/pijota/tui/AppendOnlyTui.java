@@ -312,7 +312,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.promptLayout = new PromptLayout(regions);
         this.terminalUi = new TerminalCoordinator(terminal, theme, promptLayout);
         this.streamRenderer = new StreamRenderer(terminalUi::appendLines, theme, thinkingTheme,
-                                        () -> terminal.getWidth() - 4, this::showThinking, () -> thinkingLevel.label());
+                                        () -> terminal.getWidth() - 4, this::showThinking, () -> thinkingLevel.label(),
+                                        settings != null
+                                                                        ? MarkdownStyle.from(settings.config()
+                                                                                                        .markdown())
+                                                                        : MarkdownStyle.RICH);
         this.extensionCommands = new HashMap<>();
         for (var cmd : extensionCommands) {
             this.extensionCommands.put("/" + cmd.name(), cmd);

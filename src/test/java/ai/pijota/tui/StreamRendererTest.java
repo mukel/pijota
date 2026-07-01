@@ -29,7 +29,8 @@ class StreamRendererTest {
 
     private static StreamRenderer renderer(CapturingSink sink, boolean showThinking) {
         var theme = AnsiTheme.dark();
-        return new StreamRenderer(sink, theme, theme.thinking(), () -> 80, () -> showThinking, () -> "high");
+        return new StreamRenderer(sink, theme, theme.thinking(), () -> 80, () -> showThinking, () -> "high",
+                                        MarkdownStyle.PLAIN);
     }
 
     @Test

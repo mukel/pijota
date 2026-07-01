@@ -3,23 +3,13 @@ package ai.pijota.tui;
 import ai.pijota.theme.AnsiTheme;
 
 import org.commonmark.Extension;
-import org.commonmark.ext.gfm.strikethrough.Strikethrough;
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension;
 import org.commonmark.ext.gfm.tables.TableBlock;
 import org.commonmark.ext.gfm.tables.TableCell;
 import org.commonmark.ext.gfm.tables.TableRow;
 import org.commonmark.ext.gfm.tables.TablesExtension;
-import org.commonmark.node.Code;
 import org.commonmark.node.Document;
-import org.commonmark.node.Emphasis;
-import org.commonmark.node.HardLineBreak;
-import org.commonmark.node.HtmlInline;
-import org.commonmark.node.Image;
-import org.commonmark.node.Link;
 import org.commonmark.node.Node;
-import org.commonmark.node.SoftLineBreak;
-import org.commonmark.node.StrongEmphasis;
-import org.commonmark.node.Text;
 import org.commonmark.parser.Parser;
 
 import java.util.ArrayList;
@@ -36,20 +26,59 @@ final class MarkdownTableRenderer {
 
     private final AnsiTheme theme;
     private final int width;
+    private final MarkdownInline inline;
 
     MarkdownTableRenderer(AnsiTheme theme, int width) {
+        this(theme, width, false);
+    }
+
+    MarkdownTableRenderer(AnsiTheme theme, int width, boolean strip) {
         this.theme = theme;
         this.width = width;
+        this.inline = new MarkdownInline(theme, strip);
     }
 
     static Optional<List<StyledLine>> renderIfTable(String markdown, AnsiTheme theme, int width) {
+        return renderIfTable(markdown, theme, width, false);
+    }
+
+    /** {@code strip}: consume inline delimiters in cells (rich look) vs. show them dimmed (barebones). */
+    static Optional<List<StyledLine>> renderIfTable(String markdown, AnsiTheme theme, int width, boolean strip) {
         if (!couldBeTable(markdown))
             return Optional.empty();
-        var document = (Document) PARSER.parse(markdown);
+        // Dedent first: a table indented 4+ spaces (e.g. nested under a list item) parses as an indented code block,
+        // not a table. Stripping the common leading indent lets CommonMark see the table.
+        var document = (Document) PARSER.parse(dedent(markdown));
         if (!(document.getFirstChild() instanceof TableBlock table) || document.getFirstChild().getNext() != null) {
             return Optional.empty();
         }
-        return Optional.of(new MarkdownTableRenderer(theme, width).render(table));
+        return Optional.of(new MarkdownTableRenderer(theme, width, strip).render(table));
+    }
+
+    /** Render a table node already parsed by a caller (e.g. a table nested inside a blockquote). */
+    static List<StyledLine> renderTable(TableBlock table, AnsiTheme theme, int width, boolean strip) {
+        return new MarkdownTableRenderer(theme, width, strip).render(table);
+    }
+
+    static String dedent(String markdown) {
+        int min = Integer.MAX_VALUE;
+        for (String line : markdown.split("\n", -1)) {
+            if (line.isBlank())
+                continue;
+            int i = 0;
+            while (i < line.length() && (line.charAt(i) == ' ' || line.charAt(i) == '\t'))
+                i++;
+            min = Math.min(min, i);
+        }
+        if (min <= 0 || min == Integer.MAX_VALUE)
+            return markdown;
+        var sb = new StringBuilder();
+        for (String line : markdown.split("\n", -1)) {
+            if (!sb.isEmpty())
+                sb.append('\n');
+            sb.append(line.length() >= min ? line.substring(min) : line.stripLeading());
+        }
+        return sb.toString();
     }
 
     static boolean couldBeTable(String markdown) {
@@ -128,106 +157,13 @@ final class MarkdownTableRenderer {
     }
 
     private Cell renderCell(TableCell cell) {
-        String text = cell.isHeader() ? theme.styled("bold", renderInlineChildren(cell)) : renderInlineChildren(cell);
-        return new Cell(text, cell.getAlignment());
+        String content = inline.children(cell, "text");
+        return new Cell(cell.isHeader() ? theme.styled("bold", content) : content, cell.getAlignment());
     }
 
-    private String renderInlineChildren(Node parent) {
-        var out = new StringBuilder();
-        for (Node child = parent.getFirstChild(); child != null; child = child.getNext()) {
-            out.append(renderInline(child));
-        }
-        return out.toString();
-    }
-
-    private String renderInline(Node node) {
-        if (node instanceof Text text)
-            return applyTextMarks(text.getLiteral());
-        if (node instanceof Code code)
-            return delim("`", "inlineCode", code.getLiteral(), "`");
-        if (node instanceof Emphasis em)
-            return delim("*", "italic", renderInlineChildren(em), "*");
-        if (node instanceof StrongEmphasis strong)
-            return delim("**", "bold", renderInlineChildren(strong), "**");
-        if (node instanceof Strikethrough strike)
-            return delim("~~", "strikethrough", renderInlineChildren(strike), "~~");
-        if (node instanceof Link link)
-            return renderLink(link);
-        if (node instanceof Image image)
-            return renderImage(image);
-        if (node instanceof SoftLineBreak || node instanceof HardLineBreak)
-            return " ";
-        if (node instanceof HtmlInline html)
-            return styled("dim", html.getLiteral());
-        return renderInlineChildren(node);
-    }
-
+    /** The GFM {@code ==}/{@code ++}/{@code --} text marks rendered inside cells (KEEP mode); exposed for tests. */
     String applyTextMarks(String text) {
-        var sb = new StringBuilder();
-        int i = 0;
-        while (i < text.length()) {
-            Mark mark = nextMark(text, i);
-            if (mark == null) {
-                sb.append(styled("text", text.substring(i)));
-                break;
-            }
-            if (mark.start() > i)
-                sb.append(styled("text", text.substring(i, mark.start())));
-            int contentStart = mark.start() + mark.marker().length();
-            int end = text.indexOf(mark.marker(), contentStart);
-            if (end < 0) {
-                sb.append(styled("text", text.substring(mark.start(), contentStart)));
-                i = contentStart;
-                continue;
-            }
-            sb.append(styled("dim", mark.marker()));
-            sb.append(styled(mark.slot(), text.substring(contentStart, end)));
-            sb.append(styled("dim", mark.marker()));
-            i = end + mark.marker().length();
-        }
-        return sb.toString();
-    }
-
-    record Mark(int start, String marker, String slot) {
-    }
-
-    static Mark nextMark(String text, int from) {
-        Mark best = null;
-        for (var mark : List.of(new Mark(text.indexOf("==", from), "==", "highlight"),
-                                        new Mark(text.indexOf("++", from), "++", "diffAdd"),
-                                        new Mark(text.indexOf("--", from), "--", "diffDelete"))) {
-            if (mark.start() >= 0 && (best == null || mark.start() < best.start()))
-                best = mark;
-        }
-        return best;
-    }
-
-    private String renderLink(Link link) {
-        String text = renderInlineChildren(link);
-        String url = link.getDestination();
-        String bracketed = styled("dim", "[") + styled("mdLink", text) + styled("dim", "]");
-        if (url == null || url.isBlank() || url.indexOf(' ') >= 0)
-            return bracketed;
-        String visible = bracketed + styled("dim", "(") + styled("mdLinkUrl", url) + styled("dim", ")");
-        return "\033]8;;" + url + "\033\\" + visible + "\033]8;;\033\\";
-    }
-
-    private String renderImage(Image image) {
-        String alt = renderInlineChildren(image);
-        String label = alt.isEmpty() ? "image" : alt;
-        String url = image.getDestination() != null ? image.getDestination() : "";
-        String visible = styled("dim", "![" + label + "](" + url + ")");
-        if (url.isBlank() || url.indexOf(' ') >= 0)
-            return visible;
-        return "\033]8;;" + url + "\033\\" + visible + "\033]8;;\033\\";
-    }
-
-    private String delim(String open, String slot, String inner, String close) {
-        return styled("dim", open) + styled(slot, inner) + styled("dim", close);
-    }
-
-    private String styled(String slot, String text) {
-        return text == null || text.isEmpty() ? "" : theme.styled(slot, text);
+        return inline.applyTextMarks(text);
     }
 
     String separator(int[] widths) {

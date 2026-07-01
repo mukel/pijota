@@ -5,7 +5,7 @@ import ai.pijota.theme.AnsiTheme;
 import java.util.ArrayList;
 import java.util.List;
 
-final class TerminalMarkdownRenderer {
+final class TerminalMarkdownRenderer implements MarkdownRenderer {
     private AnsiTheme theme;
     private int width = 80;
 
@@ -13,17 +13,20 @@ final class TerminalMarkdownRenderer {
         this.theme = theme;
     }
 
-    void setTheme(AnsiTheme theme) {
+    @Override
+    public void setTheme(AnsiTheme theme) {
         this.theme = theme;
     }
 
-    void setWidth(int width) {
+    @Override
+    public void setWidth(int width) {
         this.width = Math.max(1, width);
     }
 
     // ---- public API -------------------------------------------
 
-    List<StyledLine> render(String markdown, String defaultTextSlot, boolean defaultItalic) {
+    @Override
+    public List<StyledLine> render(String markdown, String defaultTextSlot, boolean defaultItalic) {
         if (markdown == null || markdown.isEmpty())
             return List.of();
         var table = MarkdownTableRenderer.renderIfTable(markdown, theme, width);

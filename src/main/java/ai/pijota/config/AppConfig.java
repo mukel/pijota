@@ -33,7 +33,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("aliases") Map<String, String> aliases,
                                 @JsonProperty("max_turns") Integer maxTurns,
                                 @JsonProperty("providers") List<ProviderCatalog.Provider> providers,
-                                @JsonProperty("extensions") Map<String, Object> extensions) {
+                                @JsonProperty("extensions") Map<String, Object> extensions,
+                                @JsonProperty("markdown") String markdown) {
 
     /** Default per-prompt agent-turn cap when {@code max_turns} is unset. {@code 0} (or negative) means unlimited. */
     public static final int DEFAULT_MAX_TURNS = 256;
@@ -44,7 +45,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         // $SHELL.
         this(null, null, Map.of(), "medium", Platform.defaultShell(), null, null, null, null, List.of(), List.of(),
                                         true, false, false, "dots", null, new CompactionConfig(), Map.of(), null,
-                                        List.of(), Map.of());
+                                        List.of(), Map.of(), "rich");
     }
 
     public static AppConfig load(Path path) throws IOException {
@@ -154,6 +155,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         private Integer maxTurns;
         private List<ProviderCatalog.Provider> providers;
         private Map<String, Object> extensions;
+        private String markdown;
 
         private Builder(AppConfig c) {
             this.defaultProvider = c.defaultProvider;
@@ -177,6 +179,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             this.maxTurns = c.maxTurns;
             this.providers = c.providers;
             this.extensions = c.extensions;
+            this.markdown = c.markdown;
         }
 
         public Builder defaultProvider(String v) {
@@ -264,11 +267,16 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             return this;
         }
 
+        public Builder markdown(String v) {
+            this.markdown = v;
+            return this;
+        }
+
         public AppConfig build() {
             return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
                                             sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
                                             hideThinking, quietStartup, workingAnimation, pathDisplay, compaction,
-                                            aliases, maxTurns, providers, extensions);
+                                            aliases, maxTurns, providers, extensions, markdown);
         }
     }
 

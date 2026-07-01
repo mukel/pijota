@@ -8,6 +8,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class StreamingMarkdownFormatterTest {
 
+    private static String richJoined(String... lines) {
+        var f = new StreamingMarkdownFormatter(AnsiTheme.dark(), MarkdownStyle.RICH);
+        var out = new java.util.ArrayList<StyledLine>();
+        for (String l : lines)
+            out.addAll(f.format(l));
+        out.addAll(f.flush());
+        return out.stream().map(l -> AnsiStripper.strip(l.text())).reduce("", (a, b) -> a + "\n" + b);
+    }
+
+    @Test
+    void blockquoteBuffersSoNestedTableRenders() {
+        // Each line streams separately; the quote buffers until flush, so CommonMark sees the whole quote and the
+        // nested table parses instead of showing as raw pipes.
+        String out = richJoined("> intro", "> | A | B |", "> |---|---|", "> | x | y |");
+        assertTrue(out.contains("│"), "nested table renders (bar + column separators): " + out);
+        assertFalse(out.contains("| A | B |"), "raw table pipes must not leak: " + out);
+    }
+
+    @Test
+    void blockquoteBuffersSoNestedFencedCodeRenders() {
+        String out = richJoined("> ```java", "> int x = 42;", "> ```");
+        assertTrue(out.contains("int x = 42;"), "code content present: " + out);
+        assertFalse(out.contains("```"), "fence markers consumed: " + out);
+    }
+
     @Test
     void thinkingRendersSameMarkdownStructureAsContentJustDimmed() {
         var theme = AnsiTheme.dark();

@@ -12,25 +12,37 @@ final class StreamingMarkdownFormatter {
     // wrongly rejects valid tables whose separators use 1–2 dashes (e.g. "|--|--|"), dropping them to raw markdown.
     private static final Pattern TABLE_SEPARATOR_CELL = Pattern.compile(":?-+:?");
 
-    private final TerminalMarkdownRenderer renderer;
+    private final MarkdownRenderer renderer;
     private AnsiTheme theme;
     private final String defaultTextSlot;
     private final boolean defaultItalic;
     private final StringBuilder table = new StringBuilder();
+    private final StringBuilder quote = new StringBuilder();
     private String pendingTableHeader;
     private boolean inFence;
     private SyntaxHighlighter fenceHighlighter;
     private boolean previousNonBlank;
 
     public StreamingMarkdownFormatter(AnsiTheme theme) {
-        this(theme, "text", false);
+        this(theme, "text", false, MarkdownStyle.PLAIN);
+    }
+
+    public StreamingMarkdownFormatter(AnsiTheme theme, MarkdownStyle style) {
+        this(theme, "text", false, style);
     }
 
     public StreamingMarkdownFormatter(AnsiTheme theme, String defaultTextSlot, boolean defaultItalic) {
+        this(theme, defaultTextSlot, defaultItalic, MarkdownStyle.PLAIN);
+    }
+
+    public StreamingMarkdownFormatter(AnsiTheme theme, String defaultTextSlot, boolean defaultItalic,
+                                    MarkdownStyle style) {
         this.theme = theme;
         this.defaultTextSlot = defaultTextSlot;
         this.defaultItalic = defaultItalic;
-        this.renderer = new TerminalMarkdownRenderer(theme);
+        this.renderer = style == MarkdownStyle.RICH
+                                        ? new RichMarkdownRenderer(theme)
+                                        : new TerminalMarkdownRenderer(theme);
     }
 
     public void setWidth(int width) {
@@ -68,6 +80,7 @@ final class StreamingMarkdownFormatter {
 
     public void reset() {
         table.setLength(0);
+        quote.setLength(0);
         pendingTableHeader = null;
         leaveFence();
         previousNonBlank = false;
@@ -111,11 +124,23 @@ final class StreamingMarkdownFormatter {
             line = "";
 
         if (line.isBlank()) {
+            flushQuoteInto(out);
             flushTableInto(out);
             flushPendingHeaderInto(out);
             out.add("");
             return out;
         }
+
+        // Blockquotes buffer their whole run (like tables) so a table or code block nested inside parses with full
+        // context — every line of a quote starts with '>' (after optional indent), so the run is self-delimiting.
+        if (line.stripLeading().startsWith(">")) {
+            flushTableInto(out);
+            flushPendingHeaderInto(out);
+            appendQuoteLine(line);
+            return out;
+        }
+        if (inQuote())
+            flushQuoteInto(out); // a non-quote line ends the quote; fall through to normal handling
 
         String stripped = line.strip();
         if (pendingTableHeader != null) {
@@ -147,9 +172,27 @@ final class StreamingMarkdownFormatter {
 
     private List<String> flushBufferedMarkdown() {
         var out = new ArrayList<String>();
+        flushQuoteInto(out);
         flushTableInto(out);
         flushPendingHeaderInto(out);
         return out;
+    }
+
+    private boolean inQuote() {
+        return !quote.isEmpty();
+    }
+
+    private void appendQuoteLine(String line) {
+        if (!quote.isEmpty())
+            quote.append('\n');
+        quote.append(line);
+    }
+
+    private void flushQuoteInto(List<String> out) {
+        if (!inQuote())
+            return;
+        out.add(quote.toString());
+        quote.setLength(0);
     }
 
     private boolean inTable() {

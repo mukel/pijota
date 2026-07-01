@@ -22,7 +22,7 @@ class ThemeLoaderTest {
     private static SettingsManager settingsWithTheme(String theme) {
         return new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, theme, null, null,
                                         true, false, false, null, null, new AppConfig.CompactionConfig(), null, null,
-                                        List.of(), java.util.Map.of()), _ -> {});
+                                        List.of(), java.util.Map.of(), null), _ -> {});
     }
 
     private static SettingsManager emptySettings() {
@@ -74,8 +74,8 @@ class ThemeLoaderTest {
 
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, "ocean",
                                         List.of(dir.toString()), null, true, false, false, null, null,
-                                        new AppConfig.CompactionConfig(), null, null, List.of(), java.util.Map.of()),
-                                        _ -> {});
+                                        new AppConfig.CompactionConfig(), null, null, List.of(), java.util.Map.of(),
+                                        null), _ -> {});
 
         var theme = ThemeLoader.load(settings, emptyArgs(), "/tmp");
         assertEquals("ocean", theme.name);
@@ -107,8 +107,8 @@ class ThemeLoaderTest {
 
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, null,
                                         List.of(dir.toString()), null, true, false, false, null, null,
-                                        new AppConfig.CompactionConfig(), null, null, List.of(), java.util.Map.of()),
-                                        _ -> {});
+                                        new AppConfig.CompactionConfig(), null, null, List.of(), java.util.Map.of(),
+                                        null), _ -> {});
 
         var theme = ThemeLoader.load(settings, ArgParser.parse(new String[] {"--no-themes"}), "/tmp");
         assertEquals("dark", theme.name);

@@ -46,18 +46,18 @@ final class StreamRenderer {
     private boolean contentStarted;
 
     StreamRenderer(Output output, AnsiTheme theme, AnsiTheme thinkingTheme, IntSupplier usableWidth,
-                                    BooleanSupplier showThinking, Supplier<String> thinkingLabel) {
+                                    BooleanSupplier showThinking, Supplier<String> thinkingLabel, MarkdownStyle style) {
         this.output = output;
         this.theme = theme;
         this.thinkingTheme = thinkingTheme;
         this.usableWidth = usableWidth;
         this.showThinking = showThinking;
         this.thinkingLabel = thinkingLabel;
-        this.markdown = new StreamingMarkdownFormatter(theme);
+        this.markdown = new StreamingMarkdownFormatter(theme, style);
         // Thinking renders through the SAME markdown pipeline/config as content (default body slot, no forced italic);
         // the only difference is the fully-dimmed thinkingTheme, so syntax highlighting, tables, bold/italic etc. all
         // appear exactly like regular output, just dimmed.
-        this.thinkingMarkdown = new StreamingMarkdownFormatter(thinkingTheme);
+        this.thinkingMarkdown = new StreamingMarkdownFormatter(thinkingTheme, style);
     }
 
     void setTheme(AnsiTheme theme, AnsiTheme thinkingTheme) {
