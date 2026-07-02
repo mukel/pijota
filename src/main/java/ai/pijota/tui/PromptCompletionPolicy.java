@@ -52,10 +52,19 @@ final class PromptCompletionPolicy {
 
         String completionPrefix = fileCompletionPrefix(text);
         var paths = fileCompletions.complete(text);
-        if (!paths.isEmpty())
-            return Decision.show(paths, completionPrefix);
-
-        return Decision.none();
+        if (paths.isEmpty())
+            return Decision.none();
+        // Shell-style Tab completion so you can walk a path one Tab per component (type a folder's first letter → Tab →
+        // it completes, trailing / and all → type the next letter → Tab …). A single match completes outright; several
+        // matches extend to their longest common prefix; only genuinely ambiguous input (nothing new to add) drops the
+        // chooser list. The item names are the full token (e.g. "@src/"), so completionPrefix + name rebuilds the line.
+        String token = text.substring(completionPrefix.length());
+        if (paths.size() == 1)
+            return Decision.replace(completionPrefix + paths.getFirst().name(), false);
+        String common = commonPrefix(paths);
+        if (common.length() > token.length())
+            return Decision.replace(completionPrefix + common, false);
+        return Decision.show(paths, completionPrefix);
     }
 
     List<CompletionItem> refreshCommandCompletions(String text) {

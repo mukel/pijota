@@ -42,7 +42,11 @@ final class PromptFileCompletions {
             try (var stream = Files.list(dir)) {
                 return stream.filter(p -> {
                     String name = p.getFileName().toString();
-                    return !name.startsWith(".") && name.toLowerCase().contains(fPrefix);
+                    // Prefix match (not substring): so typing a component's first letters + Tab walks the path like a
+                    // shell — "@s"+Tab → "@src/", then "m"+Tab → "@src/main/". A substring match would make "s"
+                    // ambiguous
+                    // with every entry containing an s and defeat the per-component Tab.
+                    return !name.startsWith(".") && name.toLowerCase().startsWith(fPrefix);
                 }).sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase())).limit(15).map(p -> {
                     String name = p.getFileName().toString();
                     String display = at + (lastSep >= 0 ? prefix.substring(0, lastSep + 1) + name : name);

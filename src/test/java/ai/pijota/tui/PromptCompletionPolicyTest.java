@@ -30,15 +30,37 @@ class PromptCompletionPolicyTest {
     }
 
     @Test
-    void showsFileCompletionsWithAcceptedPrefix() {
+    void singleFileMatchCompletesOutrightSoYouCanKeepTyping() {
         var policy = new PromptCompletionPolicy(new SlashCommandRegistry(),
-                                        text -> List.of(new CompletionItem("Main.java", "file")));
+                                        text -> List.of(new CompletionItem("@src/", "dir")));
 
-        var decision = policy.complete("open src/");
+        var decision = policy.complete("@s");
+
+        assertEquals(PromptCompletionPolicy.Kind.REPLACE, decision.kind());
+        assertEquals("@src/", decision.replacement()); // trailing / kept → the next Tab descends a level
+    }
+
+    @Test
+    void multipleFileMatchesExtendToTheirCommonPrefix() {
+        var policy = new PromptCompletionPolicy(new SlashCommandRegistry(),
+                                        text -> List.of(new CompletionItem("@src/main/", "dir"),
+                                                                        new CompletionItem("@src/models/", "dir")));
+
+        var decision = policy.complete("@src/");
+
+        assertEquals(PromptCompletionPolicy.Kind.REPLACE, decision.kind());
+        assertEquals("@src/m", decision.replacement()); // longest unambiguous extension, then the user types on
+    }
+
+    @Test
+    void ambiguousFileMatchesShowTheChooserWithTheAcceptedPrefix() {
+        var policy = new PromptCompletionPolicy(new SlashCommandRegistry(), text -> List
+                                        .of(new CompletionItem("@alpha", "file"), new CompletionItem("@beta", "file")));
+
+        var decision = policy.complete("open @");
 
         assertEquals(PromptCompletionPolicy.Kind.SHOW, decision.kind());
         assertEquals("open ", decision.prefix());
-        assertEquals("Main.java", decision.items().getFirst().name());
     }
 
     @Test
