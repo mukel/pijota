@@ -112,7 +112,11 @@ class PromptEditorTest {
         editor.insertText("src/Main");
         var result = editor.apply(Key.Special.TAB);
 
-        // A single match completes outright on Tab (shell-style) — no chooser to Enter-accept.
+        assertTrue(result.submitted().isEmpty());
+        assertTrue(editor.hasCompletions());
+
+        result = editor.apply(Key.Special.ENTER);
+
         assertTrue(result.submitted().isEmpty());
         assertEquals("src/Main.java", editor.text());
         assertFalse(editor.hasCompletions());
