@@ -217,7 +217,7 @@ final class StreamRenderer {
     static String thinkingSummary(String thinking, long startedAt, AnsiTheme theme) {
         int tokens = (int) Math.ceil((thinking == null ? 0 : thinking.length()) / 4.0);
         long elapsed = startedAt > 0 ? System.currentTimeMillis() - startedAt : 0;
-        return theme.styled("thinkingText", "└▸ ") + theme.styled("thinkingText", "thought ")
+        return theme.styled("thinkingText", "└ ") + theme.styled("thinkingText", "thought ")
                                         + theme.styled("thinkingText", Util.fmtCount(tokens) + " tokens")
                                         + theme.styled("thinkingText", " · " + Util.formatDuration(elapsed));
     }

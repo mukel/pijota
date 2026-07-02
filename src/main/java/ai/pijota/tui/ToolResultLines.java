@@ -35,30 +35,43 @@ final class ToolResultLines {
         if (!detail.isBlank())
             nameDetail.append(' ').append(theme.styled("statusText", detail));
 
-        // Trailing meta — summary, bash exit code, elapsed — set off by dim middle-dot separators for rhythm.
-        var meta = new ArrayList<String>();
+        // Trailing meta — summary, bash exit code, elapsed. Plain values; each layout styles them (bright vs dim)
+        // below.
         String summary = rendered != null ? rendered.summary() : toolResultSummary(msg);
-        if (!summary.isBlank())
-            meta.add(theme.styled(slot, summary));
+        Integer exit = null;
         if ("bash".equals(msg.toolName())) {
             Map<String, Object> details = msg.details() == null ? Map.of() : msg.details();
             if (details.get("exitCode") instanceof Number ec)
-                meta.add(theme.styled(ec.intValue() == 0 ? "statusText" : "toolError", "exit " + ec.intValue()));
+                exit = ec.intValue();
         }
-        if (elapsedMs >= 1000) // sub-second tools are instant; only annotate the ones the user actually waits on
-            meta.add(theme.styled("commandMeta", Util.formatDuration(elapsedMs)));
-        String metaStr = String.join(theme.styled("commandMeta", " · "), meta);
+        String elapsedStr = elapsedMs >= 1000 ? Util.formatDuration(elapsedMs) : null; // sub-second tools are instant
+        String dot = theme.styled("commandMeta", " · ");
 
-        // Framed layout for bash-with-output: ┌ opens with the command, bare body, └▸ closes with the meta — the same
-        // idiom as the thinking block. Every other tool (and no-output bash) keeps the compact single-line header.
+        // Framed layout for bash-with-output: a bright ┌ opens with the command, bare body, and a dim └ closing line —
+        // the same idiom as the thinking block (bright open, muted close). Every other tool keeps the compact header.
         var lines = new ArrayList<String>();
         if ("bash".equals(msg.toolName()) && rendered != null && !rendered.body().isEmpty()) {
             lines.add(theme.styled(nameSlot, "┌ ") + nameDetail);
             for (String line : rendered.body())
                 lines.add(renderToolBodyLine(line, theme));
-            lines.add(theme.styled(nameSlot, "└▸") + (metaStr.isEmpty() ? "" : " " + metaStr));
+            var foot = new ArrayList<String>();
+            if (!summary.isBlank())
+                foot.add(theme.styled("commandMeta", summary));
+            if (exit != null) // the exit code stays red on failure — the one cue that survives the dim closing line
+                foot.add(theme.styled(exit == 0 ? "commandMeta" : "toolError", "exit " + exit));
+            if (elapsedStr != null)
+                foot.add(theme.styled("commandMeta", elapsedStr));
+            lines.add(theme.styled("commandMeta", "└") + (foot.isEmpty() ? "" : " " + String.join(dot, foot)));
         } else {
-            lines.add(theme.styled(nameSlot, marker) + " " + nameDetail + (metaStr.isEmpty() ? "" : "  " + metaStr));
+            var meta = new ArrayList<String>();
+            if (!summary.isBlank())
+                meta.add(theme.styled(slot, summary));
+            if (exit != null)
+                meta.add(theme.styled(exit == 0 ? "statusText" : "toolError", "exit " + exit));
+            if (elapsedStr != null)
+                meta.add(theme.styled("commandMeta", elapsedStr));
+            lines.add(theme.styled(nameSlot, marker) + " " + nameDetail
+                                            + (meta.isEmpty() ? "" : "  " + String.join(dot, meta)));
             if (rendered != null && !rendered.body().isEmpty())
                 for (String line : rendered.body())
                     lines.add(renderToolBodyLine(line, theme));
@@ -112,7 +125,8 @@ final class ToolResultLines {
             return theme.styled("statusText", "╰→") + theme.styled("commandMeta", line.substring(2));
         if (line.equals("┴") || line.equals("┬"))
             return theme.styled("statusText", line);
-        String bodySlot = line.startsWith("⋯") ? "commandMeta" : "statusText";
-        return theme.styled(bodySlot, line);
+        if (line.startsWith("⋯")) // truncation cue — colored so the "N lines omitted" break stands out from the output
+            return theme.styled("statusWarn", line);
+        return theme.styled("statusText", line);
     }
 }
