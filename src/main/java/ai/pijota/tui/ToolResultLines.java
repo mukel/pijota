@@ -29,12 +29,11 @@ final class ToolResultLines {
         String nameSlot = msg.isError() ? "toolError" : "toolLabel";
         String marker = msg.isError() ? "✖" : glyph; // the tool supplies its glyph; ✖ marks any failure
 
-        // Head: marker · tool name (accent) · target detail (muted).
-        var head = new StringBuilder();
-        head.append(theme.styled(nameSlot, marker)).append(' ').append(theme.styled(nameSlot, msg.toolName()));
+        // Name (accent) · target detail (muted). The leading marker / frame glyph is added per-layout below.
+        var nameDetail = new StringBuilder(theme.styled(nameSlot, msg.toolName()));
         String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay);
         if (!detail.isBlank())
-            head.append(' ').append(theme.styled("statusText", detail));
+            nameDetail.append(' ').append(theme.styled("statusText", detail));
 
         // Trailing meta — summary, bash exit code, elapsed — set off by dim middle-dot separators for rhythm.
         var meta = new ArrayList<String>();
@@ -48,14 +47,22 @@ final class ToolResultLines {
         }
         if (elapsedMs >= 1000) // sub-second tools are instant; only annotate the ones the user actually waits on
             meta.add(theme.styled("commandMeta", Util.formatDuration(elapsedMs)));
-        if (!meta.isEmpty())
-            head.append("  ").append(String.join(theme.styled("commandMeta", " · "), meta));
+        String metaStr = String.join(theme.styled("commandMeta", " · "), meta);
 
+        // Framed layout for bash-with-output: ┌ opens with the command, bare body, └▸ closes with the meta — the same
+        // idiom as the thinking block. Every other tool (and no-output bash) keeps the compact single-line header.
         var lines = new ArrayList<String>();
-        lines.add(head.toString());
-        if (rendered != null && !rendered.body().isEmpty())
+        if ("bash".equals(msg.toolName()) && rendered != null && !rendered.body().isEmpty()) {
+            lines.add(theme.styled(nameSlot, "┌ ") + nameDetail);
             for (String line : rendered.body())
                 lines.add(renderToolBodyLine(line, theme));
+            lines.add(theme.styled(nameSlot, "└▸") + (metaStr.isEmpty() ? "" : " " + metaStr));
+        } else {
+            lines.add(theme.styled(nameSlot, marker) + " " + nameDetail + (metaStr.isEmpty() ? "" : "  " + metaStr));
+            if (rendered != null && !rendered.body().isEmpty())
+                for (String line : rendered.body())
+                    lines.add(renderToolBodyLine(line, theme));
+        }
         return lines;
     }
 

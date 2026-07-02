@@ -38,7 +38,8 @@ class ToolResultLinesTest {
         String out = visible(lines);
         assertTrue(out.contains("ran ok"), out);
         assertTrue(out.contains("line one") && out.contains("line two"), out);
-        assertEquals(3, lines.size(), "header + two body lines");
+        assertTrue(out.contains("┌") && out.contains("└▸"), "bash output is framed: " + out);
+        assertEquals(4, lines.size(), "┌ header + two body lines + └▸ footer");
     }
 
     @Test

@@ -176,27 +176,20 @@ public final class BashTool implements Tool {
         }
         summary = prefix + output.lines().count() + " line(s)";
 
+        // Bare output lines — the framed layout (┌ … └▸) delimits the block, so no per-line rail. On overflow, show a
+        // head+tail preview split by one muted line that carries the omitted count and the saved-output path.
         var body = new ArrayList<String>();
-        if (output != null && !output.isBlank() && !"(no output)".equals(output)) {
-            var lines = output.lines().toList();
-            if (lines.size() <= PREVIEW_LINES) {
-                for (String line : lines)
-                    body.add("│ " + line);
-            } else {
-                for (int i = 0; i < PREVIEW_HEAD_LINES; i++) {
-                    body.add("│ " + lines.get(i));
-                }
-                int omitted = lines.size() - PREVIEW_HEAD_LINES - PREVIEW_TAIL_LINES;
-                body.add("┴");
-                body.add("⋯ " + omitted + " omitted line(s)");
-                body.add("┬");
-                for (int i = lines.size() - PREVIEW_TAIL_LINES; i < lines.size(); i++) {
-                    body.add("│ " + lines.get(i));
-                }
-            }
-            if (lines.size() > PREVIEW_LINES && details.get("outputPath") instanceof String path) {
-                body.add("╰→ full output: " + path);
-            }
+        var lines = output.lines().toList();
+        if (lines.size() <= PREVIEW_LINES) {
+            body.addAll(lines);
+        } else {
+            body.addAll(lines.subList(0, PREVIEW_HEAD_LINES));
+            int omitted = lines.size() - PREVIEW_HEAD_LINES - PREVIEW_TAIL_LINES;
+            String omit = "⋯ " + omitted + " lines omitted";
+            if (details.get("outputPath") instanceof String path)
+                omit += " · full output: " + path;
+            body.add(omit);
+            body.addAll(lines.subList(lines.size() - PREVIEW_TAIL_LINES, lines.size()));
         }
         return ToolResultView.of(summary, body);
     }
