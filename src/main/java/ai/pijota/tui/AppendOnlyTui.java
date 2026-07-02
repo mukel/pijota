@@ -305,14 +305,17 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         selectors.bind(TuiSelectors.Slot.PALETTE, commandPalette::confirmPaletteSelection);
         selectors.bind(TuiSelectors.Slot.REMOTE, this::confirmRemoteSelection);
         var regions = new ArrayList<PromptRegion>();
-        regions.add(new PromptRegion.Editor());
+        var promptGlyphs = settings != null && settings.config().prompt() != null
+                                        ? settings.config().prompt()
+                                        : ai.pijota.config.PromptGlyphs.DEFAULTS;
+        regions.add(new PromptRegion.Editor(promptGlyphs));
         regions.add(new PendingRegion());
         regions.addAll(selectors.regions());
         regions.add(new PromptRegion.Completions());
         regions.add(new PromptSelectorRegion(selector));
         regions.add(new LogViewerRegion(logViewer));
         regions.add(new PromptRegion.StatusBar());
-        this.promptLayout = new PromptLayout(regions);
+        this.promptLayout = new PromptLayout(regions, promptGlyphs.topDivider());
         this.terminalUi = new TerminalCoordinator(terminal, theme, promptLayout);
         this.streamRenderer = new StreamRenderer(terminalUi::appendLines, theme, thinkingTheme,
                                         () -> terminal.getWidth() - 4, this::showThinking, () -> thinkingLevel.label(),

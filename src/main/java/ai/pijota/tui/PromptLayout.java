@@ -8,6 +8,7 @@ import java.util.List;
 public final class PromptLayout {
 
     private final List<PromptRegion> regions;
+    private final boolean topDivider;
     private PromptSnapshot prompt = new PromptSnapshot(List.of(""), 0, 0, List.of());
 
     private int renderedHeight;
@@ -15,7 +16,12 @@ public final class PromptLayout {
     private int visualCursorCol;
 
     public PromptLayout(List<PromptRegion> regions) {
+        this(regions, true);
+    }
+
+    public PromptLayout(List<PromptRegion> regions, boolean topDivider) {
         this.regions = List.copyOf(regions);
+        this.topDivider = topDivider;
     }
 
     /**
@@ -23,7 +29,7 @@ public final class PromptLayout {
      * the one-row top separator. Used to budget a resizable region (the log viewer) so the whole frame fits on screen.
      */
     public int measuredHeightExcluding(Class<? extends PromptRegion> excluded, int width, PromptSnapshot snapshot) {
-        int height = 1; // top separator
+        int height = topDivider ? 1 : 0; // top separator (optional)
         for (var region : regions) {
             if (excluded.isInstance(region))
                 continue;
@@ -82,11 +88,14 @@ public final class PromptLayout {
             }
         }
 
-        // A single quiet separator keeps the prompt visually grounded without boxing it in.
-        out.print("\r");
-        out.print(theme.styled("hr", "─".repeat(Math.max(10, width - 2))));
-        out.print("\033[K\r\n");
-        height++;
+        // Top rule of the prompt frame (the Editor draws the matching bottom rule) — a clean frame without a box; the
+        // in-box caret carries state, so the rule stays plain. Tinted by state (red on error). Optional (top_divider).
+        if (topDivider) {
+            out.print("\r");
+            out.print(theme.styled(PromptRegion.ruleSlot(snapshot), "─".repeat(Math.max(10, width - 2))));
+            out.print("\033[K\r\n");
+            height++;
+        }
         int afterSeparator = height;
 
         for (int i = 0; i < regions.size(); i++) {

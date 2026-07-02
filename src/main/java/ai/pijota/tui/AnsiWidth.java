@@ -47,6 +47,10 @@ final class AnsiWidth {
             return 2;
         if (cp >= 0x2300 && cp <= 0x24FF)
             return 2;
+        // Dingbat angle-bracket (❮❯…) and arrow (➜➤…) ornaments render width 1, unlike the emoji in the same block —
+        // so a ❯ caret doesn't shift the cursor. Carve them out before the block-wide rule below.
+        if ((cp >= 0x276C && cp <= 0x2771) || (cp >= 0x2794 && cp <= 0x27BF))
+            return 1;
         if (cp >= 0x2580 && cp <= 0x27BF)
             return 2;
         if (cp >= 0x2B00 && cp <= 0x2BFF)

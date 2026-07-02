@@ -34,7 +34,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("max_turns") Integer maxTurns,
                                 @JsonProperty("providers") List<ProviderCatalog.Provider> providers,
                                 @JsonProperty("extensions") Map<String, Object> extensions,
-                                @JsonProperty("markdown") String markdown) {
+                                @JsonProperty("markdown") String markdown,
+                                @JsonProperty("prompt") PromptGlyphs prompt) {
 
     /** Default per-prompt agent-turn cap when {@code max_turns} is unset. {@code 0} (or negative) means unlimited. */
     public static final int DEFAULT_MAX_TURNS = 256;
@@ -45,7 +46,21 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         // $SHELL.
         this(null, null, Map.of(), "medium", Platform.defaultShell(), null, null, null, null, List.of(), List.of(),
                                         true, false, false, "dots", null, new CompactionConfig(), Map.of(), null,
-                                        List.of(), Map.of(), "rich");
+                                        List.of(), Map.of(), "rich", new PromptGlyphs());
+    }
+
+    /** Back-compat positional constructor (pre-{@code prompt}); defaults the prompt glyphs. */
+    public AppConfig(String defaultProvider, String defaultModel, Map<String, String> apiKeys, String thinkingLevel,
+                                    String shellPath, String shellCommandPrefix, String sessionDir, String projectDir,
+                                    String theme, List<String> themes, List<String> enabledModels, Boolean contextFiles,
+                                    boolean hideThinking, boolean quietStartup, String workingAnimation,
+                                    String pathDisplay, CompactionConfig compaction, Map<String, String> aliases,
+                                    Integer maxTurns, List<ProviderCatalog.Provider> providers,
+                                    Map<String, Object> extensions, String markdown) {
+        this(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix, sessionDir,
+                                        projectDir, theme, themes, enabledModels, contextFiles, hideThinking,
+                                        quietStartup, workingAnimation, pathDisplay, compaction, aliases, maxTurns,
+                                        providers, extensions, markdown, new PromptGlyphs());
     }
 
     public static AppConfig load(Path path) throws IOException {
@@ -156,6 +171,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         private List<ProviderCatalog.Provider> providers;
         private Map<String, Object> extensions;
         private String markdown;
+        private PromptGlyphs prompt;
 
         private Builder(AppConfig c) {
             this.defaultProvider = c.defaultProvider;
@@ -180,6 +196,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             this.providers = c.providers;
             this.extensions = c.extensions;
             this.markdown = c.markdown;
+            this.prompt = c.prompt;
         }
 
         public Builder defaultProvider(String v) {
@@ -272,11 +289,16 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             return this;
         }
 
+        public Builder prompt(PromptGlyphs v) {
+            this.prompt = v;
+            return this;
+        }
+
         public AppConfig build() {
             return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
                                             sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
                                             hideThinking, quietStartup, workingAnimation, pathDisplay, compaction,
-                                            aliases, maxTurns, providers, extensions, markdown);
+                                            aliases, maxTurns, providers, extensions, markdown, prompt);
         }
     }
 

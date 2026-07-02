@@ -36,8 +36,8 @@ class PromptLayoutTest {
         var viewer = new LogViewerRegion(new LogViewer());
         var layout = new PromptLayout(List.of(new PromptRegion.Editor(), new FixedRegion(4), viewer));
 
-        // Editor is 1 row (empty line) + FixedRegion 4 + the 1-row separator = 6. The viewer is excluded.
-        assertEquals(1 + 1 + 4, layout.measuredHeightExcluding(LogViewerRegion.class, 80, snapshot()));
+        // Editor is 2 rows (empty input line + bottom rule) + FixedRegion 4 + the 1-row separator = 7. Viewer excluded.
+        assertEquals(2 + 1 + 4, layout.measuredHeightExcluding(LogViewerRegion.class, 80, snapshot()));
     }
 
     @Test
@@ -115,13 +115,14 @@ class PromptLayoutTest {
     void longStreamTailCappedToAvailableScreenRowsKeepingNewest() {
         var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
 
-        // height 10: separator (1) + editor (1) + one spare row leaves a 7-row budget for the tail.
+        // height 10: separator (1) + editor (2: input + bottom rule) + one spare row leaves a 6-row budget for the
+        // tail.
         render(layout, 40, 10, snapshot());
         int plainRows = eraseUpRows(layout);
         render(layout, 40, 10, snapshot().withStreamTail("x".repeat(500)));
         int longRows = eraseUpRows(layout);
-        // 13 wrapped rows can't fit; capped to the newest 7 so it never pushes the prompt off the bottom.
-        assertEquals(plainRows + 7, longRows, "a tail taller than the screen is capped to the newest rows");
+        // 13 wrapped rows can't fit; capped to the newest 6 so it never pushes the prompt off the bottom.
+        assertEquals(plainRows + 6, longRows, "a tail taller than the screen is capped to the newest rows");
     }
 
     @Test
