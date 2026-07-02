@@ -299,6 +299,7 @@ public class AnsiTheme {
         t.bannerName = styledColor(c, vars, "accent", t.bannerName);
         t.bannerMeta = styledColor(c, vars, "muted", t.bannerMeta);
         t.cwdLine = color(c, vars, "dim", t.cwdLine);
+        t.commandMeta = color(c, vars, "secondary", color(c, vars, "muted", t.commandMeta)); // status bar / tool meta
         t.bashMode = color(c, vars, "bashMode", t.bashMode);
         t.thinkingText = color(c, vars, "thinkingText", t.thinkingText);
         t.diffAdd = color(c, vars, "toolDiffAdded", t.diffAdd);

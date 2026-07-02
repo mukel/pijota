@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.function.Supplier;
 
 import static ai.pijota.util.Util.fmtCount;
+import static ai.pijota.util.Util.fmtCountPrecise;
 
 /**
  * Composes the prompt/status-bar decoration for {@link AppendOnlyTui}: given the editor's {@link PromptSnapshot} it
@@ -67,34 +68,36 @@ final class PromptPresenter {
             status = status != null ? status + "\n" + promptLine : promptLine;
         }
         AnsiTheme theme = host.theme();
-        String cwdLine = theme.styled("commandMeta", host.cwd());
+        // Two-line bar. Line 1 (cwd slot): the workspace — cwd · branch [· session]. Line 2 (status slot): token info,
+        // then "(provider) model • reasoning" right after it, then the activity (spinner · phase · elapsed) during a
+        // turn. Both lines wrap (not truncate) so a narrow terminal spills to the next row instead of losing the tail.
+        var cwd = new StringBuilder(theme.styled("commandMeta", host.cwd()));
         String sessionName = host.sessionName();
-        if (sessionName != null && !sessionName.isBlank()) {
-            cwdLine += theme.styled("commandMeta", "  " + sessionName);
+        if (sessionName != null && !sessionName.isBlank())
+            cwd.append(theme.styled("commandMeta", "  " + sessionName));
+
+        var stats = new StringBuilder(theme.styled("statusText", tokens));
+        stats.append(theme.styled("commandMeta", "  (" + host.provider() + ") " + host.model()));
+        if (host.thinkingLevel() != ThinkingLevel.OFF)
+            stats.append(theme.styled("commandMeta", " • " + host.thinkingLevel().label()));
+        if (activity.isBusy()) {
+            stats.append(theme.styled("statusText", "  " + animation.frame()));
+            String phase = activity.phase();
+            if (phase != null && !phase.isBlank())
+                stats.append(theme.styled("statusText", " " + phase));
+            long elapsed = activity.elapsedMillis();
+            if (elapsed >= 1000) // a running seconds counter so long turns visibly progress (not stuck)
+                stats.append(theme.styled("statusText", "  " + (elapsed / 1000) + "s"));
+            int queued = followUps.queuedCount();
+            if (queued > 0)
+                stats.append(theme.styled("statusText", "  queued " + queued));
         }
-        cwdLine += theme.styled("commandMeta", "  " + compactModelName(host.provider(), host.model()));
-        if (host.thinkingLevel() != ThinkingLevel.OFF) {
-            cwdLine += theme.styled("commandMeta", "  " + host.thinkingLevel().label());
-        }
-        snapshot = snapshot.withCwd(cwdLine).withContextPct(tokenPct()).withPendingMessages(followUps.pending())
+
+        return snapshot.withCwd(cwd.toString()).withStatus(stats.toString()).withContextPct(tokenPct())
+                                        .withPendingMessages(followUps.pending())
                                         .withExtensionLines(mergedExtensionLines())
                                         .withPromptState(promptState(snapshot, status))
-                                        .withStreamTail(host.liveStreamTail());
-        if (!activity.isBusy()) {
-            return snapshot.withStatus(tokens).withWarning(status);
-        }
-        String frame = animation.frame();
-        int queued = followUps.queuedCount();
-        String bar = tokens + "  " + frame;
-        String phase = activity.phase();
-        if (phase != null && !phase.isBlank())
-            bar += " " + phase;
-        long elapsed = activity.elapsedMillis();
-        if (elapsed >= 1000) // a running seconds counter so long turns visibly progress (not stuck)
-            bar += "  " + (elapsed / 1000) + "s";
-        if (queued > 0)
-            bar += "  queued " + queued;
-        return snapshot.withStatus(bar).withWarning(status);
+                                        .withStreamTail(host.liveStreamTail()).withWarning(status);
     }
 
     static String compactModelName(String provider, String model) {
@@ -168,7 +171,7 @@ final class PromptPresenter {
         int pct = (int) Math.min(99, (tokens * 100) / Math.max(1, contextWindow));
         String pctStr = host.theme().styled(pct >= 90 ? "toolError" : pct >= 70 ? "toolLabel" : "statusText",
                                         "(" + pct + "%)");
-        return fmtCount((int) tokens) + "/" + fmtCount((int) contextWindow) + " " + pctStr;
+        return fmtCountPrecise(tokens) + "/" + fmtCount((int) contextWindow) + " " + pctStr;
     }
 
     int tokenPct() {

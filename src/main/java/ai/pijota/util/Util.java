@@ -294,6 +294,25 @@ public final class Util {
         return Long.toString(value);
     }
 
+    /**
+     * Like {@link #fmtCount} but keeps two significant fractional digits (trailing zeros trimmed): {@code 600},
+     * {@code 1.22K}, {@code 12.3K}, {@code 1.05M}. For live counts where the integer-K rounding loses too much.
+     */
+    public static String fmtCountPrecise(long value) {
+        if (value >= 1_000_000)
+            return trimZeros(String.format(Locale.ROOT, "%.2f", value / 1_000_000.0)) + "M";
+        if (value >= 1_000)
+            return trimZeros(String.format(Locale.ROOT, "%.2f", value / 1_000.0)) + "K";
+        return Long.toString(value);
+    }
+
+    private static String trimZeros(String s) {
+        if (s.indexOf('.') < 0)
+            return s;
+        s = s.replaceAll("0+$", "");
+        return s.endsWith(".") ? s.substring(0, s.length() - 1) : s;
+    }
+
     public static String formatDuration(long ms) {
         long seconds = ms / 1000;
         if (seconds < 60)

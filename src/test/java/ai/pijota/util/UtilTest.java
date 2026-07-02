@@ -39,6 +39,16 @@ class UtilTest {
     }
 
     @Test
+    void fmtCountPreciseKeepsTwoTrimmedFractionalDigits() {
+        assertEquals("0", Util.fmtCountPrecise(0));
+        assertEquals("600", Util.fmtCountPrecise(600));
+        assertEquals("1.22K", Util.fmtCountPrecise(1220)); // where fmtCount rounds to a lossy "1K"
+        assertEquals("1K", Util.fmtCountPrecise(1000)); // trailing zeros trimmed
+        assertEquals("12.3K", Util.fmtCountPrecise(12_300));
+        assertEquals("1.05M", Util.fmtCountPrecise(1_050_000));
+    }
+
+    @Test
     void formatDurationFormatsMillisecondsToShortForm() {
         assertEquals("0s", Util.formatDuration(0));
         assertEquals("5s", Util.formatDuration(5_000));
