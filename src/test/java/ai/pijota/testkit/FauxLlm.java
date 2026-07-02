@@ -26,6 +26,7 @@ public final class FauxLlm implements LlmClient {
     private String model = "faux-model";
     private long inputTokens;
     private long outputTokens;
+    private long lastContextTokens; // in + out of the most recent response, mirroring LlmService (the anchor reads it)
 
     /**
      * Makes {@link #streamMessages} throw synchronously (a provider that fails on the calling thread), rather than
@@ -51,6 +52,11 @@ public final class FauxLlm implements LlmClient {
     @Override
     public long totalOutputTokens() {
         return outputTokens;
+    }
+
+    @Override
+    public long lastContextTokens() {
+        return lastContextTokens;
     }
 
     public FauxLlm provider(String value) {
@@ -151,6 +157,8 @@ public final class FauxLlm implements LlmClient {
         result.setThinking(thinking.toString());
         result.setToolCalls(response.toolCalls());
         result.setUsage(response.usage());
+        if (response.usage() != null)
+            lastContextTokens = response.usage().inputTokens() + response.usage().outputTokens();
         return CompletableFuture.completedFuture(result);
     }
 

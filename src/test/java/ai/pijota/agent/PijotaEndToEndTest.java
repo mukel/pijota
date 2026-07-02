@@ -188,7 +188,10 @@ class PijotaEndToEndTest {
         long initialTokens = session.estimatedContextTokens();
 
         var llm = (FauxLlm) session.agentLoop().llm();
-        llm.enqueue(contentWithUsage("hello world " + "x".repeat(500)));
+        // Realistic prompt-token usage (not the nominal Usage(1,1)): the context anchor keys off the provider's
+        // reported
+        // promptTokens, and a degenerate 1 would drive the overhead negative and collapse the count to its floor.
+        llm.enqueue(FauxLlm.Response.content(new Usage(1000, 50), "hello world " + "x".repeat(500)));
         session.prompt("test question " + "y".repeat(500)).get(2, TimeUnit.SECONDS);
 
         long afterTokens = session.estimatedContextTokens();
