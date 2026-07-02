@@ -174,7 +174,8 @@ final class StreamRenderer {
         var tail = thinkingMarkdown.flush();
         if (!tail.isEmpty())
             output.appendLines(tail);
-        emitPlain(List.of(thinkingSummary(lastThinking, thinkingStartedAt, theme)));
+        // Trailing blank line so the summary is visually separated from the answer that follows.
+        emitPlain(List.of(thinkingSummary(lastThinking, thinkingStartedAt, theme), ""));
         thinkingFooterShown = true;
     }
 
