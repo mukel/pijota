@@ -19,8 +19,7 @@ class FzfFilePickerTest {
         assertTrue(s.contains("fzf"), s);
         assertTrue(s.contains("--read0") && s.contains("--print0"), "NUL-delimited so odd filenames survive verbatim");
         assertTrue(s.contains("git ls-files -z"), "static, raw (un-quoted) git list, cwd-relative incl ../");
-        assertTrue(s.contains("fd --type f") && s.contains("find"),
-                                        "fd (gitignore-aware) → find fallback outside a repo");
+        assertTrue(s.contains("-type d") && s.contains("find"), "lists directories too (fd/find), not only files");
         assertTrue(s.contains("change:transform"), "re-root via transform, not per-keystroke reload"); // flicker fix
         assertTrue(s.contains("*/)"), "re-root only when the query ends in / → reaches @../ outside the repo");
         assertFalse(s.contains("change:reload"), "no per-keystroke reload → no flicker");
@@ -30,6 +29,24 @@ class FzfFilePickerTest {
     @Test
     void availableDoesNotThrow() {
         FzfFilePicker.available(); // PATH-dependent; just exercise the lookup
+    }
+
+    @Test
+    void listCommandIncludesDirectoriesNotOnlyFiles(@TempDir Path tmp) throws Exception {
+        run(tmp, "git", "init", "-q", "."); // exercise the in-repo branch (git files + fd/find dirs)
+        Files.createDirectory(tmp.resolve("mymodule"));
+        Files.writeString(tmp.resolve("mymodule/x.txt"), "x");
+
+        var p = new ProcessBuilder("sh", "-c", "{ " + FzfFilePicker.listCommand() + " ; }").directory(tmp.toFile())
+                                        .redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        byte[] out = p.getInputStream().readAllBytes();
+        p.waitFor();
+        var entries = List.of(new String(out, StandardCharsets.UTF_8).split("\0"));
+
+        assertTrue(entries.stream().map(e -> e.replaceFirst("^\\./", "").replaceFirst("/$", ""))
+                                        .anyMatch(e -> e.equals("mymodule")),
+                                        "the folder itself is selectable, not only its files: " + entries);
+        assertTrue(entries.stream().anyMatch(e -> e.endsWith("x.txt")), "files still listed: " + entries);
     }
 
     @Test

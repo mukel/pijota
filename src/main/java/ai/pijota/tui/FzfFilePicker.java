@@ -32,13 +32,19 @@ final class FzfFilePicker {
      * {@code "a \"b\" c.txt"}). Reused by tests to exercise the exact pipeline non-interactively via {@code fzf -f}.
      */
     static String listCommand() {
-        // git first: it uniquely lists the whole repo cwd-relative (../ for in-repo parents). Outside a repo, prefer fd
-        // (gitignore/.ignore-aware, fast; `fdfind` is the Debian binary name) and fall back to find. Each tool exits
-        // non-zero when absent (127) so `||` advances; all emit NUL so odd filenames survive.
-        return "git ls-files -z --cached --others --exclude-standard :/ 2>/dev/null"
-                                        + " || fd --type f --hidden --exclude .git -0 2>/dev/null"
-                                        + " || fdfind --type f --hidden --exclude .git -0 2>/dev/null"
-                                        + " || find . -type f -not -path '*/.git/*' -print0 2>/dev/null";
+        // Directories too (not just files), so folders are selectable. git ls-files can't emit directories, so inside a
+        // repo we list its FILES (cwd-relative, incl ../ parents, gitignore-aware) and append DIRECTORIES from fd
+        // (gitignore-aware; `fdfind` is the Debian name) or find. Outside a repo, fd (files+dirs) then find. Each tool
+        // exits non-zero when absent (127) so `||` advances; all emit NUL so odd filenames survive.
+        String dirs = "fd -0 --type d --hidden --exclude .git 2>/dev/null"
+                                        + " || fdfind -0 --type d --hidden --exclude .git 2>/dev/null"
+                                        + " || find . -type d -not -path '*/.git/*' -print0 2>/dev/null";
+        String filesAndDirs = "fd -0 --type f --type d --hidden --exclude .git 2>/dev/null"
+                                        + " || fdfind -0 --type f --type d --hidden --exclude .git 2>/dev/null"
+                                        + " || find . \\( -type f -o -type d \\) -not -path '*/.git/*' -print0 2>/dev/null";
+        return "if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then "
+                                        + "git ls-files -z --cached --others --exclude-standard :/ 2>/dev/null; " + dirs
+                                        + "; else " + filesAndDirs + "; fi";
     }
 
     /**
@@ -48,7 +54,7 @@ final class FzfFilePicker {
         // fzf filters the static list in-memory → no per-keystroke reload → no flicker. Re-root ONLY when the query
         // completes a directory (ends with /), e.g. `../` or `src/`: this reaches the real filesystem dir — including
         // parents above / outside the repo that the static list can't see — and fires at most once per directory hop.
-        String reroot = "q={q}; case \"$q\" in */) echo \"reload(find \\\"${q%/}\\\" -type f"
+        String reroot = "q={q}; case \"$q\" in */) echo \"reload(find \\\"${q%/}\\\" \\( -type f -o -type d \\)"
                                         + " -not -path '*/.git/*' -print0 2>/dev/null)\";; esac";
         return "fzf --read0 --print0 --reverse --prompt='@ ' --no-multi" + " --bind "
                                         + Util.shellQuote("start:reload:" + listCommand()) + " --bind "
