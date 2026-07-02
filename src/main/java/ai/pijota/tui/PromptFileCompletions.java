@@ -12,9 +12,16 @@ final class PromptFileCompletions {
 
     static List<CompletionItem> complete(String text) {
         int lastSpace = text.lastIndexOf(' ');
-        String prefix = lastSpace >= 0 ? text.substring(lastSpace + 1) : text;
-        if (prefix.isBlank())
+        String token = lastSpace >= 0 ? text.substring(lastSpace + 1) : text;
+        // A leading @ marks a file reference: strip it for filesystem resolution, then re-add it to each completion so
+        // the reference survives (otherwise "@/usr/lib" resolves "@/usr/" as a relative dir and finds nothing).
+        // Bare-path
+        // tab-completion (no @) keeps working.
+        boolean atRef = token.startsWith("@");
+        String prefix = atRef ? token.substring(1) : token;
+        if (token.isEmpty() || (!atRef && prefix.isBlank()))
             return List.of();
+        String at = atRef ? "@" : "";
         try {
             Path dir;
             String filePrefix;
@@ -38,7 +45,7 @@ final class PromptFileCompletions {
                     return !name.startsWith(".") && name.toLowerCase().contains(fPrefix);
                 }).sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase())).limit(15).map(p -> {
                     String name = p.getFileName().toString();
-                    String display = lastSep >= 0 ? prefix.substring(0, lastSep + 1) + name : name;
+                    String display = at + (lastSep >= 0 ? prefix.substring(0, lastSep + 1) + name : name);
                     if (Files.isDirectory(p))
                         display += "/";
                     return new CompletionItem(display, Files.isDirectory(p) ? "dir" : "");

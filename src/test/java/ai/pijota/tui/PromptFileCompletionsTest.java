@@ -29,6 +29,19 @@ class PromptFileCompletionsTest {
     }
 
     @Test
+    void completesAtReferencedAbsolutePathsKeepingTheAtMarker() throws Exception {
+        Files.writeString(tempDir.resolve("Main.java"), "");
+
+        // The @ marks a file reference: it must be stripped to resolve the (absolute) path, then re-added so the
+        // completed token stays a reference. Regression: "@/abs/..." used to resolve "@/abs/" as a relative dir →
+        // empty.
+        var matches = PromptFileCompletions.complete("@" + tempDir.resolve("Ma"));
+
+        assertTrue(matches.stream().anyMatch(i -> i.name().startsWith("@") && i.name().endsWith("Main.java")),
+                                        "@-absolute completes and keeps the @: " + matches);
+    }
+
+    @Test
     void ignoresHiddenFiles() throws Exception {
         Files.writeString(tempDir.resolve(".secret"), "");
 
