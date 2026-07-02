@@ -2031,6 +2031,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private List<String> promptEcho(String text) {
         var out = new ArrayList<String>();
+        out.add(""); // breathing room: set each turn off from the previous answer instead of butting them together
         String[] split = text.split("\\R", -1);
         for (int i = 0; i < split.length; i++) {
             out.add(theme.styled("promptEcho", i == 0 ? "▸ " : "│ ") + split[i]);
