@@ -25,6 +25,7 @@ public final class ArgParser {
         var noTools = false;
         var noBuiltinTools = false;
         var noExtensions = false;
+        var noBuiltinExtensions = false;
         var noSkills = false;
         var noThemes = false;
         var noContextFiles = false;
@@ -96,6 +97,7 @@ public final class ArgParser {
                 case "--no-tools", "-nt" -> noTools = true;
                 case "--no-builtin-tools", "-nbt" -> noBuiltinTools = true;
                 case "--no-extensions", "-ne" -> noExtensions = true;
+                case "--no-builtin-extensions", "-nbe" -> noBuiltinExtensions = true;
                 case "--no-skills", "-ns" -> noSkills = true;
                 case "--no-themes" -> noThemes = true;
                 case "--no-context-files", "-nc" -> noContextFiles = true;
@@ -130,12 +132,12 @@ public final class ArgParser {
         }
 
         return new Args(provider, model, apiKey, systemPrompt, appendSystemPrompts, thinkingLevel, outputMode,
-                                        sessionPath, noSession, noTools, noBuiltinTools, noExtensions, noSkills,
-                                        noThemes, noContextFiles, noPromptTemplates, enabledTools, excludeTools,
-                                        extensionPaths, skillPaths, themePaths, promptTemplatePaths, print, resume,
-                                        continueSession, recoverSession, forkPath, exportPath, listModels,
-                                        listModelsFilter, help, version, verbose, agent, worker, fileArgs, promptArgs,
-                                        Map.copyOf(extensionFlags), maxTurns);
+                                        sessionPath, noSession, noTools, noBuiltinTools, noExtensions,
+                                        noBuiltinExtensions, noSkills, noThemes, noContextFiles, noPromptTemplates,
+                                        enabledTools, excludeTools, extensionPaths, skillPaths, themePaths,
+                                        promptTemplatePaths, print, resume, continueSession, recoverSession, forkPath,
+                                        exportPath, listModels, listModelsFilter, help, version, verbose, agent, worker,
+                                        fileArgs, promptArgs, Map.copyOf(extensionFlags), maxTurns);
     }
 
     public static void printHelp() {
@@ -164,7 +166,8 @@ public final class ArgParser {
                                           --exclude-tools, -xt <names> Disable these tools (denylist, any source)
                                           --no-tools, -nt           Disable all tools (built-in and extension)
                                           --no-builtin-tools, -nbt  Disable built-in tools, keep extension tools
-                                          --no-extensions, -ne      Skip extension auto-discovery
+                                          --no-extensions, -ne      Disable all extensions (built-in and discovered)
+                                          --no-builtin-extensions, -nbe  Disable built-in extensions, keep discovered
                                           --no-skills, -ns          Skip skill auto-discovery
                                           --extension, -e <path>    Load extension
                                           --skill <path>            Load skill

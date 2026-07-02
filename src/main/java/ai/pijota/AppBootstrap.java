@@ -100,8 +100,10 @@ public final class AppBootstrap {
         // settings.projectDir() always resolves to a real path (configured dir, else the git root of cwd).
         ext.setProjectDir(Path.of(settings.projectDir()));
         ext.setLlm(llm);
-        ext.loadServiceLoaderExtensions();
+        // Discovered extensions (ServiceLoader + external .pi/extensions dirs). --no-extensions disables ALL extensions
+        // so it skips discovery too; --no-builtin-extensions keeps discovery (that's the point — keep YOUR extensions).
         if (!parsedArgs.noExtensions()) {
+            ext.loadServiceLoaderExtensions();
             // Pi-compatible extension dirs (matches the .pi/agents and .pi/chains convention), not ~/.pijota.
             ext.loadFromDirectory(Path.of(System.getProperty("user.home"), ".pi", "extensions"));
             // Project-local extensions are executable code from the cwd — only load them from a TRUSTED folder, so a
@@ -129,27 +131,32 @@ public final class AppBootstrap {
         if (ext.isEnabled("whoami", false))
             tools.registerBuiltin(new WhoamiTool());
 
-        // Every extension is registered unconditionally; ExtensionRegistry.register() gates each via isEnabled() on the
-        // declared default + settings + flags. (TranscendenceExtension is also JVM-only via its unavailableReason.)
-        ext.register(new TaskExtension());
-        ext.register(new PlanExtension());
-        ext.register(new TranscendenceExtension()); // opt-in --transcendence
-        ext.register(new InlineBashExtension());
-        ext.register(new FilterOutputExtension());
-        ext.register(new SecurityExtension());
-        ext.register(new WhimsicalExtension());
-        ext.register(new GoalExtension());
-        ext.register(new ScheduleExtension());
-        ext.register(new McpExtension());
-        ext.register(new TodoExtension()); // opt-in --todo
-        ext.register(new TokenSpeedExtension()); // opt-in --token-speed
-        ext.register(new WebBrowseExtension()); // opt-in --browse[=engine]
-        ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
-        ext.register(new TmuxExtension()); // opt-in --tmux
-        ext.register(new JobsExtension()); // opt-in --jobs
-        ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
-        ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths())); // --no-prompt-templates disables
-        ext.register(new ContextFilesExtension(cwd)); // --no-context-files / context_files setting disables
+        // Built-in (shipped) extensions — skipped by --no-extensions (all off) or --no-builtin-extensions (keep only
+        // discovered). Otherwise each is registered here and ExtensionRegistry.register() still gates it via
+        // isEnabled()
+        // on the declared default + settings + flags. (TranscendenceExtension is also JVM-only via its reason.)
+        if (!parsedArgs.noExtensions() && !parsedArgs.noBuiltinExtensions()) {
+            ext.register(new TaskExtension());
+            ext.register(new PlanExtension());
+            ext.register(new TranscendenceExtension()); // opt-in --transcendence
+            ext.register(new InlineBashExtension());
+            ext.register(new FilterOutputExtension());
+            ext.register(new SecurityExtension());
+            ext.register(new WhimsicalExtension());
+            ext.register(new GoalExtension());
+            ext.register(new ScheduleExtension());
+            ext.register(new McpExtension());
+            ext.register(new TodoExtension()); // opt-in --todo
+            ext.register(new TokenSpeedExtension()); // opt-in --token-speed
+            ext.register(new WebBrowseExtension()); // opt-in --browse[=engine]
+            ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
+            ext.register(new TmuxExtension()); // opt-in --tmux
+            ext.register(new JobsExtension()); // opt-in --jobs
+            ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
+            ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths())); // --no-prompt-templates
+                                                                                         // disables
+            ext.register(new ContextFilesExtension(cwd)); // --no-context-files / context_files setting disables
+        }
         StartupTimer.mark("extensions registered");
 
         // Resolve the active tool set once, after every source has registered: base scope (--no-tools /

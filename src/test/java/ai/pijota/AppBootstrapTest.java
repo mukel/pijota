@@ -28,13 +28,37 @@ class AppBootstrapTest {
     }
 
     @Test
-    void noToolsLeavesOnlyTheBashTool() throws Exception {
+    void noToolsActivatesNothing() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-tools", "--api-key", "sk-test"}),
                                         settings);
-        assertTrue(result.tools().get("bash").isPresent(), "--no-tools still keeps bash");
-        assertTrue(result.tools().get("read").isEmpty(), "--no-tools drops the default toolset");
+        // The tool policy registers everything but activates none — --no-tools disables all tools, bash included.
+        assertTrue(result.tools().activeTools().isEmpty(),
+                                        "--no-tools activates no tools: " + result.tools().activeTools());
+    }
+
+    @Test
+    void noBuiltinExtensionsDropsShippedExtensionsButKeepsCoreTools() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of(), "gpt-5.5");
+        var result = AppBootstrap.bootstrap(ArgParser.parse(
+                                        new String[] {"--no-builtin-extensions", "--api-key", "sk-test"}), settings);
+        var active = result.tools().activeTools().stream().map(t -> t.name()).toList();
+        assertTrue(active.contains("read"), "built-in TOOLS stay (separate axis from extensions): " + active);
+        assertFalse(active.contains("task"), "shipped-extension tools go with -nbe: " + active);
+        assertFalse(active.contains("goal_set"), active.toString());
+    }
+
+    @Test
+    void noExtensionsDropsAllExtensionToolsButNotCoreTools() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of(), "gpt-5.5");
+        var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-extensions", "--api-key", "sk-test"}),
+                                        settings);
+        var active = result.tools().activeTools().stream().map(t -> t.name()).toList();
+        assertTrue(active.contains("read"), active.toString());
+        assertFalse(active.contains("task"), "-ne drops shipped extensions too: " + active);
     }
 
     @Test
