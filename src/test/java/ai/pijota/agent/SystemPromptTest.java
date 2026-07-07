@@ -18,11 +18,12 @@ class SystemPromptTest {
     }
 
     @Test
-    void transcendenceSectionTogglesWithFlag() {
-        assertTrue(SystemPrompt.build(null, null, "/cwd", List.of(), true).contains("TRANSCENDENCE:"));
-        assertFalse(SystemPrompt.build(null, null, "/cwd", List.of(), false).contains("TRANSCENDENCE:"));
-        // the no-flag overload keeps it (built-in, on by default)
-        assertTrue(SystemPrompt.build(null, null, "/cwd", List.of()).contains("TRANSCENDENCE:"));
+    void optionalCapabilityGuidanceComesFromExtensionPrompts() {
+        assertFalse(SystemPrompt.build(null, null, "/cwd", List.of()).contains("TRANSCENDENCE:"));
+
+        var prompt = SystemPrompt.build(null, null, "/cwd", List.of("\nTRANSCENDENCE:\nextension-owned\n"));
+
+        assertTrue(prompt.contains("TRANSCENDENCE:"));
     }
 
     @Test

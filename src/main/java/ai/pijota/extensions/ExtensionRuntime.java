@@ -12,8 +12,8 @@ import java.util.Optional;
 
 /**
  * Live session state and control surface for extensions. Obtain via {@link ExtensionAPI#runtime()} during {@code init}
- * — the handle is stable for the session lifetime. Exposes the LLM client, tool registry, message history, filesystem,
- * status lines, extension flags, process execution, and TUI suspend/resume.
+ * — the handle is stable for the session lifetime. Exposes the LLM client, tool registry, message snapshots,
+ * filesystem, status lines, extension flags, process execution, and TUI suspend/resume.
  */
 public interface ExtensionRuntime {
     /** Direct model calls, bypassing the agent loop. Supports summarization, side queries, etc. */
@@ -38,6 +38,7 @@ public interface ExtensionRuntime {
 
     String systemPrompt();
 
+    /** Snapshot of the current conversation. Mutate session state through the explicit runtime/API methods. */
     List<Message> messages();
 
     /** The live tool registry (register/deregister/enable/disable). */

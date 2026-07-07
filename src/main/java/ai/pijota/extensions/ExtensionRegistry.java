@@ -87,19 +87,26 @@ public final class ExtensionRegistry {
                 files = stream.filter(p -> p.getFileName().toString().endsWith(".class")
                                                 || p.getFileName().toString().endsWith(".jar")).toList();
             }
-            for (var file : files) {
-                try {
-                    if (file.getFileName().toString().endsWith(".jar")) {
-                        loadJarExtensions(file);
-                    } else {
-                        loadClassFile(file);
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to load extension from {}: {}", file, e.getMessage());
-                }
-            }
+            for (var file : files)
+                loadFromPath(file);
         } catch (Exception e) {
             log.debug("Error scanning extensions dir {}: {}", dir, e.getMessage());
+        }
+    }
+
+    public void loadFromPath(Path path) {
+        try {
+            if (Files.notExists(path))
+                return;
+            if (Files.isDirectory(path)) {
+                loadFromDirectory(path);
+            } else if (path.getFileName().toString().endsWith(".jar")) {
+                loadJarExtensions(path);
+            } else if (path.getFileName().toString().endsWith(".class")) {
+                loadClassFile(path);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load extension from {}: {}", path, e.getMessage());
         }
     }
 

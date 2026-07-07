@@ -4,7 +4,6 @@ import ai.pijota.messages.Message;
 import ai.pijota.util.Util;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,10 +55,6 @@ final class MessageHistory {
         synchronized (messages) {
             return List.copyOf(messages);
         }
-    }
-
-    List<Message> all() {
-        return Collections.unmodifiableList(messages);
     }
 
     /** A fresh, independently-mutable copy taken under the lock — safe to hand to callers and mutate. */

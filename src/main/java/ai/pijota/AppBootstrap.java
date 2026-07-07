@@ -100,6 +100,7 @@ public final class AppBootstrap {
         // settings.projectDir() always resolves to a real path (configured dir, else the git root of cwd).
         ext.setProjectDir(Path.of(settings.projectDir()));
         ext.setLlm(llm);
+        configureExtensionEnablement(ext, parsedArgs, settings);
         // Discovered extensions (ServiceLoader + external .pi/extensions dirs). --no-extensions disables ALL extensions
         // so it skips discovery too; --no-builtin-extensions keeps discovery (that's the point — keep YOUR extensions).
         if (!parsedArgs.noExtensions()) {
@@ -113,19 +114,9 @@ public final class AppBootstrap {
             else if (Path.of(cwd, ".pi", "extensions").toFile().isDirectory())
                 logger.info("Skipped untrusted project extensions in {}/.pi/extensions — run /trust to enable them.",
                                                 cwd);
+            for (String path : parsedArgs.extensionPaths())
+                ext.loadFromPath(Path.of(path));
         }
-        // Resolve extension enablement uniformly: declared default → settings.json "extensions" → CLI --x / --no-x.
-        // Fold the legacy typed --no-* flags into the SAME resolution so they keep working as aliases (the --tools
-        // registry switch and --no-extensions discovery toggle are separate axes and stay above).
-        var flags = new java.util.LinkedHashMap<>(parsedArgs.extensionFlags());
-        if (parsedArgs.noSkills())
-            flags.put("no-skills", "true");
-        if (parsedArgs.noPromptTemplates())
-            flags.put("no-prompt-templates", "true");
-        if (parsedArgs.noContextFiles() || !settings.contextFilesEnabled())
-            flags.put("no-context-files", "true"); // also honors the legacy "context_files" setting
-        ext.setExtensionFlags(flags);
-        ext.setExtensionsConfig(settings.config().extensions());
 
         // Niche tool, opt-in (--whoami) — gated through the same resolution as extensions.
         if (ext.isEnabled("whoami", false))
@@ -229,6 +220,22 @@ public final class AppBootstrap {
                                         cwd);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
+    }
+
+    private static void configureExtensionEnablement(ExtensionRegistry ext, Args parsedArgs, SettingsManager settings) {
+        // Resolve extension enablement uniformly: declared default → settings.json "extensions" → CLI --x / --no-x.
+        // Fold the legacy typed --no-* flags into the SAME resolution so they keep working as aliases (the --tools
+        // registry switch and --no-extensions discovery toggle are separate axes and stay above). Install this before
+        // loading ANY extension, because ExtensionRegistry.register() gates immediately.
+        var flags = new java.util.LinkedHashMap<>(parsedArgs.extensionFlags());
+        if (parsedArgs.noSkills())
+            flags.put("no-skills", "true");
+        if (parsedArgs.noPromptTemplates())
+            flags.put("no-prompt-templates", "true");
+        if (parsedArgs.noContextFiles() || !settings.contextFilesEnabled())
+            flags.put("no-context-files", "true"); // also honors the legacy "context_files" setting
+        ext.setExtensionFlags(flags);
+        ext.setExtensionsConfig(settings.config().extensions());
     }
 
     private static void mergeTranscendWorktree(Args args) {

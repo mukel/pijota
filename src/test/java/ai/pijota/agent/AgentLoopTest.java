@@ -151,6 +151,18 @@ class AgentLoopTest {
     }
 
     @Test
+    void messagesReturnsStableImmutableSnapshot() {
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+        agent.addCustomMessage(new Message.Custom("note", "first"));
+
+        var messages = agent.messages();
+        agent.addCustomMessage(new Message.Custom("note", "second"));
+
+        assertEquals(1, messages.size());
+        assertThrows(UnsupportedOperationException.class, () -> messages.add(new Message.User("mutate")));
+    }
+
+    @Test
     void replaceSystemPromptUpdatesExistingSystemMessage() {
         var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
         agent.addSystemPrompt("v1");

@@ -2,6 +2,7 @@ package ai.pijota.extensions;
 
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.extensions.skills.SkillLoader;
+import ai.pijota.extensions.testkit.ExtensionJars;
 import ai.pijota.extensions.testkit.FakeUiContext;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
@@ -788,6 +789,19 @@ class ExtensionRegistryTest {
     }
 
     @Test
+    void runtimeMessagesReturnsAgentSnapshot() {
+        var agent = new FakeAgentContext();
+        agent.messages.add(new Message.User("first"));
+        var reg = registry(agent, new FakeUiContext());
+
+        var messages = reg.api().runtime().messages();
+        agent.messages.add(new Message.User("second"));
+
+        assertEquals(1, messages.size());
+        assertThrows(UnsupportedOperationException.class, () -> messages.add(new Message.User("mutate")));
+    }
+
+    @Test
     void runtimeLlmPrefersAgentContext() {
         var client = new FauxLlm();
         var agent = new FakeAgentContext() {
@@ -813,6 +827,16 @@ class ExtensionRegistryTest {
         var reg = new ExtensionRegistry();
         Files.writeString(tempDir.resolve("readme.txt"), "hi");
         assertDoesNotThrow(() -> reg.loadFromDirectory(tempDir));
+    }
+
+    @Test
+    void loadFromPathLoadsServiceLoaderJar() throws Exception {
+        Path jar = ExtensionJars.serviceLoaderJar(tempDir, "ai.pijota.extensions.testkit.PathLoadedExtension");
+        var reg = new ExtensionRegistry();
+
+        reg.loadFromPath(jar);
+
+        assertTrue(reg.slashCommands().stream().anyMatch(c -> c.name().equals("path-loaded")));
     }
 
     @Test

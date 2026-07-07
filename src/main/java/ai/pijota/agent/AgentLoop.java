@@ -163,7 +163,7 @@ public final class AgentLoop implements AgentContext {
     }
 
     public List<Message> messages() {
-        return history.all();
+        return history.snapshot();
     }
 
     /** The provider/estimate gap (system prompt + tool schemas + tokenizer diff) captured at the last real usage. */
@@ -178,7 +178,7 @@ public final class AgentLoop implements AgentContext {
      */
     private void recordContextAnchor(Usage usage) {
         if (usage != null && usage.inputTokens() > 0)
-            contextOverhead = llm.lastContextTokens() - CompactionManager.estimateTokens(history.all());
+            contextOverhead = llm.lastContextTokens() - CompactionManager.estimateTokens(history.snapshot());
     }
 
     public void clearMessages() {

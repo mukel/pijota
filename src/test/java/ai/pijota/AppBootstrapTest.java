@@ -7,6 +7,7 @@ import ai.pijota.cli.Args;
 import ai.pijota.cli.ArgParser;
 import ai.pijota.config.AppConfig;
 import ai.pijota.config.SettingsManager;
+import ai.pijota.extensions.testkit.ExtensionJars;
 import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
 
@@ -112,6 +113,56 @@ class AppBootstrapTest {
         var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--whoami", "--api-key", "sk-test"}),
                                         settings);
         assertTrue(result.tools().get("whoami").isPresent(), "--whoami opts the tool in");
+    }
+
+    @Test
+    void explicitExtensionPathIsLoadedDuringBootstrap() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path jar = ExtensionJars.serviceLoaderJar(tmp, "ai.pijota.extensions.testkit.PathLoadedExtension");
+
+        var result = AppBootstrap.bootstrap(ArgParser
+                                        .parse(new String[] {"--extension", jar.toString(), "--api-key", "sk-test"}),
+                                        settings(tmp, Map.of(), "gpt-5.5"));
+
+        assertTrue(result.extensions().slashCommands().stream().anyMatch(c -> c.name().equals("path-loaded")));
+    }
+
+    @Test
+    void explicitExtensionPathHonorsCliEnablementFlagsDuringBootstrap() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path jar = ExtensionJars.serviceLoaderJar(tmp, "ai.pijota.extensions.testkit.DefaultOffPathLoadedExtension");
+        var settings = settings(tmp, Map.of(), "gpt-5.5");
+
+        var disabled = AppBootstrap.bootstrap(ArgParser
+                                        .parse(new String[] {"--extension", jar.toString(), "--api-key", "sk-test"}),
+                                        settings);
+        assertFalse(disabled.extensions().slashCommands().stream().anyMatch(c -> c.name().equals("path-default-off")));
+
+        var enabled = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--extension", jar.toString(),
+                "--path-default-off", "--api-key", "sk-test"}), settings);
+        assertTrue(enabled.extensions().slashCommands().stream().anyMatch(c -> c.name().equals("path-default-off")));
+    }
+
+    @Test
+    void transcendencePromptGuidanceFollowsExtensionEnablement() throws Exception {
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        var settings = settings(tmp, Map.of(), "gpt-5.5");
+
+        var defaultResult = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--api-key", "sk-test"}), settings);
+        assertFalse(systemPrompt(defaultResult).contains("TRANSCENDENCE:"),
+                                        "default sessions should not advertise disabled self-modification");
+        assertFalse(defaultResult.tools().get("transcendence").isPresent());
+
+        var enabledResult = AppBootstrap.bootstrap(
+                                        ArgParser.parse(new String[] {"--transcendence", "--api-key", "sk-test"}),
+                                        settings);
+        assertTrue(systemPrompt(enabledResult).contains("TRANSCENDENCE:"));
+        assertTrue(enabledResult.tools().get("transcendence").isPresent());
+
+        var noExtensionsResult = AppBootstrap.bootstrap(
+                                        ArgParser.parse(new String[] {"--no-extensions", "--api-key", "sk-test"}),
+                                        settings);
+        assertFalse(systemPrompt(noExtensionsResult).contains("TRANSCENDENCE:"));
     }
 
     @Test
@@ -253,6 +304,11 @@ class AppBootstrapTest {
         assertSame(settings, result.settings());
         assertSame(args, result.args());
         assertNotNull(result.cwd());
+    }
+
+    private static String systemPrompt(AppBootstrap.Result result) {
+        return result.session().messages().stream().filter(m -> m instanceof Message.System)
+                                        .map(m -> (Message.System) m).findFirst().orElseThrow().content();
     }
 
     @Test
