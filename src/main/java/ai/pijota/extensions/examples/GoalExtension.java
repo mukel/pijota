@@ -427,10 +427,12 @@ public final class GoalExtension implements Extension {
         String obj = objective;
         long now = System.currentTimeMillis();
         var llm = api.runtime().llm();
-        updateState(s -> GoalState.start(obj, budget, crit, cont, cap, timeMs, llm.totalInputTokens(),
-                                        llm.totalOutputTokens(), now));
+        GoalState next = GoalState.start(obj, budget, crit, cont, cap, timeMs, llm.totalInputTokens(),
+                                        llm.totalOutputTokens(), now);
+        updateState(s -> next);
         api.runtime().setStatus(Emojis.DART + " " + (cont ? "Loop: " : "Goal: ") + objective
                                         + loopCapsSummary(cap, budget, timeMs));
+        api.sendUserMessage(continuationPrompt(next));
     }
 
     private static final String USAGE = "Usage: /goal|/loop <objective> [--max-iterations N] [--max-tokens N] [--max-time 30m] [--stop-when \"…\"] [--continue|--no-continue]";

@@ -189,7 +189,6 @@ public final class PromptTemplateLoader {
                         String key = line.substring(0, colon).trim();
                         String value = line.substring(colon + 1).trim();
                         if (!key.isEmpty() && !value.isEmpty()) {
-                            // strip surrounding quotes
                             if (value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\""))
                                                             || (value.startsWith("'") && value.endsWith("'")))) {
                                 value = value.substring(1, value.length() - 1);

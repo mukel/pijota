@@ -176,29 +176,23 @@ public final class ExtensionRegistry {
         this.extensionsConfig = config != null ? Map.copyOf(config) : Map.of();
     }
 
-    /**
-     * Resolves whether an extension is on, with precedence (lowest first): declared {@code defaultEnabled} →
-     * {@code settings.json extensions[name]} → CLI {@code --name}/{@code --name=value} (enable) and {@code --no-name}
-     * (disable). The flag layer wins, so a per-run flag overrides a persisted setting.
-     */
+    /** Resolves whether an extension is on: declared default → settings.json → CLI --name/--no-name. */
     public boolean isEnabled(String name, boolean defaultEnabled) {
         boolean enabled = defaultEnabled;
-        Object setting = extensionsConfig.get(name); // settings.json layer
+        Object setting = extensionsConfig.get(name);
         if (setting instanceof Boolean b)
             enabled = b;
-        else if (setting instanceof String s)
-            enabled = true; // a config string (e.g. "firefox") implies enabled
-        if (extensionFlags.containsKey(name)) // CLI --name / --name=value
-            enabled = ExtensionRuntime.truthy(extensionFlags.get(name)) || !isBoolFlag(extensionFlags.get(name));
-        if (ExtensionRuntime.truthy(extensionFlags.get("no-" + name))) // CLI --no-name wins last
+        else if (setting instanceof String)
+            enabled = true;
+        if (extensionFlags.containsKey(name)) {
+            String value = extensionFlags.get(name);
+            enabled = ExtensionRuntime.truthy(value) || !isBoolFlag(value);
+        }
+        if (ExtensionRuntime.truthy(extensionFlags.get("no-" + name)))
             enabled = false;
         return enabled;
     }
 
-    /**
-     * True when the flag value is an explicit boolean-ish toggle ("true"/"false"/…); a config value like "firefox" is
-     * not.
-     */
     private static boolean isBoolFlag(String value) {
         if (value == null)
             return true;
@@ -734,8 +728,7 @@ public final class ExtensionRegistry {
 
         @Override
         public boolean getFlag(String name, boolean defaultValue) {
-            // CLI flag wins, then settings.json extensions[name] (Boolean or non-blank String = on), else the default.
-            String val = extensionFlags != null ? extensionFlags.get(name) : null;
+            String val = extensionFlags.get(name);
             if (val != null)
                 return ExtensionRuntime.truthy(val);
             Object setting = extensionsConfig.get(name);
@@ -748,8 +741,7 @@ public final class ExtensionRegistry {
 
         @Override
         public Optional<String> getFlag(String name) {
-            // The config value: CLI --name=value first, then a settings.json string value.
-            String cli = extensionFlags != null ? extensionFlags.get(name) : null;
+            String cli = extensionFlags.get(name);
             if (cli != null)
                 return Optional.of(cli);
             return extensionsConfig.get(name) instanceof String s ? Optional.of(s) : Optional.empty();

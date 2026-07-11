@@ -162,10 +162,11 @@ class GoalExtensionTest {
         var ext = started(fake);
         ext.backoffScheduler = (r, d) -> r.run();
         fake.slashCommand("goal").handler().accept("just tracking"); // continue OFF
+        int prompts = fake.sentUserMessages().size();
         for (int i = 0; i < 10; i++)
             fake.fireError("boom", true);
         assertEquals(GoalState.Status.ACTIVE, ext.currentState().status());
-        assertTrue(fake.sentUserMessages().isEmpty(), "a non-continuing goal isn't re-prompted on errors");
+        assertEquals(prompts, fake.sentUserMessages().size(), "a non-continuing goal isn't re-prompted on errors");
     }
 
     @Test
@@ -248,8 +249,9 @@ class GoalExtensionTest {
         fake.slashCommand("loop").handler().accept("keep going");
         fake.slashCommand("loop").handler().accept("stop");
         assertEquals(GoalState.Status.IDLE, ext.currentState().status());
+        int prompts = fake.sentUserMessages().size();
         fake.fireTurnEnd(1);
-        assertTrue(fake.sentUserMessages().isEmpty(), "a stopped loop must not re-prompt");
+        assertEquals(prompts, fake.sentUserMessages().size(), "a stopped loop must not re-prompt");
     }
 
     // ---- human slash verbs (shared by /goal and /loop) ----
@@ -260,7 +262,16 @@ class GoalExtensionTest {
         var ext = started(fake);
         fake.slashCommand("goal").handler().accept("implement feature X");
         assertEquals("implement feature X", ext.currentState().objective());
-        assertFalse(ext.currentState().continueOnIdle(), "/goal does not auto-continue");
+        assertFalse(ext.currentState().continueOnIdle(), "/goal does not loop after the first continuation");
+    }
+
+    @Test
+    void slashGoalImmediatelyPromptsAgentToWork() {
+        var fake = new FakeExtensionAPI();
+        started(fake);
+        fake.slashCommand("goal").handler().accept("implement feature X");
+        assertTrue(fake.sentUserMessages().stream().anyMatch(m -> m.contains("implement feature X")),
+                                        "/goal should start work, not only register state");
     }
 
     @Test
