@@ -1,5 +1,6 @@
 package ai.pijota.telegram;
 
+import ai.pijota.util.Env;
 import ai.pijota.util.ErrorUtil;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -33,7 +34,10 @@ import java.util.stream.Stream;
  */
 public final class TelegramClient implements TelegramApi {
     private static final Logger log = LoggerFactory.getLogger(TelegramClient.class);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60); // must exceed the long-poll timeout
+    // Must exceed the 30s long-poll (TelegramFrontend.POLL_TIMEOUT_SECONDS); tune via pijota.telegram.timeout /
+    // PIJOTA_TELEGRAM_TIMEOUT.
+    private static final Duration REQUEST_TIMEOUT = Duration
+                                    .ofSeconds(Env.seconds("pijota.telegram.timeout", "PIJOTA_TELEGRAM_TIMEOUT", 60));
 
     // Telegram speaks snake_case and sends many fields we ignore; this mapper translates both ways and never throws on
     // unknown properties, so the records need no @JsonProperty plumbing.
@@ -46,7 +50,11 @@ public final class TelegramClient implements TelegramApi {
     private final String fileBase;
 
     public TelegramClient(String token) {
-        this(token, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
+        this(token, HttpClient.newBuilder()
+                                        .connectTimeout(Duration.ofSeconds(Env.seconds(
+                                                                        "pijota.telegram.connect-timeout",
+                                                                        "PIJOTA_TELEGRAM_CONNECT_TIMEOUT", 10)))
+                                        .build());
     }
 
     /** Injectable-client constructor — lets tests drive the API methods against a fake HTTP client. */

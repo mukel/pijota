@@ -1,6 +1,7 @@
 package ai.pijota.tools;
 
 import ai.pijota.llm.ToolSchema;
+import ai.pijota.util.Env;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
@@ -24,7 +25,9 @@ public final class WebfetchTool implements Tool {
 
     private static final Logger log = LoggerFactory.getLogger(WebfetchTool.class);
     private static final int MAX_RESPONSE_SIZE = 5 * 1024 * 1024;
-    private static final long DEFAULT_TIMEOUT_SECONDS = 30;
+    // Default per-request timeout (the tool's own "timeout" arg overrides, capped at MAX_TIMEOUT_SECONDS); tune via
+    // pijota.web.timeout / PIJOTA_WEB_TIMEOUT.
+    private static final long DEFAULT_TIMEOUT_SECONDS = Env.seconds("pijota.web.timeout", "PIJOTA_WEB_TIMEOUT", 30);
     private static final long MAX_TIMEOUT_SECONDS = 120;
     private final HttpClient http;
 
