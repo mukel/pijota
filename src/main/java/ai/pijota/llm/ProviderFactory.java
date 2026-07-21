@@ -8,7 +8,6 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -45,10 +44,8 @@ public interface ProviderFactory {
                 return new CodexStreamingChatModel(baseUrl, apiKey, modelName, providerName, thinkingLevel);
             }
             boolean thinkingOn = thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF;
-            // Generous request timeout: local models (and long agentic generations) routinely exceed 60s; this
-            // matches the budget the former hand-rolled local client used and the future's completion timeout.
             var builder = OpenAiStreamingChatModel.builder().baseUrl(baseUrl).apiKey(apiKey).modelName(modelName)
-                                            .timeout(Duration.ofMinutes(5));
+                                            .timeout(LlmTimeouts.request());
             if (thinkingOn)
                 builder.returnThinking(true);
             var thinkingParams = thinkingParameters(ProviderCatalog.thinkingFormat(providerName), thinkingOn);
@@ -68,7 +65,8 @@ public interface ProviderFactory {
         @Override
         public StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName,
                                         ThinkingLevel thinkingLevel) {
-            return GoogleAiGeminiStreamingChatModel.builder().apiKey(apiKey).modelName(modelName).build();
+            return GoogleAiGeminiStreamingChatModel.builder().apiKey(apiKey).modelName(modelName)
+                                            .timeout(LlmTimeouts.request()).build();
         }
 
         @Override
@@ -83,7 +81,7 @@ public interface ProviderFactory {
         public StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName,
                                         ThinkingLevel thinkingLevel) {
             var builder = AnthropicStreamingChatModel.builder().baseUrl(baseUrl).apiKey(apiKey).modelName(modelName)
-                                            .version("2023-06-01").maxTokens(4096)
+                                            .version("2023-06-01").maxTokens(4096).timeout(LlmTimeouts.request())
                                             .customHeaders(ProviderCatalog.headers(providerName))
                                             // cache the large static prefix (system prompt + tool schemas) re-sent
                                             // every

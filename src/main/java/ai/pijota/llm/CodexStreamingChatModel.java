@@ -29,7 +29,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
@@ -57,7 +56,9 @@ final class CodexStreamingChatModel implements StreamingChatModel {
 
     CodexStreamingChatModel(String baseUrl, String apiKey, String modelName, String providerName,
                                     ThinkingLevel thinkingLevel) {
-        this(HttpClient.newHttpClient(), baseUrl, apiKey, modelName, providerName, thinkingLevel);
+        // Connect timeout so an unreachable host fails fast instead of stalling up to the full request timeout.
+        this(HttpClient.newBuilder().connectTimeout(LlmTimeouts.connect()).build(), baseUrl, apiKey, modelName,
+                                        providerName, thinkingLevel);
     }
 
     /** Test seam: inject the HTTP client so streaming + cancellation can be exercised without a live endpoint. */
@@ -78,7 +79,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             try {
                 var body = requestBody(request);
                 var httpRequest = HttpRequest.newBuilder().uri(URI.create(resolveCodexUrl(baseUrl)))
-                                                .timeout(Duration.ofSeconds(300))
+                                                .timeout(LlmTimeouts.request())
                                                 .header("Authorization", "Bearer " + apiKey)
                                                 .header("chatgpt-account-id", accountId())
                                                 .header("originator", "pijota").header("User-Agent", userAgent())
