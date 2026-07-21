@@ -271,10 +271,24 @@
       "outputCostPerMTok": 4.4
     },
     {
-      "id": "k2p7",
+      "id": "k3",
       "provider": "kimi-coding",
-      "displayName": "Kimi K2.7",
+      "displayName": "Kimi K3",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 3.0,
+      "outputCostPerMTok": 15.0,
+      "input": [
+        "text",
+        "image"
+      ]
+    },
+    {
+      "id": "kimi-k2.7-code",
+      "provider": "kimi-coding",
+      "displayName": "Kimi K2.7 Code",
       "contextWindow": 262144,
+      "inputCostPerMTok": 0.95,
+      "outputCostPerMTok": 4.0,
       "input": [
         "text",
         "image"
@@ -285,6 +299,20 @@
       "provider": "kimi-coding",
       "displayName": "Kimi For Coding",
       "contextWindow": 262144,
+      "inputCostPerMTok": 0.95,
+      "outputCostPerMTok": 4.0,
+      "input": [
+        "text",
+        "image"
+      ]
+    },
+    {
+      "id": "kimi-for-coding-highspeed",
+      "provider": "kimi-coding",
+      "displayName": "Kimi For Coding HighSpeed",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 1.9,
+      "outputCostPerMTok": 8.0,
       "input": [
         "text",
         "image"
@@ -297,12 +325,36 @@
       "contextWindow": 262144
     },
     {
+      "id": "kimi-k3",
+      "provider": "moonshotai",
+      "displayName": "Kimi K3",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 3.0,
+      "outputCostPerMTok": 15.0,
+      "input": [
+        "text",
+        "image"
+      ]
+    },
+    {
       "id": "kimi-k2.7-code",
       "provider": "moonshotai",
       "displayName": "Kimi K2.7 Code",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.95,
       "outputCostPerMTok": 4.0,
+      "input": [
+        "text",
+        "image"
+      ]
+    },
+    {
+      "id": "kimi-k2.7-code-highspeed",
+      "provider": "moonshotai",
+      "displayName": "Kimi K2.7 Code HighSpeed",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 1.9,
+      "outputCostPerMTok": 8.0,
       "input": [
         "text",
         "image"
@@ -329,12 +381,36 @@
       "outputCostPerMTok": 2.5
     },
     {
+      "id": "kimi-k3",
+      "provider": "moonshotai-cn",
+      "displayName": "Kimi K3",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 3.0,
+      "outputCostPerMTok": 15.0,
+      "input": [
+        "text",
+        "image"
+      ]
+    },
+    {
       "id": "kimi-k2.7-code",
       "provider": "moonshotai-cn",
       "displayName": "Kimi K2.7 Code",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.95,
       "outputCostPerMTok": 4.0,
+      "input": [
+        "text",
+        "image"
+      ]
+    },
+    {
+      "id": "kimi-k2.7-code-highspeed",
+      "provider": "moonshotai-cn",
+      "displayName": "Kimi K2.7 Code HighSpeed",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 1.9,
+      "outputCostPerMTok": 8.0,
       "input": [
         "text",
         "image"
