@@ -82,6 +82,8 @@
   @media (prefers-reduced-motion: reduce) { .toast, .toast.out { animation: none; } }
 
   .msg { display: flex; flex-direction: column; gap: 6px; animation: rise .22s ease both; }
+  #thread.replaying .msg { animation: none; } /* replayed history appears at once — don't rise the whole transcript on (re)connect */
+  @media (prefers-reduced-motion: reduce) { .msg { animation: none; } } /* must follow the .msg rule to win on source order */
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   /* per-message copy: hover-revealed row under user/assistant messages (always shown on touch, no hover there) */
   .msg-actions { display: none; gap: 6px; }
@@ -762,7 +764,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
     es.addEventListener("history", e => {
       thread.innerHTML = ""; toolCards.clear(); live = null; sessionModalities.clear(); // replay re-populates it
-      for (const m of JSON.parse(e.data)) replayHistory(m);
+      thread.classList.add("replaying"); // replayed messages land all at once — suppress the per-message rise so the whole log doesn't flash in
+      try { for (const m of JSON.parse(e.data)) replayHistory(m); } finally { thread.classList.remove("replaying"); }
       main.scrollTop = main.scrollHeight;
     });
     es.addEventListener("user", e => { const d = JSON.parse(e.data); simple("user", d.content, d.images, d.files); });
