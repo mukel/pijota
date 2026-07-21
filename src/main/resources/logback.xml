@@ -1,4 +1,10 @@
 <configuration>
+    <!-- Silence Logback's own configuration status dump. In the native image the version metadata isn't embedded,
+         so Logback emits a version-mismatch WARN, and on any WARN it prints its entire internal status history to
+         the console — noise over Pijota's otherwise-clean startup screen. NopStatusListener swallows it.
+         (Registered for reflection in native-image reachability-metadata.json.) -->
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
+
     <!-- Rolling file appender: the primary log sink for Pijota -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${user.home}/.pijota/logs/pijota.log</file>
