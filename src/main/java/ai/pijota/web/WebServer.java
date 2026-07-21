@@ -407,13 +407,12 @@ public final class WebServer implements AutoCloseable {
      * of being sent to the model.
      */
     private void runCommand(String line) {
-        String name = line.split("\\s+", 2)[0].substring(1); // drop leading '/' (matches() is case-insensitive)
-        String args = SlashCommand.argsOf(line);
-        SlashCommand cmd = commands.stream().filter(c -> c.matches(name)).findFirst().orElse(null);
+        SlashCommand cmd = SlashCommand.find(commands, line);
         if (cmd == null) {
-            broadcast("status", Map.of("message", "unknown command: /" + name, "alert", true));
+            broadcast("status", Map.of("message", "unknown command: " + line.split("\\s+", 2)[0], "alert", true));
             return;
         }
+        String args = SlashCommand.argsOf(line);
         broadcast("custom", Map.of("type", "command", "content", line));
         CompletableFuture.runAsync(() -> cmd.handler().accept(args)).exceptionally(t -> {
             broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));

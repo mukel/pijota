@@ -9,6 +9,20 @@ import java.util.function.Consumer;
  */
 public record SlashCommand(String name, String description, List<String> aliases, Consumer<String> handler) {
 
+    /**
+     * The command in {@code commands} whose name/alias matches the first whitespace-delimited token of {@code input}
+     * (leading "/" optional), or {@code null} if none — the shared command-line lookup every frontend uses.
+     */
+    public static SlashCommand find(List<SlashCommand> commands, String input) {
+        if (input == null)
+            return null;
+        String token = input.strip().split("\\s+", 2)[0];
+        for (SlashCommand c : commands)
+            if (c.matches(token))
+                return c;
+        return null;
+    }
+
     /** True if {@code input} names this command or one of its aliases (case-insensitive, leading "/" ignored). */
     public boolean matches(String input) {
         if (matchesToken(name, input))
