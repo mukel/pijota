@@ -125,40 +125,32 @@ public final class GlobTool implements Tool {
     }
 
     SearchResult fdSearch(String pattern, Path searchPath, int limit, long timeoutSeconds) {
-        try {
-            var command = List.of("fd", "--hidden", "--type", "f", "--glob", "--max-results", Integer.toString(limit),
-                                            "--", pattern, searchPath.toString());
-            var result = ProcessRunner.command(command).timeout(Duration.ofSeconds(timeoutSeconds))
-                                            .maxOutputBytes(Util.DEFAULT_MAX_CHARS).onStart(p -> currentProcess = p)
-                                            .run();
-            if (result.timedOut())
-                return new SearchResult(List.of("[fd timed out after " + timeoutSeconds + " seconds]"), "fd");
-            if (result.exitCode() != 0)
-                return null;
-            var lines = result.stdout().lines().filter(s -> !s.isBlank()).map(s -> relativize(searchPath, Path.of(s)))
-                                            .limit(limit).toList();
-            return new SearchResult(lines, "fd");
-        } catch (Exception ignored) {
-            return null;
-        } finally {
-            currentProcess = null;
-        }
+        var command = List.of("fd", "--hidden", "--type", "f", "--glob", "--max-results", Integer.toString(limit), "--",
+                                        pattern, searchPath.toString());
+        return runFileSearch(command, searchPath, limit, timeoutSeconds, "fd");
     }
 
     private SearchResult rgSearch(String pattern, Path searchPath, int limit, long timeoutSeconds) {
+        var command = List.of("rg", "--files", "--hidden", "--glob", pattern, "--", searchPath.toString());
+        return runFileSearch(command, searchPath, limit, timeoutSeconds, "rg");
+    }
+
+    /** Runs an external file-finder ({@code fd}/{@code rg}), returning its relativized matches, a timeout marker, or
+     *  null on non-zero exit / failure so the caller can fall back to the next backend. */
+    private SearchResult runFileSearch(List<String> command, Path searchPath, int limit, long timeoutSeconds,
+                                    String backend) {
         try {
-            var command = new ArrayList<>(List.of("rg", "--files", "--hidden", "--glob", pattern, "--",
-                                            searchPath.toString()));
             var result = ProcessRunner.command(command).timeout(Duration.ofSeconds(timeoutSeconds))
                                             .maxOutputBytes(Util.DEFAULT_MAX_CHARS).onStart(p -> currentProcess = p)
                                             .run();
             if (result.timedOut())
-                return new SearchResult(List.of("[rg timed out after " + timeoutSeconds + " seconds]"), "rg");
+                return new SearchResult(List.of("[" + backend + " timed out after " + timeoutSeconds + " seconds]"),
+                                                backend);
             if (result.exitCode() != 0)
                 return null;
             var lines = result.stdout().lines().filter(s -> !s.isBlank()).map(s -> relativize(searchPath, Path.of(s)))
                                             .limit(limit).toList();
-            return new SearchResult(lines, "rg");
+            return new SearchResult(lines, backend);
         } catch (Exception ignored) {
             return null;
         } finally {

@@ -127,6 +127,15 @@ public final class ModelRegistry {
     public record Pricing(double inputPerMTok, double outputPerMTok) {
     }
 
+    /** The catalog model matching {@code model} (case-insensitive), preferring a provider match; empty if none. A
+     *  null provider matches any provider. */
+    private static Optional<ModelInfo> find(String provider, String model) {
+        if (model == null)
+            return Optional.empty();
+        return KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model)
+                                        && (provider == null || provider.equalsIgnoreCase(m.provider()))).findFirst();
+    }
+
     /**
      * The model's accepted input modalities, or {@code null} when unknown. A catalog model that doesn't declare its
      * modalities is treated as text-only; a model absent from the catalog returns {@code null} so callers can be
@@ -135,8 +144,7 @@ public final class ModelRegistry {
     public static Set<Modality> inputModalities(String provider, String model) {
         if (model == null)
             return EnumSet.of(Modality.TEXT);
-        var found = KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model)
-                                        && (provider == null || provider.equalsIgnoreCase(m.provider()))).findFirst();
+        var found = find(provider, model);
         if (found.isEmpty())
             return null;
         var mods = found.get().inputModalities();
@@ -151,13 +159,9 @@ public final class ModelRegistry {
 
     /** Looks up pricing for the given model, preferring a provider match; {@code null} if the rate is unknown. */
     public static Pricing pricingFor(String provider, String model) {
-        if (model == null)
-            return null;
-        return KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(model)
-                                        && (provider == null || provider.equalsIgnoreCase(m.provider())))
+        return find(provider, model)
                                         .filter(m -> m.inputCostPerMTok() != null && m.outputCostPerMTok() != null)
-                                        .findFirst().map(m -> new Pricing(m.inputCostPerMTok(), m.outputCostPerMTok()))
-                                        .orElse(null);
+                                        .map(m -> new Pricing(m.inputCostPerMTok(), m.outputCostPerMTok())).orElse(null);
     }
 
     public static long resolveContextWindow(ModelSelection selection) {
