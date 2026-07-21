@@ -18,4 +18,20 @@ public final class Env {
         String env = System.getenv(envVar);
         return env != null && !env.isBlank() ? env : null;
     }
+
+    /**
+     * A positive whole-seconds knob (via {@link #get}); falls back to {@code fallback} when unset, non-numeric, or
+     * non-positive.
+     */
+    public static long seconds(String sysProp, String envVar, long fallback) {
+        String value = get(sysProp, envVar);
+        if (value == null)
+            return fallback;
+        try {
+            long parsed = Long.parseLong(value.trim());
+            return parsed > 0 ? parsed : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
 }

@@ -51,4 +51,35 @@ class EnvTest {
             System.clearProperty("pijota.test.blank");
         }
     }
+
+    // ---- seconds(): positive whole-seconds knob with fallback ----
+
+    @Test
+    void secondsDefaultsWhenUnset() {
+        System.clearProperty("pijota.test.secs");
+        assertEquals(42, Env.seconds("pijota.test.secs", "PIJOTA_UNSET_VAR_XYZ", 42));
+    }
+
+    @Test
+    void secondsReadsTheProperty() {
+        System.setProperty("pijota.test.secs", "120");
+        try {
+            assertEquals(120, Env.seconds("pijota.test.secs", "PIJOTA_UNSET_VAR_XYZ", 42));
+        } finally {
+            System.clearProperty("pijota.test.secs");
+        }
+    }
+
+    @Test
+    void secondsFallsBackOnNonNumericOrNonPositive() {
+        for (String bad : new String[] {"abc", "0", "-5", "3.5"}) {
+            System.setProperty("pijota.test.secs", bad);
+            try {
+                assertEquals(42, Env.seconds("pijota.test.secs", "PIJOTA_UNSET_VAR_XYZ", 42),
+                                                "value \"" + bad + "\" should fall back");
+            } finally {
+                System.clearProperty("pijota.test.secs");
+            }
+        }
+    }
 }
