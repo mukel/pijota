@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -258,6 +259,20 @@ class AgentLoopTest {
 
         assertThrows(ExecutionException.class, () -> agent.prompt("hi").get(2, TimeUnit.SECONDS));
         assertEquals(1, llm.requests().size()); // 4xx is not retryable
+    }
+
+    @Test
+    void abortStopsTheRetryChain() {
+        // A retryable error would normally retry, but aborting mid-flight must halt the chain after the first attempt.
+        var llm = new FauxLlm();
+        var agentRef = new AtomicReference<AgentLoop>();
+        llm.onRequest(() -> agentRef.get().abort()).enqueueError("server error 500")
+                                        .enqueue(FauxLlm.Response.content("should never run"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").retryBaseDelayMs(1).build();
+        agentRef.set(agent);
+
+        agent.prompt("hi"); // aborts during the first request; completes without a further retry
+        assertEquals(1, llm.requests().size(), "aborted turn must not retry");
     }
 
     @Test

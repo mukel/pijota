@@ -21,6 +21,7 @@ public final class FauxLlm implements LlmClient {
     private final Queue<Response> responses = new ArrayDeque<>();
     private final List<Request> requests = new ArrayList<>();
     private boolean aborted;
+    private Runnable onRequest = () -> {};
     private RuntimeException streamThrows;
     private String provider = "faux";
     private String model = "faux-model";
@@ -82,6 +83,15 @@ public final class FauxLlm implements LlmClient {
         return enqueue(new Response(List.of(), List.of(), List.of(), null, error, false));
     }
 
+    /**
+     * Runs at the start of every {@link #streamMessages} call — lets a test abort the agent while a request is in
+     * flight.
+     */
+    public FauxLlm onRequest(Runnable hook) {
+        this.onRequest = hook;
+        return this;
+    }
+
     public List<Request> requests() {
         return List.copyOf(requests);
     }
@@ -127,6 +137,7 @@ public final class FauxLlm implements LlmClient {
         if (streamThrows != null)
             throw streamThrows;
         requests.add(new Request(List.copyOf(messages), List.copyOf(tools)));
+        onRequest.run(); // test hook: e.g. abort the agent mid-flight to exercise retry cancellation
         var response = responses.poll();
         if (response == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("No faux response queued"));

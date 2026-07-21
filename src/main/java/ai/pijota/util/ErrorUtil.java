@@ -1,5 +1,10 @@
 package ai.pijota.util;
 
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
@@ -43,15 +48,17 @@ public final class ErrorUtil {
      * tells a user nothing. Common network failures (the model endpoint unreachable / slow / misnamed) get actionable
      * text; anything else degrades to the class's simple name.
      */
+    private static final String NO_RESPONSE_IN_TIME = "the model server didn't respond in time (timeout)";
+
     private static String describe(Throwable t) {
         return switch (t) {
-            case java.net.ConnectException e ->
+            case ConnectException e ->
                 "couldn't reach the model server (connection refused) — is it running and is the base URL correct?";
-            case java.net.UnknownHostException e ->
-                "unknown host \"" + e.getMessage() + "\" — check the provider's base URL";
-            case java.net.http.HttpTimeoutException e -> "the model server didn't respond in time (timeout)";
-            case java.net.SocketTimeoutException e -> "the model server didn't respond in time (timeout)";
-            case java.net.NoRouteToHostException e -> "no route to the model server — check the host/port and network";
+            case UnknownHostException e -> "unknown host \"" + e.getMessage() + "\" — check the provider's base URL";
+            case HttpTimeoutException e -> NO_RESPONSE_IN_TIME;
+            case SocketTimeoutException e -> NO_RESPONSE_IN_TIME;
+            case TimeoutException e -> "the model stream stalled — no response in time (timeout)";
+            case NoRouteToHostException e -> "no route to the model server — check the host/port and network";
             default -> t.getClass().getSimpleName();
         };
     }

@@ -166,13 +166,20 @@ public final class LlmService implements LlmClient {
                                         tools == null ? 0 : tools.size());
         var future = new CompletableFuture<StreamResult>();
         var result = new StreamResult();
-        // 300s safety net so a stalled provider never hangs the turn; log if it actually fires (was previously silent).
+        // Safety net: if the provider stalls (no HTTP-level timeout fires), fail with a retryable timeout so AgentLoop
+        // retries — never silently return a truncated response as a successful turn. orTimeout cancels its timer once
+        // the stream settles (nothing lingers); the hook then aborts the now-leaked stream.
+        long streamTimeoutSeconds = LlmTimeouts.request().toSeconds();
         var settled = new AtomicBoolean(false);
-        future.completeOnTimeout(result, 300, TimeUnit.SECONDS);
-        future.whenComplete((r, ex) -> {
-            if (!settled.get())
-                log.warn("LLM stream did not complete within 300s for {}/{}; returning the partial response",
-                                                providerName, modelName);
+        future.orTimeout(streamTimeoutSeconds, TimeUnit.SECONDS).exceptionally(ex -> {
+            // Only orTimeout completes the future with a TimeoutException; providers report timeouts as IOExceptions.
+            if (ex instanceof TimeoutException && settled.compareAndSet(false, true)) {
+                log.warn("LLM stream stalled >{}s for {}/{}; aborting", streamTimeoutSeconds, providerName, modelName);
+                Runnable cancel = cancelRef != null ? cancelRef.get() : null;
+                if (cancel != null)
+                    cancel.run(); // stop the leaked stream so it can't keep consuming in the background
+            }
+            return null;
         });
 
         // Gate attachments to the active model's accepted modalities (unsupported media is dropped with a note), so we
@@ -226,6 +233,8 @@ public final class LlmService implements LlmClient {
 
             @Override
             public void onCompleteResponse(ChatResponse r) {
+                if (!settled.compareAndSet(false, true))
+                    return; // the safety-net timeout already settled this stream
                 var ai = r.aiMessage();
                 if (ai != null) {
                     if (ai.text() != null && !ai.text().isEmpty())
@@ -248,7 +257,6 @@ public final class LlmService implements LlmClient {
                 recordSpeed(u);
                 if (cancelRef != null)
                     cancelRef.set(null);
-                settled.set(true);
                 future.complete(result);
             }
 
@@ -267,9 +275,10 @@ public final class LlmService implements LlmClient {
 
             @Override
             public void onError(Throwable e) {
+                if (!settled.compareAndSet(false, true))
+                    return; // the safety-net timeout already settled this stream
                 if (cancelRef != null)
                     cancelRef.set(null);
-                settled.set(true);
                 future.completeExceptionally(e);
             }
         });

@@ -553,7 +553,8 @@ public final class AgentLoop implements AgentContext {
 
     private <T> CompletableFuture<T> retry(Supplier<CompletableFuture<T>> task, int attempt) {
         return task.get().exceptionallyCompose(ex -> {
-            if (attempt >= MAX_RETRY_ATTEMPTS || !ErrorUtil.isRetryable(ex))
+            // Stop retrying once the user aborts (ESC) — don't keep hammering the provider through a cancelled turn.
+            if (attempt >= MAX_RETRY_ATTEMPTS || aborted.get() || !ErrorUtil.isRetryable(ex))
                 return CompletableFuture.failedFuture(ex);
             long defaultDelay = ErrorUtil.backoffMs(retryBaseDelayMs, attempt, ErrorUtil.MAX_BACKOFF_MS);
             // Honor Retry-After but cap the wait so a long server-requested delay can't stall the turn indefinitely.

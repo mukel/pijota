@@ -3,6 +3,8 @@ package ai.pijota.util;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.http.HttpTimeoutException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -17,15 +19,20 @@ class ErrorUtilTest {
     @Test
     void messagelessNetworkErrorsBecomeActionableText() {
         // a bare "ConnectException" tells a user nothing — message() should explain it
-        String connect = ErrorUtil.message(new java.net.ConnectException());
+        String connect = ErrorUtil.message(new ConnectException());
         assertFalse(connect.equals("ConnectException"), connect);
         assertTrue(connect.toLowerCase().contains("connect") || connect.toLowerCase().contains("reach"), connect);
         // unwraps wrappers too (the agent loop completes the future with a CompletionException)
-        String wrapped = ErrorUtil.message(new CompletionException(new java.net.ConnectException()));
+        String wrapped = ErrorUtil.message(new CompletionException(new ConnectException()));
         assertEquals(connect, wrapped);
         // a timeout reads as a timeout, not the class name
-        assertTrue(ErrorUtil.message(new java.net.http.HttpTimeoutException("")).toLowerCase().contains("time"),
+        assertTrue(ErrorUtil.message(new HttpTimeoutException("")).toLowerCase().contains("time"),
                                         "timeouts should mention time");
+        // the stream safety-net's bare java.util.concurrent.TimeoutException also reads as a timeout, not the class
+        // name
+        String stall = ErrorUtil.message(new TimeoutException());
+        assertNotEquals("TimeoutException", stall, stall);
+        assertTrue(stall.toLowerCase().contains("time"), stall);
     }
 
     @Test
