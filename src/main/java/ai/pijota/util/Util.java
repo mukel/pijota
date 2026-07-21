@@ -158,6 +158,11 @@ public final class Util {
         return text.replaceAll("(?s)<system-reminder>.*?</system-reminder>", "");
     }
 
+    /** The project-wide rough token estimate from a character count (~4 characters per token). */
+    public static long approxTokens(long chars) {
+        return (long) Math.ceil(chars / 4.0);
+    }
+
     public static Path resolveSearchPath(Path base, String rawPath) {
         if (rawPath == null || rawPath.isBlank())
             return base.toAbsolutePath().normalize();
@@ -252,16 +257,6 @@ public final class Util {
     }
 
     public static String truncateHeadTail(String text, int maxChars, String fullOutputPath) {
-        int headChars = maxChars * 3 / 4;
-        int tailChars = maxChars - headChars;
-        int skipped = text.length() - maxChars;
-        String head = text.substring(0, headChars);
-        String tail = text.substring(text.length() - tailChars);
-        return head + "\n\n[...truncated " + formatSize(skipped) + ". Full output: " + fullOutputPath + "...]\n\n"
-                                        + tail;
-    }
-
-    public static String truncateHeadTail(String text, int maxChars) {
         if (text == null || text.isBlank())
             return "";
         if (text.length() <= maxChars)
@@ -269,8 +264,13 @@ public final class Util {
         int headChars = maxChars * 3 / 4;
         int tailChars = maxChars - headChars;
         int skipped = text.length() - maxChars;
-        return text.substring(0, headChars) + "\n\n[...truncated " + formatSize(skipped) + "...]\n\n"
+        String fullClause = fullOutputPath != null ? ". Full output: " + fullOutputPath : "";
+        return text.substring(0, headChars) + "\n\n[...truncated " + formatSize(skipped) + fullClause + "...]\n\n"
                                         + text.substring(text.length() - tailChars);
+    }
+
+    public static String truncateHeadTail(String text, int maxChars) {
+        return truncateHeadTail(text, maxChars, null);
     }
 
     /** Human-readable size (B/KB/MB), locale-independent (always a {@code .} decimal). */

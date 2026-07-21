@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 
+import static ai.pijota.util.Util.approxTokens;
 import static ai.pijota.util.Util.fmtCount;
 
 final class SessionCommands {
@@ -261,7 +262,7 @@ final class SessionCommands {
             }
         }
         long totalChars = sysChars + userChars + assistantChars + toolChars;
-        int estTokens = (int) Math.ceil(totalChars / 4.0);
+        int estTokens = (int) approxTokens(totalChars);
         var lines = new ArrayList<String>();
         lines.add(host.styled("toolLabel", "context  " + msgs.size() + " msgs  " + fmtCount(estTokens) + " est tokens  "
                                         + host.tokenStatus()));
@@ -271,13 +272,13 @@ final class SessionCommands {
                                                                         : "off")));
         if (systems > 0)
             lines.add(host.styled("statusText", "  system     " + systems + " msg  "
-                                            + fmtCount((int) Math.ceil(sysChars / 4.0)) + " est tokens"));
+                                            + fmtCount((int) approxTokens(sysChars)) + " est tokens"));
         lines.add(host.styled("statusText", "  user       " + users + " msgs  "
-                                        + fmtCount((int) Math.ceil(userChars / 4.0)) + " est tokens"));
+                                        + fmtCount((int) approxTokens(userChars)) + " est tokens"));
         lines.add(host.styled("statusText", "  assistant  " + assistants + " msgs  "
-                                        + fmtCount((int) Math.ceil(assistantChars / 4.0)) + " est tokens"));
+                                        + fmtCount((int) approxTokens(assistantChars)) + " est tokens"));
         lines.add(host.styled("statusText", "  tool       " + tools + " msgs  "
-                                        + fmtCount((int) Math.ceil(toolChars / 4.0)) + " est tokens"));
+                                        + fmtCount((int) approxTokens(toolChars)) + " est tokens"));
         if (compactions > 0) {
             lines.add(host.styled("statusText", "  compactions  " + compactions));
             for (var m : msgs) {

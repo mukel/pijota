@@ -281,7 +281,7 @@ public final class CompactionManager {
     static int estimateTextTokens(String text) {
         if (text == null || text.isEmpty())
             return 0;
-        return (int) Math.ceil(text.length() / 4.0);
+        return (int) Util.approxTokens(text.length());
     }
 
     @FunctionalInterface
