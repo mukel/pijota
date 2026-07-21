@@ -1,5 +1,8 @@
 package ai.pijota;
 
+import ai.pijota.acp.AcpFileTool;
+import ai.pijota.acp.AcpFrontend;
+import ai.pijota.acp.AcpPermissionExtension;
 import ai.pijota.agent.HeadlessAgentRunner;
 import ai.pijota.agent.SessionExporter;
 import ai.pijota.agent.SessionManager;
@@ -112,6 +115,9 @@ public final class Main {
         if (parsedArgs.extensionFlags().containsKey("web"))
             return runWeb(b, parsedArgs.extensionFlags().get("web"));
 
+        if (parsedArgs.extensionFlags().containsKey("acp"))
+            return runAcp(b);
+
         if (parsedArgs.print() || !parsedArgs.promptArgs().isEmpty() || stdinRedirected()) {
             String raw = !parsedArgs.promptArgs().isEmpty()
                                             ? String.join(" ", parsedArgs.promptArgs())
@@ -219,6 +225,29 @@ public final class Main {
             throw new RuntimeException("web server failed", e);
         } finally {
             server.close();
+            b.extensions().cleanup();
+            session.close();
+        }
+    }
+
+    private static int runAcp(AppBootstrap.Result b) throws Exception {
+        var session = b.session();
+        // No interactive selector over the wire in v1 — the /question tool would block with no UI to answer it.
+        b.tools().unregister("question");
+        var frontend = new AcpFrontend(session, b.extensions().slashCommands(), b.llm().thinkingLevel());
+        b.extensions().setTui(frontend.ui());
+        // Gate mutating tools (write/edit/apply_patch/bash) behind the client's approval prompt.
+        b.extensions().register(new AcpPermissionExtension(frontend::requestToolPermission));
+        // Route read/write through the client's filesystem when it advertises the capability (editor buffers).
+        b.tools().get("read").ifPresent(t -> b.tools().register(AcpFileTool.readOverride(t, frontend)));
+        b.tools().get("write").ifPresent(t -> b.tools().register(AcpFileTool.writeOverride(t, frontend)));
+        // Defer extension readiness (MCP connects block up to ~2.5s) so the agent answers the handshake immediately.
+        Thread.ofPlatform().name("pijota-extensions-ready").daemon(true).start(b.extensions()::ready);
+        SelfRespawn.markStartupHealthy();
+        try {
+            frontend.run(); // blocks reading stdin until the client disconnects (EOF)
+            return 0;
+        } finally {
             b.extensions().cleanup();
             session.close();
         }
