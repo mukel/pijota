@@ -61,65 +61,68 @@ public final class ReadTool implements Tool {
                     return ToolResult.error("Path is a directory: " + displayPath);
 
                 var lines = Files.readAllLines(path);
-                int totalLines = lines.size();
-                int offset = args.getInt("offset", 1);
-                int limit = args.getInt("limit", DEFAULT_READ_LIMIT);
-
-                if (totalLines == 0)
-                    return ToolResult.success("", Map.of("totalLines", 0));
-
-                int startIdx = Math.max(0, offset - 1);
-                int displayOffset = startIdx + 1;
-                if (startIdx >= totalLines) {
-                    return ToolResult.error("Offset " + offset + " is beyond end of file (" + totalLines
-                                                    + " lines total)");
-                }
-
-                int endIdx = Math.min(totalLines, startIdx + Math.max(0, limit));
-                var sb = new StringBuilder();
-                var details = new LinkedHashMap<String, Object>();
-                details.put("offset", displayOffset);
-                details.put("limit", limit);
-                details.put("totalLines", totalLines);
-
-                int bytes = 0;
-                int shown = 0;
-                for (int i = startIdx; i < endIdx; i++) {
-                    String line = truncateLine(lines.get(i));
-                    int nextBytes = line.getBytes(StandardCharsets.UTF_8).length + 1;
-                    if (shown > 0 && bytes + nextBytes > MAX_BYTES) {
-                        details.put("truncated", true);
-                        details.put("truncatedBy", "bytes");
-                        break;
-                    }
-                    sb.append(line).append('\n');
-                    bytes += nextBytes;
-                    shown++;
-                }
-                details.put("shown", shown);
-
-                if (shown == 0 && startIdx < totalLines) {
-                    sb.append("[").append(totalLines - startIdx).append(" more lines in file. Use offset=")
-                                                    .append(displayOffset).append(" to continue.]\n");
-                    details.put("truncated", true);
-                    details.put("nextOffset", displayOffset);
-                    return ToolResult.success(sb.toString(), details);
-                }
-
-                if (Boolean.TRUE.equals(details.get("truncated")) || startIdx + shown < totalLines) {
-                    int nextOffset = displayOffset + shown;
-                    sb.append("[Showing lines ").append(displayOffset).append("-").append(displayOffset + shown - 1)
-                                                    .append(" of ").append(totalLines).append(". Use offset=")
-                                                    .append(nextOffset).append(" to continue.]\n");
-                    details.put("truncated", true);
-                    details.put("nextOffset", nextOffset);
-                }
-
-                return ToolResult.success(sb.toString(), details);
+                return format(lines, args.getInt("offset", 1), args.getInt("limit", DEFAULT_READ_LIMIT));
             } catch (IOException e) {
                 return ToolResult.error("Error reading file: " + e.getMessage());
             }
         });
+    }
+
+    /**
+     * Formats file {@code lines} for tool output: offset/limit slicing, per-line and 50KB byte truncation, and
+     * continuation hints. Shared by the local {@code read} tool and the ACP client-backed override.
+     */
+    public static ToolResult format(java.util.List<String> lines, int offset, int limit) {
+        int totalLines = lines.size();
+        if (totalLines == 0)
+            return ToolResult.success("", Map.of("totalLines", 0));
+
+        int startIdx = Math.max(0, offset - 1);
+        int displayOffset = startIdx + 1;
+        if (startIdx >= totalLines)
+            return ToolResult.error("Offset " + offset + " is beyond end of file (" + totalLines + " lines total)");
+
+        int endIdx = Math.min(totalLines, startIdx + Math.max(0, limit));
+        var sb = new StringBuilder();
+        var details = new LinkedHashMap<String, Object>();
+        details.put("offset", displayOffset);
+        details.put("limit", limit);
+        details.put("totalLines", totalLines);
+
+        int bytes = 0;
+        int shown = 0;
+        for (int i = startIdx; i < endIdx; i++) {
+            String line = truncateLine(lines.get(i));
+            int nextBytes = line.getBytes(StandardCharsets.UTF_8).length + 1;
+            if (shown > 0 && bytes + nextBytes > MAX_BYTES) {
+                details.put("truncated", true);
+                details.put("truncatedBy", "bytes");
+                break;
+            }
+            sb.append(line).append('\n');
+            bytes += nextBytes;
+            shown++;
+        }
+        details.put("shown", shown);
+
+        if (shown == 0 && startIdx < totalLines) {
+            sb.append("[").append(totalLines - startIdx).append(" more lines in file. Use offset=")
+                                            .append(displayOffset).append(" to continue.]\n");
+            details.put("truncated", true);
+            details.put("nextOffset", displayOffset);
+            return ToolResult.success(sb.toString(), details);
+        }
+
+        if (Boolean.TRUE.equals(details.get("truncated")) || startIdx + shown < totalLines) {
+            int nextOffset = displayOffset + shown;
+            sb.append("[Showing lines ").append(displayOffset).append("-").append(displayOffset + shown - 1)
+                                            .append(" of ").append(totalLines).append(". Use offset=")
+                                            .append(nextOffset).append(" to continue.]\n");
+            details.put("truncated", true);
+            details.put("nextOffset", nextOffset);
+        }
+
+        return ToolResult.success(sb.toString(), details);
     }
 
     @Override
