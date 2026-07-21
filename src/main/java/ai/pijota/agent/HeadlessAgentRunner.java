@@ -13,8 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -76,12 +74,7 @@ public final class HeadlessAgentRunner {
                     case AgentEvent.ToolStart ts -> {
                         toolCount.incrementAndGet();
                         emit(new ToolStartEvent(ts.toolName(), ts.argumentsSupplier().get()));
-                        if (writerRef[0] != null) {
-                            try {
-                                writerRef[0].write("-> " + ts.toolName() + " " + ts.argumentsSupplier().get() + "\n");
-                                writerRef[0].flush();
-                            } catch (IOException ignored) {}
-                        }
+                        appendLog(writerRef[0], "-> " + ts.toolName() + " " + ts.argumentsSupplier().get() + "\n");
                     }
                     case AgentEvent.ToolResult(Message.ToolResult msg) -> {
                         emit(new ToolResultEvent(msg.toolName(), msg.isError(), msg.details()));
@@ -90,12 +83,7 @@ public final class HeadlessAgentRunner {
                     case AgentEvent.MessageStreamDelta d -> {
                         String delta = d.delta();
                         emit(new StreamEvent(delta));
-                        if (writerRef[0] != null) {
-                            try {
-                                writerRef[0].write(delta);
-                                writerRef[0].flush();
-                            } catch (IOException ignored) {}
-                        }
+                        appendLog(writerRef[0], delta);
                         int added = Util.countNewlines(delta);
                         if (added > 0)
                             emit(new StreamLinesEvent(added));
@@ -119,11 +107,7 @@ public final class HeadlessAgentRunner {
                 }
             }
 
-            if (writerRef[0] != null) {
-                try {
-                    writerRef[0].write("\n--- done (" + turns + " turns) ---\n");
-                } catch (IOException ignored) {}
-            }
+            appendLog(writerRef[0], "\n--- done (" + turns + " turns) ---\n");
 
             if (logFile != null) {
                 try {
@@ -141,27 +125,15 @@ public final class HeadlessAgentRunner {
             String msg = e.getMessage();
             if (msg == null || msg.isBlank())
                 msg = e.getClass().getSimpleName();
-            var sw = new StringWriter();
-            e.printStackTrace(new PrintWriter(sw));
-            String fullError = msg + "\n" + sw;
+            String fullError = msg + "\n" + Util.stackTrace(e);
             logger.error("Headless agent run failed: {}", fullError);
             System.err.println("ERROR: " + msg);
-            if (writerRef[0] != null) {
-                try {
-                    writerRef[0].write("\n--- ERROR ---\n" + fullError + "\n");
-                    writerRef[0].flush();
-                } catch (IOException ignored) {}
-            }
+            appendLog(writerRef[0], "\n--- ERROR ---\n" + fullError + "\n");
             try {
                 emit(new DoneEvent("", 1, 0, 0, 0, fullError));
             } catch (Exception emitEx) {
                 logger.error("Failed to emit headless agent error event", emitEx);
-                if (writerRef[0] != null) {
-                    try {
-                        writerRef[0].write("\n--- EMIT FAILED ---\n" + emitEx + "\n");
-                        writerRef[0].flush();
-                    } catch (IOException ignored) {}
-                }
+                appendLog(writerRef[0], "\n--- EMIT FAILED ---\n" + emitEx + "\n");
             }
             return 1;
         } finally {
@@ -172,6 +144,18 @@ public final class HeadlessAgentRunner {
             }
         }
         return 0;
+    }
+
+    /** Appends to the run log if a writer is attached, flushing so a live tail sees it; a broken writer is ignored
+     *  (the log is best-effort). */
+    private static void appendLog(BufferedWriter writer, String text) {
+        if (writer == null)
+            return;
+        try {
+            writer.write(text);
+            writer.flush();
+        } catch (IOException ignored) {
+        }
     }
 
     private static ToolRegistry buildRegistry(List<String> names, int depth, LlmClient llm, String systemPrompt,

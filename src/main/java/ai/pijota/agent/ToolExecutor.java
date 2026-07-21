@@ -83,9 +83,7 @@ final class ToolExecutor {
             if (extensions != null) {
                 var blockReason = extensions.beforeToolCall(request.id(), request.name(), request.arguments());
                 if (blockReason.isPresent()) {
-                    var blocked = new Message.ToolResult(request.id(), request.name(), blockReason.get(), true);
-                    history.add(blocked);
-                    onEvent.accept(new AgentEvent.ToolResult(blocked));
+                    emitResult(new Message.ToolResult(request.id(), request.name(), blockReason.get(), true));
                     return CompletableFuture.completedFuture(null);
                 }
             }
@@ -93,41 +91,36 @@ final class ToolExecutor {
             Map<String, Object> args = Util.parseJsonArgs(request.arguments());
             if (extensions != null)
                 extensions.fireToolExecutionStart(request.id(), request.name(), request.arguments());
-            return tools.execute(request.id(), request.name(), args, request.arguments(), cwd)
-                                            .thenAccept(toolResult -> {
-                                                if (extensions != null) {
-                                                    extensions.fireToolExecutionEnd(request.id(), request.name(),
-                                                                                    toolResult, toolResult.isError());
-                                                    extensions.afterToolCall(request.id(), request.name(), toolResult);
-                                                }
-                                                var msg = new Message.ToolResult(request.id(), request.name(),
-                                                                                toolResult.content(),
-                                                                                toolResult.isError(),
-                                                                                toolResult.details());
-                                                history.add(msg);
-                                                onEvent.accept(new AgentEvent.ToolResult(msg));
-                                            }).exceptionally(ex -> {
-                                                var errorResult = Tool.ToolResult.error(
-                                                                                "Tool error: " + ErrorUtil.message(ex));
-                                                if (extensions != null)
-                                                    extensions.fireToolExecutionEnd(request.id(), request.name(),
-                                                                                    errorResult, true);
-                                                var msg = new Message.ToolResult(request.id(), request.name(),
-                                                                                "Tool error: " + ErrorUtil.message(ex),
-                                                                                true);
-                                                history.add(msg);
-                                                onEvent.accept(new AgentEvent.ToolResult(msg));
-                                                return null;
-                                            });
+            return tools.execute(request.id(), request.name(), args, request.arguments(), cwd).thenAccept(toolResult -> {
+                if (extensions != null) {
+                    extensions.fireToolExecutionEnd(request.id(), request.name(), toolResult, toolResult.isError());
+                    extensions.afterToolCall(request.id(), request.name(), toolResult);
+                }
+                emitResult(new Message.ToolResult(request.id(), request.name(), toolResult.content(),
+                                                toolResult.isError(), toolResult.details()));
+            }).exceptionally(ex -> {
+                emitToolError(request, ex);
+                return null;
+            });
         } catch (Exception e) {
-            var errorResult = Tool.ToolResult.error("Tool error: " + ErrorUtil.message(e));
-            if (extensions != null)
-                extensions.fireToolExecutionEnd(request.id(), request.name(), errorResult, true);
-            var msg = new Message.ToolResult(request.id(), request.name(), "Tool error: " + ErrorUtil.message(e), true);
-            history.add(msg);
-            onEvent.accept(new AgentEvent.ToolResult(msg));
+            emitToolError(request, e);
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    /** Records a tool failure — fires the end hook, adds the result to history, emits the event — shared by the async
+     *  ({@code exceptionally}) and synchronous ({@code catch}) failure paths so their contract can't drift. */
+    private void emitToolError(ToolCall request, Throwable ex) {
+        String message = "Tool error: " + ErrorUtil.message(ex);
+        if (extensions != null)
+            extensions.fireToolExecutionEnd(request.id(), request.name(), Tool.ToolResult.error(message), true);
+        emitResult(new Message.ToolResult(request.id(), request.name(), message, true));
+    }
+
+    /** Adds a final tool result to history and emits its {@link AgentEvent.ToolResult}. */
+    private void emitResult(Message.ToolResult msg) {
+        history.add(msg);
+        onEvent.accept(new AgentEvent.ToolResult(msg));
     }
 
 }
