@@ -797,17 +797,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
         // recent sessions
         try {
-            var items = SessionItem.fromPaths(session.resumableSessions());
+            var items = SessionItem.fromPaths(session.resumableSessions(), 3);
             if (!items.isEmpty()) {
                 lines.add("");
                 lines.add(theme.styled("dim", "recent sessions"));
-                int count = 0;
-                for (var it : items) {
-                    if (count++ >= 3)
-                        break;
+                for (var it : items)
                     lines.add(theme.styled("statusText", "  " + it.description()) + theme.styled("commandMeta",
                                                     "  " + compactSessionDetail(it.detailText())));
-                }
             }
         } catch (Exception ignored) {}
         appendPlain(lines);

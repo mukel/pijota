@@ -62,6 +62,44 @@ class SessionDescriptorTest {
         assertEquals(1, d.messageCount());
     }
 
+    @Test
+    void describeResumableKeepsOnlySessionsWithARealLabel(@TempDir Path dir) throws Exception {
+        var real = sessionFile(dir, "real.jsonl", "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hello\"}");
+        var named = sessionFile(dir, "named.jsonl", "{\"type\":\"session_info\",\"name\":\"My Work\"}");
+        var empty = sessionFile(dir, "empty.jsonl", "{\"type\":\"session_info\",\"name\":\"\"}"); // header only
+        var assistantOnly = sessionFile(dir, "asst.jsonl", // has a message, but no user turn → "(empty)" label
+                                        "{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"Hi!\"}");
+        var missing = dir.resolve("missing.jsonl"); // unreadable
+
+        var resumable = SessionDescriptor.describeResumable(List.of(missing, empty, assistantOnly, named, real));
+
+        assertEquals(List.of("My Work", "hello"), resumable.stream().map(SessionDescriptor::description).toList(),
+                                        "only sessions with a name or a real first user message survive");
+    }
+
+    @Test
+    void describeResumableWithLimitStopsAfterEnoughMatches(@TempDir Path dir) throws Exception {
+        // most-recent-first order, with an empty session interleaved that must be skipped, not counted
+        var a = sessionFile(dir, "a.jsonl", "{\"type\":\"message\",\"role\":\"user\",\"content\":\"alpha\"}");
+        var empty = sessionFile(dir, "empty.jsonl", "{\"type\":\"session_info\",\"name\":\"\"}");
+        var b = sessionFile(dir, "b.jsonl", "{\"type\":\"message\",\"role\":\"user\",\"content\":\"bravo\"}");
+        var c = sessionFile(dir, "c.jsonl", "{\"type\":\"message\",\"role\":\"user\",\"content\":\"charlie\"}");
+
+        var top2 = SessionDescriptor.describeResumable(List.of(a, empty, b, c), 2);
+
+        assertEquals(List.of("alpha", "bravo"), top2.stream().map(SessionDescriptor::description).toList(),
+                                        "returns the first 2 resumable sessions, skipping the empty one");
+    }
+
+    @Test
+    void hasContentDistinguishesRealSessionsFromPlaceholders() {
+        assertTrue(new SessionDescriptor(Path.of("x"), "x", "real question", false, 0, 1, 10).hasContent());
+        assertTrue(new SessionDescriptor(Path.of("x"), "x", "Named Session", true, 0, 0, 0).hasContent());
+        assertFalse(new SessionDescriptor(Path.of("x"), "x", "(empty)", false, 0, 1, 10).hasContent(),
+                                        "assistant-only session has a message but no resumable label");
+        assertFalse(new SessionDescriptor(Path.of("x"), "x", "(unreadable)", false, 0, 0, 0).hasContent());
+    }
+
     // ---- label(): the one-line picker label ----
 
     @Test

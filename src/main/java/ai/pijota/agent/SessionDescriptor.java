@@ -20,11 +20,44 @@ public record SessionDescriptor(Path path, String id, String description, boolea
 
     private static final int MAX_DESC_LEN = 80;
 
+    /** Placeholder description for a session with no readable user content (only a header, or assistant-only). */
+    static final String EMPTY = "(empty)";
+    /** Placeholder description for a session file that couldn't be read/parsed at all. */
+    static final String UNREADABLE = "(unreadable)";
+
     public static List<SessionDescriptor> describeAll(List<Path> paths) {
         var out = new ArrayList<SessionDescriptor>(paths.size());
         for (Path p : paths)
             out.add(describe(p));
         return out;
+    }
+
+    /**
+     * Describes {@code paths}, keeping only the sessions worth resuming — those with a real label ({@link
+     * #hasContent()}). Empty, assistant-only, or unreadable sessions carry no {@code "(empty)"}/{@code "(unreadable)"}
+     * label a user could recognize, and resuming one is no different from starting fresh, so they'd only clutter a
+     * recent-sessions list or a resume picker.
+     */
+    public static List<SessionDescriptor> describeResumable(List<Path> paths) {
+        return describeAll(paths).stream().filter(SessionDescriptor::hasContent).toList();
+    }
+
+    /**
+     * Like {@link #describeResumable(List)} but stops after {@code limit} matches — the stream is lazy, so it parses
+     * only as many (most-recent-first) session files as it needs. Lets the launch banner show its few recent
+     * sessions without reading every file on disk at startup.
+     */
+    public static List<SessionDescriptor> describeResumable(List<Path> paths, int limit) {
+        return paths.stream().map(SessionDescriptor::describe).filter(SessionDescriptor::hasContent).limit(limit)
+                                        .toList();
+    }
+
+    /**
+     * Whether this session has resumable content: a name or a real first user message, as opposed to the
+     * {@code "(empty)"}/{@code "(unreadable)"} placeholders shown for abandoned, assistant-only, or corrupt files.
+     */
+    public boolean hasContent() {
+        return named || (!EMPTY.equals(description) && !UNREADABLE.equals(description));
     }
 
     public static SessionDescriptor describe(Path p) {
@@ -58,7 +91,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
 
     /** Rough token estimate from a character count (~4 chars per token), the project-wide heuristic. */
     public static long estimateTokens(long chars) {
-        return (long) Math.ceil(chars / 4.0);
+        return Util.approxTokens(chars);
     }
 
     /** Compact token count using the project's standard count formatter, e.g. {@code "812 tok"} / {@code "12K tok"}. */
@@ -124,19 +157,18 @@ public record SessionDescriptor(Path path, String id, String description, boolea
                 }
             }
         } catch (IOException e) {
-            return new Stats("(unreadable)", false, 0, 0);
+            return new Stats(UNREADABLE, false, 0, 0);
         }
         long estTokens = estimateTokens(chars);
         if (sessionName != null)
             return new Stats(sessionName, true, messages, estTokens);
-        return new Stats(firstUser != null ? firstUser : "(empty)", false, messages, estTokens);
+        return new Stats(firstUser != null ? firstUser : EMPTY, false, messages, estTokens);
     }
 
     public static String clean(String s) {
         if (s == null || s.isBlank())
             return null;
-        return s.replaceAll("(?s)<system-reminder>.*?</system-reminder>", "").replace('\n', ' ').replace('\r', ' ')
-                                        .replaceAll("\\s+", " ").trim();
+        return Util.stripSystemReminders(s).replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim();
     }
 
     public static String truncate(String s) {

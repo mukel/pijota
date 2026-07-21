@@ -67,14 +67,18 @@ class SessionItemTest {
     }
 
     @Test
-    void fromPathsUnreadableReturnsUnreadable(@TempDir Path tmp) {
-        var missing = tmp.resolve("missing.jsonl");
+    void fromPathsDropsEmptyAndUnreadableSessions(@TempDir Path tmp) throws Exception {
+        var missing = tmp.resolve("missing.jsonl"); // unreadable → 0 messages
+        var empty = tmp.resolve("empty.jsonl");
+        Files.writeString(empty, "{\"id\":\"x\",\"type\":\"session\",\"version\":3}\n"); // header only, 0 messages
+        var real = tmp.resolve("real.jsonl");
+        Files.writeString(real, "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hi\"}\n");
 
-        var items = SessionItem.fromPaths(List.of(missing));
+        var items = SessionItem.fromPaths(List.of(missing, empty, real));
 
+        // Only the session with actual content survives — you can't meaningfully resume an empty/corrupt one.
         assertEquals(1, items.size());
-        assertEquals("(unreadable)", items.get(0).description());
-        assertEquals(0, items.get(0).mtime());
+        assertEquals("hi", items.get(0).description());
     }
 
     @Test

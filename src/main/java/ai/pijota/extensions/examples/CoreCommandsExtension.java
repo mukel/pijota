@@ -93,11 +93,11 @@ public final class CoreCommandsExtension implements Extension {
         // resumableSessions() is sorted most-recent-first; cap the picker to a manageable, recent slice and label
         // each with the shared SessionDescriptor (name or first message + age) — same labels every frontend shows.
         var recent = session.resumableSessions().stream().limit(MAX_SESSION_CHOICES).toList();
-        if (recent.isEmpty()) {
+        var sessions = SessionDescriptor.describeResumable(recent); // skip empty/abandoned sessions — nothing to resume
+        if (sessions.isEmpty()) {
             ui.alert("no previous sessions to resume");
             return;
         }
-        var sessions = SessionDescriptor.describeAll(recent);
         ui.select("Resume session", sessions, SessionDescriptor::label, d -> resume(d.path()));
     }
 
