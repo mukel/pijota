@@ -8,8 +8,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class ArgParser {
+
+    /** Frontend subcommands: `pijota web|telegram|acp` — the positional twins of the {@code --web}/… flags. */
+    private static final Set<String> FRONTEND_SUBCOMMANDS = Set.of("web", "telegram", "acp", "tui");
 
     public static Args parse(String[] rawArgs) {
         var provider = (String) null;
@@ -124,6 +128,13 @@ public final class ArgParser {
                         // Unknown single-dash flag — never a valid extension flag (those are --name), so it would
                         // otherwise vanish silently. Warn instead of dropping it.
                         System.err.println("pijota: ignoring unknown option '" + arg + "'");
+                    } else if (promptArgs.isEmpty() && FRONTEND_SUBCOMMANDS.contains(arg)) {
+                        // Frontend subcommand — positional twin of --web/--telegram/--acp. `tui` is the default, so a
+                        // no-op. Only `web` takes a trailing address (`pijota web 0.0.0.0:8080`).
+                        if (!arg.equals("tui")) {
+                            String value = arg.equals("web") ? cursor.optionalValue() : null;
+                            extensionFlags.put(arg, value != null ? value : "true");
+                        }
                     } else {
                         promptArgs.add(arg);
                     }
@@ -144,7 +155,13 @@ public final class ArgParser {
         System.out.println("""
                                         pijota - minimalist Java coding agent
 
-                                        USAGE: pijota [OPTIONS] [PROMPT...]
+                                        USAGE: pijota [SUBCOMMAND] [OPTIONS] [PROMPT...]
+
+                                        SUBCOMMANDS (frontends; default is the TUI):
+                                          tui                       Interactive terminal UI (default)
+                                          web [host:port]           Local web UI
+                                          telegram                  Telegram bot (needs TELEGRAM_BOT_TOKEN)
+                                          acp                       Agent Client Protocol over stdio (Zed, JetBrains, ...)
 
                                         OPTIONS:
                                           --provider <name>         LLM provider (openai, anthropic, google, ...)

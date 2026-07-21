@@ -343,4 +343,46 @@ class ArgParserTest {
         var args = ArgParser.parse(new String[] {"--prompt-template", "/path/tmpl"});
         assertEquals(1, args.promptTemplatePaths().size());
     }
+
+    @Test
+    void frontendSubcommandAcp() {
+        var args = ArgParser.parse(new String[] {"acp"});
+        assertEquals("true", args.extensionFlags().get("acp"));
+        assertEquals(0, args.promptArgs().size());
+    }
+
+    @Test
+    void frontendSubcommandTelegram() {
+        var args = ArgParser.parse(new String[] {"telegram"});
+        assertEquals("true", args.extensionFlags().get("telegram"));
+        assertEquals(0, args.promptArgs().size());
+    }
+
+    @Test
+    void frontendSubcommandWebTakesAddress() {
+        var args = ArgParser.parse(new String[] {"web", "0.0.0.0:8080"});
+        assertEquals("0.0.0.0:8080", args.extensionFlags().get("web"));
+        assertEquals(0, args.promptArgs().size());
+    }
+
+    @Test
+    void frontendSubcommandWebWithoutAddress() {
+        var args = ArgParser.parse(new String[] {"web"});
+        assertEquals("true", args.extensionFlags().get("web"));
+    }
+
+    @Test
+    void frontendSubcommandTuiIsDefaultNoOp() {
+        var args = ArgParser.parse(new String[] {"tui"});
+        assertEquals(0, args.extensionFlags().size());
+        assertEquals(0, args.promptArgs().size());
+    }
+
+    @Test
+    void frontendNameIsSubcommandOnlyAsFirstToken() {
+        // A frontend name that isn't the first positional is an ordinary prompt word, not a subcommand.
+        var args = ArgParser.parse(new String[] {"fix", "the", "web"});
+        assertEquals(0, args.extensionFlags().size());
+        assertEquals(3, args.promptArgs().size());
+    }
 }
