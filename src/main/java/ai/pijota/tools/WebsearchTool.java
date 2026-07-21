@@ -29,14 +29,10 @@ public class WebsearchTool implements Tool {
 
     private static final Logger log = LoggerFactory.getLogger(WebsearchTool.class);
     private static final int DEFAULT_NUM_RESULTS = 8;
-    private static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                                    + " (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
-
     private final HttpClient http;
 
     public WebsearchTool() {
-        this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(10))
-                                        .build());
+        this(WebTools.defaultClient());
     }
 
     WebsearchTool(HttpClient http) {
@@ -121,7 +117,7 @@ public class WebsearchTool implements Tool {
     List<SearchResult> ddgSearch(String query, int numResults) throws Exception {
         String url = "https://html.duckduckgo.com/html/?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
 
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url)).header("User-Agent", UA)
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url)).header("User-Agent", WebTools.BROWSER_UA)
                                         .timeout(Duration.ofSeconds(15)).GET().build();
 
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
@@ -166,7 +162,7 @@ public class WebsearchTool implements Tool {
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json");
         conn.setRequestProperty("x-api-key", key);
-        conn.setRequestProperty("User-Agent", UA);
+        conn.setRequestProperty("User-Agent", WebTools.BROWSER_UA);
         conn.setDoOutput(true);
         conn.setConnectTimeout(10_000);
         conn.setReadTimeout(25_000);
@@ -235,8 +231,7 @@ public class WebsearchTool implements Tool {
     }
 
     static String stripHtml(String html) {
-        return html.replaceAll("(?is)<[^>]+>", "").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-                                        .replace("&quot;", "\"").replace("&nbsp;", " ").replace("&#39;", "'");
+        return WebTools.decodeEntities(html.replaceAll("(?is)<[^>]+>", ""));
     }
 
     static String cleanUrl(String url) {
