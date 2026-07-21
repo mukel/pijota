@@ -23,6 +23,26 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
         return ctx.promptState() == PromptSnapshot.PromptState.ERROR ? "toolError" : "hr";
     }
 
+    /**
+     * The ghost suffix clipped to a single line that fits {@code room} visible columns — so a long or multiline history
+     * suggestion can't wrap onto the next terminal row and corrupt the prompt's cursor/layout bookkeeping.
+     */
+    static String ghostText(String suggestion, int room) {
+        if (suggestion == null || room <= 0)
+            return "";
+        int newline = suggestion.indexOf('\n');
+        String firstLine = newline >= 0 ? suggestion.substring(0, newline) : suggestion;
+        return AnsiWidth.truncateVisual(firstLine, room);
+    }
+
+    /**
+     * Columns available for text after a prefix of {@code prefixW} visible columns, keeping content off the frame's
+     * right edge. The single source of truth for where the prompt wraps — so the ghost clip and the text wrap agree.
+     */
+    static int bodyWidth(int width, int prefixW) {
+        return Math.max(1, width - Math.max(prefixW, 2));
+    }
+
     /** Writes pre-rendered lines as a region body: each cleared to end-of-line, separated by CR/LF. */
     static void writeLines(PrintWriter out, List<String> lines) {
         for (int i = 0; i < lines.size(); i++) {
@@ -64,10 +84,13 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 out.print(theme.styled("text", line.text()));
                 if (cursorAtEndOfInput && line.logicalRow() == ctx.cursorRow() && ctx.cursorCol() >= line.startCol()
                                                 && ctx.cursorCol() <= line.endCol()) {
-                    String suggestion = ctx.suggestion();
-                    if (suggestion != null && !suggestion.isEmpty()) {
+                    // Clip the ghost to the columns left on this wrap line (bodyWidth − text already drawn) so it
+                    // never spills onto the next terminal row.
+                    int room = bodyWidth(width, AnsiWidth.visibleWidth(line.prefix()))
+                                                    - AnsiWidth.visibleWidth(line.text());
+                    String suggestion = ghostText(ctx.suggestion(), room);
+                    if (!suggestion.isEmpty())
                         out.print(theme.styled("dim", suggestion));
-                    }
                 }
                 if (line.logicalRow() == ctx.cursorRow() && ctx.cursorCol() >= line.startCol()
                                                 && ctx.cursorCol() <= line.endCol()) {
@@ -109,7 +132,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 // Width math keys off the prefix's VISIBLE width (not char count), so any glyph — wide emoji, "", a
                 // multi-char caret — wraps and positions the cursor correctly.
                 int prefixW = AnsiWidth.visibleWidth(prefix);
-                int bodyWidth = Math.max(1, width - Math.max(prefixW, 2)); // keep text off the frame's right edge
+                int bodyWidth = bodyWidth(width, prefixW);
                 String indent = " ".repeat(prefixW); // wrapped rows align under the first row's text
                 if (text.isEmpty()) {
                     out.add(new VisLine(prefix, slot, "", row, 0, 0));

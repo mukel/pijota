@@ -58,4 +58,31 @@ class PromptRegionTest {
                                             + AnsiWidth.visibleWidth(row) + "): " + row);
         assertEquals(region.height(width, snapshot), rows.length, "rendered rows must match measured height");
     }
+
+    @Test
+    void editorGhostSuggestionNeverExceedsWidth() {
+        // A long history suggestion, left unclipped, wraps the dim ghost onto a 2nd physical row and corrupts the
+        // prompt's cursor/layout bookkeeping. Every rendered row must stay within width.
+        var region = new PromptRegion.Editor();
+        int width = 20;
+        var snapshot = new PromptSnapshot(List.of("hi"), 0, 2, List.of()).withSuggestion("x".repeat(200));
+
+        var out = new StringWriter();
+        region.render(new PrintWriter(out), width, THEME, snapshot);
+
+        for (String row : out.toString().split("\n", -1))
+            assertTrue(AnsiWidth.visibleWidth(row) <= width,
+                                            "prompt row exceeds width " + width + " (" + AnsiWidth.visibleWidth(row) + "): " + row);
+    }
+
+    @Test
+    void ghostTextClipsToFirstLineAndWidth() {
+        assertEquals("llo world", PromptRegion.ghostText("llo world", 20)); // fits → unchanged
+        String clipped = PromptRegion.ghostText("llo world", 3); // clipped (truncateVisual appends an ANSI reset)
+        assertTrue(clipped.startsWith("llo"));
+        assertTrue(AnsiWidth.visibleWidth(clipped) <= 3);
+        assertEquals("abc", PromptRegion.ghostText("abc\ndef", 10)); // first line only, fits → unchanged
+        assertEquals("", PromptRegion.ghostText("anything", 0)); // no room
+        assertEquals("", PromptRegion.ghostText(null, 5));
+    }
 }

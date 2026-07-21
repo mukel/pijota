@@ -71,7 +71,7 @@ final class PromptHistory {
     /**
      * Ghost-text suffix for the most recent history entry that starts with {@code text}, or empty if none. Returns only
      * the trailing portion (e.g. {@code "llo world"} for {@code "he"}) because it is rendered dimmed directly after
-     * what the user has typed.
+     * what the user has typed. The renderer clips it to a single line that fits the prompt width.
      */
     String suggestionFor(String text) {
         String prefix = text != null ? text : "";
