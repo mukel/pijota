@@ -165,6 +165,13 @@
       "input": [
         "text",
         "image"
+      ],
+      "pricingTiers": [
+        {
+          "inputTokensAbove": 200000,
+          "inputCostPerMTok": 2.5,
+          "outputCostPerMTok": 5.0
+        }
       ]
     },
     {

@@ -266,6 +266,26 @@ class ModelRegistryTest {
     }
 
     @Test
+    void pricingForCarriesLongContextTiers() {
+        // grok-4.3 charges its base rate up to 200K input, then a higher rate for the whole request.
+        var pricing = ModelRegistry.pricingFor("xai", "grok-4.3");
+        assertNotNull(pricing);
+        assertEquals(1.25, pricing.ratesFor(100_000).inputPerMTok(), "base rate below the tier");
+        assertEquals(2.5, pricing.ratesFor(100_000).outputPerMTok());
+        assertEquals(2.5, pricing.ratesFor(250_000).inputPerMTok(), "tier rate above 200K");
+        assertEquals(5.0, pricing.ratesFor(250_000).outputPerMTok());
+    }
+
+    @Test
+    void ratesForPicksHighestExceededTier() {
+        var pricing = new ModelRegistry.Pricing(1, 2, List.of(new ModelRegistry.Pricing.Tier(1000, 3, 4),
+                                        new ModelRegistry.Pricing.Tier(5000, 7, 8)));
+        assertEquals(1, pricing.ratesFor(500).inputPerMTok(), "below all tiers: base");
+        assertEquals(3, pricing.ratesFor(2000).inputPerMTok(), "between tiers: lower tier");
+        assertEquals(7, pricing.ratesFor(9000).inputPerMTok(), "above all tiers: highest tier");
+    }
+
+    @Test
     void replaceDiscoveredOverwritesExistingByKey() {
         var discovered = List.of(new ModelInfo("gpt-4o", "openai", "GPT-4o Updated", 256_000));
         mutateKnownModels(ModelRegistry.KNOWN_MODELS);

@@ -131,8 +131,32 @@ public final class ModelRegistry {
                                         .orElse(DEFAULT_CONTEXT_WINDOW);
     }
 
-    /** Per-million-token USD rates for a catalog model, or {@code null} when the model's pricing is unknown. */
-    public record Pricing(double inputPerMTok, double outputPerMTok) {
+    /**
+     * Per-million-token USD rates for a catalog model, or {@code null} when the model's pricing is unknown.
+     * {@code tiers} holds any long-context surcharge tiers (empty for the flat-rate majority).
+     */
+    public record Pricing(double inputPerMTok, double outputPerMTok, List<Tier> tiers) {
+
+        /** A rate that replaces the base once a request's total input exceeds {@code inputTokensAbove}. */
+        public record Tier(long inputTokensAbove, double inputPerMTok, double outputPerMTok) {
+        }
+
+        public Pricing(double inputPerMTok, double outputPerMTok) {
+            this(inputPerMTok, outputPerMTok, List.of());
+        }
+
+        /** The rates for a request of {@code totalInputTokens} — the highest exceeded tier, else the base rate. */
+        public Pricing ratesFor(long totalInputTokens) {
+            double in = inputPerMTok, out = outputPerMTok;
+            long threshold = -1;
+            for (Tier t : tiers)
+                if (totalInputTokens > t.inputTokensAbove() && t.inputTokensAbove() > threshold) {
+                    threshold = t.inputTokensAbove();
+                    in = t.inputPerMTok();
+                    out = t.outputPerMTok();
+                }
+            return new Pricing(in, out);
+        }
     }
 
     /**
@@ -170,8 +194,18 @@ public final class ModelRegistry {
     /** Looks up pricing for the given model, preferring a provider match; {@code null} if the rate is unknown. */
     public static Pricing pricingFor(String provider, String model) {
         return find(provider, model).filter(m -> m.inputCostPerMTok() != null && m.outputCostPerMTok() != null)
-                                        .map(m -> new Pricing(m.inputCostPerMTok(), m.outputCostPerMTok()))
+                                        .map(m -> new Pricing(m.inputCostPerMTok(), m.outputCostPerMTok(), tiersOf(m)))
                                         .orElse(null);
+    }
+
+    /** Well-formed (fully-priced) tiers declared by a catalog model, in declaration order; empty when none. */
+    private static List<Pricing.Tier> tiersOf(ModelInfo m) {
+        if (m.pricingTiers() == null)
+            return List.of();
+        return m.pricingTiers().stream().filter(t -> t.inputCostPerMTok() != null && t.outputCostPerMTok() != null)
+                                        .map(t -> new Pricing.Tier(t.inputTokensAbove(), t.inputCostPerMTok(),
+                                                                        t.outputCostPerMTok()))
+                                        .toList();
     }
 
     public static long resolveContextWindow(ModelSelection selection) {

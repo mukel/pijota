@@ -83,6 +83,19 @@ class LlmServiceTest {
     }
 
     @Test
+    void costUsesLongContextTierWhenInputExceedsThreshold() {
+        var tracker = new LlmService.UsageTracker(null);
+        var pricing = new ModelRegistry.Pricing(1.0, 2.0, List.of(new ModelRegistry.Pricing.Tier(200_000, 4.0, 8.0)));
+
+        tracker.add(new Usage(100_000, 1000), pricing); // under the tier → base rate
+        assertEquals(100_000 / 1e6 * 1.0 + 1000 / 1e6 * 2.0, tracker.totalCost(), 1e-9);
+
+        tracker.add(new Usage(250_000, 1000), pricing); // over the tier → surcharge rate on the whole request
+        double expected = (100_000 / 1e6 * 1.0 + 1000 / 1e6 * 2.0) + (250_000 / 1e6 * 4.0 + 1000 / 1e6 * 8.0);
+        assertEquals(expected, tracker.totalCost(), 1e-9);
+    }
+
+    @Test
     void constructorDefaultsProviderFromOpenAiKey() {
         var service = new LlmService(null, null, _ -> "sk-openai", null,
                                         List.of(new FakeProviderFactory(new FakeModel())), null);

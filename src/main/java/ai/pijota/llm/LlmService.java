@@ -556,10 +556,11 @@ public final class LlmService implements LlmClient {
             if (in > 0 || cached > 0)
                 // the real prompt size this turn (input + any cached input) + output, which re-enters context
                 lastContextTokens = in + cached + out;
-            if (pricing != null)
-                totalCost += (in / 1_000_000.0) * pricing.inputPerMTok()
-                                                + (out / 1_000_000.0) * pricing.outputPerMTok();
-            else if (in > 0 || out > 0)
+            if (pricing != null) {
+                // Long-context tiers are chosen by the request's total input size (fresh + cached).
+                var rates = pricing.ratesFor(in + cached);
+                totalCost += (in / 1_000_000.0) * rates.inputPerMTok() + (out / 1_000_000.0) * rates.outputPerMTok();
+            } else if (in > 0 || out > 0)
                 hasUnpricedUsage = true;
         }
     }
