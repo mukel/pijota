@@ -30,7 +30,21 @@ public final class Proxies {
      * (cheap, and never during native-image build), so it always reflects the live configuration.
      */
     public static ProxySelector selector() {
-        return build();
+        var host = proxyHost();
+        if (host == null)
+            return null;
+        var proxies = List.of(new Proxy(Proxy.Type.HTTP, host));
+        var bypass = noProxyHosts();
+        return new ProxySelector() {
+            @Override
+            public List<Proxy> select(URI uri) {
+                String h = uri == null ? null : uri.getHost();
+                return h != null && isBypassed(h, bypass) ? List.of(Proxy.NO_PROXY) : proxies;
+            }
+
+            @Override
+            public void connectFailed(URI uri, SocketAddress sa, IOException e) {}
+        };
     }
 
     /** A fresh {@link HttpClient.Builder}, with the configured proxy applied when one is set. */
@@ -65,24 +79,6 @@ public final class Proxies {
             System.setProperty(key, value);
     }
 
-    private static ProxySelector build() {
-        var host = proxyHost();
-        if (host == null)
-            return null;
-        var proxies = List.of(new Proxy(Proxy.Type.HTTP, host));
-        var bypass = noProxyHosts();
-        return new ProxySelector() {
-            @Override
-            public List<Proxy> select(URI uri) {
-                String h = uri == null ? null : uri.getHost();
-                return h != null && isBypassed(h, bypass) ? List.of(Proxy.NO_PROXY) : proxies;
-            }
-
-            @Override
-            public void connectFailed(URI uri, SocketAddress sa, IOException e) {}
-        };
-    }
-
     static boolean isBypassed(String host, List<String> bypass) {
         String h = host.toLowerCase(Locale.ROOT);
         for (String entry : bypass)
@@ -93,7 +89,7 @@ public final class Proxies {
 
     /** The configured proxy endpoint, or {@code null} when none is set. */
     private static InetSocketAddress proxyHost() {
-        String url = firstNonBlank(Env.get("pijota.proxy", "PIJOTA_PROXY"), env("HTTPS_PROXY", "https_proxy"),
+        String url = Util.coalesce(Env.get("pijota.proxy", "PIJOTA_PROXY"), env("HTTPS_PROXY", "https_proxy"),
                                         env("HTTP_PROXY", "http_proxy"), env("ALL_PROXY", "all_proxy"));
         return url == null ? null : parse(url);
     }
@@ -138,13 +134,6 @@ public final class Proxies {
             if (v != null && !v.isBlank())
                 return v;
         }
-        return null;
-    }
-
-    private static String firstNonBlank(String... values) {
-        for (String v : values)
-            if (v != null && !v.isBlank())
-                return v;
         return null;
     }
 }

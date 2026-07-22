@@ -14,6 +14,7 @@ import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import java.net.http.HttpClient;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public interface ProviderFactory {
 
@@ -35,6 +36,13 @@ public interface ProviderFactory {
                                         ? null
                                         : new JdkHttpClientBuilder().httpClientBuilder(
                                                                         HttpClient.newBuilder().proxy(selector));
+    }
+
+    /** Point a langchain4j model builder's {@code httpClientBuilder} at the configured proxy, if one is set. */
+    private static void applyProxy(Consumer<HttpClientBuilder> httpClientBuilder) {
+        var proxy = proxiedClientBuilder();
+        if (proxy != null)
+            httpClientBuilder.accept(proxy);
     }
 
     /**
@@ -63,9 +71,7 @@ public interface ProviderFactory {
             boolean thinkingOn = thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF;
             var builder = OpenAiStreamingChatModel.builder().baseUrl(baseUrl).apiKey(apiKey).modelName(modelName)
                                             .timeout(LlmTimeouts.request());
-            var proxy = proxiedClientBuilder();
-            if (proxy != null)
-                builder.httpClientBuilder(proxy);
+            applyProxy(builder::httpClientBuilder);
             if (thinkingOn)
                 builder.returnThinking(true);
             var thinkingParams = thinkingParameters(ProviderCatalog.thinkingFormat(providerName), thinkingOn);
@@ -107,9 +113,7 @@ public interface ProviderFactory {
                                             // every
                                             // turn — cache reads ≈ 10% of input cost. Other providers auto-cache this.
                                             .cacheSystemMessages(true).cacheTools(true);
-            var proxy = proxiedClientBuilder();
-            if (proxy != null)
-                builder.httpClientBuilder(proxy);
+            applyProxy(builder::httpClientBuilder);
             if (thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF) {
                 builder.thinkingType("enabled");
                 builder.thinkingBudgetTokens(thinkingLevel.budgetTokens());

@@ -16,9 +16,4 @@ public record Usage(long inputTokens, long outputTokens, long cacheReadTokens, l
     public Usage(long inputTokens, long outputTokens) {
         this(inputTokens, outputTokens, 0, 0, 0);
     }
-
-    /** Usage with cache tokens but no separately-reported reasoning tokens. */
-    public Usage(long inputTokens, long outputTokens, long cacheReadTokens, long cacheWriteTokens) {
-        this(inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, 0);
-    }
 }

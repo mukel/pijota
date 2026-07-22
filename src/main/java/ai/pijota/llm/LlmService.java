@@ -301,46 +301,30 @@ public final class LlmService implements LlmClient {
         return future;
     }
 
-    // The provider usage subtypes carry extra token counts the base TokenUsage lacks: Anthropic reports cache read/
-    // creation input tokens separately, OpenAI reports reasoning tokens inside outputTokensDetails. Access them through
-    // the concrete types (not reflection) so the counts still populate in the GraalVM native image — reflective
-    // getMethod would be dropped there without registration and silently return 0. Both modules are non-optional deps.
-
-    /**
-     * Normalizes a provider's usage into pijota's {@link Usage}, whose {@code inputTokens} always <em>excludes</em> the
-     * cached ones. Anthropic already reports cache tokens apart from its input count; OpenAI-compatible providers
-     * (OpenAI, Mistral, xAI…) fold the cached read into {@code prompt_tokens}, so subtract it back out to keep the
-     * invariant and avoid double-counting in the context meter.
-     */
+    // Normalizes a provider's usage into pijota's Usage, whose inputTokens always EXCLUDES the cached ones (real prompt
+    // size = input + cacheRead + cacheWrite). Each provider's extra counts live on a concrete TokenUsage subtype, read
+    // through the typed API (not reflection) so they still populate in the GraalVM native image — reflective getMethod
+    // would be dropped there without registration and silently return 0. Both modules are non-optional deps.
+    //
+    // Anthropic reports its cache tokens apart from the input count already; OpenAI-compatible providers (OpenAI,
+    // Mistral, xAI…) fold the cached read into prompt_tokens, so it's subtracted back out here to hold the invariant
+    // and avoid double-counting in the context meter.
     private static Usage usageFrom(TokenUsage u) {
-        long rawInput = u.inputTokenCount() != null ? u.inputTokenCount() : 0;
-        long output = u.outputTokenCount() != null ? u.outputTokenCount() : 0;
-        long cacheRead = cacheReadTokens(u);
-        long freshInput = u instanceof OpenAiTokenUsage ? Math.max(0, rawInput - cacheRead) : rawInput;
-        return new Usage(freshInput, output, cacheRead, cacheWriteTokens(u), reasoningTokens(u));
+        long input = nz(u.inputTokenCount());
+        long output = nz(u.outputTokenCount());
+        if (u instanceof AnthropicTokenUsage a)
+            return new Usage(input, output, nz(a.cacheReadInputTokens()), nz(a.cacheCreationInputTokens()), 0);
+        if (u instanceof OpenAiTokenUsage o) {
+            long cacheRead = o.inputTokensDetails() != null ? nz(o.inputTokensDetails().cachedTokens()) : 0;
+            long reasoning = o.outputTokensDetails() != null ? nz(o.outputTokensDetails().reasoningTokens()) : 0;
+            return new Usage(Math.max(0, input - cacheRead), output, cacheRead, 0, reasoning);
+        }
+        return new Usage(input, output);
     }
 
-    private static long cacheReadTokens(TokenUsage usage) {
-        if (usage instanceof AnthropicTokenUsage a && a.cacheReadInputTokens() != null)
-            return a.cacheReadInputTokens();
-        if (usage instanceof OpenAiTokenUsage o && o.inputTokensDetails() != null
-                                        && o.inputTokensDetails().cachedTokens() != null)
-            return o.inputTokensDetails().cachedTokens();
-        return 0;
-    }
-
-    private static long cacheWriteTokens(TokenUsage usage) {
-        return usage instanceof AnthropicTokenUsage a && a.cacheCreationInputTokens() != null
-                                        ? a.cacheCreationInputTokens()
-                                        : 0;
-    }
-
-    /** Reasoning (thinking) tokens the provider bills within the output count (OpenAI {@code outputTokensDetails}). */
-    private static long reasoningTokens(TokenUsage usage) {
-        if (usage instanceof OpenAiTokenUsage o && o.outputTokensDetails() != null
-                                        && o.outputTokensDetails().reasoningTokens() != null)
-            return o.outputTokensDetails().reasoningTokens();
-        return 0;
+    /** Null-safe widening: langchain4j reports each token count as a possibly-null {@link Integer}. */
+    private static long nz(Integer count) {
+        return count != null ? count : 0;
     }
 
     private static void applyPartialContent(StreamResult result, String text) {
