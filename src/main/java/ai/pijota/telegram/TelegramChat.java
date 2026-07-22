@@ -3,6 +3,7 @@ package ai.pijota.telegram;
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.agent.SessionExporter;
+import ai.pijota.config.PathDisplay;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.llm.ModelInfo;
 import ai.pijota.llm.Modality;
@@ -11,13 +12,13 @@ import ai.pijota.llm.ThinkingLevel;
 import ai.pijota.messages.Message;
 import ai.pijota.messages.Usage;
 import ai.pijota.modes.SlashCommand;
+import ai.pijota.tools.Tool;
+import ai.pijota.tools.ToolLabels;
 import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -449,7 +451,8 @@ public final class TelegramChat implements ChatHandler {
                 renderAnswer(message.content(), usage);
             case AgentEvent.ToolStart start -> {
                 tg.sendChatAction(chatId, "typing"); // keep "typing…" alive
-                showToolActivity(toolHint(start.toolName(), start.argumentsSupplier().get()));
+                String glyph = session.tool(start.toolName()).map(Tool::glyph).orElse("🔧");
+                showToolActivity(toolHint(start.toolName(), start.argumentsSupplier(), glyph, session.cwd()));
             }
             case AgentEvent.ToolResult(Message.ToolResult result) -> {
                 if (result.isError())
@@ -596,38 +599,16 @@ public final class TelegramChat implements ChatHandler {
 
     // Argument keys, in priority order, whose value best summarizes what a tool call is doing. "path" is last because
     // it's often just "." when a more specific key (e.g. grep's "pattern") is the interesting one.
-    private static final List<String> HINT_KEYS = List.of("command", "file_path", "pattern", "query", "url", "path");
 
-    /** A one-line "running" label for a tool call, e.g. {@code "💻 bash: npm test"} or {@code "📖 read: App.java"}. */
-    static String toolHint(String toolName, String argsJson) {
-        String emoji = switch (toolName) {
-            case "bash" -> "💻";
-            case "read" -> "📖";
-            case "edit" -> "📝";
-            case "write" -> "💾";
-            case "grep" -> "🔍";
-            case "glob", "ls" -> "📁";
-            case "webfetch", "websearch" -> "🌐";
-            default -> "🔧";
-        };
-        String arg = extractArg(argsJson);
-        return arg.isEmpty() ? emoji + " " + toolName + "…" : emoji + " " + toolName + ": " + arg;
-    }
-
-    private static String extractArg(String argsJson) {
-        if (argsJson == null || argsJson.isBlank())
-            return "";
-        try {
-            JsonNode node = Util.MAPPER.readTree(argsJson);
-            for (String key : HINT_KEYS) {
-                JsonNode v = node.get(key);
-                if (v != null && v.isTextual() && !v.asText().isBlank())
-                    return clip(v.asText(), 80);
-            }
-        } catch (Exception ignored) {
-            // not valid JSON (or no useful key) → no hint, just the tool name
-        }
-        return "";
+    /**
+     * A one-line "running" label for a tool call, e.g. {@code "$ bash: \"npm test\""} or {@code "📖 read: App.java"}.
+     * The {@code glyph} is the tool's own display glyph and {@code detail} comes from the shared {@link ToolLabels}, so
+     * Telegram renders every tool — including extension and MCP tools — the same way the TUI and web frontends do
+     * (rather than a hardcoded switch that degraded unknown tools to a generic marker).
+     */
+    static String toolHint(String toolName, Supplier<String> args, String glyph, String cwd) {
+        String detail = ToolLabels.detail(toolName, args, cwd, PathDisplay.RELATIVE);
+        return detail.isEmpty() ? glyph + " " + toolName + "…" : glyph + " " + toolName + ": " + detail;
     }
 
     /** One-line, ellipsized: strips, collapses newlines, then truncates to {@code max} chars with a "…". */

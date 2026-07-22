@@ -114,24 +114,28 @@ class TelegramChatTest {
     }
 
     @Test
-    void toolHintShowsToolEmojiAndKeyArgument() {
-        assertEquals("💻 bash: npm test", TelegramChat.toolHint("bash", "{\"command\":\"npm test\"}"));
-        assertEquals("📖 read: App.java", TelegramChat.toolHint("read", "{\"file_path\":\"App.java\"}"));
-        assertEquals("🔍 grep: TODO", TelegramChat.toolHint("grep", "{\"pattern\":\"TODO\",\"path\":\".\"}"));
+    void toolHintUsesTheToolGlyphAndSharedLabelDetail() {
+        // glyph is passed in (the caller resolves it from the tool registry); detail comes from the shared ToolLabels.
+        assertEquals("$ bash: \"npm test\"",
+                                        TelegramChat.toolHint("bash", () -> "{\"command\":\"npm test\"}", "$", "."));
+        assertEquals("📖 read: App.java",
+                                        TelegramChat.toolHint("read", () -> "{\"file_path\":\"App.java\"}", "📖", "."));
+        assertEquals("🔍 grep: \"TODO\" in .", TelegramChat.toolHint("grep",
+                                        () -> "{\"pattern\":\"TODO\",\"path\":\".\"}", "🔍", "."));
     }
 
     @Test
     void toolHintFallsBackToBareToolWhenArgsAreUnusable() {
-        assertEquals("🔧 mystery…", TelegramChat.toolHint("mystery", "not json"));
-        assertEquals("💻 bash…", TelegramChat.toolHint("bash", "{}"));
-        assertEquals("💻 bash…", TelegramChat.toolHint("bash", null));
+        assertEquals("🔧 mystery…", TelegramChat.toolHint("mystery", () -> "not json", "🔧", "."));
+        assertEquals("$ bash…", TelegramChat.toolHint("bash", () -> "{}", "$", "."));
+        assertEquals("$ bash…", TelegramChat.toolHint("bash", () -> null, "$", "."));
     }
 
     @Test
     void toolHintTruncatesLongArguments() {
-        String hint = TelegramChat.toolHint("bash", "{\"command\":\"" + "x".repeat(200) + "\"}");
-        assertTrue(hint.length() <= 80 + "💻 bash: ".length(), hint.length() + "");
-        assertTrue(hint.endsWith("…"), hint);
+        String hint = TelegramChat.toolHint("bash", () -> "{\"command\":\"" + "x".repeat(200) + "\"}", "$", ".");
+        assertTrue(hint.length() < 200, "long command should be shortened: " + hint.length());
+        assertTrue(hint.contains("..."), hint);
     }
 
     @Test
