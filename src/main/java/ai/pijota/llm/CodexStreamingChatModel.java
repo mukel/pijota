@@ -326,7 +326,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             case MINIMAL -> "low";
             case LOW -> "low";
             case MEDIUM -> "medium";
-            case HIGH -> "high";
+            case HIGH, XHIGH, MAX -> "high"; // Codex reasoning effort tops out at "high"
             case OFF -> "none";
         };
     }

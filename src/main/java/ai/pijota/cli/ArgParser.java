@@ -169,7 +169,7 @@ public final class ArgParser {
                                           --api-key <key>           API key
                                           --system-prompt <text>    Custom system prompt
                                           --append-system-prompt <text>  Append to system prompt (repeatable)
-                                          --thinking <level>        Thinking level (off, minimal, low, medium, high)
+                                          --thinking <level>        Thinking level (off, minimal, low, medium, high, xhigh, max)
                                           --max-turns <n>           Max tool-call turns per prompt (0 = unlimited)
                                           --mode <mode>             Output mode: text, json, rpc
                                           --print, -p [prompt]      Non-interactive single-shot mode
@@ -275,7 +275,8 @@ public final class ArgParser {
         };
     }
 
-    private static final List<String> THINKING_LEVELS = List.of("off", "minimal", "low", "medium", "high");
+    private static final List<String> THINKING_LEVELS = List.of("off", "minimal", "low", "medium", "high", "xhigh",
+                                    "max");
 
     /** Warns on an unrecognized --thinking value (still defaulted downstream) so typos don't pass silently. */
     private static String checkThinking(String level) {

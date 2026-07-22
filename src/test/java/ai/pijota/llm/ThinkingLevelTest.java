@@ -12,6 +12,8 @@ class ThinkingLevelTest {
         assertEquals(ThinkingLevel.LOW, ThinkingLevel.fromString("low"));
         assertEquals(ThinkingLevel.MEDIUM, ThinkingLevel.fromString("medium"));
         assertEquals(ThinkingLevel.HIGH, ThinkingLevel.fromString("high"));
+        assertEquals(ThinkingLevel.XHIGH, ThinkingLevel.fromString("xhigh"));
+        assertEquals(ThinkingLevel.MAX, ThinkingLevel.fromString("max"));
     }
 
     @Test
@@ -33,7 +35,9 @@ class ThinkingLevelTest {
         assertEquals(ThinkingLevel.LOW, ThinkingLevel.MINIMAL.next());
         assertEquals(ThinkingLevel.MEDIUM, ThinkingLevel.LOW.next());
         assertEquals(ThinkingLevel.HIGH, ThinkingLevel.MEDIUM.next());
-        assertEquals(ThinkingLevel.OFF, ThinkingLevel.HIGH.next());
+        assertEquals(ThinkingLevel.XHIGH, ThinkingLevel.HIGH.next());
+        assertEquals(ThinkingLevel.MAX, ThinkingLevel.XHIGH.next());
+        assertEquals(ThinkingLevel.OFF, ThinkingLevel.MAX.next());
     }
 
     @Test
@@ -41,5 +45,7 @@ class ThinkingLevelTest {
         assertTrue(ThinkingLevel.OFF.budgetTokens() < ThinkingLevel.MINIMAL.budgetTokens());
         assertTrue(ThinkingLevel.LOW.budgetTokens() < ThinkingLevel.MEDIUM.budgetTokens());
         assertTrue(ThinkingLevel.MEDIUM.budgetTokens() < ThinkingLevel.HIGH.budgetTokens());
+        assertTrue(ThinkingLevel.HIGH.budgetTokens() < ThinkingLevel.XHIGH.budgetTokens());
+        assertTrue(ThinkingLevel.XHIGH.budgetTokens() < ThinkingLevel.MAX.budgetTokens());
     }
 }
