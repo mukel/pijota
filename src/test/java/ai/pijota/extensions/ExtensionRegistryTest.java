@@ -885,15 +885,6 @@ class ExtensionRegistryTest {
         assertTrue(called[0]);
     }
 
-    @Test
-    void exceptionHandlersListIsCopy() {
-        var reg = new ExtensionRegistry();
-        reg.register(simple("h", api -> api.registerExceptionHandler(t -> {})));
-        var list = reg.exceptionHandlers();
-        assertEquals(1, list.size());
-        assertThrows(UnsupportedOperationException.class, () -> list.add(t -> {}));
-    }
-
     // ---- enablement resolution: declared default -> settings.json -> CLI --x/--no-x ----
 
     /** A toggleable extension that records whether init() ran and the config value getFlag returned. */

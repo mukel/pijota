@@ -425,10 +425,6 @@ public final class ExtensionRegistry {
         }
     }
 
-    public List<ExceptionHandler> exceptionHandlers() {
-        return List.copyOf(exceptionHandlers);
-    }
-
     /** Dispatches an unhandled exception to the registered handlers, in registration order. */
     public void dispatchException(Throwable t) {
         for (var handler : exceptionHandlers) {
