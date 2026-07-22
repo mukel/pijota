@@ -108,8 +108,7 @@ public final class WebfetchTool implements Tool {
                 if (body.length > MAX_RESPONSE_SIZE) {
                     return ToolResult.error("Response too large (exceeds 5MB limit)");
                 }
-                if (String.valueOf(response.statusCode()).startsWith("4")
-                                                || String.valueOf(response.statusCode()).startsWith("5")) {
+                if (response.statusCode() >= 400) { // 3xx redirects are followed automatically; 4xx/5xx are errors
                     return ToolResult.error("HTTP " + response.statusCode());
                 }
 
