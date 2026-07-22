@@ -58,7 +58,11 @@
       "id": "gpt-5.3-codex-spark",
       "provider": "openai-codex",
       "displayName": "GPT-5.3 Codex Spark",
-      "contextWindow": 128000
+      "contextWindow": 128000,
+      "input": [
+        "text",
+        "image"
+      ]
     },
     {
       "id": "claude-opus-4-5-20251101",
@@ -135,7 +139,10 @@
       "displayName": "DeepSeek V4 Pro",
       "contextWindow": 1000000,
       "inputCostPerMTok": 0.435,
-      "outputCostPerMTok": 0.87
+      "outputCostPerMTok": 0.87,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "deepseek-v4-flash",
@@ -143,7 +150,10 @@
       "displayName": "DeepSeek V4 Flash",
       "contextWindow": 1000000,
       "inputCostPerMTok": 0.14,
-      "outputCostPerMTok": 0.28
+      "outputCostPerMTok": 0.28,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "grok-4.3",
@@ -163,7 +173,10 @@
       "displayName": "Grok Code Fast 1",
       "contextWindow": 32768,
       "inputCostPerMTok": 0.2,
-      "outputCostPerMTok": 1.5
+      "outputCostPerMTok": 1.5,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "mistral-large-latest",
@@ -183,7 +196,10 @@
       "displayName": "Devstral Medium",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.4,
-      "outputCostPerMTok": 2.0
+      "outputCostPerMTok": 2.0,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "llama-3.3-70b-versatile",
@@ -191,7 +207,10 @@
       "displayName": "Llama 3.3 70B",
       "contextWindow": 131072,
       "inputCostPerMTok": 0.59,
-      "outputCostPerMTok": 0.79
+      "outputCostPerMTok": 0.79,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "openai/gpt-oss-120b",
@@ -199,7 +218,10 @@
       "displayName": "GPT-OSS 120B",
       "contextWindow": 131072,
       "inputCostPerMTok": 0.15,
-      "outputCostPerMTok": 0.6
+      "outputCostPerMTok": 0.6,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "Qwen/Qwen3.7-Max",
@@ -207,7 +229,10 @@
       "displayName": "Qwen3.7 Max",
       "contextWindow": 1000000,
       "inputCostPerMTok": 1.25,
-      "outputCostPerMTok": 3.75
+      "outputCostPerMTok": 3.75,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "deepseek-ai/DeepSeek-V4-Pro",
@@ -215,7 +240,10 @@
       "displayName": "DeepSeek V4 Pro",
       "contextWindow": 1000000,
       "inputCostPerMTok": 1.74,
-      "outputCostPerMTok": 3.48
+      "outputCostPerMTok": 3.48,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "deepseek/deepseek-v4-pro",
@@ -223,7 +251,10 @@
       "displayName": "DeepSeek V4 Pro",
       "contextWindow": 1000000,
       "inputCostPerMTok": 0.435,
-      "outputCostPerMTok": 0.87
+      "outputCostPerMTok": 0.87,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "anthropic/claude-fable-5",
@@ -244,7 +275,10 @@
       "displayName": "GPT-OSS 120B",
       "contextWindow": 131072,
       "inputCostPerMTok": 0.35,
-      "outputCostPerMTok": 0.75
+      "outputCostPerMTok": 0.75,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "zai-glm-4.7",
@@ -252,7 +286,10 @@
       "displayName": "Z.AI GLM-4.7",
       "contextWindow": 131072,
       "inputCostPerMTok": 2.25,
-      "outputCostPerMTok": 2.75
+      "outputCostPerMTok": 2.75,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "accounts/fireworks/models/deepseek-v4-pro",
@@ -260,7 +297,10 @@
       "displayName": "DeepSeek V4 Pro",
       "contextWindow": 1000000,
       "inputCostPerMTok": 1.74,
-      "outputCostPerMTok": 3.48
+      "outputCostPerMTok": 3.48,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "accounts/fireworks/models/glm-5p2",
@@ -268,7 +308,10 @@
       "displayName": "GLM 5.2",
       "contextWindow": 200000,
       "inputCostPerMTok": 1.4,
-      "outputCostPerMTok": 4.4
+      "outputCostPerMTok": 4.4,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "k3",
@@ -322,7 +365,10 @@
       "id": "kimi-k2-thinking",
       "provider": "kimi-coding",
       "displayName": "Kimi K2 Thinking",
-      "contextWindow": 262144
+      "contextWindow": 262144,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "kimi-k3",
@@ -378,7 +424,10 @@
       "displayName": "Kimi K2 Thinking",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.6,
-      "outputCostPerMTok": 2.5
+      "outputCostPerMTok": 2.5,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "kimi-k3",
@@ -422,7 +471,10 @@
       "displayName": "Kimi K2 Thinking",
       "contextWindow": 262144,
       "inputCostPerMTok": 0.6,
-      "outputCostPerMTok": 2.5
+      "outputCostPerMTok": 2.5,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "mimo-v2.5-pro",
@@ -430,7 +482,10 @@
       "displayName": "MiMo v2.5 Pro",
       "contextWindow": 1048576,
       "inputCostPerMTok": 1.0,
-      "outputCostPerMTok": 3.0
+      "outputCostPerMTok": 3.0,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "mimo-v2.5",
@@ -450,7 +505,10 @@
       "displayName": "MiMo v2.5 Pro",
       "contextWindow": 1048576,
       "inputCostPerMTok": 1.0,
-      "outputCostPerMTok": 3.0
+      "outputCostPerMTok": 3.0,
+      "input": [
+        "text"
+      ]
     },
     {
       "id": "mimo-v2.5-pro",
@@ -458,7 +516,10 @@
       "displayName": "MiMo v2.5 Pro",
       "contextWindow": 1048576,
       "inputCostPerMTok": 1.0,
-      "outputCostPerMTok": 3.0
+      "outputCostPerMTok": 3.0,
+      "input": [
+        "text"
+      ]
     }
   ]
 }
