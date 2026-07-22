@@ -188,7 +188,7 @@ public final class ArgParser {
                                           --no-skills, -ns          Skip skill auto-discovery
                                           --extension, -e <path>    Load extension
                                           --skill <path>            Load skill
-                                          --theme <path|name>       Load/select theme (repeatable)
+                                          --theme <path|name>       Load/select theme (repeatable; "auto" = match terminal)
                                           --no-themes               Skip theme discovery
                                           --no-context-files, -nc    Skip AGENTS.md and CLAUDE.md discovery
                                           --no-prompt-templates, -np Skip prompt template auto-discovery

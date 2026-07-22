@@ -45,6 +45,8 @@ final class ThemeLoader {
         String selected = !args.themePaths().isEmpty() ? args.themePaths().getLast() : settings.config().theme();
         if (selected == null || selected.isBlank())
             selected = "dark";
+        if ("auto".equalsIgnoreCase(selected)) // pick light/dark from the terminal background; dark when undetectable
+            selected = TerminalBackground.detect() == TerminalBackground.Mode.LIGHT ? "light" : "dark";
 
         AnsiTheme builtin = loadBuiltin(selected);
         if (builtin != null)
