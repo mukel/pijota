@@ -986,7 +986,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 // running instance, so a lazily-loaded class vanished) must not kill the input thread and strand the
                 // terminal in raw mode. Surface it and keep the loop alive so the terminal stays usable and quittable.
                 dispatchException(e);
-                appendPlain(List.of(theme.styled("toolError", Util.stackTrace(e))));
+                appendPlain(List.of(theme.styled("toolError", ErrorUtil.stackTrace(e))));
                 setTransientStatus("Error handling input — terminal still active; restart pijota if it persists", 5000);
                 redrawPrompt();
             }

@@ -15,6 +15,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 public final class ErrorUtil {
     private ErrorUtil() {}
@@ -104,6 +106,14 @@ public final class ErrorUtil {
         return message.replaceAll("sk-[A-Za-z0-9_-]{6,}", "sk-***").replaceAll("sk-ant-[A-Za-z0-9_-]{6,}", "sk-ant-***")
                                         .replaceAll("(?i)(api[_ -]?key[^:]*: )[^\\s,}]+", "$1***")
                                         .replaceAll("(?i)(authorization: bearer )[^\\s,}]+", "$1***");
+    }
+
+    /** The full stack trace of {@code t} as a string (for logs and error transcripts). */
+    public static String stackTrace(Throwable t) {
+        var sw = new StringWriter();
+        var pw = new PrintWriter(sw, true);
+        t.printStackTrace(pw);
+        return sw.toString();
     }
 
     public static boolean isContextOverflow(Throwable t) {

@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -422,10 +420,4 @@ public final class Util {
         return "\033]8;;" + url + "\033\\" + text + "\033]8;;\033\\";
     }
 
-    public static String stackTrace(Throwable t) {
-        var sw = new StringWriter();
-        var pw = new PrintWriter(sw, true);
-        t.printStackTrace(pw);
-        return sw.toString();
-    }
 }

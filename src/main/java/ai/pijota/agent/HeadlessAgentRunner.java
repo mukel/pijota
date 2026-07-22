@@ -5,6 +5,7 @@ import ai.pijota.extensions.HeadlessToolContext;
 import ai.pijota.llm.LlmClient;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.ToolRegistry;
+import ai.pijota.util.ErrorUtil;
 import ai.pijota.util.Util;
 
 import org.slf4j.Logger;
@@ -124,7 +125,7 @@ public final class HeadlessAgentRunner {
             String msg = e.getMessage();
             if (msg == null || msg.isBlank())
                 msg = e.getClass().getSimpleName();
-            String fullError = msg + "\n" + Util.stackTrace(e);
+            String fullError = msg + "\n" + ErrorUtil.stackTrace(e);
             logger.error("Headless agent run failed: {}", fullError);
             System.err.println("ERROR: " + msg);
             appendLog(writerRef[0], "\n--- ERROR ---\n" + fullError + "\n");
