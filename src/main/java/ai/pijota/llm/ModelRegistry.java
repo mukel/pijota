@@ -37,10 +37,18 @@ public final class ModelRegistry {
     }
 
     public static List<ModelInfo> filter(String search) {
+        return search(KNOWN_MODELS, search);
+    }
+
+    /**
+     * Case-insensitive substring filter over id / provider / display name; a blank search returns {@code models}
+     * unchanged.
+     */
+    public static List<ModelInfo> search(List<ModelInfo> models, String search) {
         if (search == null || search.isBlank())
-            return KNOWN_MODELS;
+            return models;
         String lower = search.toLowerCase(Locale.ROOT);
-        return KNOWN_MODELS.stream().filter(m -> m.id().toLowerCase(Locale.ROOT).contains(lower)
+        return models.stream().filter(m -> m.id().toLowerCase(Locale.ROOT).contains(lower)
                                         || m.provider().toLowerCase(Locale.ROOT).contains(lower)
                                         || m.displayName().toLowerCase(Locale.ROOT).contains(lower)).toList();
     }
@@ -127,8 +135,10 @@ public final class ModelRegistry {
     public record Pricing(double inputPerMTok, double outputPerMTok) {
     }
 
-    /** The catalog model matching {@code model} (case-insensitive), preferring a provider match; empty if none. A
-     *  null provider matches any provider. */
+    /**
+     * The catalog model matching {@code model} (case-insensitive), preferring a provider match; empty if none. A null
+     * provider matches any provider.
+     */
     private static Optional<ModelInfo> find(String provider, String model) {
         if (model == null)
             return Optional.empty();
@@ -159,9 +169,9 @@ public final class ModelRegistry {
 
     /** Looks up pricing for the given model, preferring a provider match; {@code null} if the rate is unknown. */
     public static Pricing pricingFor(String provider, String model) {
-        return find(provider, model)
-                                        .filter(m -> m.inputCostPerMTok() != null && m.outputCostPerMTok() != null)
-                                        .map(m -> new Pricing(m.inputCostPerMTok(), m.outputCostPerMTok())).orElse(null);
+        return find(provider, model).filter(m -> m.inputCostPerMTok() != null && m.outputCostPerMTok() != null)
+                                        .map(m -> new Pricing(m.inputCostPerMTok(), m.outputCostPerMTok()))
+                                        .orElse(null);
     }
 
     public static long resolveContextWindow(ModelSelection selection) {

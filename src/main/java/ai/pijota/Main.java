@@ -333,13 +333,23 @@ public final class Main {
     }
 
     private static void listModels(String filter) {
-        var models = ModelRegistry.filter(filter);
+        // Only models you can actually run: their provider has a key/OAuth token (or is keyless), matching every
+        // frontend's /model picker. The catalog is far larger; the footer notes how many more need a key.
+        var models = ModelRegistry.search(ModelRegistry.availableModels(new SettingsManager()), filter);
+        if (models.isEmpty()) {
+            System.out.println("No usable models"
+                                            + (filter == null || filter.isBlank() ? "" : " matching \"" + filter + "\"")
+                                            + " — set a provider API key (env or ~/.pijota/settings.json) or run"
+                                            + " `pijota login`.");
+            return;
+        }
         System.out.println("Available models:");
         for (var m : models)
             System.out.printf("  %-45s [%-12s] context: %-5s input: %-14s price: %s%n", m.provider() + "/" + m.id(),
                                             m.provider(), ModelDisplay.context(m), ModelDisplay.modalities(m),
                                             ModelDisplay.pricing(m));
-        System.out.println("\n" + models.size() + " model(s)");
+        int total = ModelRegistry.search(ModelRegistry.KNOWN_MODELS, filter).size();
+        System.out.printf("%n%d of %d model(s) usable (the rest need a provider API key)%n", models.size(), total);
     }
 
     private static boolean stdinRedirected() {

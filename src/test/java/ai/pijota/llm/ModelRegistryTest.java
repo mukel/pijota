@@ -81,6 +81,19 @@ class ModelRegistryTest {
     }
 
     @Test
+    void searchNarrowsAGivenListWithoutReachingIntoTheCatalogue() {
+        // The composition --list-models uses: usable models (by key), then a text filter — never the full catalogue.
+        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
+        var usable = ModelRegistry.availableModels(settings);
+        var matches = ModelRegistry.search(usable, "gpt");
+
+        assertFalse(matches.isEmpty());
+        assertTrue(usable.containsAll(matches), "search must not add models from outside the usable set");
+        for (var m : matches)
+            assertTrue((m.id() + m.provider() + m.displayName()).toLowerCase().contains("gpt"));
+    }
+
+    @Test
     void byIdMatchesCaseInsensitivelyAndIsEmptyForUnknownOrNull() {
         var any = ModelRegistry.KNOWN_MODELS.get(0).id();
         assertTrue(ModelRegistry.byId(any).isPresent());
