@@ -266,11 +266,8 @@ public final class LlmService implements LlmClient {
                 if (!thinkingBuf.isEmpty())
                     result.setThinking(thinkingBuf.toString());
                 var u = r.metadata().tokenUsage();
-                if (u != null) {
-                    result.setUsage(new Usage(u.inputTokenCount() != null ? u.inputTokenCount() : 0,
-                                                    u.outputTokenCount() != null ? u.outputTokenCount() : 0,
-                                                    cacheReadTokens(u), cacheWriteTokens(u), reasoningTokens(u)));
-                }
+                if (u != null)
+                    result.setUsage(usageFrom(u));
                 usage.add(result.usage(), ModelRegistry.pricingFor(providerName, modelName));
                 recordSpeed(u);
                 if (cancelRef != null)
@@ -309,10 +306,27 @@ public final class LlmService implements LlmClient {
     // the concrete types (not reflection) so the counts still populate in the GraalVM native image — reflective
     // getMethod would be dropped there without registration and silently return 0. Both modules are non-optional deps.
 
+    /**
+     * Normalizes a provider's usage into pijota's {@link Usage}, whose {@code inputTokens} always <em>excludes</em> the
+     * cached ones. Anthropic already reports cache tokens apart from its input count; OpenAI-compatible providers
+     * (OpenAI, Mistral, xAI…) fold the cached read into {@code prompt_tokens}, so subtract it back out to keep the
+     * invariant and avoid double-counting in the context meter.
+     */
+    private static Usage usageFrom(TokenUsage u) {
+        long rawInput = u.inputTokenCount() != null ? u.inputTokenCount() : 0;
+        long output = u.outputTokenCount() != null ? u.outputTokenCount() : 0;
+        long cacheRead = cacheReadTokens(u);
+        long freshInput = u instanceof OpenAiTokenUsage ? Math.max(0, rawInput - cacheRead) : rawInput;
+        return new Usage(freshInput, output, cacheRead, cacheWriteTokens(u), reasoningTokens(u));
+    }
+
     private static long cacheReadTokens(TokenUsage usage) {
-        return usage instanceof AnthropicTokenUsage a && a.cacheReadInputTokens() != null
-                                        ? a.cacheReadInputTokens()
-                                        : 0;
+        if (usage instanceof AnthropicTokenUsage a && a.cacheReadInputTokens() != null)
+            return a.cacheReadInputTokens();
+        if (usage instanceof OpenAiTokenUsage o && o.inputTokensDetails() != null
+                                        && o.inputTokensDetails().cachedTokens() != null)
+            return o.inputTokensDetails().cachedTokens();
+        return 0;
     }
 
     private static long cacheWriteTokens(TokenUsage usage) {

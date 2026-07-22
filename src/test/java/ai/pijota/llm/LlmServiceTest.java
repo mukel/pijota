@@ -59,6 +59,21 @@ class LlmServiceTest {
     }
 
     @Test
+    void extractsCacheReadFromOpenAiCompatibleUsage() {
+        // OpenAI/Mistral/xAI fold cached tokens into prompt_tokens; pijota reports them apart and nets input down.
+        var usage = OpenAiTokenUsage.builder().inputTokenCount(1000).outputTokenCount(50).inputTokensDetails(
+                                        OpenAiTokenUsage.InputTokensDetails.builder().cachedTokens(800).build())
+                                        .build();
+        var service = serviceWithFake(new FakeModel().withContent("ok").withUsage(usage));
+
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+
+        assertEquals(800, service.totalCacheReadTokens());
+        assertEquals(200, service.totalInputTokens(), "input excludes the 800 cached tokens folded into prompt_tokens");
+        assertEquals(0, service.totalCacheWriteTokens(), "OpenAI-compatible caching has no separate write count");
+    }
+
+    @Test
     void extractsCacheTokensFromAnthropicUsage() {
         var usage = AnthropicTokenUsage.builder().inputTokenCount(100).outputTokenCount(20).cacheReadInputTokens(4000)
                                         .cacheCreationInputTokens(1000).build();
