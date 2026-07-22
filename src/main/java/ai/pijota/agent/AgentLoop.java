@@ -54,6 +54,7 @@ public final class AgentLoop implements AgentContext {
     // estimate misses (system prompt + tool schemas + tokenizer differences). See recordContextAnchor / the session's
     // estimatedContextTokens, which adds it back so the live count tracks reality instead of re-estimating everything.
     private volatile long contextOverhead;
+    private volatile boolean overheadAnchored; // true once a real response has measured contextOverhead
 
     public static Builder builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
         return new Builder(llm, toolRegistry, cwd);
@@ -166,9 +167,27 @@ public final class AgentLoop implements AgentContext {
         return history.snapshot();
     }
 
-    /** The provider/estimate gap (system prompt + tool schemas + tokenizer diff) captured at the last real usage. */
+    /**
+     * The gap the message estimate misses (the system prompt is already a message, so this is mainly the tool schemas +
+     * tokenizer diff). Measured from real usage once a response arrives; until then it's estimated from the enabled
+     * tools' serialized schemas, so a fresh session doesn't undercount by the whole tool overhead.
+     */
     public long contextOverhead() {
-        return contextOverhead;
+        return overheadAnchored ? contextOverhead : estimateToolSchemaTokens();
+    }
+
+    /** Rough token size of the tool schemas the provider adds to every request (name + description + JSON schema). */
+    private long estimateToolSchemaTokens() {
+        long chars = 0;
+        for (var tool : toolRegistry.enabledTools()) {
+            chars += tool.name().length() + tool.description().length();
+            try {
+                chars += Util.MAPPER.writeValueAsString(tool.schema()).length();
+            } catch (Exception ignored) {
+                // unserializable schema — skip it rather than fail the whole estimate
+            }
+        }
+        return Util.approxTokens(chars);
     }
 
     /**
@@ -177,8 +196,10 @@ public final class AgentLoop implements AgentContext {
      * context within tokenizer error of the truth, and lets it grow live as messages are appended.
      */
     private void recordContextAnchor(Usage usage) {
-        if (usage != null && usage.inputTokens() > 0)
+        if (usage != null && usage.inputTokens() > 0) {
             contextOverhead = llm.lastContextTokens() - CompactionManager.estimateTokens(history.snapshot());
+            overheadAnchored = true;
+        }
     }
 
     public void clearMessages() {

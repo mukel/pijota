@@ -264,7 +264,8 @@ public final class CompactionManager {
             if (a.thinking() != null)
                 tokens += estimateTextTokens(a.thinking());
             if (a.toolCalls() != null)
-                tokens += a.toolCalls().size() * 200;
+                for (var tc : a.toolCalls()) // the serialized call (name + JSON arguments), not a flat per-call guess
+                    tokens += estimateTextTokens(tc.name() + (tc.arguments() != null ? tc.arguments() : ""));
             return tokens;
         }
         if (msg instanceof Message.ToolResult tr)

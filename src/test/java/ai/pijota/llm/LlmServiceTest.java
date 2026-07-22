@@ -3,6 +3,7 @@ package ai.pijota.llm;
 import static org.junit.jupiter.api.Assertions.*;
 
 import ai.pijota.messages.Message;
+import ai.pijota.messages.Usage;
 import ai.pijota.tools.Tool;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
@@ -39,6 +40,15 @@ class LlmServiceTest {
     private static LlmService serviceWithKeyResolver(Function<String, String> resolver) {
         return new LlmService("openai", "gpt-4o", resolver, null,
                                         List.of(new FakeProviderFactory(new FakeModel().withContent("ok"))), null);
+    }
+
+    @Test
+    void cacheTokensCountTowardTheContextAnchor() {
+        var tracker = new LlmService.UsageTracker(null);
+        tracker.add(new Usage(100, 20, 5000), null); // 5000 cache read/creation input tokens
+
+        // The context anchor is the real prompt size: input + cached input, plus output (which re-enters context).
+        assertEquals(100 + 5000 + 20, tracker.lastContextTokens());
     }
 
     @Test

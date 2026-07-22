@@ -262,6 +262,18 @@ class AgentLoopTest {
     }
 
     @Test
+    void contextOverheadEstimatesToolSchemasBeforeAnyResponse() {
+        var registry = new ToolRegistry();
+        registry.register(TestTools.echoing("fake"));
+        var withTools = AgentLoop.builder(new FauxLlm(), registry, "/workspace").build();
+        var noTools = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+
+        // Fresh session (no real usage yet): overhead is estimated from the enabled tools' schemas, not left at 0.
+        assertTrue(withTools.contextOverhead() > 0, "tool schemas should be estimated up front");
+        assertEquals(0, noTools.contextOverhead(), "no tools → no estimated overhead");
+    }
+
+    @Test
     void abortStopsTheRetryChain() {
         // A retryable error would normally retry, but aborting mid-flight must halt the chain after the first attempt.
         var llm = new FauxLlm();

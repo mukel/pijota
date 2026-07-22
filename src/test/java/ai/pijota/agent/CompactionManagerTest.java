@@ -32,6 +32,16 @@ class CompactionManagerTest {
     }
 
     @Test
+    void assistantToolCallTokensScaleWithArgumentSize() {
+        var small = new Message.Assistant("", List.of(new ToolCall("i", "read", "{}")), null);
+        var large = new Message.Assistant("",
+                                        List.of(new ToolCall("i", "read", "{\"path\":\"" + "x".repeat(4000) + "\"}")),
+                                        null);
+        // Tool calls are sized by their serialized name + arguments, not a flat per-call constant.
+        assertTrue(CompactionManager.estimateTokens(large) > CompactionManager.estimateTokens(small) + 500);
+    }
+
+    @Test
     void compactNowInsertsSummaryAndPreservesSystemPrompt() {
         var summarizer = (CompactionManager.SummaryGenerator) (toSummarize, instructions, prevSummary,
                                         onPartial) -> "compacted-summary";

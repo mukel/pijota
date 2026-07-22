@@ -251,7 +251,8 @@ public final class LlmService implements LlmClient {
                 var u = r.metadata().tokenUsage();
                 if (u != null) {
                     result.setUsage(new Usage(u.inputTokenCount() != null ? u.inputTokenCount() : 0,
-                                                    u.outputTokenCount() != null ? u.outputTokenCount() : 0));
+                                                    u.outputTokenCount() != null ? u.outputTokenCount() : 0,
+                                                    cacheTokens(u)));
                 }
                 usage.add(result.usage(), ModelRegistry.pricingFor(providerName, modelName));
                 recordSpeed(u);
@@ -284,6 +285,25 @@ public final class LlmService implements LlmClient {
         });
 
         return future;
+    }
+
+    /**
+     * Cache read + creation input tokens the provider reports outside {@code inputTokenCount} (Anthropic prompt
+     * caching). langchain4j's {@code AnthropicTokenUsage} exposes them via {@code cacheReadInputTokens()} /
+     * {@code cacheCreationInputTokens()}; read reflectively so pijota doesn't hard-depend on the optional anthropic
+     * module (and other providers, which fold caching into the input count, just return 0).
+     */
+    private static long cacheTokens(TokenUsage usage) {
+        long total = 0;
+        for (String method : List.of("cacheReadInputTokens", "cacheCreationInputTokens")) {
+            try {
+                if (usage.getClass().getMethod(method).invoke(usage) instanceof Integer count)
+                    total += count;
+            } catch (ReflectiveOperationException ignored) {
+                // not an Anthropic usage (or an older langchain4j) — no separate cache tokens to add
+            }
+        }
+        return total;
     }
 
     private static void applyPartialContent(StreamResult result, String text) {
@@ -487,10 +507,12 @@ public final class LlmService implements LlmClient {
                 return;
             int in = (int) usage.inputTokens();
             int out = (int) usage.outputTokens();
+            int cached = (int) usage.cachedInputTokens();
             totalInputTokens += in;
             totalOutputTokens += out;
-            if (in > 0)
-                lastContextTokens = in + out; // the real prompt size this turn (+ output, which re-enters context)
+            if (in > 0 || cached > 0)
+                // the real prompt size this turn (input + any cached input) + output, which re-enters context
+                lastContextTokens = in + cached + out;
             if (pricing != null)
                 totalCost += (in / 1_000_000.0) * pricing.inputPerMTok()
                                                 + (out / 1_000_000.0) * pricing.outputPerMTok();
