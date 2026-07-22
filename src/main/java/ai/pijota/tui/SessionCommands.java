@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import ai.pijota.agent.CompactionManager;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.agent.SessionExporter;
 import ai.pijota.config.SettingsManager;
@@ -20,7 +21,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 
-import static ai.pijota.util.Util.approxTokens;
 import static ai.pijota.util.Util.fmtCount;
 
 final class SessionCommands {
@@ -236,51 +236,60 @@ final class SessionCommands {
     void showContext() {
         var msgs = host.session().messages();
         int systems = 0, users = 0, assistants = 0, tools = 0, compactions = 0;
-        long sysChars = 0, userChars = 0, assistantChars = 0, toolChars = 0;
+        long systemTok = 0, userTok = 0, assistantTok = 0, toolTok = 0, summaryTok = 0;
         for (var m : msgs) {
+            long t = CompactionManager.estimateTokens(m); // the same per-message estimate the status line sums
             switch (m) {
                 case Message.System s -> {
                     systems++;
-                    sysChars += s.content().length();
+                    systemTok += t;
                 }
                 case Message.User u -> {
                     users++;
-                    userChars += u.content().length();
+                    userTok += t;
                 }
                 case Message.Assistant a -> {
                     assistants++;
-                    assistantChars += a.content() != null ? a.content().length() : 0;
-                    if (a.thinking() != null)
-                        assistantChars += a.thinking().length();
+                    assistantTok += t;
                 }
                 case Message.ToolResult tr -> {
                     tools++;
-                    toolChars += tr.content().length();
+                    toolTok += t;
                 }
-                case Message.CompactionSummary _ -> compactions++;
+                case Message.CompactionSummary cs -> {
+                    compactions++;
+                    summaryTok += t;
+                }
                 default -> {}
             }
         }
-        long totalChars = sysChars + userChars + assistantChars + toolChars;
-        int estTokens = (int) approxTokens(totalChars);
+        // The status line's total is this message estimate plus the provider overhead the estimate can't see (system
+        // prompt + tool schemas + tokenizer diff). Give that overhead its own row so the breakdown adds up to the one
+        // reported total, instead of the old second, smaller "est tokens" number that never matched it.
+        long messageTok = systemTok + userTok + assistantTok + toolTok + summaryTok;
+        long overhead = Math.max(0, host.session().estimatedContextTokens() - messageTok);
+
         var lines = new ArrayList<String>();
-        lines.add(host.styled("toolLabel", "context  " + msgs.size() + " msgs  " + fmtCount(estTokens) + " est tokens  "
-                                        + host.tokenStatus()));
+        lines.add(host.styled("toolLabel", "context  " + msgs.size() + " msgs  " + host.tokenStatus()));
         lines.add(host.styled("statusText", "  auto-compact  "
                                         + (host.settings() == null || host.settings().compactionEnabled()
                                                                         ? "on"
                                                                         : "off")));
+        if (overhead > 0)
+            lines.add(host.styled("statusText", "  overhead   system prompt + tools  " + fmtCount((int) overhead)
+                                            + " est tokens"));
         if (systems > 0)
-            lines.add(host.styled("statusText", "  system     " + systems + " msg  "
-                                            + fmtCount((int) approxTokens(sysChars)) + " est tokens"));
-        lines.add(host.styled("statusText", "  user       " + users + " msgs  "
-                                        + fmtCount((int) approxTokens(userChars)) + " est tokens"));
-        lines.add(host.styled("statusText", "  assistant  " + assistants + " msgs  "
-                                        + fmtCount((int) approxTokens(assistantChars)) + " est tokens"));
-        lines.add(host.styled("statusText", "  tool       " + tools + " msgs  "
-                                        + fmtCount((int) approxTokens(toolChars)) + " est tokens"));
+            lines.add(host.styled("statusText", "  system     " + systems + " msg  " + fmtCount((int) systemTok)
+                                            + " est tokens"));
+        lines.add(host.styled("statusText",
+                                        "  user       " + users + " msgs  " + fmtCount((int) userTok) + " est tokens"));
+        lines.add(host.styled("statusText", "  assistant  " + assistants + " msgs  " + fmtCount((int) assistantTok)
+                                        + " est tokens"));
+        lines.add(host.styled("statusText",
+                                        "  tool       " + tools + " msgs  " + fmtCount((int) toolTok) + " est tokens"));
         if (compactions > 0) {
-            lines.add(host.styled("statusText", "  compactions  " + compactions));
+            lines.add(host.styled("statusText", "  summaries  " + compactions + " msg  " + fmtCount((int) summaryTok)
+                                            + " est tokens"));
             for (var m : msgs) {
                 if (m instanceof Message.CompactionSummary cs) {
                     lines.add(host.styled("hr", "─".repeat(40)));
