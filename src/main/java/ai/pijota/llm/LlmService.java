@@ -119,6 +119,16 @@ public final class LlmService implements LlmClient {
     }
 
     @Override
+    public long totalCacheReadTokens() {
+        return usage.totalCacheReadTokens();
+    }
+
+    @Override
+    public long totalCacheWriteTokens() {
+        return usage.totalCacheWriteTokens();
+    }
+
+    @Override
     public double totalCost() {
         return usage.totalCost();
     }
@@ -252,7 +262,8 @@ public final class LlmService implements LlmClient {
                 if (u != null) {
                     result.setUsage(new Usage(u.inputTokenCount() != null ? u.inputTokenCount() : 0,
                                                     u.outputTokenCount() != null ? u.outputTokenCount() : 0,
-                                                    cacheTokens(u)));
+                                                    cacheTokens(u, "cacheReadInputTokens"),
+                                                    cacheTokens(u, "cacheCreationInputTokens")));
                 }
                 usage.add(result.usage(), ModelRegistry.pricingFor(providerName, modelName));
                 recordSpeed(u);
@@ -288,22 +299,19 @@ public final class LlmService implements LlmClient {
     }
 
     /**
-     * Cache read + creation input tokens the provider reports outside {@code inputTokenCount} (Anthropic prompt
-     * caching). langchain4j's {@code AnthropicTokenUsage} exposes them via {@code cacheReadInputTokens()} /
-     * {@code cacheCreationInputTokens()}; read reflectively so pijota doesn't hard-depend on the optional anthropic
-     * module (and other providers, which fold caching into the input count, just return 0).
+     * A cache token count the provider reports outside {@code inputTokenCount} (Anthropic prompt caching): read the
+     * given accessor ({@code cacheReadInputTokens} or {@code cacheCreationInputTokens}) reflectively off langchain4j's
+     * {@code AnthropicTokenUsage}, so pijota doesn't hard-depend on the optional anthropic module (other providers,
+     * which fold caching into the input count, don't have the method and return 0).
      */
-    private static long cacheTokens(TokenUsage usage) {
-        long total = 0;
-        for (String method : List.of("cacheReadInputTokens", "cacheCreationInputTokens")) {
-            try {
-                if (usage.getClass().getMethod(method).invoke(usage) instanceof Integer count)
-                    total += count;
-            } catch (ReflectiveOperationException ignored) {
-                // not an Anthropic usage (or an older langchain4j) — no separate cache tokens to add
-            }
+    private static long cacheTokens(TokenUsage usage, String accessor) {
+        try {
+            if (usage.getClass().getMethod(accessor).invoke(usage) instanceof Integer count)
+                return count;
+        } catch (ReflectiveOperationException ignored) {
+            // not an Anthropic usage (or an older langchain4j) — no separate cache tokens to add
         }
-        return total;
+        return 0;
     }
 
     private static void applyPartialContent(StreamResult result, String text) {
@@ -465,6 +473,8 @@ public final class LlmService implements LlmClient {
         private final Double budgetLimit;
         private int totalInputTokens;
         private int totalOutputTokens;
+        private int totalCacheReadTokens; // input served from the provider cache (cache hits)
+        private int totalCacheWriteTokens; // input written to the provider cache (cache misses that populate it)
         private int lastContextTokens; // input+output of the most recent response ≈ the next request's prompt size
         private double totalCost;
         private boolean hasUnpricedUsage;
@@ -483,6 +493,14 @@ public final class LlmService implements LlmClient {
 
         int totalOutputTokens() {
             return totalOutputTokens;
+        }
+
+        int totalCacheReadTokens() {
+            return totalCacheReadTokens;
+        }
+
+        int totalCacheWriteTokens() {
+            return totalCacheWriteTokens;
         }
 
         int lastContextTokens() {
@@ -507,9 +525,13 @@ public final class LlmService implements LlmClient {
                 return;
             int in = (int) usage.inputTokens();
             int out = (int) usage.outputTokens();
-            int cached = (int) usage.cachedInputTokens();
+            int cacheRead = (int) usage.cacheReadTokens();
+            int cacheWrite = (int) usage.cacheWriteTokens();
+            int cached = cacheRead + cacheWrite;
             totalInputTokens += in;
             totalOutputTokens += out;
+            totalCacheReadTokens += cacheRead;
+            totalCacheWriteTokens += cacheWrite;
             if (in > 0 || cached > 0)
                 // the real prompt size this turn (input + any cached input) + output, which re-enters context
                 lastContextTokens = in + cached + out;

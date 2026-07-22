@@ -29,6 +29,16 @@ public interface LlmClient extends AutoCloseable {
         return 0;
     }
 
+    /** Cumulative input tokens served from the provider cache this session (cache hits); 0 when not tracked. */
+    default long totalCacheReadTokens() {
+        return 0;
+    }
+
+    /** Cumulative input tokens written to the provider cache this session (cache misses that populate it). */
+    default long totalCacheWriteTokens() {
+        return 0;
+    }
+
     /** Estimated cumulative spend this session, in USD. {@code 0} when the client does not track cost. */
     default double totalCost() {
         return 0;

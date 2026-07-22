@@ -384,6 +384,16 @@ public final class PijotaSession implements AutoCloseable {
         return agentLoop.llm().totalOutputTokens();
     }
 
+    /** Cumulative input tokens served from the provider cache this session (cache hits). */
+    public long totalCacheReadTokens() {
+        return agentLoop.llm().totalCacheReadTokens();
+    }
+
+    /** Cumulative input tokens written to the provider cache this session (cache misses that populate it). */
+    public long totalCacheWriteTokens() {
+        return agentLoop.llm().totalCacheWriteTokens();
+    }
+
     /** Estimated cumulative spend this session in USD. */
     public double totalCost() {
         return agentLoop.llm().totalCost();

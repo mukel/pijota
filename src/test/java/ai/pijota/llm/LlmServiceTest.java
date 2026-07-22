@@ -45,10 +45,13 @@ class LlmServiceTest {
     @Test
     void cacheTokensCountTowardTheContextAnchor() {
         var tracker = new LlmService.UsageTracker(null);
-        tracker.add(new Usage(100, 20, 5000), null); // 5000 cache read/creation input tokens
+        tracker.add(new Usage(100, 20, 4000, 1000), null); // 4000 cache read + 1000 cache write
 
-        // The context anchor is the real prompt size: input + cached input, plus output (which re-enters context).
-        assertEquals(100 + 5000 + 20, tracker.lastContextTokens());
+        // The context anchor is the real prompt size: input + cache read + cache write, plus output (re-enters
+        // context).
+        assertEquals(100 + 4000 + 1000 + 20, tracker.lastContextTokens());
+        assertEquals(4000, tracker.totalCacheReadTokens());
+        assertEquals(1000, tracker.totalCacheWriteTokens());
     }
 
     @Test
