@@ -577,9 +577,9 @@ public final class AgentLoop implements AgentContext {
             // Stop retrying once the user aborts (ESC) — don't keep hammering the provider through a cancelled turn.
             if (attempt >= MAX_RETRY_ATTEMPTS || aborted.get() || !ErrorUtil.isRetryable(ex))
                 return CompletableFuture.failedFuture(ex);
-            long defaultDelay = ErrorUtil.backoffMs(retryBaseDelayMs, attempt, ErrorUtil.MAX_BACKOFF_MS);
-            // Honor Retry-After but cap the wait so a long server-requested delay can't stall the turn indefinitely.
-            long delay = Math.min(ErrorUtil.retryAfterDelayMs(ex, defaultDelay), ErrorUtil.MAX_BACKOFF_MS);
+            // Exponential backoff, capped. (We don't honor a server Retry-After header: langchain4j drops response
+            // headers — HttpException carries only a status code — so there is no header to read.)
+            long delay = ErrorUtil.backoffMs(retryBaseDelayMs, attempt, ErrorUtil.MAX_BACKOFF_MS);
             log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}", attempt + 1, MAX_RETRY_ATTEMPTS + 1,
                                             delay, ErrorUtil.message(ex));
             var delayed = new CompletableFuture<T>();
