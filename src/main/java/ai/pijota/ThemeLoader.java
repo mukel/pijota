@@ -18,9 +18,9 @@ final class ThemeLoader {
     private static final Logger logger = LoggerFactory.getLogger(ThemeLoader.class);
 
     /** Default theme when none is configured, and the dark side of {@code --theme auto}. */
-    private static final String DEFAULT_THEME = "catppuccin-mocha";
+    private static final String DEFAULT_THEME = "gruvbox-dark";
     /** The light side of {@code --theme auto}. */
-    private static final String AUTO_LIGHT_THEME = "catppuccin-latte";
+    private static final String AUTO_LIGHT_THEME = "gruvbox-light";
 
     private ThemeLoader() {}
 
