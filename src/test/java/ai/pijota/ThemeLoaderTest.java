@@ -30,9 +30,9 @@ class ThemeLoaderTest {
     }
 
     @Test
-    void loadsDarkBuiltinByDefault() {
+    void loadsDefaultBuiltinWhenUnset() {
         var theme = ThemeLoader.load(emptySettings(), emptyArgs(), "/tmp");
-        assertEquals("dark", theme.name);
+        assertEquals("catppuccin-mocha", theme.name);
     }
 
     @Test
@@ -111,6 +111,7 @@ class ThemeLoaderTest {
                                         null), _ -> {});
 
         var theme = ThemeLoader.load(settings, ArgParser.parse(new String[] {"--no-themes"}), "/tmp");
-        assertEquals("dark", theme.name);
+        assertEquals("catppuccin-mocha", theme.name); // built-in default still loads; only user-dir discovery is
+                                                      // skipped
     }
 }

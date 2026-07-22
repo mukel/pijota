@@ -20,6 +20,20 @@ class ThemeManagerTest {
     }
 
     @Test
+    void builtinThemesListMatchesBundledResources() throws Exception {
+        // Guards the native-image fix: BUILTIN_THEMES is an explicit list (resource dirs can't be enumerated in the
+        // native image), so it must stay in sync with the actual themes/*.json — checked here where enumeration works.
+        var dir = ThemeManager.class.getClassLoader().getResource("themes");
+        assertNotNull(dir, "bundled themes/ resource directory");
+        try (var files = Files.list(Path.of(dir.toURI()))) {
+            var actual = files.map(p -> p.getFileName().toString()).filter(n -> n.endsWith(".json"))
+                                            .map(n -> n.substring(0, n.length() - ".json".length())).sorted().toList();
+            assertEquals(actual, ThemeManager.BUILTIN_THEMES,
+                                            "BUILTIN_THEMES drifted from src/main/resources/themes/*.json — update it");
+        }
+    }
+
+    @Test
     void themeNameWithoutExtension() {
         assertEquals("custom", ThemeManager.themeName(Path.of("custom")));
     }
@@ -39,9 +53,9 @@ class ThemeManagerTest {
         var host = new FakeHost(AnsiTheme.dark());
         var manager = new ThemeManager(host);
 
-        manager.switchTo("dark");
+        manager.switchTo("catppuccin-mocha");
 
-        assertEquals("dark", host.theme.name);
+        assertEquals("catppuccin-mocha", host.theme.name);
         assertTrue(host.statuses.stream().anyMatch(s -> s.contains("switched")),
                                         "expected status message about switching theme, got " + host.statuses);
     }
@@ -107,15 +121,15 @@ class ThemeManagerTest {
         String previousHome = System.getProperty("user.home");
         System.setProperty("user.home", tmp.toString());
         try {
-            var host = new FakeHost(AnsiTheme.dark());
+            var host = new FakeHost(AnsiTheme.loadResource("themes/catppuccin-mocha.json"));
             var manager = new ThemeManager(host);
 
             var items = manager.discover();
 
             var names = items.stream().map(ThemeItem::name).toList();
-            assertTrue(names.contains("dark"), "expected builtin 'dark', got " + names);
+            assertTrue(names.contains("catppuccin-mocha"), "expected builtin 'catppuccin-mocha', got " + names);
             assertTrue(names.contains("mytheme"), "expected file theme 'mytheme', got " + names);
-            assertTrue(items.stream().anyMatch(i -> "dark".equals(i.name()) && i.current()),
+            assertTrue(items.stream().anyMatch(i -> "catppuccin-mocha".equals(i.name()) && i.current()),
                                             "expected current theme to be marked");
         } finally {
             System.setProperty("user.home", previousHome);
@@ -169,7 +183,8 @@ class ThemeManagerTest {
             var manager = new ThemeManager(host);
             var items = manager.discover();
             var names = items.stream().map(ThemeItem::name).toList();
-            assertTrue(names.contains("dark"));
+            assertTrue(names.contains("catppuccin-mocha"));
+            assertTrue(names.contains("gruvbox-dark"));
             assertFalse(names.contains("custom"));
         } finally {
             System.setProperty("user.home", previousHome);

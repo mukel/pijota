@@ -17,6 +17,11 @@ import java.util.Map;
 final class ThemeLoader {
     private static final Logger logger = LoggerFactory.getLogger(ThemeLoader.class);
 
+    /** Default theme when none is configured, and the dark side of {@code --theme auto}. */
+    private static final String DEFAULT_THEME = "catppuccin-mocha";
+    /** The light side of {@code --theme auto}. */
+    private static final String AUTO_LIGHT_THEME = "catppuccin-latte";
+
     private ThemeLoader() {}
 
     static AnsiTheme load(SettingsManager settings, Args args, String cwd) {
@@ -44,9 +49,9 @@ final class ThemeLoader {
 
         String selected = !args.themePaths().isEmpty() ? args.themePaths().getLast() : settings.config().theme();
         if (selected == null || selected.isBlank())
-            selected = "dark";
-        if ("auto".equalsIgnoreCase(selected)) // pick light/dark from the terminal background; dark when undetectable
-            selected = TerminalBackground.detect() == TerminalBackground.Mode.LIGHT ? "light" : "dark";
+            selected = DEFAULT_THEME;
+        if ("auto".equalsIgnoreCase(selected)) // pick a light/dark theme from the terminal background
+            selected = TerminalBackground.detect() == TerminalBackground.Mode.LIGHT ? AUTO_LIGHT_THEME : DEFAULT_THEME;
 
         AnsiTheme builtin = loadBuiltin(selected);
         if (builtin != null)

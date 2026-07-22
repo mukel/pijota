@@ -4,12 +4,10 @@ import ai.pijota.theme.AnsiTheme;
 import ai.pijota.util.PijotaHome;
 
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.jar.JarFile;
 
 final class ThemeManager {
     interface Host extends TuiHost {
@@ -89,30 +87,17 @@ final class ThemeManager {
         return Files.isRegularFile(path) ? path : null;
     }
 
+    /**
+     * The bundled themes ({@code src/main/resources/themes/*.json}). Kept as an explicit list because resource
+     * <em>directories</em> can't be enumerated in the native image — GraalVM's {@code resource:} protocol has no
+     * filesystem view, and a jar/classpath scan silently returns nothing there, so only the code-fallback dark/light
+     * would show. {@code ThemeManagerTest} cross-checks this list against the actual files to catch drift.
+     */
+    static final List<String> BUILTIN_THEMES = List.of("catppuccin-frappe", "catppuccin-latte", "catppuccin-macchiato",
+                                    "catppuccin-mocha", "gruvbox-dark", "gruvbox-light");
+
     private static List<String> builtinNames() {
-        var names = new ArrayList<String>();
-        try {
-            URL dir = AnsiTheme.class.getClassLoader().getResource("themes");
-            if (dir != null && "jar".equals(dir.getProtocol())) {
-                String path = dir.getPath();
-                int bang = path.indexOf('!');
-                if (bang < 0)
-                    return names;
-                String jarPath = path.substring(5, bang);
-                try (JarFile jar = new JarFile(jarPath)) {
-                    jar.stream().filter(e -> e.getName().startsWith("themes/") && e.getName().endsWith(".json"))
-                                                    .map(e -> e.getName().substring(7, e.getName().length() - 5))
-                                                    .sorted().forEach(names::add);
-                }
-            } else if (dir != null) {
-                try (var stream = Files.list(Path.of(dir.toURI()))) {
-                    stream.filter(p -> p.getFileName().toString().endsWith(".json"))
-                                                    .map(p -> p.getFileName().toString().replace(".json", "")).sorted()
-                                                    .forEach(names::add);
-                }
-            }
-        } catch (Exception ignored) {}
-        return names;
+        return BUILTIN_THEMES;
     }
 
     private static List<Path> fileThemes() {

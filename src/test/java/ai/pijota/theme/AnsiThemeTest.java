@@ -110,7 +110,7 @@ class AnsiThemeTest {
 
     @Test
     void loadResourceLoadsBuiltinTheme() throws Exception {
-        var theme = AnsiTheme.loadResource("themes/dark.json");
+        var theme = AnsiTheme.loadResource("themes/catppuccin-mocha.json");
         assertNotNull(theme);
         assertTrue(theme.enabled);
         assertNotNull(theme.name);
