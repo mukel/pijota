@@ -394,6 +394,11 @@ public final class PijotaSession implements AutoCloseable {
         return agentLoop.llm().totalCacheWriteTokens();
     }
 
+    /** Cumulative reasoning (thinking) tokens billed within the output count this session. */
+    public long totalReasoningTokens() {
+        return agentLoop.llm().totalReasoningTokens();
+    }
+
     /** Estimated cumulative spend this session in USD. */
     public double totalCost() {
         return agentLoop.llm().totalCost();

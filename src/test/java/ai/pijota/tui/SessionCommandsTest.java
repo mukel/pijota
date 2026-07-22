@@ -116,7 +116,7 @@ class SessionCommandsTest {
 
     @Test
     void usageReportShowsTokensCostAndBudget() {
-        var lines = SessionCommands.usageReport(1500, 500, 0, 0, 0.0123, 5.0, "  rate    unknown",
+        var lines = SessionCommands.usageReport(1500, 500, 0, 0, 0, 0.0123, 5.0, "  rate    unknown",
                                         (slot, text) -> text);
         String out = String.join("\n", lines);
         assertTrue(out.contains("input"), out);
@@ -124,28 +124,36 @@ class SessionCommandsTest {
         assertTrue(out.contains("$0.0123"), out);
         assertTrue(out.contains("budget") && out.contains("$5.00"), out);
         assertFalse(out.contains("cache"), "no cache line when no cache tokens"); // cacheRead/write are 0 here
+        assertFalse(out.contains("reasoning"), "no reasoning annotation when reasoning is 0");
     }
 
     @Test
     void usageReportOmitsBudgetWhenUnset() {
-        var lines = SessionCommands.usageReport(10, 20, 0, 0, 0.0, null, "  rate    unknown", (slot, text) -> text);
+        var lines = SessionCommands.usageReport(10, 20, 0, 0, 0, 0.0, null, "  rate    unknown", (slot, text) -> text);
         assertFalse(String.join("\n", lines).contains("budget"));
     }
 
     @Test
     void usageReportIncludesRateLineWhenProvided() {
-        var lines = SessionCommands.usageReport(10, 20, 0, 0, 0.0, null, "  rate    $5.00 in / $25.00 out per 1M  (x)",
-                                        (slot, text) -> text);
+        var lines = SessionCommands.usageReport(10, 20, 0, 0, 0, 0.0, null,
+                                        "  rate    $5.00 in / $25.00 out per 1M  (x)", (slot, text) -> text);
         assertTrue(String.join("\n", lines).contains("$5.00 in / $25.00 out"));
     }
 
     @Test
     void usageReportShowsCacheHitRateWhenCached() {
         // 4000 read of a 5000-token prompt (200 fresh input + 4000 read + 800 write) → 80% hit.
-        var lines = SessionCommands.usageReport(200, 100, 4000, 800, 0.0, null, "  rate", (slot, text) -> text);
+        var lines = SessionCommands.usageReport(200, 100, 0, 4000, 800, 0.0, null, "  rate", (slot, text) -> text);
         String out = String.join("\n", lines);
         assertTrue(out.contains("cache") && out.contains("read") && out.contains("write"), out);
         assertTrue(out.contains("80% hit"), out);
+    }
+
+    @Test
+    void usageReportAnnotatesOutputWithReasoningTokens() {
+        var lines = SessionCommands.usageReport(100, 900, 600, 0, 0, 0.0, null, "  rate", (slot, text) -> text);
+        String out = String.join("\n", lines);
+        assertTrue(out.contains("output") && out.contains("reasoning"), out); // 600 of the 900 output are reasoning
     }
 
     @Test

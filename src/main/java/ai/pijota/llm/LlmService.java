@@ -15,6 +15,8 @@ import dev.langchain4j.model.chat.response.PartialResponseContext;
 import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.model.chat.response.PartialThinkingContext;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
+import dev.langchain4j.model.anthropic.AnthropicTokenUsage;
+import dev.langchain4j.model.openai.OpenAiTokenUsage;
 import dev.langchain4j.model.output.TokenUsage;
 
 import org.slf4j.Logger;
@@ -126,6 +128,11 @@ public final class LlmService implements LlmClient {
     @Override
     public long totalCacheWriteTokens() {
         return usage.totalCacheWriteTokens();
+    }
+
+    @Override
+    public long totalReasoningTokens() {
+        return usage.totalReasoningTokens();
     }
 
     @Override
@@ -262,8 +269,7 @@ public final class LlmService implements LlmClient {
                 if (u != null) {
                     result.setUsage(new Usage(u.inputTokenCount() != null ? u.inputTokenCount() : 0,
                                                     u.outputTokenCount() != null ? u.outputTokenCount() : 0,
-                                                    cacheTokens(u, "cacheReadInputTokens"),
-                                                    cacheTokens(u, "cacheCreationInputTokens")));
+                                                    cacheReadTokens(u), cacheWriteTokens(u), reasoningTokens(u)));
                 }
                 usage.add(result.usage(), ModelRegistry.pricingFor(providerName, modelName));
                 recordSpeed(u);
@@ -298,19 +304,28 @@ public final class LlmService implements LlmClient {
         return future;
     }
 
-    /**
-     * A cache token count the provider reports outside {@code inputTokenCount} (Anthropic prompt caching): read the
-     * given accessor ({@code cacheReadInputTokens} or {@code cacheCreationInputTokens}) reflectively off langchain4j's
-     * {@code AnthropicTokenUsage}, so pijota doesn't hard-depend on the optional anthropic module (other providers,
-     * which fold caching into the input count, don't have the method and return 0).
-     */
-    private static long cacheTokens(TokenUsage usage, String accessor) {
-        try {
-            if (usage.getClass().getMethod(accessor).invoke(usage) instanceof Integer count)
-                return count;
-        } catch (ReflectiveOperationException ignored) {
-            // not an Anthropic usage (or an older langchain4j) — no separate cache tokens to add
-        }
+    // The provider usage subtypes carry extra token counts the base TokenUsage lacks: Anthropic reports cache read/
+    // creation input tokens separately, OpenAI reports reasoning tokens inside outputTokensDetails. Access them through
+    // the concrete types (not reflection) so the counts still populate in the GraalVM native image — reflective
+    // getMethod would be dropped there without registration and silently return 0. Both modules are non-optional deps.
+
+    private static long cacheReadTokens(TokenUsage usage) {
+        return usage instanceof AnthropicTokenUsage a && a.cacheReadInputTokens() != null
+                                        ? a.cacheReadInputTokens()
+                                        : 0;
+    }
+
+    private static long cacheWriteTokens(TokenUsage usage) {
+        return usage instanceof AnthropicTokenUsage a && a.cacheCreationInputTokens() != null
+                                        ? a.cacheCreationInputTokens()
+                                        : 0;
+    }
+
+    /** Reasoning (thinking) tokens the provider bills within the output count (OpenAI {@code outputTokensDetails}). */
+    private static long reasoningTokens(TokenUsage usage) {
+        if (usage instanceof OpenAiTokenUsage o && o.outputTokensDetails() != null
+                                        && o.outputTokensDetails().reasoningTokens() != null)
+            return o.outputTokensDetails().reasoningTokens();
         return 0;
     }
 
@@ -475,6 +490,7 @@ public final class LlmService implements LlmClient {
         private int totalOutputTokens;
         private int totalCacheReadTokens; // input served from the provider cache (cache hits)
         private int totalCacheWriteTokens; // input written to the provider cache (cache misses that populate it)
+        private int totalReasoningTokens; // thinking tokens billed within the output count
         private int lastContextTokens; // input+output of the most recent response ≈ the next request's prompt size
         private double totalCost;
         private boolean hasUnpricedUsage;
@@ -501,6 +517,10 @@ public final class LlmService implements LlmClient {
 
         int totalCacheWriteTokens() {
             return totalCacheWriteTokens;
+        }
+
+        int totalReasoningTokens() {
+            return totalReasoningTokens;
         }
 
         int lastContextTokens() {
@@ -532,6 +552,7 @@ public final class LlmService implements LlmClient {
             totalOutputTokens += out;
             totalCacheReadTokens += cacheRead;
             totalCacheWriteTokens += cacheWrite;
+            totalReasoningTokens += (int) usage.reasoningTokens();
             if (in > 0 || cached > 0)
                 // the real prompt size this turn (input + any cached input) + output, which re-enters context
                 lastContextTokens = in + cached + out;

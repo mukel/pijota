@@ -149,8 +149,8 @@ final class SessionCommands {
         if (session == null)
             return;
         host.appendPlain(usageReport(session.totalInputTokens(), session.totalOutputTokens(),
-                                        session.totalCacheReadTokens(), session.totalCacheWriteTokens(),
-                                        session.totalCost(), session.costBudget(),
+                                        session.totalReasoningTokens(), session.totalCacheReadTokens(),
+                                        session.totalCacheWriteTokens(), session.totalCost(), session.costBudget(),
                                         rateLine(session.provider(), session.model(), session.hasUnpricedUsage()),
                                         host::styled));
     }
@@ -167,12 +167,14 @@ final class SessionCommands {
     }
 
     /** Formats the cumulative session-usage block. Pure given the totals and a styler, so it is unit-testable. */
-    static List<String> usageReport(long input, long output, long cacheRead, long cacheWrite, double cost,
-                                    Double budget, String rateLine, BiFunction<String, String, String> styled) {
+    static List<String> usageReport(long input, long output, long reasoning, long cacheRead, long cacheWrite,
+                                    double cost, Double budget, String rateLine,
+                                    BiFunction<String, String, String> styled) {
         var lines = new ArrayList<String>();
         lines.add(styled.apply("toolLabel", "usage  (this session)"));
         lines.add(styled.apply("statusText", "  input   " + fmtCount(input) + " tokens"));
-        lines.add(styled.apply("statusText", "  output  " + fmtCount(output) + " tokens"));
+        lines.add(styled.apply("statusText", "  output  " + fmtCount(output) + " tokens"
+                                        + (reasoning > 0 ? "  (" + fmtCount(reasoning) + " reasoning)" : "")));
         lines.add(styled.apply("statusText", "  total   " + fmtCount(input + output) + " tokens"));
         if (cacheRead > 0 || cacheWrite > 0) {
             long promptTokens = input + cacheRead + cacheWrite; // full prompt input incl. cache

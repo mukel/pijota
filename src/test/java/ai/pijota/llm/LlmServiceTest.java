@@ -15,6 +15,8 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.PartialResponse;
 import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
+import dev.langchain4j.model.anthropic.AnthropicTokenUsage;
+import dev.langchain4j.model.openai.OpenAiTokenUsage;
 import dev.langchain4j.model.output.TokenUsage;
 
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,32 @@ class LlmServiceTest {
     private static LlmService serviceWithKeyResolver(Function<String, String> resolver) {
         return new LlmService("openai", "gpt-4o", resolver, null,
                                         List.of(new FakeProviderFactory(new FakeModel().withContent("ok"))), null);
+    }
+
+    @Test
+    void extractsReasoningTokensFromOpenAiUsage() {
+        // Exercises the typed (non-reflective) extraction that must also work in the native image.
+        var usage = OpenAiTokenUsage.builder().inputTokenCount(100).outputTokenCount(900).outputTokensDetails(
+                                        OpenAiTokenUsage.OutputTokensDetails.builder().reasoningTokens(600).build())
+                                        .build();
+        var service = serviceWithFake(new FakeModel().withContent("ok").withUsage(usage));
+
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+
+        assertEquals(600, service.totalReasoningTokens());
+        assertEquals(900, service.totalOutputTokens());
+    }
+
+    @Test
+    void extractsCacheTokensFromAnthropicUsage() {
+        var usage = AnthropicTokenUsage.builder().inputTokenCount(100).outputTokenCount(20).cacheReadInputTokens(4000)
+                                        .cacheCreationInputTokens(1000).build();
+        var service = serviceWithFake(new FakeModel().withContent("ok").withUsage(usage));
+
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+
+        assertEquals(4000, service.totalCacheReadTokens());
+        assertEquals(1000, service.totalCacheWriteTokens());
     }
 
     @Test
@@ -327,6 +355,11 @@ class LlmServiceTest {
 
         FakeModel withUsage(int input, int output) {
             this.tokenUsage = new TokenUsage(input, output);
+            return this;
+        }
+
+        FakeModel withUsage(TokenUsage usage) {
+            this.tokenUsage = usage;
             return this;
         }
 

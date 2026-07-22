@@ -39,6 +39,11 @@ public interface LlmClient extends AutoCloseable {
         return 0;
     }
 
+    /** Cumulative reasoning (thinking) tokens billed within the output count this session; 0 when not tracked. */
+    default long totalReasoningTokens() {
+        return 0;
+    }
+
     /** Estimated cumulative spend this session, in USD. {@code 0} when the client does not track cost. */
     default double totalCost() {
         return 0;
