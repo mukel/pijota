@@ -291,10 +291,10 @@ public final class SyntaxHighlighter {
                 if (keywords.contains(word)) {
                     out.append(style("synKeyword", word));
                     prevWord = word;
-                } else if (isTypeName(word, prevWord, line, i, end)) {
+                } else if (isTypeName(word, prevWord, i)) {
                     out.append(style("synType", word));
                     prevWord = word;
-                } else if (isFunction(prevWord, word, line, end)) {
+                } else if (isFunction(prevWord, line, end)) {
                     out.append(style("synFunction", word));
                     prevWord = word;
                 } else {
@@ -312,25 +312,20 @@ public final class SyntaxHighlighter {
         return out.toString();
     }
 
-    private boolean isTypeName(String word, String prevWord, String line, int start, int end) {
+    private boolean isTypeName(String word, String prevWord, int start) {
         if (prevWord != null && TYPE_KEYWORDS.contains(prevWord))
             return true;
-        if (start == 0 && Character.isUpperCase(word.charAt(0)))
-            return true;
-        if (word.length() > 1 && Character.isUpperCase(word.charAt(0)))
-            return true;
-        return false;
+        // a capitalized word: always a type at line start, otherwise only if it's more than a single letter
+        return Character.isUpperCase(word.charAt(0)) && (start == 0 || word.length() > 1);
     }
 
-    private boolean isFunction(String prevWord, String word, String line, int end) {
-        if (prevWord != null && prevWord.equals("def"))
+    private boolean isFunction(String prevWord, String line, int end) {
+        if ("def".equals(prevWord))
             return true;
         int i = end;
         while (i < line.length() && Character.isWhitespace(line.charAt(i)))
             i++;
-        if (i < line.length() && line.charAt(i) == '(')
-            return true;
-        return false;
+        return i < line.length() && line.charAt(i) == '('; // name immediately followed by "(" → a call/def
     }
 
     private String highlightString(String text) {
@@ -375,9 +370,8 @@ public final class SyntaxHighlighter {
     }
 
     private static boolean isNumberChar(char ch) {
-        return Character.isDigit(ch) || ch == '.' || ch == '_' || ch == 'x' || ch == 'X' || ch == 'a' || ch == 'b'
-                                        || ch == 'c' || ch == 'd' || ch == 'e' || ch == 'f' || ch == 'A' || ch == 'B'
-                                        || ch == 'C' || ch == 'D' || ch == 'E' || ch == 'F';
+        // hex digits (0-9, a-f, A-F) plus the '.', '_' separators and the '0x' marker
+        return Character.digit(ch, 16) >= 0 || ch == '.' || ch == '_' || ch == 'x' || ch == 'X';
     }
 
     private String style(String slot, String text) {
