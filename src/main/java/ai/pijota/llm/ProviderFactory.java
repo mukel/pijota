@@ -3,11 +3,15 @@ package ai.pijota.llm;
 import java.util.ArrayList;
 
 import ai.pijota.config.ProviderCatalog;
+import ai.pijota.util.Proxies;
+import dev.langchain4j.http.client.HttpClientBuilder;
+import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 
+import java.net.http.HttpClient;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +22,19 @@ public interface ProviderFactory {
 
     default boolean supports(String provider) {
         return false;
+    }
+
+    /**
+     * A langchain4j HTTP client builder that routes through the configured proxy, or {@code null} when no proxy is set
+     * (leaving langchain4j's default client). Explicitly instantiating the JDK builder also avoids a ServiceLoader
+     * lookup that would need extra native-image metadata.
+     */
+    static HttpClientBuilder proxiedClientBuilder() {
+        var selector = Proxies.selector();
+        return selector == null
+                                        ? null
+                                        : new JdkHttpClientBuilder().httpClientBuilder(
+                                                                        HttpClient.newBuilder().proxy(selector));
     }
 
     /**
@@ -46,6 +63,9 @@ public interface ProviderFactory {
             boolean thinkingOn = thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF;
             var builder = OpenAiStreamingChatModel.builder().baseUrl(baseUrl).apiKey(apiKey).modelName(modelName)
                                             .timeout(LlmTimeouts.request());
+            var proxy = proxiedClientBuilder();
+            if (proxy != null)
+                builder.httpClientBuilder(proxy);
             if (thinkingOn)
                 builder.returnThinking(true);
             var thinkingParams = thinkingParameters(ProviderCatalog.thinkingFormat(providerName), thinkingOn);
@@ -87,6 +107,9 @@ public interface ProviderFactory {
                                             // every
                                             // turn — cache reads ≈ 10% of input cost. Other providers auto-cache this.
                                             .cacheSystemMessages(true).cacheTools(true);
+            var proxy = proxiedClientBuilder();
+            if (proxy != null)
+                builder.httpClientBuilder(proxy);
             if (thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF) {
                 builder.thinkingType("enabled");
                 builder.thinkingBudgetTokens(thinkingLevel.budgetTokens());

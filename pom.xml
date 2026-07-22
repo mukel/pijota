@@ -81,6 +81,12 @@
       <groupId>dev.langchain4j</groupId>
       <artifactId>langchain4j-anthropic</artifactId>
     </dependency>
+    <dependency>
+      <!-- The JDK HttpClient backend (a transitive runtime dep of the providers above); made explicit so we can build
+           a proxied JdkHttpClientBuilder at compile time and route the LLM providers through an HTTP proxy. -->
+      <groupId>dev.langchain4j</groupId>
+      <artifactId>langchain4j-http-client-jdk</artifactId>
+    </dependency>
 
     <!-- Terminal -->
     <dependency>

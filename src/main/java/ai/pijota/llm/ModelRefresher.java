@@ -4,6 +4,7 @@ import ai.pijota.config.OAuthTokenStore;
 import ai.pijota.config.ProviderCatalog;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.util.ErrorUtil;
+import ai.pijota.util.Proxies;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,7 +30,7 @@ public final class ModelRefresher {
     }
 
     public static Result refresh(SettingsManager settings) {
-        var client = HttpClient.newHttpClient();
+        var client = Proxies.httpClientBuilder().build();
         var oauth = new OAuthTokenStore();
         var models = new ArrayList<ModelInfo>();
         var errors = new ArrayList<String>();

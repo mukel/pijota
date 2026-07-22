@@ -3,6 +3,7 @@ package ai.pijota;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.agent.SessionManager;
 import ai.pijota.agent.SystemPrompt;
+import ai.pijota.util.Proxies;
 import ai.pijota.cli.Args;
 import ai.pijota.config.ProviderCatalog;
 import ai.pijota.config.SettingsManager;
@@ -62,6 +63,9 @@ public final class AppBootstrap {
     // package-visible for tests so callers can inject a SettingsManager backed by a temp directory.
     static Result bootstrap(Args parsedArgs, SettingsManager settings) throws Exception {
         StartupTimer.mark("bootstrap start");
+        // Mirror any configured HTTP proxy into the JVM proxy properties so URLConnection-based paths and providers
+        // whose client we can't configure directly (Gemini) route through it too, not just our explicit HttpClients.
+        Proxies.installSystemProperties();
         String cwd = System.getProperty("user.dir");
 
         // Overlay any user-defined providers (settings.json "providers") onto the catalog before resolving the model,

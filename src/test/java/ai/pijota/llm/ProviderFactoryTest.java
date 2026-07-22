@@ -24,6 +24,23 @@ class ProviderFactoryTest {
     }
 
     @Test
+    void buildsProvidersWithAProxyConfigured() {
+        // With a proxy set, OpenAI/Anthropic get a proxied httpClientBuilder injected; construction must still succeed.
+        System.setProperty("pijota.proxy", "http://proxy.example:8080");
+        try {
+            assertNotNull(new ProviderFactory.OpenAiCompatible().create("https://api.openai.com/v1", "sk", "gpt-4",
+                                            "openai", ThinkingLevel.OFF));
+            assertNotNull(new ProviderFactory.AnthropicProvider().create("https://api.anthropic.com", "sk", "claude-x",
+                                            "anthropic", ThinkingLevel.OFF));
+            assertInstanceOf(CodexStreamingChatModel.class, new ProviderFactory.OpenAiCompatible().create(
+                                            "https://chatgpt.com/backend-api", "sk", "gpt-5-codex", "openai-codex",
+                                            ThinkingLevel.OFF));
+        } finally {
+            System.clearProperty("pijota.proxy");
+        }
+    }
+
+    @Test
     void openAiCompatibleUsesTheCodexModelForTheOpenAiCodexProvider() {
         var model = new ProviderFactory.OpenAiCompatible().create("https://chatgpt.com/backend-api", "sk",
                                         "gpt-5-codex", "openai-codex", ThinkingLevel.OFF);

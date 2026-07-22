@@ -1,6 +1,7 @@
 package ai.pijota.llm;
 
 import ai.pijota.config.OAuthTokenStore;
+import ai.pijota.util.Proxies;
 import ai.pijota.util.Util;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -57,7 +58,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
     CodexStreamingChatModel(String baseUrl, String apiKey, String modelName, String providerName,
                                     ThinkingLevel thinkingLevel) {
         // Connect timeout so an unreachable host fails fast instead of stalling up to the full request timeout.
-        this(HttpClient.newBuilder().connectTimeout(LlmTimeouts.connect()).build(), baseUrl, apiKey, modelName,
+        this(Proxies.httpClientBuilder().connectTimeout(LlmTimeouts.connect()).build(), baseUrl, apiKey, modelName,
                                         providerName, thinkingLevel);
     }
 

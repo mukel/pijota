@@ -1,5 +1,6 @@
 package ai.pijota.config;
 
+import ai.pijota.util.Proxies;
 import ai.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,7 +32,7 @@ public final class OAuthLogin {
 
     public static TokenResult login(String deviceEndpoint, String tokenEndpoint, String clientId, String scope,
                                     Consumer<String> out) throws Exception {
-        return login(deviceEndpoint, tokenEndpoint, clientId, scope, out, HttpClient.newHttpClient());
+        return login(deviceEndpoint, tokenEndpoint, clientId, scope, out, Proxies.httpClientBuilder().build());
     }
 
     /** Injectable-client variant — lets tests drive the device-code → poll flow against a fake HTTP client. */
@@ -44,7 +45,7 @@ public final class OAuthLogin {
 
     public static TokenResult loginOpenAI(String deviceCodeUrl, String tokenUrl, String oauthTokenUrl, String clientId,
                                     Consumer<String> out) throws Exception {
-        return loginOpenAI(deviceCodeUrl, tokenUrl, oauthTokenUrl, clientId, out, HttpClient.newHttpClient());
+        return loginOpenAI(deviceCodeUrl, tokenUrl, oauthTokenUrl, clientId, out, Proxies.httpClientBuilder().build());
     }
 
     /** Injectable-client variant — lets tests drive the device-auth (and code-exchange) flow against a fake client. */
@@ -193,7 +194,7 @@ public final class OAuthLogin {
      * (oauthTokenEndpoint) — just pass the appropriate URL as tokenUrl.
      */
     public static TokenResult refreshToken(String tokenUrl, String clientId, String refreshToken) throws Exception {
-        var client = HttpClient.newHttpClient();
+        var client = Proxies.httpClientBuilder().build();
         String body = "grant_type=refresh_token" + "&client_id=" + urlEncode(clientId) + "&refresh_token="
                                         + urlEncode(refreshToken);
         var request = HttpRequest.newBuilder().uri(URI.create(tokenUrl))

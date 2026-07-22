@@ -1,6 +1,7 @@
 package ai.pijota.tools;
 
 import ai.pijota.util.Env;
+import ai.pijota.util.Proxies;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -24,7 +25,7 @@ final class WebTools {
 
     /** The default HTTP client for the web tools: follow redirects, configurable connect timeout. */
     static HttpClient defaultClient() {
-        return HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(CONNECT_TIMEOUT)
+        return Proxies.httpClientBuilder().followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(CONNECT_TIMEOUT)
                                         .build();
     }
 

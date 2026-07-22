@@ -2,6 +2,7 @@ package ai.pijota.telegram;
 
 import ai.pijota.util.Env;
 import ai.pijota.util.ErrorUtil;
+import ai.pijota.util.Proxies;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -50,7 +51,7 @@ public final class TelegramClient implements TelegramApi {
     private final String fileBase;
 
     public TelegramClient(String token) {
-        this(token, HttpClient.newBuilder()
+        this(token, Proxies.httpClientBuilder()
                                         .connectTimeout(Duration.ofSeconds(Env.seconds(
                                                                         "pijota.telegram.connect-timeout",
                                                                         "PIJOTA_TELEGRAM_CONNECT_TIMEOUT", 10)))
