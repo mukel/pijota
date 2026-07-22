@@ -145,6 +145,7 @@ public final class ErrorUtil {
 
         return msg.contains("rate limit") || msg.contains("rate_limit") || msg.contains("too many requests")
                                         || msg.contains("429") || msg.contains("overloaded") || msg.contains("capacity")
+                                        || msg.contains("resource_exhausted") || msg.contains("resource exhausted")
                                         || msg.contains("server error") || msg.contains("503") || msg.contains("502")
                                         || msg.contains("500") || msg.contains("timeout") || msg.contains("timed out")
                                         || msg.contains("connection reset") || msg.contains("connection refused")

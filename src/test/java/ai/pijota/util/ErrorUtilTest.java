@@ -79,6 +79,7 @@ class ErrorUtilTest {
         assertTrue(ErrorUtil.isRetryable(new RuntimeException("rate limit exceeded")));
         assertTrue(ErrorUtil.isRetryable(new IOException("connection reset")));
         assertTrue(ErrorUtil.isRetryable(new RuntimeException("503 server error")));
+        assertTrue(ErrorUtil.isRetryable(new RuntimeException("RESOURCE_EXHAUSTED: quota exceeded"))); // Gemini/Vertex
     }
 
     @Test
