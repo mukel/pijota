@@ -141,6 +141,35 @@ public final class ErrorUtil {
         return false;
     }
 
+    // Hard quota/billing/subscription-cap failures: a 429 (or gateway error) that will NOT clear by retrying — the
+    // account is out of credits or over a plan limit. Checked BEFORE the retryable patterns so it surfaces immediately
+    // instead of burning the whole retry budget on backoff.
+    // NB: bare "quota exceeded" is deliberately NOT here — Gemini/Vertex RESOURCE_EXHAUSTED uses it for per-minute rate
+    // quotas that DO clear on retry (see isRetryableDetectsTransientErrors). Only unambiguously-hard billing/plan-cap
+    // wording goes here.
+    private static final List<String> NON_RETRYABLE = List.of("insufficient_quota", "out of budget", "billing",
+                                    "monthly usage limit reached", "available balance", "gousagelimiterror",
+                                    "freeusagelimiterror");
+
+    // Transient failures worth retrying: throttles, 5xx, transport drops, and premature stream endings that typically
+    // clear on a fresh request. Substrings are matched against the lower-cased message.
+    private static final List<String> RETRYABLE = List.of(
+                                    // throttling / capacity
+                                    "rate limit", "rate_limit", "ratelimit", "too many requests", "429", "overloaded",
+                                    "capacity", "resource_exhausted", "resource exhausted",
+                                    // 5xx / server-side transient
+                                    "server error", "internal error", "temporarily unavailable", "service unavailable",
+                                    "provider returned error", "500", "502", "503", "504", "524",
+                                    // network / transport drops
+                                    "timeout", "timed out", "connection reset", "connection refused", "connection lost",
+                                    "network error", "other side closed", "fetch failed", "upstream connect",
+                                    "reset before headers", "socket hang up",
+                                    // premature stream endings + explicit mid-stream retry guidance
+                                    "ended without", "stream ended before message_stop",
+                                    "stream ended before a terminal response event",
+                                    "http2 request did not get a response", "retry delay", "you can retry your request",
+                                    "try your request again", "please retry your request");
+
     public static boolean isRetryable(Throwable ex) {
         if (ex == null)
             return false;
@@ -149,18 +178,19 @@ public final class ErrorUtil {
 
         if (hasStatusCode(msg, 400, 401, 403, 404, 413))
             return false;
-
         if (isContextOverflow(unwrapped))
             return false;
+        if (containsAny(msg, NON_RETRYABLE)) // hard quota/billing — retrying won't help, fail fast
+            return false;
 
-        return msg.contains("rate limit") || msg.contains("rate_limit") || msg.contains("too many requests")
-                                        || msg.contains("429") || msg.contains("overloaded") || msg.contains("capacity")
-                                        || msg.contains("resource_exhausted") || msg.contains("resource exhausted")
-                                        || msg.contains("server error") || msg.contains("503") || msg.contains("502")
-                                        || msg.contains("500") || msg.contains("timeout") || msg.contains("timed out")
-                                        || msg.contains("connection reset") || msg.contains("connection refused")
-                                        || msg.contains("temporarily unavailable") || msg.contains("internal error")
-                                        || unwrapped instanceof IOException || unwrapped instanceof TimeoutException;
+        return containsAny(msg, RETRYABLE) || unwrapped instanceof IOException || unwrapped instanceof TimeoutException;
+    }
+
+    private static boolean containsAny(String haystack, List<String> needles) {
+        for (String needle : needles)
+            if (haystack.contains(needle))
+                return true;
+        return false;
     }
 
     /** Default cap for backoff waits, so a long server-requested or computed delay can't stall a turn/loop forever. */

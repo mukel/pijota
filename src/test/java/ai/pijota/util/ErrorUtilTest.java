@@ -90,6 +90,25 @@ class ErrorUtilTest {
     }
 
     @Test
+    void isRetryableRejectsHardQuotaAndBillingLimits() {
+        // A 429 that won't clear by retrying — surface it immediately instead of burning the retry budget.
+        assertFalse(ErrorUtil.isRetryable(new RuntimeException("429 insufficient_quota: check your billing")));
+        assertFalse(ErrorUtil.isRetryable(new RuntimeException("You are out of budget")));
+        assertFalse(ErrorUtil.isRetryable(new RuntimeException("Monthly usage limit reached")));
+        assertFalse(ErrorUtil.isRetryable(new RuntimeException("enable available balance to continue")));
+    }
+
+    @Test
+    void isRetryableDetectsPrematureStreamEndingsAndRetryHints() {
+        // Provider-specific transient stream aborts + explicit mid-stream retry guidance.
+        assertTrue(ErrorUtil.isRetryable(new RuntimeException("Anthropic stream ended before message_stop")));
+        assertTrue(ErrorUtil.isRetryable(new RuntimeException("stream ended before a terminal response event")));
+        assertTrue(ErrorUtil.isRetryable(new RuntimeException("http2 request did not get a response")));
+        assertTrue(ErrorUtil.isRetryable(new RuntimeException("An error occurred. You can retry your request.")));
+        assertTrue(ErrorUtil.isRetryable(new RuntimeException("504 gateway timeout")));
+    }
+
+    @Test
     void retryAfterDelayParsesIntegerSeconds() {
         var ex = new RuntimeException("retry later") {
             public Object response() {
