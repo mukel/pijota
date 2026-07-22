@@ -3,7 +3,6 @@ package ai.pijota.agent;
 import ai.pijota.extensions.ExtensionRegistry;
 import ai.pijota.extensions.HeadlessToolContext;
 import ai.pijota.llm.LlmClient;
-import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
 import ai.pijota.tools.ToolRegistry;
 import ai.pijota.util.Util;
@@ -146,16 +145,17 @@ public final class HeadlessAgentRunner {
         return 0;
     }
 
-    /** Appends to the run log if a writer is attached, flushing so a live tail sees it; a broken writer is ignored
-     *  (the log is best-effort). */
+    /**
+     * Appends to the run log if a writer is attached, flushing so a live tail sees it; a broken writer is ignored (the
+     * log is best-effort).
+     */
     private static void appendLog(BufferedWriter writer, String text) {
         if (writer == null)
             return;
         try {
             writer.write(text);
             writer.flush();
-        } catch (IOException ignored) {
-        }
+        } catch (IOException ignored) {}
     }
 
     private static ToolRegistry buildRegistry(List<String> names, int depth, LlmClient llm, String systemPrompt,
@@ -166,8 +166,7 @@ public final class HeadlessAgentRunner {
             defaults.get(name).ifPresent(registry::register);
         }
         if (extensions != null) {
-            LlmService llmService = llm instanceof LlmService s ? s : null;
-            extensions.contributeHeadlessTools(new HeadlessToolContext(names, depth, llmService, registry, systemPrompt,
+            extensions.contributeHeadlessTools(new HeadlessToolContext(names, depth, llm, registry, systemPrompt,
                                             Path.of(cwd)));
         }
         return registry;

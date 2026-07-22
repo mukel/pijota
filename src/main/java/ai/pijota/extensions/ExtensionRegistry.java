@@ -3,7 +3,6 @@ package ai.pijota.extensions;
 import ai.pijota.agent.AgentEvent;
 import ai.pijota.extensions.skills.SkillLoader;
 import ai.pijota.llm.LlmClient;
-import ai.pijota.llm.LlmService;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SlashCommand;
 import ai.pijota.tools.SlashCommandTool;
@@ -57,7 +56,7 @@ public final class ExtensionRegistry {
     private final ExtensionRuntimeImpl runtime = new ExtensionRuntimeImpl();
     private ToolRegistry toolRegistry;
     private AgentContext agentContext;
-    private LlmService llm;
+    private LlmClient llm;
     private volatile UiContext uiContext; // setTui may be called from a worker (remote-control start); read elsewhere
     private Path cwd;
     private String sessionName;
@@ -140,7 +139,7 @@ public final class ExtensionRegistry {
         this.agentContext = loop;
     }
 
-    public void setLlm(LlmService l) {
+    public void setLlm(LlmClient l) {
         this.llm = l;
     }
 
