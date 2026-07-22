@@ -152,6 +152,38 @@
       "baseUrl": "https://token-plan-sgp.xiaomimimo.com/v1",
       "env": ["XIAOMI_TOKEN_PLAN_SGP_API_KEY"],
       "defaultModel": "mimo-v2.5-pro"
+    },
+    {
+      "id": "zai",
+      "displayName": "Z.AI",
+      "apiType": "openai",
+      "baseUrl": "https://api.z.ai/api/coding/paas/v4",
+      "env": ["ZAI_API_KEY"],
+      "defaultModel": "glm-4.7"
+    },
+    {
+      "id": "huggingface",
+      "displayName": "Hugging Face",
+      "apiType": "openai",
+      "baseUrl": "https://router.huggingface.co/v1",
+      "env": ["HF_TOKEN"],
+      "defaultModel": "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    },
+    {
+      "id": "nvidia",
+      "displayName": "NVIDIA NIM",
+      "apiType": "openai",
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "env": ["NVIDIA_API_KEY"],
+      "defaultModel": "qwen/qwen3-coder-480b-a35b-instruct"
+    },
+    {
+      "id": "minimax",
+      "displayName": "MiniMax",
+      "apiType": "anthropic",
+      "baseUrl": "https://api.minimax.io/anthropic",
+      "env": ["MINIMAX_API_KEY"],
+      "defaultModel": "MiniMax-M2.5"
     }
   ]
 }
