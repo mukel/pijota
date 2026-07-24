@@ -5,6 +5,7 @@ import ai.pijota.llm.ToolSchema;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 /**
  * The contract between pijota and any LLM-callable tool. Implement directly or use {@link ToolDefinition} to define a
@@ -28,6 +29,12 @@ public interface Tool {
 
     /** Execute the tool — {@code sessionCwd} is the session's working directory at call time. */
     CompletableFuture<ToolResult> execute(String toolCallId, Args arguments, String sessionCwd);
+
+    /** Execute with optional progress updates. Tools that do not stream progress use the normal execute path. */
+    default CompletableFuture<ToolResult> execute(String toolCallId, Args arguments, String sessionCwd,
+                                    Consumer<String> onProgress) {
+        return execute(toolCallId, arguments, sessionCwd);
+    }
 
     default boolean defaultEnabled() {
         return true;
@@ -122,6 +129,12 @@ public interface Tool {
                 @Override
                 public CompletableFuture<ToolResult> execute(String id, Args args, String cwd) {
                     return ToolDefinition.this.execute.execute(id, args, cwd);
+                }
+
+                @Override
+                public CompletableFuture<ToolResult> execute(String id, Args args, String cwd,
+                                                Consumer<String> onProgress) {
+                    return execute(id, args, cwd);
                 }
 
                 @Override

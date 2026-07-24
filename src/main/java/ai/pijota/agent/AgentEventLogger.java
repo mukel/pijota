@@ -48,6 +48,8 @@ final class AgentEventLogger {
                 if (log.isDebugEnabled())
                     log.debug("  args: {}", ErrorUtil.sanitize(safe(e.argumentsSupplier())));
             }
+            case AgentEvent.BashExecutionUpdate e ->
+                log.trace("bash delta [{}] · {} chars", e.toolCallId(), e.delta() == null ? 0 : e.delta().length());
             case AgentEvent.ToolResult e -> {
                 var m = e.message();
                 log.info("tool ■ {} [{}] · {} · {} chars", m.toolName(), m.toolCallId(), m.isError() ? "ERROR" : "ok",

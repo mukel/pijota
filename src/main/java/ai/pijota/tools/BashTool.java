@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.time.Duration;
 
 public final class BashTool implements Tool {
@@ -32,30 +33,44 @@ public final class BashTool implements Tool {
     private final String shellPath;
     private final String shellPrefix;
     private final CommandExecutor commandExecutor;
+    private final Supplier<Map<String, String>> environmentSupplier;
     private volatile Process currentProcess;
 
     @FunctionalInterface
     interface CommandExecutor {
         ProcessRunner.Result execute(List<String> command, Path workDir, Duration timeout, int maxOutputBytes,
-                                        boolean redirectErrorStream, Consumer<Process> onStart) throws IOException;
+                                        boolean redirectErrorStream, Map<String, String> environment,
+                                        Consumer<Process> onStart, Consumer<String> onOutput) throws IOException;
     }
 
     public BashTool(String shellPath, String shellPrefix) {
-        this(shellPath, shellPrefix, defaultExecutor());
+        this(shellPath, shellPrefix, (Supplier<Map<String, String>>) Map::of);
+    }
+
+    public BashTool(String shellPath, String shellPrefix, Supplier<Map<String, String>> environmentSupplier) {
+        this(shellPath, shellPrefix, defaultExecutor(), environmentSupplier);
     }
 
     BashTool(String shellPath, String shellPrefix, CommandExecutor commandExecutor) {
+        this(shellPath, shellPrefix, commandExecutor, Map::of);
+    }
+
+    BashTool(String shellPath, String shellPrefix, CommandExecutor commandExecutor,
+                                    Supplier<Map<String, String>> environmentSupplier) {
         this.shellPath = shellPath;
         this.shellPrefix = shellPrefix;
         this.commandExecutor = commandExecutor;
+        this.environmentSupplier = environmentSupplier != null ? environmentSupplier : Map::of;
     }
 
     private static CommandExecutor defaultExecutor() {
-        return (cmd, dir, timeout, maxBytes, redirectError, onStart) -> {
+        return (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput) -> {
             var builder = ProcessRunner.command(cmd).workDir(dir).timeout(timeout).maxOutputBytes(maxBytes)
-                                            .redirectErrorStream(redirectError);
+                                            .redirectErrorStream(redirectError).environment(env);
             if (onStart != null)
                 builder.onStart(onStart);
+            if (onOutput != null)
+                builder.onStdoutChunk(onOutput);
             return builder.run();
         };
     }
@@ -96,6 +111,12 @@ public final class BashTool implements Tool {
 
     @Override
     public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String sessionCwd) {
+        return execute(toolCallId, args, sessionCwd, null);
+    }
+
+    @Override
+    public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String sessionCwd,
+                                    Consumer<String> onProgress) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String command = args.getString("command");
@@ -108,10 +129,11 @@ public final class BashTool implements Tool {
                 long timeoutSeconds = args.getLong("timeout", DEFAULT_TIMEOUT_SECONDS);
 
                 String fullCmd = shellPrefix != null ? shellPrefix + "\n" + command : command;
+                Map<String, String> environment = environmentSupplier.get();
 
                 var result = commandExecutor.execute(List.of(shellPath, Platform.shellCommandFlag(shellPath), fullCmd),
                                                 workdir, Duration.ofSeconds(timeoutSeconds), MAX_OUTPUT_BYTES, true,
-                                                p -> currentProcess = p);
+                                                environment, p -> currentProcess = p, onProgress);
 
                 String output = result.stdout();
                 var details = new LinkedHashMap<String, Object>();

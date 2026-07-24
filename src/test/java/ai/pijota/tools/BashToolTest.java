@@ -4,8 +4,10 @@ import ai.pijota.util.ProcessRunner;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,7 +19,7 @@ class BashToolTest {
 
     private static BashTool.CommandExecutor fakeExecutor(String stdout, int exitCode, boolean timedOut,
                                     boolean truncated) {
-        return (cmd, dir, timeout, maxBytes, redirectError, onStart) -> {
+        return (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput) -> {
             if (onStart != null)
                 onStart.accept(null);
             return new ProcessRunner.Result(exitCode, stdout, "", timedOut, truncated);
@@ -44,6 +46,69 @@ class BashToolTest {
         var result = run(tool, Map.of("command", "ls"), "/tmp");
         assertFalse(result.isError());
         assertEquals("output", result.content());
+    }
+
+    @Test
+    void passesPijotaEnvironmentToExecutor() {
+        var seen = new AtomicReference<Map<String, String>>();
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
+                                        onOutput) -> {
+            seen.set(env);
+            return new ProcessRunner.Result(0, "ok", "", false, false);
+        };
+        var tool = new BashTool("/bin/bash", null, executor,
+                                        () -> Map.of("PIJOTA_PROVIDER", "anthropic", "PIJOTA_MODEL", "claude"));
+        var result = run(tool, Map.of("command", "env"), "/tmp");
+
+        assertFalse(result.isError());
+        assertEquals("anthropic", seen.get().get("PIJOTA_PROVIDER"));
+        assertEquals("claude", seen.get().get("PIJOTA_MODEL"));
+    }
+
+    @Test
+    void executeWithProgressCallbackForwardsOutputChunks() {
+        var seen = new ArrayList<String>();
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
+                                        onOutput) -> {
+            onOutput.accept("partial ");
+            onOutput.accept("output");
+            return new ProcessRunner.Result(0, "partial output", "", false, false);
+        };
+        var tool = new BashTool("/bin/bash", null, executor);
+
+        var result = tool.execute("call-1", new Tool.Args(Map.of("command", "echo hi")), "/tmp", seen::add).join();
+
+        assertFalse(result.isError());
+        assertEquals(List.of("partial ", "output"), seen);
+        assertEquals("partial output", result.content());
+    }
+
+    @Test
+    void executeWithNullProgressCallbackDoesNotRequireExecutorOutputHandler() {
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
+                                        onOutput) -> {
+            assertNull(onOutput);
+            return new ProcessRunner.Result(0, "ok", "", false, false);
+        };
+        var tool = new BashTool("/bin/bash", null, executor);
+
+        var result = run(tool, Map.of("command", "echo ok"), "/tmp");
+
+        assertFalse(result.isError());
+        assertEquals("ok", result.content());
+    }
+
+    @Test
+    void defaultExecutorReportsRealProcessOutputChunks() {
+        var chunks = new ArrayList<String>();
+        var tool = new BashTool("/bin/sh", null);
+
+        var result = tool.execute("call-1", new Tool.Args(Map.of("command", "printf real-output")), "/tmp", chunks::add)
+                                        .join();
+
+        assertFalse(result.isError());
+        assertEquals("real-output", result.content());
+        assertEquals("real-output", String.join("", chunks));
     }
 
     @Test
@@ -185,7 +250,8 @@ class BashToolTest {
 
     @Test
     void ioExceptionInExecutorReturnsError() {
-        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, onStart) -> {
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
+                                        onOutput) -> {
             throw new IOException("disk full");
         };
         var tool = new BashTool("/bin/bash", null, executor);
@@ -196,7 +262,8 @@ class BashToolTest {
     @Test
     void missingConfiguredShellReturnsActionableError() {
         // the JVM "binary not on PATH" failure, as a missing shell_path / $SHELL would raise
-        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, onStart) -> {
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
+                                        onOutput) -> {
             throw new IOException("Cannot run program \"/bin/no-such-shell\": error=2, No such file or directory");
         };
         var tool = new BashTool("/bin/no-such-shell", null, executor);

@@ -18,7 +18,9 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
@@ -708,11 +710,38 @@ public final class ExtensionRegistry {
         @Override
         public ExecResult exec(List<String> command) {
             try {
-                var result = ProcessRunner.command(command).run();
+                var result = ProcessRunner.command(command).environment(execEnvironment()).run();
                 return new ExecResult(result.exitCode(), result.stdout(), result.stderr());
             } catch (Exception e) {
                 return new ExecResult(-1, "", e.getMessage());
             }
+        }
+
+        private Map<String, String> execEnvironment() {
+            var env = new LinkedHashMap<String, String>();
+            env.put("PIJOTA_PROVIDER", null);
+            env.put("PIJOTA_MODEL", null);
+            env.put("PIJOTA_REASONING_LEVEL", null);
+            env.put("PIJOTA_SESSION_FILE", null);
+            env.put("PIJOTA_SESSION_ID", null);
+            LlmClient client = llm();
+            if (client != null) {
+                env.put("PIJOTA_PROVIDER", client.provider());
+                env.put("PIJOTA_MODEL", client.model());
+                if (client.thinkingLevel() != null)
+                    env.put("PIJOTA_REASONING_LEVEL", client.thinkingLevel().name().toLowerCase(Locale.ROOT));
+            }
+            Path file = sessionFile();
+            if (file != null) {
+                env.put("PIJOTA_SESSION_FILE", file.toString());
+                env.put("PIJOTA_SESSION_ID", sessionId(file));
+            }
+            return env;
+        }
+
+        private String sessionId(Path sessionFile) {
+            String name = sessionFile.getFileName().toString();
+            return name.endsWith(".jsonl") ? name.substring(0, name.length() - ".jsonl".length()) : name;
         }
 
         @Override

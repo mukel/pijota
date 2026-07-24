@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
 
@@ -106,6 +107,38 @@ class ToolExecutorTest {
                                         .get();
         assertEquals("read", start.toolName());
         assertEquals("call-1", start.toolCallId());
+    }
+
+    @Test
+    void bashOutputChunksEmitExecutionUpdateEvents() {
+        var tools = new ToolRegistry();
+        tools.register(progressTool("bash"));
+        var history = new MessageHistory();
+        var events = new ArrayList<AgentEvent>();
+        var executor = new ToolExecutor(tools, null, "/cwd", history, events::add, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("call-1", "bash", "{\"command\":\"printf hi\"}"))).join();
+
+        var updates = events.stream().filter(AgentEvent.BashExecutionUpdate.class::isInstance)
+                                        .map(AgentEvent.BashExecutionUpdate.class::cast).toList();
+        assertEquals(2, updates.size());
+        assertEquals("call-1", updates.getFirst().toolCallId());
+        assertEquals("hello ", updates.getFirst().delta());
+        assertEquals("world\n", updates.get(1).delta());
+        assertTrue(events.stream().anyMatch(AgentEvent.ToolResult.class::isInstance));
+    }
+
+    @Test
+    void nonBashToolsDoNotEmitExecutionUpdateEvents() throws Exception {
+        var tools = new ToolRegistry();
+        tools.register(progressTool("not_bash"));
+        var history = new MessageHistory();
+        var events = new ArrayList<AgentEvent>();
+        var executor = new ToolExecutor(tools, null, "/cwd", history, events::add, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("call-1", "not_bash", "{}"))).get();
+
+        assertTrue(events.stream().noneMatch(AgentEvent.BashExecutionUpdate.class::isInstance));
     }
 
     @Test
@@ -453,6 +486,40 @@ class ToolExecutorTest {
 
         assertEquals(2, history.snapshot().size());
         assertEquals(List.of("seq", "par"), order);
+    }
+
+    private static Tool progressTool(String name) {
+        return new Tool() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public String description() {
+                return name;
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of("type", "object");
+            }
+
+            @Override
+            public CompletableFuture<ToolResult> execute(String toolCallId, Args arguments, String sessionCwd) {
+                return CompletableFuture.completedFuture(ToolResult.success("done"));
+            }
+
+            @Override
+            public CompletableFuture<ToolResult> execute(String toolCallId, Args arguments, String sessionCwd,
+                                            Consumer<String> onProgress) {
+                if (onProgress != null) {
+                    onProgress.accept("hello ");
+                    onProgress.accept("world\n");
+                }
+                return CompletableFuture.completedFuture(ToolResult.success("hello world\n"));
+            }
+        };
     }
 
     private static Extension blockingExtension(String reason) {

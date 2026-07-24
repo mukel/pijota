@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 /**
  * Thread-safe registry of tools, keyed by name in insertion order, where the enabled set decides which are visible to
@@ -92,13 +93,18 @@ public final class ToolRegistry {
 
     public CompletableFuture<Tool.ToolResult> execute(String toolCallId, String toolName, Map<String, Object> arguments,
                                     String rawArgs, String sessionCwd) {
+        return execute(toolCallId, toolName, arguments, rawArgs, sessionCwd, null);
+    }
+
+    public CompletableFuture<Tool.ToolResult> execute(String toolCallId, String toolName, Map<String, Object> arguments,
+                                    String rawArgs, String sessionCwd, Consumer<String> onProgress) {
         return get(toolName).flatMap(tool -> {
             var errors = validateArguments(tool, arguments);
             if (!errors.isEmpty()) {
                 return Optional.of(CompletableFuture.completedFuture(
                                                 Tool.ToolResult.error(formatValidationError(toolName, errors))));
             }
-            return Optional.of(tool.execute(toolCallId, new Tool.Args(arguments), sessionCwd));
+            return Optional.of(tool.execute(toolCallId, new Tool.Args(arguments), sessionCwd, onProgress));
         }).orElseGet(() -> CompletableFuture.completedFuture(Tool.ToolResult.error("Unknown tool: " + toolName)));
     }
 

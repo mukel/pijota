@@ -47,6 +47,7 @@ public final class SystemPrompt {
         sb.append("- Date: ").append(LocalDate.now()).append('\n');
         sb.append("- Platform: ").append(System.getProperty("os.name")).append('\n');
         sb.append("- Shell: ").append(System.getenv().getOrDefault("SHELL", "/bin/bash")).append('\n');
+        sb.append("- Shell commands expose PIJOTA_* environment variables with current model and session details.\n");
 
         if (customPrompt != null && !customPrompt.isBlank())
             sb.append("\nCUSTOM INSTRUCTIONS:\n").append(customPrompt).append('\n');

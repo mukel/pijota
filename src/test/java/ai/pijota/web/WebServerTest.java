@@ -454,11 +454,67 @@ class WebServerTest {
         }
     }
 
+    @Test
+    void bashExecutionUpdateEventsReachTheBrowserOverSse() throws Exception {
+        var ts = TestSession.in(tempDir).tool(progressBashTool()).build();
+        int port = freePort();
+        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of())) {
+            server.start();
+            var client = HttpClient.newHttpClient();
+            String base = "http://127.0.0.1:" + port;
+            ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "bash", "{\"command\":\"echo hi\"}")))
+                                            .enqueue(FauxLlm.Response.contentWithUsage("done"));
+            var events = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofInputStream());
+            readUntil(events.body(), "event: history", Duration.ofSeconds(5));
+
+            client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"use bash\"}"))
+                                            .build(), HttpResponse.BodyHandlers.ofString());
+
+            String live = readUntil(events.body(), "bash_execution_update", Duration.ofSeconds(5));
+            assertTrue(live.contains("bash_execution_update"), live);
+            assertTrue(live.contains("chunk-one"), live);
+        }
+    }
+
     private static Tool echoTool() {
         return new Tool.ToolDefinition("echo", "Echoes input", Map.of(),
                                         (id, args, cwd) -> CompletableFuture
                                                                         .completedFuture(Tool.ToolResult.success("ok")))
                                         .toTool();
+    }
+
+    private static Tool progressBashTool() {
+        return new Tool() {
+            @Override
+            public String name() {
+                return "bash";
+            }
+
+            @Override
+            public String description() {
+                return "bash";
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of("type", "object", "properties", Map.of("command", Map.of("type", "string")),
+                                                "required", List.of("command"));
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Tool.Args args, String sessionCwd,
+                                            java.util.function.Consumer<String> onProgress) {
+                onProgress.accept("chunk-one");
+                return CompletableFuture.completedFuture(Tool.ToolResult.success("done"));
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Tool.Args args, String sessionCwd) {
+                return CompletableFuture.completedFuture(Tool.ToolResult.success("done"));
+            }
+        };
     }
 
     @Test

@@ -47,6 +47,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.nio.file.Path;
 
 public final class AppBootstrap {
@@ -79,16 +83,18 @@ public final class AppBootstrap {
         String apiKey = resolved.apiKey();
         StartupTimer.mark("model resolved");
 
+        var llm = new LlmService(provider, model, settings::resolveApiKey);
+        StartupTimer.mark("llm initialized");
+
         var sessions = new SessionManager(settings.sessionDir());
+        var sessionRef = new AtomicReference<PijotaSession>();
         // Register everything; the tool policy (below) decides what's active. --no-tools etc. filter, not skip
         // registration, so the flags compose with the allow/deny lists in one place.
         var tools = ToolRegistry.createDefault();
-        var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix());
+        var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix(),
+                                        () -> bashEnvironment(llm, sessionRef.get()));
         tools.registerBuiltin(bashTool);
         StartupTimer.mark("tools registered");
-
-        var llm = new LlmService(provider, model, settings::resolveApiKey);
-        StartupTimer.mark("llm initialized");
         String effectiveThinking = parsedArgs.thinkingLevel();
         if (effectiveThinking == null || effectiveThinking.isBlank()) {
             effectiveThinking = settings.config().thinkingLevel();
@@ -177,6 +183,7 @@ public final class AppBootstrap {
         int maxTurns = parsedArgs.maxTurns() != null ? parsedArgs.maxTurns() : settings.maxTurns();
         var session = new PijotaSession(llm, tools, sessions, ext, systemPrompt, cwd, parsedArgs.noSession(),
                                         contextWindow, settings.config().compaction(), maxTurns);
+        sessionRef.set(session);
         StartupTimer.mark("session initialized");
         ext.setSessionFile(session::sessionFile);
         // Generic built-in commands (e.g. /model) usable by every frontend — registered once the session exists.
@@ -224,6 +231,31 @@ public final class AppBootstrap {
                                         cwd);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
+    }
+
+    private static Map<String, String> bashEnvironment(LlmService llm, PijotaSession session) {
+        var env = new LinkedHashMap<String, String>();
+        env.put("PIJOTA_PROVIDER", null);
+        env.put("PIJOTA_MODEL", null);
+        env.put("PIJOTA_REASONING_LEVEL", null);
+        env.put("PIJOTA_SESSION_FILE", null);
+        env.put("PIJOTA_SESSION_ID", null);
+        env.put("PIJOTA_PROVIDER", llm.provider());
+        env.put("PIJOTA_MODEL", llm.model());
+        var thinking = llm.thinkingLevel();
+        if (thinking != null)
+            env.put("PIJOTA_REASONING_LEVEL", thinking.name().toLowerCase(Locale.ROOT));
+        if (session != null && session.sessionFile() != null) {
+            Path file = session.sessionFile();
+            env.put("PIJOTA_SESSION_FILE", file.toString());
+            env.put("PIJOTA_SESSION_ID", sessionId(file));
+        }
+        return env;
+    }
+
+    private static String sessionId(Path sessionFile) {
+        String name = sessionFile.getFileName().toString();
+        return name.endsWith(".jsonl") ? name.substring(0, name.length() - ".jsonl".length()) : name;
     }
 
     private static void configureExtensionEnablement(ExtensionRegistry ext, Args parsedArgs, SettingsManager settings) {

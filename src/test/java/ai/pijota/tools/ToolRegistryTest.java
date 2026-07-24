@@ -4,6 +4,7 @@ import ai.pijota.testkit.TestTools;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +13,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -65,6 +67,30 @@ class ToolRegistryTest {
     }
 
     @Test
+    void executeForwardsProgressCallbackToTool() throws Exception {
+        var r = new ToolRegistry();
+        r.register(progressTool("progress"));
+        var seen = new ArrayList<String>();
+
+        var result = r.execute("tc1", "progress", Map.of(), "{}", "/", seen::add).get(1, TimeUnit.SECONDS);
+
+        assertFalse(result.isError());
+        assertEquals("done", result.content());
+        assertEquals(List.of("one", "two"), seen);
+    }
+
+    @Test
+    void executeWithoutProgressCallbackKeepsProgressToolSafe() throws Exception {
+        var r = new ToolRegistry();
+        r.register(progressTool("progress"));
+
+        var result = r.execute("tc1", "progress", Map.of(), "{}", "/").get(1, TimeUnit.SECONDS);
+
+        assertFalse(result.isError());
+        assertEquals("done", result.content());
+    }
+
+    @Test
     void executeValidatesRequiredParameters() throws Exception {
         var r = new ToolRegistry();
         r.register(new Tool.ToolDefinition("needsArg", "Needs arg",
@@ -78,6 +104,47 @@ class ToolRegistryTest {
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("x"));
+    }
+
+    @Test
+    void invalidArgumentsDoNotInvokeProgressTool() throws Exception {
+        var r = new ToolRegistry();
+        var invoked = new AtomicBoolean();
+        r.register(new Tool() {
+            @Override
+            public String name() {
+                return "needs";
+            }
+
+            @Override
+            public String description() {
+                return "needs";
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of("type", "object", "properties", Map.of("x", Map.of("type", "string")), "required",
+                                                List.of("x"));
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args args, String cwd,
+                                            Consumer<String> onProgress) {
+                invoked.set(true);
+                return CompletableFuture.completedFuture(Tool.ToolResult.success("bad"));
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args args, String cwd) {
+                invoked.set(true);
+                return CompletableFuture.completedFuture(Tool.ToolResult.success("bad"));
+            }
+        });
+
+        var result = r.execute("tc1", "needs", Map.of(), "{}", "/", _ -> {}).get(1, TimeUnit.SECONDS);
+
+        assertTrue(result.isError());
+        assertFalse(invoked.get());
     }
 
     @Test
@@ -430,5 +497,39 @@ class ToolRegistryTest {
             pool.shutdownNow();
         }
         assertEquals(n, r.enabledTools().size(), "every concurrently registered tool must be present");
+    }
+
+    private static Tool progressTool(String name) {
+        return new Tool() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public String description() {
+                return name;
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of("type", "object");
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args args, String cwd) {
+                return CompletableFuture.completedFuture(Tool.ToolResult.success("done"));
+            }
+
+            @Override
+            public CompletableFuture<Tool.ToolResult> execute(String id, Tool.Args args, String cwd,
+                                            Consumer<String> onProgress) {
+                if (onProgress != null) {
+                    onProgress.accept("one");
+                    onProgress.accept("two");
+                }
+                return CompletableFuture.completedFuture(Tool.ToolResult.success("done"));
+            }
+        };
     }
 }

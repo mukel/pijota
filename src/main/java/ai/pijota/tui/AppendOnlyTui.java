@@ -515,6 +515,27 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
+        public Map<String, String> shellEnvironment() {
+            var env = new HashMap<String, String>();
+            env.put("PIJOTA_PROVIDER", null);
+            env.put("PIJOTA_MODEL", null);
+            env.put("PIJOTA_REASONING_LEVEL", null);
+            env.put("PIJOTA_SESSION_FILE", null);
+            env.put("PIJOTA_SESSION_ID", null);
+            env.put("PIJOTA_PROVIDER", provider);
+            env.put("PIJOTA_MODEL", model);
+            env.put("PIJOTA_REASONING_LEVEL", thinkingLevel.name().toLowerCase(Locale.ROOT));
+            if (session.sessionFile() != null) {
+                Path file = session.sessionFile();
+                env.put("PIJOTA_SESSION_FILE", file.toString());
+                String name = file.getFileName().toString();
+                env.put("PIJOTA_SESSION_ID",
+                                                name.endsWith(".jsonl") ? name.substring(0, name.length() - 6) : name);
+            }
+            return env;
+        }
+
+        @Override
         public void submitAuthTask(Runnable task) {
             authTask = agentExecutor.submit(task);
         }

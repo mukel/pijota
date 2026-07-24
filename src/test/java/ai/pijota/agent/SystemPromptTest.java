@@ -15,6 +15,7 @@ class SystemPromptTest {
         assertTrue(prompt.contains("You are pijota"));
         assertTrue(prompt.contains("ENVIRONMENT"));
         assertTrue(prompt.contains("Working directory: /cwd"));
+        assertTrue(prompt.contains("PIJOTA_* environment variables"));
     }
 
     @Test

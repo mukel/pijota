@@ -5,10 +5,15 @@ import ai.pijota.util.ProcessRunner;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 final class ShellCommandRunner {
     interface Host extends TuiHost {
         void fireUserBash(String command, boolean noContext);
+
+        default Map<String, String> shellEnvironment() {
+            return Map.of();
+        }
     }
 
     private final Host host;
@@ -35,6 +40,7 @@ final class ShellCommandRunner {
             try {
                 var result = ProcessRunner.command(shell, Platform.shellCommandFlag(shell), command)
                                                 .redirectErrorStream(true).noTimeout().onStart(p -> activeProcess = p)
+                                                .environment(host.shellEnvironment())
                                                 .run();
                 var out = new ArrayList<String>();
                 String slot = result.exitCode() == 0 ? "toolLabel" : "toolError";

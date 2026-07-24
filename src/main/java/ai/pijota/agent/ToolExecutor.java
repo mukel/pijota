@@ -91,7 +91,12 @@ final class ToolExecutor {
             Map<String, Object> args = Util.parseJsonArgs(request.arguments());
             if (extensions != null)
                 extensions.fireToolExecutionStart(request.id(), request.name(), request.arguments());
-            return tools.execute(request.id(), request.name(), args, request.arguments(), cwd).thenAccept(toolResult -> {
+            Consumer<String> onProgress = "bash".equals(request.name())
+                                            ? delta -> onEvent.accept(new AgentEvent.BashExecutionUpdate(request.id(),
+                                                                            delta))
+                                            : null;
+            return tools.execute(request.id(), request.name(), args, request.arguments(), cwd, onProgress)
+                                            .thenAccept(toolResult -> {
                 if (extensions != null) {
                     extensions.fireToolExecutionEnd(request.id(), request.name(), toolResult, toolResult.isError());
                     extensions.afterToolCall(request.id(), request.name(), toolResult);

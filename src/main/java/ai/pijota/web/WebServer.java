@@ -456,6 +456,8 @@ public final class WebServer implements AutoCloseable {
             case AgentEvent.ToolStart(var name, var id, var args) -> broadcast("tool", Map.of("id", nz(id), "name",
                                             nz(name), "args", nz(args.get()), "detail",
                                             nz(ToolLabels.detail(name, args, session.cwd(), PathDisplay.RELATIVE))));
+            case AgentEvent.BashExecutionUpdate(var id, var delta) ->
+                broadcast("bash_execution_update", Map.of("id", nz(id), "delta", nz(delta)));
             case AgentEvent.ToolResult(Message.ToolResult r) ->
                 broadcast("tool_result", Map.of("id", nz(r.toolCallId()), "name", nz(r.toolName()), "content",
                                                 nz(r.content()), "isError", r.isError()));

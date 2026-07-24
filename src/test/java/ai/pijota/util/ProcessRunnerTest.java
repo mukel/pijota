@@ -7,8 +7,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -27,6 +29,26 @@ class ProcessRunnerTest {
         var result = ProcessRunner.command("/bin/sh", "-c", "echo error >&2").run();
         assertEquals(0, result.exitCode());
         assertEquals("error\n", result.stderr());
+    }
+
+    @Test
+    void environmentAddsVariablesToChildProcess() throws IOException {
+        var result = ProcessRunner.command("/bin/sh", "-c", "printf %s \"$PIJOTA_PROVIDER/$PIJOTA_MODEL\"")
+                                        .environment(Map.of("PIJOTA_PROVIDER", "openai", "PIJOTA_MODEL", "gpt-5"))
+                                        .run();
+        assertEquals(0, result.exitCode());
+        assertEquals("openai/gpt-5", result.stdout());
+    }
+
+    @Test
+    void environmentCanRemoveInheritedVariables() throws IOException {
+        var env = new java.util.LinkedHashMap<String, String>();
+        env.put("PIJOTA_PROVIDER", "openai");
+        env.put("PIJOTA_MODEL", null);
+        var result = ProcessRunner.command("/bin/sh", "-c", "printf '%s/%s' \"$PIJOTA_PROVIDER\" \"${PIJOTA_MODEL-unset}\"")
+                                        .environment(env).run();
+        assertEquals(0, result.exitCode());
+        assertEquals("openai/unset", result.stdout());
     }
 
     @Test
@@ -61,6 +83,43 @@ class ProcessRunnerTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.outputTruncated(), "expected truncation for large output");
         assertTrue(result.stdout().length() < 10000, "stdout should be bounded");
+    }
+
+    @Test
+    void onStdoutChunkReceivesOutputWhileStillCapturingStdout() throws IOException {
+        List<String> chunks = new ArrayList<>();
+        var result = ProcessRunner.command("/bin/sh", "-c", "printf 'alpha'; printf 'beta'").onStdoutChunk(chunks::add)
+                                        .run();
+
+        assertEquals(0, result.exitCode());
+        assertEquals("alphabeta", result.stdout());
+        assertEquals("alphabeta", String.join("", chunks));
+    }
+
+    @Test
+    void onStdoutChunkReceivesMergedStderrWhenRedirectingErrorStream() throws IOException {
+        List<String> chunks = new ArrayList<>();
+        var result = ProcessRunner.command("/bin/sh", "-c", "printf out; printf err >&2").redirectErrorStream(true)
+                                        .onStdoutChunk(chunks::add).run();
+
+        assertEquals(0, result.exitCode());
+        String combined = String.join("", chunks);
+        assertTrue(combined.contains("out"), combined);
+        assertTrue(combined.contains("err"), combined);
+        assertEquals("", result.stderr());
+    }
+
+    @Test
+    void onStdoutChunkIgnoresHandlerExceptions() throws IOException {
+        var seen = new AtomicReference<String>();
+        var result = ProcessRunner.command("/bin/sh", "-c", "printf data").onStdoutChunk(chunk -> {
+            seen.set(chunk);
+            throw new RuntimeException("boom");
+        }).run();
+
+        assertEquals(0, result.exitCode());
+        assertEquals("data", result.stdout());
+        assertEquals("data", seen.get());
     }
 
     @Test

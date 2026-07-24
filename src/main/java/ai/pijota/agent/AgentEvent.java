@@ -18,6 +18,8 @@ public sealed interface AgentEvent {
 
     record ToolStart(String toolName, String toolCallId, Supplier<String> argumentsSupplier) implements AgentEvent {
     }
+    record BashExecutionUpdate(String toolCallId, String delta) implements AgentEvent {
+    }
     record ToolResult(Message.ToolResult message) implements AgentEvent {
     }
 

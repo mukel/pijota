@@ -11,8 +11,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -33,6 +36,7 @@ public final class ProcessRunner {
     private boolean noTimeout;
     private Supplier<String> stdinFeeder;
     private Consumer<String> stdoutLineHandler;
+    private Consumer<String> stdoutChunkHandler;
     private boolean captureStdout = true;
     private boolean captureStderr = true;
     private boolean inheritIO;
@@ -40,6 +44,7 @@ public final class ProcessRunner {
     private Consumer<Process> onStart;
     private boolean redirectErrorStream;
     private boolean discardStderr;
+    private Map<String, String> environment = Map.of();
 
     /** The program name only (never the args) — safe to log without leaking secrets passed on the command line. */
     private String program() {
@@ -118,6 +123,11 @@ public final class ProcessRunner {
         return this;
     }
 
+    public ProcessRunner onStdoutChunk(Consumer<String> handler) {
+        this.stdoutChunkHandler = handler;
+        return this;
+    }
+
     public ProcessRunner captureStdout(boolean capture) {
         this.captureStdout = capture;
         return this;
@@ -148,6 +158,18 @@ public final class ProcessRunner {
         return this;
     }
 
+    public ProcessRunner environment(Map<String, String> env) {
+        var clean = new LinkedHashMap<String, String>();
+        if (env != null) {
+            for (var entry : env.entrySet()) {
+                if (entry.getKey() != null)
+                    clean.put(entry.getKey(), entry.getValue());
+            }
+        }
+        this.environment = Collections.unmodifiableMap(clean);
+        return this;
+    }
+
     // -- execution modes --
 
     public Result run() throws IOException {
@@ -170,13 +192,13 @@ public final class ProcessRunner {
         if (stdoutLineHandler != null) {
             stdoutThreadRef.set(startStdoutLineReader(process, aborted));
         } else if (captureStdout) {
-            stdoutThreadRef.set(startCaptureReader(process.getInputStream(), stdoutCapture));
+            stdoutThreadRef.set(startCaptureReader(process.getInputStream(), stdoutCapture, stdoutChunkHandler));
         } else {
             closeQuietly(process.getInputStream());
         }
 
         if (captureStderr) {
-            stderrThreadRef.set(startCaptureReader(process.getErrorStream(), stderrCapture));
+            stderrThreadRef.set(startCaptureReader(process.getErrorStream(), stderrCapture, null));
         } else if (discardStderr) {
             discardThreadRef.set(startDiscardReader(process.getErrorStream()));
         } else {
@@ -302,6 +324,15 @@ public final class ProcessRunner {
         var builder = new ProcessBuilder(command);
         if (workDir != null)
             builder.directory(workDir.toFile());
+        if (!environment.isEmpty()) {
+            var env = builder.environment();
+            for (var entry : environment.entrySet()) {
+                if (entry.getValue() == null)
+                    env.remove(entry.getKey());
+                else
+                    env.put(entry.getKey(), entry.getValue());
+            }
+        }
         if (inheritIO) {
             builder.inheritIO();
         } else {
@@ -353,13 +384,20 @@ public final class ProcessRunner {
         });
     }
 
-    private Thread startCaptureReader(InputStream stream, CaptureBuffer capture) {
+    private Thread startCaptureReader(InputStream stream, CaptureBuffer capture, Consumer<String> chunkHandler) {
         return Thread.ofPlatform().daemon().name("pijota-stream-capture").start(() -> {
             try (stream) {
                 byte[] buf = new byte[8192];
                 int read;
                 while ((read = stream.read(buf)) != -1) {
                     capture.write(buf, read);
+                    if (chunkHandler != null) {
+                        try {
+                            chunkHandler.accept(new String(buf, 0, read, StandardCharsets.UTF_8));
+                        } catch (Exception e) {
+                            log.debug("stdout chunk handler threw, dropping a chunk: {}", e.toString());
+                        }
+                    }
                 }
             } catch (IOException ignored) {}
         });
