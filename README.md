@@ -2,287 +2,388 @@
 
 # Pijota
 
-### A coding agent that's **one native binary**, talks to **any LLM**, and can **rebuild itself**.
+### A local-first AI coding agent for people who live in terminals.
 
-[![Java][badge-java]](https://openjdk.org/projects/jdk/25/)
-[![GraalVM Native Image][badge-native-image]](https://www.graalvm.org/latest/reference-manual/native-image/)
-[![License][badge-license]](LICENSE)
+[![Java 25][badge-java]][java]
+[![Maven][badge-maven]][maven]
+[![GraalVM Native Image][badge-native]][graalvm]
+[![License: Apache 2.0][badge-license]][license]
+[![Local First][badge-local]][repo]
+[![Providers][badge-providers]][providers]
 
-*Your code. Your rules. Your model.* No SaaS lock-in, no Python bridge, no Node.js sprawl, no JRE.
+**One JVM app. One optional native binary. Any model. Your code. Your rules.**
+
+The command is short: **`pj`**.
 
 </div>
 
 ---
 
-## What is Pijota?
+## What Is Pijota?
 
-Pijota is heavily derived from [Pi](https://pi.dev), rebuilt on the JVM from first principles. It shares Pi's agent architecture and extension model while adding a native GraalVM binary, an append-only terminal UI, session branching and more.
+Pijota is an AI coding agent written in Java. It reads code, edits files, runs commands, browses the web, talks to MCP servers, manages durable sessions, and is developed using Pijota itself.
+
+It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**. Pijota borrows Pi's spirit: small sharp tools, agentic loops, extension-driven behavior, and the belief that a coding agent should be hackable by the people using it. This project reimagines that shape on the JVM with a GraalVM-native path, an append-only TUI, JSONL sessions, browser automation, ACP (Agent Client Protocol), web/Telegram frontends, and a pragmatic Java implementation.
+
+If Pi is the Vim-shaped agent, Pijota is not trying to be a smaller Pi. `pj` keeps the TUI simple: it appends to normal terminal scrollback. The rest stays powerful, extensible, and customizable.
+
+> [!NOTE]
+> Pijota is local software with powerful tools. When you give it shell or file access, it acts with your user permissions.
 
 ---
 
 ## Why Pijota?
 
-- **Self-modifying.** Pijota reads, edits, rebuilds, tests, and respawns its own source — `/transcend "add a /help command"` and it ships the change with jar backup and automatic rollback if the new build breaks.
-- **One binary.** GraalVM compiles it to a single native binary — optionally fully static (musl), so it runs on any Linux box with zero runtime.
-- **Any model.** 20+ providers (Anthropic, OpenAI, Gemini, DeepSeek, xAI, Groq, Mistral, OpenRouter, Cerebras, Fireworks, Kimi, Moonshot, local…) — switch mid-conversation with `/model`.
-- **Plays nice with your terminal.** The append-only TUI streams output into your native scrollback — scroll, copy, search with your own terminal. No alt-screen takeover; only the prompt and status line redraw.
-- **Boringly portable.** Pure JVM (Java 25), zero native dependencies. Runs as a `.jar` on any JDK, or as the native binary.
-
----
-
-## Quick start
-
-```bash
-# Build a native binary (or use make run for JVM)
-make native
-
-# Authenticate a provider
-pijota login anthropic
-
-# Go
-pijota                            # interactive session
-pijota "explain this repo"        # one-shot, then exit
-```
-
----
-
-## Using it
-
-```bash
-pijota                                   # interactive session in the current repo
-pijota -c                                # continue the last session
-pijota -r                                # interactive session picker
-pijota --fork <id>                       # fork an existing session
-pijota "add null-checks to UserDao"      # one-shot prompt
-pijota --model openai/gpt-4o             # pick a provider/model
-pijota --thinking high                   # deep reasoning
-cat error.log | pijota "what broke?"     # pipe mode — stdin → agent
-pijota --agent "fix all the warnings"    # headless: autonomous, for CI/hooks
-pijota --web                             # serve the web UI (loopback)
-pijota --telegram                        # Telegram bot frontend
-pijota --list-models deepseek            # discover models
-pijota --print "refactor this file"      # non-interactive, prints to stdout
-pijota --export <id>                     # export session to Markdown
-```
-
-Inside a session, `/help` lists everything. Highlights: `/model` switch model · `/usage` tokens & cost · `/tree` branch the conversation · `/compact` shrink context · `/transcend` self-modify · `@file` attach a file · `!cmd` run a shell command · `/remote` web/Telegram remote control.
-
----
-
-## Features
-
-### Built-in tools
-
-Pijota ships with a comprehensive tool set that the agent uses to read, edit, search, and execute:
-
-| Tool | Description |
-|---|---|
-| `read` | Read file contents with offset/limit, capped at 50 KB |
-| `write` | Write or overwrite a file, auto-creating parent directories |
-| `edit` | Targeted string replacement with fuzzy-match fallback and diff output |
-| `apply_patch` | Apply unified diffs across multiple files, all-or-nothing |
-| `ls` | List directory contents |
-| `glob` | Find files by glob pattern (uses `fd` when available, built-in Java fallback) |
-| `grep` | Search file contents by regex or literal (uses `rg` when available) |
-| `bash` | Execute shell commands with configurable timeout |
-| `webfetch` | Fetch URLs, convert HTML to Markdown (SSRF-safe, 5 MB limit) |
-| `websearch` | Web search via DuckDuckGo / Exa / Parallel.ai backends |
-| `task` | Launch sub-agents with process isolation and model delegation |
-| `question` | Ask the user structured questions (single, multi, or choice-based) |
-| `todo` | Maintain a structured todo list with status and priority |
-| `whoami` | Report current model, provider, and context window |
-
-See [`/help`](src/main/java/ai/pijota/tui/HelpOverlay.java) in-session for the full command reference.
-
-### Providers & models
-
 | | |
 |---|---|
-| **20+ built-in** | Anthropic, OpenAI, Gemini, DeepSeek, xAI, Mistral, Groq, OpenRouter, Cerebras, Fireworks, Kimi, Moonshot, and more. |
-| **Any compatible** | OpenAI-compatible endpoints (llama.cpp, vLLM, Qwen, Ollama) work out of the box. |
-| **Per-provider config** | Custom base URLs, headers, environment variables, OAuth, thinking formats. |
-| **Aliases** | `alias/fast`, `alias/current` — pin models to nicknames, switch by role. |
-| **Dynamic refresh** | `/refresh` pulls the latest model list from each provider. |
-| **Thinking levels** | `--thinking off\|low\|medium\|high` — controls reasoning token budgets per model. |
-| **Model picker** | `/model` with fuzzy search, Levenshtein typo correction, Ctrl+P palette. |
+| **Native terminal feel** | Append-only output streams into real scrollback. No alt-screen takeover. Copy, search, scroll, and multiplex however your terminal already works. |
+| **Bring your own model** | OpenAI, Anthropic, Gemini, OpenAI-compatible APIs, local endpoints, custom providers, aliases, OAuth, API keys, and thinking levels. |
+| **Real coding tools** | Read, write, edit, patch, grep, glob, run bash, fetch URLs, ask questions, delegate to sub-agents, and pull in MCP tools. |
+| **Durable memory** | Sessions are append-only JSONL files with continue, resume, fork, clone, compaction, naming, and Markdown export. |
+| **Parallel experiments** | `pj worktree` manages a reusable git worktree pool for isolated shells, scripts, and cleanup. |
+| **Multiple frontends** | Use the TUI, print mode, JSON output, JSON-RPC, ACP for editors, the local web UI, or a Telegram bot. |
+| **Hackable core** | Extensions can add tools, commands, keybindings, status lines, prompt context, input hooks, and safety policies. |
+| **Self-modifying** | In JVM mode, the opt-in transcendence flow can edit Pijota, build it, test it, respawn, and roll back if something goes wrong. |
 
-### Append-only TUI
+---
 
-The terminal UI streams everything into native scrollback — no alt-screen takeover:
+## Quick Start
 
-- **Streaming Markdown** — headers, code fences with syntax highlighting, inline styles, tables
-- **Thinking block** — dimmed, collapsible reasoning area (toggle via settings)
-- **Diff preview** — syntax-highlighted diffs for `edit` and `write` results
-- **Command palette** — Ctrl+P: quick access to commands, models, themes, sessions
-- **Log viewer** — modal scrollable/searchable viewer with live-tail (`/logs`)
-- **Session browser** — arrow keys to scroll through message history
-- **Conversation tree** — `/tree` with branch connectors, fork from any message
-- **External editor** — `$EDITOR` integration for long prompts
-- **Job control** — Ctrl+Z suspend, double-press Ctrl+C to exit
-- **Multiple themes** — built-in light/dark + Catppuccin/Gruvbox variants + custom theme files
+Requires **JDK 25**. Native builds require a GraalVM JDK. From source, `make run` launches Pijota directly; install or alias the built artifact as `pj` for daily use.
 
-### Sessions
+```bash
+make run ARGS="--help"
+make run ARGS="login anthropic"
+make run ARGS="explain this repo"
+```
 
-Sessions are durable JSONL files with branching tree structure:
+For a regular local build:
 
-- **Resume** — `/resume` interactive picker, `--continue` auto-last, `--fork <id>`
-- **Branch** — `/fork` creates a new branch from any user message, `/clone` duplicates the active branch
-- **Undo** — `/undo` reverts the last turn, restoring the prompt for re-edit
-- **Compact** — auto-compaction when nearing the context window: the LLM summarizes old messages into a running summary
-- **Export** — `/export` writes the full session to a Markdown file
-- **Name** — `/name` set a descriptive label for the session picker
-- **Save/load** — `/save` to JSONL, `/load` to restore
+```bash
+make build
+make test
+make run
+```
 
-### Self-modifying (Transcendence)
+For a native binary:
 
-Opt-in (it's the riskiest capability) — enable with `--transcendence` (or `extensions.transcendence: true` in `settings.json`). `/transcend "add a /foo command"` then edits, rebuilds, and respawns pijota itself:
+```bash
+make native
+./target/pijota
+mkdir -p ~/.local/bin
+ln -sf "$PWD/target/pijota" ~/.local/bin/pj
+```
 
-- **Build** — runs `mvn package` in a git worktree (isolated branch)
-- **Test** — `mvn test` before respawn
-- **Respawn** — backs up the current jar, builds the new one, restarts into it
-- **Rollback** — `/transcend --rollback` restores the previous build
-- **Goal-driven** — creates a worktree + branch, instructs the agent to implement a goal, auto-merges on success
-- **Safe** — auto-rollback on boot failure, Ctrl+Alt+G shortcut
-- JVM-only (disabled on native image)
+---
 
-### Sub-agents
+## Everyday Usage
 
-The `task` tool launches isolated sub-agent processes for parallel or delegated work:
+```bash
+pj                                        # interactive TUI
+pj tui                                    # explicit TUI
+pj "explain this repo"                    # one-shot prompt
+pj -p "summarize the diff"                # print mode
+cat error.log | pj "what broke?"          # stdin becomes the prompt
 
-- **Process isolation** — each sub-agent runs as `pijota --agent --no-session` in a separate JVM
-- **Model delegation** — sub-agents can use a different model via `pijota.subagent.model`
-- **Depth-limited** — max 2 levels deep to prevent runaway recursion
-- **Live tracking** — per-agent status lines with tool count, output lines, tokens, timing
-- **Log viewer** — `/logs` opens a live-tail viewer for sub-agent output
-- **Multi-agent** — aggregate status bar showing all running agents
-- **Allowlist** — sub-agents see only a subset of tools configured per agent
+pj -m anthropic/claude-sonnet-4-5-20250929
+pj --thinking high
+pj --max-turns 64
 
-### Extensions
+pj -c                                     # continue last session
+pj -r                                     # session picker
+pj -s <session-id-or-path>                 # load by id/path
+pj --fork <entry-id>                       # fork at an entry
+pj --export transcript.md                  # export current/loaded session
 
-Optional capabilities are extensions, toggled **uniformly**: `--<name>` enables (and `--<name>=value` configures), `--no-<name>` disables — for any of them. Each has a sensible default (core on; heavy/risky/niche off), listed by `pijota --help`. Persist your choices in `settings.json`:
+pj web                                    # local web UI on 127.0.0.1:8420
+pj web 0.0.0.0:8420                       # token-gated network bind
+pj telegram                               # Telegram bot frontend
+pj acp                                    # Agent Client Protocol over stdio
+
+pj worktree                               # open a temporary pooled git worktree
+pj worktree get                           # reserve a worktree path for scripts
+pj worktree status                        # inspect the worktree pool
+```
+
+Inside the TUI, start with `/help`.
+
+| Command | Purpose |
+|---|---|
+| `/model` | Switch models with a picker or query. |
+| `/settings` | Open runtime settings. |
+| `/compact` | Summarize older context to stay inside the window. |
+| `/usage` | Show tokens, cost, and context information. |
+| `/sessions` | Resume a previous session. |
+| `/tree` | View conversation branches. |
+| `/fork` | Fork from a previous message. |
+| `/clone` | Clone the current branch. |
+| `/theme` | Switch built-in or custom themes. |
+| `/remote` | Pair web or Telegram remote control. |
+| `/skills` | List reusable skill instructions. |
+
+---
+
+## Frontends
+
+Every frontend drives the same agent/session core. ACP is first-class: `pj acp` lets editor clients such as Zed, JetBrains, and Neovim use Pijota over stdio, with client-side permission prompts for mutating tools.
+
+| Frontend | Command | Notes |
+|---|---|---|
+| **TUI** | `pj` | Append-only terminal UI with Markdown, syntax highlighting, status lines, selectors, themes, hotkeys, and file references. |
+| **Print** | `pj -p "..."` | Single-shot mode for scripts and pipes. Supports text or JSON output via `--mode`. |
+| **RPC** | `pj --mode rpc` | JSON-RPC over stdin/stdout with `prompt`, `ping`, and `shutdown`. |
+| **ACP** | `pj acp` | Agent Client Protocol for editor integrations, with approval prompts for mutating tools. |
+| **Web** | `pj web [host:port]` | Zero-framework JDK HTTP server, SSE streaming, local chat UI, and token pairing for non-loopback binds. |
+| **Telegram** | `pj telegram` | Single-chat bot with streaming edits, stop button, slash commands, files, photos, and exports. |
+
+---
+
+## Terminal Polish
+
+The TUI is designed to feel like a good Unix program, not a captive fullscreen app. It appends to normal terminal scrollback, so your terminal stays in charge.
+
+| Detail | Why it matters |
+|---|---|
+| **Append-only rendering** | Output stays in normal terminal history, so scrollback, copy, search, panes, and recording tools keep working. |
+| **Rich Markdown** | Headings, code fences, tables, inline styles, and streamed formatting render cleanly with ANSI themes. |
+| **Diff-first editing** | File edits and writes get readable inline diffs. |
+| **Fuzzy pickers** | Models, sessions, themes, files, skills, and commands can be found quickly. |
+| **Status lines** | Cost, tokens, context, tools, sub-agents, jobs, and extension state stay visible without taking over the screen. |
+| **Keyboard flow** | Command palette, hotkey help, `$EDITOR` support, undo, copy-last-response, and interrupt handling are built in. |
+| **Themes** | Bundled Gruvbox and Catppuccin variants, terminal light/dark auto-detection, custom theme files, and `NO_COLOR` support. |
+| **File references** | Use `@file` to inline files or attach prompt context from the command line and TUI. |
+
+---
+
+## Tools
+
+Pijota exposes a compact tool belt to the model. Tool visibility can be scoped with `--tools`, `--exclude-tools`, `--no-tools`, and `--no-builtin-tools`.
+
+| Tool | What it does |
+|---|---|
+| `read` | Read files with offset and limit support. |
+| `write` | Write files and create parent directories. |
+| `edit` | Replace exact text, including multi-edit operations. |
+| `apply_patch` | Apply structured patches. |
+| `glob` | Find files by glob pattern. |
+| `grep` | Search file contents with regular expressions. |
+| `ls` | List directory contents. |
+| `bash` | Run shell commands with timeout handling. |
+| `webfetch` | Fetch URLs and return readable Markdown. |
+| `websearch` | Search the web through configured search backends. |
+| `question` | Ask the user for a decision when the agent is genuinely blocked. |
+| `task` | Launch isolated sub-agents through the task extension. |
+| `todo` | Maintain structured todos when `--todo` is enabled. |
+| `whoami` | Report model/provider details when `--whoami` is enabled. |
+| `transcendence` | Modify and rebuild Pijota when `--transcendence` is enabled. |
+
+---
+
+## Optional External Tools
+
+Pijota is self-contained, but it uses familiar command-line tools when they are available.
+
+| Tool | Unlocks |
+|---|---|
+| `rg` | Fast content search for `grep`. |
+| `fd` | Fast file discovery for `glob`; Java fallback exists. |
+| `fzf` | Fuzzy file picking for `@` references. |
+| Chrome or Chromium | Browser automation through CDP. |
+| Firefox plus geckodriver | Browser automation through WebDriver BiDi. |
+| Safari plus safaridriver | Browser automation on macOS through WebDriver BiDi. |
+| `tmux` | Long-running supervised processes through `--tmux`. |
+| `git` | Worktrees, transcendence, and source-aware workflows. |
+
+Shell commands launched by Pijota receive the current session context:
+
+| Variable | Value |
+|---|---|
+| `PIJOTA_PROVIDER` | Current model provider. |
+| `PIJOTA_MODEL` | Current model ID. |
+| `PIJOTA_REASONING_LEVEL` | Current reasoning level. |
+| `PIJOTA_SESSION_FILE` | Current session JSONL path, when persisted. |
+| `PIJOTA_SESSION_ID` | Current session ID, when persisted. |
+
+---
+
+## Extensions
+
+Extensions are the real shape of Pijota. They can register tools, slash commands, keybindings, status/footer lines, system-prompt context, message renderers, safety hooks, and event listeners.
+
+Toggle built-ins uniformly with `--<name>` or `--no-<name>`, and persist choices in `~/.pijota/settings.json`.
 
 ```jsonc
-"extensions": {
-  "browse": "firefox",      // enable + configure the engine
-  "jobs": true,             // enable
-  "transcendence": false    // disable
+{
+  "extensions": {
+    "browse": "firefox",
+    "jobs": true,
+    "todo": true,
+    "transcendence": false
+  }
 }
 ```
 
-Precedence: built-in default → `settings.json` → CLI flag (a flag overrides a persisted setting). Off by default: `browse`, `jobs`, `tmux`, `todo`, `token-speed`, `transcendence`, `whoami`. On by default (disable with `--no-…`): `skills`, `prompt-templates`, `context-files`.
+| Extension | Default | Purpose |
+|---|---:|---|
+| `browse` | off | Real browser browsing through Chrome, Firefox, or Safari. |
+| `jobs` | off | Background shell jobs with output/list/kill tools. |
+| `tmux` | off | Supervise long-lived processes in tmux. |
+| `todo` | off | Structured todo list and live panel. |
+| `token-speed` | off | Tokens-per-second status line. |
+| `transcendence` | off | Self-modification, build, test, respawn, rollback. |
+| `whoami` | off | Current model/provider information tool. |
+| `skills` | on | Skill auto-discovery. |
+| `prompt-templates` | on | Prompt-template slash commands. |
+| `context-files` | on | `AGENTS.md` and `CLAUDE.md` context discovery. |
 
-### Browser
-
-The `WebBrowseExtension` (`--browse`) lets the agent navigate, extract, and interact with web pages:
-
-- **CDP** (Chrome/Chromium) — DevTools Protocol: navigate, evaluate JS, dismiss consent walls
-- **WebDriver BiDi** (Firefox + geckodriver, Safari 18+ + safaridriver) — cross-browser protocol
-- **Readability** — extracts visible content with Mozilla Readability into clean Markdown
-- **Lazy loading** — scroll + stability polling for SPAs
-- **Idle timeout** — closes the browser after inactivity, re-launches lazily
-- **SSRF-safe** — blocks internal/loopback addresses in both `webfetch` and the browser
-- Pick backend with `--browse=chrome|firefox|safari`
-
-### MCP (Model Context Protocol)
-
-Pull in tools from any MCP server — file systems, databases, APIs, custom services:
-
-- **Config** — `~/.pijota/mcp.json` + project-local overrides
-- **Discovery** — auto-discovers tools on startup, parallel connection with bounded waits
-- **Management** — `/mcp list\|connect\|disconnect\|reconnect\|reload`
-- **Namespace** — `mcp__<server>__<tool>` naming
-- **Stdio transport** — subprocess-based, zero network overhead
-
-### Extensions & plugins
-
-Pijota's extension model is the engine behind most features:
-
-- **Event hooks** — intercept tool calls, user input, assistant output, bash execution, agent turn lifecycle
-- **Slash commands** — register custom commands with aliases
-- **Keybindings** — Ctrl+key chords, `$EDITOR`, custom keymaps
-- **Status lines** — contribute dynamic status and footer lines
-- **System prompt** — inject guidance, tool schemas, context files
-- **Tool override** — block, modify, or redirect tool execution at runtime
-- **Plugin discovery** — ServiceLoader (`META-INF/services`) plus directory scanning, auto-hot-reload
-- **Headless boot** — `--agent` mode loads extensions without TUI, for sub-agents and CI
-
-Built-in example extensions: inline bash (`!cmd`), context files (`AGENTS.md`), goal tracking, scheduled reminders, token speed metrics, git auto-checkpoint, permission gating, output filtering, structured JSON output, and more.
-
-### Skills
-
-Skills are reusable Markdown files containing instructions and workflows:
-
-- Stored in `~/.pijota/skills/` or explicit paths (`--skill`)
-- Listed in the system prompt for model awareness
-- `skill` tool: list available skills, read bodies, invoke by name
-- `/skill:<name>` slash command for direct invocation
-- First-class in the skill picker (Ctrl+P `skill:` prefix)
-
-### Web UI & Telegram
-
-The same agent session can be accessed through multiple frontends:
-
-- **Web UI** (`--web`) — SSE-powered single-page app with real-time streaming, dialogs, and pending-message replay for new tabs
-- **Telegram** (`--telegram`) — full agent over chat with inline keyboards, image/document input, per-chat isolation
-- **Remote control** — `/remote` starts the web server or Telegram bridge from the TUI, with QR codes for mobile access
-
-### Headless & pipe modes
-
-- **`--print`** — non-interactive single-shot, writes to stdout; uses the `print` model alias for cheaper runs
-- **`--agent`** — autonomous JSON-RPC mode for CI hooks, sub-agents, programmatic orchestration
-- **Pipe** — `stdin` is attached as the first user message when present
-- **`@file`** — attach files as message content from the command line
+Always-on core extensions provide planning, sub-agents, MCP, inline bash commands, goal tracking, scheduled prompts, output filtering, security hooks, whimsical status text, side conversations, and shared slash commands.
 
 ---
 
-## Optional external tools
+## Models And Providers
 
-Pijota is a single self-contained binary, but a few features shell out to external CLIs when present. It probes
-`PATH` at runtime (cross-platform, `PATHEXT`-aware on Windows) and **degrades gracefully** — install only what you need.
+Pijota ships with a provider catalog and model registry. It supports first-class provider adapters plus OpenAI-compatible endpoints.
 
-| Tool | Unlocks | If missing |
-|---|---|---|
-| **ripgrep** (`rg`) | the `grep` tool — fast file-content search | `grep` returns an install hint instead of results |
-| **fd** (`fd`) | fast `glob` file discovery | falls back to a built-in Java directory walker (slower) |
-| **fzf** | the `@`-file fuzzy picker in the TUI | falls back to inline path completion |
-| **Chrome / Chromium** | the browser tool over CDP — navigate, click, screenshot, extract page/PDF text | use Firefox/Safari instead, or the browser tool stays off |
-| **Firefox** + **geckodriver** | the browser tool over WebDriver BiDi (alternate engine) | use Chrome/Safari instead |
-| **Safari** + `safaridriver` | the browser tool on macOS over BiDi (Safari 18+) | macOS only |
-| **tmux** | the `--tmux` extension — run and observe commands in detached terminal panes | the extension reports tmux is unavailable |
-| **git** | `/transcend` self-rebuild, sub-agent worktrees, session checkpoints | those features are unavailable |
+| Provider family | Examples |
+|---|---|
+| **Native adapters** | Anthropic, Google Gemini, OpenAI-compatible APIs. |
+| **Hosted providers** | OpenAI, Anthropic, Google AI, DeepSeek, Groq, xAI, Mistral, Together AI, OpenRouter, Cerebras, Fireworks AI, Kimi, Moonshot, Z.AI, Hugging Face, NVIDIA NIM, MiniMax. |
+| **Special auth** | OpenAI Codex OAuth device flow. |
+| **Local/custom** | llama.cpp, vLLM, local OpenAI-compatible servers, and user-defined providers in settings. |
 
-Browser backends are interchangeable — any one of Chrome/Chromium, Firefox (+geckodriver), or Safari (+safaridriver)
-is enough. Pick the engine with `--browse=chrome|firefox|safari` (default `chrome`); point at a specific binary with
-`PIJOTA_BROWSER_BIN` / `-Dpijota.browse.bin` if it isn't auto-discovered on `PATH`.
+Model quality-of-life features:
+
+- `provider/model` shorthand, for example `openai/gpt-5.5`.
+- Model aliases such as `alias/fast`, `alias/current`, and `alias/print`.
+- Thinking levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
+- Per-model context windows, pricing, modalities, and typo suggestions.
+- API keys from environment variables, settings, or OAuth token stores.
 
 ---
 
-## Build from source
+## Sessions
 
-Requires JDK 25 (a GraalVM JDK for native builds). `make` wraps `mvn` with sensible defaults.
+Sessions are append-only JSONL files under `~/.pijota/sessions/` by default.
+
+| Capability | Description |
+|---|---|
+| **Resume** | Continue the latest session with `-c` or pick one with `-r` and `/sessions`. |
+| **Branch** | Fork from earlier entries and keep a real conversation tree. |
+| **Clone** | Duplicate the active branch into a new session. |
+| **Compact** | Automatically summarize older context before the model window fills. |
+| **Export** | Write a transcript to Markdown. |
+| **Recover** | Restore interrupted self-modification sessions with `--recover`. |
+| **Track usage** | Persist token counts, cache reads/writes, reasoning tokens, and cost. |
+
+---
+
+## Browser, MCP, And Skills
+
+| Feature | Details |
+|---|---|
+| **Browser** | Enable with `--browse` or `--browse=chrome|firefox|safari`. Chrome uses CDP; Firefox and Safari use WebDriver BiDi. Pages are rendered, consent banners are dismissed, lazy content is settled, and Markdown is extracted with Mozilla Readability fallbacks. |
+| **PDFs** | Browser mode can extract digital PDF text through PDF.js. |
+| **MCP** | Configure servers in `~/.pijota/mcp.json`; tools appear as `mcp__<server>__<tool>`. Manage live servers with `/mcp`. |
+| **Skills** | Reusable Markdown workflows from `~/.pijota/skills/`, `.pijota/skills/`, or `--skill`. Invoke with `/skill:<name>` or the `skill` tool. |
+| **Prompt templates** | Drop reusable prompts into configured template paths and run them as slash commands. |
+| **Context files** | `AGENTS.md` and `CLAUDE.md` are discovered automatically unless disabled. |
+
+---
+
+## Transcendence
+
+`--transcendence` enables Pijota's riskiest and most distinctive trick: self-modification.
+
+When asked to change itself, Pijota can edit its own Java source, build, test, create a replacement jar, ask the supervisor to respawn, and roll back if something goes wrong.
 
 ```bash
-make run            # compile + launch  (ARGS="--help" to pass flags)
-make build          # compile only
-make test           # unit tests
-make check          # format-check + tests
-make jar            # thin jar
-make fat            # uber-jar  →  java -jar target/pijota-*-fat.jar
-make native         # GraalVM native image
-make native-static  # fully static musl binary  (needs: make setup-musl)
-make coverage       # JaCoCo report
-make format         # apply Spotless formatting
-make clean
+pj --transcendence
+/transcend add a tiny /doctor command that checks provider configuration
 ```
 
-For a PGO-optimized native build: `make native-pgo-instrument`, run a representative session, then `make native-pgo-build`.
+This is JVM-only and intentionally opt-in.
+
+---
+
+## Configuration
+
+Pijota stores settings in `~/.pijota/settings.json` with owner-only permissions for files that hold API keys.
+
+Common settings include:
+
+- `default_provider` and `default_model`.
+- `api_keys` per provider.
+- `thinking_level`.
+- `session_dir` and `project_dir`.
+- `theme`, `themes`, `path_display`, and `markdown`.
+- `aliases` and `enabled_models`.
+- `providers` for custom LLM endpoints.
+- `extensions` for persisted extension state.
+- `compaction` with reserve and keep-recent token counts.
+
+Login helpers:
+
+```bash
+pj login anthropic
+pj login openai-codex
+pj logout anthropic
+```
+
+Environment variables such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, and provider-specific keys are also supported.
+
+---
+
+## Build From Source
+
+`make` wraps Maven and prefers `mvnd` when available.
+
+| Command | Purpose |
+|---|---|
+| `make build` | Compile. |
+| `make test` | Run unit tests. |
+| `make test-live` | Run opt-in live browser tests. |
+| `make check` | Format check plus tests. |
+| `make run` | Compile and launch, passing args with `ARGS="..."`. |
+| `make jar` | Build a thin jar. |
+| `make fat` | Build an uber-jar. |
+| `make native` | Build a GraalVM native image. |
+| `make native-static` | Build a fully static musl native image after `make setup-musl`. |
+| `make coverage` | Generate a JaCoCo report. |
+| `make format` | Apply Spotless formatting. |
+
+PGO native builds are supported:
+
+```bash
+make native-pgo-instrument
+./target/pijota
+make native-pgo-build
+```
+
+---
+
+## Security Model
+
+Pijota is not a sandbox. It can edit files and run commands in the environment where you launch it.
+
+Practical safety features exist: tool scoping, ACP permission prompts, project-local extension trust, SSRF checks for web fetch/browser paths, opt-in browser launch confirmation, owner-only settings files, and opt-in self-modification. These reduce risk; they do not replace process isolation.
+
+If you need hard isolation, run Pijota inside a container, VM, locked-down user account, or disposable worktree.
 
 ---
 
 ## License
 
-[Apache 2.0](LICENSE).
+[Apache 2.0][license]
 
-[badge-java]: https://img.shields.io/badge/Java-25+-blue
-[badge-native-image]: https://img.shields.io/badge/GraalVM-Native_Image-F29111?labelColor=00758F
-[badge-license]: https://img.shields.io/badge/license-Apache%202.0-green
+[repo]: .
+[license]: LICENSE
+[providers]: src/main/resources/providers.json
+[java]: https://openjdk.org/projects/jdk/25/
+[maven]: https://maven.apache.org/
+[graalvm]: https://www.graalvm.org/latest/reference-manual/native-image/
+[badge-java]: https://img.shields.io/badge/Java-25+-007396?style=flat-square&logo=openjdk&logoColor=white
+[badge-maven]: https://img.shields.io/badge/build-Maven-C71A36?style=flat-square&logo=apachemaven&logoColor=white
+[badge-native]: https://img.shields.io/badge/GraalVM-native_image-F29111?style=flat-square&logo=graalvm&logoColor=white
+[badge-license]: https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square
+[badge-local]: https://img.shields.io/badge/local--first-no_SaaS_lock--in-2ea44f?style=flat-square
+[badge-providers]: https://img.shields.io/badge/providers-20%2B-7c3aed?style=flat-square
