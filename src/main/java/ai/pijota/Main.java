@@ -244,6 +244,7 @@ public final class Main {
         // Defer extension readiness (MCP connects block up to ~2.5s) so the agent answers the handshake immediately.
         Thread.ofPlatform().name("pijota-extensions-ready").daemon(true).start(b.extensions()::ready);
         SelfRespawn.markStartupHealthy();
+        System.err.println("[acp] Pijota ACP mode active on stdio. Waiting for an editor client...");
         try {
             frontend.run(); // blocks reading stdin until the client disconnects (EOF)
             return 0;
