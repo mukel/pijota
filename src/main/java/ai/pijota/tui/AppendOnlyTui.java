@@ -87,6 +87,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     .newSingleThreadExecutor(Thread.ofPlatform().name("pijota-tui-agent").factory());
     private volatile Future<?> authTask; // in-flight OAuth login, cancellable via Esc/Ctrl+C
     private final TurnActivity activity = new TurnActivity();
+    private final ExternalEditor externalEditor = new ExternalEditor();
     private final StatusOverride statusOverride = new StatusOverride();
     private final DialogHandler dialogs;
     private final PromptPresenter promptPresenter;
@@ -1234,32 +1235,21 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             redrawPrompt();
             return;
         }
-        Path file = null;
         try {
-            file = Files.createTempFile("pijota-prompt-", ".md");
-            Files.writeString(file, promptEditor.text(), StandardCharsets.UTF_8);
             suspendTui();
-
             String editor = System.getenv().getOrDefault("EDITOR", Platform.isWindows() ? "notepad" : "vi");
             String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
-            int code = ProcessRunner.command(shell, Platform.shellCommandFlag(shell),
-                                            editor + " " + Util.shellQuote(file.toString())).runInteractive();
-
+            var result = externalEditor.edit(shell, editor, promptEditor.text());
             resumeTui();
-            if (code == 0) {
-                promptEditor.setText(Files.readString(file, StandardCharsets.UTF_8).stripTrailing());
+            if (result.changed()) {
+                promptEditor.setText(result.content());
             } else {
-                setTransientStatus("Editor exited with code " + code, 3500);
+                setTransientStatus("Editor exited with code " + result.exitCode(), 3500);
             }
         } catch (Exception e) {
             resumeTui();
             setStatusOverride("Editor error: " + e.getMessage());
         } finally {
-            if (file != null) {
-                try {
-                    Files.deleteIfExists(file);
-                } catch (IOException ignored) {}
-            }
             redrawPrompt();
         }
     }
