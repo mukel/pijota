@@ -215,6 +215,7 @@ class UtilTest {
         var result = Util.truncateToFile(text, 1000, "util-test");
         assertNotEquals(text, result.text());
         assertTrue((Boolean) result.details().get("truncated"));
+        assertNotNull(result.details().get("outputPath"));
         assertNotNull(result.details().get("fullOutputPath"));
         Path fullPath = Path.of((String) result.details().get("fullOutputPath"));
         assertEquals(text, Files.readString(fullPath));

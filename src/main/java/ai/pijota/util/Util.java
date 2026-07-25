@@ -1,5 +1,7 @@
 package ai.pijota.util;
 
+import ai.pijota.tools.ToolOutputStore;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -244,14 +246,8 @@ public final class Util {
             text = "";
         if (text.length() <= maxChars)
             return new TruncatedResult(text, Map.of());
-        Path file = Files.createTempFile(tempPrefix, ".txt");
-        Files.writeString(file, text);
-        var details = new LinkedHashMap<String, Object>();
-        details.put("truncated", true);
-        details.put("fullOutputPath", file.toString());
-        details.put("maxChars", maxChars);
-        String visible = truncateHeadTail(text, maxChars, file.toString());
-        return new TruncatedResult(visible, Map.copyOf(details));
+        var stored = ToolOutputStore.bound(text, maxChars, tempPrefix);
+        return new TruncatedResult(stored.text(), stored.details());
     }
 
     public static String truncateHeadTail(String text, int maxChars, String fullOutputPath) {

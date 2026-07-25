@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,7 +154,7 @@ public final class BashTool implements Tool {
 
                 if (!output.isBlank()) {
                     try {
-                        details.put("outputPath", saveOutput(output).toString());
+                        details.put("outputPath", ToolOutputStore.save(output, "bash-").toString());
                     } catch (IOException e) {
                         log.debug("Could not persist bash output to a file: {}", e.getMessage());
                     }
@@ -214,14 +213,6 @@ public final class BashTool implements Tool {
             body.addAll(lines.subList(lines.size() - PREVIEW_TAIL_LINES, lines.size()));
         }
         return ToolResultView.of(summary, body);
-    }
-
-    private static Path saveOutput(String output) throws IOException {
-        Path dir = Path.of(System.getProperty("java.io.tmpdir"), "pijota");
-        Files.createDirectories(dir);
-        Path file = Files.createTempFile(dir, "bash-", ".log");
-        Files.writeString(file, output, StandardOpenOption.TRUNCATE_EXISTING);
-        return file;
     }
 
     @Override
