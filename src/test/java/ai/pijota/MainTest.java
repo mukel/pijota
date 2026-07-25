@@ -28,7 +28,7 @@ class MainTest {
     void versionFlagPrintsTheVersionAndReturnsZero() {
         int code = Main.run(new String[] {"--version"});
         assertEquals(0, code);
-        assertTrue(stdio.out().toLowerCase().contains("pijota"), stdio.out());
+        assertEquals("pijota v" + PijotaVersion.current(), stdio.out().strip());
     }
 
     @Test

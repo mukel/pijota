@@ -167,6 +167,7 @@
         <configuration>
           <archive>
             <manifest>
+              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
               <mainClass>ai.pijota.Main</mainClass>
             </manifest>
           </archive>
