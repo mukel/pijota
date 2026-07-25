@@ -169,13 +169,14 @@ public final class TelegramChat implements ChatHandler {
         // (image/audio/video) needs the model to declare the modality.
         if (modality != Modality.TEXT && modality != Modality.PDF && !ModelRegistry.supports(session.llm().provider(),
                                         session.llm().model(), modality)) {
-            tg.sendMessage(chatId, "⚠️ " + session.llm().model() + " can't read "
+            tg.sendMessage(chatId, "⚠️ " + session.llm().provider() + "/" + session.llm().model() + " can't read "
                                             + modality.name().toLowerCase(Locale.ROOT)
                                             + " files — switch with /model, then resend.");
             return;
         }
         if (modality == Modality.IMAGE && !Modality.isSupportedImage(mime)) { // provider limitation, not ours
-            tg.sendMessage(chatId, "⚠️ That image format isn't supported by the model — send JPEG/PNG/GIF/WebP.");
+            tg.sendMessage(chatId, "⚠️ That image format isn't supported by " + session.llm().provider() + "/"
+                                            + session.llm().model() + " — send JPEG/PNG/GIF/WebP.");
             return;
         }
         // The download is multi-MB and blocking — run it off the single poll/dispatch thread so other chats aren't
