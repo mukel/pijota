@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Deterministic JSON snapshot + SHA-256 hash of the enabled tool set, used to reuse the cached system prompt tool list
+ * Deterministic JSON snapshot + SHA-256 hash of the active tool set, used to reuse the cached system prompt tool list
  * while the manifest is unchanged.
  */
 public final class ToolManifest {
@@ -25,7 +25,7 @@ public final class ToolManifest {
         var cached = registry.cachedManifestSnapshot();
         if (cached != null)
             return cached;
-        var tools = registry.enabledTools().stream().sorted(Comparator.comparing(Tool::name)).map(tool -> {
+        var tools = registry.activeTools().stream().sorted(Comparator.comparing(Tool::name)).map(tool -> {
             var item = new LinkedHashMap<String, Object>();
             item.put("name", tool.name());
             item.put("description", tool.description());

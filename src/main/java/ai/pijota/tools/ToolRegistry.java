@@ -1,8 +1,6 @@
 package ai.pijota.tools;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,83 +10,94 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
- * Thread-safe registry of tools, keyed by name in insertion order, where the enabled set decides which are visible to
- * the model. Supports dynamic registration/deregistration for tools that connect and disconnect at runtime (e.g. MCP
- * servers).
+ * Thread-safe registry of tools, keyed by name in insertion order. Tools move through three explicit states:
+ * registered (known), available (allowed by policy), and active (sent to the model).
  */
 public final class ToolRegistry {
 
     // Guarded by this: tools may be registered dynamically and from background threads (e.g. MCP servers connecting in
-    // parallel, or reconnecting) while the agent thread reads the enabled set each turn — so all access is
+    // parallel, or reconnecting) while the agent thread reads the active set each turn — so all access is
     // synchronized.
     // A LinkedHashMap preserves registration order; the per-turn cost of these short critical sections is negligible.
-    private final Map<String, Tool> tools = new LinkedHashMap<>();
-    private final Set<String> enabledNames = new HashSet<>();
-    private final Set<String> builtinNames = new HashSet<>(); // origin, for --no-builtin-tools
+    private final Map<String, ToolEntry> tools = new LinkedHashMap<>();
+    private ToolPolicy policy = ToolPolicy.UNRESTRICTED;
+    private Set<String> activeNames;
     private ToolManifest.Snapshot cachedManifestSnapshot;
 
+    private record ToolEntry(Tool tool, boolean builtin) {
+    }
+
     public synchronized void register(Tool tool) {
-        tools.put(tool.name(), tool);
-        if (tool.defaultEnabled())
-            enabledNames.add(tool.name());
+        register(tool, false);
+    }
+
+    private synchronized void register(Tool tool, boolean builtin) {
+        tools.put(tool.name(), new ToolEntry(tool, builtin));
+        pruneActiveNames();
         cachedManifestSnapshot = null;
     }
 
     /** Register a first-party (non-extension) tool; distinguished only so {@code --no-builtin-tools} can target it. */
     public synchronized void registerBuiltin(Tool tool) {
-        register(tool);
-        builtinNames.add(tool.name());
+        register(tool, true);
     }
 
-    /**
-     * Recompute the active set from a {@link ToolPolicy} — the one-time bootstrap filter for the {@code --tools} /
-     * {@code --exclude-tools} / {@code --no-tools} / {@code --no-builtin-tools} flags. Like {@link #enableOnly} this is
-     * a snapshot: tools registered afterwards (e.g. MCP) enable by their own default and aren't retroactively filtered.
-     */
     public synchronized void applyPolicy(ToolPolicy policy) {
-        enabledNames.clear();
-        for (Tool tool : tools.values())
-            if (policy.keep(tool.name(), builtinNames.contains(tool.name()), tool.defaultEnabled()))
-                enabledNames.add(tool.name());
+        this.policy = policy == null ? ToolPolicy.UNRESTRICTED : policy;
+        pruneActiveNames();
         cachedManifestSnapshot = null;
     }
 
     /** Removes a tool (and disables it). No-op if it was never registered. Used for dynamic tools (e.g. MCP). */
     public synchronized void unregister(String name) {
         tools.remove(name);
-        enabledNames.remove(name);
+        pruneActiveNames();
         cachedManifestSnapshot = null;
     }
 
-    public synchronized void enableOnly(Collection<String> names) {
-        enabledNames.clear();
-        enabledNames.addAll(names);
+    public synchronized void setActiveTools(Set<String> names) {
+        activeNames = names == null ? null : Set.copyOf(names);
+        pruneActiveNames();
         cachedManifestSnapshot = null;
     }
 
-    public synchronized List<Tool> enabledTools() {
-        return tools.values().stream().filter(t -> enabledNames.contains(t.name())).toList();
+    public synchronized List<Tool> registeredTools() {
+        return tools.values().stream().map(ToolEntry::tool).toList();
     }
 
-    public synchronized List<Tool.ToolInfo> allTools() {
-        return tools.values().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
+    public synchronized List<Tool> availableTools() {
+        return tools.values().stream().filter(this::available).map(ToolEntry::tool).toList();
     }
 
-    public synchronized List<Tool.ToolInfo> activeTools() {
-        return enabledTools().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
+    public synchronized List<Tool> activeTools() {
+        if (activeNames == null)
+            return availableTools();
+        return availableTools().stream().filter(t -> activeNames.contains(t.name())).toList();
     }
 
-    public synchronized List<String> enabledToolNames() {
-        return enabledTools().stream().map(Tool::name).toList();
+    public synchronized List<Tool.ToolInfo> registeredToolInfo() {
+        return registeredTools().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
+    }
+
+    public synchronized List<Tool.ToolInfo> availableToolInfo() {
+        return availableTools().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
+    }
+
+    public synchronized List<Tool.ToolInfo> activeToolInfo() {
+        return activeTools().stream().map(t -> new Tool.ToolInfo(t.name(), t.description())).toList();
+    }
+
+    public synchronized List<String> activeToolNames() {
+        return activeTools().stream().map(Tool::name).toList();
     }
 
     public synchronized Optional<Tool> get(String name) {
-        return Optional.ofNullable(tools.get(name));
+        return Optional.ofNullable(tools.get(name)).filter(this::available).map(ToolEntry::tool);
     }
 
     public synchronized void abortRunningTools() {
-        for (Tool tool : tools.values())
-            tool.abort();
+        for (ToolEntry entry : tools.values())
+            entry.tool().abort();
     }
 
     public CompletableFuture<Tool.ToolResult> execute(String toolCallId, String toolName, Map<String, Object> arguments,
@@ -220,6 +229,18 @@ public final class ToolRegistry {
 
     synchronized void cacheManifestSnapshot(ToolManifest.Snapshot snapshot) {
         cachedManifestSnapshot = snapshot;
+    }
+
+    private boolean available(ToolEntry entry) {
+        var tool = entry.tool();
+        return policy.keep(tool.name(), entry.builtin(), tool.defaultEnabled());
+    }
+
+    private void pruneActiveNames() {
+        if (activeNames == null)
+            return;
+        var available = availableTools().stream().map(Tool::name).collect(java.util.stream.Collectors.toSet());
+        activeNames = activeNames.stream().filter(available::contains).collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     public static ToolRegistry createDefault() {

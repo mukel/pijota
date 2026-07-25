@@ -2,6 +2,8 @@ package ai.pijota.cli;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class ArgParserTest {
@@ -129,9 +131,15 @@ class ArgParserTest {
 
     @Test
     void parseToolsCsv() {
-        var args = ArgParser.parse(new String[] {"--tools", "read,write,edit"});
+        var args = ArgParser.parse(new String[] {"--tool", "read,write,edit"});
         assertEquals(3, args.enabledTools().size());
         assertTrue(args.enabledTools().contains("read"));
+    }
+
+    @Test
+    void parseNoToolCsv() {
+        var args = ArgParser.parse(new String[] {"--no-tool", "bash,write"});
+        assertEquals(List.of("bash", "write"), args.excludeTools());
     }
 
     @Test
@@ -248,6 +256,14 @@ class ArgParserTest {
     void parseFlag_verbose() {
         var args = ArgParser.parse(new String[] {"--verbose"});
         assertTrue(args.verbose());
+    }
+
+    @Test
+    void parseApproveFlags() {
+        assertTrue(ArgParser.parse(new String[] {"--approve"}).approveProject());
+        assertTrue(ArgParser.parse(new String[] {"-a"}).approveProject());
+        assertTrue(ArgParser.parse(new String[] {"--no-approve"}).noApproveProject());
+        assertTrue(ArgParser.parse(new String[] {"-na"}).noApproveProject());
     }
 
     @Test

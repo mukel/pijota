@@ -28,6 +28,7 @@ public final class ArgParser {
         var noSession = false;
         var noTools = false;
         var noBuiltinTools = false;
+        var readOnly = false;
         var noExtensions = false;
         var noBuiltinExtensions = false;
         var noSkills = false;
@@ -48,6 +49,8 @@ public final class ArgParser {
         var exportPath = (String) null;
         var listModels = false;
         var listModelsFilter = (String) null;
+        var approveProject = false;
+        var noApproveProject = false;
         var help = false;
         var version = false;
         var verbose = false;
@@ -77,8 +80,8 @@ public final class ArgParser {
                 case "--session", "-s", "--session-path" -> sessionPath = cursor.value(arg);
                 case "--fork" -> forkPath = cursor.value(arg);
                 case "--export" -> exportPath = cursor.value(arg);
-                case "--tools", "-t" -> enabledTools.addAll(parseList(cursor.value(arg)));
-                case "--exclude-tools", "-xt" -> excludeTools.addAll(parseList(cursor.value(arg)));
+                case "--tool", "--tools", "-t" -> enabledTools.addAll(parseList(cursor.value(arg)));
+                case "--no-tool", "--exclude-tools", "-xt" -> excludeTools.addAll(parseList(cursor.value(arg)));
                 case "--extension", "-e" -> extensionPaths.add(cursor.value(arg));
                 case "--skill" -> skillPaths.add(cursor.value(arg));
                 case "--theme" -> themePaths.add(cursor.value(arg));
@@ -99,6 +102,7 @@ public final class ArgParser {
                 case "--recover" -> recoverSession = true;
                 case "--no-session" -> noSession = true;
                 case "--no-tools", "-nt" -> noTools = true;
+                case "--readonly", "--read-only" -> readOnly = true;
                 case "--no-builtin-tools", "-nbt" -> noBuiltinTools = true;
                 case "--no-extensions", "-ne" -> noExtensions = true;
                 case "--no-builtin-extensions", "-nbe" -> noBuiltinExtensions = true;
@@ -108,6 +112,8 @@ public final class ArgParser {
                 case "--no-prompt-templates", "-np" -> noPromptTemplates = true;
                 case "--prompt-template", "--template" -> promptTemplatePaths.add(cursor.value(arg));
                 case "--verbose" -> verbose = true;
+                case "--approve", "-a" -> approveProject = true;
+                case "--no-approve", "-na" -> noApproveProject = true;
                 case "--help", "-h" -> help = true;
                 case "--version", "-v" -> version = true;
                 case "--agent" -> agent = true;
@@ -143,12 +149,13 @@ public final class ArgParser {
         }
 
         return new Args(provider, model, apiKey, systemPrompt, appendSystemPrompts, thinkingLevel, outputMode,
-                                        sessionPath, noSession, noTools, noBuiltinTools, noExtensions,
+                                        sessionPath, noSession, noTools, noBuiltinTools, readOnly, noExtensions,
                                         noBuiltinExtensions, noSkills, noThemes, noContextFiles, noPromptTemplates,
                                         enabledTools, excludeTools, extensionPaths, skillPaths, themePaths,
                                         promptTemplatePaths, print, resume, continueSession, recoverSession, forkPath,
-                                        exportPath, listModels, listModelsFilter, help, version, verbose, agent, worker,
-                                        fileArgs, promptArgs, Map.copyOf(extensionFlags), maxTurns);
+                                        exportPath, listModels, listModelsFilter, approveProject, noApproveProject, help,
+                                        version, verbose, agent, worker, fileArgs, promptArgs,
+                                        Map.copyOf(extensionFlags), maxTurns);
     }
 
     public static void printHelp() {
@@ -179,9 +186,10 @@ public final class ArgParser {
                                           --resume, -r              Interactive session picker
                                           --fork <id>               Fork a session
                                           --no-session              Don't save session
-                                          --tools, -t <names>       Enable only these tools (allowlist, any source)
-                                          --exclude-tools, -xt <names> Disable these tools (denylist, any source)
+                                          --tool, -t <names>        Enable only these tools (allowlist, any source)
+                                          --no-tool, -xt <names>    Disable these tools (denylist, any source)
                                           --no-tools, -nt           Disable all tools (built-in and extension)
+                                          --readonly, --read-only   Enable read-only exploration tools only
                                           --no-builtin-tools, -nbt  Disable built-in tools, keep extension tools
                                           --no-extensions, -ne      Disable all extensions (built-in and discovered)
                                           --no-builtin-extensions, -nbe  Disable built-in extensions, keep discovered
@@ -193,6 +201,8 @@ public final class ArgParser {
                                           --no-context-files, -nc    Skip AGENTS.md and CLAUDE.md discovery
                                           --no-prompt-templates, -np Skip prompt template auto-discovery
                                           --prompt-template <path>   Load prompt template (repeatable)
+                                          --approve, -a             Trust project-local resources for this run
+                                          --no-approve, -na         Ignore project-local resources for this run
 
                                         """);
         System.out.println(BuiltinExtensions.helpSection());

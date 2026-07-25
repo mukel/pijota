@@ -143,7 +143,7 @@ public final class TaskExtension implements Extension {
         var runtime = api.runtime();
         var agents = SubAgent.loadAll(runtime.cwd());
 
-        api.registerTool(new TaskTool(agents, runtime.llm(), runtime.tools()::enabledToolNames, runtime::systemPrompt,
+        api.registerTool(new TaskTool(agents, runtime.llm(), runtime.tools()::activeToolNames, runtime::systemPrompt,
                                         this::onActivity, this::finished, runtime.cwd(), 0));
 
         api.registerStatusLines(this::statusLines);
@@ -157,7 +157,7 @@ public final class TaskExtension implements Extension {
             return;
         var agents = SubAgent.loadAll(ctx.cwd());
         if (!agents.isEmpty()) {
-            ctx.registry().register(new TaskTool(agents, ctx.llm(), ctx.registry()::enabledToolNames, ctx::systemPrompt,
+            ctx.registry().register(new TaskTool(agents, ctx.llm(), ctx.registry()::activeToolNames, ctx::systemPrompt,
                                             this::onActivity, this::finished, ctx.cwd(), ctx.depth()));
         }
     }

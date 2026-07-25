@@ -342,7 +342,7 @@ public final class ExtensionRegistry {
     public String fireBeforeAgentStart(List<Message> messages, String systemPrompt) {
         var prompt = new StringBuilder(systemPrompt != null ? systemPrompt : "");
         fire(new ExtensionEvent.BeforeAgentStart(messages, prompt,
-                                        toolRegistry != null ? toolRegistry.activeTools() : List.of()));
+                                        toolRegistry != null ? toolRegistry.activeToolInfo() : List.of()));
         return prompt.toString();
     }
 
@@ -640,18 +640,18 @@ public final class ExtensionRegistry {
 
         @Override
         public List<Tool.ToolInfo> activeTools() {
-            return toolRegistry != null ? toolRegistry.activeTools() : List.of();
+            return toolRegistry != null ? toolRegistry.activeToolInfo() : List.of();
         }
 
         @Override
         public void setActiveTools(List<String> toolNames) {
             if (toolRegistry != null)
-                toolRegistry.enableOnly(toolNames);
+                toolRegistry.setActiveTools(java.util.Set.copyOf(toolNames));
         }
 
         @Override
-        public List<Tool.ToolInfo> allTools() {
-            return toolRegistry != null ? toolRegistry.allTools() : List.of();
+        public List<Tool.ToolInfo> availableTools() {
+            return toolRegistry != null ? toolRegistry.availableToolInfo() : List.of();
         }
 
         @Override
@@ -724,6 +724,7 @@ public final class ExtensionRegistry {
             env.put("PIJOTA_REASONING_LEVEL", null);
             env.put("PIJOTA_SESSION_FILE", null);
             env.put("PIJOTA_SESSION_ID", null);
+            env.put("PIJOTA_CODING_AGENT", "true");
             LlmClient client = llm();
             if (client != null) {
                 env.put("PIJOTA_PROVIDER", client.provider());

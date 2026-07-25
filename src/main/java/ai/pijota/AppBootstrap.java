@@ -6,6 +6,7 @@ import ai.pijota.agent.SystemPrompt;
 import ai.pijota.util.Proxies;
 import ai.pijota.cli.Args;
 import ai.pijota.config.ProviderCatalog;
+import ai.pijota.config.ProjectTrust;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.config.TrustStore;
 import ai.pijota.extensions.ExtensionEvent;
@@ -46,15 +47,19 @@ import ai.pijota.util.StartupTimer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Console;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.nio.file.Path;
 
 public final class AppBootstrap {
     private static final Logger logger = LoggerFactory.getLogger(AppBootstrap.class);
+    private static final Set<String> READ_ONLY_TOOLS = Set.of("read", "ls", "grep", "glob", "webfetch", "websearch",
+                                    "question", "whoami");
 
     record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
                                     SessionManager sessions, SettingsManager settings, Args args, String cwd) {
@@ -111,22 +116,8 @@ public final class AppBootstrap {
         ext.setProjectDir(Path.of(settings.projectDir()));
         ext.setLlm(llm);
         configureExtensionEnablement(ext, parsedArgs, settings);
-        // Discovered extensions (ServiceLoader + external .pi/extensions dirs). --no-extensions disables ALL extensions
-        // so it skips discovery too; --no-builtin-extensions keeps discovery (that's the point — keep YOUR extensions).
-        if (!parsedArgs.noExtensions()) {
-            ext.loadServiceLoaderExtensions();
-            // Pi-compatible extension dirs (matches the .pi/agents and .pi/chains convention), not ~/.pijota.
-            ext.loadFromDirectory(Path.of(System.getProperty("user.home"), ".pi", "extensions"));
-            // Project-local extensions are executable code from the cwd — only load them from a TRUSTED folder, so a
-            // cloned/untrusted repo can't auto-run code on startup. Trust with /trust (takes effect next launch).
-            if (new TrustStore().isTrusted(cwd))
-                ext.loadFromDirectory(Path.of(cwd, ".pi", "extensions"));
-            else if (Path.of(cwd, ".pi", "extensions").toFile().isDirectory())
-                logger.info("Skipped untrusted project extensions in {}/.pi/extensions — run /trust to enable them.",
-                                                cwd);
-            for (String path : parsedArgs.extensionPaths())
-                ext.loadFromPath(Path.of(path));
-        }
+        boolean projectTrusted = resolveProjectTrust(cwd, parsedArgs, settings);
+        loadDiscoveredExtensions(ext, parsedArgs, cwd, projectTrusted);
 
         // Niche tool, opt-in (--whoami) — gated through the same resolution as extensions.
         if (ext.isEnabled("whoami", false))
@@ -160,15 +151,7 @@ public final class AppBootstrap {
         }
         StartupTimer.mark("extensions registered");
 
-        // Resolve the active tool set once, after every source has registered: base scope (--no-tools /
-        // --no-builtin-tools) then allowlist (--tools) / denylist (--exclude-tools), all by name across sources.
-        var toolScope = parsedArgs.noTools()
-                                        ? ToolPolicy.Scope.NONE
-                                        : parsedArgs.noBuiltinTools()
-                                                                        ? ToolPolicy.Scope.EXTENSION_ONLY
-                                                                        : ToolPolicy.Scope.ALL;
-        tools.applyPolicy(new ToolPolicy(toolScope, java.util.Set.copyOf(parsedArgs.enabledTools()),
-                                        java.util.Set.copyOf(parsedArgs.excludeTools())));
+        tools.applyPolicy(toolPolicy(parsedArgs));
 
         String appendPrompt = parsedArgs.appendSystemPrompts().isEmpty()
                                         ? null
@@ -227,10 +210,49 @@ public final class AppBootstrap {
 
         // One-line record of what the agent actually started with — the first thing to check when diagnosing "why did
         // it behave like that": resolved provider/model, enabled tool count, and cwd.
-        logger.info("bootstrap ready · {}/{} · {} tool(s) · cwd={}", provider, model, tools.enabledToolNames().size(),
+        logger.info("bootstrap ready · {}/{} · {} tool(s) · cwd={}", provider, model, tools.activeToolNames().size(),
                                         cwd);
 
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
+    }
+
+    private static boolean resolveProjectTrust(String cwd, Args parsedArgs, SettingsManager settings) {
+        if (parsedArgs.noApproveProject())
+            return false;
+        var trust = new TrustStore();
+        if (parsedArgs.approveProject()) {
+            trust.trust(cwd);
+            return true;
+        }
+        if (trust.isTrusted(cwd))
+            return true;
+        if (!ProjectTrust.hasProtectedResources(cwd))
+            return false;
+        String fallback = settings.config().defaultProjectTrust() == null ? "ask"
+                                        : settings.config().defaultProjectTrust().trim().toLowerCase(Locale.ROOT);
+        if ("always".equals(fallback)) {
+            trust.trust(cwd);
+            return true;
+        }
+        if ("never".equals(fallback) || !interactiveTuiLaunch(parsedArgs))
+            return false;
+        Console console = System.console();
+        if (console == null)
+            return false;
+        String answer = console.readLine("Trust project resources in %s? [y/N] ", cwd);
+        if (answer != null && (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("yes"))) {
+            trust.trust(cwd);
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean interactiveTuiLaunch(Args args) {
+        return !args.agent() && !args.worker() && !args.print() && args.promptArgs().isEmpty()
+                                        && args.outputMode() != Args.OutputMode.RPC
+                                        && !args.extensionFlags().containsKey("web")
+                                        && !args.extensionFlags().containsKey("telegram")
+                                        && !args.extensionFlags().containsKey("acp");
     }
 
     private static Map<String, String> bashEnvironment(LlmService llm, PijotaSession session) {
@@ -240,6 +262,7 @@ public final class AppBootstrap {
         env.put("PIJOTA_REASONING_LEVEL", null);
         env.put("PIJOTA_SESSION_FILE", null);
         env.put("PIJOTA_SESSION_ID", null);
+        env.put("PIJOTA_CODING_AGENT", "true");
         env.put("PIJOTA_PROVIDER", llm.provider());
         env.put("PIJOTA_MODEL", llm.model());
         var thinking = llm.thinkingLevel();
@@ -272,6 +295,38 @@ public final class AppBootstrap {
             flags.put("no-context-files", "true"); // also honors the legacy "context_files" setting
         ext.setExtensionFlags(flags);
         ext.setExtensionsConfig(settings.config().extensions());
+    }
+
+    private static void loadDiscoveredExtensions(ExtensionRegistry ext, Args args, String cwd, boolean projectTrusted) {
+        if (args.noExtensions())
+            return;
+        ext.loadServiceLoaderExtensions();
+        ext.loadFromDirectory(Path.of(System.getProperty("user.home"), ".pijota", "extensions"));
+        loadProjectExtensions(ext, cwd, projectTrusted, ".pi");
+        loadProjectExtensions(ext, cwd, projectTrusted, ".pijota");
+        for (String path : args.extensionPaths())
+            ext.loadFromPath(Path.of(path));
+    }
+
+    private static void loadProjectExtensions(ExtensionRegistry ext, String cwd, boolean trusted, String dirName) {
+        Path dir = Path.of(cwd, dirName, "extensions");
+        if (trusted) {
+            ext.loadFromDirectory(dir);
+        } else if (dir.toFile().isDirectory()) {
+            logger.info("Skipped untrusted project extensions in {} — run /trust to enable them.", dir);
+        }
+    }
+
+    private static ToolPolicy toolPolicy(Args args) {
+        var scope = args.noTools() || args.readOnly()
+                                        ? ToolPolicy.Scope.NONE
+                                        : args.noBuiltinTools()
+                                                                        ? ToolPolicy.Scope.EXTENSION_ONLY
+                                                                        : ToolPolicy.Scope.ALL;
+        Set<String> allow = args.readOnly() && args.enabledTools().isEmpty()
+                                        ? READ_ONLY_TOOLS
+                                        : Set.copyOf(args.enabledTools());
+        return new ToolPolicy(scope, allow, Set.copyOf(args.excludeTools()));
     }
 
     private static void mergeTranscendWorktree(Args args) {

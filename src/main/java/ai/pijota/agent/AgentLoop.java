@@ -179,7 +179,7 @@ public final class AgentLoop implements AgentContext {
     /** Rough token size of the tool schemas the provider adds to every request (name + description + JSON schema). */
     private long estimateToolSchemaTokens() {
         long chars = 0;
-        for (var tool : toolRegistry.enabledTools()) {
+        for (var tool : toolRegistry.activeTools()) {
             chars += tool.name().length() + tool.description().length();
             try {
                 chars += Util.MAPPER.writeValueAsString(tool.schema()).length();
@@ -399,7 +399,7 @@ public final class AgentLoop implements AgentContext {
         var requestMessages = history.snapshot();
         String requestProvider = llm.provider();
         String requestModel = llm.model();
-        var toolSpecs = toolRegistry.enabledTools();
+        var toolSpecs = toolRegistry.activeTools();
 
         var partialMsg = new Message.Assistant("", List.of(), null);
         history.add(partialMsg);
@@ -446,7 +446,7 @@ public final class AgentLoop implements AgentContext {
                                             ? streamResult.thinking()
                                             : null;
             var assistantMsg = new Message.Assistant(finalContent, newToolCalls, finalThinking)
-                                            .withSource(requestProvider, requestModel);
+                                            .withSource(requestProvider, requestModel).withUsage(streamResult.usage());
             fireEvent(new AgentEvent.AssistantMessage(assistantMsg, streamResult.usage()));
             history.set(history.size() - 1, assistantMsg);
             recordContextAnchor(streamResult.usage());

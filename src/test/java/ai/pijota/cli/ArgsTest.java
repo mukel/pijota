@@ -10,10 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ArgsTest {
 
     private static Args emptyArgs() {
-        return new Args(null, null, null, null, List.of(), null, null, null, false, false, false, false, false, false,
-                                        false, false, false, List.of(), List.of(), List.of(), List.of(), List.of(),
-                                        List.of(), false, false, false, false, null, null, false, null, false, false,
-                                        false, false, false, List.of(), List.of(), Map.of(), null);
+        return ArgParser.parse(new String[0]);
     }
 
     @Test
@@ -31,10 +28,7 @@ class ArgsTest {
 
     @Test
     void recordFieldsAreAccessible() {
-        var args = new Args("openai", "gpt-4", null, null, List.of(), null, null, null, false, false, false, false,
-                                        false, false, false, false, false, List.of(), List.of(), List.of(), List.of(),
-                                        List.of(), List.of(), false, false, false, false, null, null, false, null,
-                                        false, false, false, false, false, List.of(), List.of(), Map.of(), null);
+        var args = ArgParser.parse(new String[] {"--provider", "openai", "--model", "gpt-4"});
         assertEquals("openai", args.provider());
         assertEquals("gpt-4", args.model());
         assertFalse(args.noSession());
@@ -43,10 +37,7 @@ class ArgsTest {
 
     @Test
     void noSessionAndNoToolsFlagsStored() {
-        var args = new Args(null, null, null, null, List.of(), null, null, null, true, true, false, false, false, false,
-                                        false, false, false, List.of(), List.of(), List.of(), List.of(), List.of(),
-                                        List.of(), false, false, false, false, null, null, false, null, false, false,
-                                        false, false, false, List.of(), List.of(), Map.of(), null);
+        var args = ArgParser.parse(new String[] {"--no-session", "--no-tools"});
         assertTrue(args.noSession());
         assertTrue(args.noTools());
     }
@@ -63,11 +54,7 @@ class ArgsTest {
 
     @Test
     void extensionFlagsStoreStringMap() {
-        var args = new Args(null, null, null, null, List.of(), null, null, null, false, false, false, false, false,
-                                        false, false, false, false, List.of(), List.of(), List.of(), List.of(),
-                                        List.of(), List.of(), false, false, false, false, null, null, false, null,
-                                        false, false, false, false, false, List.of(), List.of(), Map.of("key", "value"),
-                                        null);
+        var args = ArgParser.parse(new String[] {"--key", "value"});
         assertEquals(Map.of("key", "value"), args.extensionFlags());
     }
 }

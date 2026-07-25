@@ -47,10 +47,11 @@ public interface ExtensionRuntime {
     /** Tools currently presented to the model. */
     List<Tool.ToolInfo> activeTools();
 
-    /** Replace the enabled tool set for subsequent turns. */
+    /** Replace the active tool set for subsequent turns. Policy-denied tools stay unavailable. */
     void setActiveTools(List<String> toolNames);
 
-    List<Tool.ToolInfo> allTools();
+    /** Tools allowed by policy, whether or not they are currently active. */
+    List<Tool.ToolInfo> availableTools();
 
     /** Human-readable session name (shown in {@code /sessions} listings). */
     String sessionName();

@@ -684,7 +684,7 @@ class ExtensionRegistryTest {
         assertEquals("sys", rt.systemPrompt());
         assertSame(toolReg, rt.tools());
         assertTrue(rt.activeTools().isEmpty());
-        assertTrue(rt.allTools().isEmpty());
+        assertTrue(rt.availableTools().isEmpty());
 
         rt.setSessionName("session");
         assertEquals("session", rt.sessionName());
@@ -730,7 +730,7 @@ class ExtensionRegistryTest {
         var reg = new ExtensionRegistry();
         reg.setToolRegistry(toolReg);
         reg.api().runtime().setActiveTools(List.of("read"));
-        assertEquals(List.of("read"), toolReg.enabledToolNames());
+        assertEquals(List.of("read"), toolReg.activeToolNames());
     }
 
     @Test

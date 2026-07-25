@@ -140,18 +140,18 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
 
     @Override
     public List<Tool.ToolInfo> activeTools() {
-        return toolRegistry != null ? toolRegistry.activeTools() : List.of();
+        return toolRegistry != null ? toolRegistry.activeToolInfo() : List.of();
     }
 
     @Override
     public void setActiveTools(List<String> toolNames) {
         if (toolRegistry != null)
-            toolRegistry.enableOnly(toolNames);
+            toolRegistry.setActiveTools(java.util.Set.copyOf(toolNames));
     }
 
     @Override
-    public List<Tool.ToolInfo> allTools() {
-        return toolRegistry != null ? toolRegistry.allTools() : List.of();
+    public List<Tool.ToolInfo> availableTools() {
+        return toolRegistry != null ? toolRegistry.availableToolInfo() : List.of();
     }
 
     @Override

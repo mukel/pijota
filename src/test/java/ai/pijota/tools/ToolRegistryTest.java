@@ -24,7 +24,7 @@ class ToolRegistryTest {
         r.register(TestTools.fake("always", true));
         r.register(TestTools.fake("offline", false));
 
-        var enabled = r.enabledTools();
+        var enabled = r.activeTools();
         assertEquals(1, enabled.size());
         assertEquals("always", enabled.getFirst().name());
     }
@@ -35,10 +35,10 @@ class ToolRegistryTest {
         r.register(TestTools.fake("a", true));
         r.register(TestTools.fake("b", true));
 
-        r.enableOnly(List.of("a"));
+        r.setActiveTools(Set.of("a"));
 
-        assertEquals(1, r.enabledTools().size());
-        assertEquals("a", r.enabledTools().getFirst().name());
+        assertEquals(1, r.activeTools().size());
+        assertEquals("a", r.activeTools().getFirst().name());
     }
 
     @Test
@@ -153,18 +153,18 @@ class ToolRegistryTest {
         r.register(TestTools.fake("a", true));
         r.register(TestTools.fake("b", false));
 
-        assertEquals(2, r.allTools().size());
+        assertEquals(2, r.registeredToolInfo().size());
         assertEquals(1, r.activeTools().size());
         assertEquals("a", r.activeTools().getFirst().name());
     }
 
     @Test
-    void enabledToolNames() {
+    void activeToolNames() {
         var r = new ToolRegistry();
         r.register(TestTools.fake("x", true));
         r.register(TestTools.fake("y", false));
 
-        assertEquals(List.of("x"), r.enabledToolNames());
+        assertEquals(List.of("x"), r.activeToolNames());
     }
 
     @Test
@@ -219,7 +219,7 @@ class ToolRegistryTest {
         r.register(TestTools.fake("b", true));
         var first = ToolManifest.snapshot(r);
 
-        r.enableOnly(List.of("a"));
+        r.setActiveTools(Set.of("a"));
         var second = ToolManifest.snapshot(r);
 
         assertNotSame(first, second);
@@ -237,7 +237,7 @@ class ToolRegistryTest {
         assertTrue(first.json().contains("\"name\":\"enabled\""));
         assertFalse(first.json().contains("\"name\":\"disabled\""));
 
-        r.enableOnly(List.of("disabled"));
+        r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.ALL, Set.of("disabled"), Set.of()));
         var second = ToolManifest.snapshot(r);
         assertFalse(second.json().contains("\"name\":\"enabled\""));
         assertTrue(second.json().contains("\"name\":\"disabled\""));
@@ -414,12 +414,12 @@ class ToolRegistryTest {
         var r = new ToolRegistry();
         r.register(TestTools.fake("keep", true));
         r.register(TestTools.fake("drop", true));
-        assertEquals(2, r.enabledTools().size());
+        assertEquals(2, r.activeTools().size());
 
         r.unregister("drop");
         assertTrue(r.get("drop").isEmpty());
-        assertFalse(r.enabledToolNames().contains("drop"));
-        assertEquals(List.of("keep"), r.enabledToolNames());
+        assertFalse(r.activeToolNames().contains("drop"));
+        assertEquals(List.of("keep"), r.activeToolNames());
         assertDoesNotThrow(() -> r.unregister("never-registered")); // no-op
     }
 
@@ -429,7 +429,7 @@ class ToolRegistryTest {
         r.registerBuiltin(TestTools.fake("bash", true));
         r.register(TestTools.fake("task", true));
         r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.NONE, Set.of(), Set.of()));
-        assertTrue(r.enabledToolNames().isEmpty(), "--no-tools disables built-in and extension tools alike");
+        assertTrue(r.activeToolNames().isEmpty(), "--no-tools disables built-in and extension tools alike");
     }
 
     @Test
@@ -438,7 +438,7 @@ class ToolRegistryTest {
         r.registerBuiltin(TestTools.fake("bash", true));
         r.register(TestTools.fake("task", true));
         r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.EXTENSION_ONLY, Set.of(), Set.of()));
-        assertEquals(List.of("task"), r.enabledToolNames());
+        assertEquals(List.of("task"), r.activeToolNames());
     }
 
     @Test
@@ -447,7 +447,7 @@ class ToolRegistryTest {
         r.registerBuiltin(TestTools.fake("read", true));
         r.register(TestTools.fake("offByDefault", false));
         r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.ALL, Set.of("offByDefault"), Set.of()));
-        assertEquals(List.of("offByDefault"), r.enabledToolNames(), "allowlist is authoritative, ignores default-off");
+        assertEquals(List.of("offByDefault"), r.activeToolNames(), "allowlist is authoritative, ignores default-off");
     }
 
     @Test
@@ -456,7 +456,32 @@ class ToolRegistryTest {
         r.registerBuiltin(TestTools.fake("bash", true));
         r.register(TestTools.fake("task", true));
         r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.ALL, Set.of("bash", "task"), Set.of("bash")));
-        assertEquals(List.of("task"), r.enabledToolNames());
+        assertEquals(List.of("task"), r.activeToolNames());
+    }
+
+    @Test
+    void policyAppliesToToolsRegisteredAfterPolicy() {
+        var r = new ToolRegistry();
+        r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.ALL, Set.of("allowed"), Set.of("denied")));
+
+        r.register(TestTools.fake("allowed", true));
+        r.register(TestTools.fake("other", true));
+        r.register(TestTools.fake("denied", true));
+
+        assertEquals(List.of("allowed"), r.availableTools().stream().map(Tool::name).toList());
+        assertEquals(List.of("allowed"), r.activeToolNames());
+    }
+
+    @Test
+    void activeToolsCannotBypassPolicy() {
+        var r = new ToolRegistry();
+        r.register(TestTools.fake("allowed", true));
+        r.register(TestTools.fake("denied", true));
+        r.applyPolicy(new ToolPolicy(ToolPolicy.Scope.ALL, Set.of(), Set.of("denied")));
+
+        r.setActiveTools(Set.of("allowed", "denied"));
+
+        assertEquals(List.of("allowed"), r.activeToolNames());
     }
 
     @Test
@@ -472,7 +497,7 @@ class ToolRegistryTest {
         // a concurrent reader, to surface read/write races too
         var reader = new Thread(() -> {
             while (reads.get())
-                r.enabledTools(); // must never throw / corrupt
+                r.activeTools(); // must never throw / corrupt
         });
         reader.start();
         try {
@@ -496,7 +521,7 @@ class ToolRegistryTest {
             reader.join(1000);
             pool.shutdownNow();
         }
-        assertEquals(n, r.enabledTools().size(), "every concurrently registered tool must be present");
+        assertEquals(n, r.activeTools().size(), "every concurrently registered tool must be present");
     }
 
     private static Tool progressTool(String name) {

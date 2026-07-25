@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -79,7 +80,7 @@ class McpExtensionTest {
         var f = fixture(cwd -> List.of(), (t, a) -> FakeMcpTransport.Outcome.result("ok"));
         f.ext.onReady(f.runtime);
 
-        assertTrue(f.registry.allTools().isEmpty(), "no servers => no tools");
+        assertTrue(f.registry.availableToolInfo().isEmpty(), "no servers => no tools");
         assertTrue(f.api.statusLineSuppliers().getFirst().get().isEmpty(), "no status lines without servers");
         // /mcp with no servers configured just reports that
         f.api.slashCommand("mcp").handler().accept("");
@@ -180,14 +181,16 @@ class McpExtensionTest {
     }
 
     @Test
-    void mcpToolsAreEnabledEvenWhenTheActiveSetWasRestricted() {
+    void mcpToolsAreAvailableButNotActiveWhenTheActiveSetWasRestricted() {
         var f = fixture(oneServer(), (t, a) -> FakeMcpTransport.Outcome.result("ok"),
                                         FakeMcpTransport.tool("echo", "Echo"));
-        f.registry.enableOnly(List.of("some-other-tool")); // a restricted active set predates MCP registration
+        f.registry.setActiveTools(Set.of("some-other-tool")); // a restricted active set predates MCP registration
         f.ext.onReady(f.runtime);
 
-        assertTrue(f.registry.enabledToolNames().contains("mcp__srv__echo"),
-                                        "a freshly registered MCP tool must be enabled, not hidden by enableOnly");
+        assertTrue(f.registry.availableToolInfo().stream().anyMatch(t -> t.name().equals("mcp__srv__echo")),
+                                        "a freshly registered MCP tool remains available when policy allows it");
+        assertFalse(f.registry.activeToolNames().contains("mcp__srv__echo"),
+                                        "an explicit active set is not widened by late registration");
         f.ext.onShutdown(f.runtime);
     }
 
