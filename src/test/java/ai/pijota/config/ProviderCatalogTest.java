@@ -149,6 +149,13 @@ class ProviderCatalogTest {
     }
 
     @Test
+    void envInterpolationKeepsLiteralsAndEscapedDollars() {
+        assertEquals("plain", ProviderCatalog.interpolateEnv("plain"));
+        assertEquals("$TOKEN", ProviderCatalog.interpolateEnv("$$TOKEN"));
+        assertEquals("prefix-", ProviderCatalog.interpolateEnv("prefix-$PIJOTA_TEST_MISSING_ENV"));
+    }
+
+    @Test
     void oauthReturnsPresentForOAuthProvider() {
         var oauth = ProviderCatalog.oauth("openai-codex");
         assertTrue(oauth.isPresent());

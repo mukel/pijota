@@ -27,9 +27,10 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("context_files") Boolean contextFiles,
                                 @JsonProperty("hide_thinking") boolean hideThinking,
                                 @JsonProperty("quiet_startup") boolean quietStartup,
-                                @JsonProperty("working_animation") String workingAnimation,
-                                @JsonProperty("path_display") String pathDisplay,
-                                @JsonProperty("compaction") CompactionConfig compaction,
+                                 @JsonProperty("working_animation") String workingAnimation,
+                                 @JsonProperty("path_display") String pathDisplay,
+                                 @JsonProperty("default_project_trust") String defaultProjectTrust,
+                                 @JsonProperty("compaction") CompactionConfig compaction,
                                 @JsonProperty("aliases") Map<String, String> aliases,
                                 @JsonProperty("max_turns") Integer maxTurns,
                                 @JsonProperty("providers") List<ProviderCatalog.Provider> providers,
@@ -45,7 +46,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         // path that wouldn't exist on Windows. The bash tool stays bash (the model emits bash syntax), not the user's
         // $SHELL.
         this(null, null, Map.of(), "medium", Platform.defaultShell(), null, null, null, null, List.of(), List.of(),
-                                        true, false, false, "dots", null, new CompactionConfig(), Map.of(), null,
+                                        true, false, false, "dots", null, "ask", new CompactionConfig(), Map.of(), null,
                                         List.of(), Map.of(), "rich", new PromptGlyphs());
     }
 
@@ -53,13 +54,13 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
     public AppConfig(String defaultProvider, String defaultModel, Map<String, String> apiKeys, String thinkingLevel,
                                     String shellPath, String shellCommandPrefix, String sessionDir, String projectDir,
                                     String theme, List<String> themes, List<String> enabledModels, Boolean contextFiles,
-                                    boolean hideThinking, boolean quietStartup, String workingAnimation,
-                                    String pathDisplay, CompactionConfig compaction, Map<String, String> aliases,
+                                     boolean hideThinking, boolean quietStartup, String workingAnimation,
+                                     String pathDisplay, CompactionConfig compaction, Map<String, String> aliases,
                                     Integer maxTurns, List<ProviderCatalog.Provider> providers,
                                     Map<String, Object> extensions, String markdown) {
         this(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix, sessionDir,
-                                        projectDir, theme, themes, enabledModels, contextFiles, hideThinking,
-                                        quietStartup, workingAnimation, pathDisplay, compaction, aliases, maxTurns,
+                                         projectDir, theme, themes, enabledModels, contextFiles, hideThinking,
+                                        quietStartup, workingAnimation, pathDisplay, "ask", compaction, aliases, maxTurns,
                                         providers, extensions, markdown, new PromptGlyphs());
     }
 
@@ -165,6 +166,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         private boolean quietStartup;
         private String workingAnimation;
         private String pathDisplay;
+        private String defaultProjectTrust;
         private CompactionConfig compaction;
         private Map<String, String> aliases;
         private Integer maxTurns;
@@ -190,6 +192,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             this.quietStartup = c.quietStartup;
             this.workingAnimation = c.workingAnimation;
             this.pathDisplay = c.pathDisplay;
+            this.defaultProjectTrust = c.defaultProjectTrust;
             this.compaction = c.compaction;
             this.aliases = c.aliases;
             this.maxTurns = c.maxTurns;
@@ -254,6 +257,11 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             return this;
         }
 
+        public Builder defaultProjectTrust(String v) {
+            this.defaultProjectTrust = v;
+            return this;
+        }
+
         public Builder compaction(CompactionConfig v) {
             this.compaction = v;
             return this;
@@ -297,7 +305,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         public AppConfig build() {
             return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
                                             sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
-                                            hideThinking, quietStartup, workingAnimation, pathDisplay, compaction,
+                                            hideThinking, quietStartup, workingAnimation, pathDisplay, defaultProjectTrust, compaction,
                                             aliases, maxTurns, providers, extensions, markdown, prompt);
         }
     }

@@ -21,6 +21,32 @@ public final class ProviderCatalog {
         userProviders = providers == null ? List.of() : List.copyOf(providers);
     }
 
+    public static List<String> validateUserProviders(List<Provider> providers) {
+        if (providers == null || providers.isEmpty())
+            return List.of();
+        var warnings = new java.util.ArrayList<String>();
+        var seen = new java.util.HashSet<String>();
+        for (var p : providers) {
+            if (p == null) {
+                warnings.add("settings.providers contains a null entry");
+                continue;
+            }
+            if (p.id() == null || p.id().isBlank())
+                warnings.add("settings.providers contains an entry without id");
+            else if (!seen.add(p.id()))
+                warnings.add("settings.providers contains duplicate provider id: " + p.id());
+            if (p.apiType() == null || p.apiType().isBlank())
+                warnings.add("settings.providers." + safeId(p) + " is missing apiType");
+            if (p.defaultModel() == null || p.defaultModel().isBlank())
+                warnings.add("settings.providers." + safeId(p) + " is missing defaultModel");
+        }
+        return List.copyOf(warnings);
+    }
+
+    private static String safeId(Provider p) {
+        return p.id() == null || p.id().isBlank() ? "<unknown>" : p.id();
+    }
+
     public static List<Provider> providers() {
         if (userProviders.isEmpty())
             return CATALOG.providers();
@@ -41,7 +67,7 @@ public final class ProviderCatalog {
     }
 
     public static String baseUrl(String provider) {
-        return find(provider).map(Provider::baseUrl).orElse(null);
+        return find(provider).map(Provider::baseUrl).map(ProviderCatalog::interpolateEnv).orElse(null);
     }
 
     public static List<String> envNames(String provider) {
@@ -53,7 +79,57 @@ public final class ProviderCatalog {
     }
 
     public static Map<String, String> headers(String provider) {
-        return find(provider).map(Provider::headers).filter(v -> v != null && !v.isEmpty()).orElse(Map.of());
+        return find(provider).map(Provider::headers).filter(v -> v != null && !v.isEmpty()).map(headers -> {
+            var out = new java.util.LinkedHashMap<String, String>();
+            headers.forEach((k, v) -> out.put(k, interpolateEnv(v)));
+            return Map.copyOf(out);
+        }).orElse(Map.of());
+    }
+
+    public static String interpolateEnv(String value) {
+        if (value == null || value.isBlank())
+            return value;
+        var out = new StringBuilder();
+        for (int i = 0; i < value.length();) {
+            char ch = value.charAt(i);
+            if (ch != '$') {
+                out.append(ch);
+                i++;
+                continue;
+            }
+            if (i + 1 < value.length() && value.charAt(i + 1) == '$') {
+                out.append('$');
+                i += 2;
+                continue;
+            }
+            int start = i + 1;
+            int end = start;
+            if (start < value.length() && value.charAt(start) == '{') {
+                end = value.indexOf('}', start + 1);
+                if (end < 0) {
+                    out.append(ch);
+                    i++;
+                    continue;
+                }
+                String env = System.getenv(value.substring(start + 1, end));
+                if (env != null)
+                    out.append(env);
+                i = end + 1;
+                continue;
+            }
+            while (end < value.length() && (Character.isLetterOrDigit(value.charAt(end)) || value.charAt(end) == '_'))
+                end++;
+            if (end == start) {
+                out.append(ch);
+                i++;
+                continue;
+            }
+            String env = System.getenv(value.substring(start, end));
+            if (env != null)
+                out.append(env);
+            i = end;
+        }
+        return out.toString();
     }
 
     public static Optional<OAuth> oauth(String provider) {

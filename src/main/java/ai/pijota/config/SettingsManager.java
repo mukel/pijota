@@ -32,6 +32,28 @@ public final class SettingsManager {
         if (config.projectDir() == null || config.projectDir().isBlank()) {
             this.config = config.withProjectDir(SelfRespawn.findGitRoot(System.getProperty("user.dir")));
         }
+        validate(this.config).forEach(w -> logger.warn("settings warning: {}", w));
+    }
+
+    public static List<String> validate(AppConfig config) {
+        var warnings = new java.util.ArrayList<String>();
+        if (config == null)
+            return warnings;
+        String trust = config.defaultProjectTrust();
+        if (trust != null && !trust.isBlank() && !List.of("ask", "always", "never").contains(trust))
+            warnings.add("default_project_trust should be ask, always, or never");
+        String pathDisplay = config.pathDisplay();
+        if (pathDisplay != null && !pathDisplay.isBlank()
+                                        && !List.of("full", "relative", "compact", "name").contains(pathDisplay))
+            warnings.add("path_display should be full, relative, compact, or name");
+        String animation = config.workingAnimation();
+        if (animation != null && !animation.isBlank()
+                                        && !List.of("dots", "moon", "bar", "braille", "none").contains(animation))
+            warnings.add("working_animation should be dots, moon, bar, braille, or none");
+        if (config.maxTurns() != null && config.maxTurns() < 0)
+            warnings.add("max_turns below 0 is treated as unlimited; use 0 for that explicitly");
+        warnings.addAll(ProviderCatalog.validateUserProviders(config.providers()));
+        return List.copyOf(warnings);
     }
 
     private static AppConfig loadConfig() {
@@ -179,8 +201,11 @@ public final class SettingsManager {
             return oauthToken;
 
         String key = config.apiKeys() != null ? config.apiKeys().get(provider) : null;
-        if (key != null)
-            return key;
+        if (key != null) {
+            key = ProviderCatalog.interpolateEnv(key);
+            if (key != null && !key.isBlank())
+                return key;
+        }
         for (String name : apiKeyEnvNames(provider)) {
             String value = System.getenv(name);
             if (value != null && !value.isBlank())
