@@ -50,7 +50,6 @@ public final class Main {
     }
 
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
-    private static final String VERSION = "0.4.0";
 
     static {
         try {
@@ -81,7 +80,7 @@ public final class Main {
                 return 0;
             }
             if (parsedArgs.version()) {
-                System.out.println("pijota v" + VERSION);
+                System.out.println("pijota v" + PijotaVersion.current());
                 return 0;
             }
             if (parsedArgs.listModels()) {
@@ -153,7 +152,7 @@ public final class Main {
         Thread.ofPlatform().name("pijota-extensions-ready").daemon(true).start(b.extensions()::ready);
         StartupTimer.mark("tui ready");
         try {
-            tui.run(VERSION, b.cwd());
+            tui.run(PijotaVersion.current(), b.cwd());
             return 0;
         } finally {
             b.extensions().cleanup();

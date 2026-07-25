@@ -21,29 +21,33 @@ final class TuiCommandController {
         String cmd = commandName(input);
         String arg = SlashCommand.argsOf(input);
         switch (cmd) {
-            case "/help" -> tui.showHelpOverlay(arg);
+            case "/help" -> tui.showHelpOverlay();
             case "/quit" -> tui.stop();
             case "/model" -> handleModel(arg);
             case "/settings" -> tui.showSettingsSelector();
             case "/login" -> tui.showLoginSelector();
             case "/logout" -> tui.showLogoutSelector();
             case "/refresh" -> tui.refreshModels();
+            case "/reload" -> tui.reloadRuntimeResources();
             case "/theme" -> tui.showThemeSelector();
             case "/undo" -> tui.undoLastTurn();
             case "/compact" -> tui.triggerCompaction(arg);
+            case "/branch-summary" -> tui.branchSummary(arg);
             case "/copy" -> tui.copyLastResponse();
             case "/hotkeys" -> tui.showHelpOverlay(true);
             case "/session" -> tui.showSessionInfo();
             case "/context" -> tui.showContext();
             case "/usage" -> tui.showUsage();
+            case "/dequeue" -> tui.restoreQueuedFollowUp();
             case "/export" -> tui.exportSession(input);
+            case "/import" -> tui.importSession(input);
             case "/save" -> tui.saveSession(input);
             case "/load" -> tui.loadSession(input);
             case "/sessions" -> tui.showSessionPicker(arg);
             case "/delete" -> tui.deleteSession(input);
             case "/name" -> renameSession(arg);
             case "/new" -> tui.startNewSession();
-            case "/tree" -> tui.showTree();
+            case "/tree" -> tui.showTree(arg);
             case "/fork" -> tui.forkSession(input);
             case "/clone" -> tui.cloneSession();
             case "/remote-control", "/remote" -> tui.showRemoteControl();
@@ -97,7 +101,8 @@ final class TuiCommandController {
 
         var matches = commands.complete(cmd);
         if (matches.size() == 1) {
-            String expanded = matches.getFirst() + (input.length() > cmd.length() ? input.substring(cmd.length()) : "");
+            String expanded = commandName(matches.getFirst())
+                                            + (input.length() > cmd.length() ? input.substring(cmd.length()) : "");
             handle(expanded);
         } else if (!matches.isEmpty()) {
             tui.appendError("ambiguous: " + cmd);
