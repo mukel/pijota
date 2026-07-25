@@ -23,7 +23,7 @@ The command is short: **`pj`**.
 
 Pijota is an AI coding agent written in Java. It can read and edit code, run commands, search files, browse the web, use MCP tools, delegate to sub-agents, and remember work across sessions.
 
-It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp tools, agentic loops, extension-driven behavior, and a codebase meant to be hacked by its users. Pijota reimagines that shape on the JVM with a simpler append-only terminal UI that serves 90% of daily needs, plus a native-image path, browser automation, ACP editor integration, web/Telegram frontends, and self-modification as an opt-in capability.
+It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp tools, agentic loops, extension-driven behavior, and a codebase meant to be hacked by its users. Pijota reimagines that shape on the JVM with a simpler append-only terminal UI that serves most user needs, plus a native-image path, browser automation, ACP editor integration, web/Telegram frontends, and self-modification as an opt-in capability.
 
 > [!NOTE]
 > Pijota is local software with powerful tools. When you give it shell or file access, it acts with your user permissions.
@@ -137,7 +137,7 @@ Inside the TUI, start with `/help`.
 | `/tree` | View branches. |
 | `/branch-summary` | Summarize the current branch into context. |
 | `/theme` | Switch themes. |
-| `/remote-control` | Pair web or Telegram remote control. |
+| `/remote-control` | Control the live session from a phone/browser or Telegram. |
 
 ---
 
