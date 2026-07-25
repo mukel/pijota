@@ -1,5 +1,6 @@
 package ai.pijota.tui;
 
+import ai.pijota.agent.AttachmentMessages;
 import ai.pijota.messages.Message;
 import ai.pijota.modes.SyntaxHighlighter;
 
@@ -64,11 +65,10 @@ final class FileReferenceResolver {
                         } else {
                             result.append("[").append(path).append(" — too large or unreadable]");
                         }
-                    } else if (unsupportedImageLabel(path) != null && !path.contains("*")) {
+                    } else if (AttachmentMessages.unsupportedImageLabel(path) != null && !path.contains("*")) {
                         // a recognized image format the providers can't read (HEIC/TIFF/BMP) — say so, don't inline
                         // bytes
-                        result.append("[").append(path).append(" — ").append(unsupportedImageLabel(path))
-                                                        .append(" images aren't supported; use JPEG/PNG/GIF/WebP]");
+                        result.append("[").append(AttachmentMessages.unsupportedImagePath(path)).append(']');
                     } else {
                         String expanded = resolve(path);
                         result.append(expanded.isEmpty() ? text.substring(start, i) : expanded);
@@ -142,20 +142,6 @@ final class FileReferenceResolver {
             case "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation";
             default -> null;
         };
-    }
-
-    // Image formats the providers can't read (a provider/model limitation — transcoding needs a native codec). Returns
-    // a
-    // short label for the message; null for anything else (which falls through to the normal text-inline path).
-    private static String unsupportedImageLabel(String name) {
-        String n = name.toLowerCase(Locale.ROOT);
-        if (n.endsWith(".heic") || n.endsWith(".heif"))
-            return "HEIC";
-        if (n.endsWith(".tif") || n.endsWith(".tiff"))
-            return "TIFF";
-        if (n.endsWith(".bmp"))
-            return "BMP";
-        return null;
     }
 
     private Path resolveBase() {

@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -35,6 +34,11 @@ public final class AttachmentNormalizer {
      */
     public static Result normalize(String text, List<Message.Attachment> attachments, Set<Modality> supported,
                                     String cwd) {
+        return normalize(text, attachments, supported, cwd, null, null);
+    }
+
+    public static Result normalize(String text, List<Message.Attachment> attachments, Set<Modality> supported,
+                                    String cwd, String provider, String model) {
         if (attachments == null || attachments.isEmpty())
             return new Result(text == null ? "" : text, List.of());
         var media = new ArrayList<Message.Attachment>();
@@ -49,16 +53,15 @@ public final class AttachmentNormalizer {
                     String rel = stageFile(cwd, name, a.base64());
                     sb.append(rel != null
                                                     ? "\n\n[Attached PDF \"" + name + "\" saved to " + rel
-                                                                                    + " — this model can't read PDFs "
+                                                                                     + " — " + AttachmentMessages
+                                                                                                                     .modelLabel(provider, model)
+                                                                                    + " can't read PDFs "
                                                                                     + "directly; use the web_pdf_to_markdown tool to read it.]"
                                                     : "\n\n[attachment \"" + name + "\" couldn't be saved]");
                 }
                 // image formats the providers can't read (HEIC/TIFF/BMP/…) — reject rather than let the API 400 later
                 else if (mod == Modality.IMAGE && !Modality.isSupportedImage(a.mime()))
-                    sb.append("\n\n[attachment \"").append(name).append("\" omitted — ")
-                                                    .append(a.mime().substring(a.mime().indexOf('/') + 1)
-                                                                                    .toUpperCase(Locale.ROOT))
-                                                    .append(" images aren't supported; use JPEG/PNG/GIF/WebP]");
+                    sb.append("\n\n[").append(AttachmentMessages.unsupportedImage(name, provider, model)).append(']');
                 else if (a.approxBytes() <= Message.Attachment.MAX_BYTES) // core size floor — every frontend inherits
                                                                           // it
                     media.add(a); // image / pdf / audio / video → sent as a typed content part (gated by the model)
