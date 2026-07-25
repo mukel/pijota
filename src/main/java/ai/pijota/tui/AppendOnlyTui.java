@@ -99,13 +99,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     .bind('c', "compact", () -> triggerCompaction(""))
                                     .bind('e', "editor", this::openPromptInEditor)
                                     .bind('o', "logs", this::showLogSelector);
-    private final GlobalKeyMap globalKeys = new GlobalKeyMap().bind(Key.Special.CTRL_G, this::openPromptInEditor)
-                                    .bind(Key.Special.SHIFT_TAB, this::cycleThinkingLevel)
-                                    .bind(Key.Special.CTRL_L, this::showModelSelector)
-                                    .bind(Key.Special.CTRL_P, this::showCommandPalette)
-                                    .bind(Key.Special.CTRL_T, this::pickPathWithFzf)
-                                    .bind(Key.Special.CTRL_O, this::toggleStatusExpanded)
-                                    .bind(Key.Special.CTRL_SHIFT_P, this::cycleModel);
+    private final GlobalKeyMap globalKeys;
+    private final Map<Key.Special, Key.Special> editorKeyRemaps;
+    private final Map<Key.Special, Key.Special> selectorKeyRemaps;
 
     @Override
     public void setStatus(String msg) {
@@ -220,6 +216,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final WorkingAnimation animation = new WorkingAnimation();
     private final FollowUpQueue followUps = new FollowUpQueue();
     private final MessageBrowser messageBrowser;
+    private boolean sessionShowPath;
     private PendingEditManager pendingEdit;
     private final Supplier<List<String>> extensionLinesSupplier;
     private final RemoteControl remoteControl;
@@ -263,6 +260,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     throws IOException {
         this.commands = new SlashCommandRegistry(extensionCommands);
         this.promptEditor = new PromptEditor(commands);
+        var userKeys = UserKeybindings.load();
+        this.globalKeys = buildGlobalKeyMap(userKeys);
+        this.editorKeyRemaps = buildEditorKeyRemaps(userKeys);
+        this.selectorKeyRemaps = buildSelectorKeyRemaps(userKeys);
         this.messageBrowser = new MessageBrowser(promptEditor, session::userMessages);
         this.session = session;
         this.tokenMeter = new ContextTokenMeter(() -> this.session.messages().size(),
@@ -299,6 +300,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.selectors = new TuiSelectors();
         selectors.bind(TuiSelectors.Slot.MODEL, modelCommands::confirmModelSelection);
         selectors.bind(TuiSelectors.Slot.SESSION, this::confirmSessionSelection);
+        selectors.bind(TuiSelectors.Slot.TREE, this::confirmTreeSelection);
         selectors.bind(TuiSelectors.Slot.THEME, themeCommands::confirmThemeSelection);
         selectors.bind(TuiSelectors.Slot.SETTINGS, settingsCommands::confirmSettingsSelection);
         selectors.bind(TuiSelectors.Slot.LOGIN, loginCommands::confirmProviderSelection);
@@ -369,6 +371,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         @Override
         public long contextWindow() {
             return contextWindow;
+        }
+
+        @Override
+        public int messageCount() {
+            return session.messages().size();
         }
 
         @Override
@@ -951,6 +958,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     }
                     if (globalKeys.dispatch(key))
                         continue;
+                    if (key == Key.Special.ALT_UP) {
+                        restoreQueuedFollowUp();
+                        continue;
+                    }
                     if (key == Key.Special.PASTE_START) {
                         Key paste = InputDecoder.readPaste(terminal);
                         if (paste instanceof Key.Paste p) {
@@ -959,6 +970,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         }
                         continue;
                     }
+                    if (handleSessionPickerAction(key))
+                        continue;
+                    key = remapSpecial(key, selectorKeyRemaps);
                     if (selectors.handle(key, this::redrawPrompt))
                         continue;
                     if (promptEditor.handleCompletionKey(key)) {
@@ -986,7 +1000,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         pickFileWithFzf(true); // @ opens fzf file completion; the chosen path is inserted as @"…"
                         continue;
                     }
-                    var result = promptEditor.apply(key);
+                    var result = promptEditor.apply(remapSpecial(key, editorKeyRemaps));
                     if (result.exit()) {
                         running.set(false);
                         break;
@@ -1039,6 +1053,59 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return true;
     }
 
+    private GlobalKeyMap buildGlobalKeyMap(UserKeybindings keys) {
+        var map = new GlobalKeyMap();
+        bind(map, keys.keysFor("app.editor.external", Key.Special.CTRL_G), this::openPromptInEditor);
+        bind(map, keys.keysFor("app.thinking.cycle", Key.Special.SHIFT_TAB), this::cycleThinkingLevel);
+        bind(map, keys.keysFor("app.model.select", Key.Special.CTRL_L), this::showModelSelector);
+        bind(map, keys.keysFor("app.command.palette", Key.Special.CTRL_P), this::showCommandPalette);
+        bind(map, keys.keysFor("app.file.pick", Key.Special.CTRL_T), this::pickPathWithFzf);
+        bind(map, keys.keysFor("app.tools.expand", Key.Special.CTRL_O), this::toggleStatusExpanded);
+        bind(map, keys.keysFor("app.model.cycleBackward", Key.Special.CTRL_SHIFT_P), this::cycleModel);
+        return map;
+    }
+
+    private static Map<Key.Special, Key.Special> buildEditorKeyRemaps(UserKeybindings keys) {
+        return keys.remaps(Map.ofEntries(Map.entry("tui.editor.cursorUp", Key.Special.UP),
+                                        Map.entry("tui.editor.cursorDown", Key.Special.DOWN),
+                                        Map.entry("tui.editor.cursorLeft", Key.Special.LEFT),
+                                        Map.entry("tui.editor.cursorRight", Key.Special.RIGHT),
+                                        Map.entry("tui.editor.cursorLineStart", Key.Special.HOME),
+                                        Map.entry("tui.editor.cursorLineEnd", Key.Special.END),
+                                        Map.entry("tui.editor.cursorWordLeft", Key.Special.CTRL_LEFT),
+                                        Map.entry("tui.editor.cursorWordRight", Key.Special.CTRL_RIGHT),
+                                        Map.entry("tui.editor.deleteCharBackward", Key.Special.BACKSPACE),
+                                        Map.entry("tui.editor.deleteCharForward", Key.Special.DELETE),
+                                        Map.entry("tui.editor.deleteWordBackward", Key.Special.CTRL_W),
+                                        Map.entry("tui.editor.deleteWordForward", Key.Special.ALT_D),
+                                        Map.entry("tui.editor.deleteToLineStart", Key.Special.CTRL_U),
+                                        Map.entry("tui.editor.deleteToLineEnd", Key.Special.CTRL_K),
+                                        Map.entry("tui.editor.yank", Key.Special.CTRL_Y),
+                                        Map.entry("tui.editor.yankPop", Key.Special.ALT_Y),
+                                        Map.entry("tui.editor.undo", Key.Special.CTRL_UNDERSCORE),
+                                        Map.entry("tui.input.newLine", Key.Special.NEWLINE),
+                                        Map.entry("tui.input.submit", Key.Special.ENTER),
+                                        Map.entry("tui.input.tab", Key.Special.TAB)));
+    }
+
+    private static Map<Key.Special, Key.Special> buildSelectorKeyRemaps(UserKeybindings keys) {
+        return keys.remaps(Map.ofEntries(Map.entry("tui.select.up", Key.Special.UP),
+                                        Map.entry("tui.select.down", Key.Special.DOWN),
+                                        Map.entry("tui.select.pageUp", Key.Special.PG_UP),
+                                        Map.entry("tui.select.pageDown", Key.Special.PG_DOWN),
+                                        Map.entry("tui.select.confirm", Key.Special.ENTER),
+                                        Map.entry("tui.select.cancel", Key.Special.ESC)));
+    }
+
+    private static Key remapSpecial(Key key, Map<Key.Special, Key.Special> remaps) {
+        return key instanceof Key.Special special ? remaps.getOrDefault(special, special) : key;
+    }
+
+    private static void bind(GlobalKeyMap map, List<Key.Special> keys, Runnable action) {
+        for (Key.Special key : keys)
+            map.bind(key, action);
+    }
+
     static boolean isReservedKey(Key key) {
         return key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C
                                         || key == Key.Special.ENTER || key == Key.Special.NEWLINE
@@ -1071,6 +1138,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case CTRL_K -> new KeyChord(KeyChord.Key.K, KeyChord.Modifier.CTRL);
             case CTRL_L -> new KeyChord(KeyChord.Key.L, KeyChord.Modifier.CTRL);
             case CTRL_P -> new KeyChord(KeyChord.Key.P, KeyChord.Modifier.CTRL);
+            case CTRL_R -> new KeyChord(KeyChord.Key.R, KeyChord.Modifier.CTRL);
+            case CTRL_T -> new KeyChord(KeyChord.Key.T, KeyChord.Modifier.CTRL);
             case CTRL_U -> new KeyChord(KeyChord.Key.U, KeyChord.Modifier.CTRL);
             case CTRL_W -> new KeyChord(KeyChord.Key.W, KeyChord.Modifier.CTRL);
             case CTRL_SHIFT_P -> new KeyChord(KeyChord.Key.P, KeyChord.Modifier.CTRL, KeyChord.Modifier.SHIFT);
@@ -1104,10 +1173,20 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             streamRenderer.flush();
             streamRenderer.reset();
             shellCommands.interruptProcess();
+            restoreQueuedFollowUpsAfterAbort();
         } else {
             setTransientStatus("Press Esc again to interrupt", 2500);
         }
         redrawPrompt();
+    }
+
+    private void restoreQueuedFollowUpsAfterAbort() {
+        var pending = followUps.drainPending();
+        if (pending.isEmpty())
+            return;
+        String restored = String.join("\n\n", pending);
+        promptEditor.setText(promptEditor.isEmpty() ? restored : promptEditor.text() + "\n\n" + restored);
+        setStatusOverride("Interrupted; restored queued messages to editor");
     }
 
     private void handleCtrlC() {
@@ -1282,6 +1361,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         String payload = submitted;
         session.stripSystemRemindersFromContext();
+        if (!literal && isBareHelp(payload)) {
+            commandController.handle("/help");
+            return;
+        }
         if (!literal && payload.startsWith("/")) {
             commandController.handle(payload.strip());
             return;
@@ -1328,6 +1411,21 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 redrawPrompt();
             }
         });
+    }
+
+    static boolean isBareHelp(String payload) {
+        return payload.equalsIgnoreCase("help");
+    }
+
+    void restoreQueuedFollowUp() {
+        String msg = followUps.popNewest();
+        if (msg == null) {
+            setTransientStatus("No queued follow-up", 2000);
+        } else {
+            promptEditor.setText(msg);
+            setTransientStatus("Restored queued follow-up", 2000);
+        }
+        redrawPrompt();
     }
 
     private long beginBusy(String phase) {
@@ -1417,6 +1515,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         agentExecutor.submit(modelCommands::refreshModels);
     }
 
+    void reloadRuntimeResources() {
+        appendPlain(List.of(theme.styled("statusText", "reloading model metadata…"),
+                                        theme.styled("statusText",
+                                                                        "keybindings, extensions, skills, prompts, and themes reload on restart")));
+        refreshModels();
+    }
+
     void showModelSelector(List<ModelInfo> models) {
         modelCommands.showModelSelector(models);
     }
@@ -1434,7 +1539,54 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var items = SessionItem.fromPaths(sessions);
         selectors.show(TuiSelectors.Slot.SESSION, items, query);
         promptEditor.setText(query == null ? "" : query);
+        setStatusOverride("Sessions — Enter load, Ctrl+D delete, Ctrl+P path");
         redrawPrompt();
+    }
+
+    private boolean handleSessionPickerAction(Key key) {
+        if (selectors.<SessionItem>selected(TuiSelectors.Slot.SESSION).isEmpty())
+            return false;
+        if (key == Key.Special.CTRL_P) {
+            sessionShowPath = !sessionShowPath;
+            refreshSessionPicker(sessionShowPath ? "path display on" : "path display off");
+            return true;
+        }
+        if (key == Key.Special.CTRL_D) {
+            deleteSelectedSession();
+            return true;
+        }
+        return false;
+    }
+
+    private void refreshSessionPicker(String status) {
+        var items = SessionItem.fromPaths(session.resumableSessions(), sessionShowPath);
+        if (items.isEmpty()) {
+            selectors.deactivate(TuiSelectors.Slot.SESSION);
+            clearStatusOverride();
+            appendPlain(List.of(theme.styled("statusText", status + "; no sessions remain")));
+            redrawPrompt();
+            return;
+        }
+        selectors.refresh(TuiSelectors.Slot.SESSION, items);
+        setStatusOverride("Sessions — " + status);
+        redrawPrompt();
+    }
+
+    private void deleteSelectedSession() {
+        var chosen = selectors.<SessionItem>selected(TuiSelectors.Slot.SESSION).orElse(null);
+        if (chosen == null)
+            return;
+        dialogs.confirm("delete session '" + chosen.description() + "'?").thenAccept(yes -> {
+            if (!yes)
+                return;
+            try {
+                boolean trashed = session.deleteSession(chosen.path().toString());
+                refreshSessionPicker((trashed ? "moved to trash " : "deleted permanently ") + chosen.description());
+            } catch (IOException e) {
+                appendPlain(List.of(theme.styled("toolError", "delete failed: " + e.getMessage())));
+                redrawPrompt();
+            }
+        });
     }
 
     private void showSessionPicker() {
@@ -1446,6 +1598,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (chosen == null)
             return;
         selectors.deactivate(TuiSelectors.Slot.SESSION);
+        clearStatusOverride();
         promptEditor.setText("");
         try {
             session.load(chosen.path());
@@ -1470,23 +1623,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         showHelpOverlay(false);
     }
 
-    void showHelpOverlay(String filter) {
-        showHelpOverlay(false, filter);
-    }
-
     /**
      * @param shortcutsFirst
      *            /hotkeys lists keyboard shortcuts before commands; /help lists commands first.
      */
     void showHelpOverlay(boolean shortcutsFirst) {
-        showHelpOverlay(shortcutsFirst, null);
-    }
-
-    private void showHelpOverlay(boolean shortcutsFirst, String filter) {
         // Render help in the scrollable log viewer (one modal viewer for /help and /logs) so the full command list
         // and shortcuts scroll and fit the terminal, rather than being capped.
-        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values(), shortcutsFirst,
-                                        filter));
+        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values(), shortcutsFirst));
         redrawPrompt();
     }
 
@@ -1628,6 +1772,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         sessionCommands.showContext();
     }
 
+    void branchSummary(String instructions) {
+        sessionCommands.branchSummary(instructions);
+    }
+
     void showSessionInfo() {
         sessionCommands.showSessionInfo();
     }
@@ -1654,7 +1802,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void exportSession(String input) {
-        sessionCommands.exportSession();
+        sessionCommands.exportSession(input);
+    }
+
+    void importSession(String input) {
+        sessionCommands.importSession(input);
     }
 
     void saveSession(String input) {
@@ -1702,15 +1854,64 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showTree() {
+        showTree("");
+    }
+
+    void showTree(String arg) {
         if (session.sessionFile() == null) {
             appendPlain(List.of(theme.styled("toolError", "no active session")));
             return;
         }
+        if (arg != null && arg.strip().toLowerCase(Locale.ROOT).startsWith("summarize")) {
+            String instructions = arg.strip().length() > "summarize".length()
+                                            ? arg.strip().substring("summarize".length()).strip()
+                                            : "";
+            sessionCommands.branchSummary(instructions);
+        }
         try {
             appendPlain(new TreeRenderer(theme).render(session.treeEntries(), session.branchEntries(),
                                             session.leafId()));
+            showTreeSelector();
         } catch (Exception e) {
             appendPlain(List.of(theme.styled("toolError", "tree: " + e.getMessage())));
+        }
+    }
+
+    private void showTreeSelector() throws IOException {
+        var entries = session.treeEntries();
+        if (entries.isEmpty())
+            return;
+        String leaf = session.leafId();
+        var items = new ArrayList<TreeEntryItem>();
+        for (var entry : entries) {
+            String id = String.valueOf(entry.getOrDefault("id", ""));
+            if (!id.isBlank())
+                items.add(TreeEntryItem.from(entry, id.equals(leaf)));
+        }
+        if (items.isEmpty())
+            return;
+        selectors.show(TuiSelectors.Slot.TREE, items);
+        selectors.<TreeEntryItem>selectFirst(TuiSelectors.Slot.TREE, TreeEntryItem::current);
+        setStatusOverride("Tree — type to search, Enter jumps to entry, Esc cancels");
+        redrawPrompt();
+    }
+
+    private void confirmTreeSelection() {
+        var chosen = selectors.<TreeEntryItem>selected(TuiSelectors.Slot.TREE).orElse(null);
+        if (chosen == null)
+            return;
+        selectors.deactivate(TuiSelectors.Slot.TREE);
+        clearStatusOverride();
+        try {
+            int count = chosen.user() ? session.branchToParentOf(chosen.parentId()) : session.branchTo(chosen.id());
+            restoreRuntimeStateFromSession();
+            if (chosen.user())
+                promptEditor.setText(chosen.content());
+            appendPlain(List.of(theme.styled("statusText", "jumped to " + chosen.role() + " entry · " + count
+                                            + " messages in context"
+                                            + (chosen.user() ? " · restored prompt for editing" : ""))));
+        } catch (Exception e) {
+            appendPlain(List.of(theme.styled("toolError", "tree jump failed: " + e.getMessage())));
         }
     }
 
@@ -1842,7 +2043,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
         selectors.show(TuiSelectors.Slot.FORK, items);
         selectors.<ForkMessageItem>selectFirst(TuiSelectors.Slot.FORK, item -> item.number() == users.size());
-        setStatusOverride("Select message to fork from; type to filter, Enter forks, Esc cancels");
+        setStatusOverride("Select message to fork from; type to search, Enter forks, Esc cancels");
         redrawPrompt();
     }
 

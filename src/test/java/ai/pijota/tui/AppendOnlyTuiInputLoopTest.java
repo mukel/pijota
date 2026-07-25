@@ -138,7 +138,7 @@ class AppendOnlyTuiInputLoopTest {
     @Test
     void commandPaletteOpensViaCtrlP() throws Exception {
         var ts = TestSession.in(tempDir).build();
-        byte[] keys = {16, 'm', 'o'}; // Ctrl+P opens palette, type to filter
+        byte[] keys = {16, 'm', 'o'}; // Ctrl+P opens palette, type to search
         assertDoesNotThrow(() -> driveSession(ts, keys));
     }
 
@@ -266,7 +266,7 @@ class AppendOnlyTuiInputLoopTest {
     @Test
     void commandPaletteFiltersAndNavigatesThenCancels() throws Exception {
         var ts = TestSession.in(tempDir).build();
-        // Ctrl+P palette, type to filter, Down/Up, then ESC (driveSession's trailing ESC) cancels
+        // Ctrl+P palette, type to search, Down/Up, then ESC (driveSession's trailing ESC) cancels
         byte[] keys = {16, 'm', 'o', 'd', ESC, '[', 'B', ESC, '[', 'A'};
         assertDoesNotThrow(() -> driveSession(ts, keys));
     }

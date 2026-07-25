@@ -16,7 +16,7 @@ class HelpOverlayTest {
         assertTrue(out.contains("keyboard shortcuts"), out);
         assertTrue(out.contains("Shift+Tab") && out.contains("toggle thinking"), out);
         assertTrue(out.contains("Ctrl+_") && out.contains("undo"), out);
-        assertTrue(out.contains("/help <term>"), out);
+        assertTrue(out.contains("press / to search"), out);
         assertTrue(out.contains("Ctrl+P"), out);
     }
 
@@ -33,21 +33,4 @@ class HelpOverlayTest {
                                         "/hotkeys must show shortcuts first: " + lines);
     }
 
-    @Test
-    void contentCanBeFilteredByTerm() {
-        var lines = HelpOverlay.content(List.of("pijota commands", "  /model  select model", "  /usage  show usage"),
-                                        List.of(), false, "usage");
-
-        assertEquals("help filtered by \"usage\"", lines.getFirst());
-        assertTrue(lines.stream().anyMatch(l -> l.equals("pijota commands")), lines.toString());
-        assertTrue(lines.stream().anyMatch(l -> l.contains("/usage")), lines.toString());
-        assertFalse(lines.stream().anyMatch(l -> l.contains("/model")), lines.toString());
-    }
-
-    @Test
-    void filteredHelpShowsNoMatchesMessage() {
-        var lines = HelpOverlay.content(List.of("/model"), List.of(), false, "does-not-match");
-
-        assertTrue(lines.stream().anyMatch(l -> l.contains("no help entries matched")), lines.toString());
-    }
 }

@@ -59,8 +59,8 @@ final class CommandPaletteHandler {
         String desc = selected.description();
         host.deactivatePalette();
         host.clearPrompt();
-        if (desc.startsWith("[cmd] ")) {
-            host.handleCommand(name);
+        if (isCommandItem(desc)) {
+            host.handleCommand(commandToken(name));
         } else if (desc.startsWith("[model] ")) {
             switchModel(name);
         } else if (desc.startsWith("[theme] ")) {
@@ -74,7 +74,7 @@ final class CommandPaletteHandler {
     private List<CompletionItem> items() {
         var items = new ArrayList<CompletionItem>();
         for (var cmd : host.commands()) {
-            items.add(new CompletionItem(cmd.name(), "[cmd] " + cmd.description()));
+            items.add(new CompletionItem(cmd.name(), commandCategory(cmd.name()) + " · " + cmd.description()));
         }
         for (var model : host.availableModels().stream().sorted(Comparator.comparing(ModelInfo::id)).toList()) {
             items.add(new CompletionItem(model.id(), "[model] " + model.provider() + "  "
@@ -95,5 +95,26 @@ final class CommandPaletteHandler {
             host.switchModel(model);
         else
             host.appendError("model not found: " + name);
+    }
+
+    private static String commandToken(String name) {
+        return name.split("\\s+", 2)[0];
+    }
+
+    private static String commandCategory(String name) {
+        return switch (commandToken(name)) {
+            case "/session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete" -> "Session";
+            case "/tree", "/fork", "/clone", "/undo", "/copy", "/theme" -> "Workspace";
+            case "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/quit" -> "Account";
+            case "/remote-control" -> "Remote";
+            default -> "Chat";
+        };
+    }
+
+    private static boolean isCommandItem(String description) {
+        return description.startsWith("Chat · ") || description.startsWith("Session · ")
+                                        || description.startsWith("Workspace · ")
+                                        || description.startsWith("Account · ")
+                                        || description.startsWith("Remote · ");
     }
 }

@@ -80,7 +80,7 @@ public final class PromptEditor {
     private Result applySpecial(Key.Special key) {
         return switch (key) {
             case ENTER -> submit();
-            case NEWLINE -> newline();
+            case NEWLINE, ALT_ENTER -> newline();
             case BACKSPACE -> backspace();
             case DELETE -> delete();
             case LEFT -> left();

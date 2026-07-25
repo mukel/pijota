@@ -331,6 +331,6 @@ final class LogViewer {
         int first = lines.isEmpty() ? 0 : top + 1;
         String position = "  " + first + "-" + last + "/" + lines.size() + (follow ? " · following" : "");
         return theme.styled("statusText", position)
-                                        + theme.styled("dim", "  ↑↓ scroll · / search · n/N match · q quit");
+                                        + theme.styled("dim", "  ↑↓ scroll · type / to search · n/N match · q quit");
     }
 }

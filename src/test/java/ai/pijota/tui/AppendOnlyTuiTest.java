@@ -155,6 +155,14 @@ class AppendOnlyTuiTest {
     }
 
     @Test
+    void bareHelpInputsOpenHelpInsteadOfPromptingModel() {
+        assertTrue(AppendOnlyTui.isBareHelp("help"));
+        assertFalse(AppendOnlyTui.isBareHelp("help remote"));
+        assertFalse(AppendOnlyTui.isBareHelp("helpful"));
+        assertFalse(AppendOnlyTui.isBareHelp("please help"));
+    }
+
+    @Test
     void isReservedKeyEnter() {
         assertTrue(AppendOnlyTui.isReservedKey(Key.Special.ENTER));
     }

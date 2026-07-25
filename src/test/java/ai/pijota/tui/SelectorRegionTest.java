@@ -87,6 +87,7 @@ class SelectorRegionTest {
         assertTrue(rendered.contains("alpha") || rendered.contains("β") ? rendered.contains("alpha") : true);
         assertTrue(rendered.contains("beta") || rendered.contains("β") ? rendered.contains("beta") : true);
         assertTrue(rendered.contains("1/2"), rendered);
+        assertTrue(rendered.contains("type to search"), rendered);
     }
 
     @Test

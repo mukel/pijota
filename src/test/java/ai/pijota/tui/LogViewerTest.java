@@ -178,7 +178,7 @@ class LogViewerTest {
         assertTrue(out.contains("agent.log") && out.contains("2 lines"), out);
         assertTrue(out.contains("line0") && out.contains("line1"), out);
         assertTrue(out.contains("1-2/2"), out);
-        assertTrue(out.contains("scroll") && out.contains("search"), out);
+        assertTrue(out.contains("scroll") && out.contains("type / to search"), out);
     }
 
     @Test

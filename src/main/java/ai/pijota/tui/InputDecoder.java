@@ -127,7 +127,7 @@ public final class InputDecoder {
         if (next == 27)
             return Key.Special.DOUBLE_ESC;
         if (next == 13 || next == 10)
-            return Key.Special.NEWLINE;
+            return Key.Special.ALT_ENTER;
         if (next == 'b' || next == 'B')
             return Key.Special.CTRL_LEFT;
         if (next == 'f' || next == 'F')
@@ -152,6 +152,7 @@ public final class InputDecoder {
         }
         return switch (seq.toString()) {
             case "A" -> Key.Special.UP;
+            case "1;3A", "3A" -> Key.Special.ALT_UP;
             case "B" -> Key.Special.DOWN;
             case "C" -> Key.Special.RIGHT;
             case "D" -> Key.Special.LEFT;

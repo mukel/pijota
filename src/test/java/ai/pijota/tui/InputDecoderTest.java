@@ -128,9 +128,15 @@ class InputDecoderTest {
     }
 
     @Test
-    void escapeFollowedByNewlineReturnsNewline() throws IOException {
-        assertEquals(Key.Special.NEWLINE, InputDecoder.readKey(input(27, 13)));
-        assertEquals(Key.Special.NEWLINE, InputDecoder.readKey(input(27, 10)));
+    void escapeFollowedByNewlineReturnsAltEnter() throws IOException {
+        assertEquals(Key.Special.ALT_ENTER, InputDecoder.readKey(input(27, 13)));
+        assertEquals(Key.Special.ALT_ENTER, InputDecoder.readKey(input(27, 10)));
+    }
+
+    @Test
+    void mapsAltUp() throws IOException {
+        assertEquals(Key.Special.ALT_UP, InputDecoder.readKey(input(27, '[', '1', ';', '3', 'A')));
+        assertEquals(Key.Special.ALT_UP, InputDecoder.readKey(input(27, '[', '3', 'A')));
     }
 
     @Test

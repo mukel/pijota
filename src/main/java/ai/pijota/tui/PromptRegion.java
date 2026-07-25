@@ -23,6 +23,10 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
         return ctx.promptState() == PromptSnapshot.PromptState.ERROR ? "toolError" : "hr";
     }
 
+    static String rule(int width) {
+        return "─".repeat(Math.max(10, width));
+    }
+
     /**
      * The ghost suffix clipped to a single line that fits {@code room} visible columns — so a long or multiline history
      * suggestion can't wrap onto the next terminal row and corrupt the prompt's cursor/layout bookkeeping.
@@ -104,7 +108,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             // Bottom rule closes the frame (top rule is the layout's separator above); tinted by state, no verticals.
             if (glyphs.bottomDivider()) {
                 out.print('\r');
-                out.print(theme.styled(ruleSlot(ctx), "─".repeat(Math.max(10, width - 2))));
+                out.print(theme.styled(ruleSlot(ctx), rule(width)));
                 out.print("\033[K");
             }
             return cursorVisualRow >= 0 ? new CursorPos(cursorVisualRow, cursorVisualCol) : NO_CURSOR;

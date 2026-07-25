@@ -41,6 +41,28 @@ class PromptLayoutTest {
     }
 
     @Test
+    void promptRulesSpanTheFullTerminalWidth() {
+        var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
+
+        String rendered = render(layout, 20, snapshot());
+
+        var lines = rendered.lines().filter(line -> line.indexOf('─') >= 0).toList();
+        assertEquals(2, lines.size(), rendered);
+        assertTrue(lines.stream().allMatch(line -> AnsiWidth.visibleWidth(line) == 20), rendered);
+    }
+
+    @Test
+    void promptRulesKeepMinimumWidthOnVeryNarrowTerminals() {
+        var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
+
+        String rendered = render(layout, 4, snapshot());
+
+        var lines = rendered.lines().filter(line -> line.indexOf('─') >= 0).toList();
+        assertEquals(2, lines.size(), rendered);
+        assertTrue(lines.stream().allMatch(line -> AnsiWidth.visibleWidth(line) == 10), rendered);
+    }
+
+    @Test
     void excludedRegionDoesNotCountEvenWhenActive() {
         var lv = new LogViewer();
         lv.show("t", List.of("a", "b", "c"));

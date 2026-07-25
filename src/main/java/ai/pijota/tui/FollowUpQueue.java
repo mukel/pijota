@@ -39,4 +39,21 @@ final class FollowUpQueue {
     List<String> pending() {
         return List.copyOf(pending);
     }
+
+    /** Removes and returns the newest pending follow-up for editing, or {@code null} when the queue is empty. */
+    String popNewest() {
+        int size = pending.size();
+        if (size == 0)
+            return null;
+        String value = pending.remove(size - 1);
+        queued.updateAndGet(count -> Math.max(0, count - 1));
+        return value;
+    }
+
+    List<String> drainPending() {
+        var out = List.copyOf(pending);
+        pending.clear();
+        queued.set(0);
+        return out;
+    }
 }

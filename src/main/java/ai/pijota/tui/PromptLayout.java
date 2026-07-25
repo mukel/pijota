@@ -92,7 +92,7 @@ public final class PromptLayout {
         // in-box caret carries state, so the rule stays plain. Tinted by state (red on error). Optional (top_divider).
         if (topDivider) {
             out.print("\r");
-            out.print(theme.styled(PromptRegion.ruleSlot(snapshot), "─".repeat(Math.max(10, width - 2))));
+            out.print(theme.styled(PromptRegion.ruleSlot(snapshot), PromptRegion.rule(width)));
             out.print("\033[K\r\n");
             height++;
         }

@@ -34,6 +34,8 @@ final class PromptPresenter {
 
         long contextWindow();
 
+        int messageCount();
+
         /** Streaming tail to show under the prompt, or {@code null} when not streaming. */
         String liveStreamTail();
     }
@@ -88,10 +90,12 @@ final class PromptPresenter {
             long elapsed = activity.elapsedMillis();
             if (elapsed >= 1000) // a running seconds counter so long turns visibly progress (not stuck)
                 stats.append(theme.styled("statusText", "  " + (elapsed / 1000) + "s"));
-            int queued = followUps.queuedCount();
-            if (queued > 0)
-                stats.append(theme.styled("statusText", "  queued " + queued));
         }
+        int queued = followUps.queuedCount();
+        if (queued > 0)
+            stats.append(theme.styled("statusText", "  queued " + queued + " · /dequeue"));
+        else if (!activity.isBusy() && host.messageCount() == 0)
+            stats.append(theme.styled("dim", "  " + TuiCopy.START_HINT));
 
         return snapshot.withCwd(cwd.toString()).withStatus(stats.toString()).withContextPct(tokenPct())
                                         .withPendingMessages(followUps.pending())

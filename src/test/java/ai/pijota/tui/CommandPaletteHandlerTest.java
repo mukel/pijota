@@ -36,7 +36,7 @@ class CommandPaletteHandlerTest {
 
         handler.showCommandPalette();
 
-        assertEquals(new CompletionItem("/help", "[cmd] Show help"), host.shownItems.get(0));
+        assertEquals(new CompletionItem("/help", "Chat · Show help"), host.shownItems.get(0));
         assertEquals(new CompletionItem("alpha", "[model] anthropic  62K"), host.shownItems.get(1));
         assertEquals(new CompletionItem("zeta", "[model] openai  125K"), host.shownItems.get(2));
         assertEquals(new CompletionItem("dark", "[theme] current"), host.shownItems.get(3));
@@ -49,7 +49,7 @@ class CommandPaletteHandlerTest {
     @Test
     void confirmCommandSelectionDispatchesCommand() {
         var host = new FakeHost();
-        host.selected = new CompletionItem("/help", "[cmd] Show help");
+        host.selected = new CompletionItem("/help", "Chat · Show help");
         var handler = new CommandPaletteHandler(host);
 
         handler.confirmPaletteSelection();
