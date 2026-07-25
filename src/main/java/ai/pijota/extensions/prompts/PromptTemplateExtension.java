@@ -1,5 +1,6 @@
 package ai.pijota.extensions.prompts;
 
+import ai.pijota.config.ProjectTrust;
 import ai.pijota.extensions.Extension;
 import ai.pijota.extensions.ExtensionAPI;
 import ai.pijota.modes.SlashCommand;
@@ -35,7 +36,8 @@ public final class PromptTemplateExtension implements Extension {
     }
 
     private void reloadTemplates() {
-        var loaded = PromptTemplateLoader.load(api.runtime().cwd().toString(), explicitPaths);
+        String cwd = api.runtime().cwd().toString();
+        var loaded = PromptTemplateLoader.load(cwd, explicitPaths, ProjectTrust.isTrusted(cwd));
         templates.clear();
         templates.addAll(loaded);
         if (templates.isEmpty())
@@ -43,7 +45,7 @@ public final class PromptTemplateExtension implements Extension {
 
         // register each template as a slash command
         for (var t : templates) {
-            api.registerSlashCommand(new SlashCommand(t.name(), t.description(), List.of(), args -> {
+            api.registerSlashCommand(new SlashCommand(t.name(), t.description(), t.argumentHint(), List.of(), args -> {
                 String expanded = PromptTemplateLoader.expand(t.content(), PromptTemplateLoader.parseArgs(args));
                 api.sendUserMessage(expanded);
             }));

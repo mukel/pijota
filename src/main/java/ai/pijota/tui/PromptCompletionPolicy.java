@@ -38,9 +38,9 @@ final class PromptCompletionPolicy {
             var matches = commands.completeWithDescriptions(text);
             if (!matches.isEmpty()) {
                 if (matches.size() == 1)
-                    return Decision.replace(matches.getFirst().name(), false);
+                    return Decision.replace(commandToken(matches.getFirst().name()), false);
 
-                var prefixMatches = matches.stream().filter(m -> m.name().startsWith(text)).toList();
+                var prefixMatches = matches.stream().filter(m -> commandToken(m.name()).startsWith(text)).toList();
                 if (prefixMatches.size() >= 2) {
                     String common = commonPrefix(prefixMatches);
                     if (common.length() > text.length())
@@ -76,7 +76,7 @@ final class PromptCompletionPolicy {
         var matches = commands.complete(text);
         if (matches.isEmpty())
             return "";
-        String first = matches.getFirst();
+        String first = commandToken(matches.getFirst());
         return first.startsWith(text) && first.length() > text.length() ? first.substring(text.length()) : "";
     }
 
@@ -88,9 +88,9 @@ final class PromptCompletionPolicy {
     private static String commonPrefix(List<CompletionItem> matches) {
         if (matches.isEmpty())
             return "";
-        String prefix = matches.getFirst().name();
+        String prefix = commandToken(matches.getFirst().name());
         for (int i = 1; i < matches.size(); i++) {
-            String name = matches.get(i).name();
+            String name = commandToken(matches.get(i).name());
             int len = Math.min(prefix.length(), name.length());
             int common = 0;
             while (common < len && prefix.charAt(common) == name.charAt(common))
@@ -100,5 +100,9 @@ final class PromptCompletionPolicy {
                 break;
         }
         return prefix;
+    }
+
+    private static String commandToken(String name) {
+        return name.split("\\s+", 2)[0];
     }
 }

@@ -16,14 +16,17 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/model", "Select or search models"),
                                     new CompletionItem("/theme", "List or switch themes"),
                                     new CompletionItem("/compact", "Manually compact the conversation"),
-                                    new CompletionItem("/export", "Export session to Markdown"),
-                                    new CompletionItem("/save", "Save session to a file"),
-                                    new CompletionItem("/load", "Load and resume a session"),
-                                    new CompletionItem("/delete", "Delete a saved session"),
+                                    new CompletionItem("/branch-summary", "Summarize current branch into context"),
+                                    new CompletionItem("/export [md|html] [path]", "Export session to Markdown or HTML"),
+                                    new CompletionItem("/import <path>", "Import and resume a JSONL session"),
+                                    new CompletionItem("/save [path]", "Save session to a file"),
+                                    new CompletionItem("/load <id|path>", "Load and resume a session"),
+                                    new CompletionItem("/delete <id|path>", "Delete a saved session"),
                                     new CompletionItem("/sessions", "List saved sessions"),
-                                    new CompletionItem("/name", "Set session display name"),
+                                    new CompletionItem("/name <name>", "Set session display name"),
                                     new CompletionItem("/context", "Show token usage breakdown"),
                                     new CompletionItem("/usage", "Show cumulative tokens and cost"),
+                                    new CompletionItem("/dequeue", "Restore queued follow-up to editor"),
                                     new CompletionItem("/undo", "Edit previous message"),
                                     new CompletionItem("/copy", "Copy last assistant response"),
                                     new CompletionItem("/session", "Show session info"),
@@ -33,12 +36,13 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/login", "Log in to a provider via OAuth"),
                                     new CompletionItem("/logout", "Remove stored credentials for a provider"),
                                     new CompletionItem("/refresh", "Refresh available models"),
+                                    new CompletionItem("/reload", "Reload runtime resources where possible"),
                                     new CompletionItem("/tree", "Show conversation tree"),
-                                    new CompletionItem("/fork", "Fork a new session from a previous message"),
+                                    new CompletionItem("/fork [message]", "Fork a new session from a previous message"),
                                     new CompletionItem("/clone", "Clone current branch to a new session"),
                                     new CompletionItem("/remote-control",
                                                                     "Control this session from your phone/browser"),
-                                    new CompletionItem("/skills", "List available skills"),
+                                    new CompletionItem("/skills [name]", "List available skills"),
                                     new CompletionItem("/quit", "Exit pijota"));
 
     private final List<CompletionItem> commands;
@@ -53,8 +57,12 @@ final class SlashCommandRegistry {
         for (var ext : extensionCommands) {
             // A built-in with the same name (e.g. the terminal-native /model) takes precedence here; skip the
             // generic duplicate so completion lists it once.
-            if (!builtinNames.contains("/" + ext.name()))
-                list.add(new CompletionItem("/" + ext.name(), ext.description()));
+            if (!builtinNames.contains("/" + ext.name())) {
+                String name = "/" + ext.name();
+                if (ext.argumentHint() != null && !ext.argumentHint().isBlank())
+                    name += " " + ext.argumentHint();
+                list.add(new CompletionItem(name, ext.description()));
+            }
         }
         this.commands = List.copyOf(list);
     }
@@ -66,14 +74,15 @@ final class SlashCommandRegistry {
     public List<String> helpLines() {
         var out = new ArrayList<String>();
         out.add("pijota commands");
-        appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/context", "/usage", "/whoami",
+        appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/branch-summary", "/context", "/usage", "/dequeue", "/whoami",
                                         "/skills");
-        appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/name", "/new", "/delete");
+        appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete");
         appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme");
-        appendGroup(out, "account", "/login", "/logout", "/refresh", "/hotkeys", "/quit");
+        appendGroup(out, "remote", "/remote-control");
+        appendGroup(out, "account", "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/quit");
 
-        var builtins = BUILTIN_COMMANDS.stream().map(CompletionItem::name).collect(toSet());
-        var extensions = commands.stream().filter(c -> !builtins.contains(c.name())).toList();
+        var builtins = BUILTIN_COMMANDS.stream().map(c -> commandToken(c.name())).collect(toSet());
+        var extensions = commands.stream().filter(c -> !builtins.contains(commandToken(c.name()))).toList();
         if (!extensions.isEmpty())
             appendGroup(out, "extensions", extensions.stream().map(CompletionItem::name).toArray(String[]::new));
 
@@ -84,7 +93,8 @@ final class SlashCommandRegistry {
     private void appendGroup(List<String> out, String title, String... names) {
         out.add("");
         out.add(title);
-        int maxLen = stream(names).mapToInt(String::length).max().orElse(0);
+        int maxLen = stream(names).map(this::command).filter(Optional::isPresent).map(Optional::get)
+                                        .map(CompletionItem::name).mapToInt(String::length).max().orElse(0);
         for (String name : names) {
             command(name).ifPresent(cmd -> out.add(String.format("  %-" + (maxLen + 2) + "s %s", cmd.name(),
                                             cmd.description())));
@@ -92,15 +102,19 @@ final class SlashCommandRegistry {
     }
 
     private Optional<CompletionItem> command(String name) {
-        return commands.stream().filter(c -> c.name().equals(name)).findFirst();
+        return commands.stream().filter(c -> commandToken(c.name()).equals(name)).findFirst();
     }
 
     public List<String> complete(String text) {
         if (text == null || !text.startsWith("/"))
             return List.of();
         String prefix = text.split("\\s+", 2)[0].toLowerCase();
-        return commands.stream().map(CompletionItem::name).filter(name -> fuzzyMatch(prefix, name.toLowerCase()))
-                                        .sorted(Comparator.comparingInt(name -> matchScore(prefix, name.toLowerCase())))
+        return commands.stream().map(CompletionItem::name)
+                                        .filter(name -> fuzzyMatch(prefix, commandToken(name).toLowerCase()))
+                                        .sorted(Comparator.comparingInt(
+                                                                        name -> matchScore(prefix,
+                                                                                                        commandToken(name)
+                                                                                                                                        .toLowerCase())))
                                         .toList();
     }
 
@@ -108,8 +122,9 @@ final class SlashCommandRegistry {
         if (text == null || !text.startsWith("/"))
             return List.of();
         String prefix = text.split("\\s+", 2)[0].toLowerCase();
-        return commands.stream().filter(cmd -> fuzzyMatch(prefix, cmd.name().toLowerCase())).sorted(
-                                        Comparator.comparingInt(cmd -> matchScore(prefix, cmd.name().toLowerCase())))
+        return commands.stream().filter(cmd -> fuzzyMatch(prefix, commandToken(cmd.name()).toLowerCase())).sorted(
+                                        Comparator.comparingInt(cmd -> matchScore(prefix,
+                                                                        commandToken(cmd.name()).toLowerCase())))
                                         .toList();
     }
 
@@ -141,5 +156,9 @@ final class SlashCommandRegistry {
             }
         }
         return 10 + gap;
+    }
+
+    private static String commandToken(String name) {
+        return name.split("\\s+", 2)[0];
     }
 }

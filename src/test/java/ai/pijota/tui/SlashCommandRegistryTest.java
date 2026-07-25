@@ -27,7 +27,7 @@ class SlashCommandRegistryTest {
     void descriptionsAreReturnedWithCompletionItems() {
         var matches = registry.completeWithDescriptions("/load");
 
-        assertEquals("/load", matches.getFirst().name());
+        assertEquals("/load <id|path>", matches.getFirst().name());
         assertFalse(matches.getFirst().description().isBlank());
     }
 

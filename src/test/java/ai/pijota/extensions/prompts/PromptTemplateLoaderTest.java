@@ -63,6 +63,14 @@ class PromptTemplateLoaderTest {
     }
 
     @Test
+    void expandDefaultValues() {
+        assertEquals("Create Widget", PromptTemplateLoader.expand("Create ${1:-Thing}", new String[] {"Widget"}));
+        assertEquals("Create Thing", PromptTemplateLoader.expand("Create ${1:-Thing}", new String[] {}));
+        assertEquals("Args none", PromptTemplateLoader.expand("Args ${@:-none}", new String[] {}));
+        assertEquals("Args a b", PromptTemplateLoader.expand("Args ${ARGUMENTS:-none}", new String[] {"a", "b"}));
+    }
+
+    @Test
     void parseArgsSimple() {
         var args = PromptTemplateLoader.parseArgs("hello world test");
         assertEquals(3, args.length);

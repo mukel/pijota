@@ -7,7 +7,12 @@ import java.util.function.Consumer;
  * A user-invokable slash command registered by extensions or built into the core. Commands have a primary name,
  * optional aliases, and a handler that receives the trailing argument text (everything after the command name).
  */
-public record SlashCommand(String name, String description, List<String> aliases, Consumer<String> handler) {
+public record SlashCommand(String name, String description, String argumentHint, List<String> aliases,
+                                Consumer<String> handler) {
+
+    public SlashCommand(String name, String description, List<String> aliases, Consumer<String> handler) {
+        this(name, description, null, aliases, handler);
+    }
 
     /**
      * The command in {@code commands} whose name/alias matches the first whitespace-delimited token of {@code input}

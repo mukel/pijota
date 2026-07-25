@@ -20,9 +20,15 @@ public final class PromptTemplateLoader {
 
     /** Non-recursive scan of *.md files in the prompts directory. */
     public static List<PromptTemplate> load(String cwd, List<String> explicitPaths) {
+        return load(cwd, explicitPaths, true);
+    }
+
+    /** Non-recursive scan of prompt directories, optionally skipping project-local templates until trust is granted. */
+    public static List<PromptTemplate> load(String cwd, List<String> explicitPaths, boolean includeProjectTemplates) {
         var templates = new LinkedHashMap<String, PromptTemplate>();
         discoverIn(templates, PijotaHome.resolve("prompts"));
-        discoverIn(templates, Path.of(cwd, ".pijota", "prompts"));
+        if (includeProjectTemplates)
+            discoverIn(templates, Path.of(cwd, ".pijota", "prompts"));
         for (String pathStr : explicitPaths) {
             Path p = Path.of(pathStr);
             if (!p.isAbsolute())
@@ -32,9 +38,11 @@ public final class PromptTemplateLoader {
         return new ArrayList<>(templates.values());
     }
 
-    /** Replace shell-style variables: $1..$9, $@, $ARGUMENTS, ${@:N}, ${@:N:L}. */
+    /** Replace shell-style variables: $1..$9, $@, $ARGUMENTS, defaults, ${@:N}, ${@:N:L}. */
     public static String expand(String content, String[] args) {
         String expanded = content;
+
+        expanded = expandDefaults(expanded, args);
 
         // positional: $1..$9 (do first to avoid re-substitution)
         for (int i = 0; i < args.length && i < 9; i++) {
@@ -53,6 +61,28 @@ public final class PromptTemplateLoader {
     }
 
     private static final Pattern SLICE = Pattern.compile("\\$\\{@:(\\d+)(?::(\\d+))?\\}");
+    private static final Pattern DEFAULT = Pattern.compile("\\$\\{(\\d+|@|ARGUMENTS):-([^}]*)\\}");
+
+    private static String expandDefaults(String content, String[] args) {
+        Matcher m = DEFAULT.matcher(content);
+        if (!m.find())
+            return content;
+        String allArgs = String.join(" ", args);
+        StringBuilder sb = new StringBuilder();
+        do {
+            String target = m.group(1);
+            String value;
+            if ("@".equals(target) || "ARGUMENTS".equals(target)) {
+                value = allArgs;
+            } else {
+                int idx = Integer.parseInt(target) - 1;
+                value = idx >= 0 && idx < args.length ? args[idx] : "";
+            }
+            m.appendReplacement(sb, Matcher.quoteReplacement(value == null || value.isBlank() ? m.group(2) : value));
+        } while (m.find());
+        m.appendTail(sb);
+        return sb.toString();
+    }
 
     private static String expandSlices(String content, String[] args) {
         Matcher m = SLICE.matcher(content);
