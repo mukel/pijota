@@ -34,8 +34,17 @@ public final class RpcMode {
 
                 switch (method) {
                     case "prompt" -> {
-                        var result = handler.apply(request.params()).get();
-                        writeResponse(writer, id, "\"" + Util.escapeJson(responseContent(result)) + "\"");
+                        writeNotification(writer, "prompt_start", "{\"id\":" + jsonId(id) + "}");
+                        writer.flush();
+                        try {
+                            var result = handler.apply(request.params()).get();
+                            writeNotification(writer, "prompt_end", "{\"id\":" + jsonId(id) + "}");
+                            writeResponse(writer, id, "\"" + Util.escapeJson(responseContent(result)) + "\"");
+                        } catch (Exception e) {
+                            writeNotification(writer, "prompt_error", "{\"id\":" + jsonId(id) + ",\"message\":\""
+                                                            + Util.escapeJson(e.getMessage()) + "\"}");
+                            throw e;
+                        }
                     }
                     case "ping" -> writeResponse(writer, id, "\"pong\"");
                     case "shutdown" -> {
@@ -78,12 +87,27 @@ public final class RpcMode {
     }
 
     private static void writeResponse(Writer writer, String id, String result) throws IOException {
-        writer.write("{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":" + result + "}\n");
+        writer.write("{\"jsonrpc\":\"2.0\",\"id\":" + jsonId(id) + ",\"result\":" + result + "}\n");
+    }
+
+    private static void writeNotification(Writer writer, String method, String params) throws IOException {
+        writer.write("{\"jsonrpc\":\"2.0\",\"method\":\"" + method + "\",\"params\":" + params + "}\n");
     }
 
     private static void writeError(Writer writer, String id, int code, String message) throws IOException {
-        writer.write("{\"jsonrpc\":\"2.0\",\"id\":" + (id != null ? id : "null") + ",\"error\":{\"code\":" + code
-                                        + ",\"message\":\"" + message + "\"}}\n");
+        writer.write("{\"jsonrpc\":\"2.0\",\"id\":" + jsonId(id) + ",\"error\":{\"code\":" + code
+                                        + ",\"message\":\"" + Util.escapeJson(message) + "\"}}\n");
+    }
+
+    private static String jsonId(String id) {
+        if (id == null)
+            return "null";
+        try {
+            Double.parseDouble(id);
+            return id;
+        } catch (NumberFormatException e) {
+            return "\"" + Util.escapeJson(id) + "\"";
+        }
     }
 
     // package-visible for testing
