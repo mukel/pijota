@@ -378,7 +378,7 @@ public final class LlmService implements LlmClient {
      * Summarize with optional model override and custom system prompt. If {@code modelOverride} is non-null, a one-off
      * model instance is created without affecting the cached model used for the main conversation.
      */
-    public String summarize(List<Message> toSummarize, String instructions, String previousSummary,
+    public SummaryResult summarizeWithUsage(List<Message> toSummarize, String instructions, String previousSummary,
                                     BiConsumer<String, String> onPartial, String modelOverride,
                                     String customSystemPrompt) {
         String prompt = Summarizer.buildSummaryPrompt(toSummarize, instructions, previousSummary);
@@ -397,7 +397,7 @@ public final class LlmService implements LlmClient {
             var messages = List.<Message>of(sysMsg, userMsg);
             var result = streamLangChain4j(model, messages, List.of(), onPartial != null ? onPartial : (_, _) -> {},
                                             null).get(120, TimeUnit.SECONDS);
-            return result.content() != null ? result.content().strip() : null;
+            return result.content() != null ? new SummaryResult(result.content().strip(), result.usage()) : null;
         } catch (TimeoutException e) {
             log.warn("Summarization timed out after 120s", e);
             return null;

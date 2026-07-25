@@ -26,6 +26,19 @@ public final class SessionExporter {
         return toMarkdown(sessionFile, null);
     }
 
+    public static String toHtml(Path sessionFile) throws IOException {
+        String md = toMarkdown(sessionFile);
+        var html = new StringBuilder();
+        html.append("<!doctype html><html><head><meta charset=\"utf-8\">");
+        html.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+        html.append("<title>Pijota Session</title>");
+        html.append("<style>body{margin:0;background:#101014;color:#eee;font:16px/1.5 system-ui,sans-serif}");
+        html.append("main{max-width:980px;margin:0 auto;padding:32px 20px}");
+        html.append("pre{white-space:pre-wrap;background:#181820;border:1px solid #30303a;border-radius:10px;padding:18px;overflow:auto}");
+        html.append("</style></head><body><main><pre>").append(escapeHtml(md)).append("</pre></main></body></html>");
+        return html.toString();
+    }
+
     /**
      * Export the active branch of a session file to Markdown, with optional leafId override (null = follow last entry).
      */
@@ -78,6 +91,11 @@ public final class SessionExporter {
                     turn.reset();
                     appendCompaction(md, entry);
                 }
+                case "branch_summary" -> {
+                    flushTurn(md, turn, ++turnNumber);
+                    turn.reset();
+                    appendBranchSummary(md, entry);
+                }
                 case "message" -> {
                     String role = (String) entry.getOrDefault("role", "");
                     if ("user".equals(role)) {
@@ -118,6 +136,14 @@ public final class SessionExporter {
         }
 
         md.append("---\n\n");
+    }
+
+    private static void appendBranchSummary(StringBuilder md, Map<String, Object> entry) {
+        String summary = (String) entry.get("summary");
+        if (summary == null || summary.isBlank())
+            return;
+        md.append("## Branch Summary\n\n");
+        md.append(summary).append("\n\n---\n\n");
     }
 
     private static void flushTurn(StringBuilder md, TurnAccumulator turn, int turnNumber) {
@@ -300,6 +326,10 @@ public final class SessionExporter {
     private static String escapeMarkdown(String s) {
         return s.replace("\\", "\\\\").replace("`", "\\`").replace("*", "\\*").replace("_", "\\_").replace("[", "\\[")
                                         .replace("]", "\\]").replace("<", "\\<").replace(">", "\\>");
+    }
+
+    private static String escapeHtml(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     private static String shortId(String id) {

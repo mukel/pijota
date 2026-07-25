@@ -176,12 +176,20 @@ public final class SessionManager {
 
     public void appendCompaction(Path sessionFile, String summary, int compactedCount, String firstKeptEntryId)
                                     throws IOException {
+        appendCompaction(sessionFile, summary, compactedCount, firstKeptEntryId, null);
+    }
+
+    public void appendCompaction(Path sessionFile, String summary, int compactedCount, String firstKeptEntryId,
+                                    ai.pijota.messages.Usage usage)
+                                    throws IOException {
         // DSYNC: compaction is the durability gate — losing it on crash would show stale context.
         appendEntry(sessionFile, UUID.randomUUID().toString(), "compaction", entry -> {
             entry.put("summary", summary);
             entry.put("compactedCount", compactedCount);
             if (firstKeptEntryId != null)
                 entry.put("firstKeptEntryId", firstKeptEntryId);
+            if (usage != null)
+                entry.put("usage", serializeUsage(usage));
         }, true);
     }
 
@@ -335,6 +343,21 @@ public final class SessionManager {
         }
 
         return buildContext(idToEntry, leafId);
+    }
+
+    public List<Message> branchTo(Path sessionFile, String entryId) throws IOException {
+        var idToEntry = readAllEntries(sessionFile);
+        if (!idToEntry.containsKey(entryId))
+            throw new IOException("no session entry: " + entryId);
+        leafId = entryId;
+        return buildContext(idToEntry, leafId);
+    }
+
+    public List<Message> branchToRoot(Path sessionFile) throws IOException {
+        if (!Files.exists(sessionFile))
+            throw new IOException("No active session");
+        leafId = null;
+        return List.of();
     }
 
     List<Message> buildContext(Map<String, Map<String, Object>> idToEntry, String leafId) {
@@ -638,6 +661,8 @@ public final class SessionManager {
                     entry.put("source_provider", a.sourceProvider());
                 if (a.sourceModel() != null && !a.sourceModel().isBlank())
                     entry.put("source_model", a.sourceModel());
+                if (a.usage() != null)
+                    entry.put("usage", serializeUsage(a.usage()));
             }
             case Message.ToolResult tr -> {
                 entry.put("type", "message");
@@ -689,6 +714,24 @@ public final class SessionManager {
         return 0;
     }
 
+    private static Map<String, Object> serializeUsage(ai.pijota.messages.Usage usage) {
+        var out = new LinkedHashMap<String, Object>();
+        out.put("inputTokens", usage.inputTokens());
+        out.put("outputTokens", usage.outputTokens());
+        out.put("cacheReadTokens", usage.cacheReadTokens());
+        out.put("cacheWriteTokens", usage.cacheWriteTokens());
+        out.put("reasoningTokens", usage.reasoningTokens());
+        return out;
+    }
+
+    private static ai.pijota.messages.Usage deserializeUsage(Object raw) {
+        if (!(raw instanceof Map<?, ?> m))
+            return null;
+        return new ai.pijota.messages.Usage(asLong(m.get("inputTokens")), asLong(m.get("outputTokens")),
+                                        asLong(m.get("cacheReadTokens")), asLong(m.get("cacheWriteTokens")),
+                                        asLong(m.get("reasoningTokens")));
+    }
+
     @SuppressWarnings("unchecked")
     private static Message deserializeEntry(Map<String, Object> entry) {
         String type = (String) entry.getOrDefault("type", "message");
@@ -731,7 +774,8 @@ public final class SessionManager {
                                                                                                                         : "{}");
                     }).toList();
                 }
-                yield new Message.Assistant(id, ts, content, tcs, thinking, sourceProvider, sourceModel);
+                yield new Message.Assistant(id, ts, content, tcs, thinking, sourceProvider, sourceModel,
+                                                deserializeUsage(entry.get("usage")));
             }
             case "tool", "tool_result" -> {
                 String tcId = (String) entry.get("tool_call_id");

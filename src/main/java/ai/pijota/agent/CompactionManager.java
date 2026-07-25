@@ -2,6 +2,7 @@ package ai.pijota.agent;
 
 import ai.pijota.config.AppConfig;
 import ai.pijota.messages.Message;
+import ai.pijota.messages.Usage;
 import ai.pijota.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,11 @@ public final class CompactionManager {
 
     public void setSessionAppender(CompactionAppender appender) {
         this.sessionAppender = appender;
+    }
+
+    public void setSessionAppender(LegacyCompactionAppender appender) {
+        this.sessionAppender = appender == null ? null : (summary, count, firstKept, _usage) -> appender.accept(summary,
+                                        count, firstKept);
     }
 
     public CompactionResult checkAndCompact(List<Message> messages, long realContextTokens,
@@ -111,9 +117,12 @@ public final class CompactionManager {
 
         List<Message> toSummarize = sanitizedCopy(messages.subList(from, keepFrom));
         String summary;
+        Usage usage = null;
         if (summaryGenerator != null) {
             try {
-                summary = summaryGenerator.generate(toSummarize, instructions, priorSummary, onPartial);
+                var generated = summaryGenerator.generateWithUsage(toSummarize, instructions, priorSummary, onPartial);
+                summary = generated != null ? generated.text() : null;
+                usage = generated != null ? generated.usage() : null;
             } catch (Exception e) {
                 summary = null;
             }
@@ -140,7 +149,7 @@ public final class CompactionManager {
 
         if (sessionAppender != null) {
             try {
-                sessionAppender.accept(summary, keepFrom - 1, firstKept);
+                sessionAppender.accept(summary, keepFrom - 1, firstKept, usage);
             } catch (Exception e) {
                 log.warn("Failed to persist compaction summary", e);
             }
@@ -285,14 +294,24 @@ public final class CompactionManager {
         return (int) Util.approxTokens(text.length());
     }
 
-    @FunctionalInterface
     public interface SummaryGenerator {
         String generate(List<Message> toSummarize, String instructions, String previousSummary,
                                         BiConsumer<String, String> onPartial);
+
+        default ai.pijota.llm.SummaryResult generateWithUsage(List<Message> toSummarize, String instructions,
+                                        String previousSummary, BiConsumer<String, String> onPartial) {
+            String text = generate(toSummarize, instructions, previousSummary, onPartial);
+            return text != null ? new ai.pijota.llm.SummaryResult(text, null) : null;
+        }
     }
 
     @FunctionalInterface
     public interface CompactionAppender {
+        void accept(String summary, int compactedCount, String firstKeptEntryId, Usage usage);
+    }
+
+    @FunctionalInterface
+    public interface LegacyCompactionAppender {
         void accept(String summary, int compactedCount, String firstKeptEntryId);
     }
 

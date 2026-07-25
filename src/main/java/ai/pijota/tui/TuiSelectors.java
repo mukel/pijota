@@ -8,7 +8,8 @@ import java.util.function.Predicate;
 
 final class TuiSelectors {
     enum Slot {
-        MODEL(ModelItem.class, "models"), SESSION(SessionItem.class, "sessions"), THEME(ThemeItem.class,
+        MODEL(ModelItem.class, "models"), SESSION(SessionItem.class, "sessions"), TREE(TreeEntryItem.class,
+                                        "conversation tree"), THEME(ThemeItem.class,
                                         "themes"), SETTINGS(SettingsItem.class, "settings"), LOGIN(
                                                                         LoginProviderItem.class,
                                                                         "providers"), FORK(ForkMessageItem.class,

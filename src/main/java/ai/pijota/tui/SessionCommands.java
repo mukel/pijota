@@ -3,6 +3,7 @@ package ai.pijota.tui;
 import ai.pijota.agent.CompactionManager;
 import ai.pijota.agent.PijotaSession;
 import ai.pijota.agent.SessionExporter;
+import ai.pijota.agent.SessionUsage;
 import ai.pijota.config.SettingsManager;
 import ai.pijota.llm.ModelRegistry;
 import ai.pijota.llm.ThinkingLevel;
@@ -104,8 +105,10 @@ final class SessionCommands {
                 return;
             }
             try {
-                host.session().deleteSession(target);
-                host.appendPlain(List.of(host.styled("statusText", "deleted session: " + target)));
+                boolean trashed = host.session().deleteSession(target);
+                host.appendPlain(List.of(host.styled("statusText",
+                                                (trashed ? "moved session to trash: " : "deleted session permanently: ")
+                                                                                + target)));
             } catch (IOException e) {
                 host.appendPlain(List.of(host.styled("toolError", "delete failed: " + e.getMessage())));
             }
@@ -153,6 +156,24 @@ final class SessionCommands {
                                         session.totalCacheWriteTokens(), session.totalCost(), session.costBudget(),
                                         rateLine(session.provider(), session.model(), session.hasUnpricedUsage()),
                                         host::styled));
+        var breakdown = SessionUsage.breakdown(session.messages(), session.provider(), session.model());
+        var summaryBreakdown = List.<SessionUsage.Breakdown>of();
+        try {
+            summaryBreakdown = SessionUsage.compactionBreakdown(session.branchEntries());
+        } catch (IOException ignored) {}
+        if (!breakdown.isEmpty() || !summaryBreakdown.isEmpty()) {
+            var lines = new ArrayList<String>();
+            lines.add(host.styled("toolLabel", "usage breakdown"));
+            for (var item : breakdown) {
+                lines.add(host.styled("statusText", "  " + item.key() + "  " + fmtCount(item.tokens()) + " tokens  "
+                                                + SessionUsage.formatCost(item.cost())));
+            }
+            for (var item : summaryBreakdown) {
+                lines.add(host.styled("statusText", "  " + item.key() + "  " + fmtCount(item.tokens()) + " tokens  "
+                                                + SessionUsage.formatCost(item.cost())));
+            }
+            host.appendPlain(lines);
+        }
     }
 
     /** The {@code /usage} per-model rate line: the catalog's $/1M rates for the active model, or "unknown". */
@@ -209,6 +230,19 @@ final class SessionCommands {
         }
     }
 
+    void branchSummary(String instructions) {
+        if (host.busy()) {
+            host.appendPlain(List.of(host.styled("toolError", "/branch-summary is unavailable while a turn is running")));
+            return;
+        }
+        try {
+            String summary = host.session().summarizeCurrentBranch(instructions);
+            host.appendPlain(List.of(host.styled("toolLabel", "branch summary"), host.styled("statusText", summary)));
+        } catch (Exception e) {
+            host.appendPlain(List.of(host.styled("toolError", "branch summary failed: " + e.getMessage())));
+        }
+    }
+
     void copyLastResponse() {
         String last = host.session().lastAssistantContent();
         if (last == null || last.isBlank()) {
@@ -224,21 +258,65 @@ final class SessionCommands {
         }
     }
 
-    void exportSession() {
+    void exportSession(String input) {
         if (host.session().sessionFile() == null) {
             host.appendPlain(List.of(host.styled("toolError", "no active session")));
             return;
         }
+        String arg = input.startsWith("/export") ? input.substring("/export".length()).trim() : input.trim();
+        boolean html = "html".equalsIgnoreCase(arg) || arg.toLowerCase(Locale.ROOT).endsWith(".html");
         try {
-            String md = SessionExporter.toMarkdown(host.session().sessionFile());
             String base = host.session().sessionFile().getFileName().toString().replace(".jsonl", "");
             // Write into the session's working directory (where pijota was launched) — the threaded cwd, not the global
             // user.dir property, so it's consistent with the rest of the app and isolatable in tests.
-            Path out = Path.of(host.session().cwd()).resolve(base + "-export.md");
-            Files.writeString(out, md, StandardCharsets.UTF_8);
+            Path out = arg.isBlank() || "html".equalsIgnoreCase(arg)
+                                            ? Path.of(host.session().cwd()).resolve(base + "-export."
+                                                                            + (html ? "html" : "md"))
+                                            : Path.of(arg);
+            String content = html ? SessionExporter.toHtml(host.session().sessionFile())
+                                            : SessionExporter.toMarkdown(host.session().sessionFile());
+            Files.writeString(out, content, StandardCharsets.UTF_8);
             host.appendPlain(List.of(host.styled("statusText", "exported to " + out)));
         } catch (Exception e) {
             host.appendPlain(List.of(host.styled("toolError", "export failed: " + e.getMessage())));
+        }
+    }
+
+    void importSession(String input) {
+        String arg = input.startsWith("/import") ? input.substring("/import".length()).trim() : input.trim();
+        if (arg.isBlank()) {
+            host.appendPlain(List.of(host.styled("toolError", "usage: /import <session.jsonl>")));
+            return;
+        }
+        if (host.settings() == null) {
+            host.appendPlain(List.of(host.styled("toolError", "import unavailable: no settings directory")));
+            return;
+        }
+        try {
+            Path source = Path.of(arg).toAbsolutePath().normalize();
+            if (!Files.isRegularFile(source))
+                throw new IOException("not a file: " + source);
+            Path target = uniqueImportTarget(host.settings().sessionDir(), source.getFileName().toString());
+            Files.createDirectories(target.getParent());
+            Files.copy(source, target);
+            int count = host.session().load(target);
+            host.refreshSessionName();
+            host.appendPlain(List.of(host.styled("statusText", "imported " + count + " messages from " + source)));
+        } catch (Exception e) {
+            host.appendPlain(List.of(host.styled("toolError", "import failed: " + e.getMessage())));
+        }
+    }
+
+    private static Path uniqueImportTarget(Path dir, String fileName) {
+        Path target = dir.resolve(fileName);
+        if (!Files.exists(target))
+            return target;
+        String base = fileName.endsWith(".jsonl") ? fileName.substring(0, fileName.length() - 6) : fileName;
+        String ext = fileName.endsWith(".jsonl") ? ".jsonl" : "";
+        for (int i = 1;; i++) {
+            target = dir.resolve(base + "-import-" + i + ext);
+            if (!Files.exists(target))
+                return target;
         }
     }
 

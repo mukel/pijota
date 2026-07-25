@@ -87,9 +87,16 @@ public interface LlmClient extends AutoCloseable {
      * Summarizes messages for context compaction. The default has no summarizer and returns {@code null}, which the
      * compaction manager treats as "degraded" (a heuristic summary). Real providers override this.
      */
-    default String summarize(List<Message> messages, String instructions, String previousSummary,
+    default SummaryResult summarizeWithUsage(List<Message> messages, String instructions, String previousSummary,
                                     BiConsumer<String, String> onPartial, String modelOverride, String systemPrompt) {
         return null;
+    }
+
+    default String summarize(List<Message> messages, String instructions, String previousSummary,
+                                    BiConsumer<String, String> onPartial, String modelOverride, String systemPrompt) {
+        var result = summarizeWithUsage(messages, instructions, previousSummary, onPartial, modelOverride,
+                                        systemPrompt);
+        return result != null ? result.text() : null;
     }
 
     @Override

@@ -10,6 +10,7 @@ import ai.pijota.messages.Message;
 import ai.pijota.tools.Tool;
 import ai.pijota.tools.ToolManifest;
 import ai.pijota.tools.ToolRegistry;
+import ai.pijota.util.ProcessRunner;
 import ai.pijota.util.SelfRespawn;
 
 import java.io.IOException;
@@ -56,25 +57,36 @@ public final class PijotaSession implements AutoCloseable {
         SelfRespawn.setSessionFile(this.sessionFile);
         // Compaction summaries go through the LlmClient (default: no summarizer → degraded heuristic). An optional
         // "summarize" sub-agent can override the model/system-prompt; null fields fall back to the main model.
-        CompactionManager.SummaryGenerator summaryGen = (msgs, instr, prev, onPart) -> {
-            var summaryAgent = findSummarizeAgent(cwd);
-            return llm.summarize(msgs, instr, prev, onPart, summaryAgent != null ? summaryAgent.model() : null,
-                                            summaryAgent != null ? summaryAgent.systemPrompt() : null);
+        CompactionManager.SummaryGenerator summaryGen = new CompactionManager.SummaryGenerator() {
+            @Override
+            public String generate(List<Message> msgs, String instr, String prev, java.util.function.BiConsumer<String, String> onPart) {
+                var result = generateWithUsage(msgs, instr, prev, onPart);
+                return result != null ? result.text() : null;
+            }
+
+            @Override
+            public ai.pijota.llm.SummaryResult generateWithUsage(List<Message> msgs, String instr, String prev,
+                                            java.util.function.BiConsumer<String, String> onPart) {
+                var summaryAgent = findSummarizeAgent(cwd);
+                return llm.summarizeWithUsage(msgs, instr, prev, onPart,
+                                                summaryAgent != null ? summaryAgent.model() : null,
+                                                summaryAgent != null ? summaryAgent.systemPrompt() : null);
+            }
         };
         this.agentLoop = AgentLoop.builder(llm, toolRegistry, cwd).summaryGenerator(summaryGen)
                                         .extensionRegistry(extensionRegistry).contextWindow(contextWindow)
                                         .compactionConfig(compactionConfig).maxTurns(maxTurns).build();
         extensionRegistry.setAgentLoop(this.agentLoop); // the session owns the registry↔loop wiring
 
-        this.agentLoop.addCompactionAppender((summary, count, firstKeptId) -> save("compaction save",
-                                        f -> sessionManager.appendCompaction(f, summary, count, firstKeptId)));
+        this.agentLoop.addCompactionAppender((summary, count, firstKeptId, usage) -> save("compaction save",
+                                        f -> sessionManager.appendCompaction(f, summary, count, firstKeptId, usage)));
         this.agentLoop.addSystemPrompt(systemPrompt);
 
         this.agentLoop.addEventListener(event -> {
             switch (event) {
                 case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
                     if (usage != null)
-                        save("assistant message save", f -> sessionManager.appendMessage(f, msg));
+                        save("assistant message save", f -> sessionManager.appendMessage(f, msg.withUsage(usage)));
                 }
                 case AgentEvent.ToolResult(Message.ToolResult msg) ->
                     save("tool result save", f -> sessionManager.appendMessage(f, msg));
@@ -96,7 +108,8 @@ public final class PijotaSession implements AutoCloseable {
      */
     public CompletableFuture<List<Message>> prompt(String userInput, List<Message.Attachment> attachments) {
         var supported = ModelRegistry.inputModalities(llm().provider(), llm().model()); // null = unknown → allow all
-        var normalized = AttachmentNormalizer.normalize(userInput, attachments, supported, cwd);
+        var normalized = AttachmentNormalizer.normalize(userInput, attachments, supported, cwd, llm().provider(),
+                                        llm().model());
         String filtered = extensionRegistry.filterInput(normalized.text());
         var userMessage = new Message.User(filtered, normalized.media());
         save("user message save", f -> sessionManager.appendMessage(f, userMessage));
@@ -178,6 +191,46 @@ public final class PijotaSession implements AutoCloseable {
     /** Compacts the context; returns true if anything was actually summarized. */
     public boolean compact(String instructions) {
         return agentLoop.compactWithResult(instructions).compacted();
+    }
+
+    public String summarizeCurrentBranch(String instructions) throws IOException {
+        var result = agentLoop.llm().summarizeWithUsage(agentLoop.messages(), instructions, null, (_kind, _delta) -> {},
+                                        null, null);
+        String summary = result != null ? result.text() : null;
+        if (summary == null || summary.isBlank())
+            summary = fallbackBranchSummary(agentLoop.messages(), instructions);
+        var msg = new Message.BranchSummary(summary.strip());
+        save("branch summary save", f -> sessionManager.appendMessage(f, msg));
+        if (sessionFile != null) {
+            agentLoop.clearMessages();
+            agentLoop.restoreMessages(sessionManager.loadMessages(sessionFile));
+            agentLoop.replaceSystemPrompt(sessionSystemPrompt);
+        }
+        agentLoop.notifyHistoryChanged("branch-summary");
+        return msg.summary();
+    }
+
+    private static String fallbackBranchSummary(List<Message> messages, String instructions) {
+        var sb = new StringBuilder("[degraded — LLM summarizer unavailable]\n");
+        if (instructions != null && !instructions.isBlank())
+            sb.append("Focus: ").append(instructions.strip()).append("\n");
+        int start = Math.max(0, messages.size() - 12);
+        for (int i = start; i < messages.size(); i++) {
+            Message msg = messages.get(i);
+            switch (msg) {
+                case Message.User u -> sb.append("User: ").append(shorten(u.content())).append('\n');
+                case Message.Assistant a -> sb.append("Assistant: ").append(shorten(a.content())).append('\n');
+                case Message.ToolResult tr -> sb.append("Tool ").append(tr.toolName()).append(": ")
+                                                .append(shorten(tr.content())).append('\n');
+                default -> {}
+            }
+        }
+        return sb.toString().strip();
+    }
+
+    private static String shorten(String text) {
+        String s = text == null ? "" : text.replaceAll("\\s+", " ").strip();
+        return s.length() <= 240 ? s : s.substring(0, 237) + "...";
     }
 
     public void setAutoCompactionEnabled(boolean enabled) {
@@ -277,6 +330,30 @@ public final class PijotaSession implements AutoCloseable {
 
     public String leafId() {
         return sessionManager.leafId();
+    }
+
+    public int branchTo(String entryId) throws IOException {
+        if (sessionFile == null)
+            throw new IOException("No active session");
+        var msgs = sessionManager.branchTo(sessionFile, entryId);
+        agentLoop.clearMessages();
+        agentLoop.restoreMessages(msgs);
+        agentLoop.replaceSystemPrompt(sessionSystemPrompt);
+        agentLoop.notifyHistoryChanged("tree");
+        return msgs.size();
+    }
+
+    public int branchToParentOf(String parentId) throws IOException {
+        if (sessionFile == null)
+            throw new IOException("No active session");
+        if (parentId == null || parentId.isBlank()) {
+            sessionManager.branchToRoot(sessionFile);
+            agentLoop.clearMessages();
+            agentLoop.replaceSystemPrompt(sessionSystemPrompt);
+            agentLoop.notifyHistoryChanged("tree");
+            return 0;
+        }
+        return branchTo(parentId);
     }
 
     public Optional<String> consumeSessionWarning() {
@@ -394,11 +471,20 @@ public final class PijotaSession implements AutoCloseable {
         }
     }
 
-    public void deleteSession(String spec) throws IOException {
+    public boolean deleteSession(String spec) throws IOException {
         Path target = sessionManager.resolveSession(cwd, spec);
         if (sessionFile != null && target.toAbsolutePath().normalize().equals(sessionFile.toAbsolutePath().normalize()))
             throw new IOException("cannot delete active session");
+        try {
+            var result = ProcessRunner.command("trash", target.toString()).run();
+            if (result.exitCode() == 0)
+                return true;
+        } catch (IOException e) {
+            if (!ProcessRunner.isCommandNotFound(e))
+                throw e;
+        }
         Files.deleteIfExists(target);
+        return false;
     }
 
     /**

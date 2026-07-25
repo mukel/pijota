@@ -43,21 +43,30 @@ public sealed interface Message {
     }
 
     record Assistant(UUID id, Instant timestamp, String content, List<ToolCall> toolCalls, String thinking,
-                                    String sourceProvider, String sourceModel) implements Message {
+                                    String sourceProvider, String sourceModel, Usage usage) implements Message {
         public Assistant(String content, List<ToolCall> toolCalls, String thinking) {
-            this(UUID.randomUUID(), Instant.now(), content, toolCalls, thinking, null, null);
+            this(UUID.randomUUID(), Instant.now(), content, toolCalls, thinking, null, null, null);
         }
 
         public Assistant(UUID id, Instant timestamp, String content, List<ToolCall> toolCalls, String thinking) {
-            this(id, timestamp, content, toolCalls, thinking, null, null);
+            this(id, timestamp, content, toolCalls, thinking, null, null, null);
+        }
+
+        public Assistant(UUID id, Instant timestamp, String content, List<ToolCall> toolCalls, String thinking,
+                                        String sourceProvider, String sourceModel) {
+            this(id, timestamp, content, toolCalls, thinking, sourceProvider, sourceModel, null);
         }
 
         public Assistant withSource(String provider, String model) {
-            return new Assistant(id, timestamp, content, toolCalls, thinking, provider, model);
+            return new Assistant(id, timestamp, content, toolCalls, thinking, provider, model, usage);
         }
 
         public Assistant withThinking(String newThinking) {
-            return new Assistant(id, timestamp, content, toolCalls, newThinking, sourceProvider, sourceModel);
+            return new Assistant(id, timestamp, content, toolCalls, newThinking, sourceProvider, sourceModel, usage);
+        }
+
+        public Assistant withUsage(Usage usage) {
+            return new Assistant(id, timestamp, content, toolCalls, thinking, sourceProvider, sourceModel, usage);
         }
     }
 
