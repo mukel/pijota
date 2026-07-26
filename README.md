@@ -13,7 +13,7 @@
 
 **A terminal-native coding agent with real tools, durable sessions, many models, and multiple frontends.**
 
-The command is short: **`pj`**.
+The command is **`pj`**.
 
 </div>
 
@@ -47,7 +47,7 @@ It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp 
 
 ## Quick Start
 
-Requires **JDK 25**. The simplest install path is [JBang](https://www.jbang.dev/), which can install the published Maven artifact as `pj`.
+Requires **JDK 25**. The simplest install path is [JBang](https://www.jbang.dev/), which installs the published Maven artifact as `pj`.
 
 Linux and macOS are first-class targets. On Windows, use WSL for the best experience; native Windows is best-effort and
 expects Git Bash or a configured `shell_path` for shell tools.
@@ -93,7 +93,7 @@ To install the native-image build with JBang:
 jbang app install --native --name pj org.pijota:pijota:RELEASE
 ```
 
-To update an existing JBang install:
+To refresh an existing JBang install to the latest published release:
 
 ```bash
 jbang app install --force --fresh --name pj org.pijota:pijota:RELEASE
@@ -133,8 +133,13 @@ Inside the TUI, start with `/help`.
 
 | Command | Purpose |
 |---|---|
+| `/login` | Configure provider credentials. |
 | `/model` | Switch models. |
 | `/settings` | Adjust runtime settings. |
+| `/status` | Show current model, session, cwd, usage, and busy state. |
+| `/name` | Name the current session. |
+| `/new` | Start a new conversation. |
+| `/stop` | Abort the current turn. |
 | `/compact` | Summarize older context. |
 | `/usage` | Show tokens, cost, and context. |
 | `/dequeue` | Restore a queued follow-up to the editor. |
@@ -142,6 +147,7 @@ Inside the TUI, start with `/help`.
 | `/tree` | View branches. |
 | `/branch-summary` | Summarize the current branch into context. |
 | `/theme` | Switch themes. |
+| `/reload` | Refresh model metadata. |
 | `/remote-control` | Control the live session from a phone/browser or Telegram. |
 
 Longer user guides live in [`docs/`](docs/). Start with [`docs/worktree.md`](docs/worktree.md) for isolated git worktrees.
@@ -188,7 +194,7 @@ Sessions can be resumed, forked, cloned, compacted, named, imported, and exporte
 
 ### Models And Frontends
 
-Use hosted models, local models, OpenAI-compatible endpoints, or custom providers. Pijota supports model aliases, reasoning levels, model pickers, OAuth where available, and provider-specific API keys.
+Use hosted models, local models, OpenAI-compatible endpoints, or custom providers. Pijota supports model aliases, reasoning levels, model pickers, OAuth where available, provider-specific API keys, and `--list-models` discovery.
 
 The same agent core powers the TUI, print mode, JSON-RPC, ACP editor clients, web UI, and Telegram bot.
 
@@ -203,7 +209,7 @@ The same agent core powers the TUI, print mode, JSON-RPC, ACP editor clients, we
 
 ### Browser, MCP, And Skills
 
-Enable browser automation with `--browse`. Connect MCP servers for extra tools. Add reusable workflows as skills. Pijota also discovers project context files unless disabled.
+Enable browser automation with `--browse`. Connect MCP servers for extra tools. Add reusable workflows as skills, prompt templates, and project context files unless disabled.
 
 ### Extensions
 
@@ -260,18 +266,20 @@ Useful paths:
 
 ## Build From Source
 
+The repo uses `make` as a small wrapper around Maven for shorter, repeatable commands.
+
 ```bash
-mvn test
-mvn verify
-mvn package
-mvn -Pfat package
-mvn -Pnative -DskipTests package
+make check
+make jar
+make fat
+make native              # writes target/pj
+make native-static       # fully static target/pj; run make setup-musl first
 ```
 
 Run from compiled classes:
 
 ```bash
-mvn -q compile exec:java -Dexec.mainClass=org.pijota.Main -Dexec.args="--help"
+make run ARGS="--help"
 ```
 
 ---
