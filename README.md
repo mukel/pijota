@@ -49,6 +49,9 @@ It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp 
 
 Requires **JDK 25** and **Maven**. Native builds require a GraalVM JDK.
 
+Linux and macOS are first-class targets. On Windows, use WSL for the best experience; native Windows is best-effort and
+expects Git Bash or a configured `shell_path` for shell tools.
+
 ```bash
 mvn -q -Pfat -DskipTests package
 java -jar target/pijota-*.jar --help
@@ -138,6 +141,8 @@ Inside the TUI, start with `/help`.
 | `/branch-summary` | Summarize the current branch into context. |
 | `/theme` | Switch themes. |
 | `/remote-control` | Control the live session from a phone/browser or Telegram. |
+
+Longer user guides live in [`docs/`](docs/). Start with [`docs/worktree.md`](docs/worktree.md) for isolated git worktrees.
 
 ---
 
