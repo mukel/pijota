@@ -2,6 +2,7 @@ package org.pijota.browser;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.pijota.util.Executables;
 
 import java.net.ServerSocket;
 import java.util.List;
@@ -17,7 +18,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class BiDiBackendIntegrationTest {
 
     private static boolean geckodriverAvailable() {
-        return org.pijota.util.Executables.isAvailable("geckodriver");
+        return Executables.isAvailable("geckodriver");
     }
 
     private static int freePort() throws Exception {

@@ -1,6 +1,7 @@
 package org.pijota.acp;
 
 import org.pijota.modes.SlashCommand;
+import org.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -169,7 +170,7 @@ class AcpMessagesTest {
 
     private static JsonNode parse(String json) {
         try {
-            return org.pijota.util.Util.MAPPER.readTree(json);
+            return Util.MAPPER.readTree(json);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

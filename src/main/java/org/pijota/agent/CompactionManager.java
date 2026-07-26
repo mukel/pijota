@@ -1,6 +1,7 @@
 package org.pijota.agent;
 
 import org.pijota.config.AppConfig;
+import org.pijota.llm.SummaryResult;
 import org.pijota.messages.Message;
 import org.pijota.messages.Usage;
 import org.pijota.util.Util;
@@ -300,10 +301,10 @@ public final class CompactionManager {
         String generate(List<Message> toSummarize, String instructions, String previousSummary,
                                         BiConsumer<String, String> onPartial);
 
-        default org.pijota.llm.SummaryResult generateWithUsage(List<Message> toSummarize, String instructions,
-                                        String previousSummary, BiConsumer<String, String> onPartial) {
+        default SummaryResult generateWithUsage(List<Message> toSummarize, String instructions, String previousSummary,
+                                        BiConsumer<String, String> onPartial) {
             String text = generate(toSummarize, instructions, previousSummary, onPartial);
-            return text != null ? new org.pijota.llm.SummaryResult(text, null) : null;
+            return text != null ? new SummaryResult(text, null) : null;
         }
     }
 

@@ -2,6 +2,7 @@ package org.pijota.tools;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.pijota.util.Executables;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,7 +18,7 @@ class GlobToolTest {
 
     @Test
     void fdBackendListsMatchingFilesDirectly() throws Exception {
-        assumeTrue(org.pijota.util.Executables.isAvailable("fd"), "fd not installed");
+        assumeTrue(Executables.isAvailable("fd"), "fd not installed");
         Files.createDirectories(tempDir.resolve("src"));
         Files.createFile(tempDir.resolve("src/App.java"));
         Files.createFile(tempDir.resolve("notes.txt"));

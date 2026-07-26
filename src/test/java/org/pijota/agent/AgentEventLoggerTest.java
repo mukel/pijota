@@ -1,6 +1,7 @@
 package org.pijota.agent;
 
 import org.pijota.messages.Message;
+import org.pijota.messages.Usage;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -65,7 +66,7 @@ class AgentEventLoggerTest {
             sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("partial", List.of(), null), null));
             // final completion (has usage) — the one INFO line worth keeping
             sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("done", List.of(), null),
-                                            new org.pijota.messages.Usage(1500, 42)));
+                                            new Usage(1500, 42)));
 
             var infoMsgs = appender.list.stream().filter(e -> e.getLevel() == Level.INFO)
                                             .map(ILoggingEvent::getFormattedMessage).toList();

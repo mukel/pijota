@@ -1,6 +1,7 @@
 package org.pijota.web;
 
 import org.junit.jupiter.api.Test;
+import org.pijota.tools.SlashCommandTool;
 
 import java.util.List;
 import java.util.Map;
@@ -92,10 +93,9 @@ class WebUiContextTest {
     void askQuestionsEmitsOneQuestionDialogAndResolvesWithTheAnswer() {
         var bus = new Bus();
         var ui = bus.ui();
-        var question = new org.pijota.tools.SlashCommandTool.Question("Pick one?", "Choice",
-                                        List.of(new org.pijota.tools.SlashCommandTool.Option("A", "first"),
-                                                                        new org.pijota.tools.SlashCommandTool.Option(
-                                                                                                        "B", "second")),
+        var question = new SlashCommandTool.Question("Pick one?", "Choice",
+                                        List.of(new SlashCommandTool.Option("A", "first"),
+                                                                        new SlashCommandTool.Option("B", "second")),
                                         false);
 
         var future = ui.askQuestions(List.of(question)); // one combined dialog, not a select per question
@@ -133,8 +133,8 @@ class WebUiContextTest {
         var bus = new Bus();
         var ui = bus.ui();
         var confirm = ui.confirm("Proceed?");
-        var question = ui.askQuestions(List.of(new org.pijota.tools.SlashCommandTool.Question("Pick?", "",
-                                        List.of(new org.pijota.tools.SlashCommandTool.Option("A", "")), false)));
+        var question = ui.askQuestions(List.of(new SlashCommandTool.Question("Pick?", "",
+                                        List.of(new SlashCommandTool.Option("A", "")), false)));
 
         assertFalse(confirm.isDone());
         assertFalse(question.isDone());

@@ -6,6 +6,7 @@ import org.pijota.agent.SessionManager;
 import org.pijota.cli.Args;
 import org.pijota.cli.ArgParser;
 import org.pijota.config.AppConfig;
+import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 import org.pijota.extensions.testkit.ExtensionJars;
 import org.pijota.llm.ThinkingLevel;
@@ -207,7 +208,7 @@ class AppBootstrapTest {
     @Test
     void missingApiKeyErrorIncludesProviderModelAndNextSteps() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
-        var provider = new org.pijota.config.ProviderCatalog.Provider("missing-test", "Missing Test", "openai",
+        var provider = new ProviderCatalog.Provider("missing-test", "Missing Test", "openai",
                                         "https://example.invalid/v1", List.of("PIJOTA_MISSING_TEST_API_KEY"),
                                         "test-model", Map.of(), null, null);
         var config = new AppConfig().withDefaultProviderModel("missing-test", "test-model")
@@ -229,10 +230,10 @@ class AppBootstrapTest {
     @Test
     void missingOauthProviderKeySuggestsLogin() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
-        var oauth = new org.pijota.config.ProviderCatalog.OAuth("https://device.example", "https://token.example",
+        var oauth = new ProviderCatalog.OAuth("https://device.example", "https://token.example",
                                         "https://oauth.example", "client", "scope");
-        var provider = new org.pijota.config.ProviderCatalog.Provider("oauth-test", "OAuth Test", "openai",
-                                        "https://example.invalid/v1", List.of(), "oauth-model", Map.of(), oauth, null);
+        var provider = new ProviderCatalog.Provider("oauth-test", "OAuth Test", "openai", "https://example.invalid/v1",
+                                        List.of(), "oauth-model", Map.of(), oauth, null);
         var config = new AppConfig().withDefaultProviderModel("oauth-test", "oauth-model")
                                         .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
                                         .build();
@@ -249,10 +250,9 @@ class AppBootstrapTest {
     @Test
     void missingApiKeyDoesNotBlockHeadlessAgentBootstrap() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
-        var provider = new org.pijota.config.ProviderCatalog.Provider("agent-missing-test", "Agent Missing Test",
-                                        "openai", "https://example.invalid/v1",
-                                        List.of("PIJOTA_AGENT_MISSING_TEST_API_KEY"), "test-model", Map.of(), null,
-                                        null);
+        var provider = new ProviderCatalog.Provider("agent-missing-test", "Agent Missing Test", "openai",
+                                        "https://example.invalid/v1", List.of("PIJOTA_AGENT_MISSING_TEST_API_KEY"),
+                                        "test-model", Map.of(), null, null);
         var config = new AppConfig().withDefaultProviderModel("agent-missing-test", "test-model")
                                         .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
                                         .build();
@@ -269,10 +269,9 @@ class AppBootstrapTest {
     @Test
     void missingApiKeyMessageUsesExplicitProviderAndModel() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
-        var provider = new org.pijota.config.ProviderCatalog.Provider("explicit-missing-test", "Explicit Missing Test",
-                                        "openai", "https://example.invalid/v1",
-                                        List.of("PIJOTA_EXPLICIT_MISSING_TEST_API_KEY"), "default-model", Map.of(),
-                                        null, null);
+        var provider = new ProviderCatalog.Provider("explicit-missing-test", "Explicit Missing Test", "openai",
+                                        "https://example.invalid/v1", List.of("PIJOTA_EXPLICIT_MISSING_TEST_API_KEY"),
+                                        "default-model", Map.of(), null, null);
         var config = new AppConfig().withDefaultProviderModel("explicit-missing-test", "default-model")
                                         .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
                                         .build();

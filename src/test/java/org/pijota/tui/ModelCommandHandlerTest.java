@@ -1,5 +1,8 @@
 package org.pijota.tui;
 
+import org.pijota.agent.PijotaSession;
+import org.pijota.config.AppConfig;
+import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelInfo;
 
 import java.util.ArrayList;
@@ -15,8 +18,7 @@ class ModelCommandHandlerTest {
         return fakeHost(provider, model, null);
     }
 
-    private static ModelCommandHandler.Host fakeHost(String provider, String model,
-                                    org.pijota.config.SettingsManager settingsManager) {
+    private static ModelCommandHandler.Host fakeHost(String provider, String model, SettingsManager settingsManager) {
         return new ModelCommandHandler.Host() {
             @Override
             public boolean busy() {
@@ -61,12 +63,12 @@ class ModelCommandHandlerTest {
             }
 
             @Override
-            public org.pijota.agent.PijotaSession session() {
+            public PijotaSession session() {
                 return null;
             }
 
             @Override
-            public org.pijota.config.SettingsManager settings() {
+            public SettingsManager settings() {
                 return settingsManager;
             }
         };
@@ -74,9 +76,9 @@ class ModelCommandHandlerTest {
 
     @Test
     void availableModelsHonorsEnabledModelsAllowlist() {
-        var config = new org.pijota.config.AppConfig().withApiKey("anthropic", "sk-ant").withApiKey("openai", "sk-test")
-                                        .toBuilder().enabledModels(List.of("anthropic/*")).build();
-        var settings = new org.pijota.config.SettingsManager(config, _ -> {});
+        var config = new AppConfig().withApiKey("anthropic", "sk-ant").withApiKey("openai", "sk-test").toBuilder()
+                                        .enabledModels(List.of("anthropic/*")).build();
+        var settings = new SettingsManager(config, _ -> {});
         var handler = new ModelCommandHandler(fakeHost("anthropic", "x", settings));
 
         var available = handler.availableModels();
@@ -235,12 +237,12 @@ class ModelCommandHandlerTest {
             }
 
             @Override
-            public org.pijota.agent.PijotaSession session() {
+            public PijotaSession session() {
                 return null;
             }
 
             @Override
-            public org.pijota.config.SettingsManager settings() {
+            public SettingsManager settings() {
                 return null;
             }
         };
@@ -293,12 +295,12 @@ class ModelCommandHandlerTest {
             }
 
             @Override
-            public org.pijota.agent.PijotaSession session() {
+            public PijotaSession session() {
                 return null;
             }
 
             @Override
-            public org.pijota.config.SettingsManager settings() {
+            public SettingsManager settings() {
                 return null;
             }
         };

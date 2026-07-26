@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import org.pijota.agent.AgentEvent;
 import org.pijota.agent.PijotaSession;
+import org.pijota.config.PromptGlyphs;
 import org.pijota.llm.ModelDisplay;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.llm.ModelInfo;
@@ -310,7 +311,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var regions = new ArrayList<PromptRegion>();
         var promptGlyphs = settings != null && settings.config().prompt() != null
                                         ? settings.config().prompt()
-                                        : org.pijota.config.PromptGlyphs.DEFAULTS;
+                                        : PromptGlyphs.DEFAULTS;
         regions.add(new PromptRegion.Editor(promptGlyphs));
         regions.add(new PendingRegion());
         regions.addAll(selectors.regions());

@@ -4,6 +4,7 @@ import org.pijota.agent.ModelSelection;
 
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
+import org.pijota.util.Util;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -211,8 +212,7 @@ class ModelRegistryTest {
 
     @Test
     void resolvesModelAliasToConfiguredTarget() throws Exception {
-        var config = org.pijota.util.Util.MAPPER.readValue("{\"aliases\":{\"fast\":\"anthropic/claude-haiku-4-5\"}}",
-                                        AppConfig.class);
+        var config = Util.MAPPER.readValue("{\"aliases\":{\"fast\":\"anthropic/claude-haiku-4-5\"}}", AppConfig.class);
         var settings = new SettingsManager(config, _ -> {});
         var resolved = ModelRegistry.resolveProviderModel("alias", "fast", settings);
         assertEquals("anthropic", resolved.provider());

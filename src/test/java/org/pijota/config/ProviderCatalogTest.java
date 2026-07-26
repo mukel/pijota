@@ -2,6 +2,7 @@ package org.pijota.config;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.pijota.util.Util;
 
 import java.util.HashSet;
 
@@ -37,7 +38,7 @@ class ProviderCatalogTest {
     @Test
     void appConfigParsesProvidersFromJson() throws Exception {
         String json = "{\"providers\":[{\"id\":\"local\",\"apiType\":\"openai\",\"baseUrl\":\"http://x/v1\"}]}";
-        var config = org.pijota.util.Util.MAPPER.readValue(json, AppConfig.class);
+        var config = Util.MAPPER.readValue(json, AppConfig.class);
         assertEquals(1, config.providers().size());
         assertEquals("http://x/v1", config.providers().getFirst().baseUrl());
     }

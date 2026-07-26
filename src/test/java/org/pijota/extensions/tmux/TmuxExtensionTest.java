@@ -5,6 +5,7 @@ import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.extensions.testkit.FakeUiContext;
 import org.pijota.tools.Tool;
+import org.pijota.util.Util;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -115,7 +116,7 @@ class TmuxExtensionTest {
     /** Builds a persisted-state snapshot the way saveState() does, for seeding reload/render tests. */
     private static String stateJson(TmuxSession... sessions) {
         try {
-            return org.pijota.util.Util.MAPPER.writeValueAsString(List.of(sessions));
+            return Util.MAPPER.writeValueAsString(List.of(sessions));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

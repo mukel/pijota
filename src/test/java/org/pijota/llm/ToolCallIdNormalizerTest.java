@@ -1,5 +1,7 @@
 package org.pijota.llm;
 
+import org.pijota.config.ProviderCatalog;
+
 import java.util.LinkedHashSet;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -21,7 +23,7 @@ class ToolCallIdNormalizerTest {
     }
 
     private static String resolveOpenAiProvider() {
-        var provs = org.pijota.config.ProviderCatalog.providers();
+        var provs = ProviderCatalog.providers();
         for (var p : provs) {
             if ("openai".equals(p.apiType()))
                 return p.id();

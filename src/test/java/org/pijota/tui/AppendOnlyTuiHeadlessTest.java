@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.agent.TestSession;
+import org.pijota.tools.SlashCommandTool;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.testkit.FauxLlm;
@@ -219,9 +220,10 @@ class AppendOnlyTuiHeadlessTest {
         var ts = TestSession.in(tempDir).build();
         var tui = tui(ts);
         try {
-            var q = new org.pijota.tools.SlashCommandTool.Question("Pick one?", "Choice", List.of(
-                                            new org.pijota.tools.SlashCommandTool.Option("A", "first"),
-                                            new org.pijota.tools.SlashCommandTool.Option("B", "second")), false);
+            var q = new SlashCommandTool.Question("Pick one?", "Choice",
+                                            List.of(new SlashCommandTool.Option("A", "first"),
+                                                                            new SlashCommandTool.Option("B", "second")),
+                                            false);
             var future = tui.askQuestions(List.of(q));
             assertNotNull(future, "the question dialog returns a pending answer future");
             assertFalse(future.isDone(), "it awaits the user's selection");

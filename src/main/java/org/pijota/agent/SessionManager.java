@@ -2,6 +2,7 @@ package org.pijota.agent;
 
 import org.pijota.messages.Message;
 import org.pijota.messages.ToolCall;
+import org.pijota.messages.Usage;
 import org.pijota.util.Util;
 
 import java.io.IOException;
@@ -179,7 +180,7 @@ public final class SessionManager {
     }
 
     public void appendCompaction(Path sessionFile, String summary, int compactedCount, String firstKeptEntryId,
-                                    org.pijota.messages.Usage usage) throws IOException {
+                                    Usage usage) throws IOException {
         // DSYNC: compaction is the durability gate — losing it on crash would show stale context.
         appendEntry(sessionFile, UUID.randomUUID().toString(), "compaction", entry -> {
             entry.put("summary", summary);
@@ -712,7 +713,7 @@ public final class SessionManager {
         return 0;
     }
 
-    private static Map<String, Object> serializeUsage(org.pijota.messages.Usage usage) {
+    private static Map<String, Object> serializeUsage(Usage usage) {
         var out = new LinkedHashMap<String, Object>();
         out.put("inputTokens", usage.inputTokens());
         out.put("outputTokens", usage.outputTokens());
@@ -722,12 +723,11 @@ public final class SessionManager {
         return out;
     }
 
-    private static org.pijota.messages.Usage deserializeUsage(Object raw) {
+    private static Usage deserializeUsage(Object raw) {
         if (!(raw instanceof Map<?, ?> m))
             return null;
-        return new org.pijota.messages.Usage(asLong(m.get("inputTokens")), asLong(m.get("outputTokens")),
-                                        asLong(m.get("cacheReadTokens")), asLong(m.get("cacheWriteTokens")),
-                                        asLong(m.get("reasoningTokens")));
+        return new Usage(asLong(m.get("inputTokens")), asLong(m.get("outputTokens")), asLong(m.get("cacheReadTokens")),
+                                        asLong(m.get("cacheWriteTokens")), asLong(m.get("reasoningTokens")));
     }
 
     @SuppressWarnings("unchecked")

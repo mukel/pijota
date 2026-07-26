@@ -1,6 +1,11 @@
 package org.pijota.tui;
 
+import org.pijota.extensions.KeyChord;
+import org.pijota.messages.Message;
 import org.pijota.theme.AnsiTheme;
+import org.pijota.tools.GrepTool;
+import org.pijota.tools.ReadTool;
+import org.pijota.tools.WhoamiTool;
 import java.util.List;
 import java.util.Map;
 
@@ -66,33 +71,29 @@ class AppendOnlyTuiTest {
 
     @Test
     void isEditWriteForEdit() {
-        assertTrue(AppendOnlyTui.isEditWrite(
-                                        new org.pijota.messages.Message.ToolResult("id", "edit", "content", false)));
+        assertTrue(AppendOnlyTui.isEditWrite(new Message.ToolResult("id", "edit", "content", false)));
     }
 
     @Test
     void isEditWriteForWrite() {
-        assertTrue(AppendOnlyTui.isEditWrite(
-                                        new org.pijota.messages.Message.ToolResult("id", "write", "content", false)));
+        assertTrue(AppendOnlyTui.isEditWrite(new Message.ToolResult("id", "write", "content", false)));
     }
 
     @Test
     void isEditWriteForRead() {
-        assertFalse(AppendOnlyTui.isEditWrite(
-                                        new org.pijota.messages.Message.ToolResult("id", "read", "content", false)));
+        assertFalse(AppendOnlyTui.isEditWrite(new Message.ToolResult("id", "read", "content", false)));
     }
 
     @Test
     void isEditWriteForBash() {
-        assertFalse(AppendOnlyTui.isEditWrite(
-                                        new org.pijota.messages.Message.ToolResult("id", "bash", "content", false)));
+        assertFalse(AppendOnlyTui.isEditWrite(new Message.ToolResult("id", "bash", "content", false)));
     }
 
     @Test
     void toolsProvideTheirOwnGlyph() {
-        assertEquals("📖", new org.pijota.tools.ReadTool().glyph());
-        assertEquals("🔍", new org.pijota.tools.GrepTool().glyph());
-        assertEquals("●", new org.pijota.tools.WhoamiTool().glyph(), "tools without a custom glyph use the bullet");
+        assertEquals("📖", new ReadTool().glyph());
+        assertEquals("🔍", new GrepTool().glyph());
+        assertEquals("●", new WhoamiTool().glyph(), "tools without a custom glyph use the bullet");
     }
 
     @Test
@@ -180,13 +181,13 @@ class AppendOnlyTuiTest {
     @Test
     void toKeyChordEnter() {
         var chord = AppendOnlyTui.toKeyChord(Key.Special.ENTER);
-        assertEquals(org.pijota.extensions.KeyChord.Key.ENTER, chord.key());
+        assertEquals(KeyChord.Key.ENTER, chord.key());
     }
 
     @Test
     void toKeyChordEsc() {
         var chord = AppendOnlyTui.toKeyChord(Key.Special.ESC);
-        assertEquals(org.pijota.extensions.KeyChord.Key.ESC, chord.key());
+        assertEquals(KeyChord.Key.ESC, chord.key());
     }
 
     @Test
@@ -197,44 +198,44 @@ class AppendOnlyTuiTest {
     @Test
     void toKeyChordCtrlC() {
         var chord = AppendOnlyTui.toKeyChord(Key.Special.CTRL_C);
-        assertTrue(chord.modifiers().contains(org.pijota.extensions.KeyChord.Modifier.CTRL));
-        assertEquals(org.pijota.extensions.KeyChord.Key.C, chord.key());
+        assertTrue(chord.modifiers().contains(KeyChord.Modifier.CTRL));
+        assertEquals(KeyChord.Key.C, chord.key());
     }
 
     @Test
     void toKeyChordCtrlK() {
         var chord = AppendOnlyTui.toKeyChord(Key.Special.CTRL_K);
-        assertTrue(chord.modifiers().contains(org.pijota.extensions.KeyChord.Modifier.CTRL));
-        assertEquals(org.pijota.extensions.KeyChord.Key.K, chord.key());
+        assertTrue(chord.modifiers().contains(KeyChord.Modifier.CTRL));
+        assertEquals(KeyChord.Key.K, chord.key());
     }
 
     @Test
     void toolResultSummaryGrep() {
-        var msg = new org.pijota.messages.Message.ToolResult("id", "grep", "content", false, Map.of("matchCount", 5));
+        var msg = new Message.ToolResult("id", "grep", "content", false, Map.of("matchCount", 5));
         assertEquals("5 match(es)", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void toolResultSummaryGlob() {
-        var msg = new org.pijota.messages.Message.ToolResult("id", "glob", "content", false, Map.of("resultCount", 3));
+        var msg = new Message.ToolResult("id", "glob", "content", false, Map.of("resultCount", 3));
         assertEquals("3 result(s)", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void toolResultSummaryRead() {
-        var msg = new org.pijota.messages.Message.ToolResult("id", "read", "content", false, Map.of("totalLines", 100));
+        var msg = new Message.ToolResult("id", "read", "content", false, Map.of("totalLines", 100));
         assertEquals("100 line(s)", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void toolResultSummaryError() {
-        var msg = new org.pijota.messages.Message.ToolResult("id", "bash", "Error message\nline2", true);
+        var msg = new Message.ToolResult("id", "bash", "Error message\nline2", true);
         assertTrue(ToolResultLines.toolResultSummary(msg).contains("Error message"));
     }
 
     @Test
     void toolResultSummaryDefault() {
-        var msg = new org.pijota.messages.Message.ToolResult("id", "unknown", "plain content", false);
+        var msg = new Message.ToolResult("id", "unknown", "plain content", false);
         assertEquals("plain content", ToolResultLines.toolResultSummary(msg));
     }
 

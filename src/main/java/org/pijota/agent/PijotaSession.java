@@ -5,6 +5,7 @@ import org.pijota.extensions.ExtensionRegistry;
 import org.pijota.extensions.task.SubAgent;
 import org.pijota.llm.LlmClient;
 import org.pijota.llm.ModelRegistry;
+import org.pijota.llm.SummaryResult;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
 import org.pijota.tools.Tool;
@@ -66,7 +67,7 @@ public final class PijotaSession implements AutoCloseable {
             }
 
             @Override
-            public org.pijota.llm.SummaryResult generateWithUsage(List<Message> msgs, String instr, String prev,
+            public SummaryResult generateWithUsage(List<Message> msgs, String instr, String prev,
                                             java.util.function.BiConsumer<String, String> onPart) {
                 var summaryAgent = findSummarizeAgent(cwd);
                 return llm.summarizeWithUsage(msgs, instr, prev, onPart,

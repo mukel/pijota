@@ -433,7 +433,7 @@ class LlmServiceTest {
     @Test
     void usageTrackerPricesAgainstPerModelRates() {
         var tracker = new LlmService.UsageTracker(null);
-        tracker.add(new org.pijota.messages.Usage(1_000_000, 1_000_000), new ModelRegistry.Pricing(5.0, 25.0));
+        tracker.add(new Usage(1_000_000, 1_000_000), new ModelRegistry.Pricing(5.0, 25.0));
         assertEquals(30.0, tracker.totalCost(), 1e-9);
         assertFalse(tracker.hasUnpricedUsage());
     }
@@ -441,7 +441,7 @@ class LlmServiceTest {
     @Test
     void usageTrackerFlagsUnpricedUsageWithoutInventingCost() {
         var tracker = new LlmService.UsageTracker(null);
-        tracker.add(new org.pijota.messages.Usage(1000, 1000), null);
+        tracker.add(new Usage(1000, 1000), null);
         assertEquals(0.0, tracker.totalCost(), 1e-9);
         assertTrue(tracker.hasUnpricedUsage());
         assertEquals(2000, tracker.totalInputTokens() + tracker.totalOutputTokens());
