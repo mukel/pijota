@@ -131,6 +131,15 @@ class WebServerTest {
     }
 
     @Test
+    void rejectsBackslashVendorTraversal() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/vendor/foo%5Cbar.js")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(404, resp.statusCode());
+        });
+    }
+
+    @Test
     void spaReferencesLocalVendorNotCdn() throws Exception {
         withServer((ts, client, base) -> {
             var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/")).build(),

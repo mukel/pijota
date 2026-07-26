@@ -230,6 +230,26 @@ class UtilTest {
     }
 
     @Test
+    void replaceFileReplacesTargetWithTempContent() throws IOException {
+        Path dir = Files.createTempDirectory("pijota-replace");
+        Path target = dir.resolve("target.txt");
+        Path tmp = dir.resolve("target.txt.tmp");
+        try {
+            Files.writeString(target, "old");
+            Files.writeString(tmp, "new");
+
+            Util.replaceFile(tmp, target);
+
+            assertEquals("new", Files.readString(target));
+            assertFalse(Files.exists(tmp));
+        } finally {
+            Files.deleteIfExists(tmp);
+            Files.deleteIfExists(target);
+            Files.deleteIfExists(dir);
+        }
+    }
+
+    @Test
     void truncateHeadTailBoundsOutput() {
         assertEquals("", Util.truncateHeadTail(null, 10));
         assertEquals("hi", Util.truncateHeadTail("hi", 10));
