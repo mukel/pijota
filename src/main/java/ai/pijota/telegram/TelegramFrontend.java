@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentHashMap.KeySetView;
 import java.util.function.LongFunction;
 import java.util.function.LongPredicate;
 
@@ -26,6 +27,7 @@ public final class TelegramFrontend {
     private final LongFunction<ChatHandler> chatFactory;
     private final LongPredicate allow;
     private final Map<Long, ChatHandler> chats = new ConcurrentHashMap<>();
+    private final KeySetView<Long, Boolean> deniedLogged = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean running = new AtomicBoolean();
 
     public TelegramFrontend(TelegramApi tg, LongFunction<ChatHandler> chatFactory, LongPredicate allow) {
@@ -67,21 +69,34 @@ public final class TelegramFrontend {
             long chatId = update.message().chat().id();
             if (allow.test(chatId))
                 chatFor(chatId).onText(update.message().text());
+            else
+                logDenied(chatId);
         } else if (update.message() != null && update.message().photo() != null && !update.message().photo().isEmpty()
                                         && update.message().chat() != null) {
             long chatId = update.message().chat().id();
             if (allow.test(chatId))
                 chatFor(chatId).onPhoto(update.message().photo(), update.message().caption());
+            else
+                logDenied(chatId);
         } else if (update.message() != null && update.message().file() != null && update.message().chat() != null) {
             long chatId = update.message().chat().id();
             if (allow.test(chatId))
                 chatFor(chatId).onDocument(update.message().file(), update.message().caption());
+            else
+                logDenied(chatId);
         } else if (update.callbackQuery() != null && update.callbackQuery().message() != null
                                         && update.callbackQuery().message().chat() != null) {
             long chatId = update.callbackQuery().message().chat().id();
             if (allow.test(chatId))
                 chatFor(chatId).onCallback(update.callbackQuery());
+            else
+                logDenied(chatId);
         }
+    }
+
+    private void logDenied(long chatId) {
+        if (deniedLogged.add(chatId))
+            log.warn("telegram update ignored from unauthorized chat {}", chatId);
     }
 
     private ChatHandler chatFor(long chatId) {

@@ -58,6 +58,7 @@ public final class TelegramChat implements ChatHandler {
                                     new TelegramClient.BotCommand("undo", "Undo the last message"),
                                     new TelegramClient.BotCommand("compact", "Summarize & shrink the context"),
                                     new TelegramClient.BotCommand("new", "Start a new conversation"),
+                                    new TelegramClient.BotCommand("status", "Show model, session and state"),
                                     new TelegramClient.BotCommand("think", "Set reasoning effort"),
                                     new TelegramClient.BotCommand("usage", "Show token usage, cost & context"),
                                     new TelegramClient.BotCommand("model", "Switch the model"),
@@ -160,7 +161,8 @@ public final class TelegramChat implements ChatHandler {
      */
     private void submitFile(String fileId, String mime, String filename, String caption, String kind) {
         if (session.isBusy()) {
-            tg.sendMessage(chatId, "➕ Busy right now — resend the " + kind + " once the current turn finishes.");
+            tg.sendMessage(chatId, "➕ Busy right now — text replies are queued, but files are not. Send /stop to abort "
+                                            + "or resend the " + kind + " after this turn finishes.");
             return;
         }
         var modality = Modality.fromMime(mime);
@@ -195,7 +197,8 @@ public final class TelegramChat implements ChatHandler {
             return;
         }
         if (session.isBusy()) { // a turn may have started during the (async) download — don't prompt over it
-            tg.sendMessage(chatId, "➕ Busy now — resend the " + kind + " once the current turn finishes.");
+            tg.sendMessage(chatId, "➕ Busy now — text replies are queued, but files are not. Send /stop to abort or "
+                                            + "resend the " + kind + " after this turn finishes.");
             return;
         }
         var attachment = new Message.Attachment(mime, Base64.getEncoder().encodeToString(bytes), filename);
@@ -260,6 +263,7 @@ public final class TelegramChat implements ChatHandler {
                                                     }
                                                 });
             }
+            case "/status" -> tg.sendMessage(chatId, statusText());
             case "/usage" -> tg.sendMessage(chatId, usageSummary());
             case "/model" -> showModelPicker();
             case "/think" -> showThinkPicker();
@@ -317,6 +321,20 @@ public final class TelegramChat implements ChatHandler {
         String base = "📊 %s in · %s out · $%.4f".formatted(Util.fmtCount(session.totalInputTokens()),
                                         Util.fmtCount(session.totalOutputTokens()), session.totalCost());
         return base + contextLine(session.estimatedContextTokens(), contextWindow()) + budgetLine();
+    }
+
+    private String statusText() {
+        String state = session.isBusy() ? "busy" : "idle";
+        String model = session.llm().provider() + "/" + session.llm().model();
+        String name;
+        try {
+            name = session.sessionName();
+        } catch (Exception e) {
+            name = null;
+        }
+        String label = name == null || name.isBlank() ? "unnamed" : name;
+        return "📍 status: " + state + "\n🧠 model: " + model + "\n🏷 session: " + label + "\n📁 cwd: "
+                                        + session.cwd() + usageSummary().replaceFirst("^📊", "\n📊");
     }
 
     /** A "context X/Y (Z%)" line for {@code /usage}, or "" when the window is unknown. */
@@ -410,6 +428,10 @@ public final class TelegramChat implements ChatHandler {
     private void showModelPicker() {
         if (!requireIdle())
             return;
+        if (settings == null) {
+            tg.sendMessage(chatId, "Model switching is unavailable in this mode.");
+            return;
+        }
         String current = currentModelId();
         var models = ModelRegistry.availableModels(settings);
         if (models.isEmpty()) {

@@ -110,6 +110,21 @@ class TelegramClientTest {
     }
 
     @Test
+    void multipartFilenameIsSanitized() {
+        byte[] body = TelegramClient.multipartBody("BOUND", 1234, "bad\"\r\nname/path.md", "x".getBytes(UTF_8), null);
+        String s = new String(body, UTF_8);
+
+        assertTrue(s.contains("filename=\"bad___name_path.md\""), s);
+        assertFalse(s.contains("filename=\"bad\""), s);
+    }
+
+    @Test
+    void safeFilenameFallsBackForBlankNames() {
+        assertEquals("file", TelegramClient.safeFilename(null));
+        assertEquals("file", TelegramClient.safeFilename(""));
+    }
+
+    @Test
     void multipartBodyOmitsBlankCaption() {
         byte[] body = TelegramClient.multipartBody("B", 1, "f.txt", "x".getBytes(UTF_8), null);
         assertFalse(new String(body, UTF_8).contains("name=\"caption\""), "no caption part when none given");

@@ -235,7 +235,8 @@ public final class TelegramClient implements TelegramApi {
         if (caption != null && !caption.isBlank())
             writeField(out, boundary, "caption", caption);
         writeBytes(out, "--" + boundary + "\r\n");
-        writeBytes(out, "Content-Disposition: form-data; name=\"document\"; filename=\"" + filename + "\"\r\n");
+        writeBytes(out, "Content-Disposition: form-data; name=\"document\"; filename=\"" + safeFilename(filename)
+                                        + "\"\r\n");
         writeBytes(out, "Content-Type: application/octet-stream\r\n\r\n");
         out.writeBytes(content);
         writeBytes(out, "\r\n--" + boundary + "--\r\n");
@@ -251,6 +252,12 @@ public final class TelegramClient implements TelegramApi {
 
     private static void writeBytes(ByteArrayOutputStream out, String s) {
         out.writeBytes(s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    static String safeFilename(String filename) {
+        String name = filename == null || filename.isBlank() ? "file" : filename;
+        name = name.replaceAll("[\\r\\n\\\"]", "_").replaceAll("[/\\\\]", "_");
+        return name.isBlank() ? "file" : name;
     }
 
     static List<Update> updatesFrom(JsonNode resultArray) {

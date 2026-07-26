@@ -40,6 +40,7 @@ class TelegramChatTest {
         // distinct "/word" the handler's switch can match.
         for (var c : TelegramChat.COMMANDS)
             assertEquals("/" + c.command(), TelegramChat.commandWord("/" + c.command()));
+        assertTrue(TelegramChat.COMMANDS.stream().anyMatch(c -> c.command().equals("status")));
     }
 
     private static final int LIMIT = 4096; // mirror TelegramChat.MAX_MESSAGE_LEN

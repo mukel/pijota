@@ -67,6 +67,17 @@ class TelegramChatFlowTest {
     }
 
     @Test
+    void statusReportsModelSessionStateAndCwd() {
+        var c = newChat();
+        c.chat().onText("/status");
+        String status = c.api().sent().getLast();
+        assertTrue(status.contains("status: idle"), status);
+        assertTrue(status.contains("model:"), status);
+        assertTrue(status.contains("session:"), status);
+        assertTrue(status.contains("cwd:"), status);
+    }
+
+    @Test
     void nameSetsThenShowsTheConversationName() {
         var c = newChat();
         c.chat().onText("/name my project chat");
@@ -83,8 +94,19 @@ class TelegramChatFlowTest {
     void modelOpensAPickerKeyboard() {
         var c = newChat();
         c.chat().onText("/model");
-        // a picker rides on an inline keyboard (the catalogue, since the test chat has null settings)
-        assertTrue(c.api().keyboards().stream().anyMatch(k -> k != null), "an inline picker keyboard is shown");
+        assertTrue(c.api().sent().stream().anyMatch(t -> t.contains("unavailable")), c.api().sent().toString());
+    }
+
+    @Test
+    void modelOpensAPickerKeyboardWhenSettingsAreAvailable() {
+        var ts = TestSession.in(tempDir).build();
+        var api = new FakeTelegramApi();
+        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
+        var chat = new TelegramChat(CHAT_ID, ts.session(), api, settings);
+
+        chat.onText("/model");
+
+        assertTrue(api.keyboards().stream().anyMatch(k -> k != null), "an inline picker keyboard is shown");
     }
 
     @Test
@@ -369,6 +391,7 @@ class TelegramChatFlowTest {
         c.chat().onDocument(new TelegramClient.TgFile("fid", "notes.txt", "text/plain", 4), "read this");
 
         assertTrue(c.api().sent().stream().anyMatch(s -> s.contains("Busy")), c.api().sent().toString());
+        assertTrue(c.api().sent().stream().anyMatch(s -> s.contains("files are not")), c.api().sent().toString());
         assertEquals(before, c.session().session().userMessages().size(),
                                         "no new turn was started over the running one");
         c.session().session().abort();
