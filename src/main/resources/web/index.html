@@ -198,7 +198,6 @@
   .stopbtn { display: none; position: absolute; left: -2px; bottom: calc(100% + 16px); width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--err); color: #fff; font-size: 0; cursor: pointer; align-items: center; justify-content: center; transition: transform .1s, filter .12s; }
   /* the stop icon is a pixel-centred CSS square (the "■" glyph sits off-centre in its line-box); font-size:0 hides it */
   .stopbtn::before { content: ""; width: 14px; height: 14px; border-radius: 3px; background: currentColor; }
-  .stopbtn::after { content: "Stop"; position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%); font: 12px/1 var(--sans); color: var(--err-text); background: var(--panel); border: 1px solid color-mix(in srgb, var(--err) 45%, var(--border)); border-radius: 999px; padding: 5px 8px; box-shadow: 0 4px 14px var(--shadow-color); }
   .stopbtn.show { display: flex; animation: stopGlow 1.8s ease-out infinite; } /* subtle "live" beacon while streaming */
   .stopbtn:hover { filter: brightness(1.08); }
   .stopbtn:active { transform: scale(.92); }
