@@ -8,7 +8,6 @@ import ai.pijota.util.Util;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,10 +26,10 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("context_files") Boolean contextFiles,
                                 @JsonProperty("hide_thinking") boolean hideThinking,
                                 @JsonProperty("quiet_startup") boolean quietStartup,
-                                 @JsonProperty("working_animation") String workingAnimation,
-                                 @JsonProperty("path_display") String pathDisplay,
-                                 @JsonProperty("default_project_trust") String defaultProjectTrust,
-                                 @JsonProperty("compaction") CompactionConfig compaction,
+                                @JsonProperty("working_animation") String workingAnimation,
+                                @JsonProperty("path_display") String pathDisplay,
+                                @JsonProperty("default_project_trust") String defaultProjectTrust,
+                                @JsonProperty("compaction") CompactionConfig compaction,
                                 @JsonProperty("aliases") Map<String, String> aliases,
                                 @JsonProperty("max_turns") Integer maxTurns,
                                 @JsonProperty("providers") List<ProviderCatalog.Provider> providers,
@@ -54,14 +53,14 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
     public AppConfig(String defaultProvider, String defaultModel, Map<String, String> apiKeys, String thinkingLevel,
                                     String shellPath, String shellCommandPrefix, String sessionDir, String projectDir,
                                     String theme, List<String> themes, List<String> enabledModels, Boolean contextFiles,
-                                     boolean hideThinking, boolean quietStartup, String workingAnimation,
-                                     String pathDisplay, CompactionConfig compaction, Map<String, String> aliases,
+                                    boolean hideThinking, boolean quietStartup, String workingAnimation,
+                                    String pathDisplay, CompactionConfig compaction, Map<String, String> aliases,
                                     Integer maxTurns, List<ProviderCatalog.Provider> providers,
                                     Map<String, Object> extensions, String markdown) {
         this(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix, sessionDir,
-                                         projectDir, theme, themes, enabledModels, contextFiles, hideThinking,
-                                        quietStartup, workingAnimation, pathDisplay, "ask", compaction, aliases, maxTurns,
-                                        providers, extensions, markdown, new PromptGlyphs());
+                                        projectDir, theme, themes, enabledModels, contextFiles, hideThinking,
+                                        quietStartup, workingAnimation, pathDisplay, "ask", compaction, aliases,
+                                        maxTurns, providers, extensions, markdown, new PromptGlyphs());
     }
 
     public static AppConfig load(Path path) throws IOException {
@@ -83,7 +82,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
         Files.writeString(tmp, json);
         Util.restrictToOwner(tmp);
-        Files.move(tmp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        Util.replaceFile(tmp, path);
         Util.restrictToOwner(path); // settings.json holds API keys — owner-only
     }
 
@@ -305,8 +304,9 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         public AppConfig build() {
             return new AppConfig(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix,
                                             sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
-                                            hideThinking, quietStartup, workingAnimation, pathDisplay, defaultProjectTrust, compaction,
-                                            aliases, maxTurns, providers, extensions, markdown, prompt);
+                                            hideThinking, quietStartup, workingAnimation, pathDisplay,
+                                            defaultProjectTrust, compaction, aliases, maxTurns, providers, extensions,
+                                            markdown, prompt);
         }
     }
 

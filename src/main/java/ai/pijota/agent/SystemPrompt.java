@@ -1,5 +1,7 @@
 package ai.pijota.agent;
 
+import ai.pijota.util.Platform;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -39,14 +41,15 @@ public final class SystemPrompt {
      * manifest, so they are deliberately NOT duplicated here. Optional capabilities add their own guidance through
      * extension prompt contributions.
      */
-    public static String build(String customPrompt, String appendPrompt, String cwd, List<String> extensionPrompts) {
+    public static String build(String customPrompt, String appendPrompt, String cwd, String shell,
+                                    List<String> extensionPrompts) {
         var sb = new StringBuilder(BASE_PROMPT);
 
         sb.append("\nENVIRONMENT:\n");
         sb.append("- Working directory: ").append(cwd).append('\n');
         sb.append("- Date: ").append(LocalDate.now()).append('\n');
         sb.append("- Platform: ").append(System.getProperty("os.name")).append('\n');
-        sb.append("- Shell: ").append(System.getenv().getOrDefault("SHELL", "/bin/bash")).append('\n');
+        sb.append("- Shell: ").append(shell != null && !shell.isBlank() ? shell : Platform.defaultShell()).append('\n');
         sb.append("- Shell commands expose PIJOTA_* environment variables with current model and session details.\n");
 
         if (customPrompt != null && !customPrompt.isBlank())

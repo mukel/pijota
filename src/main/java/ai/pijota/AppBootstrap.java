@@ -157,7 +157,7 @@ public final class AppBootstrap {
                                         ? null
                                         : String.join("\n", parsedArgs.appendSystemPrompts());
         String systemPrompt = SystemPrompt.build(parsedArgs.systemPrompt(), appendPrompt, cwd,
-                                        ext.systemPromptContributions());
+                                        settings.effectiveShellPath(), ext.systemPromptContributions());
         ext.setSystemPrompt(systemPrompt);
         StartupTimer.mark("system prompt built");
 
@@ -228,7 +228,8 @@ public final class AppBootstrap {
             return true;
         if (!ProjectTrust.hasProtectedResources(cwd))
             return false;
-        String fallback = settings.config().defaultProjectTrust() == null ? "ask"
+        String fallback = settings.config().defaultProjectTrust() == null
+                                        ? "ask"
                                         : settings.config().defaultProjectTrust().trim().toLowerCase(Locale.ROOT);
         if ("always".equals(fallback)) {
             trust.trust(cwd);

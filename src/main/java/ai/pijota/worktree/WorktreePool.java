@@ -296,8 +296,10 @@ public final class WorktreePool {
 
     private void save(List<Entry> entries) throws IOException {
         Files.createDirectories(poolRoot);
-        Files.writeString(registryFile, Util.MAPPER.writerWithDefaultPrettyPrinter()
+        Path tmp = registryFile.resolveSibling(registryFile.getFileName() + ".tmp");
+        Files.writeString(tmp, Util.MAPPER.writerWithDefaultPrettyPrinter()
                                         .writeValueAsString(new Registry(List.copyOf(entries))));
+        Util.replaceFile(tmp, registryFile);
     }
 
     private interface LockedBody<T> {

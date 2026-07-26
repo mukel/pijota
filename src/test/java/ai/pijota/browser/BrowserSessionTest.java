@@ -71,8 +71,8 @@ class BrowserSessionTest {
 
     @Test
     void findChromeReturnsNullWhenNoCandidateResolves() {
-        Assumptions.assumeFalse(Executables.anyAvailable(
-                                        List.of("google-chrome-stable", "google-chrome", "chromium", "chrome")),
+        Assumptions.assumeFalse(Executables.anyAvailable(List.of("google-chrome-stable", "google-chrome", "chromium",
+                                        "chrome", "msedge")),
                                         "chrome is installed, so the not-found path can't be exercised here");
         assertNull(CdpBackend.findChrome(null), "no chrome anywhere → null");
     }

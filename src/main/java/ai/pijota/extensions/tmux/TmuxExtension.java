@@ -15,7 +15,6 @@ import ai.pijota.util.Util;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -324,7 +323,7 @@ public final class TmuxExtension implements Extension {
             }
             Path tmp = stateFile.resolveSibling(stateFile.getFileName() + ".tmp");
             Files.writeString(tmp, Util.MAPPER.writeValueAsString(List.copyOf(sessions.values())));
-            Files.move(tmp, stateFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            Util.replaceFile(tmp, stateFile);
         } catch (Exception e) {
             // disk full / unwritable dir / atomic-move unsupported → keep running with in-memory state only
         }

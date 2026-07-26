@@ -315,7 +315,10 @@ public final class WebServer implements AutoCloseable {
     /** Serves the version-pinned vendored UI libraries (marked / highlight.js / DOMPurify) from the classpath. */
     private void serveVendor(HttpExchange ex) throws IOException {
         String name = ex.getRequestURI().getPath().substring("/vendor/".length());
-        if (name.isEmpty() || name.indexOf('/') >= 0 || name.contains("..")) { // flat whitelist — no path traversal
+        if (name.isEmpty() || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.contains("..")) { // flat
+                                                                                                          // whitelist —
+                                                                                                          // no path
+                                                                                                          // traversal
             send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
             return;
         }

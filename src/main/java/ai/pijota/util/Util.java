@@ -11,8 +11,9 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
-import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +38,15 @@ public final class Util {
                                             .fromString(Files.isDirectory(path) ? "rwx------" : "rw-------"));
         } catch (UnsupportedOperationException | IOException ignored) {
             // non-POSIX filesystem, or the path vanished — best effort, not a hard guarantee.
+        }
+    }
+
+    /** Atomic replace where supported; plain replace fallback for filesystems that reject atomic moves. */
+    public static void replaceFile(Path tmp, Path target) throws IOException {
+        try {
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

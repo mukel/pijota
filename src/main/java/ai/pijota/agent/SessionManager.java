@@ -7,7 +7,6 @@ import ai.pijota.util.Util;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -180,8 +179,7 @@ public final class SessionManager {
     }
 
     public void appendCompaction(Path sessionFile, String summary, int compactedCount, String firstKeptEntryId,
-                                    ai.pijota.messages.Usage usage)
-                                    throws IOException {
+                                    ai.pijota.messages.Usage usage) throws IOException {
         // DSYNC: compaction is the durability gate — losing it on crash would show stale context.
         appendEntry(sessionFile, UUID.randomUUID().toString(), "compaction", entry -> {
             entry.put("summary", summary);
@@ -307,7 +305,7 @@ public final class SessionManager {
             try {
                 Files.writeString(tmpFile, "", StandardOpenOption.APPEND, StandardOpenOption.DSYNC);
             } catch (IOException ignored) { /* best-effort fsync */ }
-            Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            Util.replaceFile(tmpFile, file);
         });
         leafId = prevId;
     }

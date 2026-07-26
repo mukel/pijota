@@ -1,5 +1,6 @@
 package ai.pijota.util;
 
+import java.nio.file.Path;
 import java.util.Locale;
 
 /** Runtime environment checks. */
@@ -31,6 +32,10 @@ public final class Platform {
      */
     public static String defaultShell() {
         return isWindows() ? "bash" : "/bin/bash";
+    }
+
+    public static Path javaBinary() {
+        return Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java");
     }
 
     /** Shell flag for running a command string. */

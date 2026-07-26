@@ -11,7 +11,7 @@ class SystemPromptTest {
 
     @Test
     void buildProducesBasePromptAndEnvironment() {
-        var prompt = SystemPrompt.build(null, null, "/cwd", List.of());
+        var prompt = build(null, null, List.of());
         assertTrue(prompt.contains("You are pijota"));
         assertTrue(prompt.contains("ENVIRONMENT"));
         assertTrue(prompt.contains("Working directory: /cwd"));
@@ -20,9 +20,9 @@ class SystemPromptTest {
 
     @Test
     void optionalCapabilityGuidanceComesFromExtensionPrompts() {
-        assertFalse(SystemPrompt.build(null, null, "/cwd", List.of()).contains("TRANSCENDENCE:"));
+        assertFalse(build(null, null, List.of()).contains("TRANSCENDENCE:"));
 
-        var prompt = SystemPrompt.build(null, null, "/cwd", List.of("\nTRANSCENDENCE:\nextension-owned\n"));
+        var prompt = build(null, null, List.of("\nTRANSCENDENCE:\nextension-owned\n"));
 
         assertTrue(prompt.contains("TRANSCENDENCE:"));
     }
@@ -30,51 +30,61 @@ class SystemPromptTest {
     @Test
     void doesNotDuplicateToolListing() {
         // Tool names/descriptions live in the tool manifest, not the system prompt.
-        var prompt = SystemPrompt.build(null, null, "/cwd", List.of());
+        var prompt = build(null, null, List.of());
         assertFalse(prompt.contains("TOOLS:"));
         assertFalse(prompt.contains("TOOL GUIDELINES"));
     }
 
     @Test
     void buildIncludesCustomPromptWhenProvided() {
-        var prompt = SystemPrompt.build("be careful", null, "/cwd", List.of());
+        var prompt = build("be careful", null, List.of());
         assertTrue(prompt.contains("CUSTOM INSTRUCTIONS"));
         assertTrue(prompt.contains("be careful"));
     }
 
     @Test
     void buildSkipsBlankCustomPrompt() {
-        assertFalse(SystemPrompt.build("  ", null, "/cwd", List.of()).contains("CUSTOM INSTRUCTIONS"));
+        assertFalse(build("  ", null, List.of()).contains("CUSTOM INSTRUCTIONS"));
     }
 
     @Test
     void buildSkipsNullCustomPrompt() {
-        assertFalse(SystemPrompt.build(null, null, "/cwd", List.of()).contains("CUSTOM INSTRUCTIONS"));
+        assertFalse(build(null, null, List.of()).contains("CUSTOM INSTRUCTIONS"));
     }
 
     @Test
     void buildIncludesAppendPrompt() {
-        var prompt = SystemPrompt.build(null, "extra rule", "/cwd", List.of());
+        var prompt = build(null, "extra rule", List.of());
         assertTrue(prompt.contains("ADDITIONAL INSTRUCTIONS"));
         assertTrue(prompt.contains("extra rule"));
     }
 
     @Test
     void buildSkipsBlankOrNullAppendPrompt() {
-        assertFalse(SystemPrompt.build(null, null, "/cwd", List.of()).contains("ADDITIONAL INSTRUCTIONS"));
-        assertFalse(SystemPrompt.build(null, "", "/cwd", List.of()).contains("ADDITIONAL INSTRUCTIONS"));
-        assertFalse(SystemPrompt.build(null, "  ", "/cwd", List.of()).contains("ADDITIONAL INSTRUCTIONS"));
+        assertFalse(build(null, null, List.of()).contains("ADDITIONAL INSTRUCTIONS"));
+        assertFalse(build(null, "", List.of()).contains("ADDITIONAL INSTRUCTIONS"));
+        assertFalse(build(null, "  ", List.of()).contains("ADDITIONAL INSTRUCTIONS"));
     }
 
     @Test
     void buildIncludesExtensionPrompts() {
-        var prompt = SystemPrompt.build(null, null, "/cwd", List.of("\nextension content\n"));
+        var prompt = build(null, null, List.of("\nextension content\n"));
         assertTrue(prompt.contains("extension content"));
     }
 
     @Test
     void buildSkipsBlankExtensionPrompts() {
-        var prompt = SystemPrompt.build(null, null, "/cwd", new ArrayList<>(List.of("  ", "\n")));
+        var prompt = build(null, null, new ArrayList<>(List.of("  ", "\n")));
         assertFalse(prompt.contains("ADDITIONAL INSTRUCTIONS"));
+    }
+
+    @Test
+    void buildReportsConfiguredShell() {
+        var prompt = SystemPrompt.build(null, null, "/cwd", "/opt/pijota-shell", List.of());
+        assertTrue(prompt.contains("Shell: /opt/pijota-shell"));
+    }
+
+    private static String build(String customPrompt, String appendPrompt, List<String> extensionPrompts) {
+        return SystemPrompt.build(customPrompt, appendPrompt, "/cwd", "/bin/test-shell", extensionPrompts);
     }
 }

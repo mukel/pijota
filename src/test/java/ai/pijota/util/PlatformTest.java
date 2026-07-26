@@ -33,4 +33,11 @@ class PlatformTest {
             assertEquals("-c", Platform.shellCommandFlag("/bin/bash"));
         }
     }
+
+    @Test
+    void javaBinaryUsesCurrentJavaHome() {
+        var java = Platform.javaBinary();
+        assertEquals(java.getParent().getParent().toString(), System.getProperty("java.home"));
+        assertTrue(java.getFileName().toString().equals("java") || java.getFileName().toString().equals("java.exe"));
+    }
 }

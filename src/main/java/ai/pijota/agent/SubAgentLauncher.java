@@ -111,7 +111,7 @@ public final class SubAgentLauncher {
         String javaHome = System.getProperty("java.home");
         if (javaHome == null || javaHome.isBlank())
             return new ArrayList<>(List.of(currentExecutable()));
-        return new ArrayList<>(List.of(Path.of(javaHome, "bin", "java").toString(), "--enable-preview", "-cp",
+        return new ArrayList<>(List.of(Platform.javaBinary().toString(), "--enable-preview", "-cp",
                                         resolveClasspath(cwd), "ai.pijota.Main"));
     }
 

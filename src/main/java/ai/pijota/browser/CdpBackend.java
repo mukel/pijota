@@ -247,12 +247,17 @@ public final class CdpBackend implements BrowserBackend {
                 }
             }
             candidates.addAll(List.of("chrome", "chromium", "msedge")); // PATH, resolved via PATHEXT
+        } else if (Platform.isMac()) {
+            candidates.addAll(List.of("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                                            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+                                            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+                                            "/opt/homebrew/bin/chromium", "/usr/local/bin/chromium",
+                                            "/opt/homebrew/bin/google-chrome", "/usr/local/bin/google-chrome",
+                                            "google-chrome", "chromium", "chrome", "msedge"));
         } else {
             candidates.addAll(List.of("/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/usr/bin/chromium",
                                             "/usr/bin/chromium-browser", "/snap/bin/chromium",
                                             "/opt/google/chrome/chrome",
-                                            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-                                            "/Applications/Chromium.app/Contents/MacOS/Chromium",
                                             // …then bare names on PATH
                                             "google-chrome-stable", "google-chrome", "chromium", "chromium-browser",
                                             "chrome"));
