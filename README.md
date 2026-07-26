@@ -47,17 +47,19 @@ It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp 
 
 ## Quick Start
 
-Requires **JDK 25** and **Maven**. Native builds require a GraalVM JDK.
+Requires **JDK 25**. The simplest install path is [JBang](https://www.jbang.dev/), which can install the published Maven artifact as `pj`.
 
 Linux and macOS are first-class targets. On Windows, use WSL for the best experience; native Windows is best-effort and
 expects Git Bash or a configured `shell_path` for shell tools.
 
 ```bash
-mvn -q -Pfat -DskipTests package
-java -jar target/pijota-*.jar --help
-java -jar target/pijota-*.jar login anthropic
-java -jar target/pijota-*.jar -p "explain this repo"
+jbang app install --name pj org.pijota:pijota:RELEASE
+pj --help
+pj login anthropic
+pj -p "explain this repo"
 ```
+
+Maven coordinates: `org.pijota:pijota`.
 
 To test quickly with an API key, start with one of the open-model or coding-friendly providers:
 
@@ -85,20 +87,20 @@ export KIMI_API_KEY="..."
 pj -m kimi-coding/k3 -p "explain this repo"
 ```
 
-For a thin jar for embedding or custom classpaths:
+To install the native-image build with JBang:
 
 ```bash
-mvn -q -DskipTests package
+jbang app install --native --name pj org.pijota:pijota:RELEASE
 ```
 
-For a native binary named `pj`:
+To update an existing JBang install:
 
 ```bash
-mvn -q -Pnative -DskipTests package
-mkdir -p ~/.local/bin
-ln -sf "$PWD/target/pijota" ~/.local/bin/pj
-pj --help
+jbang app install --force --fresh --name pj org.pijota:pijota:RELEASE
+jbang app install --force --fresh --native --name pj org.pijota:pijota:RELEASE
 ```
+
+For source builds, see [Build From Source](#build-from-source).
 
 ---
 

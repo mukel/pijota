@@ -479,7 +479,7 @@
             <version>1.1.2</version>
             <extensions>true</extensions>
             <configuration>
-              <imageName>pijota</imageName>
+              <imageName>pj</imageName>
               <mainClass>org.pijota.Main</mainClass>
               <buildArgs>
                 <!-- Correctness flags (no-fallback, https url protocol, Jackson build-time init, pijota / logging

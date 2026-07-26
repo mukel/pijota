@@ -71,7 +71,7 @@ setup-musl:
 native-static:
 	@test -f "$(MUSL_LIBDIR)/libz.a" || { echo "run 'make setup-musl' first (no libz.a in $(MUSL_LIBDIR))"; exit 1; }
 	@$(MVN) -q -DskipTests -Pnative,static -Dmusl.libdir="$(MUSL_LIBDIR)" package
-	@echo "Fully static native image: target/pijota ($$(file -b target/pijota | grep -o 'statically linked'))"
+	@echo "Fully static native image: target/pj ($$(file -b target/pj | grep -o 'statically linked'))"
 
 # Profile-Guided Optimization (Oracle GraalVM) — typically 10-30% faster/smaller. Two phases:
 #   1) make native-pgo-instrument   build an instrumented binary
@@ -80,13 +80,13 @@ native-static:
 # Profile quality drives the gains: the more your profiling run resembles real use, the better.
 native-pgo-instrument:
 	@$(MVN) -q -DskipTests -Pnative -Dpgo.arg=--pgo-instrument package
-	@echo "Instrumented ./target/pijota built. Run representative sessions (it writes default.iprof on exit),"
+	@echo "Instrumented ./target/pj built. Run representative sessions (it writes default.iprof on exit),"
 	@echo "then: make native-pgo-build"
 
 native-pgo-build:
 	@test -f default.iprof || { echo "default.iprof not found — run the instrumented binary first (native-pgo-instrument)"; exit 1; }
 	@$(MVN) -q -DskipTests -Pnative "-Dpgo.arg=--pgo=$(CURDIR)/default.iprof" package
-	@echo "PGO-optimized native image: target/pijota"
+	@echo "PGO-optimized native image: target/pj"
 
 # ---- launch ----
 
