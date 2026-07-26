@@ -52,9 +52,9 @@ public final class AttachmentNormalizer {
                 if (mod == Modality.PDF && supported != null && !supported.contains(Modality.PDF)) {
                     String rel = stageFile(cwd, name, a.base64());
                     sb.append(rel != null
-                                                    ? "\n\n[Attached PDF \"" + name + "\" saved to " + rel
-                                                                                     + " — " + AttachmentMessages
-                                                                                                                     .modelLabel(provider, model)
+                                                    ? "\n\n[Attached PDF \"" + name + "\" saved to " + rel + " — "
+                                                                                    + AttachmentMessages.modelLabel(provider,
+                                                                                                                    model)
                                                                                     + " can't read PDFs "
                                                                                     + "directly; use the web_pdf_to_markdown tool to read it.]"
                                                     : "\n\n[attachment \"" + name + "\" couldn't be saved]");

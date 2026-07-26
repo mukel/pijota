@@ -537,8 +537,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 Path file = session.sessionFile();
                 env.put("PIJOTA_SESSION_FILE", file.toString());
                 String name = file.getFileName().toString();
-                env.put("PIJOTA_SESSION_ID",
-                                                name.endsWith(".jsonl") ? name.substring(0, name.length() - 6) : name);
+                env.put("PIJOTA_SESSION_ID", name.endsWith(".jsonl") ? name.substring(0, name.length() - 6) : name);
             }
             return env;
         }
@@ -1516,9 +1515,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void reloadRuntimeResources() {
-        appendPlain(List.of(theme.styled("statusText", "reloading model metadata…"),
-                                        theme.styled("statusText",
-                                                                        "keybindings, extensions, skills, prompts, and themes reload on restart")));
+        appendPlain(List.of(theme.styled("statusText", "reloading model metadata…"), theme.styled("statusText",
+                                        "keybindings, extensions, skills, prompts, and themes reload on restart")));
         refreshModels();
     }
 
@@ -1630,7 +1628,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     void showHelpOverlay(boolean shortcutsFirst) {
         // Render help in the scrollable log viewer (one modal viewer for /help and /logs) so the full command list
         // and shortcuts scroll and fit the terminal, rather than being capped.
-        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values(), shortcutsFirst));
+        logViewer.show("help", HelpOverlay.content(commands.helpLines(), extensionKeybindings.values(),
+                                        shortcutsFirst));
         redrawPrompt();
     }
 

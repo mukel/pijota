@@ -103,7 +103,8 @@ final class CommandPaletteHandler {
 
     private static String commandCategory(String name) {
         return switch (commandToken(name)) {
-            case "/session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete" -> "Session";
+            case "/session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete" ->
+                "Session";
             case "/tree", "/fork", "/clone", "/undo", "/copy", "/theme" -> "Workspace";
             case "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/quit" -> "Account";
             case "/remote-control" -> "Remote";
@@ -114,7 +115,6 @@ final class CommandPaletteHandler {
     private static boolean isCommandItem(String description) {
         return description.startsWith("Chat · ") || description.startsWith("Session · ")
                                         || description.startsWith("Workspace · ")
-                                        || description.startsWith("Account · ")
-                                        || description.startsWith("Remote · ");
+                                        || description.startsWith("Account · ") || description.startsWith("Remote · ");
     }
 }

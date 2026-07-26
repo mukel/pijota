@@ -1,6 +1,5 @@
 package ai.pijota.cli;
 
-import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;

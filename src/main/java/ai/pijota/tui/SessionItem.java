@@ -32,17 +32,17 @@ public record SessionItem(Path path, String name, String description, long mtime
         return of(SessionDescriptor.describeResumable(paths)).stream().map(i -> i.withShowPath(showPath)).toList();
     }
 
-    /** Like {@link #fromPaths(List)} but describes at most {@code limit} sessions — for the launch banner, which
-     *  shows only a few and shouldn't parse every session file on disk at startup. */
+    /**
+     * Like {@link #fromPaths(List)} but describes at most {@code limit} sessions — for the launch banner, which shows
+     * only a few and shouldn't parse every session file on disk at startup.
+     */
     public static List<SessionItem> fromPaths(List<Path> paths, int limit) {
         return of(SessionDescriptor.describeResumable(paths, limit));
     }
 
     private static List<SessionItem> of(List<SessionDescriptor> descriptors) {
-        return descriptors.stream()
-                                        .map(d -> new SessionItem(d.path(), d.id(), d.description(), d.mtime(),
-                                                                        d.named(), d.messageCount(), d.estTokens()))
-                                        .toList();
+        return descriptors.stream().map(d -> new SessionItem(d.path(), d.id(), d.description(), d.mtime(), d.named(),
+                                        d.messageCount(), d.estTokens())).toList();
     }
 
     SessionItem withShowPath(boolean show) {

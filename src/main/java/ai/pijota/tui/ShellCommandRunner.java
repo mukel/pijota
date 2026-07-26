@@ -40,8 +40,7 @@ final class ShellCommandRunner {
             try {
                 var result = ProcessRunner.command(shell, Platform.shellCommandFlag(shell), command)
                                                 .redirectErrorStream(true).noTimeout().onStart(p -> activeProcess = p)
-                                                .environment(host.shellEnvironment())
-                                                .run();
+                                                .environment(host.shellEnvironment()).run();
                 var out = new ArrayList<String>();
                 String slot = result.exitCode() == 0 ? "toolLabel" : "toolError";
                 String suffix = result.exitCode() == 143 || result.exitCode() == 137

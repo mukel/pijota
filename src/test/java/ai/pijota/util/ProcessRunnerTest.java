@@ -45,7 +45,8 @@ class ProcessRunnerTest {
         var env = new java.util.LinkedHashMap<String, String>();
         env.put("PIJOTA_PROVIDER", "openai");
         env.put("PIJOTA_MODEL", null);
-        var result = ProcessRunner.command("/bin/sh", "-c", "printf '%s/%s' \"$PIJOTA_PROVIDER\" \"${PIJOTA_MODEL-unset}\"")
+        var result = ProcessRunner.command("/bin/sh", "-c",
+                                        "printf '%s/%s' \"$PIJOTA_PROVIDER\" \"${PIJOTA_MODEL-unset}\"")
                                         .environment(env).run();
         assertEquals(0, result.exitCode());
         assertEquals("openai/unset", result.stdout());
@@ -69,8 +70,7 @@ class ProcessRunnerTest {
     @Test
     void consumeStdoutLinesCallsHandler() throws IOException {
         List<String> lines = new ArrayList<>();
-        var result = ProcessRunner.command("/bin/sh", "-c", "printf '%s\\n' a b c").consumeStdoutLines(lines::add)
-                                        .run();
+        var result = ProcessRunner.command("/bin/sh", "-c", "printf '%s\n' a b c").consumeStdoutLines(lines::add).run();
         assertEquals(0, result.exitCode());
         assertEquals(List.of("a", "b", "c"), lines);
         assertEquals("", result.stdout());
@@ -243,7 +243,7 @@ class ProcessRunnerTest {
     @Test
     void consumeStdoutLinesIgnoresHandlerException() throws IOException {
         List<String> lines = new ArrayList<>();
-        var result = ProcessRunner.command("/bin/sh", "-c", "printf '%s\\n' a b c").consumeStdoutLines(line -> {
+        var result = ProcessRunner.command("/bin/sh", "-c", "printf '%s\n' a b c").consumeStdoutLines(line -> {
             if (line.equals("b"))
                 throw new RuntimeException("boom");
             lines.add(line);

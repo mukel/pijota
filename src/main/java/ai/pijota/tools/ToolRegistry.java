@@ -10,8 +10,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
- * Thread-safe registry of tools, keyed by name in insertion order. Tools move through three explicit states:
- * registered (known), available (allowed by policy), and active (sent to the model).
+ * Thread-safe registry of tools, keyed by name in insertion order. Tools move through three explicit states: registered
+ * (known), available (allowed by policy), and active (sent to the model).
  */
 public final class ToolRegistry {
 
@@ -240,7 +240,8 @@ public final class ToolRegistry {
         if (activeNames == null)
             return;
         var available = availableTools().stream().map(Tool::name).collect(java.util.stream.Collectors.toSet());
-        activeNames = activeNames.stream().filter(available::contains).collect(java.util.stream.Collectors.toUnmodifiableSet());
+        activeNames = activeNames.stream().filter(available::contains)
+                                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     public static ToolRegistry createDefault() {

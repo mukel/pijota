@@ -223,7 +223,7 @@ final class TelegramHtml {
         };
     }
 
-    /** Plain (tag-free) inline text, for table cells where HTML markup isn't allowed inside an outer {@code <pre>}. */
+    /** Plain tag-free inline text for table cells rendered inside an outer preformatted block. */
     private static String plain(Node parent) {
         var sb = new StringBuilder();
         for (Node n = parent.getFirstChild(); n != null; n = n.getNext()) {

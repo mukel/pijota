@@ -153,8 +153,8 @@ public final class ArgParser {
                                         noBuiltinExtensions, noSkills, noThemes, noContextFiles, noPromptTemplates,
                                         enabledTools, excludeTools, extensionPaths, skillPaths, themePaths,
                                         promptTemplatePaths, print, resume, continueSession, recoverSession, forkPath,
-                                        exportPath, listModels, listModelsFilter, approveProject, noApproveProject, help,
-                                        version, verbose, agent, worker, fileArgs, promptArgs,
+                                        exportPath, listModels, listModelsFilter, approveProject, noApproveProject,
+                                        help, version, verbose, agent, worker, fileArgs, promptArgs,
                                         Map.copyOf(extensionFlags), maxTurns);
     }
 

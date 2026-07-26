@@ -9,13 +9,13 @@ import java.util.function.Predicate;
 final class TuiSelectors {
     enum Slot {
         MODEL(ModelItem.class, "models"), SESSION(SessionItem.class, "sessions"), TREE(TreeEntryItem.class,
-                                        "conversation tree"), THEME(ThemeItem.class,
-                                        "themes"), SETTINGS(SettingsItem.class, "settings"), LOGIN(
-                                                                        LoginProviderItem.class,
-                                                                        "providers"), FORK(ForkMessageItem.class,
-                                                                                                        "fork from"), PALETTE(CompletionItem.class,
-                                                                                                                                        "command palette"), REMOTE(RemoteOptionItem.class,
-                                                                                                                                                                        "remote control");
+                                        "conversation tree"), THEME(ThemeItem.class, "themes"), SETTINGS(
+                                                                        SettingsItem.class,
+                                                                        "settings"), LOGIN(LoginProviderItem.class,
+                                                                                                        "providers"), FORK(ForkMessageItem.class,
+                                                                                                                                        "fork from"), PALETTE(CompletionItem.class,
+                                                                                                                                                                        "command palette"), REMOTE(RemoteOptionItem.class,
+                                                                                                                                                                                                        "remote control");
 
         private final Class<? extends SelectorItem> itemType;
         private final String title;

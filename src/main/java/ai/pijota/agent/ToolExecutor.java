@@ -97,24 +97,29 @@ final class ToolExecutor {
                                             : null;
             return tools.execute(request.id(), request.name(), args, request.arguments(), cwd, onProgress)
                                             .thenAccept(toolResult -> {
-                if (extensions != null) {
-                    extensions.fireToolExecutionEnd(request.id(), request.name(), toolResult, toolResult.isError());
-                    extensions.afterToolCall(request.id(), request.name(), toolResult);
-                }
-                emitResult(new Message.ToolResult(request.id(), request.name(), toolResult.content(),
-                                                toolResult.isError(), toolResult.details()));
-            }).exceptionally(ex -> {
-                emitToolError(request, ex);
-                return null;
-            });
+                                                if (extensions != null) {
+                                                    extensions.fireToolExecutionEnd(request.id(), request.name(),
+                                                                                    toolResult, toolResult.isError());
+                                                    extensions.afterToolCall(request.id(), request.name(), toolResult);
+                                                }
+                                                emitResult(new Message.ToolResult(request.id(), request.name(),
+                                                                                toolResult.content(),
+                                                                                toolResult.isError(),
+                                                                                toolResult.details()));
+                                            }).exceptionally(ex -> {
+                                                emitToolError(request, ex);
+                                                return null;
+                                            });
         } catch (Exception e) {
             emitToolError(request, e);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    /** Records a tool failure — fires the end hook, adds the result to history, emits the event — shared by the async
-     *  ({@code exceptionally}) and synchronous ({@code catch}) failure paths so their contract can't drift. */
+    /**
+     * Records a tool failure — fires the end hook, adds the result to history, emits the event — shared by the async
+     * ({@code exceptionally}) and synchronous ({@code catch}) failure paths so their contract can't drift.
+     */
     private void emitToolError(ToolCall request, Throwable ex) {
         String message = "Tool error: " + ErrorUtil.message(ex);
         if (extensions != null)

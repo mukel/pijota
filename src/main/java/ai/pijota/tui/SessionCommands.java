@@ -232,7 +232,8 @@ final class SessionCommands {
 
     void branchSummary(String instructions) {
         if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError", "/branch-summary is unavailable while a turn is running")));
+            host.appendPlain(List.of(host.styled("toolError",
+                                            "/branch-summary is unavailable while a turn is running")));
             return;
         }
         try {
@@ -270,10 +271,11 @@ final class SessionCommands {
             // Write into the session's working directory (where pijota was launched) — the threaded cwd, not the global
             // user.dir property, so it's consistent with the rest of the app and isolatable in tests.
             Path out = arg.isBlank() || "html".equalsIgnoreCase(arg)
-                                            ? Path.of(host.session().cwd()).resolve(base + "-export."
-                                                                            + (html ? "html" : "md"))
+                                            ? Path.of(host.session().cwd()).resolve(
+                                                                            base + "-export." + (html ? "html" : "md"))
                                             : Path.of(arg);
-            String content = html ? SessionExporter.toHtml(host.session().sessionFile())
+            String content = html
+                                            ? SessionExporter.toHtml(host.session().sessionFile())
                                             : SessionExporter.toMarkdown(host.session().sessionFile());
             Files.writeString(out, content, StandardCharsets.UTF_8);
             host.appendPlain(List.of(host.styled("statusText", "exported to " + out)));

@@ -499,8 +499,8 @@ class WebServerTest {
 
             @Override
             public Map<String, Object> schema() {
-                return Map.of("type", "object", "properties", Map.of("command", Map.of("type", "string")),
-                                                "required", List.of("command"));
+                return Map.of("type", "object", "properties", Map.of("command", Map.of("type", "string")), "required",
+                                                List.of("command"));
             }
 
             @Override

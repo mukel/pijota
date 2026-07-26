@@ -9,8 +9,8 @@ class WebToolsTest {
 
     @Test
     void decodesTheFullEntitySet() {
-        assertEquals("a & b < c > d \" e ' f ' g   h",
-                                        WebTools.decodeEntities("a &amp; b &lt; c &gt; d &quot; e &#39; f &apos; g &nbsp; h"));
+        assertEquals("a & b < c > d \" e ' f ' g   h", WebTools
+                                        .decodeEntities("a &amp; b &lt; c &gt; d &quot; e &#39; f &apos; g &nbsp; h"));
     }
 
     @Test

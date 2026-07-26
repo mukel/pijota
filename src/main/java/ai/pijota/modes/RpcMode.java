@@ -95,8 +95,8 @@ public final class RpcMode {
     }
 
     private static void writeError(Writer writer, String id, int code, String message) throws IOException {
-        writer.write("{\"jsonrpc\":\"2.0\",\"id\":" + jsonId(id) + ",\"error\":{\"code\":" + code
-                                        + ",\"message\":\"" + Util.escapeJson(message) + "\"}}\n");
+        writer.write("{\"jsonrpc\":\"2.0\",\"id\":" + jsonId(id) + ",\"error\":{\"code\":" + code + ",\"message\":\""
+                                        + Util.escapeJson(message) + "\"}}\n");
     }
 
     private static String jsonId(String id) {

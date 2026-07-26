@@ -14,7 +14,8 @@ final class ExternalEditor {
     private final ProcessLauncher launcher;
 
     ExternalEditor() {
-        this((shell, command) -> ProcessRunner.command(shell, Platform.shellCommandFlag(shell), command).runInteractive());
+        this((shell, command) -> ProcessRunner.command(shell, Platform.shellCommandFlag(shell), command)
+                                        .runInteractive());
     }
 
     ExternalEditor(ProcessLauncher launcher) {

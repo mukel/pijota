@@ -54,8 +54,10 @@ public final class CompactionManager {
     }
 
     public void setSessionAppender(LegacyCompactionAppender appender) {
-        this.sessionAppender = appender == null ? null : (summary, count, firstKept, _usage) -> appender.accept(summary,
-                                        count, firstKept);
+        this.sessionAppender = appender == null
+                                        ? null
+                                        : (summary, count, firstKept, _usage) -> appender.accept(summary, count,
+                                                                        firstKept);
     }
 
     public CompactionResult checkAndCompact(List<Message> messages, long realContextTokens,

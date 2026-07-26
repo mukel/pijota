@@ -6,9 +6,8 @@ public final class AttachmentMessages {
     private AttachmentMessages() {}
 
     public static String unsupportedImage(String name, String provider, String model) {
-        return "attachment \"" + name + "\" omitted — " + unsupportedImageLabel(name)
-                                        + " images aren't supported by " + modelLabel(provider, model)
-                                        + "; use JPEG/PNG/GIF/WebP";
+        return "attachment \"" + name + "\" omitted — " + unsupportedImageLabel(name) + " images aren't supported by "
+                                        + modelLabel(provider, model) + "; use JPEG/PNG/GIF/WebP";
     }
 
     public static String unsupportedImagePath(String path) {

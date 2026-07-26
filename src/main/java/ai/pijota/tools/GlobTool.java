@@ -135,8 +135,10 @@ public final class GlobTool implements Tool {
         return runFileSearch(command, searchPath, limit, timeoutSeconds, "rg");
     }
 
-    /** Runs an external file-finder ({@code fd}/{@code rg}), returning its relativized matches, a timeout marker, or
-     *  null on non-zero exit / failure so the caller can fall back to the next backend. */
+    /**
+     * Runs an external file-finder ({@code fd}/{@code rg}), returning its relativized matches, a timeout marker, or
+     * null on non-zero exit / failure so the caller can fall back to the next backend.
+     */
     private SearchResult runFileSearch(List<String> command, Path searchPath, int limit, long timeoutSeconds,
                                     String backend) {
         try {

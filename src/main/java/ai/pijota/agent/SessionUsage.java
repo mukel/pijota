@@ -86,8 +86,7 @@ public final class SessionUsage {
             if (pricing == null)
                 return;
             var rates = pricing.ratesFor(input + cached);
-            cost += (input / 1_000_000.0) * rates.inputPerMTok()
-                                            + (output / 1_000_000.0) * rates.outputPerMTok();
+            cost += (input / 1_000_000.0) * rates.inputPerMTok() + (output / 1_000_000.0) * rates.outputPerMTok();
         }
     }
 }

@@ -17,7 +17,8 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/theme", "List or switch themes"),
                                     new CompletionItem("/compact", "Manually compact the conversation"),
                                     new CompletionItem("/branch-summary", "Summarize current branch into context"),
-                                    new CompletionItem("/export [md|html] [path]", "Export session to Markdown or HTML"),
+                                    new CompletionItem("/export [md|html] [path]",
+                                                                    "Export session to Markdown or HTML"),
                                     new CompletionItem("/import <path>", "Import and resume a JSONL session"),
                                     new CompletionItem("/save [path]", "Save session to a file"),
                                     new CompletionItem("/load <id|path>", "Load and resume a session"),
@@ -74,9 +75,10 @@ final class SlashCommandRegistry {
     public List<String> helpLines() {
         var out = new ArrayList<String>();
         out.add("pijota commands");
-        appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/branch-summary", "/context", "/usage", "/dequeue", "/whoami",
-                                        "/skills");
-        appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete");
+        appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/branch-summary", "/context", "/usage",
+                                        "/dequeue", "/whoami", "/skills");
+        appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new",
+                                        "/delete");
         appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme");
         appendGroup(out, "remote", "/remote-control");
         appendGroup(out, "account", "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/quit");
@@ -111,10 +113,8 @@ final class SlashCommandRegistry {
         String prefix = text.split("\\s+", 2)[0].toLowerCase();
         return commands.stream().map(CompletionItem::name)
                                         .filter(name -> fuzzyMatch(prefix, commandToken(name).toLowerCase()))
-                                        .sorted(Comparator.comparingInt(
-                                                                        name -> matchScore(prefix,
-                                                                                                        commandToken(name)
-                                                                                                                                        .toLowerCase())))
+                                        .sorted(Comparator.comparingInt(name -> matchScore(prefix,
+                                                                        commandToken(name).toLowerCase())))
                                         .toList();
     }
 
@@ -122,8 +122,8 @@ final class SlashCommandRegistry {
         if (text == null || !text.startsWith("/"))
             return List.of();
         String prefix = text.split("\\s+", 2)[0].toLowerCase();
-        return commands.stream().filter(cmd -> fuzzyMatch(prefix, commandToken(cmd.name()).toLowerCase())).sorted(
-                                        Comparator.comparingInt(cmd -> matchScore(prefix,
+        return commands.stream().filter(cmd -> fuzzyMatch(prefix, commandToken(cmd.name()).toLowerCase()))
+                                        .sorted(Comparator.comparingInt(cmd -> matchScore(prefix,
                                                                         commandToken(cmd.name()).toLowerCase())))
                                         .toList();
     }

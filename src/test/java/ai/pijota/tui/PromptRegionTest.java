@@ -71,8 +71,8 @@ class PromptRegionTest {
         region.render(new PrintWriter(out), width, THEME, snapshot);
 
         for (String row : out.toString().split("\n", -1))
-            assertTrue(AnsiWidth.visibleWidth(row) <= width,
-                                            "prompt row exceeds width " + width + " (" + AnsiWidth.visibleWidth(row) + "): " + row);
+            assertTrue(AnsiWidth.visibleWidth(row) <= width, "prompt row exceeds width " + width + " ("
+                                            + AnsiWidth.visibleWidth(row) + "): " + row);
     }
 
     @Test

@@ -59,7 +59,8 @@ public final class PijotaSession implements AutoCloseable {
         // "summarize" sub-agent can override the model/system-prompt; null fields fall back to the main model.
         CompactionManager.SummaryGenerator summaryGen = new CompactionManager.SummaryGenerator() {
             @Override
-            public String generate(List<Message> msgs, String instr, String prev, java.util.function.BiConsumer<String, String> onPart) {
+            public String generate(List<Message> msgs, String instr, String prev,
+                                            java.util.function.BiConsumer<String, String> onPart) {
                 var result = generateWithUsage(msgs, instr, prev, onPart);
                 return result != null ? result.text() : null;
             }
@@ -220,8 +221,8 @@ public final class PijotaSession implements AutoCloseable {
             switch (msg) {
                 case Message.User u -> sb.append("User: ").append(shorten(u.content())).append('\n');
                 case Message.Assistant a -> sb.append("Assistant: ").append(shorten(a.content())).append('\n');
-                case Message.ToolResult tr -> sb.append("Tool ").append(tr.toolName()).append(": ")
-                                                .append(shorten(tr.content())).append('\n');
+                case Message.ToolResult tr ->
+                    sb.append("Tool ").append(tr.toolName()).append(": ").append(shorten(tr.content())).append('\n');
                 default -> {}
             }
         }

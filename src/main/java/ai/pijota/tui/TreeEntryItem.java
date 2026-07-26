@@ -2,8 +2,8 @@ package ai.pijota.tui;
 
 import java.util.Map;
 
-record TreeEntryItem(String id, String parentId, String role, String content, String display, boolean current)
-                                implements SelectorItem {
+record TreeEntryItem(String id, String parentId, String role, String content, String display,
+                                boolean current) implements SelectorItem {
     static TreeEntryItem from(Map<String, Object> entry, boolean current) {
         String id = String.valueOf(entry.getOrDefault("id", ""));
         String parentId = entry.get("parentId") instanceof String s ? s : null;
