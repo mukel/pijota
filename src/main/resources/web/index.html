@@ -872,7 +872,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // ---- file attachments (attach button / paste / drag-drop), gated to the model's modalities ----
   const attachEl = $("#attachments");
   const MAX_FILES = 8, MAX_FILE_BYTES = 5 * 1024 * 1024; // keep under provider limits (Anthropic ~5MB)
-  // mirrors ai.pijota.llm.Modality.fromMime — keep the two in sync
+  // mirrors org.pijota.llm.Modality.fromMime — keep the two in sync
   function modalityOf(mime) {
     if (!mime) return "text";
     if (mime.startsWith("image/")) return "image";

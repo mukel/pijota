@@ -5,4 +5,4 @@
 PIJOTA_HOME="$(cd "$(dirname "$0")" && pwd)"
 # To debug the protocol, uncomment to record every JSON-RPC frame (<< in, >> out):
 # export PIJOTA_ACP_WIRELOG=/tmp/pijota-acp-wire.log
-exec /usr/bin/java -cp "$PIJOTA_HOME/target/classes:$(cat "$PIJOTA_HOME/target/classpath.txt")" ai.pijota.Main --acp "$@"
+exec /usr/bin/java -cp "$PIJOTA_HOME/target/classes:$(cat "$PIJOTA_HOME/target/classpath.txt")" org.pijota.Main --acp "$@"

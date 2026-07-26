@@ -94,7 +94,7 @@ target/classpath.txt: pom.xml
 	@$(MVN) -q -DincludeScope=runtime -Dmdep.outputFile=$@ dependency:build-classpath
 
 run: build target/classpath.txt
-	@java -cp "target/classes:$$(cat target/classpath.txt)" ai.pijota.Main $(ARGS)
+	@java -cp "target/classes:$$(cat target/classpath.txt)" org.pijota.Main $(ARGS)
 
 # ---- code hygiene ----
 

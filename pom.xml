@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>ai.pijota</groupId>
+  <groupId>org.pijota</groupId>
   <artifactId>pijota</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
@@ -168,7 +168,7 @@
           <archive>
             <manifest>
               <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-              <mainClass>ai.pijota.Main</mainClass>
+              <mainClass>org.pijota.Main</mainClass>
             </manifest>
           </archive>
         </configuration>
@@ -398,11 +398,11 @@
             <extensions>true</extensions>
             <configuration>
               <imageName>pijota</imageName>
-              <mainClass>ai.pijota.Main</mainClass>
+              <mainClass>org.pijota.Main</mainClass>
               <buildArgs>
                 <!-- Correctness flags (no-fallback, https url protocol, Jackson build-time init, pijota / logging
                      run-time init) are embedded so ANY native-image build gets them (bare native-image, jbang app
-                     install with native, etc.): src/main/resources/META-INF/native-image/ai.pijota/pijota/
+                     install with native, etc.): src/main/resources/META-INF/native-image/org.pijota/pijota/
                      native-image.properties. Only this distribution's size/CPU tuning stays here. -->
                 <buildArg>-Os</buildArg>
                 <!-- optimize for binary size (default is -O2, tuned for speed) -->

@@ -269,7 +269,7 @@ mvn -Pnative -DskipTests package
 Run from compiled classes:
 
 ```bash
-mvn -q compile exec:java -Dexec.mainClass=ai.pijota.Main -Dexec.args="--help"
+mvn -q compile exec:java -Dexec.mainClass=org.pijota.Main -Dexec.args="--help"
 ```
 
 ---

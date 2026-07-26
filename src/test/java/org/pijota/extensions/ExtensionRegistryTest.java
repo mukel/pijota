@@ -1,0 +1,989 @@
+package org.pijota.extensions;
+
+import org.pijota.agent.AgentEvent;
+import org.pijota.extensions.skills.SkillLoader;
+import org.pijota.extensions.testkit.ExtensionJars;
+import org.pijota.extensions.testkit.FakeUiContext;
+import org.pijota.llm.LlmClient;
+import org.pijota.messages.Message;
+import org.pijota.modes.SlashCommand;
+import org.pijota.testkit.FauxLlm;
+import org.pijota.tools.Tool;
+import org.pijota.tools.ToolRegistry;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class ExtensionRegistryTest {
+
+    @TempDir
+    Path tempDir;
+
+    // ---- helpers ----
+
+    static Extension simple(String name, Consumer<ExtensionAPI> init) {
+        return new Extension() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public String description() {
+                return name;
+            }
+
+            @Override
+            public void init(ExtensionAPI api) {
+                init.accept(api);
+            }
+        };
+    }
+
+    // ---- fakes ----
+
+    static class CapturingExtension implements Extension {
+        final String name;
+        final List<String> events = new ArrayList<>();
+        ExtensionAPI api;
+        ExtensionRuntime runtime;
+        HeadlessToolContext headless;
+
+        CapturingExtension(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public String description() {
+            return "fake " + name;
+        }
+
+        @Override
+        public void init(ExtensionAPI api) {
+            this.api = api;
+            events.add("init");
+            api.registerSlashCommand(new SlashCommand("fake-" + name, "fake", List.of(), _ -> {}));
+            api.registerKeybinding(new ExtensionKeybinding(new KeyChord(KeyChord.Key.A), "fake", () -> {}));
+            api.on(ExtensionEvent.SessionStart.class, _ -> events.add("session_start"));
+            api.on(ExtensionEvent.BeforeAgentStart.class, _ -> events.add("before_agent_start"));
+            api.on(ExtensionEvent.AgentStart.class, _ -> events.add("agent_start"));
+            api.on(ExtensionEvent.AgentEnd.class, _ -> events.add("agent_end"));
+            api.on(ExtensionEvent.TurnStart.class, _ -> events.add("turn_start"));
+            api.on(ExtensionEvent.TurnEnd.class, _ -> events.add("turn_end"));
+            api.on(ExtensionEvent.MessageStart.class, _ -> events.add("message_start"));
+            api.on(ExtensionEvent.MessageUpdate.class, _ -> events.add("message_update"));
+            api.on(ExtensionEvent.MessageEnd.class, _ -> events.add("message_end"));
+            api.onToolCall(tc -> null);
+            api.on(ExtensionEvent.ToolResult.class, _ -> events.add("tool_result"));
+            api.on(ExtensionEvent.ToolExecutionStart.class, _ -> events.add("tool_execution_start"));
+            api.on(ExtensionEvent.ToolExecutionEnd.class, _ -> events.add("tool_execution_end"));
+            api.on(ExtensionEvent.BeforeProviderRequest.class, _ -> events.add("before_provider_request"));
+            api.on(ExtensionEvent.ModelSelect.class, _ -> events.add("model_select"));
+            api.onUserBash(_ -> ExtensionResult.UserBashResult.allow());
+            api.onBashToolCall(_ -> ExtensionResult.BashToolCallResult.allow());
+            api.onInput(text -> new ExtensionResult.InputResult(text, false));
+            api.on(ExtensionEvent.SessionBeforeCompact.class, _ -> events.add("session_before_compact"));
+            api.on(ExtensionEvent.SessionCompact.class, _ -> events.add("session_compact"));
+            api.registerStatusLines(() -> List.of("status-" + name));
+            api.registerFooterLines(() -> List.of("footer-" + name));
+            api.registerSystemPrompt(() -> "prompt-" + name);
+            api.registerThinkingHeaderText(() -> "thinking-" + name);
+        }
+
+        @Override
+        public void onReady(ExtensionRuntime runtime) {
+            this.runtime = runtime;
+            events.add("ready");
+        }
+
+        @Override
+        public void onShutdown(ExtensionRuntime runtime) {
+            this.runtime = runtime;
+            events.add("shutdown");
+        }
+
+        @Override
+        public void contributeHeadlessTools(HeadlessToolContext ctx) {
+            this.headless = ctx;
+            events.add("headless");
+        }
+    }
+
+    static class BlockingExtension implements Extension {
+        @Override
+        public String name() {
+            return "blocker";
+        }
+
+        @Override
+        public String description() {
+            return "blocks bash";
+        }
+
+        @Override
+        public void init(ExtensionAPI api) {
+            api.onToolCall(tc -> "bash".equals(tc.toolName()) ? new ExtensionResult.Block("blocked") : null);
+            api.onUserBash(_ -> ExtensionResult.UserBashResult.block("no"));
+            api.onBashToolCall(_ -> ExtensionResult.BashToolCallResult.block("no"));
+            api.onInput(text -> new ExtensionResult.InputResult(text.toUpperCase(), true));
+            api.registerMessageRenderer(msg -> new ExtensionResult.MessageRender(List.of("rendered")));
+        }
+    }
+
+    static class FailingExtension implements Extension {
+        @Override
+        public String name() {
+            return "failing";
+        }
+
+        @Override
+        public String description() {
+            return "fails";
+        }
+
+        @Override
+        public void init(ExtensionAPI api) {
+            throw new RuntimeException("init failure");
+        }
+
+        @Override
+        public void onReady(ExtensionRuntime runtime) {
+            throw new RuntimeException("ready failure");
+        }
+
+        @Override
+        public void onShutdown(ExtensionRuntime runtime) {
+            throw new RuntimeException("shutdown failure");
+        }
+    }
+
+    static class FakeAgentContext implements AgentContext {
+        final List<Message> messages = new ArrayList<>();
+        final List<Message.Custom> customMessages = new ArrayList<>();
+        final List<String> sent = new ArrayList<>();
+        boolean busy;
+        boolean closed;
+        boolean aborted;
+        boolean compacted;
+
+        @Override
+        public LlmClient llm() {
+            return null;
+        }
+
+        @Override
+        public boolean isBusy() {
+            return busy;
+        }
+
+        @Override
+        public boolean isClosed() {
+            return closed;
+        }
+
+        @Override
+        public void abort() {
+            aborted = true;
+        }
+
+        @Override
+        public List<Message> messages() {
+            return List.copyOf(messages);
+        }
+
+        @Override
+        public void compact(String instructions) {
+            compacted = true;
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
+
+        @Override
+        public void sendUserMessage(String content) {
+            sent.add(content);
+        }
+
+        @Override
+        public void sendUserMessage(String content, DeliverAs deliverAs) {
+            sent.add(content + "|" + deliverAs.name());
+        }
+
+        @Override
+        public void addCustomMessage(Message.Custom message) {
+            customMessages.add(message);
+        }
+    }
+
+    ExtensionRegistry registry(AgentContext agent, UiContext ui) {
+        var r = new ExtensionRegistry();
+        r.setAgentLoop(agent);
+        r.setTui(ui);
+        r.setCwd(tempDir);
+        return r;
+    }
+
+    // ---- registration & lifecycle ----
+
+    @Test
+    void registerCallsInit() {
+        var ext = new CapturingExtension("x");
+        var reg = new ExtensionRegistry();
+        reg.register(ext);
+        assertTrue(ext.events.contains("init"));
+    }
+
+    @Test
+    void registerFailingExtensionDoesNotPropagate() {
+        var reg = new ExtensionRegistry();
+        assertDoesNotThrow(() -> reg.register(new FailingExtension()));
+    }
+
+    @Test
+    void readyCallsOnReady() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.ready();
+        assertTrue(ext.events.contains("ready"));
+    }
+
+    @Test
+    void readyFailingExtensionDoesNotPropagate() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(new FailingExtension());
+        assertDoesNotThrow(reg::ready);
+    }
+
+    @Test
+    void cleanupCallsOnShutdown() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.ready();
+        reg.cleanup();
+        assertTrue(ext.events.contains("shutdown"));
+    }
+
+    @Test
+    void cleanupFailingExtensionDoesNotPropagate() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(new FailingExtension());
+        assertDoesNotThrow(reg::cleanup);
+    }
+
+    @Test
+    void contributeHeadlessToolsCallsExtensions() {
+        var ext = new CapturingExtension("x");
+        var reg = new ExtensionRegistry();
+        reg.register(ext);
+        var ctx = new HeadlessToolContext(List.of("read"), 0, null, null, "sys", tempDir);
+        reg.contributeHeadlessTools(ctx);
+        assertTrue(ext.events.contains("headless"));
+        assertSame(ctx, ext.headless);
+    }
+
+    // ---- event dispatch ----
+
+    @Test
+    void fireEventDoesNothingWhenAgentClosed() {
+        var agent = new FakeAgentContext();
+        agent.closed = true;
+        var ext = new CapturingExtension("x");
+        var reg = registry(agent, new FakeUiContext());
+        reg.register(ext);
+        reg.fire(new ExtensionEvent.SessionStart(tempDir));
+        assertFalse(ext.events.contains("session_start"));
+    }
+
+    @Test
+    void fireEventDispatchesToRegisteredHandlers() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.fire(new ExtensionEvent.SessionStart(tempDir));
+        assertTrue(ext.events.contains("session_start"));
+    }
+
+    @Test
+    void fireEventHandlerExceptionDoesNotPropagate() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(simple("throws", api -> api.on(ExtensionEvent.SessionStart.class, _ -> {
+            throw new RuntimeException("boom");
+        })));
+        assertDoesNotThrow(() -> reg.fire(new ExtensionEvent.SessionStart(tempDir)));
+    }
+
+    @Test
+    void onAgentEventDispatchesTurnAndMessageEvents() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.onAgentEvent(new AgentEvent.TurnStart(1));
+        reg.onAgentEvent(new AgentEvent.TurnEnd(1));
+        reg.onAgentEvent(new AgentEvent.MessageStreamStart("assistant"));
+        reg.onAgentEvent(new AgentEvent.MessageStreamDelta("hi"));
+        reg.onAgentEvent(new AgentEvent.MessageStreamEnd("assistant"));
+        assertTrue(ext.events.contains("turn_start"));
+        assertTrue(ext.events.contains("turn_end"));
+        assertTrue(ext.events.contains("message_start"));
+        assertTrue(ext.events.contains("message_update"));
+        assertTrue(ext.events.contains("message_end"));
+    }
+
+    @Test
+    void onAgentEventUnknownEventIgnored() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.onAgentEvent(new AgentEvent.CompactionStream("x", "y"));
+        // no new events, just ensure no exception
+        assertTrue(ext.events.contains("init"));
+    }
+
+    // ---- tool events ----
+
+    @Test
+    void beforeToolCallReturnsEmptyWhenNotBlocked() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        assertEquals(Optional.empty(), reg.beforeToolCall("id", "bash", "{}"));
+    }
+
+    @Test
+    void beforeToolCallReturnsReasonWhenBlocked() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(new BlockingExtension());
+        var reason = reg.beforeToolCall("id", "bash", "{}");
+        assertTrue(reason.isPresent());
+        assertEquals("blocked", reason.get());
+    }
+
+    @Test
+    void beforeToolCallHandlerExceptionDoesNotPropagate() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(simple("thrower", api -> api.onToolCall(_ -> {
+            throw new RuntimeException("boom");
+        })));
+        assertDoesNotThrow(() -> reg.beforeToolCall("id", "bash", "{}"));
+    }
+
+    @Test
+    void afterToolCallFiresToolResult() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.afterToolCall("id", "bash", Tool.ToolResult.success("ok"));
+        assertTrue(ext.events.contains("tool_result"));
+    }
+
+    @Test
+    void fireToolExecutionStartAndEnd() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.fireToolExecutionStart("id", "bash", "{}");
+        reg.fireToolExecutionEnd("id", "bash", Tool.ToolResult.success("ok"), false);
+        assertTrue(ext.events.contains("tool_execution_start"));
+        assertTrue(ext.events.contains("tool_execution_end"));
+    }
+
+    // ---- provider/model events ----
+
+    @Test
+    void fireBeforeProviderRequest() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.fireBeforeProviderRequest(new ArrayList<>(List.of(new Message.User("hi"))));
+        assertTrue(ext.events.contains("before_provider_request"));
+    }
+
+    @Test
+    void fireModelSelect() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.fireModelSelect("gpt-4", "gpt-3", "user");
+        assertTrue(ext.events.contains("model_select"));
+    }
+
+    // ---- user bash ----
+
+    @Test
+    void fireUserBashAllowsByDefault() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        var result = reg.fireUserBash("ls", false);
+        assertFalse(result.blocked());
+    }
+
+    @Test
+    void fireUserBashBlockedByExtension() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(new BlockingExtension());
+        var result = reg.fireUserBash("ls", false);
+        assertTrue(result.blocked());
+        assertEquals("no", result.reason());
+    }
+
+    @Test
+    void fireBashToolCallAllowsByDefault() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        var result = reg.fireBashToolCall("id", "ls", "/tmp", 60);
+        assertFalse(result.blocked());
+    }
+
+    @Test
+    void fireBashToolCallBlockedByExtension() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(new BlockingExtension());
+        var result = reg.fireBashToolCall("id", "ls", "/tmp", 60);
+        assertTrue(result.blocked());
+    }
+
+    // ---- input filtering ----
+
+    @Test
+    void filterInputReturnsOriginalWhenNoHandlers() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        assertEquals("hello", reg.filterInput("hello"));
+    }
+
+    @Test
+    void filterInputTransformsText() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(new BlockingExtension());
+        assertEquals("HELLO", reg.filterInput("hello"));
+    }
+
+    @Test
+    void filterInputStopsWhenConsumed() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(simple("consumer", api -> api
+                                        .onInput(text -> new ExtensionResult.InputResult(text + "-a", true))));
+        reg.register(simple("ignored", api -> api
+                                        .onInput(text -> new ExtensionResult.InputResult(text + "-b", false))));
+        assertEquals("hello-a", reg.filterInput("hello"));
+    }
+
+    // ---- before agent start ----
+
+    @Test
+    void fireBeforeAgentStartAppendsPromptContributions() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(simple("x", api -> api.on(ExtensionEvent.BeforeAgentStart.class,
+                                        event -> event.systemPrompt().append(" appended"))));
+        var prompt = reg.fireBeforeAgentStart(List.of(), "base");
+        assertTrue(prompt.contains("base"));
+        assertTrue(prompt.contains("appended"));
+    }
+
+    @Test
+    void fireBeforeAgentStartHandlesNullSystemPrompt() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        assertEquals("", reg.fireBeforeAgentStart(List.of(), null));
+    }
+
+    @Test
+    void fireAgentStartAndEnd() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.fireAgentStart();
+        reg.fireAfterAgentEnd();
+        assertTrue(ext.events.contains("agent_start"));
+        assertTrue(ext.events.contains("agent_end"));
+    }
+
+    @Test
+    void fireSessionCompactEvents() {
+        var ext = new CapturingExtension("x");
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(ext);
+        reg.fireSessionBeforeCompact(false, "compact");
+        reg.fireSessionCompact();
+        assertTrue(ext.events.contains("session_before_compact"));
+        assertTrue(ext.events.contains("session_compact"));
+    }
+
+    // ---- collections ----
+
+    @Test
+    void slashCommandsSkillsKeybindingsCollected() {
+        var ext = new CapturingExtension("x");
+        var reg = new ExtensionRegistry();
+        reg.register(ext);
+        assertEquals(1, reg.slashCommands().size());
+        assertEquals("fake-x", reg.slashCommands().get(0).name());
+        assertEquals(1, reg.keybindings().size());
+        assertTrue(reg.skills().isEmpty());
+    }
+
+    @Test
+    void statusLinesIncludeStatusAndFooterAndKeyed() {
+        var ext = new CapturingExtension("x");
+        var ui = new FakeUiContext();
+        var reg = registry(new FakeAgentContext(), ui);
+        reg.register(ext);
+        reg.api().runtime().setStatus("key", "value");
+        var lines = reg.statusLines();
+        assertTrue(lines.contains("status-x"));
+        assertTrue(lines.contains("footer-x"));
+        assertTrue(lines.contains("value"));
+    }
+
+    @Test
+    void thinkingHeaderTextReturnsFirstNonBlank() {
+        var ext = new CapturingExtension("x");
+        var reg = new ExtensionRegistry();
+        reg.register(ext);
+        assertEquals("thinking-x", reg.thinkingHeaderText());
+    }
+
+    @Test
+    void thinkingHeaderTextReturnsNullWhenBlank() {
+        var reg = new ExtensionRegistry();
+        reg.register(simple("blank", api -> api.registerThinkingHeaderText(() -> "  ")));
+        assertNull(reg.thinkingHeaderText());
+    }
+
+    @Test
+    void systemPromptContributions() {
+        var ext = new CapturingExtension("x");
+        var reg = new ExtensionRegistry();
+        reg.register(ext);
+        var prompts = reg.systemPromptContributions();
+        assertEquals(1, prompts.size());
+        assertEquals("prompt-x", prompts.get(0));
+    }
+
+    // ---- message renderers ----
+
+    @Test
+    void hasMessageRenderersFalseByDefault() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        assertFalse(reg.hasMessageRenderers());
+    }
+
+    @Test
+    void renderMessageReturnsRenderedLines() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(new BlockingExtension());
+        assertTrue(reg.hasMessageRenderers());
+        var rendered = reg.renderMessage(new Message.User("hi"));
+        assertTrue(rendered.isPresent());
+        assertEquals(List.of("rendered"), rendered.get());
+    }
+
+    @Test
+    void renderMessageSkipsEmptyResult() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        reg.register(simple("empty-render", api -> api
+                                        .registerMessageRenderer(_ -> new ExtensionResult.MessageRender(List.of()))));
+        assertEquals(Optional.empty(), reg.renderMessage(new Message.User("hi")));
+    }
+
+    // ---- ExtensionAPI: registration ----
+
+    @Test
+    void apiRegistersToolIntoRegistry() {
+        var toolReg = new ToolRegistry();
+        var reg = new ExtensionRegistry();
+        reg.setToolRegistry(toolReg);
+        reg.register(simple("tool-reg", api -> api.registerTool(new Tool.ToolDefinition("custom", "desc", Map.of(),
+                                        (id, args, cwd) -> CompletableFuture.completedFuture(
+                                                                        Tool.ToolResult.success("ok"))))));
+        assertTrue(toolReg.get("custom").isPresent());
+    }
+
+    @Test
+    void apiRegistersSkills() {
+        var reg = new ExtensionRegistry();
+        reg.register(simple("skill-reg", api -> api
+                                        .registerSkills(List.of(new SkillLoader.Skill("s", "d", "c", null)))));
+        assertEquals(1, reg.skills().size());
+    }
+
+    @Test
+    void apiSendMessageRequiresAgentContext() {
+        var agent = new FakeAgentContext();
+        var reg = registry(agent, new FakeUiContext());
+        reg.register(simple("sender", api -> api.sendMessage(new Message.Custom("type", "content"))));
+        assertEquals(1, agent.customMessages.size());
+    }
+
+    @Test
+    void apiSendUserMessageUsesUiWhenAttached() {
+        var agent = new FakeAgentContext();
+        var ui = new FakeUiContext();
+        var reg = registry(agent, ui);
+        reg.register(simple("sender", api -> {
+            api.sendUserMessage("hello");
+            api.sendUserMessage("hello", DeliverAs.NEXT_TURN);
+        }));
+
+        assertEquals(List.of("hello"), ui.submittedUserMessages());
+        assertEquals(List.of("hello|NEXT_TURN"), agent.sent);
+    }
+
+    @Test
+    void apiSendUserMessageFallsBackToAgentWithoutUi() {
+        var agent = new FakeAgentContext();
+        var reg = registry(agent, null);
+        reg.register(simple("sender", api -> api.sendUserMessage("hello")));
+
+        assertEquals(List.of("hello"), agent.sent);
+    }
+
+    @Test
+    void apiRegisterNullsIgnored() {
+        var reg = new ExtensionRegistry();
+        var api = reg.api();
+        assertDoesNotThrow(() -> {
+            api.registerMessageRenderer(null);
+            api.registerKeybinding(null);
+            api.registerStatusLines(null);
+            api.registerFooterLines(null);
+            api.registerSystemPrompt(null);
+            api.registerThinkingHeaderText(null);
+            api.registerSkills(null);
+        });
+        assertTrue(reg.statusLines().isEmpty());
+    }
+
+    // ---- ExtensionRuntime ----
+
+    @Test
+    void runtimeReflectsState() {
+        var agent = new FakeAgentContext();
+        var toolReg = new ToolRegistry();
+        var ui = new FakeUiContext();
+        var reg = registry(agent, ui);
+        reg.setToolRegistry(toolReg);
+        reg.setSystemPrompt("sys");
+        reg.setExtensionFlags(Map.of("a", "true", "b", "false"));
+        var rt = reg.api().runtime();
+
+        assertSame(tempDir, rt.cwd());
+        assertEquals("sys", rt.systemPrompt());
+        assertSame(toolReg, rt.tools());
+        assertTrue(rt.activeTools().isEmpty());
+        assertTrue(rt.availableTools().isEmpty());
+
+        rt.setSessionName("session");
+        assertEquals("session", rt.sessionName());
+
+        assertTrue(rt.isIdle());
+        agent.busy = true;
+        assertFalse(rt.isIdle());
+
+        assertFalse(rt.isClosed());
+        agent.closed = true;
+        assertTrue(rt.isClosed());
+
+        assertTrue(rt.getFlag("a", false));
+        assertFalse(rt.getFlag("b", true));
+        assertEquals("true", rt.getFlag("a").orElseThrow());
+        assertEquals(Optional.empty(), rt.getFlag("missing"));
+    }
+
+    @Test
+    void runtimeSetActiveToolsDelegatesToRegistry() {
+        var toolReg = new ToolRegistry();
+        toolReg.register(new Tool() {
+            @Override
+            public String name() {
+                return "read";
+            }
+
+            @Override
+            public String description() {
+                return "reads";
+            }
+
+            @Override
+            public Map<String, Object> schema() {
+                return Map.of();
+            }
+
+            @Override
+            public CompletableFuture<ToolResult> execute(String toolCallId, Tool.Args arguments, String sessionCwd) {
+                return CompletableFuture.completedFuture(ToolResult.success(""));
+            }
+        });
+        var reg = new ExtensionRegistry();
+        reg.setToolRegistry(toolReg);
+        reg.api().runtime().setActiveTools(List.of("read"));
+        assertEquals(List.of("read"), toolReg.activeToolNames());
+    }
+
+    @Test
+    void runtimeSetStatusClearsWhenBlank() {
+        var ui = new FakeUiContext();
+        var reg = registry(new FakeAgentContext(), ui);
+        var rt = reg.api().runtime();
+        rt.setStatus("key", "value");
+        assertTrue(reg.statusLines().contains("value"));
+        rt.setStatus("key", "");
+        assertFalse(reg.statusLines().contains("value"));
+    }
+
+    @Test
+    void runtimeClearStatusNullKeyNoOp() {
+        var ui = new FakeUiContext();
+        var reg = registry(new FakeAgentContext(), ui);
+        var rt = reg.api().runtime();
+        assertDoesNotThrow(() -> rt.clearStatus(null));
+    }
+
+    @Test
+    void runtimeExecRunsCommand() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        var rt = reg.api().runtime();
+        var result = rt.exec(List.of("echo", "hello"));
+        assertEquals(0, result.exitCode());
+        assertTrue(result.success());
+        assertTrue(result.stdout().contains("hello"));
+    }
+
+    @Test
+    void runtimeExecMissingCommandReturnsError() {
+        var reg = registry(new FakeAgentContext(), new FakeUiContext());
+        var rt = reg.api().runtime();
+        var result = rt.exec(List.of("/nonexistent-binary-xyz"));
+        assertNotEquals(0, result.exitCode());
+        assertFalse(result.success());
+    }
+
+    @Test
+    void runtimeAbortAndCompactDelegateToAgent() {
+        var agent = new FakeAgentContext();
+        var reg = registry(agent, new FakeUiContext());
+        var rt = reg.api().runtime();
+        rt.abort();
+        rt.compact("compact");
+        assertTrue(agent.aborted);
+        assertTrue(agent.compacted);
+    }
+
+    @Test
+    void runtimeMessagesWhenAgentNull() {
+        var reg = new ExtensionRegistry();
+        assertTrue(reg.api().runtime().messages().isEmpty());
+    }
+
+    @Test
+    void runtimeMessagesReturnsAgentSnapshot() {
+        var agent = new FakeAgentContext();
+        agent.messages.add(new Message.User("first"));
+        var reg = registry(agent, new FakeUiContext());
+
+        var messages = reg.api().runtime().messages();
+        agent.messages.add(new Message.User("second"));
+
+        assertEquals(1, messages.size());
+        assertThrows(UnsupportedOperationException.class, () -> messages.add(new Message.User("mutate")));
+    }
+
+    @Test
+    void runtimeLlmPrefersAgentContext() {
+        var client = new FauxLlm();
+        var agent = new FakeAgentContext() {
+            @Override
+            public LlmClient llm() {
+                return client;
+            }
+        };
+        var reg = registry(agent, new FakeUiContext());
+        assertSame(client, reg.api().runtime().llm());
+    }
+
+    // ---- directory loading ----
+
+    @Test
+    void loadFromDirectoryIgnoresMissingDir() {
+        var reg = new ExtensionRegistry();
+        assertDoesNotThrow(() -> reg.loadFromDirectory(Path.of("/does/not/exist/xyz")));
+    }
+
+    @Test
+    void loadFromDirectoryIgnoresNonClassNonJar() throws Exception {
+        var reg = new ExtensionRegistry();
+        Files.writeString(tempDir.resolve("readme.txt"), "hi");
+        assertDoesNotThrow(() -> reg.loadFromDirectory(tempDir));
+    }
+
+    @Test
+    void loadFromPathLoadsServiceLoaderJar() throws Exception {
+        Path jar = ExtensionJars.serviceLoaderJar(tempDir, "org.pijota.extensions.testkit.PathLoadedExtension");
+        var reg = new ExtensionRegistry();
+
+        reg.loadFromPath(jar);
+
+        assertTrue(reg.slashCommands().stream().anyMatch(c -> c.name().equals("path-loaded")));
+    }
+
+    @Test
+    void setExtensionFlagsNullBecomesEmpty() {
+        var reg = new ExtensionRegistry();
+        reg.setExtensionFlags(null);
+        assertFalse(reg.api().runtime().getFlag("x").isPresent());
+    }
+
+    @Test
+    void apiReturnsSameInstance() {
+        var reg = new ExtensionRegistry();
+        assertSame(reg.api(), reg.api());
+    }
+
+    @Test
+    void registerSlashCommandCaptured() {
+        var reg = new ExtensionRegistry();
+        reg.register(simple("cmd", api -> api
+                                        .registerSlashCommand(new SlashCommand("/my", "desc", List.of(), _ -> {}))));
+        assertEquals("/my", reg.slashCommands().get(0).name());
+    }
+
+    @Test
+    void dispatchExceptionFiresAllHandlersInRegistrationOrder() {
+        var reg = new ExtensionRegistry();
+        var order = new ArrayList<String>();
+        reg.register(simple("h1", api -> api.registerExceptionHandler(t -> order.add("h1"))));
+        reg.register(simple("h2", api -> api.registerExceptionHandler(t -> order.add("h2"))));
+
+        reg.dispatchException(new RuntimeException("test"));
+
+        assertEquals(List.of("h1", "h2"), order);
+    }
+
+    @Test
+    void dispatchExceptionDoesNotFailOnHandlerException() {
+        var reg = new ExtensionRegistry();
+        var called = new boolean[1];
+        reg.register(simple("bad", api -> api.registerExceptionHandler(t -> {
+            throw new RuntimeException("handler failed");
+        })));
+        reg.register(simple("good", api -> api.registerExceptionHandler(t -> called[0] = true)));
+
+        assertDoesNotThrow(() -> reg.dispatchException(new RuntimeException("test")));
+        assertTrue(called[0]);
+    }
+
+    // ---- enablement resolution: declared default -> settings.json -> CLI --x/--no-x ----
+
+    /** A toggleable extension that records whether init() ran and the config value getFlag returned. */
+    private static final class Toggle implements Extension {
+        final String extName;
+        final boolean def;
+        boolean inited;
+        String configValue;
+
+        Toggle(String name, boolean def) {
+            this.extName = name;
+            this.def = def;
+        }
+
+        @Override
+        public String name() {
+            return extName;
+        }
+
+        @Override
+        public String description() {
+            return extName;
+        }
+
+        @Override
+        public boolean enabledByDefault() {
+            return def;
+        }
+
+        @Override
+        public void init(ExtensionAPI api) {
+            inited = true;
+            api.runtime().getFlag(extName).ifPresent(v -> configValue = v);
+        }
+    }
+
+    @Test
+    void isEnabledFollowsDefaultThenSettingsThenFlags() {
+        var r = new ExtensionRegistry();
+        assertTrue(r.isEnabled("x", true));
+        assertFalse(r.isEnabled("x", false));
+
+        r.setExtensionsConfig(Map.of("a", false, "b", true, "browse", "firefox"));
+        assertFalse(r.isEnabled("a", true), "settings false overrides default true");
+        assertTrue(r.isEnabled("b", false), "settings true overrides default false");
+        assertTrue(r.isEnabled("browse", false), "a settings config string implies enabled");
+
+        r.setExtensionFlags(Map.of("a", "true", "no-b", "true", "c", "true"));
+        assertTrue(r.isEnabled("a", true), "--a re-enables despite settings false");
+        assertFalse(r.isEnabled("b", false), "--no-b disables despite settings true");
+        assertTrue(r.isEnabled("c", false), "--c enables a default-off extension");
+    }
+
+    @Test
+    void noFlagDisablesADefaultOnExtension() {
+        var r = new ExtensionRegistry();
+        r.setExtensionFlags(Map.of("no-core", "true"));
+        assertFalse(r.isEnabled("core", true), "--no-core disables a default-on extension");
+    }
+
+    @Test
+    void registerGatesOnResolvedEnablement() {
+        var r = new ExtensionRegistry();
+        r.setExtensionFlags(Map.of("no-on", "true", "wanted", "true"));
+        var on = new Toggle("on", true); // default on, but --no-on
+        var off = new Toggle("off", false); // default off, no flag
+        var wanted = new Toggle("wanted", false); // default off, but --wanted
+        r.register(on);
+        r.register(off);
+        r.register(wanted);
+        assertFalse(on.inited, "disabled by --no-on");
+        assertFalse(off.inited, "default off, not requested");
+        assertTrue(wanted.inited, "default off but --wanted enables");
+    }
+
+    @Test
+    void settingsConfigValueReachesExtensionAndCliWins() {
+        var r = new ExtensionRegistry();
+        r.setExtensionsConfig(Map.of("browse", "firefox")); // string enables + configures
+        var ext = new Toggle("browse", false);
+        r.register(ext);
+        assertTrue(ext.inited, "a settings config string enables a default-off extension");
+        assertEquals("firefox", ext.configValue, "getFlag merges the settings config value");
+
+        var r2 = new ExtensionRegistry();
+        r2.setExtensionsConfig(Map.of("browse", "firefox"));
+        r2.setExtensionFlags(Map.of("browse", "safari"));
+        var ext2 = new Toggle("browse", false);
+        r2.register(ext2);
+        assertEquals("safari", ext2.configValue, "CLI --browse=safari overrides settings firefox");
+    }
+
+    @Test
+    void builtinExtensionsHelpSectionListsToggleables() {
+        String help = BuiltinExtensions.helpSection();
+        assertTrue(help.contains("--browse"), help);
+        assertTrue(help.contains("--no-skills"), help); // a default-on shows its disable flag
+        assertTrue(help.contains("--transcendence"), help); // now opt-in
+        assertTrue(help.contains("[default: off]"));
+        assertTrue(help.contains("[default: on]"));
+    }
+}

@@ -1,0 +1,109 @@
+package org.pijota.extensions.testkit;
+
+import org.pijota.extensions.UiContext;
+import org.pijota.theme.AnsiTheme;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+public class FakeUiContext implements UiContext {
+
+    private final List<String> statuses = new ArrayList<>();
+    private final AtomicReference<CompletableFuture<Boolean>> confirmResult = new AtomicReference<>(
+                                    CompletableFuture.completedFuture(false));
+    private final List<String> selectTitles = new ArrayList<>();
+    private List<String> lastSelectLabels = List.of();
+    private int selectChoice = -1;
+    private final List<String> viewerTitles = new ArrayList<>();
+    private final List<String> submittedUserMessages = new ArrayList<>();
+    private List<String> lastViewerLines = List.of();
+
+    public List<String> statuses() {
+        return List.copyOf(statuses);
+    }
+
+    public void setConfirmResult(boolean result) {
+        confirmResult.set(CompletableFuture.completedFuture(result));
+    }
+
+    /** Index that the next {@link #select} call will auto-choose; negative means the user cancels. */
+    public void setSelectChoice(int index) {
+        this.selectChoice = index;
+    }
+
+    public List<String> selectTitles() {
+        return List.copyOf(selectTitles);
+    }
+
+    /** Display labels passed to the most recent {@link #select} call. */
+    public List<String> lastSelectLabels() {
+        return List.copyOf(lastSelectLabels);
+    }
+
+    @Override
+    public void setStatus(String message) {
+        statuses.add(message);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> confirm(String question) {
+        return confirmResult.get();
+    }
+
+    @Override
+    public CompletableFuture<String> prompt(String question, String defaultValue) {
+        return CompletableFuture.completedFuture(defaultValue);
+    }
+
+    @Override
+    public void alert(String message) {
+        statuses.add("alert:" + message);
+    }
+
+    @Override
+    public AnsiTheme theme() {
+        return null;
+    }
+
+    @Override
+    public <T> void select(String title, List<T> items, Function<T, String> render, Consumer<T> onChoice) {
+        selectTitles.add(title);
+        lastSelectLabels = items.stream().map(render).toList();
+        if (selectChoice >= 0 && selectChoice < items.size())
+            onChoice.accept(items.get(selectChoice));
+    }
+
+    @Override
+    public void viewer(String title, List<String> lines) {
+        viewerTitles.add(title);
+        lastViewerLines = List.copyOf(lines);
+    }
+
+    @Override
+    public void viewer(String title, Supplier<List<String>> source) {
+        viewer(title, source.get()); // capture the live source's current snapshot
+    }
+
+    @Override
+    public void submitUserMessage(String content) {
+        submittedUserMessages.add(content);
+    }
+
+    public List<String> submittedUserMessages() {
+        return List.copyOf(submittedUserMessages);
+    }
+
+    public List<String> viewerTitles() {
+        return List.copyOf(viewerTitles);
+    }
+
+    /** Lines passed to the most recent {@link #viewer} call. */
+    public List<String> lastViewerLines() {
+        return lastViewerLines;
+    }
+}
