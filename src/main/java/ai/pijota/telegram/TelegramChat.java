@@ -333,8 +333,8 @@ public final class TelegramChat implements ChatHandler {
             name = null;
         }
         String label = name == null || name.isBlank() ? "unnamed" : name;
-        return "📍 status: " + state + "\n🧠 model: " + model + "\n🏷 session: " + label + "\n📁 cwd: "
-                                        + session.cwd() + usageSummary().replaceFirst("^📊", "\n📊");
+        return "📍 status: " + state + "\n🧠 model: " + model + "\n🏷 session: " + label + "\n📁 cwd: " + session.cwd()
+                                        + usageSummary().replaceFirst("^📊", "\n📊");
     }
 
     /** A "context X/Y (Z%)" line for {@code /usage}, or "" when the window is unknown. */
