@@ -11,7 +11,7 @@ public final class AttachmentMessages {
     }
 
     public static String unsupportedImagePath(String path) {
-        return path + " — " + unsupportedImageLabel(path) + " images aren't supported; use JPEG/PNG/GIF/WebP";
+        return path + " — " + unsupportedImagePathLabel(path) + " images aren't supported; use JPEG/PNG/GIF/WebP";
     }
 
     public static String unsupportedImageLabel(String name) {
@@ -24,6 +24,17 @@ public final class AttachmentMessages {
             return "BMP";
         int slash = n.indexOf('/');
         return slash >= 0 ? n.substring(slash + 1).toUpperCase(Locale.ROOT) : "this format";
+    }
+
+    public static String unsupportedImagePathLabel(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        if (n.endsWith(".heic") || n.endsWith(".heif"))
+            return "HEIC";
+        if (n.endsWith(".tif") || n.endsWith(".tiff"))
+            return "TIFF";
+        if (n.endsWith(".bmp"))
+            return "BMP";
+        return null;
     }
 
     public static String modelLabel(String provider, String model) {

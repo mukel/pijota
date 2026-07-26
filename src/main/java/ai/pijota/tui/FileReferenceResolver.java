@@ -65,7 +65,7 @@ final class FileReferenceResolver {
                         } else {
                             result.append("[").append(path).append(" — too large or unreadable]");
                         }
-                    } else if (AttachmentMessages.unsupportedImageLabel(path) != null && !path.contains("*")) {
+                    } else if (AttachmentMessages.unsupportedImagePathLabel(path) != null && !path.contains("*")) {
                         // a recognized image format the providers can't read (HEIC/TIFF/BMP) — say so, don't inline
                         // bytes
                         result.append("[").append(AttachmentMessages.unsupportedImagePath(path)).append(']');
