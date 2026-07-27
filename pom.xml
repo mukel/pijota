@@ -4,7 +4,7 @@
 
   <groupId>org.pijota</groupId>
   <artifactId>pijota</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0</version>
   <packaging>jar</packaging>
 
   <name>Pijota</name>
@@ -34,7 +34,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-    <maven.compiler.release>25</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
 
     <commonmark.version>0.28.0</commonmark.version>
     <jackson.version>2.22.0</jackson.version>

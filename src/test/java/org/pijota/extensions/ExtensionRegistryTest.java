@@ -77,28 +77,28 @@ class ExtensionRegistryTest {
         public void init(ExtensionAPI api) {
             this.api = api;
             events.add("init");
-            api.registerSlashCommand(new SlashCommand("fake-" + name, "fake", List.of(), _ -> {}));
+            api.registerSlashCommand(new SlashCommand("fake-" + name, "fake", List.of(), ignored -> {}));
             api.registerKeybinding(new ExtensionKeybinding(new KeyChord(KeyChord.Key.A), "fake", () -> {}));
-            api.on(ExtensionEvent.SessionStart.class, _ -> events.add("session_start"));
-            api.on(ExtensionEvent.BeforeAgentStart.class, _ -> events.add("before_agent_start"));
-            api.on(ExtensionEvent.AgentStart.class, _ -> events.add("agent_start"));
-            api.on(ExtensionEvent.AgentEnd.class, _ -> events.add("agent_end"));
-            api.on(ExtensionEvent.TurnStart.class, _ -> events.add("turn_start"));
-            api.on(ExtensionEvent.TurnEnd.class, _ -> events.add("turn_end"));
-            api.on(ExtensionEvent.MessageStart.class, _ -> events.add("message_start"));
-            api.on(ExtensionEvent.MessageUpdate.class, _ -> events.add("message_update"));
-            api.on(ExtensionEvent.MessageEnd.class, _ -> events.add("message_end"));
+            api.on(ExtensionEvent.SessionStart.class, ignored -> events.add("session_start"));
+            api.on(ExtensionEvent.BeforeAgentStart.class, ignored -> events.add("before_agent_start"));
+            api.on(ExtensionEvent.AgentStart.class, ignored -> events.add("agent_start"));
+            api.on(ExtensionEvent.AgentEnd.class, ignored -> events.add("agent_end"));
+            api.on(ExtensionEvent.TurnStart.class, ignored -> events.add("turn_start"));
+            api.on(ExtensionEvent.TurnEnd.class, ignored -> events.add("turn_end"));
+            api.on(ExtensionEvent.MessageStart.class, ignored -> events.add("message_start"));
+            api.on(ExtensionEvent.MessageUpdate.class, ignored -> events.add("message_update"));
+            api.on(ExtensionEvent.MessageEnd.class, ignored -> events.add("message_end"));
             api.onToolCall(tc -> null);
-            api.on(ExtensionEvent.ToolResult.class, _ -> events.add("tool_result"));
-            api.on(ExtensionEvent.ToolExecutionStart.class, _ -> events.add("tool_execution_start"));
-            api.on(ExtensionEvent.ToolExecutionEnd.class, _ -> events.add("tool_execution_end"));
-            api.on(ExtensionEvent.BeforeProviderRequest.class, _ -> events.add("before_provider_request"));
-            api.on(ExtensionEvent.ModelSelect.class, _ -> events.add("model_select"));
-            api.onUserBash(_ -> ExtensionResult.UserBashResult.allow());
-            api.onBashToolCall(_ -> ExtensionResult.BashToolCallResult.allow());
+            api.on(ExtensionEvent.ToolResult.class, ignored -> events.add("tool_result"));
+            api.on(ExtensionEvent.ToolExecutionStart.class, ignored -> events.add("tool_execution_start"));
+            api.on(ExtensionEvent.ToolExecutionEnd.class, ignored -> events.add("tool_execution_end"));
+            api.on(ExtensionEvent.BeforeProviderRequest.class, ignored -> events.add("before_provider_request"));
+            api.on(ExtensionEvent.ModelSelect.class, ignored -> events.add("model_select"));
+            api.onUserBash(ignored -> ExtensionResult.UserBashResult.allow());
+            api.onBashToolCall(ignored -> ExtensionResult.BashToolCallResult.allow());
             api.onInput(text -> new ExtensionResult.InputResult(text, false));
-            api.on(ExtensionEvent.SessionBeforeCompact.class, _ -> events.add("session_before_compact"));
-            api.on(ExtensionEvent.SessionCompact.class, _ -> events.add("session_compact"));
+            api.on(ExtensionEvent.SessionBeforeCompact.class, ignored -> events.add("session_before_compact"));
+            api.on(ExtensionEvent.SessionCompact.class, ignored -> events.add("session_compact"));
             api.registerStatusLines(() -> List.of("status-" + name));
             api.registerFooterLines(() -> List.of("footer-" + name));
             api.registerSystemPrompt(() -> "prompt-" + name);
@@ -138,8 +138,8 @@ class ExtensionRegistryTest {
         @Override
         public void init(ExtensionAPI api) {
             api.onToolCall(tc -> "bash".equals(tc.toolName()) ? new ExtensionResult.Block("blocked") : null);
-            api.onUserBash(_ -> ExtensionResult.UserBashResult.block("no"));
-            api.onBashToolCall(_ -> ExtensionResult.BashToolCallResult.block("no"));
+            api.onUserBash(ignored -> ExtensionResult.UserBashResult.block("no"));
+            api.onBashToolCall(ignored -> ExtensionResult.BashToolCallResult.block("no"));
             api.onInput(text -> new ExtensionResult.InputResult(text.toUpperCase(), true));
             api.registerMessageRenderer(msg -> new ExtensionResult.MessageRender(List.of("rendered")));
         }
@@ -325,7 +325,7 @@ class ExtensionRegistryTest {
     @Test
     void fireEventHandlerExceptionDoesNotPropagate() {
         var reg = registry(new FakeAgentContext(), new FakeUiContext());
-        reg.register(simple("throws", api -> api.on(ExtensionEvent.SessionStart.class, _ -> {
+        reg.register(simple("throws", api -> api.on(ExtensionEvent.SessionStart.class, ignored -> {
             throw new RuntimeException("boom");
         })));
         assertDoesNotThrow(() -> reg.fire(new ExtensionEvent.SessionStart(tempDir)));
@@ -378,7 +378,7 @@ class ExtensionRegistryTest {
     @Test
     void beforeToolCallHandlerExceptionDoesNotPropagate() {
         var reg = registry(new FakeAgentContext(), new FakeUiContext());
-        reg.register(simple("thrower", api -> api.onToolCall(_ -> {
+        reg.register(simple("thrower", api -> api.onToolCall(ignored -> {
             throw new RuntimeException("boom");
         })));
         assertDoesNotThrow(() -> reg.beforeToolCall("id", "bash", "{}"));
@@ -594,8 +594,8 @@ class ExtensionRegistryTest {
     @Test
     void renderMessageSkipsEmptyResult() {
         var reg = registry(new FakeAgentContext(), new FakeUiContext());
-        reg.register(simple("empty-render", api -> api
-                                        .registerMessageRenderer(_ -> new ExtensionResult.MessageRender(List.of()))));
+        reg.register(simple("empty-render", api -> api.registerMessageRenderer(
+                                        ignored -> new ExtensionResult.MessageRender(List.of()))));
         assertEquals(Optional.empty(), reg.renderMessage(new Message.User("hi")));
     }
 
@@ -855,8 +855,8 @@ class ExtensionRegistryTest {
     @Test
     void registerSlashCommandCaptured() {
         var reg = new ExtensionRegistry();
-        reg.register(simple("cmd", api -> api
-                                        .registerSlashCommand(new SlashCommand("/my", "desc", List.of(), _ -> {}))));
+        reg.register(simple("cmd", api -> api.registerSlashCommand(
+                                        new SlashCommand("/my", "desc", List.of(), ignored -> {}))));
         assertEquals("/my", reg.slashCommands().get(0).name());
     }
 

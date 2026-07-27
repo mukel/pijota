@@ -19,6 +19,6 @@ public final class PathLoadedExtension implements Extension {
 
     @Override
     public void init(ExtensionAPI api) {
-        api.registerSlashCommand(new SlashCommand("path-loaded", "path loaded", List.of(), _ -> {}));
+        api.registerSlashCommand(new SlashCommand("path-loaded", "path loaded", List.of(), ignored -> {}));
     }
 }

@@ -576,7 +576,7 @@ public final class SessionManager {
     }
 
     private void lockAndWrite(Path file, WriteAction action) throws IOException {
-        var lock = writeLocks.computeIfAbsent(file, _ -> new ReentrantLock());
+        var lock = writeLocks.computeIfAbsent(file, ignored -> new ReentrantLock());
         lock.lock();
         try {
             action.run();
@@ -604,7 +604,7 @@ public final class SessionManager {
         try {
             String lastLine = null;
             try (var lines = Files.lines(sessionFile)) {
-                lastLine = lines.reduce((_, b) -> b).orElse(null);
+                lastLine = lines.reduce((ignored, b) -> b).orElse(null);
             }
             if (lastLine != null) {
                 var node = Util.MAPPER.readTree(lastLine);

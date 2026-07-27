@@ -165,14 +165,14 @@ class ModelRegistryTest {
 
     @Test
     void resolveRequiresApiKey() {
-        var settings = new SettingsManager(new AppConfig(), _ -> {});
+        var settings = new SettingsManager(new AppConfig(), ignored -> {});
         var resolved = ModelRegistry.resolve("openai", "gpt-5.5", settings);
         assertNull(resolved);
     }
 
     @Test
     void resolveReturnsModelWhenKeyAvailable() {
-        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), _ -> {});
+        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), ignored -> {});
         var resolved = ModelRegistry.resolve("openai", "gpt-5.5", settings);
         assertNotNull(resolved);
         assertEquals("openai", resolved.provider());
@@ -183,7 +183,7 @@ class ModelRegistryTest {
 
     @Test
     void resolveSelectionRequiresApiKey() {
-        var settings = new SettingsManager(new AppConfig(), _ -> {});
+        var settings = new SettingsManager(new AppConfig(), ignored -> {});
         var selection = new ModelSelection("openai", "gpt-4o", 0);
         assertNull(ModelRegistry.resolve(selection, settings));
     }
@@ -198,7 +198,7 @@ class ModelRegistryTest {
     @Test
     void resolveProviderModelFallsBackToSettingsDefaults() {
         var settings = new SettingsManager(new AppConfig().withDefaultProviderModel("anthropic", "claude-opus"),
-                                        _ -> {});
+                                        ignored -> {});
         var resolved = ModelRegistry.resolveProviderModel(null, null, settings);
         assertEquals("anthropic", resolved.provider());
     }
@@ -213,7 +213,7 @@ class ModelRegistryTest {
     @Test
     void resolvesModelAliasToConfiguredTarget() throws Exception {
         var config = Util.MAPPER.readValue("{\"aliases\":{\"fast\":\"anthropic/claude-haiku-4-5\"}}", AppConfig.class);
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
         var resolved = ModelRegistry.resolveProviderModel("alias", "fast", settings);
         assertEquals("anthropic", resolved.provider());
         assertEquals("claude-haiku-4-5", resolved.model());
@@ -222,7 +222,7 @@ class ModelRegistryTest {
 
     @Test
     void unknownAliasResolvesToNull() {
-        var settings = new SettingsManager(new AppConfig(), _ -> {});
+        var settings = new SettingsManager(new AppConfig(), ignored -> {});
         assertNull(ModelRegistry.resolveAlias("nope", settings));
     }
 

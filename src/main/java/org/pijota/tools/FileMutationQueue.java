@@ -13,7 +13,7 @@ public final class FileMutationQueue {
 
     public static <T> T run(Path path, Callable<T> action) throws Exception {
         Path key = key(path);
-        ReentrantLock lock = LOCKS.computeIfAbsent(key, _ -> new ReentrantLock());
+        ReentrantLock lock = LOCKS.computeIfAbsent(key, ignored -> new ReentrantLock());
         lock.lock();
         try {
             return action.call();

@@ -19,7 +19,7 @@ class ModelResolverTest {
     private static SettingsManager settings(Map<String, String> aliases, String defaultModel) {
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", defaultModel)
                                         .toBuilder().aliases(aliases).build();
-        return new SettingsManager(config, _ -> {});
+        return new SettingsManager(config, ignored -> {});
     }
 
     @Test

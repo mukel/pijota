@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PromptCompletionPolicyTest {
     @Test
     void replacesSingleSlashCommandMatch() {
-        var policy = new PromptCompletionPolicy(new SlashCommandRegistry(), _ -> List.of());
+        var policy = new PromptCompletionPolicy(new SlashCommandRegistry(), ignored -> List.of());
 
         var decision = policy.complete("/sett");
 
@@ -20,7 +20,7 @@ class PromptCompletionPolicyTest {
 
     @Test
     void replacesCommonSlashCommandPrefixAndRequestsRefresh() {
-        var policy = new PromptCompletionPolicy(new SlashCommandRegistry(), _ -> List.of());
+        var policy = new PromptCompletionPolicy(new SlashCommandRegistry(), ignored -> List.of());
 
         var decision = policy.complete("/ses");
 
@@ -43,7 +43,7 @@ class PromptCompletionPolicyTest {
 
     @Test
     void refreshesSlashCompletionsAndSuggestsCommands() {
-        var policy = new PromptCompletionPolicy(new SlashCommandRegistry(), _ -> List.of());
+        var policy = new PromptCompletionPolicy(new SlashCommandRegistry(), ignored -> List.of());
 
         assertTrue(policy.refreshCommandCompletions("/sess").stream().anyMatch(i -> i.name().equals("/sessions")));
         // Ghost text is only the trailing suffix ("/sess" + "ions" → "/sessions"), not the whole command name.

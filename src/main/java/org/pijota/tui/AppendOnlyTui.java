@@ -295,8 +295,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.loginCommands = new LoginCommandHandler(host);
         this.commandPalette = new CommandPaletteHandler(host);
         this.terminal = terminal;
-        this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, _ -> handleCtrlC());
-        this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, _ -> handleResize());
+        this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, ignored -> handleCtrlC());
+        this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, ignored -> handleResize());
         // Confirm callbacks point straight at the owning handlers; session/fork keep TUI-local restore logic.
         this.selectors = new TuiSelectors();
         selectors.bind(TuiSelectors.Slot.MODEL, modelCommands::confirmModelSelection);
@@ -2090,7 +2090,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void onEvent(AgentEvent event) {
         switch (event) {
-            case AgentEvent.TurnStart _ -> {
+            case AgentEvent.TurnStart ignored -> {
                 toolsInProgress.clear(); // evict any leftovers from a prior interrupted/aborted turn
                 followUps.clearPending();
                 streamRenderer.reset();
@@ -2174,7 +2174,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 streamRenderer.clearCompactionStream();
             }
             case AgentEvent.CompactionStream stream -> streamRenderer.renderCompactionStream(stream.content());
-            case AgentEvent.CompactionStreamEnd _ -> {
+            case AgentEvent.CompactionStreamEnd ignored -> {
                 streamRenderer.flush();
                 streamRenderer.reset();
             }
@@ -2201,7 +2201,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
             case AgentEvent.Error(Throwable t) ->
                 appendPlain(List.of(theme.styled("toolError", "error: " + ErrorUtil.message(t))));
-            case AgentEvent.HistoryChanged _ -> seedPromptHistoryFromSession(); // /load, /new, /undo, /fork
+            case AgentEvent.HistoryChanged ignored -> seedPromptHistoryFromSession(); // /load, /new, /undo, /fork
             default -> {}
         }
     }

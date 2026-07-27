@@ -196,8 +196,8 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     public String summarizeCurrentBranch(String instructions) throws IOException {
-        var result = agentLoop.llm().summarizeWithUsage(agentLoop.messages(), instructions, null, (_kind, _delta) -> {},
-                                        null, null);
+        var result = agentLoop.llm().summarizeWithUsage(agentLoop.messages(), instructions, null,
+                                        (ignoredKind, ignoredDelta) -> {}, null, null);
         String summary = result != null ? result.text() : null;
         if (summary == null || summary.isBlank())
             summary = fallbackBranchSummary(agentLoop.messages(), instructions);

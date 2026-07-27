@@ -43,11 +43,12 @@ public final class WhimsicalExtension implements Extension {
 
     @Override
     public void init(ExtensionAPI api) {
-        api.registerSlashCommand(new SlashCommand("whimsical", "Toggle whimsical status phrases", List.of(), _ -> {
-            enabled = !enabled;
-            if (enabled)
-                currentPhrase = randomPhrase();
-        }));
+        api.registerSlashCommand(new SlashCommand("whimsical", "Toggle whimsical status phrases", List.of(),
+                                        ignored -> {
+                                            enabled = !enabled;
+                                            if (enabled)
+                                                currentPhrase = randomPhrase();
+                                        }));
 
         api.registerStatusLines(() -> {
             if (!enabled || !visible)
@@ -58,7 +59,7 @@ public final class WhimsicalExtension implements Extension {
 
         api.registerThinkingHeaderText(() -> enabled && visible ? displayPhrase() + Emojis.ELLIPSIS : null);
 
-        api.on(ExtensionEvent.TurnStart.class, _ -> {
+        api.on(ExtensionEvent.TurnStart.class, ignored -> {
             if (enabled) {
                 currentPhrase = randomPhrase();
                 lastRotatedMs = System.currentTimeMillis();
@@ -66,7 +67,7 @@ public final class WhimsicalExtension implements Extension {
             }
         });
 
-        api.on(ExtensionEvent.TurnEnd.class, _ -> visible = false);
+        api.on(ExtensionEvent.TurnEnd.class, ignored -> visible = false);
     }
 
     private void maybeRotate() {

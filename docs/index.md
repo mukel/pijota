@@ -8,6 +8,7 @@ expects Git Bash or a configured `shell_path` for shell tools.
 Start here:
 
 - [Worktrees](./worktree.md): isolate risky changes in reusable git worktrees.
+- [Release checklist](./release.md): publish the Maven Central artifact.
 
 Planned guides:
 

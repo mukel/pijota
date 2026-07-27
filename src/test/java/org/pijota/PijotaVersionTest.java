@@ -8,6 +8,6 @@ class PijotaVersionTest {
 
     @Test
     void currentReturnsProjectVersionInSourceTreeRuns() {
-        assertEquals("0.1.0-SNAPSHOT", PijotaVersion.current());
+        assertEquals("0.1.0", PijotaVersion.current());
     }
 }

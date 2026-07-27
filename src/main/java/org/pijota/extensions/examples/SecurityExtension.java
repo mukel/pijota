@@ -55,7 +55,7 @@ public final class SecurityExtension implements Extension {
     public void init(ExtensionAPI api) {
         var runtime = api.runtime();
         api.registerSlashCommand(new SlashCommand("security", "Toggle dangerous command blocking", List.of(),
-                                        _ -> toggle()));
+                                        ignored -> toggle()));
 
         api.onToolCall(tc -> {
             if (!enabled)

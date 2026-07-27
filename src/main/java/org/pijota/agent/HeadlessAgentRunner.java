@@ -88,7 +88,7 @@ public final class HeadlessAgentRunner {
                         if (added > 0)
                             emit(new StreamLinesEvent(added));
                     }
-                    case AgentEvent.MessageStreamEnd _ -> {
+                    case AgentEvent.MessageStreamEnd ignored -> {
                         // emitted after each LLM response completes
                     }
                     default -> {}

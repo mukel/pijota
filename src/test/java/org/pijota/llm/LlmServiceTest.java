@@ -32,11 +32,13 @@ import java.util.function.Function;
 class LlmServiceTest {
 
     private static LlmService serviceWithFake(FakeModel fake) {
-        return new LlmService("openai", "gpt-4o", _ -> "test-key", null, List.of(new FakeProviderFactory(fake)), null);
+        return new LlmService("openai", "gpt-4o", ignored -> "test-key", null, List.of(new FakeProviderFactory(fake)),
+                                        null);
     }
 
     private static LlmService serviceWithFake(FakeModel fake, String provider, String model) {
-        return new LlmService(provider, model, _ -> "test-key", null, List.of(new FakeProviderFactory(fake)), null);
+        return new LlmService(provider, model, ignored -> "test-key", null, List.of(new FakeProviderFactory(fake)),
+                                        null);
     }
 
     private static LlmService serviceWithKeyResolver(Function<String, String> resolver) {
@@ -52,7 +54,7 @@ class LlmServiceTest {
                                         .build();
         var service = serviceWithFake(new FakeModel().withContent("ok").withUsage(usage));
 
-        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
 
         assertEquals(600, service.totalReasoningTokens());
         assertEquals(900, service.totalOutputTokens());
@@ -66,7 +68,7 @@ class LlmServiceTest {
                                         .build();
         var service = serviceWithFake(new FakeModel().withContent("ok").withUsage(usage));
 
-        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
 
         assertEquals(800, service.totalCacheReadTokens());
         assertEquals(200, service.totalInputTokens(), "input excludes the 800 cached tokens folded into prompt_tokens");
@@ -79,7 +81,7 @@ class LlmServiceTest {
                                         .cacheCreationInputTokens(1000).build();
         var service = serviceWithFake(new FakeModel().withContent("ok").withUsage(usage));
 
-        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
 
         assertEquals(4000, service.totalCacheReadTokens());
         assertEquals(1000, service.totalCacheWriteTokens());
@@ -112,22 +114,22 @@ class LlmServiceTest {
 
     @Test
     void constructorDefaultsProviderFromOpenAiKey() {
-        var service = new LlmService(null, null, _ -> "sk-openai", null,
+        var service = new LlmService(null, null, ignored -> "sk-openai", null,
                                         List.of(new FakeProviderFactory(new FakeModel())), null);
         assertEquals("openai", service.provider());
     }
 
     @Test
     void constructorDefaultsProviderFromAnthropicKey() {
-        var service = new LlmService(null, null, _ -> "sk-ant-xxx", null,
+        var service = new LlmService(null, null, ignored -> "sk-ant-xxx", null,
                                         List.of(new FakeProviderFactory(new FakeModel())), null);
         assertEquals("anthropic", service.provider());
     }
 
     @Test
     void constructorFallsBackToOpenAiWhenNoKey() {
-        var service = new LlmService(null, null, _ -> null, null, List.of(new FakeProviderFactory(new FakeModel())),
-                                        null);
+        var service = new LlmService(null, null, ignored -> null, null,
+                                        List.of(new FakeProviderFactory(new FakeModel())), null);
         assertEquals("openai", service.provider());
     }
 
@@ -176,13 +178,13 @@ class LlmServiceTest {
     @Test
     void apiKeyResolverRefreshClearsCache() {
         var key = new AtomicReference<>("key1");
-        var service = serviceWithKeyResolver(_ -> key.get());
+        var service = serviceWithKeyResolver(ignored -> key.get());
 
-        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
-        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
 
         key.set("key2");
-        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
 
         assertEquals("key2", service.apiKey());
     }
@@ -192,7 +194,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("hello world");
         var service = serviceWithFake(fake);
 
-        var result = service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        var result = service.streamMessages(List.of(new Message.User("hi")), List.of(),
+                                        (ignoredChunk, ignoredType) -> {}).join();
 
         assertEquals("hello world", result.content());
     }
@@ -202,7 +205,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withThinking("thinking...").withContent("answer");
         var service = serviceWithFake(fake);
 
-        var result = service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        var result = service.streamMessages(List.of(new Message.User("hi")), List.of(),
+                                        (ignoredChunk, ignoredType) -> {}).join();
 
         assertEquals("thinking...", result.thinking());
         assertEquals("answer", result.content());
@@ -213,7 +217,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("ok").withUsage(10, 5);
         var service = serviceWithFake(fake);
 
-        var result = service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        var result = service.streamMessages(List.of(new Message.User("hi")), List.of(),
+                                        (ignoredChunk, ignoredType) -> {}).join();
 
         assertNotNull(result.usage());
         assertEquals(10, result.usage().inputTokens());
@@ -228,7 +233,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withToolCall(request);
         var service = serviceWithFake(fake);
 
-        var result = service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        var result = service.streamMessages(List.of(new Message.User("hi")), List.of(),
+                                        (ignoredChunk, ignoredType) -> {}).join();
 
         assertEquals(1, result.toolCalls().size());
         assertEquals("tc1", result.toolCalls().get(0).id());
@@ -239,7 +245,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withError(new RuntimeException("boom"));
         var service = serviceWithFake(fake);
 
-        var future = service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {});
+        var future = service.streamMessages(List.of(new Message.User("hi")), List.of(),
+                                        (ignoredChunk, ignoredType) -> {});
 
         assertTrue(future.isCompletedExceptionally());
         assertThrows(Exception.class, future::join);
@@ -250,14 +257,15 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("ok").withUsage(1000, 1000);
         var service = serviceWithFake(fake);
         // Run one request to accumulate cost.
-        service.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
         // Now set a tiny budget that is already exceeded. Use a priced catalog model so cost actually accrues
         // (cost is computed from the model's per-million rates; unpriced models contribute $0).
-        var limited = new LlmService("anthropic", "claude-opus-4-5-20251101", _ -> "test-key", null,
+        var limited = new LlmService("anthropic", "claude-opus-4-5-20251101", ignored -> "test-key", null,
                                         List.of(new FakeProviderFactory(fake)), 0.0001);
-        limited.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        limited.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
 
-        var result = limited.streamMessages(List.of(new Message.User("hi")), List.of(), (_c, _t) -> {}).join();
+        var result = limited.streamMessages(List.of(new Message.User("hi")), List.of(),
+                                        (ignoredChunk, ignoredType) -> {}).join();
         assertEquals("[Budget limit exceeded]", result.content());
     }
 
@@ -266,8 +274,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("summary");
         var service = serviceWithFake(fake);
 
-        var result = service.summarize(List.of(new Message.User("text")), "summarize", null, (_c, _t) -> {}, null,
-                                        null);
+        var result = service.summarize(List.of(new Message.User("text")), "summarize", null,
+                                        (ignoredChunk, ignoredType) -> {}, null, null);
 
         assertEquals("summary", result);
     }
@@ -277,8 +285,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("custom summary");
         var service = serviceWithFake(fake);
 
-        var result = service.summarize(List.of(new Message.User("text")), "summarize", null, (_c, _t) -> {}, null,
-                                        "Custom system");
+        var result = service.summarize(List.of(new Message.User("text")), "summarize", null,
+                                        (ignoredChunk, ignoredType) -> {}, null, "Custom system");
 
         assertEquals("custom summary", result);
     }
@@ -288,8 +296,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("override summary");
         var service = serviceWithFake(fake);
 
-        var result = service.summarize(List.of(new Message.User("text")), "summarize", null, (_c, _t) -> {},
-                                        "anthropic/claude-opus-4-5-20251101", null);
+        var result = service.summarize(List.of(new Message.User("text")), "summarize", null,
+                                        (ignoredChunk, ignoredType) -> {}, "anthropic/claude-opus-4-5-20251101", null);
 
         assertEquals("override summary", result);
     }
@@ -299,8 +307,8 @@ class LlmServiceTest {
         var fake = new FakeModel().withError(new RuntimeException("boom"));
         var service = serviceWithFake(fake);
 
-        var result = service.summarize(List.of(new Message.User("text")), "summarize", null, (_c, _t) -> {}, null,
-                                        null);
+        var result = service.summarize(List.of(new Message.User("text")), "summarize", null,
+                                        (ignoredChunk, ignoredType) -> {}, null, null);
 
         assertNull(result);
     }
@@ -324,7 +332,7 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("hi");
         var service = serviceWithFake(fake, "anthropic", "claude-opus-4-5-20251101");
         var calls = new AtomicInteger();
-        service.setModelChangeCallback((_old, _new) -> calls.incrementAndGet());
+        service.setModelChangeCallback((ignoredOld, ignoredNew) -> calls.incrementAndGet());
         service.setModelName("claude-sonnet-4-5-20250929");
         assertEquals(1, calls.get());
     }
@@ -334,7 +342,7 @@ class LlmServiceTest {
         var fake = new FakeModel().withContent("hi");
         var service = serviceWithFake(fake, "anthropic", "claude-opus-4-5-20251101");
         var calls = new AtomicInteger();
-        service.setModelChangeCallback((_old, _new) -> calls.incrementAndGet());
+        service.setModelChangeCallback((ignoredOld, ignoredNew) -> calls.incrementAndGet());
         service.setModelName(service.model());
         assertEquals(0, calls.get());
     }
@@ -352,7 +360,8 @@ class LlmServiceTest {
                                                                         .completedFuture(Tool.ToolResult.success("ok")))
                                         .toTool();
 
-        service.streamMessages(List.of(new Message.User("hi")), List.of(toolB, toolA), (_c, _t) -> {}).join();
+        service.streamMessages(List.of(new Message.User("hi")), List.of(toolB, toolA),
+                                        (ignoredChunk, ignoredType) -> {}).join();
 
         var request = fake.requests().get(0);
         assertEquals(List.of("a-tool", "b-tool"), request.tools().stream().map(ToolSpecification::name).toList());

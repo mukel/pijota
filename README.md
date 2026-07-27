@@ -4,7 +4,7 @@
 
 ### A local-first AI coding agent for people who live in terminals.
 
-[![Java 25][badge-java]][java]
+[![Java 21][badge-java]][java]
 [![Maven][badge-maven]][maven]
 [![GraalVM Native Image][badge-native]][graalvm]
 [![License: Apache 2.0][badge-license]][license]
@@ -27,6 +27,7 @@ It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp 
 
 > [!NOTE]
 > Pijota is local software with powerful tools. When you give it shell or file access, it acts with your user permissions.
+> It is not a sandbox; use containers, VMs, locked-down users, or disposable worktrees when you need hard isolation.
 
 ---
 
@@ -47,7 +48,7 @@ It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp 
 
 ## Quick Start
 
-Requires **JDK 25**. The simplest install path is [JBang](https://www.jbang.dev/), which installs the published Maven artifact as `pj`.
+Requires **JDK 21**. The simplest install path is [JBang](https://www.jbang.dev/), which installs the published Maven artifact as `pj`.
 
 Linux and macOS are first-class targets. On Windows, use WSL for the best experience; native Windows is best-effort and
 expects Git Bash or a configured `shell_path` for shell tools.
@@ -270,11 +271,14 @@ The repo uses `make` as a small wrapper around Maven for shorter, repeatable com
 
 ```bash
 make check
-make jar
+make jar                 # Maven thin jar; use JBang or a Maven classpath to run it
 make fat
 make native              # writes target/pj
 make native-static       # fully static target/pj; run make setup-musl first
 ```
+
+`make fat` builds a standalone JVM jar for manual local use. The Maven Central artifact is the normal thin jar; JBang
+resolves its dependencies from Maven.
 
 Run from compiled classes:
 
@@ -301,10 +305,10 @@ If you need hard isolation, run Pijota inside a container, VM, locked-down user 
 [repo]: .
 [license]: LICENSE
 [providers]: src/main/resources/providers.json
-[java]: https://openjdk.org/projects/jdk/25/
+[java]: https://openjdk.org/projects/jdk/21/
 [maven]: https://maven.apache.org/
 [graalvm]: https://www.graalvm.org/latest/reference-manual/native-image/
-[badge-java]: https://img.shields.io/badge/Java-25+-007396?style=flat-square&logo=openjdk&logoColor=white
+[badge-java]: https://img.shields.io/badge/Java-21+-007396?style=flat-square&logo=openjdk&logoColor=white
 [badge-maven]: https://img.shields.io/badge/build-Maven-C71A36?style=flat-square&logo=apachemaven&logoColor=white
 [badge-native]: https://img.shields.io/badge/GraalVM-native_image-F29111?style=flat-square&logo=graalvm&logoColor=white
 [badge-license]: https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square

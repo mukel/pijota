@@ -185,7 +185,7 @@ public class FakeExtensionAPI implements ExtensionAPI {
     @Override
     @SuppressWarnings("unchecked")
     public <E extends ExtensionEvent> ExtensionAPI on(Class<E> eventType, Consumer<E> handler) {
-        listeners.computeIfAbsent(eventType, _ -> new CopyOnWriteArrayList<>()).add(e -> {
+        listeners.computeIfAbsent(eventType, ignored -> new CopyOnWriteArrayList<>()).add(e -> {
             handler.accept((E) e);
             return null;
         });
@@ -202,7 +202,7 @@ public class FakeExtensionAPI implements ExtensionAPI {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public ExtensionAPI onUserBash(Function<ExtensionEvent.UserBash, ExtensionResult.UserBashResult> handler) {
-        listeners.computeIfAbsent(ExtensionEvent.UserBash.class, _ -> new CopyOnWriteArrayList<>())
+        listeners.computeIfAbsent(ExtensionEvent.UserBash.class, ignored -> new CopyOnWriteArrayList<>())
                                         .add((Function) handler);
         return this;
     }
@@ -211,7 +211,7 @@ public class FakeExtensionAPI implements ExtensionAPI {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public ExtensionAPI onBashToolCall(
                                     Function<ExtensionEvent.BashToolCall, ExtensionResult.BashToolCallResult> handler) {
-        listeners.computeIfAbsent(ExtensionEvent.BashToolCall.class, _ -> new CopyOnWriteArrayList<>())
+        listeners.computeIfAbsent(ExtensionEvent.BashToolCall.class, ignored -> new CopyOnWriteArrayList<>())
                                         .add((Function) handler);
         return this;
     }
@@ -219,14 +219,14 @@ public class FakeExtensionAPI implements ExtensionAPI {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public ExtensionAPI onToolCall(Function<ExtensionEvent.ToolCall, ExtensionResult.Block> handler) {
-        listeners.computeIfAbsent(ExtensionEvent.ToolCall.class, _ -> new CopyOnWriteArrayList<>())
+        listeners.computeIfAbsent(ExtensionEvent.ToolCall.class, ignored -> new CopyOnWriteArrayList<>())
                                         .add((Function) handler);
         return this;
     }
 
     @Override
     public ExtensionAPI onInput(Function<String, ExtensionResult.InputResult> handler) {
-        listeners.computeIfAbsent(ExtensionEvent.Input.class, _ -> new CopyOnWriteArrayList<>()).add(e -> {
+        listeners.computeIfAbsent(ExtensionEvent.Input.class, ignored -> new CopyOnWriteArrayList<>()).add(e -> {
             if (e instanceof ExtensionEvent.Input input)
                 return handler.apply(input.text());
             return null;

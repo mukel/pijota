@@ -26,7 +26,7 @@ class AppBootstrapTest {
     private static SettingsManager settings(Path tmp, Map<String, String> aliases, String defaultModel) {
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", defaultModel)
                                         .withSessionDir(tmp.toString()).toBuilder().aliases(aliases).build();
-        return new SettingsManager(config, _ -> {});
+        return new SettingsManager(config, ignored -> {});
     }
 
     @Test
@@ -214,7 +214,7 @@ class AppBootstrapTest {
         var config = new AppConfig().withDefaultProviderModel("missing-test", "test-model")
                                         .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
                                         .build();
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
 
         var ex = assertThrows(IllegalStateException.class, () -> AppBootstrap.bootstrap(
                                         ArgParser.parse(new String[] {"--provider", "missing-test"}), settings));
@@ -237,7 +237,7 @@ class AppBootstrapTest {
         var config = new AppConfig().withDefaultProviderModel("oauth-test", "oauth-model")
                                         .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
                                         .build();
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
 
         var ex = assertThrows(IllegalStateException.class, () -> AppBootstrap.bootstrap(
                                         ArgParser.parse(new String[] {"--provider", "oauth-test"}), settings));
@@ -256,7 +256,7 @@ class AppBootstrapTest {
         var config = new AppConfig().withDefaultProviderModel("agent-missing-test", "test-model")
                                         .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
                                         .build();
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
 
         var result = AppBootstrap.bootstrap(
                                         ArgParser.parse(new String[] {"--agent", "--provider", "agent-missing-test"}),
@@ -275,7 +275,7 @@ class AppBootstrapTest {
         var config = new AppConfig().withDefaultProviderModel("explicit-missing-test", "default-model")
                                         .withSessionDir(tmp.toString()).toBuilder().providers(List.of(provider))
                                         .build();
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
 
         var ex = assertThrows(IllegalStateException.class, () -> AppBootstrap.bootstrap(
                                         ArgParser.parse(new String[] {"--model", "explicit-missing-test/custom-model"}),
@@ -290,7 +290,7 @@ class AppBootstrapTest {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")
                                         .withSessionDir(tmp.toString());
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
         Args args = ArgParser.parse(new String[] {"--agent", "--api-key", "sk-test"});
 
         var result = AppBootstrap.bootstrap(args, settings);
@@ -315,7 +315,7 @@ class AppBootstrapTest {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")
                                         .withSessionDir(tmp.toString());
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
         Args args = ArgParser.parse(new String[] {"--print", "hello", "--api-key", "sk-test"});
 
         var result = AppBootstrap.bootstrap(args, settings);
@@ -330,7 +330,7 @@ class AppBootstrapTest {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")
                                         .withThinkingLevel("low").withSessionDir(tmp.toString());
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
         Args args = ArgParser.parse(new String[] {"--agent", "--api-key", "sk-test"});
 
         var result = AppBootstrap.bootstrap(args, settings);
@@ -343,7 +343,7 @@ class AppBootstrapTest {
         Path tmp = Files.createTempDirectory("bootstrap-test");
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")
                                         .withThinkingLevel("off").withSessionDir(tmp.toString());
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
         Args args = ArgParser.parse(new String[] {"--agent", "--api-key", "sk-test", "--thinking", "high"});
 
         var result = AppBootstrap.bootstrap(args, settings);

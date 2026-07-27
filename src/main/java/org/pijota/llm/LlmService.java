@@ -395,8 +395,9 @@ public final class LlmService implements LlmClient {
             var sysMsg = new Message.System(UUID.randomUUID(), Instant.now(), effectiveSystemPrompt);
             var userMsg = new Message.User(prompt);
             var messages = List.<Message>of(sysMsg, userMsg);
-            var result = streamLangChain4j(model, messages, List.of(), onPartial != null ? onPartial : (_, _) -> {},
-                                            null).get(120, TimeUnit.SECONDS);
+            var result = streamLangChain4j(model, messages, List.of(),
+                                            onPartial != null ? onPartial : (ignoredKind, ignoredDelta) -> {}, null)
+                                            .get(120, TimeUnit.SECONDS);
             return result.content() != null ? new SummaryResult(result.content().strip(), result.usage()) : null;
         } catch (TimeoutException e) {
             log.warn("Summarization timed out after 120s", e);

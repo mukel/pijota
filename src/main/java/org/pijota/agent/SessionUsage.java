@@ -24,7 +24,7 @@ public final class SessionUsage {
             String provider = blankToDefault(assistant.sourceProvider(), fallbackProvider);
             String model = blankToDefault(assistant.sourceModel(), fallbackModel);
             String key = provider + "/" + model;
-            var total = totals.computeIfAbsent(key, _ -> new Totals());
+            var total = totals.computeIfAbsent(key, ignored -> new Totals());
             total.add(assistant.usage(), ModelRegistry.pricingFor(provider, model));
         }
         var out = new ArrayList<Breakdown>();

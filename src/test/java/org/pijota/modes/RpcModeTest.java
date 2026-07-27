@@ -111,7 +111,7 @@ class RpcModeTest {
     @Test
     void runPingReturnsPong() {
         feedStdin("{\"method\":\"ping\",\"id\":\"1\"}\n{\"method\":\"shutdown\",\"id\":\"2\"}\n");
-        RpcMode.run(_ -> CompletableFuture.completedFuture(List.of()));
+        RpcMode.run(ignored -> CompletableFuture.completedFuture(List.of()));
         String out = captured.toString(StandardCharsets.UTF_8);
         assertTrue(out.contains("\"id\":1"));
         assertTrue(out.contains("\"result\":\"pong\""));
@@ -120,7 +120,7 @@ class RpcModeTest {
     @Test
     void runUnknownMethodReturnsError() {
         feedStdin("{\"method\":\"unknown\",\"id\":\"3\"}\n{\"method\":\"shutdown\",\"id\":\"4\"}\n");
-        RpcMode.run(_ -> CompletableFuture.completedFuture(List.of()));
+        RpcMode.run(ignored -> CompletableFuture.completedFuture(List.of()));
         String out = captured.toString(StandardCharsets.UTF_8);
         assertTrue(out.contains("\"id\":3"));
         assertTrue(out.contains("\"error\""));
@@ -130,7 +130,7 @@ class RpcModeTest {
     @Test
     void runBlankLinesAreIgnored() {
         feedStdin("\n\n{\"method\":\"shutdown\",\"id\":\"5\"}\n");
-        RpcMode.run(_ -> CompletableFuture.completedFuture(List.of()));
+        RpcMode.run(ignored -> CompletableFuture.completedFuture(List.of()));
         String out = captured.toString(StandardCharsets.UTF_8);
         assertTrue(out.contains("\"id\":5"));
     }
@@ -138,7 +138,7 @@ class RpcModeTest {
     @Test
     void runInvalidJsonIsIgnored() {
         feedStdin("not json\n{\"method\":\"shutdown\",\"id\":\"6\"}\n");
-        RpcMode.run(_ -> CompletableFuture.completedFuture(List.of()));
+        RpcMode.run(ignored -> CompletableFuture.completedFuture(List.of()));
         String out = captured.toString(StandardCharsets.UTF_8);
         assertTrue(out.contains("\"id\":6"));
         assertFalse(out.contains("\"id\":null"));

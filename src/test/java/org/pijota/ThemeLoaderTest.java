@@ -22,11 +22,11 @@ class ThemeLoaderTest {
     private static SettingsManager settingsWithTheme(String theme) {
         return new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, theme, null, null,
                                         true, false, false, null, null, new AppConfig.CompactionConfig(), null, null,
-                                        List.of(), java.util.Map.of(), null), _ -> {});
+                                        List.of(), java.util.Map.of(), null), ignored -> {});
     }
 
     private static SettingsManager emptySettings() {
-        return new SettingsManager(new AppConfig(), _ -> {});
+        return new SettingsManager(new AppConfig(), ignored -> {});
     }
 
     @Test
@@ -75,7 +75,7 @@ class ThemeLoaderTest {
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, "ocean",
                                         List.of(dir.toString()), null, true, false, false, null, null,
                                         new AppConfig.CompactionConfig(), null, null, List.of(), java.util.Map.of(),
-                                        null), _ -> {});
+                                        null), ignored -> {});
 
         var theme = ThemeLoader.load(settings, emptyArgs(), "/tmp");
         assertEquals("ocean", theme.name);
@@ -108,7 +108,7 @@ class ThemeLoaderTest {
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, null,
                                         List.of(dir.toString()), null, true, false, false, null, null,
                                         new AppConfig.CompactionConfig(), null, null, List.of(), java.util.Map.of(),
-                                        null), _ -> {});
+                                        null), ignored -> {});
 
         var theme = ThemeLoader.load(settings, ArgParser.parse(new String[] {"--no-themes"}), "/tmp");
         assertEquals("gruvbox-dark", theme.name); // built-in default still loads; only user-dir discovery is

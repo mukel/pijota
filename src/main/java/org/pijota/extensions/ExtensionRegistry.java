@@ -226,7 +226,7 @@ public final class ExtensionRegistry {
     }
 
     private void addListener(Class<? extends ExtensionEvent> eventType, Function<ExtensionEvent, Object> handler) {
-        listeners.computeIfAbsent(eventType, _ -> new CopyOnWriteArrayList<>()).add(handler);
+        listeners.computeIfAbsent(eventType, ignored -> new CopyOnWriteArrayList<>()).add(handler);
     }
 
     // -- event dispatch --
@@ -460,9 +460,9 @@ public final class ExtensionRegistry {
         switch (event) {
             case AgentEvent.TurnStart(var turn) -> fire(new ExtensionEvent.TurnStart(turn));
             case AgentEvent.TurnEnd(var turn) -> fire(new ExtensionEvent.TurnEnd(turn));
-            case AgentEvent.MessageStreamStart _ -> fire(new ExtensionEvent.MessageStart());
+            case AgentEvent.MessageStreamStart ignored -> fire(new ExtensionEvent.MessageStart());
             case AgentEvent.MessageStreamDelta(var delta) -> fire(new ExtensionEvent.MessageUpdate(delta));
-            case AgentEvent.MessageStreamEnd _ -> fire(new ExtensionEvent.MessageEnd());
+            case AgentEvent.MessageStreamEnd ignored -> fire(new ExtensionEvent.MessageEnd());
             case AgentEvent.Error(var throwable) ->
                 fire(new ExtensionEvent.Error(ErrorUtil.message(throwable), ErrorUtil.isRetryable(throwable)));
             default -> {}

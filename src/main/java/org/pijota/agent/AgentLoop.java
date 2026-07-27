@@ -457,7 +457,7 @@ public final class AgentLoop implements AgentContext {
                 return;
             }
 
-            toolExecutor.execute(streamResult.toolCalls()).thenAccept(_ -> {
+            toolExecutor.execute(streamResult.toolCalls()).thenAccept(ignored -> {
                 if (!isActive(result))
                     return;
                 fireEvent(new AgentEvent.TurnEnd(turn));

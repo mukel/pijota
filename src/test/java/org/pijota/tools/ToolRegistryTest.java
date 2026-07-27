@@ -141,7 +141,7 @@ class ToolRegistryTest {
             }
         });
 
-        var result = r.execute("tc1", "needs", Map.of(), "{}", "/", _ -> {}).get(1, TimeUnit.SECONDS);
+        var result = r.execute("tc1", "needs", Map.of(), "{}", "/", ignored -> {}).get(1, TimeUnit.SECONDS);
 
         assertTrue(result.isError());
         assertFalse(invoked.get());

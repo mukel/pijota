@@ -22,8 +22,8 @@ class LoginCommandHandlerTest {
     @Test
     void showLoginSelectorReportsWhenNoOAuthProvidersExist() {
         var host = new FakeHost();
-        var handler = handler(host, List.of(provider("local", "Local", null)), new FakeTokenStore(), (_, _) -> null,
-                                        _ -> null);
+        var handler = handler(host, List.of(provider("local", "Local", null)), new FakeTokenStore(),
+                                        (ignoredProvider, ignoredOAuth) -> null, ignoredProvider -> null);
 
         handler.showLoginSelector();
 
@@ -34,8 +34,8 @@ class LoginCommandHandlerTest {
     @Test
     void showLoginSelectorShowsOAuthProviders() {
         var host = new FakeHost();
-        var handler = handler(host, List.of(provider("openai", "OpenAI", OAUTH)), new FakeTokenStore(), (_, _) -> null,
-                                        _ -> null);
+        var handler = handler(host, List.of(provider("openai", "OpenAI", OAUTH)), new FakeTokenStore(),
+                                        (ignoredProvider, ignoredOAuth) -> null, ignoredProvider -> null);
 
         handler.showLoginSelector();
 
@@ -50,7 +50,8 @@ class LoginCommandHandlerTest {
         var store = new FakeTokenStore();
         store.accessTokens.put("openai", "token");
         var handler = handler(host, List.of(provider("openai", "OpenAI", OAUTH),
-                                        provider("anthropic", "Anthropic", OAUTH)), store, (_, _) -> null, _ -> null);
+                                        provider("anthropic", "Anthropic", OAUTH)), store,
+                                        (ignoredProvider, ignoredOAuth) -> null, ignoredProvider -> null);
 
         handler.showLogoutSelector();
 
@@ -64,7 +65,8 @@ class LoginCommandHandlerTest {
         host.selected = new LoginProviderItem("openai", "OpenAI", "OAuth", false);
         var store = new FakeTokenStore();
         var handler = handler(host, List.of(provider("openai", "OpenAI", OAUTH)), store,
-                                        (_, _) -> new OAuthLogin.TokenResult("access", "refresh", 123L, "account"),
+                                        (ignoredProvider, ignoredOAuth) -> new OAuthLogin.TokenResult("access",
+                                                                        "refresh", 123L, "account"),
                                         provider -> provider + "-default");
 
         handler.showLoginSelector();
@@ -86,8 +88,9 @@ class LoginCommandHandlerTest {
         host.selected = new LoginProviderItem("openai", "OpenAI", "OAuth", false);
         var store = new FakeTokenStore();
         var handler = handler(host, List.of(provider("openai", "OpenAI", OPENAI_OAUTH)), store,
-                                        (_, _) -> new OAuthLogin.TokenResult("access", "refresh", 123L, "account"),
-                                        _ -> null);
+                                        (ignoredProvider, ignoredOAuth) -> new OAuthLogin.TokenResult("access",
+                                                                        "refresh", 123L, "account"),
+                                        ignoredProvider -> null);
 
         handler.showLoginSelector();
         handler.confirmProviderSelection();
@@ -101,8 +104,9 @@ class LoginCommandHandlerTest {
         host.selected = new LoginProviderItem("openai", "OpenAI", "OAuth", false);
         var providers = new FakeProviders(List.of(provider("openai", "OpenAI", OAUTH)));
         providers.oauth = Optional.empty();
-        var handler = new LoginCommandHandler(host, providers, FakeTokenStore::new,
-                                        (_, _) -> new OAuthLogin.TokenResult("access", null, 0, null), _ -> null);
+        var handler = new LoginCommandHandler(host, providers, FakeTokenStore::new, (ignoredProvider,
+                                        ignoredOAuth) -> new OAuthLogin.TokenResult("access", null, 0, null),
+                                        ignoredProvider -> null);
 
         handler.showLoginSelector();
         handler.confirmProviderSelection();
@@ -114,9 +118,10 @@ class LoginCommandHandlerTest {
     void confirmLoginReportsOAuthFailureAndResumesTui() {
         var host = new FakeHost();
         host.selected = new LoginProviderItem("openai", "OpenAI", "OAuth", false);
-        var handler = handler(host, List.of(provider("openai", "OpenAI", OAUTH)), new FakeTokenStore(), (_, _) -> {
-            throw new IOException("denied");
-        }, _ -> null);
+        var handler = handler(host, List.of(provider("openai", "OpenAI", OAUTH)), new FakeTokenStore(),
+                                        (ignoredProvider, ignoredOAuth) -> {
+                                            throw new IOException("denied");
+                                        }, ignoredProvider -> null);
 
         handler.showLoginSelector();
         handler.confirmProviderSelection();
@@ -129,7 +134,8 @@ class LoginCommandHandlerTest {
         var host = new FakeHost();
         host.selected = new LoginProviderItem("openai", "OpenAI", "logged in", false);
         var store = new FakeTokenStore();
-        var handler = handler(host, List.of(provider("openai", "OpenAI", OAUTH)), store, (_, _) -> null, _ -> null);
+        var handler = handler(host, List.of(provider("openai", "OpenAI", OAUTH)), store,
+                                        (ignoredProvider, ignoredOAuth) -> null, ignoredProvider -> null);
 
         handler.showLogoutSelector();
         handler.confirmProviderSelection();

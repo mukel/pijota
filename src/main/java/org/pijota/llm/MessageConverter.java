@@ -51,7 +51,7 @@ final class MessageConverter {
                     pendingToolResultIds = new LinkedHashSet<>();
                     chatMessages.add(new SystemMessage(s.content()));
                 }
-                case Message.Custom _ -> {}
+                case Message.Custom ignored -> {}
                 case Message.User u -> {
                     pendingToolResultIds = new LinkedHashSet<>();
                     chatMessages.add(userMessage(u, allowed));

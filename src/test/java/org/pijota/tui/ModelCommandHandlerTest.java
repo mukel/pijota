@@ -78,7 +78,7 @@ class ModelCommandHandlerTest {
     void availableModelsHonorsEnabledModelsAllowlist() {
         var config = new AppConfig().withApiKey("anthropic", "sk-ant").withApiKey("openai", "sk-test").toBuilder()
                                         .enabledModels(List.of("anthropic/*")).build();
-        var settings = new SettingsManager(config, _ -> {});
+        var settings = new SettingsManager(config, ignored -> {});
         var handler = new ModelCommandHandler(fakeHost("anthropic", "x", settings));
 
         var available = handler.availableModels();

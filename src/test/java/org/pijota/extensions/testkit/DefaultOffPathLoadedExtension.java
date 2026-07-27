@@ -24,6 +24,6 @@ public final class DefaultOffPathLoadedExtension implements Extension {
 
     @Override
     public void init(ExtensionAPI api) {
-        api.registerSlashCommand(new SlashCommand("path-default-off", "path default off", List.of(), _ -> {}));
+        api.registerSlashCommand(new SlashCommand("path-default-off", "path default off", List.of(), ignored -> {}));
     }
 }

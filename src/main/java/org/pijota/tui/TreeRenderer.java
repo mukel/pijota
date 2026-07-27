@@ -70,7 +70,7 @@ final class TreeRenderer {
             if (parentId == null || !byId.containsKey(parentId))
                 roots.add(entry);
             else
-                children.computeIfAbsent(parentId, _ -> new ArrayList<>()).add(entry);
+                children.computeIfAbsent(parentId, ignored -> new ArrayList<>()).add(entry);
         }
         return new TreeView(entries, roots, children, userNumbers, userCount);
     }

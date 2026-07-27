@@ -104,9 +104,9 @@ public final class GoalExtension implements Extension {
                 scheduler.schedule(r, delayMs, TimeUnit.MILLISECONDS);
         };
 
-        api.on(ExtensionEvent.TurnStart.class, _ -> enforceHardLimits());
+        api.on(ExtensionEvent.TurnStart.class, ignored -> enforceHardLimits());
 
-        api.on(ExtensionEvent.TurnEnd.class, _ -> {
+        api.on(ExtensionEvent.TurnEnd.class, ignored -> {
             consecutiveFailures.set(0); // a turn completed normally — clear the transient failure streak
             if (enforceHardLimits())
                 return;

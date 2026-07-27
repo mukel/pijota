@@ -54,7 +54,7 @@ public final class FilterOutputExtension implements Extension {
     @Override
     public void init(ExtensionAPI api) {
         api.registerSlashCommand(new SlashCommand("filter-output", "Toggle secret/token redaction", List.of(),
-                                        _ -> toggle()));
+                                        ignored -> toggle()));
 
         api.onInput(text -> {
             if (!enabled)
