@@ -69,8 +69,8 @@ public final class WebBrowseExtension implements Extension {
         String binary = Env.get("pijota.browse.bin", "PIJOTA_BROWSER_BIN"); // optional path override; else
                                                                             // auto-detected
         try {
-            this.session = BrowserSession.create(browser, debugPort(rt), profile, binary,
-                                            msg -> rt.setStatus("browse", "🌐 " + msg), this::confirmLaunch);
+            this.session = BrowserSession.create(browser, debugPort(rt), profile, binary, this::setBrowseStatus,
+                                            this::confirmLaunch);
         } catch (RuntimeException e) {
             // e.g. the selected browser's WebDriver isn't installed → disable browsing rather than fail startup. Log
             // and surface via status: the extension status line isn't visible in the Telegram/web frontends, so
@@ -113,6 +113,11 @@ public final class WebBrowseExtension implements Extension {
     public void onShutdown(ExtensionRuntime runtime) {
         if (session != null)
             session.close();
+        runtime.clearStatus("browse");
+    }
+
+    private void setBrowseStatus(String message) {
+        api.runtime().setStatus("browse", "🌐 " + message);
     }
 
     /**
@@ -148,6 +153,8 @@ public final class WebBrowseExtension implements Extension {
                 return Tool.ToolResult.success(md);
             } catch (Exception e) {
                 return Tool.ToolResult.error("Browser error: " + e.getMessage());
+            } finally {
+                api.runtime().clearStatus("browse");
             }
         });
     }
