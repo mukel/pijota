@@ -46,8 +46,8 @@ public final class PromptLayout {
      * first, so no terminal auto-wrap can leave stale content that a per-line clear would miss.)
      */
     public void eraseCurrent(PrintWriter out) {
-        if (visualCursorRow > 0)
-            out.print("\033[" + visualCursorRow + "A");
+        if (renderedHeight > 1)
+            out.print("\033[" + (renderedHeight - 1) + "A");
         out.print("\r");
     }
 

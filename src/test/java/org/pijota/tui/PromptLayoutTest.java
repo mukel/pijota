@@ -165,4 +165,17 @@ class PromptLayoutTest {
         layout.renderAfterErase(new PrintWriter(sw), 80, TALL, AnsiTheme.dark(), snapshot());
         assertTrue(sw.toString().contains("\033[J"), "redraw trims leftover rows of a shrunk frame at the end");
     }
+
+    @Test
+    void eraseStartsAtTopOfWholeFrameEvenWhenCursorIsNotOnLastRow() {
+        var layout = new PromptLayout(List.of(new PromptRegion.Editor(), new PromptRegion.StatusBar()));
+        var snap = snapshot().withCwd("/workspace").withStatus("tokens and model");
+
+        render(layout, 80, snap);
+
+        // Frame rows: top rule, editor input, editor bottom rule, cwd, status. The cursor is on the editor input, but
+        // redraw must still reclaim the whole controlled frame; otherwise \033[J at the end of the next render starts
+        // from inside the previous frame and can erase committed scrollback above it.
+        assertEquals(4, eraseUpRows(layout));
+    }
 }
