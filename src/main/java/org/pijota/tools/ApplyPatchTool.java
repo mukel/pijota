@@ -82,7 +82,7 @@ public final class ApplyPatchTool implements Tool {
                 var labels = planned.stream().map(Planned::label).toList();
                 var details = new LinkedHashMap<String, Object>();
                 details.put("files", labels);
-                return ToolResult.success("Applied patch to " + labels.size() + " file(s): "
+                return ToolResult.success("Applied patch to " + Util.count(labels.size(), "file", "files") + ": "
                                                 + String.join(", ", labels), details);
             } catch (PatchException e) {
                 return ToolResult.error(e.getMessage());

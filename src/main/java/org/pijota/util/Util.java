@@ -290,6 +290,11 @@ public final class Util {
         return fmtCount((long) value);
     }
 
+    /** {@code count(1, "match", "matches")} → "1 match"; {@code count(3, …)} → "3 matches". No "(s)" hedging. */
+    public static String count(long n, String singular, String plural) {
+        return n + " " + (n == 1 ? singular : plural);
+    }
+
     public static String fmtCount(long value) {
         if (value >= 1_000_000)
             return String.format(Locale.ROOT, "%.1fM", value / 1_000_000.0);

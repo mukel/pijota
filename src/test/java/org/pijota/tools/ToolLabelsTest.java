@@ -12,6 +12,21 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolLabelsTest {
 
     @Test
+    void bashDetailStripsCdBoilerplateAndQuotes() {
+        var detail = ToolLabels.detail("bash", () -> "{\"command\":\"cd /home/user/project && python3 -c 'print(1)'\"}",
+                                        "/cwd", PathDisplay.COMPACT);
+        assertEquals("python3 -c 'print(1)'", detail,
+                                        "cd boilerplate is stripped and the command is not wrapped in quotes");
+    }
+
+    @Test
+    void bashDetailKeepsCdWhenThePathCarriesOperators() {
+        var detail = ToolLabels.detail("bash", () -> "{\"command\":\"cd a; rm -rf b && echo done\"}", "/cwd",
+                                        PathDisplay.COMPACT);
+        assertTrue(detail.startsWith("cd a; rm"), "an unusual cd survives verbatim: " + detail);
+    }
+
+    @Test
     void detailForEachToolTypeSummarizesTheKeyArgument() {
         assertTrue(ToolLabels.detail("read", () -> "{\"filePath\":\"src/Foo.java\"}", "/cwd", PathDisplay.COMPACT)
                                         .contains("Foo.java"));

@@ -278,7 +278,7 @@ public final class GrepTool implements Tool {
         Map<String, Object> details = result.details();
         Object mc = details.get("matchCount");
         if (mc instanceof Number n)
-            return ToolResultView.of(n.intValue() + " match(es)");
+            return ToolResultView.of(Util.count(n.longValue(), "match", "matches"));
         return ToolResultView.of(result.content());
     }
 

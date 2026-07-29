@@ -97,7 +97,7 @@ class GrepToolTest {
         var tool = new GrepTool();
         var result = Tool.ToolResult.success("x", Map.of("matchCount", 7));
         var view = tool.renderResult(new Tool.Args(Map.of()), result, "/tmp");
-        assertEquals("7 match(es)", view.summary());
+        assertEquals("7 matches", view.summary());
     }
 
     @Test

@@ -117,8 +117,7 @@ class TelegramChatTest {
     @Test
     void toolHintUsesTheToolGlyphAndSharedLabelDetail() {
         // glyph is passed in (the caller resolves it from the tool registry); detail comes from the shared ToolLabels.
-        assertEquals("$ bash: \"npm test\"",
-                                        TelegramChat.toolHint("bash", () -> "{\"command\":\"npm test\"}", "$", "."));
+        assertEquals("$ bash: npm test", TelegramChat.toolHint("bash", () -> "{\"command\":\"npm test\"}", "$", "."));
         assertEquals("📖 read: App.java",
                                         TelegramChat.toolHint("read", () -> "{\"file_path\":\"App.java\"}", "📖", "."));
         assertEquals("🔍 grep: \"TODO\" in .", TelegramChat.toolHint("grep",

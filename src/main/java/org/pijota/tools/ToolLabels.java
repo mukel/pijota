@@ -45,7 +45,9 @@ public final class ToolLabels {
         return switch (toolName) {
             case "read" -> displayPath(pathArg(a), cwd, pathDisplay) + options(a, "offset", "limit");
             case "write", "edit" -> displayPath(pathArg(a), cwd, pathDisplay);
-            case "bash" -> quote(shorten(a.getOrDefault("command", "").toString(), 60));
+            // No wrapping quotes: the command routinely contains its own, and a truncation landing inside them reads
+            // as garbage ("python3 -c " with..."). The muted style already delimits the command.
+            case "bash" -> shorten(stripCdPrefix(oneLine(a.getOrDefault("command", "").toString())), 60);
             case "question" -> shorten(questionText(a), 60);
             case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd, pathDisplay) + options(a, "limit");
             case "grep" ->
@@ -210,5 +212,22 @@ public final class ToolLabels {
 
     static String shorten(String s, int max) {
         return Util.truncateWords(s, max);
+    }
+
+    /**
+     * Drops one leading {@code cd <path> && } — near-universal boilerplate that would otherwise spend the whole header
+     * budget before the command the user actually cares about. Only a plain cd (no shell operators in the path) is
+     * stripped, so anything unusual survives verbatim.
+     */
+    static String stripCdPrefix(String command) {
+        if (!command.startsWith("cd "))
+            return command;
+        int and = command.indexOf(" && ");
+        if (and < 0)
+            return command;
+        String target = command.substring(3, and);
+        if (target.isBlank() || target.chars().anyMatch(c -> c == ';' || c == '&' || c == '|' || c == '<' || c == '>'))
+            return command;
+        return command.substring(and + 4);
     }
 }
