@@ -1,6 +1,7 @@
 package org.pijota.tools;
 
 import org.pijota.llm.ToolSchema;
+import org.pijota.util.Util;
 
 import java.util.List;
 import java.util.Map;
@@ -366,10 +367,7 @@ public interface Tool {
         if (result.isError()) {
             return ToolResultView.of(text != null ? text : "");
         }
-        if (text == null || text.isBlank())
-            return ToolResultView.of("");
-        String first = text.lines().findFirst().orElse(text);
-        return ToolResultView.of(first);
+        return ToolResultView.of(Util.firstLine(text));
     }
 
     /**

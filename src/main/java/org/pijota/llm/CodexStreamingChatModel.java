@@ -36,11 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 final class CodexStreamingChatModel implements StreamingChatModel {
-    private static final Logger log = LoggerFactory.getLogger(CodexStreamingChatModel.class);
     private static final String DEFAULT_BASE_URL = "https://chatgpt.com/backend-api";
 
     private final HttpClient client;

@@ -569,7 +569,7 @@ public final class TaskTool implements Tool {
                                                 .forEach(line -> body.add("│ " + line));
             }
         } else {
-            summary = text == null || text.isBlank() ? "" : text.lines().findFirst().orElse("");
+            summary = Util.firstLine(text);
             if (text != null && !text.isBlank()) {
                 text.lines().skip(1).limit(OUTPUT_PREVIEW_LINES).filter(line -> !line.isBlank())
                                                 .forEach(line -> body.add("│ " + line));
