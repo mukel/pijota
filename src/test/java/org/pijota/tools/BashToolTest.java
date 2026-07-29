@@ -19,7 +19,7 @@ class BashToolTest {
 
     private static BashTool.CommandExecutor fakeExecutor(String stdout, int exitCode, boolean timedOut,
                                     boolean truncated) {
-        return (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput) -> {
+        return (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput, detachSignal) -> {
             if (onStart != null)
                 onStart.accept(null);
             return new ProcessRunner.Result(exitCode, stdout, "", timedOut, truncated);
@@ -51,8 +51,8 @@ class BashToolTest {
     @Test
     void passesPijotaEnvironmentToExecutor() {
         var seen = new AtomicReference<Map<String, String>>();
-        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
-                                        onOutput) -> {
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput,
+                                        detachSignal) -> {
             seen.set(env);
             return new ProcessRunner.Result(0, "ok", "", false, false);
         };
@@ -68,8 +68,8 @@ class BashToolTest {
     @Test
     void executeWithProgressCallbackForwardsOutputChunks() {
         var seen = new ArrayList<String>();
-        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
-                                        onOutput) -> {
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput,
+                                        detachSignal) -> {
             onOutput.accept("partial ");
             onOutput.accept("output");
             return new ProcessRunner.Result(0, "partial output", "", false, false);
@@ -84,10 +84,12 @@ class BashToolTest {
     }
 
     @Test
-    void executeWithNullProgressCallbackDoesNotRequireExecutorOutputHandler() {
-        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
-                                        onOutput) -> {
-            assertNull(onOutput);
+    void executeWithNullProgressCallbackStillProvidesTheDetachSink() {
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput,
+                                        detachSignal) -> {
+            // Even without a progress callback the executor gets a sink: detach() needs the output-so-far tail.
+            assertNotNull(onOutput);
+            onOutput.accept("ignored quietly");
             return new ProcessRunner.Result(0, "ok", "", false, false);
         };
         var tool = new BashTool("/bin/bash", null, executor);
@@ -174,11 +176,73 @@ class BashToolTest {
     }
 
     @Test
+    void detachWithNothingRunningIsEmpty() {
+        assertTrue(new BashTool("/bin/bash", null).detach().isEmpty());
+    }
+
+    @Test
+    void detachHandsOffTheProcessAndTheAdopterCompletesTheCall() throws Exception {
+        Process real = new ProcessBuilder("sleep", "30").start();
+        try {
+            var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
+                                            onOutput, detachSignal) -> {
+                onStart.accept(real);
+                onOutput.accept("early output\n");
+                try {
+                    detachSignal.get(5, java.util.concurrent.TimeUnit.SECONDS); // a long-running command: block until
+                                                                                // the user detaches
+                } catch (Exception e) {
+                    throw new IOException("expected a detach", e);
+                }
+                onOutput.accept("late output\n"); // the pump keeps feeding after the hand-off
+                return new ProcessRunner.Result(-1, "early output\n", "", false, false, true);
+            };
+            var tool = new BashTool("/bin/bash", null, executor);
+            var future = tool.execute("id", new Tool.Args(Map.of("command", "sleep 30")), "/tmp", chunk -> {});
+
+            // The running call becomes detachable as soon as the executor has published the process.
+            var detached = java.util.Optional.<Tool.DetachedProcess>empty();
+            long deadline = System.currentTimeMillis() + 5000;
+            while (detached.isEmpty() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(10);
+                detached = tool.detach();
+            }
+            var handoff = detached.orElseThrow();
+
+            var adopted = new StringBuilder();
+            String soFar = handoff.redirectOutput().apply(s -> {
+                synchronized (adopted) {
+                    adopted.append(s);
+                }
+            });
+            assertTrue(soFar.contains("early output"), "output so far travels with the hand-off");
+            handoff.complete().accept(Tool.ToolResult.success("moved to background",
+                                            Map.of("jobId", "bg_9", "backgrounded", true)));
+
+            var result = future.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals("moved to background", result.content(), "the synthetic result resolves the call");
+
+            // The executor's own (detached) return must not overwrite the synthetic result…
+            Thread.sleep(150);
+            assertEquals("moved to background", future.join().content());
+            synchronized (adopted) {
+                assertTrue(adopted.toString().contains("late output"),
+                                                "post-detach output reaches the adopter: " + adopted);
+            }
+            // …and an interrupt after the hand-off must not kill the adopted process.
+            tool.abort();
+            assertTrue(real.isAlive(), "abort() after detach must not touch the adopted process");
+        } finally {
+            real.destroyForcibly();
+        }
+    }
+
+    @Test
     void renderResultShortOutput() {
         var tool = new BashTool("/bin/bash", null);
         var tr = Tool.ToolResult.success("line1\nline2\nline3");
         var view = tool.renderResult(new Tool.Args(Map.of()), tr, "/cwd");
-        assertTrue(view.summary().contains("line(s)"));
+        assertTrue(view.summary().contains("3 lines"));
         assertEquals(3, view.body().size());
     }
 
@@ -250,8 +314,8 @@ class BashToolTest {
 
     @Test
     void ioExceptionInExecutorReturnsError() {
-        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
-                                        onOutput) -> {
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput,
+                                        detachSignal) -> {
             throw new IOException("disk full");
         };
         var tool = new BashTool("/bin/bash", null, executor);
@@ -262,8 +326,8 @@ class BashToolTest {
     @Test
     void missingConfiguredShellReturnsActionableError() {
         // the JVM "binary not on PATH" failure, as a missing shell_path / $SHELL would raise
-        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart,
-                                        onOutput) -> {
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput,
+                                        detachSignal) -> {
             throw new IOException("Cannot run program \"/bin/no-such-shell\": error=2, No such file or directory");
         };
         var tool = new BashTool("/bin/no-such-shell", null, executor);

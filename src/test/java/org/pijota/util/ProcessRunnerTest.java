@@ -281,4 +281,92 @@ class ProcessRunnerTest {
         assertFalse(ProcessRunner.isCommandNotFound(new RuntimeException("error=2")), "only IOException counts");
         assertFalse(ProcessRunner.isCommandNotFound(null));
     }
+
+    // -- detach: run() returns early, the process lives on, output keeps flowing --
+
+    @Test
+    void detachReturnsEarlyWithOutputSoFarAndTheProcessSurvivesItsTimeout() throws Exception {
+        var signal = new java.util.concurrent.CompletableFuture<Void>();
+        var processRef = new AtomicReference<Process>();
+
+        // Would time out (and be killed) after 1s; the detach at ~200ms must win and must NOT kill it.
+        var runner = ProcessRunner.command("/bin/sh", "-c", "echo started; sleep 30").timeout(1, TimeUnit.SECONDS)
+                                        .detachSignal(signal).onStart(processRef::set);
+        var detacher = java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException ignored) {}
+            signal.complete(null);
+        });
+
+        var result = runner.run();
+        detacher.join();
+        Process process = processRef.get();
+        try {
+            assertTrue(result.detached(), "run() must report the hand-off");
+            assertFalse(result.timedOut());
+            assertTrue(result.stdout().contains("started"), "output captured before the detach is returned");
+            assertTrue(process.isAlive(), "a detached process must not be killed");
+            Thread.sleep(1200); // past the 1s timeout: no delayed kill may fire either
+            assertTrue(process.isAlive(), "a detached process must survive its would-be timeout");
+        } finally {
+            ProcessRunner.killTree(process);
+        }
+    }
+
+    @Test
+    void detachedProcessKeepsFeedingTheChunkHandler() throws Exception {
+        var signal = new java.util.concurrent.CompletableFuture<Void>();
+        var processRef = new AtomicReference<Process>();
+        var chunks = new StringBuilder();
+
+        var result = ProcessRunner.command("/bin/sh", "-c", "echo before; sleep 1; echo after")
+                                        .timeout(30, TimeUnit.SECONDS).detachSignal(signal).onStart(processRef::set)
+                                        .onStdoutChunk(c -> {
+                                            synchronized (chunks) {
+                                                chunks.append(c);
+                                            }
+                                            if (c.contains("before"))
+                                                signal.complete(null); // detach as soon as the first output lands
+                                        }).run();
+
+        Process process = processRef.get();
+        try {
+            assertTrue(result.detached());
+            process.onExit().get(10, TimeUnit.SECONDS); // the daemon pump drains to EOF on its own
+            Thread.sleep(100); // give the pump the moment between process exit and final read
+            synchronized (chunks) {
+                assertTrue(chunks.toString().contains("after"),
+                                                "post-detach output must still reach the chunk handler: " + chunks);
+            }
+        } finally {
+            ProcessRunner.killTree(process);
+        }
+    }
+
+    @Test
+    void unfiredDetachSignalChangesNothing() throws IOException {
+        var result = ProcessRunner.command("/bin/sh", "-c", "echo plain")
+                                        .detachSignal(new java.util.concurrent.CompletableFuture<>()).run();
+        assertFalse(result.detached());
+        assertEquals(0, result.exitCode());
+        assertEquals("plain\n", result.stdout());
+    }
+
+    @Test
+    void detachSignalWithTimeoutStillTimesOutWhenNeverFired() throws IOException {
+        var result = ProcessRunner.command("/bin/sh", "-c", "sleep 30").timeout(300, TimeUnit.MILLISECONDS)
+                                        .detachSignal(new java.util.concurrent.CompletableFuture<>()).run();
+        assertTrue(result.timedOut(), "an unfired signal must not defeat the timeout");
+        assertFalse(result.detached());
+    }
+
+    @Test
+    void signalFiringAfterExitIsNotADetach() throws IOException {
+        var signal = new java.util.concurrent.CompletableFuture<Void>();
+        var result = ProcessRunner.command("/bin/sh", "-c", "echo done").detachSignal(signal).run();
+        signal.complete(null); // too late — the process already finished normally
+        assertFalse(result.detached());
+        assertEquals("done\n", result.stdout());
+    }
 }

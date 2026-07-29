@@ -23,6 +23,7 @@ import org.pijota.extensions.examples.TodoExtension;
 import org.pijota.extensions.examples.TokenSpeedExtension;
 import org.pijota.extensions.examples.WebBrowseExtension;
 import org.pijota.extensions.examples.WhimsicalExtension;
+import org.pijota.extensions.jobs.JobRegistry;
 import org.pijota.extensions.jobs.JobsExtension;
 import org.pijota.extensions.mcp.McpExtension;
 import org.pijota.extensions.plan.PlanExtension;
@@ -62,7 +63,8 @@ public final class AppBootstrap {
                                     "question", "whoami");
 
     record Result(LlmService llm, ToolRegistry tools, ExtensionRegistry extensions, PijotaSession session,
-                                    SessionManager sessions, SettingsManager settings, Args args, String cwd) {
+                                    SessionManager sessions, SettingsManager settings, Args args, String cwd,
+                                    JobRegistry jobs) {
     }
 
     static Result bootstrap(Args parsedArgs) throws Exception {
@@ -99,6 +101,9 @@ public final class AppBootstrap {
         var bashTool = new BashTool(settings.effectiveShellPath(), settings.config().shellCommandPrefix(),
                                         () -> bashEnvironment(llm, sessionRef.get()));
         tools.registerBuiltin(bashTool);
+        // One registry for all background jobs: jobs_run-launched AND user-backgrounded (ctrl+b ctrl+b) commands.
+        // Shared with the jobs extension so jobs_output/jobs_kill see adopted processes.
+        var jobRegistry = new JobRegistry();
         StartupTimer.mark("tools registered");
         String effectiveThinking = parsedArgs.thinkingLevel();
         if (effectiveThinking == null || effectiveThinking.isBlank()) {
@@ -143,7 +148,7 @@ public final class AppBootstrap {
             ext.register(new WebBrowseExtension()); // opt-in --browse[=engine]
             ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
             ext.register(new TmuxExtension()); // opt-in --tmux
-            ext.register(new JobsExtension()); // opt-in --jobs
+            ext.register(new JobsExtension(jobRegistry)); // on by default; --no-jobs disables
             ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
             ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths())); // --no-prompt-templates
                                                                                          // disables
@@ -213,7 +218,7 @@ public final class AppBootstrap {
         logger.info("bootstrap ready · {}/{} · {} tool(s) · cwd={}", provider, model, tools.activeToolNames().size(),
                                         cwd);
 
-        return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd);
+        return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd, jobRegistry);
     }
 
     private static boolean resolveProjectTrust(String cwd, Args parsedArgs, SettingsManager settings) {

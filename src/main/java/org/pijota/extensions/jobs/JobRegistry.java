@@ -1,5 +1,6 @@
 package org.pijota.extensions.jobs;
 
+import org.pijota.tools.Tool;
 import org.pijota.util.ProcessRunner;
 
 import java.io.BufferedReader;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -27,17 +29,31 @@ public final class JobRegistry {
 
     private final ConcurrentHashMap<String, Job> jobs = new ConcurrentHashMap<>();
     private final AtomicInteger seq = new AtomicInteger();
-    private final Consumer<Completion> onComplete;
+    private final List<Consumer<Completion>> completionListeners = new CopyOnWriteArrayList<>();
 
     public JobRegistry() {
-        this(c -> {});
+        // Cleanup is driven by JobsExtension.onShutdown (the extension lifecycle), not a per-instance JVM shutdown
+        // hook — that keeps shutdown ordered/logged by ExtensionRegistry and avoids one dangling hook per instance.
     }
 
     /** {@code onComplete} fires (off the drain thread) when a job exits on its own — not when it's killed. */
     public JobRegistry(Consumer<Completion> onComplete) {
-        this.onComplete = onComplete == null ? c -> {} : onComplete;
-        // Cleanup is driven by JobsExtension.onShutdown (the extension lifecycle), not a per-instance JVM shutdown
-        // hook — that keeps shutdown ordered/logged by ExtensionRegistry and avoids one dangling hook per instance.
+        this();
+        onCompletion(onComplete);
+    }
+
+    /** Adds a completion listener — one registry serves both the TUI and the jobs extension. */
+    public void onCompletion(Consumer<Completion> listener) {
+        if (listener != null)
+            completionListeners.add(listener);
+    }
+
+    private void fireCompletion(Completion completion) {
+        for (var listener : completionListeners) {
+            try {
+                listener.accept(completion);
+            } catch (Exception ignored) {}
+        }
     }
 
     private static final class Job {
@@ -45,6 +61,7 @@ public final class JobRegistry {
         final String command;
         final String name;
         final Process process;
+        final long startedAtMs = System.currentTimeMillis();
         final StringBuilder out = new StringBuilder(); // guarded by this
         int readOffset; // guarded by this
         boolean truncated; // guarded by this
@@ -55,6 +72,16 @@ public final class JobRegistry {
             this.command = command;
             this.name = name;
             this.process = process;
+        }
+
+        void append(char[] buf, int len) {
+            synchronized (this) {
+                int room = MAX_BUFFER - out.length();
+                if (room > 0)
+                    out.append(buf, 0, Math.min(len, room));
+                if (len > room)
+                    truncated = true;
+            }
         }
     }
 
@@ -90,13 +117,7 @@ public final class JobRegistry {
                                         new InputStreamReader(job.process.getInputStream(), StandardCharsets.UTF_8))) {
             int n;
             while ((n = reader.read(buf)) != -1) {
-                synchronized (job) {
-                    int room = MAX_BUFFER - job.out.length();
-                    if (room > 0)
-                        job.out.append(buf, 0, Math.min(n, room));
-                    if (n > room)
-                        job.truncated = true;
-                }
+                job.append(buf, n);
             }
         } catch (IOException ignored) {
             // stream closed because the process ended or was killed — nothing more to drain
@@ -106,10 +127,70 @@ public final class JobRegistry {
         try {
             int code = job.process.waitFor();
             if (!job.killed)
-                onComplete.accept(new Completion(job.id, job.command, job.name, code));
+                fireCompletion(new Completion(job.id, job.command, job.name, code,
+                                                System.currentTimeMillis() - job.startedAtMs));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * Adopts a process handed off by a detached tool call (the user backgrounded a running command). The output feed is
+     * re-pointed at this job's buffer — atomically, so the seed and the live feed never lose or duplicate a chunk — and
+     * the buffer's read offset starts AFTER the seed: the detach's synthetic tool result already showed the output so
+     * far, so {@code jobs_output} reports only what is new. No drain thread is needed; the tool's own pump keeps
+     * feeding, and {@code onExit} delivers the completion.
+     */
+    public Adopted adopt(Tool.DetachedProcess detached, String name) {
+        String id = "bg_" + seq.incrementAndGet();
+        String label = (name != null && !name.isBlank()) ? name : detached.command();
+        var job = new Job(id, detached.command(), label, detached.process());
+        // Seed under the job lock: the switch happens while we hold it, so a concurrently delivered live chunk blocks
+        // on job.append until the seed is written — the buffer can never interleave live output before the seed.
+        String outputSoFar;
+        synchronized (job) {
+            outputSoFar = detached.redirectOutput().apply(chunk -> {
+                char[] chars = chunk.toCharArray();
+                job.append(chars, chars.length);
+            });
+            String seed = outputSoFar;
+            if (seed.length() > MAX_BUFFER) {
+                job.truncated = true;
+                seed = seed.substring(seed.length() - MAX_BUFFER);
+            }
+            job.out.append(seed);
+            job.readOffset = job.out.length();
+        }
+        jobs.put(id, job);
+        detached.process().onExit().thenAccept(p -> {
+            if (!job.killed)
+                fireCompletion(new Completion(job.id, job.command, job.name, p.exitValue(),
+                                                System.currentTimeMillis() - job.startedAtMs));
+        });
+        return new Adopted(id, outputSoFar);
+    }
+
+    /** Result of {@link #adopt}: the new job id plus the output the command produced before the hand-off. */
+    public record Adopted(String id, String outputSoFar) {
+    }
+
+    /** The synthetic result that resolves a backgrounded tool call — what the model sees instead of the output. */
+    public static Tool.ToolResult backgroundedResult(String jobId, String outputSoFar) {
+        var content = new StringBuilder("Command moved to background by the user as job \"").append(jobId)
+                                        .append("\". It is still running. Poll new output with jobs_output(id=\"")
+                                        .append(jobId).append("\") — it blocks up to its timeout — and stop it with ")
+                                        .append("jobs_kill. Do not re-run the command.");
+        String tail = lastLines(outputSoFar, 30);
+        if (!tail.isBlank())
+            content.append("\nOutput so far:\n").append(tail);
+        return Tool.ToolResult.success(content.toString(), Map.of("jobId", jobId, "backgrounded", true));
+    }
+
+    private static String lastLines(String text, int keep) {
+        if (text == null || text.isBlank())
+            return "";
+        var lines = text.lines().toList();
+        return String.join("\n", lines.subList(Math.max(0, lines.size() - keep), lines.size()));
     }
 
     /** Output produced since the previous read for this job plus its status, or {@code null} if the id is unknown. */
@@ -190,6 +271,6 @@ public final class JobRegistry {
     }
 
     /** A job that finished on its own (not killed): its id, the command, the name, and the process exit code. */
-    public record Completion(String id, String command, String name, int exitCode) {
+    public record Completion(String id, String command, String name, int exitCode, long elapsedMs) {
     }
 }

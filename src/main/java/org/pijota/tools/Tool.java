@@ -4,8 +4,10 @@ import org.pijota.llm.ToolSchema;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * The contract between pijota and any LLM-callable tool. Implement directly or use {@link ToolDefinition} to define a
@@ -49,6 +51,30 @@ public interface Tool {
     }
 
     default void abort() {}
+
+    /**
+     * A tool whose running OS process can be handed off to the background: the pending tool call completes early with a
+     * caller-supplied synthetic result and the process lives on. The turn is never made asynchronous — the call just
+     * finishes sooner.
+     */
+    interface Detachable {
+        /**
+         * Detaches the currently running call, or empty when nothing is running (or it already finished). The caller
+         * adopts the returned process (e.g. into a job registry), re-points its output feed, and MUST then complete the
+         * call via {@link DetachedProcess#complete()} so the agent turn resumes.
+         */
+        Optional<DetachedProcess> detach();
+    }
+
+    /**
+     * A live process handed off by a detached tool call. {@code redirectOutput} atomically re-points the output feed at
+     * the adopter's consumer and returns everything captured before the switch — no chunk is ever lost or duplicated
+     * across the hand-off. The adopter observes the eventual exit via {@code process().onExit()} and MUST resolve the
+     * still-pending tool call through {@code complete} (which also releases the tool's foreground wait).
+     */
+    record DetachedProcess(Process process, String command, Function<Consumer<String>, String> redirectOutput,
+                                    Consumer<ToolResult> complete) {
+    }
 
     /** Result of a tool execution: content, error flag, and optional structured details. */
     record ToolResult(String content, boolean isError, Map<String, Object> details) {

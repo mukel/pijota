@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,6 +46,7 @@ public final class ProcessRunner {
     private boolean redirectErrorStream;
     private boolean discardStderr;
     private Map<String, String> environment = Map.of();
+    private CompletableFuture<Void> detachSignal;
 
     /** The program name only (never the args) — safe to log without leaking secrets passed on the command line. */
     private String program() {
@@ -104,6 +106,18 @@ public final class ProcessRunner {
 
     public ProcessRunner onStart(Consumer<Process> handler) {
         this.onStart = handler;
+        return this;
+    }
+
+    /**
+     * A second wake-up source for the wait in {@link #run()}: completing {@code signal} while the process is alive
+     * makes {@code run()} return immediately with a {@link Result#detached()} result carrying the output captured so
+     * far — WITHOUT killing the process or joining its output pumps. The capture reader is a daemon that keeps draining
+     * to EOF, so an {@link #onStdoutChunk} handler keeps receiving output after the detach; process stdin is closed (a
+     * background process must never block on a tty read). Observe the eventual exit via {@code process.onExit()}.
+     */
+    public ProcessRunner detachSignal(CompletableFuture<Void> signal) {
+        this.detachSignal = signal;
         return this;
     }
 
@@ -208,42 +222,77 @@ public final class ProcessRunner {
         // wait for process
         boolean finished = false;
         boolean timedOut = false;
+        boolean detached = false;
         try {
             if (noTimeout) {
-                process.waitFor();
-                finished = true;
+                waitForExitOrDetach(process, null);
             } else {
-                finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
-                if (!finished && !aborted.get()) {
-                    timedOut = true;
-                    log.warn("process '{}' timed out after {} — killing it", program(), timeout);
-                    killTree(process);
-                    finished = process.waitFor(KILL_GRACE.toMillis(), TimeUnit.MILLISECONDS);
-                    if (!finished)
-                        process.destroyForcibly();
-                }
+                waitForExitOrDetach(process, timeout);
+            }
+            detached = process.isAlive() && detachSignal != null && detachSignal.isDone();
+            finished = !process.isAlive();
+            if (!finished && !detached && !noTimeout && !aborted.get()) {
+                timedOut = true;
+                log.warn("process '{}' timed out after {} — killing it", program(), timeout);
+                killTree(process);
+                finished = process.waitFor(KILL_GRACE.toMillis(), TimeUnit.MILLISECONDS);
+                if (!finished)
+                    process.destroyForcibly();
             }
         } catch (InterruptedException e) {
             aborted.set(true);
             killTree(process);
             Thread.currentThread().interrupt();
         } finally {
-            aborted.set(true);
-            if (stdinThread != null)
-                stdinThread.interrupt();
-            joinThread(stdoutThreadRef.get(), GOBBLER_JOIN);
-            joinThread(stderrThreadRef.get(), GOBBLER_JOIN);
-            joinThread(discardThreadRef.get(), GOBBLER_JOIN);
-            closeQuietly(process.getOutputStream());
-            if (process.isAlive()) {
-                killTree(process);
-                process.destroyForcibly();
+            if (detached) {
+                // Hand-off, not teardown: the process lives on and the daemon capture reader keeps draining to EOF —
+                // only stdin is retired (a background process must never block on a tty read).
+                if (stdinThread != null)
+                    stdinThread.interrupt();
+                closeQuietly(process.getOutputStream());
+            } else {
+                aborted.set(true);
+                if (stdinThread != null)
+                    stdinThread.interrupt();
+                joinThread(stdoutThreadRef.get(), GOBBLER_JOIN);
+                joinThread(stderrThreadRef.get(), GOBBLER_JOIN);
+                joinThread(discardThreadRef.get(), GOBBLER_JOIN);
+                closeQuietly(process.getOutputStream());
+                if (process.isAlive()) {
+                    killTree(process);
+                    process.destroyForcibly();
+                }
             }
         }
 
         int exitCode = process.isAlive() ? -1 : process.exitValue();
         return new Result(exitCode, stdoutCapture.text(), stderrCapture.text(), timedOut,
-                                        stdoutCapture.truncated() || stderrCapture.truncated());
+                                        stdoutCapture.truncated() || stderrCapture.truncated(), detached);
+    }
+
+    /**
+     * Blocks until the process exits, the (optional) detach signal fires, or the (optional) timeout elapses — whichever
+     * comes first. The caller inspects process liveness / signal state to tell the outcomes apart.
+     */
+    private void waitForExitOrDetach(Process process, Duration timeout) throws InterruptedException {
+        if (detachSignal == null) {
+            if (timeout == null)
+                process.waitFor();
+            else
+                process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            return;
+        }
+        var either = CompletableFuture.anyOf(process.onExit(), detachSignal);
+        try {
+            if (timeout == null)
+                either.get();
+            else
+                either.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            // timeout path — the caller sees a live, undetached process and applies the kill protocol
+        } catch (java.util.concurrent.ExecutionException e) {
+            // a failed onExit/signal future still means "stop waiting"; liveness checks decide what happened
+        }
     }
 
     /** Runs an interactive process that takes over the terminal (editor, pager). Returns exit code. */
@@ -442,7 +491,13 @@ public final class ProcessRunner {
 
     // -- result --
 
-    public record Result(int exitCode, String stdout, String stderr, boolean timedOut, boolean outputTruncated) {
+    public record Result(int exitCode, String stdout, String stderr, boolean timedOut, boolean outputTruncated,
+                                    boolean detached) {
+        /** Pre-detach shape: a completed (or timed-out) run. */
+        public Result(int exitCode, String stdout, String stderr, boolean timedOut, boolean outputTruncated) {
+            this(exitCode, stdout, stderr, timedOut, outputTruncated, false);
+        }
+
         public boolean success() {
             return exitCode == 0 && !timedOut;
         }

@@ -296,4 +296,75 @@ class JobRegistryTest {
         assertTrue(jobs.stop(id, false), "known job — SIGTERM");
         jobs.stop(id, true); // and a forced stop is fine afterward
     }
+
+    // -- adoption of user-backgrounded (detached) commands --
+
+    private static org.pijota.tools.Tool.DetachedProcess handoff(Process process, String command, String seed,
+                                    java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>> feed) {
+        return new org.pijota.tools.Tool.DetachedProcess(process, command, next -> {
+            feed.set(next);
+            return seed;
+        }, result -> {});
+    }
+
+    @Test
+    void adoptSeedsTheBufferAndReportsOnlyNewOutputToReads() throws Exception {
+        var jobs = new JobRegistry();
+        Process process = new ProcessBuilder("sleep", "30").start();
+        var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        try {
+            var adopted = jobs.adopt(handoff(process, "npm run dev", "early output\n", feed), "npm run dev");
+
+            assertEquals("early output\n", adopted.outputSoFar(), "the seed travels back for the synthetic result");
+            var first = jobs.read(adopted.id());
+            assertEquals("", first.output(), "the synthetic result already showed the seed — reads start after it");
+            assertTrue(first.running());
+
+            feed.get().accept("late output\n"); // the tool's pump keeps feeding the adopted job
+            var second = jobs.read(adopted.id());
+            assertEquals("late output\n", second.output());
+        } finally {
+            process.destroyForcibly();
+        }
+    }
+
+    @Test
+    void adoptedJobReportsCompletionWithExitCodeOnItsOwnExit() throws Exception {
+        var jobs = new JobRegistry();
+        var completions = new java.util.concurrent.LinkedBlockingQueue<JobRegistry.Completion>();
+        jobs.onCompletion(completions::add);
+        Process process = new ProcessBuilder("/bin/sh", "-c", "exit 3").start();
+        var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+
+        var adopted = jobs.adopt(handoff(process, "flaky", "", feed), null);
+
+        var completion = completions.poll(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertNotNull(completion, "onExit must fire the completion listeners");
+        assertEquals(adopted.id(), completion.id());
+        assertEquals(3, completion.exitCode());
+    }
+
+    @Test
+    void adoptedJobCanBeKilledLikeAnyOther() throws Exception {
+        var jobs = new JobRegistry();
+        Process process = new ProcessBuilder("sleep", "30").start();
+        var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        var adopted = jobs.adopt(handoff(process, "sleep 30", "", feed), null);
+
+        assertTrue(jobs.isRunning(adopted.id()));
+        assertTrue(jobs.stop(adopted.id(), true));
+        process.onExit().get(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertFalse(jobs.isRunning(adopted.id()));
+    }
+
+    @Test
+    void backgroundedResultCarriesJobIdGuidanceAndTail() {
+        var result = JobRegistry.backgroundedResult("bg_7", "line1\nline2\n");
+        assertFalse(result.isError());
+        assertEquals("bg_7", result.details().get("jobId"));
+        assertEquals(true, result.details().get("backgrounded"));
+        assertTrue(result.content().contains("jobs_output(id=\"bg_7\")"));
+        assertTrue(result.content().contains("line2"));
+        assertTrue(result.content().contains("Do not re-run"));
+    }
 }

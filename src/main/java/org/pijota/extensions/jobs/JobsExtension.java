@@ -37,7 +37,17 @@ public final class JobsExtension implements Extension {
     private static final int CMD_PREVIEW = 60;
     private static final List<String> SUPPORTED_SIGNALS = List.of("SIGKILL", "SIGTERM");
 
-    private volatile JobRegistry jobs; // created in init() when enabled; reaped in onShutdown()
+    private final JobRegistry shared;
+    private volatile JobRegistry jobs; // bound in init() when enabled; reaped in onShutdown()
+
+    public JobsExtension() {
+        this(new JobRegistry());
+    }
+
+    /** The registry may be shared with the host app — the TUI adopts user-backgrounded commands into the same one. */
+    public JobsExtension(JobRegistry shared) {
+        this.shared = shared != null ? shared : new JobRegistry();
+    }
 
     @Override
     public String name() {
@@ -46,17 +56,19 @@ public final class JobsExtension implements Extension {
 
     @Override
     public boolean enabledByDefault() {
-        return false; // opt-in: --jobs
+        return true; // on by default: backgrounding a running command (ctrl+b ctrl+b) needs the jobs_* tools
     }
 
     @Override
     public String description() {
-        return "Opt-in background shell jobs (jobs_run / jobs_output / jobs_kill). Enable with --jobs.";
+        return "Background shell jobs (jobs_run / jobs_output / jobs_kill), also the home of user-backgrounded "
+                                        + "commands (ctrl+b ctrl+b). Disable with --no-jobs.";
     }
 
     @Override
     public void init(ExtensionAPI api) {
-        jobs = new JobRegistry(completion -> notifyCompletion(api, completion));
+        jobs = shared;
+        jobs.onCompletion(completion -> notifyCompletion(api, completion));
         api.registerTool(startTool(jobs));
         api.registerTool(outputTool(jobs));
         api.registerTool(listTool(jobs));

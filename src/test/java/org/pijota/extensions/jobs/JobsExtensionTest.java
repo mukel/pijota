@@ -35,7 +35,9 @@ class JobsExtensionTest {
     @Test
     void jobsIsOffByDefault() {
         // opt-in (--jobs): the extension declares itself off; ExtensionRegistry gates registration on that default.
-        assertFalse(new JobsExtension().enabledByDefault(), "jobs must be opt-in (--jobs)");
+        assertTrue(new JobsExtension().enabledByDefault(),
+                                        "jobs is on by default: backgrounding a running command (ctrl+b ctrl+b) "
+                                                                        + "needs the jobs_* tools; --no-jobs disables");
     }
 
     @Test
