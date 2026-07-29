@@ -71,7 +71,7 @@ final class PromptPresenter {
         }
         AnsiTheme theme = host.theme();
         // Two-line bar. Line 1 (cwd slot): the workspace — cwd · branch [· session]. Line 2 (status slot): token info,
-        // then "(provider) model • reasoning" right after it, then the activity (spinner · phase · elapsed) during a
+        // then "provider model · reasoning" right after it, then the activity (spinner · phase · elapsed) during a
         // turn. Both lines wrap (not truncate) so a narrow terminal spills to the next row instead of losing the tail.
         var cwd = new StringBuilder(theme.styled("commandMeta", host.cwd()));
         String sessionName = host.sessionName();
@@ -79,9 +79,10 @@ final class PromptPresenter {
             cwd.append(theme.styled("commandMeta", "  " + sessionName));
 
         var stats = new StringBuilder(theme.styled("statusText", tokens));
-        stats.append(theme.styled("commandMeta", "  (" + host.provider() + ") " + host.model()));
+        stats.append(theme.styled("dim", "  " + host.provider()))
+                                        .append(theme.styled("commandMeta", " " + host.model()));
         if (host.thinkingLevel() != ThinkingLevel.OFF)
-            stats.append(theme.styled("commandMeta", " • " + host.thinkingLevel().label()));
+            stats.append(theme.styled("commandMeta", " · " + host.thinkingLevel().label()));
         if (activity.isBusy()) {
             stats.append(theme.styled("statusText", "  " + animation.frame()));
             String phase = activity.phase();
@@ -177,7 +178,7 @@ final class PromptPresenter {
         if (tokens <= 0)
             return "?/" + fmtCount((int) contextWindow);
         int pct = (int) Math.min(99, (tokens * 100) / Math.max(1, contextWindow));
-        String pctStr = host.theme().styled(pct >= 90 ? "toolError" : pct >= 70 ? "toolLabel" : "statusText",
+        String pctStr = host.theme().styled(pct >= 90 ? "toolError" : pct >= 70 ? "statusWarn" : "statusText",
                                         "(" + pct + "%)");
         return fmtCountPrecise(tokens) + "/" + fmtCount((int) contextWindow) + " " + pctStr;
     }

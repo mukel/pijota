@@ -22,7 +22,7 @@ import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 /**
- * Opt-in background shell jobs (enable with {@code --jobs}). Adds four tools — {@code jobs_run} to launch a
+ * Background shell jobs, on by default ({@code --no-jobs} disables). Adds four tools — {@code jobs_run} to launch a
  * long-running command without blocking the turn, {@code jobs_output} to poll or await its output, {@code jobs_list} to
  * inspect all jobs, and {@code jobs_kill} to stop one (SIGKILL by default, or SIGTERM for graceful shutdown) — plus a
  * live panel of running jobs and a completion notice when a job exits. Cross-platform by construction: the command runs

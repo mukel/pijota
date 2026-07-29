@@ -244,8 +244,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             for (int i = start; i < end; i++) {
                 var item = list.get(i);
                 String row = i == sel
-                                                ? theme.styled("statusText", "→ ")
-                                                                                + theme.styled("heading", item.name())
+                                                ? theme.styled("prompt", "› ") + theme.styled("heading", item.name())
                                                                                 + theme.styled("statusText", padRight(
                                                                                                                 item.description(),
                                                                                                                 maxLen,
