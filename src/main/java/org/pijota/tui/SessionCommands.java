@@ -268,12 +268,13 @@ final class SessionCommands {
         boolean html = "html".equalsIgnoreCase(arg) || arg.toLowerCase(Locale.ROOT).endsWith(".html");
         try {
             String base = host.session().sessionFile().getFileName().toString().replace(".jsonl", "");
-            // Write into the session's working directory (where pijota was launched) — the threaded cwd, not the global
-            // user.dir property, so it's consistent with the rest of the app and isolatable in tests.
-            Path out = arg.isBlank() || "html".equalsIgnoreCase(arg)
-                                            ? Path.of(host.session().cwd()).resolve(
-                                                                            base + "-export." + (html ? "html" : "md"))
-                                            : Path.of(arg);
+            // Resolve against the session's working directory (where pijota was launched) — the threaded cwd, not the
+            // global user.dir property — so it's consistent with the rest of the app and isolatable in tests. resolve()
+            // leaves an absolute arg untouched, so an explicit /export /abs/path still lands exactly there.
+            String name = arg.isBlank() || "html".equalsIgnoreCase(arg)
+                                            ? base + "-export." + (html ? "html" : "md")
+                                            : arg;
+            Path out = Path.of(host.session().cwd()).resolve(name);
             String content = html
                                             ? SessionExporter.toHtml(host.session().sessionFile())
                                             : SessionExporter.toMarkdown(host.session().sessionFile());
