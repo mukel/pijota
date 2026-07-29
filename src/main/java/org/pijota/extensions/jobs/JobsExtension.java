@@ -3,6 +3,8 @@ package org.pijota.extensions.jobs;
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.ExtensionRuntime;
+import org.pijota.messages.Message;
+import org.pijota.modes.SlashCommand;
 import org.pijota.tools.Tool;
 import org.pijota.tools.Tool.ToolDefinition;
 import org.pijota.tools.Tool.ToolResult;
@@ -39,6 +41,7 @@ public final class JobsExtension implements Extension {
 
     private final JobRegistry shared;
     private volatile JobRegistry jobs; // bound in init() when enabled; reaped in onShutdown()
+    private ExtensionAPI api; // for the /jobs and /kill slash-command handlers to print to the user
 
     public JobsExtension() {
         this(new JobRegistry());
@@ -61,12 +64,13 @@ public final class JobsExtension implements Extension {
 
     @Override
     public String description() {
-        return "Background shell jobs (jobs_run / jobs_output / jobs_kill), also the home of user-backgrounded "
-                                        + "commands (ctrl+b ctrl+b). Disable with --no-jobs.";
+        return "Background shell jobs (jobs_run / jobs_output / jobs_kill), user backgrounding (ctrl+b ctrl+b), and "
+                                        + "direct control via /jobs and /kill. Disable with --no-jobs.";
     }
 
     @Override
     public void init(ExtensionAPI api) {
+        this.api = api;
         jobs = shared;
         jobs.onCompletion(completion -> notifyCompletion(api, completion));
         api.registerTool(startTool(jobs));
@@ -74,6 +78,27 @@ public final class JobsExtension implements Extension {
         api.registerTool(listTool(jobs));
         api.registerTool(killTool(jobs));
         api.registerStatusLines(() -> renderPanel(jobs.list()));
+        // Direct user control (no model round-trip): mechanical actions get commands, language stays for intent.
+        api.registerSlashCommand(new SlashCommand("jobs", "List background jobs (id, status, command)", List.of(),
+                                        a -> showJobs()));
+        api.registerSlashCommand(new SlashCommand("kill", "Stop a background job", "<id> [SIGTERM]", List.of(),
+                                        this::killCommand));
+    }
+
+    /** {@code /jobs} — the same listing the agent's jobs_list produces, shown to the user (not sent to the model). */
+    private void showJobs() {
+        api.sendMessage(new Message.Custom("jobs", renderList(jobs.list())));
+    }
+
+    /** {@code /kill <id> [signal]} — terminate a job directly; reuses the jobs_kill body. */
+    private void killCommand(String args) {
+        String[] parts = args == null ? new String[0] : args.strip().split("\\s+");
+        if (parts.length == 0 || parts[0].isBlank()) {
+            api.sendMessage(new Message.Custom("jobs", "Usage: /kill <id> [SIGTERM]"));
+            return;
+        }
+        String signal = parts.length > 1 ? parts[1] : "SIGKILL";
+        api.sendMessage(new Message.Custom("jobs", killJob(jobs, parts[0], signal).content()));
     }
 
     /** Reap any still-running background jobs on graceful shutdown (extension lifecycle, not a raw JVM hook). */
@@ -259,20 +284,21 @@ public final class JobsExtension implements Extension {
                                         .stringParam("id", "The background job id to stop, e.g. \"bg_1\"", true)
                                         .enumParam("signal", "SIGKILL (force, default) or SIGTERM (graceful)", false,
                                                                         SUPPORTED_SIGNALS)
-                                        .run((args, cwd) -> {
-                                            String id = args.getString("id");
-                                            if (isBlank(id))
-                                                return ToolResult.error("No job id provided");
-                                            String signal = args.getString("signal", "SIGKILL").toUpperCase();
-                                            if (!SUPPORTED_SIGNALS.contains(signal))
-                                                return ToolResult.error("Unsupported signal: " + signal
-                                                                                + ". Supported: " + SUPPORTED_SIGNALS);
-                                            boolean force = signal.equals("SIGKILL");
-                                            if (!jobs.stop(id, force))
-                                                return ToolResult.error("No background job " + id);
-                                            return ToolResult.success((force ? "Killed" : "Sent SIGTERM to")
-                                                                            + " background job " + id);
-                                        });
+                                        .run((args, cwd) -> killJob(jobs, args.getString("id"),
+                                                                        args.getString("signal", "SIGKILL")));
+    }
+
+    /** Stops a job by id with an optional signal — shared by the jobs_kill tool and the /kill slash command. */
+    static ToolResult killJob(JobRegistry jobs, String id, String signal) {
+        if (isBlank(id))
+            return ToolResult.error("No job id provided");
+        String sig = (signal == null ? "SIGKILL" : signal).toUpperCase();
+        if (!SUPPORTED_SIGNALS.contains(sig))
+            return ToolResult.error("Unsupported signal: " + sig + ". Supported: " + SUPPORTED_SIGNALS);
+        boolean force = sig.equals("SIGKILL");
+        if (!jobs.stop(id, force))
+            return ToolResult.error("No background job " + id);
+        return ToolResult.success((force ? "Killed" : "Sent SIGTERM to") + " background job " + id);
     }
 
     // -- completion monitor + panel --

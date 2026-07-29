@@ -32,6 +32,12 @@ class JobsExtensionTest {
         return api.tool(tool).execute().execute("id", new Tool.Args(args), tempDir.toString()).get();
     }
 
+    /** The text of the most recent custom message a slash command showed the user (empty if none). */
+    private static String lastCustom(FakeExtensionAPI api) {
+        var msgs = api.sentMessages();
+        return msgs.isEmpty() ? "" : msgs.get(msgs.size() - 1).content();
+    }
+
     @Test
     void jobsIsOffByDefault() {
         // opt-in (--jobs): the extension declares itself off; ExtensionRegistry gates registration on that default.
@@ -62,6 +68,36 @@ class JobsExtensionTest {
         var listed = run(api, "jobs_list", Map.of()).content();
         assertTrue(listed.contains(id) && listed.contains("running") && listed.contains("sleep 30"), listed);
         run(api, "jobs_kill", Map.of("id", id));
+    }
+
+    @Test
+    void slashCommandsLetTheUserListAndKillJobsDirectly() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var api = initWithFlag(true);
+        assertNotNull(api.slashCommand("jobs"), "/jobs registered when the extension is on");
+        assertNotNull(api.slashCommand("kill"), "/kill registered when the extension is on");
+
+        String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
+
+        // /jobs shows the user the same listing jobs_list gives the agent — via a custom message, not a model turn
+        api.slashCommand("jobs").handler().accept("");
+        String listing = lastCustom(api);
+        assertTrue(listing.contains(id) && listing.contains("running") && listing.contains("sleep 30"), listing);
+
+        // /kill <id> terminates it directly, no model round-trip
+        api.slashCommand("kill").handler().accept(id);
+        assertTrue(lastCustom(api).contains("Killed background job " + id), lastCustom(api));
+    }
+
+    @Test
+    void killSlashCommandGuardsBadInput() {
+        var api = initWithFlag(true);
+        api.slashCommand("kill").handler().accept("");
+        assertTrue(lastCustom(api).contains("Usage:"), "blank id → usage");
+        api.slashCommand("kill").handler().accept("bg_999");
+        assertTrue(lastCustom(api).contains("No background job bg_999"), lastCustom(api));
+        api.slashCommand("kill").handler().accept("bg_1 SIGHUP");
+        assertTrue(lastCustom(api).contains("Unsupported signal"), lastCustom(api));
     }
 
     @Test
