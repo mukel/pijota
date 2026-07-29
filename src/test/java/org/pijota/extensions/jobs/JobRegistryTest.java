@@ -367,4 +367,42 @@ class JobRegistryTest {
         assertTrue(result.content().contains("line2"));
         assertTrue(result.content().contains("Do not re-run"));
     }
+
+    @Test
+    void backgroundedResultOmitsTheOutputSectionWhenThereIsNoTail() {
+        var result = JobRegistry.backgroundedResult("bg_9", "");
+        assertEquals("bg_9", result.details().get("jobId"));
+        assertFalse(result.content().contains("Output so far"), result.content());
+        assertTrue(result.content().contains("jobs_output(id=\"bg_9\")"), result.content());
+    }
+
+    @Test
+    void isRunningIsFalseForAnUnknownJob() {
+        assertFalse(new JobRegistry().isRunning("bg_nope"));
+    }
+
+    @Test
+    void adoptTrimsAnOversizedSeedAndFlagsTruncation() throws Exception {
+        var jobs = new JobRegistry();
+        Process process = new ProcessBuilder("sleep", "30").start();
+        var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        try {
+            String big = "x".repeat(250_000); // over the 200KB retained-buffer cap
+            var adopted = jobs.adopt(handoff(process, "big", big, feed), null);
+            assertEquals(250_000, adopted.outputSoFar().length(), "the full pre-switch tail travels back untrimmed");
+            var read = jobs.read(adopted.id());
+            assertEquals("", read.output(), "reads begin after the seed");
+            assertTrue(read.truncated(), "the retained buffer dropped the oldest and flagged truncation");
+        } finally {
+            process.destroyForcibly();
+        }
+    }
+
+    @Test
+    void renderListShowsADistinctNameLabelAlongsideTheCommand() {
+        var rows = JobsExtension.renderList(List.of(new JobRegistry.Status("bg_1", "npm run dev", "web-server", true,
+                                        null, 0, false)));
+        assertTrue(rows.contains("web-server"), rows);
+        assertTrue(rows.contains("npm run dev"), rows);
+    }
 }

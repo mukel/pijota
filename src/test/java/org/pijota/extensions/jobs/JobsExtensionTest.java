@@ -39,8 +39,7 @@ class JobsExtensionTest {
     }
 
     @Test
-    void jobsIsOffByDefault() {
-        // opt-in (--jobs): the extension declares itself off; ExtensionRegistry gates registration on that default.
+    void jobsIsOnByDefault() {
         assertTrue(new JobsExtension().enabledByDefault(),
                                         "jobs is on by default: backgrounding a running command (ctrl+b ctrl+b) "
                                                                         + "needs the jobs_* tools; --no-jobs disables");
@@ -98,6 +97,31 @@ class JobsExtensionTest {
         assertTrue(lastCustom(api).contains("No background job bg_999"), lastCustom(api));
         api.slashCommand("kill").handler().accept("bg_1 SIGHUP");
         assertTrue(lastCustom(api).contains("Unsupported signal"), lastCustom(api));
+    }
+
+    @Test
+    void jobsSlashCommandOnAnEmptyRegistryShowsNoJobs() {
+        var api = initWithFlag(true);
+        api.slashCommand("jobs").handler().accept("");
+        var msg = api.sentMessages().get(api.sentMessages().size() - 1);
+        assertEquals("jobs", msg.customType(), "output is a 'jobs' custom message shown to the user, not a model turn");
+        assertTrue(msg.content().contains("no background jobs"), msg.content());
+    }
+
+    @Test
+    void killJobValidatesIdAndSignalWithoutAShell() {
+        // The shared helper behind both jobs_kill and /kill — its guards are pure, so assert them directly.
+        var jobs = new JobRegistry();
+        assertTrue(JobsExtension.killJob(jobs, "", "SIGKILL").content().contains("No job id"), "blank id");
+        assertTrue(JobsExtension.killJob(jobs, null, null).content().contains("No job id"), "null id");
+        assertTrue(JobsExtension.killJob(jobs, "bg_1", "SIGHUP").content().contains("Unsupported signal"),
+                                        "bad signal");
+        assertTrue(JobsExtension.killJob(jobs, "bg_1", "sighup").content().contains("Unsupported signal"),
+                                        "signal validation is case-insensitive");
+        var unknown = JobsExtension.killJob(jobs, "bg_404", "sigterm"); // valid (lowercased) signal, no such job
+        assertTrue(unknown.isError() && unknown.content().contains("No background job bg_404"), unknown.content());
+        assertFalse(JobsExtension.killJob(jobs, "bg_1", null).content().contains("Unsupported"),
+                                        "a null signal defaults to SIGKILL, never 'unsupported'");
     }
 
     @Test
