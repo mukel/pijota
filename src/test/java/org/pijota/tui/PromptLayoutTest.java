@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -17,13 +18,8 @@ class PromptLayoutTest {
     /** A region of fixed height used to make the budget arithmetic explicit. */
     private record FixedRegion(int rows) implements PromptRegion.Custom {
         @Override
-        public int height(int width, PromptSnapshot ctx) {
-            return rows;
-        }
-
-        @Override
-        public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
-            return NO_CURSOR;
+        public Body compose(int width, AnsiTheme theme, PromptSnapshot ctx) {
+            return Body.of(Collections.nCopies(rows, ""));
         }
     }
 
@@ -37,7 +33,8 @@ class PromptLayoutTest {
         var layout = new PromptLayout(List.of(new PromptRegion.Editor(), new FixedRegion(4), viewer));
 
         // Editor is 2 rows (empty input line + bottom rule) + FixedRegion 4 + the 1-row separator = 7. Viewer excluded.
-        assertEquals(2 + 1 + 4, layout.measuredHeightExcluding(LogViewerRegion.class, 80, snapshot()));
+        assertEquals(2 + 1 + 4, layout.measuredHeightExcluding(LogViewerRegion.class, 80, AnsiTheme.dark(),
+                                        snapshot()));
     }
 
     @Test
@@ -52,14 +49,16 @@ class PromptLayoutTest {
     }
 
     @Test
-    void promptRulesKeepMinimumWidthOnVeryNarrowTerminals() {
+    void promptRulesNeverExceedTheTerminalWidth() {
         var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
 
         String rendered = render(layout, 4, snapshot());
 
+        // A rule wider than the terminal would auto-wrap onto an extra physical row the frame never composed — the
+        // classic source of a one-row drift on every redraw. Even absurdly narrow terminals get exact-width rules.
         var lines = rendered.lines().filter(line -> line.indexOf('─') >= 0).toList();
         assertEquals(2, lines.size(), rendered);
-        assertTrue(lines.stream().allMatch(line -> AnsiWidth.visibleWidth(line) == 10), rendered);
+        assertTrue(lines.stream().allMatch(line -> AnsiWidth.visibleWidth(line) == 4), rendered);
     }
 
     @Test
@@ -71,7 +70,7 @@ class PromptLayoutTest {
         var layout = new PromptLayout(List.of(new FixedRegion(2), viewer));
 
         // Only the FixedRegion (2) + separator (1) are counted; the active viewer is skipped entirely.
-        assertEquals(3, layout.measuredHeightExcluding(LogViewerRegion.class, 80, snapshot()));
+        assertEquals(3, layout.measuredHeightExcluding(LogViewerRegion.class, 80, AnsiTheme.dark(), snapshot()));
     }
 
     private static final Pattern CURSOR_UP = Pattern.compile("\\u001B\\[(\\d+)A");
@@ -88,7 +87,7 @@ class PromptLayoutTest {
         return AnsiStripper.strip(sw.toString());
     }
 
-    /** Rows {@link PromptLayout#eraseCurrent} walks up — i.e. the controlled-region height it will reclaim. */
+    /** Rows {@link PromptLayout#eraseCurrent} walks up — i.e. how far above the parked cursor the frame top sits. */
     private static int eraseUpRows(PromptLayout layout) {
         var sw = new StringWriter();
         layout.eraseCurrent(new PrintWriter(sw));
@@ -167,15 +166,46 @@ class PromptLayoutTest {
     }
 
     @Test
-    void eraseStartsAtTopOfWholeFrameEvenWhenCursorIsNotOnLastRow() {
+    void eraseWalksUpExactlyFromTheParkedCaretRowNeverTheWholeFrame() {
         var layout = new PromptLayout(List.of(new PromptRegion.Editor(), new PromptRegion.StatusBar()));
         var snap = snapshot().withCwd("/workspace").withStatus("tokens and model");
 
         render(layout, 80, snap);
 
-        // Frame rows: top rule, editor input, editor bottom rule, cwd, status. The cursor is on the editor input, but
-        // redraw must still reclaim the whole controlled frame; otherwise \033[J at the end of the next render starts
-        // from inside the previous frame and can erase committed scrollback above it.
-        assertEquals(4, eraseUpRows(layout));
+        // Frame rows: top rule, editor input, editor bottom rule, cwd, status — and the cursor parks on the editor
+        // input (row 1). Erase must walk up exactly that far: walking the whole frame height instead would climb past
+        // the frame top into committed scrollback and overwrite it on EVERY redraw (the eaten-lines regression).
+        assertEquals(1, eraseUpRows(layout));
+    }
+
+    @Test
+    void frameTallerThanTheScreenIsClampedKeepingThePromptRows() {
+        var layout = new PromptLayout(List.of(new FixedRegion(30), new PromptRegion.Editor()));
+
+        var sw = new StringWriter();
+        layout.renderAfterErase(new PrintWriter(sw), 80, 10, AnsiTheme.dark(), snapshot());
+        String rendered = AnsiStripper.strip(sw.toString());
+        int erase = eraseUpRows(layout);
+
+        // 30 filler rows + separator + editor can't fit a 10-row screen: the frame keeps its BOTTOM 10 rows (the
+        // prompt), because rows above the screen top are unreachable by relative cursor moves — an unclamped frame
+        // loses its anchor and drifts on every redraw. Rows are separated by \r\n, so 10 rows = 9 separators.
+        assertTrue(sw.toString().split("\r\n", -1).length <= 10, rendered);
+        assertTrue(erase <= 9, "parked cursor must stay within the on-screen frame, was " + erase + " rows up");
+        assertTrue(rendered.contains("─"), "the prompt (bottom of the frame) survives the clamp");
+    }
+
+    @Test
+    void customRegionRowsWithLineBreaksAreSanitizedNotEmittedRaw() {
+        PromptRegion.Custom hostile = (width, theme, ctx) -> PromptRegion.Body.of(List.of("bad\r\nrow"));
+        var layout = new PromptLayout(List.of(hostile), false);
+
+        var sw = new StringWriter();
+        layout.renderAfterErase(new PrintWriter(sw), 80, TALL, AnsiTheme.dark(), snapshot());
+
+        // One composed row must occupy exactly one physical row: a raw \n would create an extra row the frame's
+        // bookkeeping never saw. The layout's emission choke point flattens it.
+        assertEquals(0, eraseUpRows(layout), "a single-row frame parks its cursor on its only row");
+        assertFalse(AnsiStripper.strip(sw.toString()).contains("bad\r\nrow"), sw.toString());
     }
 }

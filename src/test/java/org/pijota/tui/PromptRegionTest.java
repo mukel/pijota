@@ -3,8 +3,6 @@ package org.pijota.tui;
 import org.pijota.theme.AnsiTheme;
 import org.junit.jupiter.api.Test;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -17,9 +15,7 @@ class PromptRegionTest {
         var region = new PromptRegion.Editor();
         var snapshot = new PromptSnapshot(List.of("/se"), 0, 3, List.of()).withSuggestion("/sessions");
 
-        var out = new StringWriter();
-        region.render(new PrintWriter(out), 80, THEME, snapshot);
-        String rendered = out.toString();
+        String rendered = String.join("\n", region.compose(80, THEME, snapshot).rows());
 
         assertTrue(rendered.contains("/se"));
         assertTrue(rendered.contains("/sessions"));
@@ -30,9 +26,7 @@ class PromptRegionTest {
         var region = new PromptRegion.Editor();
         var snapshot = new PromptSnapshot(List.of("/se"), 0, 2, List.of()).withSuggestion("/sessions");
 
-        var out = new StringWriter();
-        region.render(new PrintWriter(out), 80, THEME, snapshot);
-        String rendered = out.toString();
+        String rendered = String.join("\n", region.compose(80, THEME, snapshot).rows());
 
         assertTrue(rendered.contains("/se"));
         assertFalse(rendered.contains("/sessions"));
@@ -40,8 +34,8 @@ class PromptRegionTest {
 
     @Test
     void completionRowsNeverExceedWidthSoFrameHeightStaysAccurate() {
-        // A row wider than the terminal auto-wraps to 2 physical rows, but height() counts 1 per item — that mismatch
-        // desyncs PromptLayout and stacks stale separators. Every rendered row must stay within width.
+        // A row wider than the terminal auto-wraps to 2 physical rows the frame never composed — that mismatch desyncs
+        // PromptLayout and stacks stale separators. Every composed row must stay within width.
         var region = new PromptRegion.Completions();
         int width = 40;
         var items = List.of(new CompletionItem("/a-very-long-command-name-that-overflows-the-line-by-a-lot",
@@ -49,30 +43,55 @@ class PromptRegionTest {
                                         new CompletionItem("/short", "brief"));
         var snapshot = new PromptSnapshot(List.of("/a"), 0, 2, items, 0);
 
-        var out = new StringWriter();
-        region.render(new PrintWriter(out), width, THEME, snapshot);
-        String[] rows = out.toString().split("\n", -1);
+        var rows = region.compose(width, THEME, snapshot).rows();
 
         for (String row : rows)
             assertTrue(AnsiWidth.visibleWidth(row) <= width, "row exceeds width " + width + " ("
                                             + AnsiWidth.visibleWidth(row) + "): " + row);
-        assertEquals(region.height(width, snapshot), rows.length, "rendered rows must match measured height");
+        assertEquals(1 + items.size() + 1, rows.size(), "header + one row per item + footer");
     }
 
     @Test
     void editorGhostSuggestionNeverExceedsWidth() {
         // A long history suggestion, left unclipped, wraps the dim ghost onto a 2nd physical row and corrupts the
-        // prompt's cursor/layout bookkeeping. Every rendered row must stay within width.
+        // prompt's cursor/layout bookkeeping. Every composed row must stay within width.
         var region = new PromptRegion.Editor();
         int width = 20;
         var snapshot = new PromptSnapshot(List.of("hi"), 0, 2, List.of()).withSuggestion("x".repeat(200));
 
-        var out = new StringWriter();
-        region.render(new PrintWriter(out), width, THEME, snapshot);
-
-        for (String row : out.toString().split("\n", -1))
+        for (String row : region.compose(width, THEME, snapshot).rows())
             assertTrue(AnsiWidth.visibleWidth(row) <= width, "prompt row exceeds width " + width + " ("
                                             + AnsiWidth.visibleWidth(row) + "): " + row);
+    }
+
+    @Test
+    void editorWrapsWideGlyphsByColumnsNotChars() {
+        // 20 CJK chars are 40 visible columns. A char-counted wrap would put up to 2× the terminal width on one row
+        // and the terminal would auto-wrap it — an extra physical row the frame's bookkeeping never sees, shifting the
+        // redraw by one on every keystroke. Column-accurate wrapping must keep every row within width.
+        var region = new PromptRegion.Editor();
+        int width = 24;
+        String cjk = "漢".repeat(20);
+        var snapshot = new PromptSnapshot(List.of(cjk), 0, cjk.length(), List.of());
+
+        var body = region.compose(width, THEME, snapshot);
+
+        for (String row : body.rows())
+            assertTrue(AnsiWidth.visibleWidth(row) <= width, "wide-glyph row exceeds width " + width + " ("
+                                            + AnsiWidth.visibleWidth(row) + "): " + row);
+        assertTrue(body.rows().size() >= 3, "40 columns of text at width 24 must wrap to multiple rows");
+    }
+
+    @Test
+    void editorCaretColumnCountsWideGlyphsAsTwoCells() {
+        var region = new PromptRegion.Editor();
+        var snapshot = new PromptSnapshot(List.of("漢漢ab"), 0, 3, List.of()); // caret after 漢漢a
+
+        var body = region.compose(80, THEME, snapshot);
+
+        // Caret column is measured in visible cells: prefix + 2+2+1. A char-counted caret would sit 2 cells short.
+        int prefixW = AnsiWidth.visibleWidth(body.rows().get(0)) - AnsiWidth.visibleWidth("漢漢ab");
+        assertEquals(prefixW + 5, body.cursorCol());
     }
 
     @Test

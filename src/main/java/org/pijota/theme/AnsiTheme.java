@@ -130,10 +130,16 @@ public class AnsiTheme {
         String resolvedBase = firstColor(thinkingText, statusText, dim);
         final String base = resolvedBase != null ? resolvedBase : isLightTheme() ? "#666666" : "#7AA6B8";
 
-        for (String slot : THINKING_SLOTS) {
-            t.setSlotSpec(slot, opacitySpec(slotSpec(slot), bg, opacity, base, true));
+        // Prose speaks with one voice: every hue collapses to the dim base, so a green inline-code span or an orange
+        // heading can't out-shout the muted body. Fenced code keeps its syntax hues — just blended toward the
+        // background — because a code block is a quotation, not prose, and uniform grey would cost real legibility.
+        for (String slot : THINKING_PROSE_SLOTS) {
+            t.setSlotSpec(slot, opacitySpec(slotSpec(slot), bg, opacity, base, true, true));
         }
-        t.extra.replaceAll((key, spec) -> opacitySpec(spec, bg, opacity, base, false));
+        for (String slot : THINKING_CODE_SLOTS) {
+            t.setSlotSpec(slot, opacitySpec(slotSpec(slot), bg, opacity, base, true, false));
+        }
+        t.extra.replaceAll((key, spec) -> opacitySpec(spec, bg, opacity, base, false, false));
         return t;
     }
 
@@ -152,10 +158,16 @@ public class AnsiTheme {
         return t;
     }
 
+    /**
+     * A thinking-theme slot spec. Style attributes (bold, italic, …) always survive. With {@code monochrome} every
+     * foreground hue — hex, named, or ansi: — collapses to the single blended base colour (prose slots); without it
+     * each hue is kept and blended toward the background (code slots), i.e. dimmed but still recognisable.
+     */
     private static String opacitySpec(String spec, String bg, double opacity, String fallbackColor,
-                                    boolean colorizeStyleOnly) {
+                                    boolean colorizeStyleOnly, boolean monochrome) {
+        String base = fallbackColor != null ? blendHex(fallbackColor, bg, opacity) : null;
         if (spec == null || spec.isBlank()) {
-            return colorizeStyleOnly && fallbackColor != null ? blendHex(fallbackColor, bg, opacity) : spec;
+            return colorizeStyleOnly && base != null ? base : spec;
         }
         var out = new StringBuilder();
         boolean hasForeground = false;
@@ -164,27 +176,25 @@ public class AnsiTheme {
             if (part.isEmpty())
                 continue;
             String mapped = part;
-            if (part.startsWith("#") && part.length() == 7) {
-                mapped = blendHex(part, bg, opacity);
+            boolean isColor = (part.startsWith("#") && part.length() == 7) || COLOR_HEX.containsKey(part)
+                                            || (part.startsWith("ansi:") && ansiHex(part.substring(5)) != null);
+            if (isColor) {
+                String hex = part.startsWith("#")
+                                                ? part
+                                                : COLOR_HEX.containsKey(part)
+                                                                                ? COLOR_HEX.get(part)
+                                                                                : ansiHex(part.substring(5));
+                mapped = monochrome && base != null ? base : blendHex(hex, bg, opacity);
                 hasForeground = true;
-            } else if (COLOR_HEX.containsKey(part)) {
-                mapped = blendHex(COLOR_HEX.get(part), bg, opacity);
-                hasForeground = true;
-            } else if (part.startsWith("ansi:")) {
-                String hex = ansiHex(part.substring(5));
-                if (hex != null) {
-                    mapped = blendHex(hex, bg, opacity);
-                    hasForeground = true;
-                }
             }
             if (!out.isEmpty())
                 out.append(';');
             out.append(mapped);
         }
-        if (!hasForeground && colorizeStyleOnly && fallbackColor != null) {
+        if (!hasForeground && colorizeStyleOnly && base != null) {
             if (!out.isEmpty())
                 out.append(';');
-            out.append(blendHex(fallbackColor, bg, opacity));
+            out.append(base);
         }
         return out.toString();
     }
@@ -501,10 +511,14 @@ public class AnsiTheme {
     // output — just dimmed. "text" (the default body slot, also table-cell text) is included so prose isn't left at
     // full
     // brightness; link slots (mdLink/mdLinkUrl) are dimmed via the extra-slot pass in thinking().
-    private static final String[] THINKING_SLOTS = {"text", "heading", "bold", "italic", "highlight", "dim",
-            "strikethrough", "codeFence", "codeBody", "blockquote", "hr", "inlineCode", "synKeyword", "synType",
-            "synString", "synNumber", "synComment", "synFunction", "synVariable", "synOperator", "synPunctuation",
-            "toolLabel", "commandMeta", "statusText", "statusWarn", "thinkingText"};
+    /** Prose slots: collapsed to the one dim thinking colour (structure survives, hue does not). */
+    private static final String[] THINKING_PROSE_SLOTS = {"text", "heading", "bold", "italic", "highlight", "dim",
+            "strikethrough", "blockquote", "hr", "inlineCode", "toolLabel", "commandMeta", "statusText", "statusWarn",
+            "thinkingText"};
+
+    /** Fenced-code slots: syntax hues kept, blended toward the background — dimmed but still readable as code. */
+    private static final String[] THINKING_CODE_SLOTS = {"codeFence", "codeBody", "synKeyword", "synType", "synString",
+            "synNumber", "synComment", "synFunction", "synVariable", "synOperator", "synPunctuation"};
 
     private static final Map<String, Integer> CODE_MAP = Map.ofEntries(Map.entry("bold", 1), Map.entry("dim", 2),
                                     Map.entry("italic", 3), Map.entry("underline", 4), Map.entry("inverse", 7),

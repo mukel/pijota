@@ -149,8 +149,12 @@ final class PromptPresenter {
     }
 
     private List<String> mergedExtensionLines() {
+        return mergeExtensionLines(extensionLines.get());
+    }
+
+    static List<String> mergeExtensionLines(List<String> lines) {
         var seen = new LinkedHashSet<String>();
-        for (String raw : extensionLines.get()) {
+        for (String raw : lines) {
             if (!showExtensionStatusLine(raw))
                 continue;
             String sanitized = raw.replace('\n', ' ').replace('\r', ' ');

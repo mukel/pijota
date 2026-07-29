@@ -2,9 +2,6 @@ package org.pijota.tui;
 
 import org.pijota.theme.AnsiTheme;
 
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,102 +11,81 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SelectorRegionTest {
 
-    @Test
-    void heightZeroWhenInactive() {
-        var selector = new Selector<>(List.of());
-        var region = new SelectorRegion<>(selector);
-        assertEquals(0, region.height(80, new PromptSnapshot(List.of(""), 0, 0, List.of())));
+    private static final AnsiTheme THEME = AnsiTheme.dark();
+    private static final PromptSnapshot SNAPSHOT = new PromptSnapshot(List.of(""), 0, 0, List.of());
+
+    private static PromptRegion.Body compose(SelectorRegion<?> region) {
+        return region.compose(80, THEME, SNAPSHOT);
     }
 
     @Test
-    void heightWhenActiveWithItems() {
+    void emptyBodyWhenInactive() {
+        var selector = new Selector<>(List.of());
+        var region = new SelectorRegion<>(selector);
+        var body = compose(region);
+        assertTrue(body.rows().isEmpty());
+        assertEquals(-1, body.cursorRow(), "an inactive selector claims no caret");
+    }
+
+    @Test
+    void composesRowsWhenActiveWithItems() {
         var items = List.<SelectorItem>of(new CompletionItem("alpha", "desc A"), new CompletionItem("beta", "desc B"),
                                         new CompletionItem("gamma", "desc C"));
         var selector = new Selector<>(items);
         selector.activate("");
         var region = new SelectorRegion<>(selector);
 
-        var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
-        int h = region.height(80, snapshot);
-        assertTrue(h > 0, "height should be > 0 when active with items");
+        assertFalse(compose(region).rows().isEmpty(), "rows should be composed when active with items");
     }
 
     @Test
-    void heightWhenActiveEmptyItems() {
+    void composesRowsWhenActiveWithNoItems() {
         var selector = new Selector<>(List.of());
         selector.activate("");
         var region = new SelectorRegion<>(selector);
-        var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
-        int h = region.height(80, snapshot);
-        assertTrue(h > 0);
+        assertFalse(compose(region).rows().isEmpty());
     }
 
     @Test
-    void heightWithManyItems() {
+    void composesRowsWithManyItems() {
         var items = new ArrayList<SelectorItem>();
         for (int i = 0; i < 20; i++)
             items.add(new CompletionItem("item" + i, "desc" + i));
         var selector = new Selector<>(items);
         selector.activate("");
         var region = new SelectorRegion<>(selector);
-        var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
-        int h = region.height(80, snapshot);
-        assertTrue(h > 0);
+        assertFalse(compose(region).rows().isEmpty());
     }
 
     @Test
-    void renderReturnsNoCursorWhenInactive() {
-        var selector = new Selector<>(List.of());
-        var region = new SelectorRegion<>(selector);
-        var out = new PrintWriter(OutputStream.nullOutputStream());
-        var theme = AnsiTheme.dark();
-        var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
-        assertEquals(PromptRegion.NO_CURSOR, region.render(out, 80, theme, snapshot));
-    }
-
-    @Test
-    void renderActiveWithItemsWritesTitleAndItems() {
+    void activeWithItemsShowsTitleAndItems() {
         var items = List.<SelectorItem>of(new CompletionItem("alpha", "desc A"), new CompletionItem("beta", "desc B"));
         var selector = new Selector<>(items);
         selector.activate("");
         var region = new SelectorRegion<>(selector);
 
-        var sw = new StringWriter();
-        var out = new PrintWriter(sw);
-        var theme = AnsiTheme.dark();
-        var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
-
-        region.render(out, 80, theme, snapshot);
-        out.flush();
-        var rendered = sw.toString();
+        var rendered = String.join("\n", compose(region).rows());
 
         assertTrue(rendered.contains("select"), rendered);
-        assertTrue(rendered.contains("alpha") || rendered.contains("β") ? rendered.contains("alpha") : true);
-        assertTrue(rendered.contains("beta") || rendered.contains("β") ? rendered.contains("beta") : true);
+        assertTrue(rendered.contains("alpha"), rendered);
+        assertTrue(rendered.contains("beta"), rendered);
         assertTrue(rendered.contains("1/2"), rendered);
         assertTrue(rendered.contains("type to search"), rendered);
     }
 
     @Test
-    void renderActiveEmptyWritesNothingToShow() {
+    void activeWithNoItemsShowsNothingToShow() {
         var selector = new Selector<>(List.of());
         selector.activate("");
         var region = new SelectorRegion<>(selector);
 
-        var sw = new StringWriter();
-        var out = new PrintWriter(sw);
-        var theme = AnsiTheme.dark();
-        var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
-
-        region.render(out, 80, theme, snapshot);
-        out.flush();
-        var rendered = sw.toString();
+        var rendered = String.join("\n", compose(region).rows());
 
         assertTrue(rendered.contains("nothing to show"), rendered);
     }
 
     @Test
-    void renderWithScrollIndicators() {
+    void scrolledListShowsBothScrollIndicators() {
         var items = new ArrayList<SelectorItem>();
         for (int i = 0; i < 12; i++)
             items.add(new CompletionItem("item" + i, "desc" + i));
@@ -119,17 +95,10 @@ class SelectorRegionTest {
             selector.selectNext();
 
         var region = new SelectorRegion<>(selector);
-        var snapshot = new PromptSnapshot(List.of(""), 0, 0, List.of());
+        var body = compose(region);
 
-        assertTrue(region.height(80, snapshot) > 5);
-
-        var sw = new StringWriter();
-        var out = new PrintWriter(sw);
-        var theme = AnsiTheme.dark();
-        region.render(out, 80, theme, snapshot);
-        out.flush();
-        var rendered = sw.toString();
-
+        assertTrue(body.rows().size() > 5);
+        var rendered = String.join("\n", body.rows());
         assertTrue(rendered.contains("↑"), rendered);
         assertTrue(rendered.contains("↓"), rendered);
     }

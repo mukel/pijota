@@ -68,15 +68,38 @@ final class AnsiWidth {
                 i = skipEscape(text, i);
             } else if (ch == '\t') {
                 width += 4 - (width % 4);
+                if (width > maxWidth)
+                    return text.substring(0, i) + "\033[0m";
             } else if (!Character.isISOControl(ch)) {
+                // Cut BEFORE the glyph that crosses maxWidth: a width-2 glyph landing on the boundary must be dropped,
+                // not kept — keeping it yields maxWidth+1 columns and the terminal auto-wraps an unmeasured row.
+                if (width + charWidth(text, i) > maxWidth)
+                    return text.substring(0, i) + "\033[0m";
                 width += charWidth(text, i);
                 if (Character.isHighSurrogate(ch))
                     i++;
             }
-            if (width >= maxWidth)
-                return text.substring(0, i + 1) + "\033[0m";
         }
         return text;
+    }
+
+    /**
+     * First char index at or after {@code from} that no longer fits within {@code maxColumns} visible columns — the
+     * column-accurate wrap point for plain (unstyled) text. Always advances by at least one code point so callers can't
+     * loop forever on a glyph wider than the budget.
+     */
+    public static int wrapIndex(String text, int from, int maxColumns) {
+        int width = 0;
+        int i = from;
+        while (i < text.length()) {
+            char ch = text.charAt(i);
+            int cw = ch == '\t' ? 4 - (width % 4) : Character.isISOControl(ch) ? 0 : charWidth(text, i);
+            if (width + cw > maxColumns && i > from)
+                return i;
+            width += cw;
+            i += Character.isHighSurrogate(ch) && i + 1 < text.length() ? 2 : 1;
+        }
+        return i;
     }
 
     public static List<String> wrapPreservingAnsi(String text, int maxWidth) {

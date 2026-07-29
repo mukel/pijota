@@ -15,6 +15,13 @@ final class TerminalFrameRenderer {
     static final String BEGIN_SYNC = "\033[?2026h";
     static final String END_SYNC = "\033[?2026l";
 
+    // DECAWM auto-wrap, disabled around the prompt frame only: if a glyph-width miscount ever lets a frame row exceed
+    // the terminal width, the terminal clips it instead of wrapping — a cosmetic slip, never an unmeasured physical
+    // row that would desync the erase bookkeeping and eat/duplicate scrollback on every following redraw. Committed
+    // scrollback lines are written with auto-wrap ON so an over-wide line can never lose content.
+    static final String AUTOWRAP_OFF = "\033[?7l";
+    static final String AUTOWRAP_ON = "\033[?7h";
+
     private final PromptLayout layout;
 
     TerminalFrameRenderer(PromptLayout layout) {
@@ -35,11 +42,17 @@ final class TerminalFrameRenderer {
             for (var physical : AnsiWidth.wrapPreservingAnsi(line.text(), width)) {
                 out.print('\r');
                 out.print(physical);
-                out.print("\033[K\r\n");
+                // No EL after an exactly-full row: nothing to trim, and on xterm-family terminals the deferred-wrap
+                // cursor still sits on the last column where EL would erase the glyph just written.
+                if (AnsiWidth.visibleWidth(physical) < width)
+                    out.print("\033[K");
+                out.print("\r\n");
             }
         }
         if (showPrompt && snapshot != null) {
+            out.print(AUTOWRAP_OFF);
             layout.renderAfterErase(out, width, height, theme, snapshot);
+            out.print(AUTOWRAP_ON);
         }
         out.print(SHOW_CURSOR);
         out.print(END_SYNC);

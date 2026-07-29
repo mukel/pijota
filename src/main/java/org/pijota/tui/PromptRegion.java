@@ -3,17 +3,32 @@ package org.pijota.tui;
 import org.pijota.config.PromptGlyphs;
 import org.pijota.theme.AnsiTheme;
 
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
 public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.StatusBar, PromptRegion.Completions,
                                 PromptRegion.Custom {
 
-    int height(int width, PromptSnapshot ctx);
+    /**
+     * A region's content for one frame: pre-styled rows plus an optional caret position. Rows are plain styled text —
+     * no newlines, no cursor movement; {@link PromptLayout} clamps each row to the terminal width and owns all
+     * emission, so the frame's height is <em>defined</em> as the number of composed rows. There is no separate
+     * measurement to keep in sync: a region physically cannot make the frame taller or shorter than what it returned.
+     */
+    record Body(List<String> rows, int cursorRow, int cursorCol) {
+        static final Body EMPTY = new Body(List.of(), -1, -1);
 
-    CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx);
-    static final CursorPos NO_CURSOR = new CursorPos(-1, -1);
+        public Body {
+            rows = List.copyOf(rows);
+        }
+
+        static Body of(List<String> rows) {
+            return new Body(rows, -1, -1);
+        }
+    }
+
+    /** Composes this region's rows for one frame. Called exactly once per frame, on the terminal writer thread. */
+    Body compose(int width, AnsiTheme theme, PromptSnapshot ctx);
 
     /**
      * Colour of the prompt frame rules. Only genuinely input-relevant states restyle the frame — a running model must
@@ -24,7 +39,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
     }
 
     static String rule(int width) {
-        return "─".repeat(Math.max(10, width));
+        return "─".repeat(Math.max(1, width));
     }
 
     /**
@@ -47,20 +62,6 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
         return Math.max(1, width - Math.max(prefixW, 2));
     }
 
-    /** Writes pre-rendered lines as a region body: each cleared to end-of-line, separated by CR/LF. */
-    static void writeLines(PrintWriter out, List<String> lines) {
-        for (int i = 0; i < lines.size(); i++) {
-            if (i > 0)
-                out.print("\r\n");
-            out.print('\r');
-            out.print("\033[K");
-            out.print(lines.get(i));
-        }
-    }
-
-    record CursorPos(int visualRow, int visualCol) {
-    }
-
     record Editor(PromptGlyphs glyphs) implements PromptRegion {
         Editor() {
             this(PromptGlyphs.DEFAULTS);
@@ -71,47 +72,40 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
         }
 
         @Override
-        public int height(int width, PromptSnapshot ctx) {
-            return (glyphs.bottomDivider() ? 1 : 0) + Math.max(1, visualLines(ctx, width).size());
-        }
-
-        @Override
-        public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
+        public Body compose(int width, AnsiTheme theme, PromptSnapshot ctx) {
             var lines = visualLines(ctx, width);
-            int cursorVisualRow = -1;
-            int cursorVisualCol = -1;
+            var rows = new ArrayList<String>(lines.size() + 1);
+            int cursorRow = -1;
+            int cursorCol = -1;
             boolean cursorAtEndOfInput = cursorAtEndOfInput(ctx);
             for (int i = 0; i < lines.size(); i++) {
                 var line = lines.get(i);
-                out.print('\r');
-                out.print(theme.styled(line.prefixSlot(), line.prefix()));
-                out.print(theme.styled("text", line.text()));
-                if (cursorAtEndOfInput && line.logicalRow() == ctx.cursorRow() && ctx.cursorCol() >= line.startCol()
-                                                && ctx.cursorCol() <= line.endCol()) {
+                var row = new StringBuilder();
+                row.append(theme.styled(line.prefixSlot(), line.prefix()));
+                row.append(theme.styled("text", line.text()));
+                boolean cursorHere = line.logicalRow() == ctx.cursorRow() && ctx.cursorCol() >= line.startCol()
+                                                && ctx.cursorCol() <= line.endCol();
+                if (cursorAtEndOfInput && cursorHere) {
                     // Clip the ghost to the columns left on this wrap line (bodyWidth − text already drawn) so it
                     // never spills onto the next terminal row.
                     int room = bodyWidth(width, AnsiWidth.visibleWidth(line.prefix()))
                                                     - AnsiWidth.visibleWidth(line.text());
                     String suggestion = ghostText(ctx.suggestion(), room);
                     if (!suggestion.isEmpty())
-                        out.print(theme.styled("dim", suggestion));
+                        row.append(theme.styled("dim", suggestion));
                 }
-                if (line.logicalRow() == ctx.cursorRow() && ctx.cursorCol() >= line.startCol()
-                                                && ctx.cursorCol() <= line.endCol()) {
-                    cursorVisualRow = i;
-                    cursorVisualCol = AnsiWidth.visibleWidth(line.prefix()) + ctx.cursorCol() - line.startCol();
+                if (cursorHere) {
+                    cursorRow = i;
+                    // Caret column in visible columns, not chars — wide glyphs before the caret shift it two cells.
+                    cursorCol = AnsiWidth.visibleWidth(line.prefix()) + AnsiWidth.visibleWidth(
+                                                    line.text().substring(0, ctx.cursorCol() - line.startCol()));
                 }
-                out.print("\033[K"); // write-then-trim: clear leftover only after the line's content is drawn
-                if (i < lines.size() - 1 || glyphs.bottomDivider())
-                    out.print("\r\n"); // newline after each line (the bottom rule, if any, follows on its own row)
+                rows.add(row.toString());
             }
             // Bottom rule closes the frame (top rule is the layout's separator above); tinted by state, no verticals.
-            if (glyphs.bottomDivider()) {
-                out.print('\r');
-                out.print(theme.styled(ruleSlot(ctx), rule(width)));
-                out.print("\033[K");
-            }
-            return cursorVisualRow >= 0 ? new CursorPos(cursorVisualRow, cursorVisualCol) : NO_CURSOR;
+            if (glyphs.bottomDivider())
+                rows.add(theme.styled(ruleSlot(ctx), rule(width)));
+            return new Body(rows, cursorRow, cursorCol);
         }
 
         private static boolean cursorAtEndOfInput(PromptSnapshot ctx) {
@@ -145,7 +139,10 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 int start = 0;
                 boolean first = true;
                 while (start < text.length()) {
-                    int end = Math.min(text.length(), start + bodyWidth);
+                    // Wrap by visible COLUMNS, not chars: a CJK/emoji glyph occupies two cells, and a char-counted
+                    // slice would overflow the terminal row and auto-wrap — an extra physical row the frame's
+                    // bookkeeping would never see.
+                    int end = AnsiWidth.wrapIndex(text, start, bodyWidth);
                     out.add(new VisLine(first ? prefix : indent, first ? slot : "statusText",
                                                     text.substring(start, end), row, start, end));
                     start = end;
@@ -190,137 +187,52 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
     record StatusBar() implements PromptRegion {
 
         @Override
-        public int height(int width, PromptSnapshot ctx) {
-            int h = 0;
-            if (hasText(ctx.status()))
-                h += wrappedRows(ctx.status(), width); // stats line: wrapped, spills to the next row on a narrow term
-            if (hasText(ctx.cwd()))
-                h += wrappedRows(ctx.cwd(), width); // workspace info: wrapped, but stable within a turn (no jitter)
-            if (hasText(ctx.warning()))
-                h += warningRows(ctx.warning(), width);
-            h += ctx.extensionLines().size(); // already collapsed/expanded by the supplier (see AppendOnlyTui.collapse)
-            return h;
-        }
-
-        @Override
-        public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
-            boolean hasStatus = hasText(ctx.status());
-            boolean hasCwd = hasText(ctx.cwd());
-            boolean hasWarning = hasText(ctx.warning());
-            boolean hasExtensions = !ctx.extensionLines().isEmpty();
-            if (!hasStatus && !hasCwd && !hasWarning && !hasExtensions)
-                return NO_CURSOR;
-            boolean first = true;
+        public Body compose(int width, AnsiTheme theme, PromptSnapshot ctx) {
+            var rows = new ArrayList<String>();
 
             // Workspace line FIRST (cwd · branch · session): wrapped, never truncated — a long path spills to the next
             // row rather than losing its tail. Stable within a turn, so wrapping it causes no per-frame jitter.
-            if (hasCwd) {
-                for (String seg : AnsiWidth.wrapPreservingAnsi(ctx.cwd(), width)) {
-                    if (!first)
-                        out.print("\r\n");
-                    else
-                        out.print('\r');
-                    out.print(theme.styled("cwdLine", seg));
-                    out.print("\033[K");
-                    first = false;
-                }
-            }
+            if (hasText(ctx.cwd()))
+                for (String seg : AnsiWidth.wrapPreservingAnsi(ctx.cwd(), width))
+                    rows.add(theme.styled("cwdLine", seg));
 
             // Stats line (token info · (provider) model · reasoning · activity): pre-styled per segment, wrapped so a
             // narrow terminal spills to the next row instead of truncating.
-            if (hasStatus) {
-                for (String seg : AnsiWidth.wrapPreservingAnsi(ctx.status(), width)) {
-                    if (!first)
-                        out.print("\r\n");
-                    else
-                        out.print('\r');
-                    out.print(seg);
-                    out.print("\033[K");
-                    first = false;
-                }
-            }
+            if (hasText(ctx.status()))
+                rows.addAll(AnsiWidth.wrapPreservingAnsi(ctx.status(), width));
 
-            if (hasWarning) {
-                for (String part : ctx.warning().split("\\n", -1)) {
-                    if (!first)
-                        out.print("\r\n");
-                    else
-                        out.print('\r');
-                    out.print(theme.styled("statusWarn", AnsiWidth.truncateVisual("  " + part, width)));
-                    out.print("\033[K");
-                    first = false;
-                }
-            }
+            if (hasText(ctx.warning()))
+                for (String part : ctx.warning().split("\\n", -1))
+                    rows.add(theme.styled("statusWarn", AnsiWidth.truncateVisual("  " + part, width)));
 
-            if (hasExtensions) {
-                // The supplier already capped/expanded the list (AppendOnlyTui.collapse); render whatever it gave,
-                // dimming the "… N more / collapse" affordance line.
-                for (String line : ctx.extensionLines()) {
-                    if (!first)
-                        out.print("\r\n");
-                    else
-                        out.print('\r');
-                    String style = line.startsWith("… ") ? "dim" : "statusText";
-                    out.print(theme.styled(style, AnsiWidth.truncateVisual("  " + line, width)));
-                    out.print("\033[K");
-                    first = false;
-                }
-            }
-            return NO_CURSOR;
+            // The supplier already capped/expanded the list (AppendOnlyTui.collapse); render whatever it gave,
+            // dimming the "… N more / collapse" affordance line.
+            for (String line : ctx.extensionLines())
+                rows.add(theme.styled(line.startsWith("… ") ? "dim" : "statusText",
+                                                AnsiWidth.truncateVisual("  " + line, width)));
+
+            return Body.of(rows);
         }
 
         private static boolean hasText(String s) {
             return s != null && !s.isBlank();
         }
-
-        private static int wrappedRows(String line, int width) {
-            int w = AnsiWidth.visibleWidth(line);
-            if (w <= 0)
-                return 0;
-            width = Math.max(1, width);
-            return (w + width - 1) / width;
-        }
-
-        private static int warningRows(String warning, int width) {
-            int h = 0;
-            for (String part : warning.split("\\n", -1)) {
-                width = Math.max(1, width);
-                int w = AnsiWidth.visibleWidth("  " + part);
-                if (w <= 0)
-                    continue;
-                h += (w + width - 1) / width;
-            }
-            return h;
-        }
-
     }
 
     record Completions() implements PromptRegion {
         private static final int MAX_VISIBLE = 5;
 
         @Override
-        public int height(int width, PromptSnapshot ctx) {
-            int total = ctx.completions().size();
-            if (total == 0)
-                return 0;
-            int visible = Math.min(MAX_VISIBLE, total);
-            return 1 + visible + 1;
-        }
-
-        @Override
-        public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
+        public Body compose(int width, AnsiTheme theme, PromptSnapshot ctx) {
             var list = ctx.completions();
             int total = list.size();
             if (total == 0)
-                return NO_CURSOR;
+                return Body.EMPTY;
             int sel = ctx.selectedCompletion();
             int maxLen = list.stream().mapToInt(c -> c.name().length()).max().orElse(0);
 
-            out.print('\r');
-            out.print("\033[K");
-            // Every row is clamped to width: height() promises 1+visible+1 rows, so a row that overflowed and
-            // terminal-auto-wrapped would draw more rows than measured and desync the frame (stacking separators).
-            out.print(AnsiWidth.truncateVisual(theme.styled("hr", "suggestions"), width));
+            var rows = new ArrayList<String>();
+            rows.add(AnsiWidth.truncateVisual(theme.styled("hr", "suggestions"), width));
 
             int start = 0;
             if (total > MAX_VISIBLE) {
@@ -342,21 +254,14 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                                                 : "  " + theme.styled("statusText", item.name() + padRight(
                                                                                 item.description(), maxLen, item.name(),
                                                                                 width));
-                out.print("\r\n");
-                out.print('\r');
-                out.print("\033[K");
-                out.print(AnsiWidth.truncateVisual(row, width));
+                rows.add(AnsiWidth.truncateVisual(row, width));
             }
 
-            out.print("\r\n");
-            out.print('\r');
-            out.print("\033[K");
-            out.print(AnsiWidth.truncateVisual(
+            rows.add(AnsiWidth.truncateVisual(
                                             theme.styled("statusText", "  " + (sel + 1) + "/" + total)
                                                                             + theme.styled("dim", "  · Enter · ↑/↓"),
                                             width));
-
-            return NO_CURSOR;
+            return Body.of(rows);
         }
 
         private static String padRight(String desc, int maxLen, String name, int width) {

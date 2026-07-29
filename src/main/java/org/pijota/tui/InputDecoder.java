@@ -46,6 +46,8 @@ public final class InputDecoder {
             return Key.Special.CTRL_D;
         if (ch == 1)
             return Key.Special.CTRL_A;
+        if (ch == 2)
+            return Key.Special.CTRL_B; // pressed twice: move the running tool to the background
         if (ch == 3)
             return Key.Special.CTRL_C;
         if (ch == 5)

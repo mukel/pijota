@@ -39,6 +39,7 @@ final class TuiCommandController {
             case "/context" -> tui.showContext();
             case "/usage" -> tui.showUsage();
             case "/dequeue" -> tui.restoreQueuedFollowUp();
+            case "/bg" -> tui.backgroundRunningTool(); // tmux-friendly alternative to ctrl+b ctrl+b
             case "/export" -> tui.exportSession(input);
             case "/import" -> tui.importSession(input);
             case "/save" -> tui.saveSession(input);

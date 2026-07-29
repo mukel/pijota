@@ -141,7 +141,17 @@ class AnsiWidthTest {
 
     @Test
     void truncateVisualExactWidth() {
-        assertEquals("hi\033[0m", AnsiWidth.truncateVisual("hi", 2));
+        // A string that exactly fits is returned unchanged — no cut, so no reset appended.
+        assertEquals("hi", AnsiWidth.truncateVisual("hi", 2));
+    }
+
+    @Test
+    void truncateVisualDropsWideGlyphCrossingTheBoundary() {
+        // 你(2)好(2) fill width 5; 世(2) would make it 6 — it must be DROPPED, not kept: keeping it yields width 6 and
+        // the terminal auto-wraps an extra physical row that desyncs frame bookkeeping.
+        var result = AnsiWidth.truncateVisual("你好世界", 5);
+        assertEquals("你好\033[0m", result);
+        assertTrue(AnsiWidth.visibleWidth(result) <= 5);
     }
 
     @Test

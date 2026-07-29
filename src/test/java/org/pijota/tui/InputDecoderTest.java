@@ -97,8 +97,13 @@ class InputDecoderTest {
     }
 
     @Test
+    void mapsCtrlBForBackgrounding() throws IOException {
+        assertEquals(Key.Special.CTRL_B, InputDecoder.readKey(input(2)));
+    }
+
+    @Test
     void mapsUnknownControlCharToUnknown() throws IOException {
-        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(2)));
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(6))); // Ctrl+F — still unmapped
     }
 
     @Test

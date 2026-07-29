@@ -11,6 +11,7 @@ import org.pijota.llm.ModelRegistry;
 import org.pijota.extensions.skills.SkillLoader;
 import org.pijota.extensions.ExtensionKeybinding;
 import org.pijota.extensions.KeyChord;
+import org.pijota.extensions.jobs.JobRegistry;
 import org.pijota.extensions.UiContext;
 import org.pijota.config.PathDisplay;
 import org.pijota.config.SettingsManager;
@@ -19,6 +20,7 @@ import org.pijota.modes.SlashCommand;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.SlashCommandTool;
 import org.pijota.tools.Tool;
+import org.pijota.tools.ToolLabels;
 import org.pijota.tools.WhoamiTool;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.Platform;
@@ -33,7 +35,6 @@ import org.jline.terminal.TerminalBuilder;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -195,6 +196,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private volatile boolean streamingContent;
     private final DoublePressGate interruptGate = new DoublePressGate(INTERRUPT_WINDOW_MS);
     private final DoublePressGate exitGate = new DoublePressGate(EXIT_WINDOW_MS);
+    private final DoublePressGate backgroundGate = new DoublePressGate(INTERRUPT_WINDOW_MS);
+    private volatile JobRegistry jobRegistry; // enables ctrl+b ctrl+b — null until the host wires it
     private ThinkingLevel thinkingLevel = ThinkingLevel.OFF;
     private String sessionName;
     private Attributes originalAttributes;
@@ -206,8 +209,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final Map<KeyChord, ExtensionKeybinding> extensionKeybindings;
     /**
      * Per-tool-call state captured at ToolStart, consumed at ToolResult: args for the header + start time for elapsed.
+     * The name and pre-computed target detail also feed the live stream-tail line while the tool runs.
      */
-    private record ToolInProgress(Supplier<String> args, long startedAtMs) {
+    private record ToolInProgress(String name, String detail, Supplier<String> args, long startedAtMs) {
     }
 
     private final Map<String, ToolInProgress> toolsInProgress = new ConcurrentHashMap<>();
@@ -234,6 +238,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     public void requestSessionPicker() {
         showSessionPickerOnStart = true;
+    }
+
+    /** Wires the shared background-job registry, enabling ctrl+b ctrl+b / {@code /bg} for running commands. */
+    public void setJobRegistry(JobRegistry jobs) {
+        this.jobRegistry = jobs;
     }
     private static final long INTERRUPT_WINDOW_MS = 1200;
     private static final long EXIT_WINDOW_MS = 800;
@@ -381,7 +390,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
         @Override
         public String liveStreamTail() {
-            return streamingContent ? streamRenderer.liveTail().orElse("") : null;
+            if (streamingContent)
+                return streamRenderer.liveTail().orElse("");
+            return runningToolTail();
         }
 
         // ---- shared primitives (TuiHost) ----
@@ -857,6 +868,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         agentExecutor.shutdownNow();
         animator.shutdownNow();
         session.extensionRegistry().cleanup();
+        if (jobRegistry != null)
+            jobRegistry.killAll(); // backgrounded ≠ daemonized — backstop for when the jobs extension is disabled
         if (SelfRespawn.isRespawnInProgress())
             return;
         try {
@@ -933,6 +946,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     }
                     if (key == Key.Special.CTRL_C) {
                         handleCtrlC();
+                        continue;
+                    }
+                    if (key == Key.Special.CTRL_B) {
+                        handleCtrlB();
                         continue;
                     }
                     if (key == Key.Special.CTRL_X) {
@@ -1950,7 +1967,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var all = new ArrayList<String>(extensionLinesSupplier.get());
         if (remoteControl != null && remoteControl.active())
             all.add("🔗 remote control active · " + remoteControl.summary() + " · /remote-control to manage");
-        return collapse(all, statusExpanded, STATUS_COLLAPSED_LINES);
+        return collapse(PromptPresenter.mergeExtensionLines(all), statusExpanded, STATUS_COLLAPSED_LINES);
     }
 
     /**
@@ -2104,8 +2121,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 streamingContent = usage == null; // reserve the live-tail row for the whole streaming turn
                 String content = msg.content() == null ? "" : msg.content();
                 boolean committed = false;
-                if (showThinking() && msg.thinking() != null && !msg.thinking().isBlank())
-                    committed = streamRenderer.streamThinking(msg.thinking());
+                if (msg.thinking() != null && !msg.thinking().isBlank()) {
+                    if (showThinking())
+                        committed = streamRenderer.streamThinking(msg.thinking());
+                    else
+                        streamRenderer.recordThinking(msg.thinking()); // closeThinking explains the pause with ∴
+                }
                 // Assistant messages always stream. Message renderers apply to custom messages (handled by the
                 // CustomMessage case below), and never to assistant content — so they must not disable streaming.
                 committed = streamRenderer.streamContent(content) || committed;
@@ -2126,7 +2147,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 streamRenderer.closeThinking();
                 streamRenderer.flush();
                 if (toolCallId != null)
-                    toolsInProgress.put(toolCallId, new ToolInProgress(args, System.currentTimeMillis()));
+                    toolsInProgress.put(toolCallId, new ToolInProgress(name, ToolLabels.detail(name, args, rawCwd,
+                                                    settings != null ? settings.pathDisplay() : PathDisplay.COMPACT),
+                                                    args, System.currentTimeMillis()));
                 pendingEdit.onToolStart(name, args);
                 activity.setPhase("tool " + name);
                 if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)
@@ -2158,7 +2181,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse("●");
                 appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
                                                 settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
-                                                elapsedMs, glyph));
+                                                elapsedMs, glyph, Math.max(20, terminal.getWidth())));
+                streamRenderer.separateNextContent(); // the answer resumes with one blank line of air
                 pendingEdit.clear();
             }
             case AgentEvent.Compaction c -> {
@@ -2199,11 +2223,122 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 }
                 redrawPrompt();
             }
-            case AgentEvent.Error(Throwable t) ->
+            case AgentEvent.TurnEnd ignored -> closeAbandonedTools();
+            case AgentEvent.Error(Throwable t) -> {
+                closeAbandonedTools();
                 appendPlain(List.of(theme.styled("toolError", "error: " + ErrorUtil.message(t))));
+            }
             case AgentEvent.HistoryChanged ignored -> seedPromptHistoryFromSession(); // /load, /new, /undo, /fork
             default -> {}
         }
+    }
+
+    /**
+     * A tool whose result never arrived (interrupt, turn failure) still gets its header committed — as a failure with
+     * "interrupted" for its metadata — so no block is ever left dangling and the live tail line has a resolution.
+     */
+    private void closeAbandonedTools() {
+        if (toolsInProgress.isEmpty())
+            return;
+        var abandoned = toolsInProgress.values().stream()
+                                        .sorted(java.util.Comparator.comparingLong(ToolInProgress::startedAtMs))
+                                        .toList();
+        toolsInProgress.clear();
+        String dot = theme.styled("commandMeta", " · ");
+        for (var tool : abandoned) {
+            var line = new StringBuilder(theme.styled("toolError", "✖")).append(' ')
+                                            .append(theme.styled("toolLabel", tool.name()));
+            if (!tool.detail().isBlank())
+                line.append(' ').append(theme.styled("statusText", tool.detail()));
+            line.append(dot).append(theme.styled("commandMeta", "interrupted"));
+            long elapsed = System.currentTimeMillis() - tool.startedAtMs();
+            if (elapsed >= 1000)
+                line.append(dot).append(theme.styled("commandMeta", Util.formatDuration(elapsed)));
+            appendPlain(List.of(line.toString()));
+        }
+        redrawPrompt(); // release the live tool tail row in the same breath
+    }
+
+    /**
+     * The live stream-tail line while a tool runs: its would-be header, dim, with the working spinner and elapsed —
+     * committed results replace it in place, so the header appears to solidify. Null when no tool is in flight. Once
+     * the tool has run a few seconds and can be backgrounded, the line carries the ctrl+b hint — it appears exactly
+     * when the user starts wondering, never for quick commands.
+     */
+    private static final long BACKGROUND_HINT_AFTER_MS = 3000;
+
+    private String runningToolTail() {
+        ToolInProgress current = newestToolInProgress();
+        if (current == null)
+            return null;
+        var line = new StringBuilder("● ").append(current.name());
+        if (!current.detail().isBlank())
+            line.append(' ').append(current.detail());
+        line.append("  ").append(animation.frame());
+        long elapsed = System.currentTimeMillis() - current.startedAtMs();
+        if (elapsed >= 1000)
+            line.append(' ').append(elapsed / 1000).append('s');
+        if (elapsed >= BACKGROUND_HINT_AFTER_MS && detachableTool(current.name()) != null)
+            line.append(" · ctrl+b ctrl+b to background");
+        return theme.styled("commandMeta", line.toString());
+    }
+
+    private ToolInProgress newestToolInProgress() {
+        ToolInProgress current = null;
+        for (var tool : toolsInProgress.values())
+            if (current == null || tool.startedAtMs() > current.startedAtMs())
+                current = tool;
+        return current;
+    }
+
+    private Tool.Detachable detachableTool(String name) {
+        if (jobRegistry == null)
+            return null;
+        return session.tool(name).filter(t -> t instanceof Tool.Detachable).map(t -> (Tool.Detachable) t).orElse(null);
+    }
+
+    /**
+     * Ctrl+B pressed twice moves the running command to the background: the pending tool call completes with a
+     * synthetic result carrying the new job id, the process is adopted by the job registry, and the turn resumes
+     * immediately. A single press only arms the gate (and explains itself); with nothing detachable running the key is
+     * inert.
+     */
+    private void handleCtrlB() {
+        var current = newestToolInProgress();
+        var detachable = current != null ? detachableTool(current.name()) : null;
+        if (detachable == null || !activity.isBusy()) {
+            backgroundGate.disarm();
+            return;
+        }
+        if (!backgroundGate.tryFire()) {
+            setTransientStatus("Press Ctrl+B again to move " + current.name() + " to the background", 2000);
+            return;
+        }
+        backgroundGate.disarm();
+        backgroundCurrentTool(current, detachable);
+    }
+
+    /** The /bg command — same effect as ctrl+b ctrl+b, without the chord (ctrl+b is the tmux prefix). */
+    void backgroundRunningTool() {
+        var current = newestToolInProgress();
+        var detachable = current != null ? detachableTool(current.name()) : null;
+        if (detachable == null || !activity.isBusy()) {
+            appendPlain(List.of(theme.styled("statusText", "nothing to background — no detachable tool is running")));
+            return;
+        }
+        backgroundCurrentTool(current, detachable);
+    }
+
+    private void backgroundCurrentTool(ToolInProgress current, Tool.Detachable detachable) {
+        var handoff = detachable.detach();
+        if (handoff.isEmpty()) {
+            setTransientStatus("Nothing to background (the command just finished)", 2000);
+            return;
+        }
+        var detached = handoff.get();
+        var adopted = jobRegistry.adopt(detached, current.detail().isBlank() ? current.name() : current.detail());
+        detached.complete().accept(JobRegistry.backgroundedResult(adopted.id(), adopted.outputSoFar()));
+        setTransientStatus("Moved to background as " + adopted.id(), 2500);
     }
 
     private Tool.ToolResultView renderToolResultView(Message.ToolResult msg) {
@@ -2344,7 +2479,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      */
     private int fitViewerViewport(PromptSnapshot snapshot) {
         int width = Math.max(20, terminal.getWidth());
-        int others = promptLayout.measuredHeightExcluding(LogViewerRegion.class, width, snapshot);
+        int others = promptLayout.measuredHeightExcluding(LogViewerRegion.class, width, theme, snapshot);
         // The viewer region wraps the body in a header + footer (2 rows); keep one spare line so a region whose
         // height is under-estimated by a row can never push the frame past the bottom of the screen.
         return Math.max(3, terminal.getHeight() - others - 3);
@@ -2364,39 +2499,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return ModelRegistry.resolveContextWindow(provider, model);
     }
 
-    static int pendingHeight(int width, PromptSnapshot ctx) {
-        if (ctx.pendingMessages().isEmpty())
-            return 0;
-        int h = 0;
-        for (String msg : ctx.pendingMessages()) {
-            String line = "queued  " + msg;
-            int vw = AnsiWidth.visibleWidth(line);
-            h += (vw <= 0) ? 1 : (vw + width - 1) / width;
-        }
-        return h;
-    }
-
-    private final class PendingRegion implements PromptRegion.Custom {
+    static final class PendingRegion implements PromptRegion.Custom {
         @Override
-        public int height(int width, PromptSnapshot ctx) {
-            return pendingHeight(width, ctx);
-        }
-
-        @Override
-        public CursorPos render(PrintWriter out, int width, AnsiTheme theme, PromptSnapshot ctx) {
-            if (ctx.pendingMessages().isEmpty())
-                return NO_CURSOR;
-            boolean first = true;
-            for (int i = 0; i < ctx.pendingMessages().size(); i++) {
-                String wrapped = AnsiWidth.truncateVisual("queued  " + ctx.pendingMessages().get(i), width);
-                if (!first)
-                    out.print("\r\n");
-                out.print('\r');
-                out.print("\033[K");
-                out.print(theme.styled("statusWarn", wrapped));
-                first = false;
-            }
-            return NO_CURSOR;
+        public Body compose(int width, AnsiTheme theme, PromptSnapshot ctx) {
+            var rows = new ArrayList<String>(ctx.pendingMessages().size());
+            for (String msg : ctx.pendingMessages())
+                rows.add(theme.styled("statusWarn", AnsiWidth.truncateVisual("queued  " + msg, width)));
+            return Body.of(rows);
         }
     }
 }

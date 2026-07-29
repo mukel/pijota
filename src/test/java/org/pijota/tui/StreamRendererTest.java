@@ -56,8 +56,23 @@ class StreamRendererTest {
 
         String out = sink.text();
         assertTrue(out.contains("thinking"), "thinking header expected: " + out);
-        assertTrue(out.contains("thought"), "thinking summary expected: " + out);
+        assertTrue(out.contains("└") && out.contains("tokens"), "thinking summary expected: " + out);
         assertTrue(out.contains("the answer"), "content expected: " + out);
+    }
+
+    @Test
+    void hiddenThinkingIsExplainedByOneCollapsedLine() {
+        var sink = new CapturingSink();
+        var r = renderer(sink, false); // thinking display off
+
+        r.recordThinking("considering the options at some length");
+        r.streamContent("the answer\n");
+        r.flush();
+
+        String out = sink.text();
+        assertTrue(out.contains("∴ thought"), "the pause must be explained: " + out);
+        assertTrue(out.contains("tokens"), out);
+        assertFalse(out.contains("considering the options"), "hidden thinking text never renders: " + out);
     }
 
     @Test

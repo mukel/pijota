@@ -29,6 +29,11 @@ final class TerminalCoordinator implements AutoCloseable {
     private final AtomicBoolean running = new AtomicBoolean();
     private Thread writerThread;
     private PromptSnapshot prompt = new PromptSnapshot(List.of(""), 0, 0, List.of());
+    // Spacing policy, enforced at the single point every scrollback line passes through: never two consecutive
+    // fully-empty lines. Blocks may each claim their blank line of air without coordinating with their neighbours.
+    // Starts true so the session never opens with a blank. Only literally-empty text counts — styled padding (e.g.
+    // code-block backgrounds) is content.
+    private boolean lastLineWasEmpty = true;
 
     public TerminalCoordinator(Terminal terminal, AnsiTheme theme, PromptLayout layout) {
         this.terminal = terminal;
@@ -114,7 +119,15 @@ final class TerminalCoordinator implements AutoCloseable {
         String tailUpdate = null; // a Tail op always carries a non-null string (updateStreamTail coerces null to "")
         for (var op : ops) {
             switch (op) {
-                case UiOp.Append append -> lines.addAll(append.lines());
+                case UiOp.Append append -> {
+                    for (var line : append.lines()) {
+                        boolean empty = line.text().isEmpty();
+                        if (empty && lastLineWasEmpty)
+                            continue;
+                        lines.add(line);
+                        lastLineWasEmpty = empty;
+                    }
+                }
                 case UiOp.Prompt p -> finalSnapshot = p.snapshot();
                 case UiOp.Tail t -> tailUpdate = t.tail();
                 default -> {}
@@ -134,7 +147,8 @@ final class TerminalCoordinator implements AutoCloseable {
 
     private void restore() {
         try {
-            terminal.writer().print("\033[0m" + TerminalFrameRenderer.SHOW_CURSOR + "\r\n");
+            terminal.writer().print("\033[0m" + TerminalFrameRenderer.AUTOWRAP_ON + TerminalFrameRenderer.SHOW_CURSOR
+                                            + "\r\n");
             terminal.writer().flush();
         } catch (Exception ignored) {}
     }

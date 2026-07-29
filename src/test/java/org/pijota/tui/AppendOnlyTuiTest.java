@@ -156,6 +156,15 @@ class AppendOnlyTuiTest {
     }
 
     @Test
+    void mergeExtensionLinesFiltersBeforeCollapseCountsVisibleLines() {
+        var merged = PromptPresenter.mergeExtensionLines(
+                                        List.of("a", "b", "c", "something filtered", "secured status"));
+
+        assertEquals(List.of("a", "b", "c"), merged);
+        assertEquals(List.of("a", "b", "c"), AppendOnlyTui.collapse(merged, false, 3));
+    }
+
+    @Test
     void bareHelpInputsOpenHelpInsteadOfPromptingModel() {
         assertTrue(AppendOnlyTui.isBareHelp("help"));
         assertFalse(AppendOnlyTui.isBareHelp("help remote"));
@@ -212,19 +221,19 @@ class AppendOnlyTuiTest {
     @Test
     void toolResultSummaryGrep() {
         var msg = new Message.ToolResult("id", "grep", "content", false, Map.of("matchCount", 5));
-        assertEquals("5 match(es)", ToolResultLines.toolResultSummary(msg));
+        assertEquals("5 matches", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void toolResultSummaryGlob() {
         var msg = new Message.ToolResult("id", "glob", "content", false, Map.of("resultCount", 3));
-        assertEquals("3 result(s)", ToolResultLines.toolResultSummary(msg));
+        assertEquals("3 results", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
     void toolResultSummaryRead() {
         var msg = new Message.ToolResult("id", "read", "content", false, Map.of("totalLines", 100));
-        assertEquals("100 line(s)", ToolResultLines.toolResultSummary(msg));
+        assertEquals("100 lines", ToolResultLines.toolResultSummary(msg));
     }
 
     @Test
@@ -266,29 +275,40 @@ class AppendOnlyTuiTest {
     void thinkingSummaryFormatsTokens() {
         var theme = new AnsiTheme();
         var result = StreamRenderer.thinkingSummary("hello world", 0, theme);
-        assertTrue(result.contains("thought"));
+        assertTrue(result.contains("└ "), "footer of a visible block — the header already said thinking");
         assertTrue(result.contains("tokens"));
+        assertFalse(result.contains("thought"), "no word the header already carried");
     }
 
     @Test
-    void pendingHeightZeroWhenEmpty() {
+    void collapsedThinkingSummaryExplainsTheHiddenPause() {
+        var theme = new AnsiTheme();
+        var result = StreamRenderer.collapsedThinkingSummary("hello world", 0, theme);
+        assertTrue(result.contains("∴ thought"), result);
+        assertTrue(result.contains("tokens"), result);
+    }
+
+    @Test
+    void pendingRegionEmptyWhenNothingQueued() {
         var ctx = new PromptSnapshot(List.of(), 0, 0, List.of());
-        assertEquals(0, AppendOnlyTui.pendingHeight(80, ctx));
+        assertTrue(new AppendOnlyTui.PendingRegion().compose(80, AnsiTheme.dark(), ctx).rows().isEmpty());
     }
 
     @Test
-    void pendingHeightCountsWrappedLines() {
+    void pendingRegionOneClampedRowPerQueuedMessage() {
         var ctx = new PromptSnapshot(List.of(), 0, 0, List.of())
                                         .withPendingMessages(List.of("short", "very long message that wraps"));
-        int h = AppendOnlyTui.pendingHeight(15, ctx);
-        assertTrue(h > 2);
-        assertTrue(h <= 10);
+        var rows = new AppendOnlyTui.PendingRegion().compose(15, AnsiTheme.dark(), ctx).rows();
+        assertEquals(2, rows.size(), "exactly one row per queued message — never a wrapped extra row");
+        for (String row : rows)
+            assertTrue(AnsiWidth.visibleWidth(row) <= 15, "queued row exceeds width: " + row);
     }
 
     @Test
-    void pendingHeightSingleMessage() {
+    void pendingRegionSingleMessage() {
         var ctx = new PromptSnapshot(List.of(), 0, 0, List.of()).withPendingMessages(List.of("hello"));
-        int h = AppendOnlyTui.pendingHeight(100, ctx);
-        assertEquals(1, h);
+        var rows = new AppendOnlyTui.PendingRegion().compose(100, AnsiTheme.dark(), ctx).rows();
+        assertEquals(1, rows.size());
+        assertTrue(rows.get(0).contains("queued"));
     }
 }

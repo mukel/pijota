@@ -44,6 +44,7 @@ final class StreamRenderer {
     private String lastThinking = "";
     private boolean compactionStreamRendered;
     private boolean contentStarted;
+    private boolean blankBeforeNextContent;
 
     StreamRenderer(Output output, AnsiTheme theme, AnsiTheme thinkingTheme, IntSupplier usableWidth,
                                     BooleanSupplier showThinking, Supplier<String> thinkingLabel, MarkdownStyle style) {
@@ -54,9 +55,9 @@ final class StreamRenderer {
         this.showThinking = showThinking;
         this.thinkingLabel = thinkingLabel;
         this.markdown = new StreamingMarkdownFormatter(theme, style);
-        // Thinking renders through the SAME markdown pipeline/config as content (default body slot, no forced italic);
-        // the only difference is the fully-dimmed thinkingTheme, so syntax highlighting, tables, bold/italic etc. all
-        // appear exactly like regular output, just dimmed.
+        // Thinking renders through the SAME markdown pipeline/config as content, but through the thinkingTheme:
+        // prose collapses to the one dim thinking colour (an inline-code span never out-shouts the muted body),
+        // while fenced code keeps its syntax hues blended toward the background — dimmed, still readable as code.
         this.thinkingMarkdown = new StreamingMarkdownFormatter(thinkingTheme, style);
     }
 
@@ -85,8 +86,27 @@ final class StreamRenderer {
         thinkingStartedAt = 0;
         lastContent = "";
         lastThinking = "";
+        blankBeforeNextContent = false;
         markdown.reset();
         thinkingMarkdown.reset();
+    }
+
+    /**
+     * The answer gets one blank line of air after a machine block (tool result). Called by the TUI at that boundary;
+     * the next committed content batch is preceded by a single blank line (the coordinator collapses doubles).
+     */
+    void separateNextContent() {
+        blankBeforeNextContent = true;
+    }
+
+    /**
+     * Records thinking that is NOT displayed (thinking display off) so {@link #closeThinking} can still explain the
+     * pause with a one-line summary. Tracks the same start time / last text as the visible path, emits nothing.
+     */
+    void recordThinking(String fullThinking) {
+        if (thinkingStartedAt == 0)
+            thinkingStartedAt = System.currentTimeMillis();
+        lastThinking = fullThinking;
     }
 
     /**
@@ -119,8 +139,7 @@ final class StreamRenderer {
     boolean streamContent(String fullContent) {
         String delta = deltaPrefix(fullContent, lastContent);
         if (!delta.isEmpty() && !contentStarted) {
-            if (thinkingHeaderShown)
-                closeThinking();
+            closeThinking(); // idempotent; also emits the ∴ stand-in when thinking was recorded but hidden
             contentStarted = true;
         }
         var committed = contentLines.accept(delta);
@@ -165,15 +184,24 @@ final class StreamRenderer {
     }
 
     void closeThinking() {
-        if (!thinkingHeaderShown || thinkingFooterShown)
+        if (thinkingFooterShown)
             return;
+        if (!thinkingHeaderShown) {
+            // Hidden thinking (display off): one dim line so a long pause is always explained.
+            if (lastThinking.isBlank())
+                return;
+            emitPlain(List.of("", collapsedThinkingSummary(lastThinking, thinkingStartedAt, theme), ""));
+            thinkingFooterShown = true;
+            return;
+        }
         thinkingLines.flush().ifPresent(line -> appendThinking(List.of(line)));
         // Flush the thinking markdown buffer now so the thinking body is emitted IN ORDER (before the summary and the
         // content). Otherwise it stays buffered until the global flush(), which emits content first — pushing the
         // whole thinking block below the answer where it looks like it never rendered.
+        thinkingMarkdown.setWidth(railedWidth());
         var tail = thinkingMarkdown.flush();
         if (!tail.isEmpty())
-            output.appendLines(tail);
+            output.appendLines(railed(tail));
         // Trailing blank line so the summary is visually separated from the answer that follows.
         emitPlain(List.of(thinkingSummary(lastThinking, thinkingStartedAt, theme), ""));
         thinkingFooterShown = true;
@@ -185,11 +213,18 @@ final class StreamRenderer {
         synchronized (this) {
             if (showThinking.getAsBoolean())
                 thinkingLines.flush().ifPresent(line -> batches.add(renderThinking(List.of(line))));
-            contentLines.flush().ifPresent(line -> batches.add(renderContent(List.of(line), width)));
+            contentLines.flush().ifPresent(line -> {
+                var rendered = renderContent(List.of(line), width);
+                if (!rendered.isEmpty() && blankBeforeNextContent) {
+                    blankBeforeNextContent = false;
+                    batches.add(List.of(StyledLine.of("")));
+                }
+                batches.add(rendered);
+            });
             markdown.setWidth(width);
             batches.add(markdown.flush());
-            thinkingMarkdown.setWidth(width);
-            batches.add(thinkingMarkdown.flush());
+            thinkingMarkdown.setWidth(railedWidth());
+            batches.add(railed(thinkingMarkdown.flush()));
         }
         for (var batch : batches)
             output.appendLines(batch);
@@ -214,12 +249,23 @@ final class StreamRenderer {
         flush();
     }
 
+    /** Footer of a visible thinking block — the header already said "thinking", so only the numbers remain. */
     static String thinkingSummary(String thinking, long startedAt, AnsiTheme theme) {
+        return theme.styled("thinkingText", "└ " + thinkingMeta(thinking, startedAt));
+    }
+
+    /** The one-line stand-in when thinking display is off: the pause is explained, nothing else is shown. */
+    static String collapsedThinkingSummary(String thinking, long startedAt, AnsiTheme theme) {
+        return theme.styled("thinkingText", "∴ thought " + thinkingMeta(thinking, startedAt));
+    }
+
+    private static String thinkingMeta(String thinking, long startedAt) {
         int tokens = (int) Util.approxTokens(thinking == null ? 0 : thinking.length());
         long elapsed = startedAt > 0 ? System.currentTimeMillis() - startedAt : 0;
-        return theme.styled("thinkingText", "└ ") + theme.styled("thinkingText", "thought ")
-                                        + theme.styled("thinkingText", Util.fmtCount(tokens) + " tokens")
-                                        + theme.styled("thinkingText", " · " + Util.formatDuration(elapsed));
+        String meta = Util.count(tokens, "token", "tokens");
+        if (elapsed >= 1000) // a sub-second pause needs no clock — "· 0s" is noise
+            meta += " · " + Util.formatDuration(elapsed);
+        return meta;
     }
 
     // ---- internals ----
@@ -231,6 +277,12 @@ final class StreamRenderer {
         List<StyledLine> rendered;
         synchronized (this) {
             rendered = renderContent(lines, width);
+        }
+        if (rendered.isEmpty())
+            return;
+        if (blankBeforeNextContent) {
+            blankBeforeNextContent = false;
+            output.appendLines(List.of(StyledLine.of("")));
         }
         output.appendLines(rendered);
     }
@@ -257,11 +309,30 @@ final class StreamRenderer {
     }
 
     private List<StyledLine> renderThinking(List<String> lines) {
-        int width = usableWidth.getAsInt();
-        thinkingMarkdown.setWidth(width);
+        thinkingMarkdown.setWidth(railedWidth());
         var out = new ArrayList<StyledLine>();
         for (String line : lines)
             out.addAll(thinkingMarkdown.format(line));
+        return railed(out);
+    }
+
+    /** Columns left for thinking content once the rail has claimed its two. */
+    private int railedWidth() {
+        return Math.max(1, usableWidth.getAsInt() - 2);
+    }
+
+    /**
+     * The single choke point that puts the {@code │} rail on thinking output: every logical line is wrapped to the
+     * railed width FIRST, then every physical row — continuations included — gets the rail. A long thought can never
+     * shed its rail at the terminal edge, and no emission path (streaming, close, flush) can bypass it.
+     */
+    private List<StyledLine> railed(List<StyledLine> lines) {
+        int width = railedWidth();
+        String rail = theme.styled("thinkingText", "│ "); // corners, rail and footer all speak with one thinking voice
+        var out = new ArrayList<StyledLine>();
+        for (var line : lines)
+            for (String row : AnsiWidth.wrapPreservingAnsi(line.text(), width))
+                out.add(StyledLine.of(rail + row));
         return out;
     }
 
@@ -270,6 +341,11 @@ final class StreamRenderer {
     }
 
     private String thinkingHeader() {
-        return theme.styled("toolLabel", "┌ thinking") + theme.styled("dim", " · " + thinkingLabel.get());
+        // The level label appears only when it deviates from the default — "┌ thinking" alone is calmer. The header
+        // wears the thinking slot, not the tool accent: thinking is the quietest voice on screen, and an accent
+        // header would make its blocks the loudest thing in the transcript.
+        String label = thinkingLabel.get();
+        String suffix = label == null || label.isBlank() || "medium".equals(label) ? "" : " · " + label;
+        return theme.styled("thinkingText", "┌ thinking" + suffix);
     }
 }
