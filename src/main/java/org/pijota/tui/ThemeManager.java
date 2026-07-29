@@ -94,7 +94,7 @@ final class ThemeManager {
      * would show. {@code ThemeManagerTest} cross-checks this list against the actual files to catch drift.
      */
     static final List<String> BUILTIN_THEMES = List.of("catppuccin-frappe", "catppuccin-latte", "catppuccin-macchiato",
-                                    "catppuccin-mocha", "gruvbox-dark", "gruvbox-light");
+                                    "catppuccin-mocha", "dark", "gruvbox-dark", "gruvbox-light", "light");
 
     private static List<String> builtinNames() {
         return BUILTIN_THEMES;
