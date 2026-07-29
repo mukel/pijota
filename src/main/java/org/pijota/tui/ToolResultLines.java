@@ -62,27 +62,30 @@ final class ToolResultLines {
             lines.add("");
             lines.add(theme.styled("toolLabel", "┌ ") + nameDetail);
             addBody(lines, rendered.body(), theme, width);
-            var foot = new ArrayList<String>();
-            if (!summary.isBlank())
-                foot.add(theme.styled("commandMeta", summary));
-            if (exit != null) // a non-zero exit stays red — the one cue that survives the dim closing line
-                foot.add(theme.styled(exit == 0 ? "commandMeta" : "toolError", "exit " + exit));
-            if (elapsedStr != null)
-                foot.add(theme.styled("commandMeta", elapsedStr));
+            var foot = metaChips(summary, exit, elapsedStr, theme);
             lines.add(theme.styled("commandMeta", "└") + (foot.isEmpty() ? "" : " " + String.join(dot, foot)));
         } else {
             // Quiet tool: the header line is the whole block — metadata uniformly dim, stacked tight with siblings.
-            var meta = new ArrayList<String>();
-            if (!summary.isBlank())
-                meta.add(theme.styled("commandMeta", summary));
-            if (exit != null)
-                meta.add(theme.styled(exit == 0 ? "commandMeta" : "toolError", "exit " + exit));
-            if (elapsedStr != null)
-                meta.add(theme.styled("commandMeta", elapsedStr));
+            var meta = metaChips(summary, exit, elapsedStr, theme);
             lines.add(theme.styled("toolLabel", glyph) + " " + nameDetail
                                             + (meta.isEmpty() ? "" : dot + String.join(dot, meta)));
         }
         return lines;
+    }
+
+    /**
+     * The trailing metadata chips — summary, exit code, elapsed — shared verbatim by the quiet header and the framed
+     * footer. A zero exit stays dim; a non-zero one is the single cue that survives red into the closing line.
+     */
+    private static List<String> metaChips(String summary, Integer exit, String elapsedStr, AnsiTheme theme) {
+        var meta = new ArrayList<String>();
+        if (!summary.isBlank())
+            meta.add(theme.styled("commandMeta", summary));
+        if (exit != null)
+            meta.add(theme.styled(exit == 0 ? "commandMeta" : "toolError", "exit " + exit));
+        if (elapsedStr != null)
+            meta.add(theme.styled("commandMeta", elapsedStr));
+        return meta;
     }
 
     /**
