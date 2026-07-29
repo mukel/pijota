@@ -64,6 +64,22 @@ class AppBootstrapTest {
     }
 
     @Test
+    void backgroundingIsGatedOnTheJobsExtension() throws Exception {
+        // The shared job registry reaches the frontends (enabling ctrl+b ctrl+b) only when jobs is active — so a
+        // backgrounded command always has jobs_output/jobs_kill to observe and stop it.
+        Path tmp = Files.createTempDirectory("bootstrap-test");
+        assertNotNull(AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--api-key", "sk-test"}),
+                                        settings(tmp, Map.of(), "gpt-5.5")).jobs(),
+                                        "jobs on by default → registry wired");
+        assertNull(AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-jobs", "--api-key", "sk-test"}),
+                                        settings(tmp, Map.of(), "gpt-5.5")).jobs(),
+                                        "--no-jobs → no registry, no gesture");
+        assertNull(AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-extensions", "--api-key", "sk-test"}),
+                                        settings(tmp, Map.of(), "gpt-5.5")).jobs(),
+                                        "--no-extensions → jobs never registered");
+    }
+
+    @Test
     void variousFeatureFlagsStillProduceAWiredSession() throws Exception {
         for (String[] flags : new String[][] {{"--no-extensions"}, {"--no-skills"}, {"--no-prompt-templates"},
                 {"--no-context-files"}, {"--no-session"}, {"--append-system-prompt", "EXTRA RULES"},

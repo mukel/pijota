@@ -142,7 +142,7 @@ public final class Main {
                                         b.settings(), b.extensions().skills(), b.extensions()::statusLines,
                                         b.extensions().keybindings());
         b.extensions().setTui(tui);
-        tui.setJobRegistry(b.jobs()); // enables ctrl+b ctrl+b: adopt a running bash command as a background job
+        tui.setJobRegistry(b.jobs()); // enables ctrl+b ctrl+b when jobs is active; null under --no-jobs (feature off)
         tui.syncThinkingLevel(b.llm().thinkingLevel());
         if (parsedArgs.resume())
             tui.requestSessionPicker();
