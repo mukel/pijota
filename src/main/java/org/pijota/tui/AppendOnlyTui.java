@@ -864,9 +864,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             if (!items.isEmpty()) {
                 lines.add("");
                 lines.add(theme.styled("dim", "recent sessions"));
-                for (var it : items)
-                    lines.add(theme.styled("statusText", "  " + it.description()) + theme.styled("commandMeta",
-                                                    "  " + compactSessionDetail(it.detailText())));
+                int width = Math.max(20, terminal.getWidth());
+                for (var it : items) {
+                    String meta = compactSessionDetail(it.detailText());
+                    // Budget the title so title + meta fit one line — otherwise a long title hard-wraps mid-token
+                    // (e.g. "Jul 3" / "0 10:16") on narrow terminals. 4 = two leading + two separating spaces.
+                    String desc = Util.ellipsize(it.description(), Math.max(8, width - meta.length() - 4));
+                    lines.add(theme.styled("statusText", "  " + desc) + theme.styled("commandMeta", "  " + meta));
+                }
             }
         } catch (Exception ignored) {}
         appendPlain(lines);
