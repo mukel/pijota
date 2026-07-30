@@ -194,6 +194,21 @@ class JobsExtensionTest {
     }
 
     @Test
+    void jobsRunLaunchesThroughTheConfiguredShellPath() throws Exception {
+        // The Windows-critical parity: background jobs must use the same configured shell as foreground bash (so a
+        // shell_path pointing at Git Bash/WSL works), not a hardcoded PATH default. Prove it with a bogus shell path:
+        // the failure names the shell we passed in, which is cross-platform (no real shell needed to run this test).
+        var runtime = new FakeExtensionRuntime();
+        runtime.setFlag("jobs", "true");
+        var api = new FakeExtensionAPI(runtime);
+        new JobsExtension(new JobRegistry(), "/no/such/shell-xyz").init(api);
+        var r = run(api, "jobs_run", Map.of("command", "echo hi"));
+        assertTrue(r.isError(), r.content());
+        assertTrue(r.content().contains("/no/such/shell-xyz"),
+                                        "jobs_run must launch through the configured shell_path: " + r.content());
+    }
+
+    @Test
     void jobsRunRunsInProvidedWorkdir() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);

@@ -309,6 +309,7 @@ class JobRegistryTest {
 
     @Test
     void adoptSeedsTheBufferAndReportsOnlyNewOutputToReads() throws Exception {
+        assumeTrue(Executables.isAvailable("sleep"), "needs a long-lived POSIX process");
         var jobs = new JobRegistry();
         Process process = new ProcessBuilder("sleep", "30").start();
         var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
@@ -330,10 +331,11 @@ class JobRegistryTest {
 
     @Test
     void adoptedJobReportsCompletionWithExitCodeOnItsOwnExit() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var jobs = new JobRegistry();
         var completions = new java.util.concurrent.LinkedBlockingQueue<JobRegistry.Completion>();
         jobs.onCompletion(completions::add);
-        Process process = new ProcessBuilder("/bin/sh", "-c", "exit 3").start();
+        Process process = new ProcessBuilder("sh", "-c", "exit 3").start();
         var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
 
         var adopted = jobs.adopt(handoff(process, "flaky", "", feed), null);
@@ -346,6 +348,7 @@ class JobRegistryTest {
 
     @Test
     void adoptedJobCanBeKilledLikeAnyOther() throws Exception {
+        assumeTrue(Executables.isAvailable("sleep"), "needs a long-lived POSIX process");
         var jobs = new JobRegistry();
         Process process = new ProcessBuilder("sleep", "30").start();
         var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
@@ -383,6 +386,7 @@ class JobRegistryTest {
 
     @Test
     void adoptTrimsAnOversizedSeedAndFlagsTruncation() throws Exception {
+        assumeTrue(Executables.isAvailable("sleep"), "needs a long-lived POSIX process");
         var jobs = new JobRegistry();
         Process process = new ProcessBuilder("sleep", "30").start();
         var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();

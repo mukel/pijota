@@ -28,7 +28,8 @@ import java.util.stream.Collectors;
  * long-running command without blocking the turn, {@code jobs_output} to poll or await its output, {@code jobs_list} to
  * inspect all jobs, and {@code jobs_kill} to stop one (SIGKILL by default, or SIGTERM for graceful shutdown) — plus a
  * live panel of running jobs and a completion notice when a job exits. Cross-platform by construction: the command runs
- * through {@link Platform#defaultShell()} (cmd/bash per OS) and lifecycle uses only the Java {@code Process}/
+ * through the configured shell (the same resolved shell as the foreground bash tool — bash by default, honouring
+ * {@code shell_path}, so it works on Windows with Git Bash/WSL) and lifecycle uses only the Java {@code Process}/
  * {@code ProcessHandle} API — no external {@code kill}/{@code sh}. Unlike {@code --tmux} it needs no external binary,
  * so it works everywhere including the native image.
  */
@@ -40,6 +41,7 @@ public final class JobsExtension implements Extension {
     private static final List<String> SUPPORTED_SIGNALS = List.of("SIGKILL", "SIGTERM");
 
     private final JobRegistry shared;
+    private final String shellPath; // the shell jobs_run launches through — the same resolved shell as foreground bash
     private volatile JobRegistry jobs; // bound in init() when enabled; reaped in onShutdown()
     private ExtensionAPI api; // for the /jobs and /kill slash-command handlers to print to the user
 
@@ -49,7 +51,18 @@ public final class JobsExtension implements Extension {
 
     /** The registry may be shared with the host app — the TUI adopts user-backgrounded commands into the same one. */
     public JobsExtension(JobRegistry shared) {
+        this(shared, Platform.defaultShell());
+    }
+
+    /**
+     * @param shellPath
+     *            the shell {@code jobs_run} launches commands through. Pass {@code settings.effectiveShellPath()} so
+     *            background jobs honour the same configured shell (and {@code shell_path}) as the foreground bash tool
+     *            — which matters on Windows, where bash may not be on PATH but is set via {@code shell_path}.
+     */
+    public JobsExtension(JobRegistry shared, String shellPath) {
         this.shared = shared != null ? shared : new JobRegistry();
+        this.shellPath = (shellPath == null || shellPath.isBlank()) ? Platform.defaultShell() : shellPath;
     }
 
     @Override
@@ -73,7 +86,7 @@ public final class JobsExtension implements Extension {
         this.api = api;
         jobs = shared;
         jobs.onCompletion(completion -> notifyCompletion(api, completion));
-        api.registerTool(startTool(jobs));
+        api.registerTool(startTool(jobs, shellPath));
         api.registerTool(outputTool(jobs));
         api.registerTool(listTool(jobs));
         api.registerTool(killTool(jobs));
@@ -110,8 +123,7 @@ public final class JobsExtension implements Extension {
 
     // -- jobs_run --
 
-    private static ToolDefinition startTool(JobRegistry jobs) {
-        String shell = Platform.defaultShell();
+    private static ToolDefinition startTool(JobRegistry jobs, String shell) {
         String shellFlag = Platform.shellCommandFlag(shell);
         return Tool.named("jobs_run").glyph("⏳").description(
                                         "Start a shell command in the background and return immediately with a job id. Use it"

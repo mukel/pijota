@@ -150,7 +150,7 @@ public final class AppBootstrap {
             ext.register(new WebBrowseExtension()); // opt-in --browse[=engine]
             ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
             ext.register(new TmuxExtension()); // opt-in --tmux
-            var jobsExt = new JobsExtension(jobRegistry);
+            var jobsExt = new JobsExtension(jobRegistry, settings.effectiveShellPath());
             ext.register(jobsExt); // on by default; --no-jobs disables
             jobsEnabled = ext.isEnabled(jobsExt.name(), jobsExt.enabledByDefault());
             ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
