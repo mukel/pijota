@@ -247,7 +247,7 @@ class CompactionManagerTest {
         var summarizer = (CompactionManager.SummaryGenerator) (m, i, p, o) -> "summary";
         var manager = new CompactionManager(128_000, TINY_RECENT, summarizer);
         var callCount = new AtomicInteger(0);
-        manager.setSessionAppender((summary, count, firstKeptId) -> {
+        manager.setSessionAppender((summary, count, firstKeptId, usage) -> {
             callCount.incrementAndGet();
             throw new RuntimeException("persist failed");
         });

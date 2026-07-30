@@ -44,6 +44,10 @@ public sealed interface Message {
 
     record Assistant(UUID id, Instant timestamp, String content, List<ToolCall> toolCalls, String thinking,
                                     String sourceProvider, String sourceModel, Usage usage) implements Message {
+        public Assistant {
+            toolCalls = toolCalls == null ? List.of() : List.copyOf(toolCalls);
+        }
+
         public Assistant(String content, List<ToolCall> toolCalls, String thinking) {
             this(UUID.randomUUID(), Instant.now(), content, toolCalls, thinking, null, null, null);
         }

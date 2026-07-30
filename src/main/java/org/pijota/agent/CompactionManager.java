@@ -54,13 +54,6 @@ public final class CompactionManager {
         this.sessionAppender = appender;
     }
 
-    public void setSessionAppender(LegacyCompactionAppender appender) {
-        this.sessionAppender = appender == null
-                                        ? null
-                                        : (summary, count, firstKept, _usage) -> appender.accept(summary, count,
-                                                                        firstKept);
-    }
-
     public CompactionResult checkAndCompact(List<Message> messages, long realContextTokens,
                                     Consumer<List<Message>> onCompact) {
 
@@ -313,10 +306,6 @@ public final class CompactionManager {
         void accept(String summary, int compactedCount, String firstKeptEntryId, Usage usage);
     }
 
-    @FunctionalInterface
-    public interface LegacyCompactionAppender {
-        void accept(String summary, int compactedCount, String firstKeptEntryId);
-    }
 
     public record CompactionResult(boolean compacted, int estimatedChars, int estimatedTokens, int compactedCount) {
     }
