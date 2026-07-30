@@ -10,8 +10,10 @@ import org.pijota.tools.Tool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.zip.GZIPInputStream;
 import java.net.CookieManager;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -107,6 +109,30 @@ class WebServerTest {
                                             "root should serve the SPA html");
             // never let a browser cache a stale SPA after an upgrade
             assertEquals("no-store", resp.headers().firstValue("Cache-Control").orElse(""));
+        });
+    }
+
+    @Test
+    void gzipsTextResponsesWhenClientAcceptsIt() throws Exception {
+        withServer((ts, client, base) -> {
+            // Accept-Encoding: gzip → compressed, and the decompressed body is the SPA
+            var gz = client.send(HttpRequest.newBuilder(URI.create(base + "/"))
+                                            .header("Accept-Encoding", "gzip").build(),
+                                            HttpResponse.BodyHandlers.ofByteArray());
+            assertEquals(200, gz.statusCode());
+            assertEquals("gzip", gz.headers().firstValue("Content-Encoding").orElse(""));
+            assertTrue(gz.headers().allValues("Vary").stream().anyMatch(v -> v.contains("Accept-Encoding")),
+                                            "must Vary on Accept-Encoding so a cache never cross-serves encodings");
+            String body = new String(new GZIPInputStream(new ByteArrayInputStream(gz.body())).readAllBytes(),
+                                            StandardCharsets.UTF_8);
+            assertTrue(body.toLowerCase().contains("<!doctype") || body.toLowerCase().contains("<html"),
+                                            "gzipped body decompresses back to the SPA");
+
+            // no Accept-Encoding (Java's HttpClient sends none by default) → identity, not gzip
+            var raw = client.send(HttpRequest.newBuilder(URI.create(base + "/")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals("", raw.headers().firstValue("Content-Encoding").orElse(""), "no Accept-Encoding → identity");
+            assertTrue(raw.body().toLowerCase().contains("<html") || raw.body().toLowerCase().contains("<!doctype"));
         });
     }
 

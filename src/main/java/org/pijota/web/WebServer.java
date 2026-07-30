@@ -19,9 +19,11 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.zip.GZIPOutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -693,11 +695,37 @@ public final class WebServer implements AutoCloseable {
 
     private static void send(HttpExchange ex, int code, String contentType, byte[] body) throws IOException {
         ex.getResponseHeaders().set("Content-Type", contentType);
+        // gzip text responses (page, vendored JS/CSS, JSON) when the client accepts it — the biggest single load win
+        // (the page + libs are ~270KB raw, ~75KB gzipped). SSE bypasses send(), so streaming is never buffered/gzipped.
+        if (acceptsGzip(ex) && compressible(contentType) && body.length >= 512) {
+            body = gzip(body);
+            ex.getResponseHeaders().set("Content-Encoding", "gzip");
+            ex.getResponseHeaders().add("Vary", "Accept-Encoding"); // a cache must key on encoding (vendored libs cache)
+        }
         ex.sendResponseHeaders(code, body.length == 0 ? -1 : body.length);
         if (body.length > 0)
             try (OutputStream os = ex.getResponseBody()) {
                 os.write(body);
             }
+    }
+
+    private static boolean acceptsGzip(HttpExchange ex) {
+        String accept = ex.getRequestHeaders().getFirst("Accept-Encoding");
+        return accept != null && accept.toLowerCase(Locale.ROOT).contains("gzip");
+    }
+
+    private static boolean compressible(String contentType) {
+        String ct = contentType.toLowerCase(Locale.ROOT);
+        return ct.startsWith("text/") || ct.contains("javascript") || ct.contains("json")
+                                        || ct.contains("css") || ct.contains("svg") || ct.contains("xml");
+    }
+
+    private static byte[] gzip(byte[] data) throws IOException {
+        var bos = new ByteArrayOutputStream(Math.max(64, data.length / 3));
+        try (var gz = new GZIPOutputStream(bos)) {
+            gz.write(data);
+        }
+        return bos.toByteArray();
     }
 
     /** Builds an SSE frame; data may not contain a bare newline, so each line gets its own {@code data:} field. */
