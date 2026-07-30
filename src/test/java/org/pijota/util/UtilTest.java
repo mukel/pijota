@@ -323,6 +323,16 @@ class UtilTest {
     }
 
     @Test
+    void ellipsizeClipsToBudgetWithASingleGlyph() {
+        assertEquals("", Util.ellipsize(null, 10));
+        assertEquals("", Util.ellipsize("   ", 10));
+        assertEquals("short", Util.ellipsize("short", 10));
+        String s = Util.ellipsize("abcdefghij", 5);
+        assertEquals(5, s.length(), "never wider than the budget"); // 4 chars + "…"
+        assertTrue(s.endsWith("…"), s);
+    }
+
+    @Test
     void shortenCwdReplacesHomeWithTilde() {
         String home = System.getProperty("user.home");
         if (home == null) {

@@ -508,7 +508,7 @@ public final class TaskTool implements Tool {
                 case "read" -> "Read " + file(a);
                 case "write" -> "Write " + file(a);
                 case "edit" -> "Edit " + file(a);
-                case "bash" -> "$ " + shorten((String) a.get("command"), 60);
+                case "bash" -> "$ " + Util.ellipsize((String) a.get("command"), 60);
                 case "grep" -> "Grep /" + a.get("pattern") + "/ in " + file(a);
                 case "glob" -> "Glob " + a.get("pattern") + " in " + file(a);
                 case "ls" -> "Ls " + file(a);
@@ -529,12 +529,6 @@ public final class TaskTool implements Tool {
             return ".";
         int idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
         return idx < 0 ? p : p.substring(idx + 1);
-    }
-
-    static String shorten(String s, int max) {
-        if (s == null || s.isBlank())
-            return "";
-        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
 
     private void fireActivity(String agent, String line) {

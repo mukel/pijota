@@ -2,6 +2,7 @@ package org.pijota.agent;
 
 import org.pijota.config.AppConfig;
 import org.pijota.extensions.ExtensionRegistry;
+import org.pijota.util.Util;
 import org.pijota.extensions.task.SubAgent;
 import org.pijota.llm.LlmClient;
 import org.pijota.llm.ModelRegistry;
@@ -231,8 +232,7 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     private static String shorten(String text) {
-        String s = text == null ? "" : text.replaceAll("\\s+", " ").strip();
-        return s.length() <= 240 ? s : s.substring(0, 237) + "...";
+        return Util.ellipsize(text == null ? "" : text.replaceAll("\\s+", " ").strip(), 240);
     }
 
     public void setAutoCompactionEnabled(boolean enabled) {

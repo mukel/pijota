@@ -1,6 +1,7 @@
 package org.pijota.extensions.prompts;
 
 import org.pijota.util.PijotaHome;
+import org.pijota.util.Util;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -187,7 +188,7 @@ public final class PromptTemplateLoader {
             if (description.isBlank()) {
                 // fall back to first non-empty line of body, truncated to 60 chars
                 String firstLine = parsed.body().lines().filter(l -> !l.isBlank()).findFirst().orElse("");
-                description = firstLine.length() > 60 ? firstLine.substring(0, 57) + "..." : firstLine;
+                description = Util.ellipsize(firstLine, 60);
             }
             String argumentHint = parsed.frontmatter().getOrDefault("argument-hint", "").toString();
             if (argumentHint.isBlank())

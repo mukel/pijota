@@ -269,7 +269,7 @@ final class TreeRenderer {
         if (content == null)
             return "";
         String s = content.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim();
-        return s.length() > max ? s.substring(0, Math.max(0, max - 1)) + "…" : s;
+        return Util.ellipsize(s, max);
     }
 
     private record TurnSummary(int toolCalls, int errors, int compacted, long estTokens) {

@@ -636,8 +636,7 @@ public final class TelegramChat implements ChatHandler {
 
     /** One-line, ellipsized: strips, collapses newlines, then truncates to {@code max} chars with a "…". */
     private static String clip(String s, int max) {
-        String t = s.strip().replace('\n', ' ');
-        return t.length() <= max ? t : t.substring(0, max - 1) + "…";
+        return Util.ellipsize(s.strip().replace('\n', ' '), max);
     }
 
     /** Sends or edits the single streamed message as HTML (with an optional keyboard), then remembers the text. */

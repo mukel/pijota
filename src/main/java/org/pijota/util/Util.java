@@ -81,6 +81,18 @@ public final class Util {
         return s.substring(0, maxLen) + "...";
     }
 
+    /**
+     * {@code s} clipped to at most {@code max} display columns using a single-glyph {@code "…"} that fits inside the
+     * budget (so the result is never wider than {@code max}). Null or blank → {@code ""}. The app-wide "shorten this to
+     * fit" helper; distinct from {@link #truncate} (which appends {@code "..."} and overshoots) and
+     * {@link #truncateWords} (which snaps to a word boundary).
+     */
+    public static String ellipsize(String s, int max) {
+        if (s == null || s.isBlank())
+            return "";
+        return s.length() <= max ? s : s.substring(0, Math.max(0, max - 1)) + "…";
+    }
+
     public static String truncateWords(String s, int maxLen) {
         if (s == null || s.length() <= maxLen)
             return truncate(s, maxLen);

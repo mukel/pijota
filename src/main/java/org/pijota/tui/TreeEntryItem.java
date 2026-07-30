@@ -1,5 +1,7 @@
 package org.pijota.tui;
 
+import org.pijota.util.Util;
+
 import java.util.Map;
 
 record TreeEntryItem(String id, String parentId, String role, String content, String display,
@@ -11,7 +13,7 @@ record TreeEntryItem(String id, String parentId, String role, String content, St
         String role = "message".equals(type) ? String.valueOf(entry.getOrDefault("role", type)) : type;
         String content = entry.get("content") instanceof String s && !s.isBlank() ? s : type;
         content = content.replace('\n', ' ').trim();
-        String display = content.length() > 90 ? content.substring(0, 87) + "..." : content;
+        String display = Util.ellipsize(content, 90);
         return new TreeEntryItem(id, parentId, role, content, display, current);
     }
 

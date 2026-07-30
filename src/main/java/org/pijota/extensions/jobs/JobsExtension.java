@@ -325,9 +325,12 @@ public final class JobsExtension implements Extension {
         String tail = " — read its output with jobs_output (id=\"" + c.id() + "\").";
         String msg = c.exitCode() == 0
                                         ? "⏳ background job " + c.id() + " finished · exit 0 · " + label
-                                                                        + abbreviate(c.command()) + tail
+                                                                        + Util.ellipsize(c.command(), CMD_PREVIEW)
+                                                                        + tail
                                         : "⚠️ background job " + c.id() + " FAILED · exit " + c.exitCode() + " · "
-                                                                        + label + abbreviate(c.command()) + tail;
+                                                                        + label
+                                                                        + Util.ellipsize(c.command(), CMD_PREVIEW)
+                                                                        + tail;
         api.sendUserMessage(msg);
     }
 
@@ -342,7 +345,7 @@ public final class JobsExtension implements Extension {
         for (int i = 0; i < shown; i++) {
             var s = running.get(i);
             String display = hasDistinctName(s.name(), s.command()) ? s.name() : s.command();
-            lines.add("  " + s.id() + "  " + abbreviate(display));
+            lines.add("  " + s.id() + "  " + Util.ellipsize(display, CMD_PREVIEW));
         }
         if (running.size() > MAX_PANEL_ROWS)
             lines.add("   … +" + (running.size() - MAX_PANEL_ROWS) + " more");
@@ -360,7 +363,4 @@ public final class JobsExtension implements Extension {
         return name != null && !name.equals(command);
     }
 
-    private static String abbreviate(String text) {
-        return text.length() > CMD_PREVIEW ? text.substring(0, CMD_PREVIEW - 1) + "…" : text;
-    }
 }

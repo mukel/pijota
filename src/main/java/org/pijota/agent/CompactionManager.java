@@ -306,7 +306,6 @@ public final class CompactionManager {
         void accept(String summary, int compactedCount, String firstKeptEntryId, Usage usage);
     }
 
-
     public record CompactionResult(boolean compacted, int estimatedChars, int estimatedTokens, int compactedCount) {
     }
 }

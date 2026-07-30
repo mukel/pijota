@@ -355,16 +355,6 @@ class TaskToolTest {
     }
 
     @Test
-    void shortenTruncatesWithEllipsisAndHandlesBlank() {
-        assertEquals("", TaskTool.shorten(null, 10));
-        assertEquals("", TaskTool.shorten("   ", 10));
-        assertEquals("short", TaskTool.shorten("short", 10));
-        String s = TaskTool.shorten("abcdefghij", 5);
-        assertEquals(5, s.length());
-        assertTrue(s.endsWith("\u2026"), s);
-    }
-
-    @Test
     void detailsForResultsSummarizesModeCountsAndLogs() {
         var ok = new TaskTool.SubAgentResult("alpha", "out", 0, 1, 2, "/tmp/alpha.log", null);
         var bad = new TaskTool.SubAgentResult("beta", "", 1, 1, 0, null, "boom");
