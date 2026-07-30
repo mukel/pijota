@@ -72,9 +72,26 @@
   .greeting .hint { margin-top: 12px; color: var(--muted); font-size: 14px; }
   .greeting .hint code { font-family: var(--mono); font-size: 12.5px; background: var(--code-inline-bg); padding: 1px 6px; border-radius: 5px; }
   /* clickable example prompts on the empty landing — send on click */
-  .examples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
-  .example { font-family: var(--sans); font-size: 13px; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; cursor: pointer; transition: color .12s, border-color .12s, background .12s; }
-  .example:hover { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
+  /* onboarding: a collapsed "what is pijota?" question on the empty landing; opens to a short, accurate guide
+     (authored here — the model itself doesn't know pijota) styled like one of pijota's own answers. */
+  .intro { text-align: left; max-width: 520px; margin: 22px auto 0; }
+  .intro > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 9px; padding: 10px 15px;
+    border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: 13.5px;
+    transition: color .12s, border-color .12s, background .12s; }
+  .intro > summary::-webkit-details-marker { display: none; }
+  .intro > summary:hover { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
+  .intro > summary .q { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+  .intro[open] > summary { border-radius: 12px; margin-bottom: 12px; }
+  .intro-body { padding-left: 16px; border-left: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    color: var(--text); line-height: 1.6; font-size: 14px; }
+  .intro-body p { margin: 0 0 10px; }
+  .intro-body .intro-h { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px; margin: 14px 0 6px; }
+  .intro-body ul { margin: 0; padding-left: 18px; }
+  .intro-body li { margin: 5px 0; } .intro-body li::marker { color: var(--muted); }
+  .intro-body code { font-family: var(--mono); font-size: 12.5px; background: var(--code-inline-bg); padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
+  .intro-body .intro-try { color: var(--muted); font-size: 13px; margin: 14px 0 0; }
+  .intro-body .intro-try em { color: var(--text); }
   /* the model chip is a shortcut to the switcher */
   .badge-chip.model { cursor: pointer; }
   .badge-chip.model:hover { border-color: var(--accent); color: var(--text); }
@@ -412,13 +429,22 @@
   <div class="composer">
     <div class="greeting" id="greeting">
       <div class="mark">pi<b>jota</b></div>
-      <div class="hint">Ask anything · type <code>/</code> for commands · <span id="palette-key">⌘K</span> for the palette</div>
-      <div class="hint" id="model-hint"></div>
-      <div class="examples" id="examples">
-        <button type="button" class="example">Explain what this project does</button>
-        <button type="button" class="example">Write a bash one-liner to find the 5 largest files here</button>
-        <button type="button" class="example">Summarize the recent git history</button>
-      </div>
+      <div class="hint">Ask anything · type <code>/</code> for commands · <span class="palette-key">⌘K</span> for the palette</div>
+      <details class="intro">
+        <summary><span class="q">?</span>New here? What can pijota do — and how do I start?</summary>
+        <div class="intro-body">
+          <p><b>pijota</b> is a coding agent you drive in plain language. Ask it to explain code, make changes, run
+             commands, or work through a multi-step task — it reads and edits your files and shows its work as it goes.</p>
+          <p class="intro-h">To get started</p>
+          <ul>
+            <li>Type your request and press <code>Enter</code> to send — <code>Shift</code>+<code>Enter</code> for a newline.</li>
+            <li><code>/</code> opens slash commands: <code>/model</code> switches models, <code>/new</code> starts over, <code>/help</code> lists them all.</li>
+            <li><code class="palette-key">⌘K</code> opens the command palette to fuzzy-search every command.</li>
+            <li><code>+</code> attaches files — or paste / drag them in — images, PDFs, and documents.</li>
+          </ul>
+          <p class="intro-try">Try <em>“explain this project,”</em> <em>“find the 5 largest files here,”</em> or <em>“summarize the recent git history.”</em></p>
+        </div>
+      </details>
     </div>
     <div class="slashmenu" id="slash"></div>
     <div class="attachments" id="attachments"></div>
@@ -447,8 +473,8 @@ window.addEventListener("DOMContentLoaded", () => {
   // Apple keyboards use ⌘, everything else Ctrl — the palette binding accepts both (metaKey || ctrlKey); this only
   // picks which one we *show*. userAgentData.platform when present (navigator.platform is deprecated), else the UA.
   const isMac = /mac|iphone|ipad|ipod/i.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent);
-  $("#palette-key").textContent = isMac ? "⌘K" : "Ctrl-K";
-  const conn = $("#conn"), badgesEl = $("#badges"), slash = $("#slash"), modelHint = $("#model-hint");
+  document.querySelectorAll(".palette-key").forEach(e => e.textContent = isMac ? "⌘K" : "Ctrl-K");
+  const conn = $("#conn"), badgesEl = $("#badges"), slash = $("#slash");
 
   // empty conversation → centered greeting + composer; first message drops it to the bottom (auto-tracked).
   // The composer glides between the two positions via a FLIP: measure the input's box before and after the
@@ -664,7 +690,6 @@ window.addEventListener("DOMContentLoaded", () => {
   function renderStats(d) {
     if (!d || !d.model) return;
     currentModel = d.model;
-    modelHint.textContent = "Using " + d.model;
     if (Array.isArray(d.modalities)) {
       // on a real model switch to one that dropped media support, warn that existing attachments won't be sent to it
       if (lastModel !== null && d.model !== lastModel) {
@@ -1108,8 +1133,6 @@ window.addEventListener("DOMContentLoaded", () => {
   sendBtn.addEventListener("click", send); // always send (never Stop); posts immediately, even mid-stream
   stopBtn.addEventListener("click", () => postJSON("/interrupt")); // Stop is its own control, above the composer
   input.addEventListener("input", () => { autoGrow(); updateMenu(); updateComposer(); });
-  document.querySelectorAll(".example").forEach(ex => // clickable example prompts on the empty landing send on click
-    ex.addEventListener("click", () => { input.value = ex.textContent; send(); }));
   input.addEventListener("keydown", e => {
     if (slash.classList.contains("show")) {
       if (e.key === "ArrowDown") { e.preventDefault(); return moveSel(1); }
