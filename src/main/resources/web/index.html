@@ -92,15 +92,21 @@
   #thread.replaying .msg { animation: none; } /* replayed history appears at once — don't rise the whole transcript on (re)connect */
   @media (prefers-reduced-motion: reduce) { .msg { animation: none; } } /* must follow the .msg rule to win on source order */
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  /* per-message copy: hover-revealed row under user/assistant messages (always shown on touch, no hover there) */
-  .msg-actions { display: none; gap: 6px; }
-  .msg:hover .msg-actions, .msg:focus-within .msg-actions { display: flex; }
-  @media (hover: none) { .msg-actions { display: flex; } }
-  .msg.user .msg-actions { align-self: flex-end; }
-  /* subtle timestamp, revealed on hover (helps orient in a resumed session) */
-  .msg-time { display: none; font-size: 10.5px; color: var(--muted); opacity: .65; margin-top: 1px; }
-  .msg:hover > .msg-time, .msg:focus-within > .msg-time { display: block; }
-  .msg.user .msg-time { align-self: flex-end; }
+  /* Per-message meta is an ABSOLUTE overlay faded in on hover, so revealing it never reflows the thread (no content
+     jump). The COPY button overlays a corner; the TIMESTAMP lives in the OUTER gutter beside the centred column — so
+     time and copy never collide, and neither overlaps the message text. */
+  .msg { position: relative; }
+  .msg-actions { position: absolute; display: flex; gap: 6px; opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 2; }
+  .msg:hover .msg-actions, .msg:focus-within .msg-actions { opacity: 1; pointer-events: auto; }
+  .msg.user .msg-actions { top: 10px; left: 2px; } /* empty gutter left of the right-aligned bubble */
+  .msg-time { position: absolute; top: 11px; font-size: 10.5px; line-height: 1.4; color: var(--muted); opacity: 0; pointer-events: none; transition: opacity .12s; white-space: nowrap; }
+  .msg:hover .msg-time, .msg:focus-within .msg-time { opacity: .55; }
+  .msg.assistant .msg-time { right: 100%; margin-right: 16px; } /* left outer gutter (content reads left→right) */
+  .msg.user .msg-time { left: 100%; margin-left: 16px; }        /* right outer gutter (beside the right-aligned bubble) */
+  /* too little gutter (narrow window) or touch (no hover): drop the hover-only timestamp rather than clip/overlap it */
+  @media (max-width: 900px), (hover: none) { .msg-time { display: none; } }
+  /* touch: no hover to reveal the copy overlay — fall back to an in-flow copy below the message */
+  @media (hover: none) { .msg-actions { position: static; opacity: 1; pointer-events: auto; } .msg.user .msg-actions { align-self: flex-end; } }
   .msg-copy, .answer-copy { font-family: var(--sans); font-size: 11px; line-height: 1.4; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; transition: opacity .12s, color .12s, border-color .12s; }
   .msg-copy:hover, .answer-copy:hover { color: var(--text); border-color: var(--accent); }
   /* response copy floats at the answer's top-right (reachable, never pinned under the composer like a row below) */
@@ -205,15 +211,23 @@
 
   /* jump-to-latest, shown only when scrolled up */
   .scrollbtn {
-    position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%); z-index: 20;
+    position: fixed; left: 50%; bottom: 92px; z-index: 20;
     width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel);
-    color: var(--text); cursor: pointer; display: none; align-items: center; justify-content: center;
-    font-size: 17px; box-shadow: 0 4px 14px var(--shadow-color); transition: border-color .15s, transform .1s, opacity .2s;
+    color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 17px; box-shadow: 0 4px 14px var(--shadow-color);
+    /* fade + a small rise on appear (display:none can't animate) — visibility keeps it out of tab order while hidden */
+    opacity: 0; visibility: hidden; pointer-events: none; transform: translateX(-50%) translateY(8px);
+    transition: opacity .18s ease, transform .18s ease, visibility .18s, border-color .15s;
   }
-  .scrollbtn.show { display: flex; }
-  body.empty .scrollbtn { display: none; } /* nothing to scroll on the hero — never show it there (even with a stale .show) */
-  .scrollbtn:hover { border-color: var(--accent); }
-  .scrollbtn:active { transform: translateX(-50%) scale(.9); }
+  .scrollbtn.show { opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+  body.empty .scrollbtn { opacity: 0; visibility: hidden; pointer-events: none; } /* never on the hero, even with a stale .show */
+  .scrollbtn:hover { border-color: var(--accent); background: var(--panel-2); }
+  .scrollbtn:active { transform: translateX(-50%) scale(.92); }
+  @media (prefers-reduced-motion: reduce) { /* keep the fade, drop the rise/scale motion */
+    .scrollbtn { transition: opacity .15s, visibility .15s, border-color .15s; transform: translateX(-50%); }
+    .scrollbtn.show { transform: translateX(-50%); }
+    .scrollbtn:active { transform: translateX(-50%); }
+  }
 
   /* the send button keeps its fixed slot (↑ send), disabled when empty; Stop is the separate round button below */
   .act:disabled { opacity: .4; cursor: default; }
