@@ -58,7 +58,7 @@
   main::-webkit-scrollbar-thumb:hover { background: var(--muted); }
   main::-webkit-scrollbar-track { background: transparent; }
   /* keyboard focus rings for in-message interactive elements (links + the various copy buttons) */
-  .bubble a:focus-visible, .copy-btn:focus-visible, .msg-copy:focus-visible, .answer-copy:focus-visible, .think-copy:focus-visible {
+  .bubble a:focus-visible, .copy-btn:focus-visible, .answer-copy:focus-visible, .think-copy:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
   }
   #thread { max-width: var(--col); margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 22px; }
@@ -96,26 +96,18 @@
      jump). The COPY button overlays a corner; the TIMESTAMP lives in the OUTER gutter beside the centred column — so
      time and copy never collide, and neither overlaps the message text. */
   .msg { position: relative; }
-  .msg-actions { position: absolute; display: flex; gap: 6px; opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 2; }
-  .msg:hover .msg-actions, .msg:focus-within .msg-actions { opacity: 1; pointer-events: auto; }
-  .msg.user .msg-actions { top: 10px; left: 2px; } /* empty gutter left of the right-aligned bubble */
   .msg-time { position: absolute; top: 11px; font-size: 10.5px; line-height: 1.4; color: var(--muted); opacity: 0; pointer-events: none; transition: opacity .12s; white-space: nowrap; }
   .msg:hover .msg-time, .msg:focus-within .msg-time { opacity: .55; }
   .msg.assistant .msg-time { right: 100%; margin-right: 16px; } /* left outer gutter (content reads left→right) */
   .msg.user .msg-time { left: 100%; margin-left: 16px; }        /* right outer gutter (beside the right-aligned bubble) */
   /* too little gutter (narrow window) or touch (no hover): drop the hover-only timestamp rather than clip/overlap it */
   @media (max-width: 900px), (hover: none) { .msg-time { display: none; } }
-  /* touch: no hover to reveal the copy overlay — fall back to an in-flow copy below the message */
-  @media (hover: none) { .msg-actions { position: static; opacity: 1; pointer-events: auto; } .msg.user .msg-actions { align-self: flex-end; } }
-  .msg-copy, .answer-copy { font-family: var(--sans); font-size: 11px; line-height: 1.4; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; transition: opacity .12s, color .12s, border-color .12s; }
-  .msg-copy:hover, .answer-copy:hover { color: var(--text); border-color: var(--accent); }
+  .answer-copy { font-family: var(--sans); font-size: 11px; line-height: 1.4; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; transition: opacity .12s, color .12s, border-color .12s; }
+  .answer-copy:hover { color: var(--text); border-color: var(--accent); }
   /* response copy floats at the answer's top-right (reachable, never pinned under the composer like a row below) */
   .answer { position: relative; }
   .answer-copy { position: absolute; top: 2px; right: 2px; opacity: 0; }
   .msg.assistant:hover .answer-copy, .answer-copy:focus-visible { opacity: 1; }
-  /* touch: no hover to reveal it, so an absolute overlay would permanently cover the first line — drop it
-     below the answer, right-aligned and in flow (mirrors the user message's copy), so it never overlaps. */
-  @media (hover: none) { .answer-copy { position: static; opacity: 1; display: block; width: fit-content; margin: 6px 0 0 auto; } }
   .activity { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; padding: 3px 0; }
   .activity::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: activityPulse 1s ease-in-out infinite; }
   @keyframes activityPulse { 0%,100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.2); } }
@@ -186,8 +178,8 @@
   .think-copy:hover { color: var(--text); border-color: var(--accent); }
   @media (hover: none) { .think-copy { opacity: 1; } }
   /* tactile press feedback shared by every copy button (harmonizes their transitions too) */
-  .copy-btn, .msg-copy, .answer-copy, .think-copy { transition: opacity .12s, color .12s, border-color .12s, transform .1s; }
-  .copy-btn:active, .msg-copy:active, .answer-copy:active, .think-copy:active { transform: scale(.94); }
+  .copy-btn, .answer-copy, .think-copy { transition: opacity .12s, color .12s, border-color .12s, transform .1s; }
+  .copy-btn:active, .answer-copy:active, .think-copy:active { transform: scale(.94); }
   .tool .name { font-family: var(--mono); color: var(--accent); flex: none; }
   /* the concise descriptor (path / command / pattern) next to the tool name; ellipsizes, full text on expand */
   .tool .detail { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -371,7 +363,7 @@
   /* ---- responsive / touch ---- */
   /* touch devices: hide the reveal-on-hover copy buttons entirely — long-press selects + copies text natively instead */
   @media (hover: none) {
-    .msg-actions, .answer-copy, .think-copy { display: none !important; } /* code-block copy stays — it's a bar button */
+    .answer-copy, .think-copy { display: none !important; } /* code-block copy stays — it's a bar button */
     .msg .bubble { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; } /* allow long-press copy */
     .scrollbtn { display: none; } /* on touch, flick-to-bottom is natural; avoid an overlapping floating button */
   }
@@ -561,14 +553,6 @@ window.addEventListener("DOMContentLoaded", () => {
     pre.parentNode.insertBefore(wrap, pre);
     wrap.append(bar, pre);
   }
-  // Hover-revealed "copy" under a user/assistant message. getText() is read at click time so a streaming
-  // assistant message copies whatever has accumulated so far (the raw markdown / typed source, not the DOM).
-  function addMsgCopy(msg, getText) {
-    const bar = document.createElement("div"); bar.className = "msg-actions";
-    bar.appendChild(copyButton("msg-copy", getText, "Copy message"));
-    msg.appendChild(bar);
-  }
-
   // ---- scrolling ----
   // run fn, then keep the view pinned to the bottom if it already was (so streaming doesn't fight manual scroll-up)
   // "Stick to bottom" latch: follow the stream only while the user is parked at the bottom. The moment they scroll up
@@ -644,7 +628,7 @@ window.addEventListener("DOMContentLoaded", () => {
         m.bubble.appendChild(wrap);
       }
     });
-    if (role === "user") { addMsgCopy(m.msg, () => text); stampMsg(m.msg, ts); }
+    if (role === "user") stampMsg(m.msg, ts);
     return m;
   }
   // A subtle timestamp shown on hover under a message — server ts on a resumed session, else arrival time now.
