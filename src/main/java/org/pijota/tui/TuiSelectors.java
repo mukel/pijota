@@ -84,7 +84,7 @@ final class TuiSelectors {
 
     <T extends SelectorItem> void refresh(Slot slot, List<T> items) {
         checkItems(slot, items);
-        selector(slot).setItems(new ArrayList<>(items));
+        selector(slot).refreshItems(new ArrayList<>(items)); // keep the cursor put — a live refresh, not a fresh open
     }
 
     boolean handle(Key key, Runnable redraw) {

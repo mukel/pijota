@@ -25,6 +25,17 @@ final class Selector<T extends SelectorItem> {
         selected = 0;
     }
 
+    /**
+     * Replaces the items but keeps the current selection (clamped) — for a live refresh of the same rows with changed
+     * content, e.g. cycling a setting value in place. Unlike {@link #setItems}, which resets to the top.
+     */
+    void refreshItems(List<T> items) {
+        int keep = selected;
+        setItems(items);
+        if (!visibleIndices.isEmpty())
+            selected = Math.max(0, Math.min(keep, visibleIndices.size() - 1));
+    }
+
     void setTitle(String title) {
         this.title = title == null || title.isBlank() ? "select" : title;
     }

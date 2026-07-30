@@ -48,6 +48,24 @@ class SelectorTest {
     }
 
     @Test
+    void refreshItemsKeepsTheSelectionUnlikeSetItems() {
+        // Repro for "/settings scrolls to top": cycling a setting value refreshes the list; the cursor must stay put.
+        var s = new Selector<>(List.of(A, B, C));
+        s.activate("");
+        s.selectNext();
+        s.selectNext(); // selected = 2 (C)
+
+        s.refreshItems(List.of(A, B, C)); // same rows, a value changed in place
+        assertEquals(2, s.selectionIndex(), "refresh keeps the cursor");
+
+        s.refreshItems(List.of(A, B)); // list shrank → clamp to last
+        assertEquals(1, s.selectionIndex());
+
+        s.setItems(List.of(A, B, C)); // a fresh open still resets to top
+        assertEquals(0, s.selectionIndex());
+    }
+
+    @Test
     void filteringBackFromNoMatchesResetsSelectionFromNegative() {
         // Repro for "Index -1 out of bounds": a no-match search sets selected=-1; when a later query matches again,
         // selected must snap back to a valid index rather than stay -1 (which crashed selectedItem() every keypress).
