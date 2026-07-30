@@ -241,7 +241,12 @@ public final class TaskTool implements Tool {
         }
 
         results.sort(Comparator.comparing(SubAgentResult::agent));
+        return CompletableFuture.completedFuture(ToolResult.success(formatParallelReport(results, launched),
+                                        detailsForResults("parallel", results)));
+    }
 
+    /** The parallel run's rendered report: a one-line-per-agent summary block followed by each agent's detail. */
+    static String formatParallelReport(List<SubAgentResult> results, int launched) {
         int success = (int) results.stream().filter(r -> r.exitCode == 0).count();
         int incomplete = launched - results.size();
         var sb = new StringBuilder();
@@ -260,11 +265,9 @@ public final class TaskTool implements Tool {
             if (r.exitCode != 0)
                 sb.append("  FAILED");
             sb.append(" ───\n");
-            sb.append(r.formattedOutput());
-            sb.append("\n\n");
+            sb.append(r.formattedOutput()).append("\n\n");
         }
-        return CompletableFuture.completedFuture(ToolResult.success(sb.toString().stripTrailing(),
-                                        detailsForResults("parallel", results)));
+        return sb.toString().stripTrailing();
     }
 
     // --- chain mode ---
