@@ -192,6 +192,11 @@
               <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
               <mainClass>org.pijota.Main</mainClass>
             </manifest>
+            <!-- JLine loads a native lib; grant it up front so `java -jar` doesn't print a native-access WARNING on
+                 startup (JDK 24+). The shade profile inherits this manifest; the native image is unaffected. -->
+            <manifestEntries>
+              <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+            </manifestEntries>
           </archive>
         </configuration>
       </plugin>
