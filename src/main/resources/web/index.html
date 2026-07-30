@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
-<meta name="description" content="pijota — interactive coding agent">
+<meta name="description" content="pijota, an interactive coding agent">
 <meta name="theme-color" content="#131316">
 <title>pijota</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23131316'/%3E%3Ctext x='16' y='23' font-family='-apple-system,Segoe UI,sans-serif' font-size='20' font-weight='700' fill='%234d8dfb' text-anchor='middle'%3Ej%3C/text%3E%3C/svg%3E">
@@ -71,7 +71,6 @@
   .greeting .mark b { color: var(--accent); }
   .greeting .hint { margin-top: 12px; color: var(--muted); font-size: 14px; }
   .greeting .hint code { font-family: var(--mono); font-size: 12.5px; background: var(--code-inline-bg); padding: 1px 6px; border-radius: 5px; }
-  /* clickable example prompts on the empty landing — send on click */
   /* onboarding: a collapsed "what is pijota?" question on the empty landing; opens to a short, accurate guide
      (authored here — the model itself doesn't know pijota) styled like one of pijota's own answers. */
   .intro { text-align: left; max-width: 520px; margin: 22px auto 0; }
@@ -80,8 +79,6 @@
     transition: color .12s, border-color .12s, background .12s; }
   .intro > summary::-webkit-details-marker { display: none; }
   .intro > summary:hover { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
-  .intro > summary .q { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff;
-    font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; }
   .intro[open] > summary { border-radius: 12px; margin-bottom: 12px; }
   .intro-body { padding-left: 16px; border-left: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
     color: var(--text); line-height: 1.6; font-size: 14px; }
@@ -431,18 +428,18 @@
       <div class="mark">pi<b>jota</b></div>
       <div class="hint">Ask anything · type <code>/</code> for commands · <span class="palette-key">⌘K</span> for the palette</div>
       <details class="intro">
-        <summary><span class="q">?</span>New here? What can pijota do — and how do I start?</summary>
+        <summary>New here? What can pijota do, and how do I start?</summary>
         <div class="intro-body">
           <p><b>pijota</b> is a coding agent you drive in plain language. Ask it to explain code, make changes, run
-             commands, or work through a multi-step task — it reads and edits your files and shows its work as it goes.</p>
+             commands, or work through a multi-step task. It reads and edits your files and shows its work as it goes.</p>
           <p class="intro-h">To get started</p>
           <ul>
-            <li>Type your request and press <code>Enter</code> to send — <code>Shift</code>+<code>Enter</code> for a newline.</li>
+            <li>Type your request and press <code>Enter</code> to send. Use <code>Shift</code>+<code>Enter</code> for a newline.</li>
             <li><code>/</code> opens slash commands: <code>/model</code> switches models, <code>/new</code> starts over, <code>/help</code> lists them all.</li>
             <li><code class="palette-key">⌘K</code> opens the command palette to fuzzy-search every command.</li>
-            <li><code>+</code> attaches files — or paste / drag them in — images, PDFs, and documents.</li>
+            <li><code>+</code> attaches files: images, PDFs, and documents. You can also paste or drag them in.</li>
           </ul>
-          <p class="intro-try">Try <em>“explain this project,”</em> <em>“find the 5 largest files here,”</em> or <em>“summarize the recent git history.”</em></p>
+          <p class="intro-try">Try <em>explain this project</em>, <em>find the 5 largest files here</em>, or <em>summarize the recent git history</em>.</p>
         </div>
       </details>
     </div>
@@ -696,7 +693,7 @@ window.addEventListener("DOMContentLoaded", () => {
         // only warn about lost modalities that are ACTUALLY in this chat (no point flagging "can't read pdf" with no pdf)
         const lost = modalities.filter(m => !d.modalities.includes(m) && sessionModalities.has(m));
         if (lost.length)
-          showToast("Now on " + d.model + " — can't read " + lost.join(", ")
+          showToast("Now on " + d.model + ", can't read " + lost.join(", ")
                                           + "; the " + lost.join("/") + " already in this chat won't be sent to it.", true);
       }
       modalities = d.modalities; // re-gate composer uploads for this model
@@ -849,7 +846,7 @@ window.addEventListener("DOMContentLoaded", () => {
       (q.options || []).forEach(o => {
         const opt = document.createElement("div"); opt.className = "qcard-opt";
         const label = typeof o === "string" ? o : (o.label || "");
-        opt.textContent = "• " + label + (o && o.description ? " — " + o.description : "");
+        opt.textContent = "• " + label + (o && o.description ? " · " + o.description : "");
         block.appendChild(opt);
       });
       box.appendChild(block);
@@ -872,7 +869,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (v === online) return;
     online = v;
     document.body.classList.toggle("offline", !v);
-    if (!v) showToast("Connection lost — reconnecting…", true);
+    if (!v) showToast("Connection lost, reconnecting…", true);
   }
   function connect() {
     const es = new EventSource("/events");
@@ -958,9 +955,9 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   function post(text, files) {
     postJSON("/prompt", { text, files: files || [] })
-      .then(r => { if (!r.ok) showToast(r.status === 413 ? "Attachments too large — message not sent."
+      .then(r => { if (!r.ok) showToast(r.status === 413 ? "Attachments too large, message not sent."
                                           : "Send failed (" + r.status + ").", true); })
-      .catch(() => showToast("Couldn't reach the server — check your connection.", true));
+      .catch(() => showToast("Couldn't reach the server. Check your connection.", true));
   }
   function send() {
     const text = input.value.trim();
@@ -997,10 +994,10 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!file) return;
     if (!accepts(file.type))
       return showToast((lastModel || "This model") + " can't read " + modalityOf(file.type)
-                                           + " files — switch with /model.", true);
+                                           + " files. Switch with /model.", true);
     if (modalityOf(file.type) === "image" && !SUPPORTED_IMAGE.includes(file.type.toLowerCase()))
       return showToast((file.name || "image") + ": that format isn't supported by " + (lastModel || "the current model")
-                                           + " — use JPEG/PNG/GIF/WebP.", true);
+                                           + ". Use JPEG/PNG/GIF/WebP.", true);
     if (pendingFiles.length >= MAX_FILES) return showToast("Up to " + MAX_FILES + " files per message.", true);
     if (file.size > MAX_FILE_BYTES) return showToast((file.name || "file") + " is too large (max 5MB).", true);
     const r = new FileReader();
@@ -1071,7 +1068,7 @@ window.addEventListener("DOMContentLoaded", () => {
     overlay.addEventListener("click", e => { if (e.target === overlay) close(); }); // tap backdrop to dismiss (mobile)
     modal.appendChild(closeButton(close));
     const h = document.createElement("h3"); h.textContent = "Run a command"; modal.appendChild(h);
-    const labels = commands.map(c => c.description ? c.name + "  —  " + c.description : c.name);
+    const labels = commands.map(c => c.description ? c.name + "  ·  " + c.description : c.name);
     buildFinder(modal, labels, i => { close(); post(commands[i].name); }, close);
   }
   // builds the overlay + modal shell and mounts it; callers fill the modal and call close() to dismiss. close()
