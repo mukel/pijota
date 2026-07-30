@@ -408,7 +408,7 @@
   <div class="composer">
     <div class="greeting" id="greeting">
       <div class="mark">pi<b>jota</b></div>
-      <div class="hint">Ask anything · type <code>/</code> for commands · ⌘K / Ctrl-K for the palette</div>
+      <div class="hint">Ask anything · type <code>/</code> for commands · <span id="palette-key">⌘K</span> for the palette</div>
       <div class="hint" id="model-hint"></div>
       <div class="examples" id="examples">
         <button type="button" class="example">Explain what this project does</button>
@@ -440,6 +440,10 @@ window.addEventListener("DOMContentLoaded", () => {
   // phones: Enter = newline, the button sends (no Shift/Ctrl). Keyed off (hover: none) — the single touch signal the
   // rest of this file already uses — so the Enter behaviour and the hover-only copy buttons agree on every device.
   const isTouch = matchMedia("(hover: none)").matches;
+  // Apple keyboards use ⌘, everything else Ctrl — the palette binding accepts both (metaKey || ctrlKey); this only
+  // picks which one we *show*. userAgentData.platform when present (navigator.platform is deprecated), else the UA.
+  const isMac = /mac|iphone|ipad|ipod/i.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent);
+  $("#palette-key").textContent = isMac ? "⌘K" : "Ctrl-K";
   const conn = $("#conn"), badgesEl = $("#badges"), slash = $("#slash"), modelHint = $("#model-hint");
 
   // empty conversation → centered greeting + composer; first message drops it to the bottom (auto-tracked).
