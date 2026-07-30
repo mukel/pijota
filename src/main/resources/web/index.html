@@ -107,6 +107,10 @@
   .msg.user .bubble { background: var(--user-bg); border-color: transparent; max-width: 82%; border-radius: 16px 16px 4px 16px; } /* clean theme-aware pill */
   /* assistant messages render flat (no nested box) so code blocks are the only boxed elements */
   .msg.assistant .bubble { background: transparent; border: none; padding: 0; border-radius: 0; }
+  /* an assistant turn reads as one coherent reply: a subtle brand-accent rail down its left edge, and its
+     fragments (thinking, answer, each tool card) pulled together instead of floating a full gap apart */
+  .msg.assistant { border-left: 2px solid color-mix(in srgb, var(--accent) 22%, transparent); padding-left: 16px; }
+  .msg.assistant + .msg.assistant { margin-top: -14px; }
   .msg.error .bubble { border-color: var(--err); color: var(--err-text); background: color-mix(in srgb, var(--err) 12%, transparent); }
   .msg.custom .bubble { background: transparent; border-style: dashed; color: var(--muted); font-size: 13px; }
 
@@ -149,8 +153,13 @@
   details > summary::-webkit-details-marker { display: none; }
   details > summary::before { content: "▸"; color: var(--muted); transition: transform .15s; }
   details[open] > summary::before { transform: rotate(90deg); }
-  details.think > summary { color: var(--think); }
-  .think .body { padding: 0 14px 12px; color: var(--muted); font-style: italic; white-space: pre-wrap; line-height: 1.55; }
+  /* thinking is a quiet "peek if curious" affordance, not a headline: no box, a small muted summary, so the answer
+     below is the hero. (tool cards keep their box — they carry results worth scanning.) */
+  details.think { border: none; background: transparent; border-radius: 0; overflow: visible; }
+  details.think > summary { color: var(--muted); font-size: 12px; padding: 4px 2px; opacity: .7; border-radius: 4px; }
+  details.think > summary:hover { background: transparent; color: var(--text); opacity: 1; }
+  details.think[open] > summary { opacity: 1; }
+  .think .body { padding: 2px 0 8px 18px; color: var(--muted); font-style: italic; white-space: pre-wrap; line-height: 1.55; }
   /* copy the reasoning straight from the thinking block; revealed on hover/while open, separate from the output copy */
   .think-copy { margin-left: auto; font-family: var(--sans); font-style: normal; font-size: 11px; line-height: 1.4; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, border-color .12s; }
   details.think > summary:hover .think-copy, details.think[open] > summary .think-copy { opacity: 1; }
@@ -163,6 +172,11 @@
   /* the concise descriptor (path / command / pattern) next to the tool name; ellipsizes, full text on expand */
   .tool .detail { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tool .section { padding: 0 14px 12px; }
+  /* tool args as a clean key/value list instead of a raw JSON blob (and args already shown in the header are dropped) */
+  .arglist { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+  .argrow { display: flex; gap: 8px; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+  .argkey { color: var(--muted); flex: none; }
+  .argval { color: var(--text); overflow-wrap: anywhere; }
   /* readable rendering of the question tool's args (vs raw JSON) */
   .qcard { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
   .qcard-title { font-weight: 600; margin-bottom: 4px; }
@@ -714,16 +728,38 @@ window.addEventListener("DOMContentLoaded", () => {
       sum.innerHTML = '<span class="name"></span><span class="detail"></span><span class="badge running">running…</span>';
       sum.querySelector(".name").textContent = name || "tool";
       sum.querySelector(".detail").textContent = detail || ""; // path / command / pattern — full text shown on expand
-      const argSec = document.createElement("div"); argSec.className = "section";
-      if (name === "question")
-        argSec.appendChild(renderQuestionArgs(args)); // readable questions + options, not raw JSON
-      else if (args && args.trim() && args.trim() !== "{}") { const pre = document.createElement("pre"); pre.textContent = args; argSec.appendChild(pre); }
-      d.append(sum, argSec);
+      d.appendChild(sum);
+      const argEl = renderToolArgs(name, args, detail); // clean key/value; null when the header already shows it all
+      if (argEl) { const argSec = document.createElement("div"); argSec.className = "section"; argSec.appendChild(argEl); d.appendChild(argSec); }
       const card = { wrap, details: d, badge: sum.querySelector(".badge") };
       wrap.appendChild(d); thread.appendChild(wrap);
       toolCards.set(id, card);
       return card;
     });
+  }
+  // Render a tool's args as a clean key/value list. Returns null when there's nothing worth showing — notably when the
+  // summary detail already conveys the args (e.g. bash's {command} == the header command), so we don't repeat it as JSON.
+  function renderToolArgs(name, argsJson, detail) {
+    if (name === "question") return renderQuestionArgs(argsJson);
+    const raw = (argsJson || "").trim();
+    if (!raw || raw === "{}") return null;
+    let data; try { data = JSON.parse(raw); } catch { const pre = document.createElement("pre"); pre.textContent = raw; return pre; }
+    if (!data || typeof data !== "object" || Array.isArray(data)) { const pre = document.createElement("pre"); pre.textContent = raw; return pre; }
+    const det = (detail || "").trim();
+    const entries = Object.entries(data).filter(([, v]) => {
+      const s = typeof v === "string" ? v.trim() : JSON.stringify(v);
+      return !(det && s && (det === s || det.includes(s))); // drop args already shown in the summary detail
+    });
+    if (!entries.length) return null;
+    const box = document.createElement("div"); box.className = "arglist";
+    entries.forEach(([k, v]) => {
+      const row = document.createElement("div"); row.className = "argrow";
+      const key = document.createElement("span"); key.className = "argkey"; key.textContent = k;
+      const val = document.createElement("span"); val.className = "argval";
+      val.textContent = typeof v === "string" ? v : JSON.stringify(v);
+      row.append(key, val); box.appendChild(row);
+    });
+    return box;
   }
   // Render the question tool's args as a readable list (question text + options), falling back to raw JSON if it can't parse.
   function renderQuestionArgs(argsJson) {
