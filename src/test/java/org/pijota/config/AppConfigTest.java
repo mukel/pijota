@@ -7,6 +7,8 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Assumptions;
 
@@ -105,6 +107,23 @@ class AppConfigTest {
         var loaded = AppConfig.load(file);
         assertEquals("sk-123", loaded.apiKeys().get("openai"));
         assertEquals("high", loaded.thinkingLevel());
+        Files.deleteIfExists(file);
+    }
+
+    @Test
+    void saveAndLoadRoundTripPreservesProvidersAndPrompt() throws IOException {
+        // The exact graph that crashed the native image: saving a config with custom providers + a prompt reflectively
+        // invokes the ProviderCatalog.Provider / PromptGlyphs accessors, which must be registered in
+        // reachability-metadata.json. On the JVM this always works; the test documents the round-trip and guards it.
+        Path file = Files.createTempFile("config", ".json");
+        var provider = new ProviderCatalog.Provider("myco", "MyCo", "openai", "https://api.myco.test",
+                                        List.of("MYCO_API_KEY"), "myco-1", Map.of(), null, null);
+        var original = new AppConfig().toBuilder().providers(List.of(provider)).prompt(new PromptGlyphs()).build();
+        original.save(file);
+        var loaded = AppConfig.load(file);
+        assertEquals("myco", loaded.providers().get(0).id());
+        assertEquals("https://api.myco.test", loaded.providers().get(0).baseUrl());
+        assertNotNull(loaded.prompt());
         Files.deleteIfExists(file);
     }
 

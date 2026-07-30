@@ -59,6 +59,12 @@
       "allPublicConstructors": true
     },
     {
+      "type": "org.pijota.config.PromptGlyphs",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allPublicConstructors": true
+    },
+    {
       "type": "org.pijota.config.OAuthTokenStore$Entry",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
@@ -77,37 +83,15 @@
     },
     {
       "type": "org.pijota.config.ProviderCatalog$OAuth",
-      "methods": [
-        {
-          "name": "<init>",
-          "parameterTypes": [
-            "java.lang.String",
-            "java.lang.String",
-            "java.lang.String",
-            "java.lang.String",
-            "java.lang.String"
-          ]
-        }
-      ]
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allPublicConstructors": true
     },
     {
       "type": "org.pijota.config.ProviderCatalog$Provider",
-      "methods": [
-        {
-          "name": "<init>",
-          "parameterTypes": [
-            "java.lang.String",
-            "java.lang.String",
-            "java.lang.String",
-            "java.lang.String",
-            "java.util.List",
-            "java.lang.String",
-            "java.util.Map",
-            "org.pijota.config.ProviderCatalog$OAuth",
-            "java.lang.String"
-          ]
-        }
-      ]
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allPublicConstructors": true
     },
     {
       "type": "org.pijota.llm.ModelInfo",
