@@ -34,6 +34,16 @@ class SubAgentTest {
     }
 
     @Test
+    void loadAllIncludesBundledBuiltinAgents(@TempDir Path cwd) {
+        // Loaded by name from resources (getResourceAsStream), not by enumerating the classpath "agents" directory —
+        // so the built-ins are present in a native image, where that directory can't be listed.
+        var builtins = SubAgent.loadAll(cwd).stream().filter(a -> "builtin".equals(a.source())).map(SubAgent::name)
+                                        .toList();
+        assertTrue(builtins.contains("explore"), builtins.toString());
+        assertTrue(builtins.contains("summarize"), builtins.toString());
+    }
+
+    @Test
     void loadAllPicksUpProjectJsonAgentsAndAppliesOverrides(@TempDir Path cwd) throws Exception {
         Path agentsDir = cwd.resolve(".pijota/agents");
         Files.createDirectories(agentsDir);

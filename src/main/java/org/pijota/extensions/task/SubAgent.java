@@ -6,9 +6,7 @@ import org.pijota.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.URI;
-import java.net.URL;
-import java.nio.file.FileSystems;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,44 +21,52 @@ import java.util.Map;
 public record SubAgent(String name, String description, String systemPrompt, List<String> tools, String model,
                                 String source) {
     private static final Logger logger = LoggerFactory.getLogger(SubAgent.class);
-    public static SubAgent loadMarkdown(Path file, String source) {
-        try {
-            String content = Files.readString(file);
-            String name = file.getFileName().toString().replace(".md", "");
-            String description = "";
-            String systemPrompt = content;
-            String model = null;
-            List<String> tools = List.of();
+    /**
+     * The sub-agents shipped in resources ({@code src/main/resources/agents}), loaded by name — the classpath
+     * {@code agents} directory can't be enumerated in a native image, so this list is the authority.
+     */
+    private static final List<String> BUILTIN_AGENTS = List.of("explore", "summarize");
 
-            if (content.startsWith("---")) {
-                int end = content.indexOf("---", 3);
-                if (end > 0) {
-                    String yaml = content.substring(3, end);
-                    systemPrompt = content.substring(end + 3).strip();
-                    for (String kv : yaml.split("\\R")) {
-                        int colon = kv.indexOf(':');
-                        if (colon < 0)
-                            continue;
-                        String key = kv.substring(0, colon).strip();
-                        String value = kv.substring(colon + 1).strip();
-                        switch (key) {
-                            case "name" -> name = value;
-                            case "description" -> description = value;
-                            // YAML null literals mean "no override" — without this, `model: null` becomes the literal
-                            // string "null" and is sent as the model (e.g. Codex rejects "the 'null' model").
-                            case "model" -> model = yamlNull(value);
-                            case "tools" -> tools = Arrays.stream(value.split("[,;]")).map(String::strip)
-                                                            .filter(s -> !s.isBlank()).toList();
-                        }
+    public static SubAgent loadMarkdown(Path file, String source) {
+        String name = file.getFileName().toString().replace(".md", "");
+        try {
+            return parseMarkdown(Files.readString(file), name, source);
+        } catch (Exception e) {
+            return new SubAgent(name, "failed: " + e.getMessage(), "", List.of(), null, source);
+        }
+    }
+
+    /** Parses an agent's markdown body: optional YAML frontmatter (name, description, model, tools) then the prompt. */
+    private static SubAgent parseMarkdown(String content, String defaultName, String source) {
+        String name = defaultName;
+        String description = "";
+        String systemPrompt = content;
+        String model = null;
+        List<String> tools = List.of();
+        if (content.startsWith("---")) {
+            int end = content.indexOf("---", 3);
+            if (end > 0) {
+                String yaml = content.substring(3, end);
+                systemPrompt = content.substring(end + 3).strip();
+                for (String kv : yaml.split("\\R")) {
+                    int colon = kv.indexOf(':');
+                    if (colon < 0)
+                        continue;
+                    String key = kv.substring(0, colon).strip();
+                    String value = kv.substring(colon + 1).strip();
+                    switch (key) {
+                        case "name" -> name = value;
+                        case "description" -> description = value;
+                        // YAML null literals mean "no override" — without this, `model: null` becomes the literal
+                        // string "null" and is sent as the model (e.g. Codex rejects "the 'null' model").
+                        case "model" -> model = yamlNull(value);
+                        case "tools" -> tools = Arrays.stream(value.split("[,;]")).map(String::strip)
+                                                        .filter(s -> !s.isBlank()).toList();
                     }
                 }
             }
-
-            return new SubAgent(name, description, systemPrompt, tools, model, source);
-        } catch (Exception e) {
-            return new SubAgent(file.getFileName().toString().replace(".md", ""), "failed: " + e.getMessage(), "",
-                                            List.of(), null, source);
         }
+        return new SubAgent(name, description, systemPrompt, tools, model, source);
     }
 
     /** Maps YAML's null literals ({@code null}, {@code ~}, empty) to Java null; other values pass through unchanged. */
@@ -189,28 +195,12 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
 
     private static List<SubAgent> loadBuiltinAgents() {
         var agents = new ArrayList<SubAgent>();
-        try {
-            var classLoader = SubAgent.class.getClassLoader();
-            URL resourceUrl = classLoader.getResource("agents");
-            if (resourceUrl == null)
-                return List.of();
-            URI uri = resourceUrl.toURI();
-            if ("jar".equals(uri.getScheme())) {
-                try (var jarFs = FileSystems.newFileSystem(uri, Map.of())) {
-                    Path agentsPath = jarFs.getPath("agents");
-                    try (var stream = Files.list(agentsPath)) {
-                        stream.filter(p -> p.getFileName().toString().endsWith(".md"))
-                                                        .forEach(p -> agents.add(loadMarkdown(p, "builtin")));
-                    }
-                }
-            } else {
-                Path dir = Path.of(uri);
-                try (var stream = Files.list(dir)) {
-                    stream.filter(p -> p.getFileName().toString().endsWith(".md"))
-                                                    .forEach(p -> agents.add(loadMarkdown(p, "builtin")));
-                }
-            }
-        } catch (Exception ignored) {}
+        for (String name : BUILTIN_AGENTS) {
+            try (var in = SubAgent.class.getResourceAsStream("/agents/" + name + ".md")) {
+                if (in != null)
+                    agents.add(parseMarkdown(new String(in.readAllBytes(), StandardCharsets.UTF_8), name, "builtin"));
+            } catch (Exception ignored) {}
+        }
         return agents;
     }
 }
