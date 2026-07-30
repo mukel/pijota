@@ -16,6 +16,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class AppendOnlyTuiTest {
 
     @Test
+    void detectsNoColorTerminalTypes() {
+        assertTrue(AppendOnlyTui.isNoColorTerminal("dumb"), "plain dumb terminal → no color");
+        assertFalse(AppendOnlyTui.isNoColorTerminal("dumb-color"), "dumb-color is JLine's color-capable dumb terminal");
+        assertFalse(AppendOnlyTui.isNoColorTerminal("xterm-256color"));
+        assertFalse(AppendOnlyTui.isNoColorTerminal(""));
+        assertFalse(AppendOnlyTui.isNoColorTerminal(null));
+    }
+
+    @Test
     void collapseStatusLinesCapsWithAffordanceOrShowsAll() {
         var five = List.of("a", "b", "c", "d", "e");
         assertEquals(List.of("a", "b", "c", "… 2 more · Ctrl+O to expand"), AppendOnlyTui.collapse(five, false, 3)); // collapsed

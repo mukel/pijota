@@ -258,13 +258,31 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     List<SkillLoader.Skill> skills, Supplier<List<String>> extensionLinesSupplier,
                                     List<ExtensionKeybinding> extensionKeybindings) throws IOException {
         this(session, theme, provider, model, extensionCommands, settings, skills, extensionLinesSupplier,
-                                        extensionKeybindings,
-                                        // graphemeCluster(false): skip JLine's mode-2027 probe, which sends a query and
-                                        // blocks ~350ms on the path to the prompt when the terminal doesn't answer.
-                                        // pijota measures widths itself (AnsiWidth, wcwidth-based) and uses JLine only
-                                        // for raw key I/O, so its grapheme setting is irrelevant to our rendering.
-                                        TerminalBuilder.builder().dumb(false).jna(false).jansi(false)
-                                                                        .graphemeCluster(false).build());
+                                        extensionKeybindings, systemTerminal(theme));
+    }
+
+    /**
+     * Builds the real system terminal. Two startup concerns handled here so the injectable test constructor stays pure:
+     * (1) {@code graphemeCluster(false)} skips JLine's mode-2027 probe, which otherwise sends a query and blocks ~350
+     * ms on the path to the prompt when the terminal doesn't answer — pijota measures widths itself (AnsiWidth,
+     * wcwidth-based) and uses JLine only for raw key I/O, so its grapheme setting is irrelevant to rendering. (2) A
+     * {@code dumb} (no-color) terminal can't render ANSI, so drop the theme to plain rather than spray escape codes as
+     * garbage — mirroring the {@code NO_COLOR} behaviour.
+     */
+    private static Terminal systemTerminal(AnsiTheme theme) throws IOException {
+        Terminal terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).graphemeCluster(false)
+                                        .build();
+        if (theme.enabled && isNoColorTerminal(terminal.getType()))
+            theme.enabled = false;
+        return terminal;
+    }
+
+    /**
+     * A JLine {@code dumb} terminal has no color; {@code dumb-color} is its color-capable variant, so only plain
+     * "dumb".
+     */
+    static boolean isNoColorTerminal(String type) {
+        return type != null && type.startsWith("dumb") && !type.contains("color");
     }
 
     /** Injectable-terminal constructor — lets tests drive the TUI against an in-memory terminal (no tty). */
