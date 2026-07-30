@@ -684,7 +684,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (currentModel) {
       const chip = document.createElement("span"); chip.className = "badge-chip model"; chip.textContent = currentModel;
       chip.title = "Switch model"; chip.setAttribute("role", "button"); chip.tabIndex = 0;
-      const openModel = () => { input.value = "/model "; input.focus(); autoGrow(); updateMenu(); updateComposer(); };
+      const openModel = () => post("/model"); // run it → the "Switch model" picker opens (prefilling text did nothing)
       chip.addEventListener("click", openModel);
       chip.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModel(); } });
       badgesEl.appendChild(chip);
