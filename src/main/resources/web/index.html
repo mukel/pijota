@@ -56,8 +56,7 @@
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
   ::selection { background: var(--accent-soft); } /* branded text selection */
   main { flex: 1; overflow-y: auto; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-  main::-webkit-scrollbar { width: 10px; }
-  main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  /* main's ::-webkit-scrollbar sizing + thumb live with the shared scrollbar rules further down (near .tool pre) */
   main::-webkit-scrollbar-thumb:hover { background: var(--muted); }
   main::-webkit-scrollbar-track { background: transparent; }
   /* keyboard focus rings for in-message interactive elements (links + the various copy buttons) */
@@ -272,9 +271,8 @@
   .filechip .rm:hover { color: var(--text); }
   .msg .filerow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .msg.user .filerow { justify-content: flex-end; }
-  /* the attach (+) button, beside Send — only shown (.show) when the active model accepts media */
-  .attach { display: none; flex: none; align-self: flex-end; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); align-items: center; justify-content: center; cursor: pointer; transition: color .12s, border-color .12s, transform .1s; }
-  .attach.show { display: flex; }
+  /* the attach (+) button beside Send: text + PDF attach on any model, so it's always shown (media gates per file) */
+  .attach { display: flex; flex: none; align-self: flex-end; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); align-items: center; justify-content: center; cursor: pointer; transition: color .12s, border-color .12s, transform .1s; }
   .attach:hover { color: var(--text); border-color: var(--accent); } .attach:active { transform: scale(.92); }
   /* images inside a sent message bubble */
   .msg .imgs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
@@ -890,7 +888,7 @@ window.addEventListener("DOMContentLoaded", () => {
       thread.innerHTML = ""; toolCards.clear(); live = null; activityBubble = null; sessionModalities.clear(); // replay re-populates it
       thread.classList.add("replaying"); // replayed messages land all at once — suppress the per-message rise so the whole log doesn't flash in
       try { for (const m of JSON.parse(e.data)) replayHistory(m); } finally { thread.classList.remove("replaying"); }
-      main.scrollTop = main.scrollHeight;
+      toBottom();
     });
     es.addEventListener("user", e => { const d = JSON.parse(e.data); simple("user", d.content, d.images, d.files, d.ts); });
     es.addEventListener("stream_start", () => { showActivity("streaming..."); });
@@ -907,7 +905,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const d = JSON.parse(e.data); const el = addMsg("custom");
       if (d.type === "command") { el.bubble.classList.add("command"); el.bubble.textContent = d.content; }
       else renderMarkdown(el.bubble, d.content);
-      main.scrollTop = main.scrollHeight;
+      toBottom();
     });
     es.addEventListener("agent_error", e => { simple("error", JSON.parse(e.data).message); });
     es.addEventListener("turn", e => setBusy(JSON.parse(e.data).busy));
@@ -1060,7 +1058,6 @@ window.addEventListener("DOMContentLoaded", () => {
   function updateComposer() {
     sendBtn.disabled = !input.value.trim() && !pendingFiles.length;
     stopBtn.classList.toggle("show", busy);
-    attachBtn.classList.toggle("show", true); // text + pdf attach on any model; media gates per-file in addFile()
   }
 
   // command palette: a fuzzy finder over every command, opened with ⌘K / Ctrl-K
