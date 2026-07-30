@@ -68,6 +68,13 @@
   .greeting .mark b { color: var(--accent); }
   .greeting .hint { margin-top: 12px; color: var(--muted); font-size: 14px; }
   .greeting .hint code { font-family: var(--mono); font-size: 12.5px; background: var(--code-inline-bg); padding: 1px 6px; border-radius: 5px; }
+  /* clickable example prompts on the empty landing — send on click */
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
+  .example { font-family: var(--sans); font-size: 13px; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; cursor: pointer; transition: color .12s, border-color .12s, background .12s; }
+  .example:hover { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
+  /* the model chip is a shortcut to the switcher */
+  .badge-chip.model { cursor: pointer; }
+  .badge-chip.model:hover { border-color: var(--accent); color: var(--text); }
   body.empty main { display: none; }
   body.empty .composer { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; }
   body.empty .greeting { display: block; }
@@ -90,6 +97,10 @@
   .msg:hover .msg-actions, .msg:focus-within .msg-actions { display: flex; }
   @media (hover: none) { .msg-actions { display: flex; } }
   .msg.user .msg-actions { align-self: flex-end; }
+  /* subtle timestamp, revealed on hover (helps orient in a resumed session) */
+  .msg-time { display: none; font-size: 10.5px; color: var(--muted); opacity: .65; margin-top: 1px; }
+  .msg:hover > .msg-time, .msg:focus-within > .msg-time { display: block; }
+  .msg.user .msg-time { align-self: flex-end; }
   .msg-copy, .answer-copy { font-family: var(--sans); font-size: 11px; line-height: 1.4; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; transition: opacity .12s, color .12s, border-color .12s; }
   .msg-copy:hover, .answer-copy:hover { color: var(--text); border-color: var(--accent); }
   /* response copy floats at the answer's top-right (reachable, never pinned under the composer like a row below) */
@@ -133,6 +144,9 @@
   .bubble code { font-family: var(--mono); font-size: 13px; }
   .bubble :not(pre) > code { background: var(--code-inline-bg); padding: 2px 6px; border-radius: 5px; }
   .bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  /* a wide table scrolls horizontally instead of cramming/overflowing on a narrow (phone) screen */
+  .tablewrap { overflow-x: auto; margin: 8px 0; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .tablewrap table { margin: 0; width: max-content; min-width: 100%; }
   .bubble th, .bubble td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
   .bubble th { background: var(--panel-2); }
   .bubble blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--border); color: var(--muted); }
@@ -390,6 +404,11 @@
       <div class="mark">pi<b>jota</b></div>
       <div class="hint">Ask anything · type <code>/</code> for commands · ⌘K / Ctrl-K for the palette</div>
       <div class="hint" id="model-hint"></div>
+      <div class="examples" id="examples">
+        <button type="button" class="example">Explain what this project does</button>
+        <button type="button" class="example">Write a bash one-liner to find the 5 largest files here</button>
+        <button type="button" class="example">Summarize the recent git history</button>
+      </div>
     </div>
     <div class="slashmenu" id="slash"></div>
     <div class="attachments" id="attachments"></div>
@@ -495,6 +514,11 @@ window.addEventListener("DOMContentLoaded", () => {
           if (code) { try { hljs.highlightElement(code); } catch (_) {} }
           decorateCodeBlock(pre, code);
         });
+        el.querySelectorAll("table").forEach(t => { // wrap so a wide table scrolls on narrow screens
+          if (t.parentNode && t.parentNode.classList.contains("tablewrap")) return;
+          const w = document.createElement("div"); w.className = "tablewrap";
+          t.parentNode.insertBefore(w, t); w.appendChild(t);
+        });
       }
     } else {
       el.textContent = text;              // safe fallback if CDN unavailable
@@ -584,7 +608,7 @@ window.addEventListener("DOMContentLoaded", () => {
     activityBubble.msg.remove();
     activityBubble = null;
   }
-  function simple(role, text, images, files) {
+  function simple(role, text, images, files, ts) {
     const m = addMsg(role);
     withAutoScroll(() => {
       renderMarkdown(m.bubble, text);
@@ -606,7 +630,18 @@ window.addEventListener("DOMContentLoaded", () => {
         m.bubble.appendChild(wrap);
       }
     });
-    if (role === "user") addMsgCopy(m.msg, () => text);
+    if (role === "user") { addMsgCopy(m.msg, () => text); stampMsg(m.msg, ts); }
+    return m;
+  }
+  // A subtle timestamp shown on hover under a message — server ts on a resumed session, else arrival time now.
+  function stampMsg(el, ts) {
+    const t = new Date(typeof ts === "number" ? ts : Date.now());
+    if (isNaN(t.getTime())) return;
+    const time = document.createElement("time");
+    time.className = "msg-time"; time.dateTime = t.toISOString();
+    time.textContent = t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    time.title = t.toLocaleString();
+    el.appendChild(time);
   }
 
   // discrete extension/command output, inline in the transcript
@@ -646,6 +681,10 @@ window.addEventListener("DOMContentLoaded", () => {
     badgesEl.innerHTML = "";
     if (currentModel) {
       const chip = document.createElement("span"); chip.className = "badge-chip model"; chip.textContent = currentModel;
+      chip.title = "Switch model"; chip.setAttribute("role", "button"); chip.tabIndex = 0;
+      const openModel = () => { input.value = "/model "; input.focus(); autoGrow(); updateMenu(); updateComposer(); };
+      chip.addEventListener("click", openModel);
+      chip.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModel(); } });
       badgesEl.appendChild(chip);
     }
     for (const line of lastStatusLines) {
@@ -823,14 +862,14 @@ window.addEventListener("DOMContentLoaded", () => {
       try { for (const m of JSON.parse(e.data)) replayHistory(m); } finally { thread.classList.remove("replaying"); }
       main.scrollTop = main.scrollHeight;
     });
-    es.addEventListener("user", e => { const d = JSON.parse(e.data); simple("user", d.content, d.images, d.files); });
+    es.addEventListener("user", e => { const d = JSON.parse(e.data); simple("user", d.content, d.images, d.files, d.ts); });
     es.addEventListener("stream_start", () => { showActivity("streaming..."); });
     es.addEventListener("assistant", e => {
       const d = JSON.parse(e.data);
       clearActivity();
       if (!live) live = assistantBubble();
       updateAssistant(live, d.content, d.thinking, d.final);
-      if (d.final) live = null;
+      if (d.final) { stampMsg(live.msg, d.ts); live = null; }
     });
     es.addEventListener("tool", e => { const d = JSON.parse(e.data); clearActivity(); toolCard(d.id, d.name, d.args, d.detail); live = null; showActivity("running tools..."); });
     es.addEventListener("tool_result", e => { const d = JSON.parse(e.data); toolResult(d.id, d.name, d.content, d.isError); });
@@ -854,6 +893,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (m.role === "assistant") {
       const b = assistantBubble();
       updateAssistant(b, m.content, m.thinking, true); // committed message → copy buttons now
+      stampMsg(b.msg, m.ts);
       (m.toolCalls || []).forEach(tc => toolCard(tc.id, tc.name, tc.args, tc.detail));
       live = null;
     } else if (m.role === "tool") {
@@ -861,7 +901,7 @@ window.addEventListener("DOMContentLoaded", () => {
     } else if (m.role === "custom") {
       simple("custom", m.content);
     } else {
-      simple(m.role, m.content, m.images, m.files); // user message — restore its image thumbnails / file chips
+      simple(m.role, m.content, m.images, m.files, m.ts); // user message — restore its thumbnails / chips + time
     }
   }
 
@@ -1062,6 +1102,8 @@ window.addEventListener("DOMContentLoaded", () => {
   sendBtn.addEventListener("click", send); // always send (never Stop); posts immediately, even mid-stream
   stopBtn.addEventListener("click", () => postJSON("/interrupt")); // Stop is its own control, above the composer
   input.addEventListener("input", () => { autoGrow(); updateMenu(); updateComposer(); });
+  document.querySelectorAll(".example").forEach(ex => // clickable example prompts on the empty landing send on click
+    ex.addEventListener("click", () => { input.value = ex.textContent; send(); }));
   input.addEventListener("keydown", e => {
     if (slash.classList.contains("show")) {
       if (e.key === "ArrowDown") { e.preventDefault(); return moveSel(1); }

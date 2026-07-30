@@ -492,6 +492,7 @@ public final class WebServer implements AutoCloseable {
                     var e = new LinkedHashMap<String, Object>();
                     e.put("role", "user");
                     e.putAll(userEvent(nz(u.content()), u.attachments())); // include images/files so reload keeps them
+                    e.put("ts", u.timestamp().toEpochMilli());
                     out.add(e);
                 }
                 case Message.Assistant a -> {
@@ -524,6 +525,7 @@ public final class WebServer implements AutoCloseable {
         map.put("thinking", nz(m.thinking()));
         map.put("toolCalls", tools);
         map.put("final", isFinal);
+        map.put("ts", m.timestamp().toEpochMilli()); // for the browser's hover timestamp (esp. on a resumed session)
         return map;
     }
 
