@@ -99,8 +99,16 @@ public final class JobRegistry {
         if (workDir != null)
             pb.directory(workDir.toFile());
         if (env != null)
-            pb.environment().putAll(env);
+            env.forEach((k, v) -> {
+                if (k != null && v != null) // ProcessBuilder's environment map NPEs on a null key/value
+                    pb.environment().put(k, v);
+            });
         Process process = pb.start();
+        // A background job gets no input: close the child's stdin so a command that reads it (cat, an interactive
+        // tool) can't block forever — which would also leave the drain thread stuck and the job "running" for good.
+        try {
+            process.getOutputStream().close();
+        } catch (IOException ignored) {}
         String id = "bg_" + seq.incrementAndGet();
         String label = (name != null && !name.isBlank()) ? name : String.join(" ", command);
         var job = new Job(id, String.join(" ", command), label, process);

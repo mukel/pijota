@@ -380,6 +380,18 @@ class JobRegistryTest {
     }
 
     @Test
+    void aStdinReadingJobDoesNotHangBecauseStdinIsClosed() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var completions = new ArrayBlockingQueue<JobRegistry.Completion>(2);
+        var jobs = new JobRegistry(completions::add);
+        // `cat` with no file reads stdin forever; a backgrounded job gets no input, so start() closes the child's
+        // stdin — cat hits EOF immediately and exits, rather than hanging (and stranding its drain thread).
+        jobs.start(sh("cat"), tempDir);
+        assertNotNull(completions.poll(5, TimeUnit.SECONDS),
+                                        "a stdin-reading background job must not hang: stdin is closed at launch");
+    }
+
+    @Test
     void isRunningIsFalseForAnUnknownJob() {
         assertFalse(new JobRegistry().isRunning("bg_nope"));
     }
