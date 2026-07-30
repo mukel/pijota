@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.extensions.ExtensionKeybinding;
+import org.pijota.util.Platform;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,7 +43,7 @@ final class HelpOverlay {
         var out = new ArrayList<String>();
         out.add("help tips");
         out.add("  press / to search inside this help viewer");
-        out.add("  press Ctrl+P for the command palette; /hotkeys shows shortcuts first");
+        out.add("  press " + Keys.label("Ctrl+P") + " for the command palette; /hotkeys shows shortcuts first");
         out.add("");
         if (shortcutsFirst) {
             out.addAll(shortcuts);
@@ -61,14 +62,16 @@ final class HelpOverlay {
         out.add("keyboard shortcuts");
         int keyWidth = 0;
         for (var k : SHORTCUTS)
-            keyWidth = Math.max(keyWidth, k[0].length());
+            keyWidth = Math.max(keyWidth, Keys.label(k[0]).length()); // pad the notation we actually print (⌃K is shorter than Ctrl+K)
         for (var binding : keybindings)
             keyWidth = Math.max(keyWidth, binding.key().toString().length());
         keyWidth += 2;
         for (var k : SHORTCUTS)
-            out.add("  " + padRight(k[0], keyWidth) + k[1]);
+            out.add("  " + padRight(Keys.label(k[0]), keyWidth) + Keys.label(k[1])); // k[1] carries shortcuts too (the /sessions row)
         for (var binding : keybindings)
             out.add("  " + padRight(binding.key().toString(), keyWidth) + binding.description());
+        if (Platform.isMac())
+            out.add("  note: ⌥ shortcuts need \"Use Option as Meta key\" enabled in your terminal");
         return out;
     }
 

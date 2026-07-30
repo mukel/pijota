@@ -1284,7 +1284,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         promptEditor.setText("");
-        setTransientStatus("Press Ctrl+C again to exit", 2500);
+        setTransientStatus(Keys.label("Press Ctrl+C again to exit"), 2500);
         redrawPrompt();
     }
 
@@ -1624,7 +1624,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var items = SessionItem.fromPaths(sessions);
         selectors.show(TuiSelectors.Slot.SESSION, items, query);
         promptEditor.setText(query == null ? "" : query);
-        setStatusOverride("Sessions — Enter load, Ctrl+D delete, Ctrl+P path");
+        setStatusOverride(Keys.label("Sessions: Enter load, Ctrl+D delete, Ctrl+P path"));
         redrawPrompt();
     }
 
@@ -2067,11 +2067,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return all;
         if (expanded) {
             var out = new ArrayList<>(all);
-            out.add("… Ctrl+O to collapse");
+            out.add(Keys.label("… Ctrl+O to collapse"));
             return out;
         }
         var out = new ArrayList<>(all.subList(0, cap));
-        out.add("… " + (all.size() - cap) + " more · Ctrl+O to expand");
+        out.add(Keys.label("… " + (all.size() - cap) + " more · Ctrl+O to expand"));
         return out;
     }
 
@@ -2400,7 +2400,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         if (!backgroundGate.tryFire()) {
-            setTransientStatus("Press Ctrl+B again to move " + current.name() + " to the background", 2000);
+            setTransientStatus(Keys.label("Press Ctrl+B again to move " + current.name() + " to the background"), 2000);
             return;
         }
         backgroundGate.disarm();
