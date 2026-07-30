@@ -519,10 +519,11 @@
       </build>
     </profile>
     <profile>
-      <!-- Fully standalone (no libc dependency) static binary. Use with -Pnative (see `make native-static`). Requires a
-           musl toolchain + musl-built zlib on PATH; `make setup-musl` provisions them. musl (not glibc) because static
-           glibc breaks DNS/getaddrinfo, which this networking agent needs. The buildArgs here merge with the native
-           profile's. -->
+      <!-- Fully standalone (no libc dependency) static binary. Use with -Pnative (see `make native-static`). LINUX-ONLY:
+           GraalVM static+musl linking (the buildArgs below) is supported only on linux-amd64; on macOS/Windows use
+           -Pnative (dynamically linked, portable). Requires a musl toolchain + musl-built zlib on PATH; `make
+           setup-musl` provisions them. musl (not glibc) because static glibc breaks DNS/getaddrinfo, which this
+           networking agent needs. The buildArgs here merge with the native profile's. -->
       <id>static</id>
       <build>
         <plugins>

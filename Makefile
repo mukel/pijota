@@ -8,10 +8,10 @@
 #   make run          build and launch (use ARGS="--help" to pass flags)
 #   make jar          build thin jar
 #   make fat          build fat jar (single uber-jar)
-#   make native       build GraalVM native image (size-optimized, portable -march=compatibility)
+#   make native       build GraalVM native image (portable -march=compatibility; macOS/Linux/Windows, incl. Apple Silicon)
 #   make native-pgo-instrument / native-pgo-build   profile-guided optimized native image (2 phases)
-#   make setup-musl   one-time: build musl static libs (zlib + stub) for fully static builds
-#   make native-static  fully standalone statically-linked native image (musl; needs setup-musl)
+#   make setup-musl   [Linux only] one-time: build musl static libs (zlib + stub) for fully static builds
+#   make native-static  [Linux only] fully standalone statically-linked native image (musl; needs setup-musl)
 #   make format       apply code formatting
 #   make format-check verify code formatting (read-only)
 #   make coverage   run tests and generate JaCoCo coverage report
@@ -58,6 +58,7 @@ MUSL_LIBDIR ?= $(HOME)/.local/share/pijota-staticlibs/lib
 ZLIB_VERSION ?= 1.3.1
 
 setup-musl:
+	@[ "$$(uname -s)" = "Linux" ] || { echo "setup-musl is Linux-only (musl static linking); on macOS/Windows use 'make native'."; exit 1; }
 	@command -v musl-gcc >/dev/null 2>&1 || { echo "musl-gcc not found — install musl (pacman -S musl / apt install musl-tools)"; exit 1; }
 	@mkdir -p "$(MUSL_LIBDIR)"
 	@: > /tmp/pijota-empty.c && gcc -c /tmp/pijota-empty.c -o /tmp/pijota-empty.o && ar rcs "$(MUSL_LIBDIR)/libatomic_asneeded.a" /tmp/pijota-empty.o
@@ -69,6 +70,7 @@ setup-musl:
 	@echo "musl static libs ready: $$(ls $(MUSL_LIBDIR))"
 
 native-static:
+	@[ "$$(uname -s)" = "Linux" ] || { echo "native-static is Linux-only (GraalVM --static/--libc=musl); on macOS/Windows use 'make native'."; exit 1; }
 	@test -f "$(MUSL_LIBDIR)/libz.a" || { echo "run 'make setup-musl' first (no libz.a in $(MUSL_LIBDIR))"; exit 1; }
 	@$(MVN) -q -DskipTests -Pnative,static -Dmusl.libdir="$(MUSL_LIBDIR)" package
 	@echo "Fully static native image: target/pj ($$(file -b target/pj | grep -o 'statically linked'))"
