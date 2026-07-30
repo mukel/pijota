@@ -309,12 +309,19 @@ public final class PromptEditor {
     }
 
     private Result submitOrAcceptCompletion() {
-        String accepted = completions.prefix() + completions.selectedItem().name();
         if (isSlashCommandCompletion()) {
+            // Submit the highlighted command's *token* only — its name carries an arg-spec for display
+            // (e.g. "/kill <id> [SIGTERM]"); submitting that verbatim would pass "<id>"/"[SIGTERM]" as real args.
+            // Preserve any arguments the user already typed after their own command token ("/name foo" → "/name foo").
+            String command = PromptCompletionPolicy.commandToken(completions.selectedItem().name());
+            String[] typed = buffer.firstLine().split("\\s+", 2);
+            if (typed.length > 1 && !typed[1].isBlank())
+                command += " " + typed[1].strip();
             reset();
-            history.add(accepted);
-            return Result.submitted(accepted);
+            history.add(command);
+            return Result.submitted(command);
         }
+        String accepted = completions.prefix() + completions.selectedItem().name();
         undoStack.record(state(), UndoStack.Kind.OTHER);
         buffer.replaceSingleLine(accepted);
         clearCompletions();

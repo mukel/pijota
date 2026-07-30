@@ -105,6 +105,26 @@ class PromptEditorTest {
     }
 
     @Test
+    void enterSubmitsCommandTokenNotTheArgSpecPlaceholder() {
+        // Typing a command and pressing Enter with the completion menu open must submit the command token, not the
+        // display name with placeholders — otherwise "/save" would submit "/save [path]" and treat "[path]" as an arg.
+        editor.insertText("/save");
+
+        var result = editor.apply(Key.Special.ENTER);
+
+        assertEquals("/save", result.submitted().orElseThrow());
+    }
+
+    @Test
+    void enterPreservesArgumentsTypedAfterTheCommand() {
+        editor.insertText("/save out.jsonl");
+
+        var result = editor.apply(Key.Special.ENTER);
+
+        assertEquals("/save out.jsonl", result.submitted().orElseThrow());
+    }
+
+    @Test
     void usesInjectedFileCompletionProvider() {
         var editor = new PromptEditor(new SlashCommandRegistry(),
                                         text -> List.of(new CompletionItem(text + ".java", "file")));

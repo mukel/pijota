@@ -102,7 +102,7 @@ final class PromptCompletionPolicy {
         return prefix;
     }
 
-    private static String commandToken(String name) {
+    static String commandToken(String name) {
         return name.split("\\s+", 2)[0];
     }
 }
