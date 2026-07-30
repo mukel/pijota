@@ -40,7 +40,7 @@ public final class SkillExtension implements Extension {
             }
             var sb = new StringBuilder();
             skills.stream().sorted(Comparator.comparing(SkillLoader.Skill::name)).forEach(s -> {
-                sb.append("\n  ").append(s.name()).append(" — ").append(s.description());
+                sb.append("\n  ").append(s.name()).append(" · ").append(s.description());
             });
             api.runtime().setStatus(sb.toString().stripLeading());
         }));

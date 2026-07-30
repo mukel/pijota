@@ -168,7 +168,7 @@ public final class McpExtension implements Extension {
             case "disconnect" -> lifecycle().execute(() -> disconnectCommand(target));
             case "reconnect" -> lifecycle().execute(() -> reconnectCommand(target));
             case "reload" -> lifecycle().execute(this::reloadCommand);
-            default -> runtime.setStatus("MCP: usage — /mcp [connect|disconnect|reconnect <name>|reload]");
+            default -> runtime.setStatus("MCP: usage · /mcp [connect|disconnect|reconnect <name>|reload]");
         }
     }
 

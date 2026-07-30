@@ -25,7 +25,7 @@ import java.util.List;
  */
 public final class ContextFilesExtension implements Extension {
 
-    private static final String UNTRUSTED_HINT = "🔒 untrusted project — /trust to load AGENTS.md/CLAUDE.md";
+    private static final String UNTRUSTED_HINT = "🔒 untrusted project · /trust to load AGENTS.md/CLAUDE.md";
 
     private final String cwd;
     private final TrustStore trust;
@@ -92,7 +92,7 @@ public final class ContextFilesExtension implements Extension {
                 runtime.clearStatus("trust");
                 runtime.setStatus(content.isBlank()
                                                 ? "Trusted " + cwd
-                                                : "Trusted — project context (AGENTS.md/CLAUDE.md) loads from the next turn.");
+                                                : "Trusted: project context (AGENTS.md/CLAUDE.md) loads from the next turn.");
             }
         }
     }

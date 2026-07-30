@@ -72,7 +72,7 @@ public final class ModelResolver {
             String chosenModel = model;
             ModelRegistry.closestModel(chosenProvider, chosenModel).ifPresent(suggestion -> CliErrorReporter.warn("'"
                                             + chosenModel + "' is not a known " + chosenProvider
-                                            + " model — did you mean '" + suggestion + "'? Proceeding anyway."));
+                                            + " model. Did you mean '" + suggestion + "'? Proceeding anyway."));
         }
         return new Resolved(provider, model, apiKey);
     }

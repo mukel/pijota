@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 
 public final class GrepTool implements Tool {
     /** Shared "ripgrep is missing" guidance, also surfaced by the {@code rg} extension tool. */
-    public static final String RG_NOT_FOUND = "ripgrep (rg) not found on PATH — install it: https://github.com/BurntSushi/ripgrep";
+    public static final String RG_NOT_FOUND = "ripgrep (rg) not found on PATH. Install it: https://github.com/BurntSushi/ripgrep";
     private static final int DEFAULT_LIMIT = 100;
     private static final long DEFAULT_TIMEOUT_SECONDS = 30;
     private static final int MAX_LINE_LENGTH = 500;

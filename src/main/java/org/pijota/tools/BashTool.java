@@ -241,7 +241,7 @@ public final class BashTool implements Tool, Tool.Detachable {
             }
         } catch (IOException e) {
             if (ProcessRunner.isCommandNotFound(e))
-                return ToolResult.error("Bash error: the configured shell could not be started — check shell_path / $SHELL ("
+                return ToolResult.error("Bash error: the configured shell could not be started. Check shell_path / $SHELL ("
                                                 + e.getMessage() + ")");
             return ToolResult.error("Bash error: " + e.getMessage());
         } catch (Exception e) {

@@ -58,7 +58,7 @@ public final class PromptTemplateExtension implements Extension {
                 sb.append("\n  /").append(t.name());
                 if (t.argumentHint() != null)
                     sb.append(' ').append(t.argumentHint());
-                sb.append(" — ").append(t.description());
+                sb.append(" · ").append(t.description());
             });
             api.runtime().setStatus(sb.toString().stripLeading());
         }));

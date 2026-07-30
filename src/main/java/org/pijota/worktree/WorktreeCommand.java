@@ -104,7 +104,7 @@ public final class WorktreeCommand {
     private static int bare(WorktreePool pool) throws IOException {
         Path wt = pool.acquire(false);
         System.out.println("worktree: " + wt);
-        System.out.println("(detached HEAD — commit + push or `git switch -c <branch>` before you exit, or the work is"
+        System.out.println("(detached HEAD: commit + push or `git switch -c <branch>` before you exit, or the work is"
                                         + " discarded when this worktree is reused)");
         try {
             String shell = Platform.defaultShell();
@@ -196,7 +196,7 @@ public final class WorktreeCommand {
 
     private static void printUsage(java.io.PrintStream out) {
         out.println("""
-                                        pijota worktree — a reusable pool of git worktrees for parallel sessions
+                                        pijota worktree: a reusable pool of git worktrees for parallel sessions
 
                                         USAGE:
                                           pijota worktree                 acquire a worktree and open a shell in it
@@ -208,6 +208,6 @@ public final class WorktreeCommand {
                                           pijota worktree destroy <path> [--yes] [--include-dirty] [--include-in-use]
 
                                         Worktrees are detached-HEAD and disposable: commit + push (or git switch -c) your
-                                        work before leaving — reuse/prune never touch a dirty or unmerged worktree.""");
+                                        work before leaving. Reuse/prune never touch a dirty or unmerged worktree.""");
     }
 }

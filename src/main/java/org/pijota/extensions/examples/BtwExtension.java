@@ -88,7 +88,7 @@ public final class BtwExtension implements Extension {
         }
         String digest = contextual ? contextDigest() : "";
         String task = (digest.isBlank() ? "" : digest + "\n\n") + "Side question: " + question;
-        note("🤔 btw: " + question + " — running…");
+        note("🤔 btw: " + question + " · running…");
         executor.execute(() -> {
             try {
                 String answer = runSide(task);
@@ -102,7 +102,7 @@ public final class BtwExtension implements Extension {
 
     private void inject(String args) {
         if (lastAnswer.isBlank()) {
-            note("Nothing to inject yet — run /btw first.");
+            note("Nothing to inject yet. Run /btw first.");
             return;
         }
         String prefix = args != null && !args.isBlank() ? args.strip() + "\n\n" : "";

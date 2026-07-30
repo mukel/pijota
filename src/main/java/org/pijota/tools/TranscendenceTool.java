@@ -15,8 +15,8 @@ import java.util.concurrent.CompletableFuture;
 
 public class TranscendenceTool implements Tool {
 
-    private static final String MVN_NOT_FOUND = "✕ Transcend failed\n\nMaven (mvn) not found on PATH — "
-                                    + "install Maven (https://maven.apache.org) or add it to PATH.";
+    private static final String MVN_NOT_FOUND = "✕ Transcend failed\n\nMaven (mvn) not found on PATH. "
+                                    + "Install Maven (https://maven.apache.org) or add it to PATH.";
 
     @Override
     public String name() {

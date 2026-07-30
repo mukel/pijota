@@ -230,7 +230,7 @@ public final class SessionExporter {
                 md.append("```").append(lang).append("\n");
                 md.append(content.substring(0, 10_000)).append("\n");
                 md.append("```\n\n");
-                md.append("*(output truncated — ").append(content.length()).append(" total characters)*\n\n");
+                md.append("*(output truncated, ").append(content.length()).append(" total characters)*\n\n");
             } else {
                 md.append("```").append(lang).append("\n");
                 md.append(content).append("\n");

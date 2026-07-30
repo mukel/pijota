@@ -46,12 +46,12 @@ public final class ErrorUtil {
     private static String describe(Throwable t) {
         return switch (t) {
             case ConnectException e ->
-                "couldn't reach the model server (connection refused) — is it running and is the base URL correct?";
-            case UnknownHostException e -> "unknown host \"" + e.getMessage() + "\" — check the provider's base URL";
+                "couldn't reach the model server (connection refused). Is it running and is the base URL correct?";
+            case UnknownHostException e -> "unknown host \"" + e.getMessage() + "\". Check the provider's base URL";
             case HttpTimeoutException e -> NO_RESPONSE_IN_TIME;
             case SocketTimeoutException e -> NO_RESPONSE_IN_TIME;
-            case TimeoutException e -> "the model stream stalled — no response in time (timeout)";
-            case NoRouteToHostException e -> "no route to the model server — check the host/port and network";
+            case TimeoutException e -> "the model stream stalled, no response in time (timeout)";
+            case NoRouteToHostException e -> "no route to the model server. Check the host/port and network";
             default -> t.getClass().getSimpleName();
         };
     }

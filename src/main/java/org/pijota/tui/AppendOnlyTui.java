@@ -1071,7 +1071,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 // terminal in raw mode. Surface it and keep the loop alive so the terminal stays usable and quittable.
                 dispatchException(e);
                 appendPlain(List.of(theme.styled("toolError", ErrorUtil.stackTrace(e))));
-                setTransientStatus("Error handling input — terminal still active; restart pijota if it persists", 5000);
+                setTransientStatus("Error handling input. Terminal still active; restart pijota if it persists", 5000);
                 redrawPrompt();
             }
         }
@@ -1428,7 +1428,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                         .map(m -> m.name().toLowerCase(Locale.ROOT)).distinct().toList();
         if (!unreadable.isEmpty())
             appendPlain(List.of(theme.styled("statusText", "⚠ " + session.llm().model() + " can't read "
-                                            + String.join("/", unreadable) + " — sending text only")));
+                                            + String.join("/", unreadable) + ", sending text only")));
     }
 
     private void handleSubmit(String text) {
@@ -1468,7 +1468,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (activity.isBusy() && session.isBusy()) {
             if (!attachments.isEmpty()) // followUp steers with text only — attachments can't ride along mid-turn
                 appendPlain(List.of(theme.styled("toolError",
-                                                "attachments aren't sent mid-turn — resend after this turn")));
+                                                "attachments aren't sent mid-turn. Resend after this turn")));
             session.followUp(payload);
             int queued = followUps.add(payload);
             appendPlain(List.of(theme.styled("statusText", "queued follow-up (" + queued + ")")));
@@ -1653,7 +1653,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         selectors.refresh(TuiSelectors.Slot.SESSION, items);
-        setStatusOverride("Sessions — " + status);
+        setStatusOverride("Sessions: " + status);
         redrawPrompt();
     }
 
@@ -1732,7 +1732,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var target = ModelRegistry.resolveAlias(name, settings);
         if (target == null) {
             appendPlain(List.of(theme.styled("toolError", "unknown alias \"" + name
-                                            + "\" — define it under \"aliases\" in settings.json")));
+                                            + "\". Define it under \"aliases\" in settings.json")));
             return;
         }
         long ctx = ModelRegistry.resolveContextWindow(target.provider(), target.model());
@@ -1831,7 +1831,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             try {
                 if (!session.compact(instructions)) {
                     // Say why nothing happened: compaction is threshold-gated, so a small context has nothing to shed.
-                    appendPlain(List.of(theme.styled("statusText", "nothing to compact yet — context is "
+                    appendPlain(List.of(theme.styled("statusText", "nothing to compact yet, context is "
                                                     + promptPresenter.tokenStatus() + "; compaction kicks in near the "
                                                     + "context limit")));
                 }
@@ -1916,7 +1916,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         try {
             var file = session.resolveSession(path);
             if (!session.messages().isEmpty())
-                appendPlain(List.of(theme.styled("statusWarn", "loading session — current messages will be replaced")));
+                appendPlain(List.of(theme.styled("statusWarn", "loading session. Current messages will be replaced")));
             int count = session.load(file);
             restoreRuntimeStateFromSession();
             refreshSessionName();
@@ -1998,7 +1998,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         selectors.show(TuiSelectors.Slot.TREE, items);
         selectors.<TreeEntryItem>selectFirst(TuiSelectors.Slot.TREE, TreeEntryItem::current);
-        setStatusOverride("Tree — type to search, Enter jumps to entry, Esc cancels");
+        setStatusOverride("Tree: type to search, Enter jumps to entry, Esc cancels");
         redrawPrompt();
     }
 
@@ -2036,7 +2036,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             items.add(new RemoteOptionItem("telegram", "Telegram", "drive from your phone via the bot"));
         }
         selectors.show(TuiSelectors.Slot.REMOTE, items);
-        setStatusOverride("Remote control — Enter to choose, Esc cancels");
+        setStatusOverride("Remote control: Enter to choose, Esc cancels");
         redrawPrompt();
     }
 
@@ -2412,7 +2412,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var current = newestToolInProgress();
         var detachable = current != null ? detachableTool(current.name()) : null;
         if (detachable == null || !activity.isBusy()) {
-            appendPlain(List.of(theme.styled("statusText", "nothing to background — no detachable tool is running")));
+            appendPlain(List.of(theme.styled("statusText", "nothing to background. No detachable tool is running")));
             return;
         }
         backgroundCurrentTool(current, detachable);

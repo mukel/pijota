@@ -60,7 +60,7 @@ final class RemoteControl {
     /** Browser remote control: LAN bind + pairing token, attached to the live session. */
     List<String> startWeb() {
         if (active != null)
-            return List.of("remote control already active — stop it first");
+            return List.of("remote control already active. Stop it first");
         String token = WebServer.newPairingToken();
         int port = WebServer.DEFAULT_PORT;
         var server = new WebServer(session, "0.0.0.0", port, session.llm(), statusLines, commands.get(), token);
@@ -70,7 +70,7 @@ final class RemoteControl {
             return List.of("could not start web remote control: " + e.getMessage());
         }
         var out = new ArrayList<String>();
-        out.add("🔗 Remote control (web) is live on this session — token-gated.");
+        out.add("🔗 Remote control (web) is live on this session, token-gated.");
         out.add("   Anyone who can reach this host AND has the token can drive the agent (it runs shell + edits files).");
         out.addAll(WebServer.accessBanner("0.0.0.0", port, token));
         out.add("   /remote-control → re-show this link & QR, or stop.");
@@ -81,7 +81,7 @@ final class RemoteControl {
     /** Telegram remote control on a background poll thread. Requires the bot token + chat id in the env. */
     List<String> startTelegram() {
         if (active != null)
-            return List.of("remote control already active — stop it first");
+            return List.of("remote control already active. Stop it first");
         String botToken = System.getenv("TELEGRAM_BOT_TOKEN");
         String chatIdEnv = System.getenv("TELEGRAM_CHAT_ID");
         if (botToken == null || botToken.isBlank())
@@ -107,14 +107,14 @@ final class RemoteControl {
             // best-effort: the bot still works without a registered menu
         }
         var out = new ArrayList<String>();
-        out.add("🔗 Remote control (Telegram) is live — drive this session from chat " + allowed + ".");
+        out.add("🔗 Remote control (Telegram) is live. Drive this session from chat " + allowed + ".");
         if (username != null)
             // ?start=pijota → opening the link/QR sends "/start pijota", so the bot greets with a connection
             // confirmation
             out.addAll(QrTerminal.scannable("Scan to open the bot on your phone:",
                                             "https://t.me/" + username + "?start=pijota"));
         else
-            out.add("   (couldn't fetch the bot's @username via getMe — no scannable link; check the token/network)");
+            out.add("   (couldn't fetch the bot's @username via getMe, no scannable link; check the token/network)");
         out.add("   /remote-control → re-show this link & QR, or stop.");
         activate(chat.ui(), "telegram " + (username != null ? "@" + username : String.valueOf(allowed)), () -> {
             frontend.stop();
@@ -134,7 +134,7 @@ final class RemoteControl {
         }
         active = null;
         session.extensionRegistry().setTui(primaryUi); // hand the extension UI back to the local terminal
-        return List.of(label + " — remote control stopped");
+        return List.of(label + " · remote control stopped");
     }
 
     /** Record the channel and route extension-command UI (e.g. {@code /model}'s picker) to it while it drives. */

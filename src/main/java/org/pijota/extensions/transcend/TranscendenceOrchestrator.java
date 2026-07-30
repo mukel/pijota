@@ -182,7 +182,7 @@ final class TranscendenceOrchestrator {
                                             + styled("statusText", " preserved current build")));
 
             appendPlain(List.of(styled("statusText",
-                                            "  … compiling new build (mvn package — this can take a minute)")));
+                                            "  … compiling new build (mvn package, this can take a minute)")));
             ProcessRunner.Result buildResult;
             try {
                 buildResult = SelfRespawn.buildJar(root);

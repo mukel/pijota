@@ -120,7 +120,7 @@ public final class CoreCommandsExtension implements Extension {
         }
         var models = availableModels();
         if (models.isEmpty()) {
-            ui.alert("no models available — configure an API key first (pijota login)");
+            ui.alert("no models available. Configure an API key first (pijota login)");
             return;
         }
         var matches = arg == null || arg.isBlank() ? models : models.stream().filter(m -> matches(m, arg)).toList();

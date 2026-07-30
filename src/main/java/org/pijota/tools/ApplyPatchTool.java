@@ -58,7 +58,7 @@ public final class ApplyPatchTool implements Tool {
                     return ToolResult.error("No patch provided");
                 List<FilePatch> files = parse(patch);
                 if (files.isEmpty())
-                    return ToolResult.error("No file sections found — expected '--- ' / '+++ ' headers.");
+                    return ToolResult.error("No file sections found. Expected '--- ' / '+++ ' headers.");
 
                 // Pass 1: compute every file's new state. Any failure aborts here, before a single write.
                 var planned = new ArrayList<Planned>();
@@ -156,7 +156,7 @@ public final class ApplyPatchTool implements Tool {
             String oldPath = stripPathPrefix(lines[i].substring(4));
             i++;
             if (i >= lines.length || !lines[i].startsWith("+++ "))
-                throw new PatchException("apply_patch: malformed patch — '---' not followed by '+++'.");
+                throw new PatchException("apply_patch: malformed patch. '---' not followed by '+++'.");
             String newPath = stripPathPrefix(lines[i].substring(4));
             i++;
             var hunks = new ArrayList<Hunk>();

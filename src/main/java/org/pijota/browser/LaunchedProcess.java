@@ -50,7 +50,7 @@ final class LaunchedProcess {
         }
         String diagnostic = exitDiagnostic();
         String suffix = !diagnostic.isEmpty()
-                                        ? " — " + diagnostic
+                                        ? ": " + diagnostic
                                         : timeoutHint == null || timeoutHint.isEmpty() ? "" : " (" + timeoutHint + ")";
         throw new IllegalStateException(label + " did not come up within " + timeoutMs / 1000 + "s" + suffix);
     }

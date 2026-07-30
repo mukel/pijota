@@ -90,7 +90,7 @@ public final class WebfetchTool implements Tool {
                     return ToolResult.error("Invalid URL (no host): " + url);
                 if (isInternalAddress(uri.getHost()))
                     return ToolResult.error("Refusing to fetch an internal address (" + uri.getHost()
-                                                    + ") — loopback/link-local/private hosts (incl. cloud metadata) "
+                                                    + "): loopback/link-local/private hosts (incl. cloud metadata) "
                                                     + "are blocked to prevent SSRF. Use the bash tool for local services.");
 
                 String format = args.getString("format", "markdown");

@@ -88,7 +88,7 @@ public final class TelegramChat implements ChatHandler {
         return menu;
     }
 
-    private static final String WELCOME = "👋 I'm pijota — a coding agent you talk to in chat. Just type to ask "
+    private static final String WELCOME = "👋 I'm pijota, a coding agent you talk to in chat. Just type to ask "
                                     + "anything; I'll read/edit files, run commands and stream the answer back.\n\n";
 
     private final long chatId;
@@ -123,7 +123,7 @@ public final class TelegramChat implements ChatHandler {
             return; // a slash command (handled before busy/followUp so /stop can interrupt a running turn)
         if (session.isBusy()) {
             session.followUp(text); // queue it onto the running turn
-            tg.sendMessage(chatId, "➕ Queued — I'll get to it after the current turn.");
+            tg.sendMessage(chatId, "➕ Queued. I'll get to it after the current turn.");
             return;
         }
         runTurn(text, List.of());
@@ -161,7 +161,7 @@ public final class TelegramChat implements ChatHandler {
      */
     private void submitFile(String fileId, String mime, String filename, String caption, String kind) {
         if (session.isBusy()) {
-            tg.sendMessage(chatId, "➕ Busy right now — text replies are queued, but files are not. Send /stop to abort "
+            tg.sendMessage(chatId, "➕ Busy right now. Text replies are queued, but files are not. Send /stop to abort "
                                             + "or resend the " + kind + " after this turn finishes.");
             return;
         }
@@ -173,12 +173,12 @@ public final class TelegramChat implements ChatHandler {
                                         session.llm().model(), modality)) {
             tg.sendMessage(chatId, "⚠️ " + session.llm().provider() + "/" + session.llm().model() + " can't read "
                                             + modality.name().toLowerCase(Locale.ROOT)
-                                            + " files — switch with /model, then resend.");
+                                            + " files. Switch with /model, then resend.");
             return;
         }
         if (modality == Modality.IMAGE && !Modality.isSupportedImage(mime)) { // provider limitation, not ours
             tg.sendMessage(chatId, "⚠️ That image format isn't supported by " + session.llm().provider() + "/"
-                                            + session.llm().model() + " — send JPEG/PNG/GIF/WebP.");
+                                            + session.llm().model() + ". Send JPEG/PNG/GIF/WebP.");
             return;
         }
         // The download is multi-MB and blocking — run it off the single poll/dispatch thread so other chats aren't
@@ -197,7 +197,7 @@ public final class TelegramChat implements ChatHandler {
             return;
         }
         if (session.isBusy()) { // a turn may have started during the (async) download — don't prompt over it
-            tg.sendMessage(chatId, "➕ Busy now — text replies are queued, but files are not. Send /stop to abort or "
+            tg.sendMessage(chatId, "➕ Busy now. Text replies are queued, but files are not. Send /stop to abort or "
                                             + "resend the " + kind + " after this turn finishes.");
             return;
         }
@@ -304,7 +304,7 @@ public final class TelegramChat implements ChatHandler {
     /** True if no turn is in flight; otherwise tells the user to {@code /stop} first and returns false. */
     private boolean requireIdle() {
         if (session.isBusy()) {
-            tg.sendMessage(chatId, "A turn is running — /stop it first.");
+            tg.sendMessage(chatId, "A turn is running. /stop it first.");
             return false;
         }
         return true;
@@ -400,7 +400,7 @@ public final class TelegramChat implements ChatHandler {
             if (arg.isBlank()) {
                 String name = session.sessionName();
                 tg.sendMessage(chatId, name == null || name.isBlank()
-                                                ? "This conversation has no name yet — /name <text>."
+                                                ? "This conversation has no name yet. /name <text>."
                                                 : "🏷 " + name);
             } else {
                 session.setSessionName(arg);
@@ -558,14 +558,14 @@ public final class TelegramChat implements ChatHandler {
     private String helpText() {
         var sb = new StringBuilder("Just type to chat. Commands:\n");
         for (var c : COMMANDS)
-            sb.append("/").append(c.command()).append(" — ").append(c.description()).append('\n');
+            sb.append("/").append(c.command()).append(" · ").append(c.description()).append('\n');
         var builtin = COMMANDS.stream().map(TelegramClient.BotCommand::command).collect(Collectors.toSet());
         var extras = session.extensionRegistry().slashCommands().stream().filter(c -> !builtin.contains(c.name()))
                                         .sorted(Comparator.comparing(SlashCommand::name)).toList();
         if (!extras.isEmpty()) {
             sb.append("\nMore (extensions):\n");
             for (var c : extras)
-                sb.append("/").append(c.name()).append(" — ").append(c.description()).append('\n');
+                sb.append("/").append(c.name()).append(" · ").append(c.description()).append('\n');
         }
         return sb.toString().stripTrailing();
     }

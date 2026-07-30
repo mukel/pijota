@@ -396,7 +396,7 @@ public final class GoalExtension implements Extension {
                 criterion = stripQuotes(String.join(" ", rest));
                 criterionFromFlag = true;
             } else if (p.startsWith("--")) {
-                api.runtime().setStatus("Unknown flag: " + p + " — " + USAGE);
+                api.runtime().setStatus("Unknown flag: " + p + ". " + USAGE);
                 return;
             } else {
                 words.add(p);

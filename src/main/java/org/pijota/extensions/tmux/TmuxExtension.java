@@ -255,7 +255,7 @@ public final class TmuxExtension implements Extension {
         var session = sessions.get(target);
         if (session == null)
             return Tool.ToolResult.error("unknown session \"" + target
-                                            + "\" — only Pijota-managed sessions can be killed (see tmux_list)");
+                                            + "\". Only Pijota-managed sessions can be killed (see tmux_list)");
 
         if (!Boolean.TRUE.equals(args.get("confirm"))
                                         && !uiConfirm("Kill tmux session " + session.friendlyName() + "?"))

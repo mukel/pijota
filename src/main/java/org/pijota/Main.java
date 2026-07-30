@@ -217,7 +217,7 @@ public final class Main {
             System.out.println("[web] pijota web ui on http://" + addr.host() + ":" + addr.port()
                                             + " (Ctrl-C to stop)");
             if (token != null)
-                System.out.println("[web] non-loopback bind — token-gated; scan to pair:");
+                System.out.println("[web] non-loopback bind, token-gated; scan to pair:");
             WebServer.accessBanner(addr.host(), addr.port(), token).forEach(System.out::println);
             Thread.currentThread().join();
             return 0;
@@ -340,7 +340,7 @@ public final class Main {
         if (models.isEmpty()) {
             System.out.println("No usable models"
                                             + (filter == null || filter.isBlank() ? "" : " matching \"" + filter + "\"")
-                                            + " — set a provider API key (env or ~/.pijota/settings.json) or run"
+                                            + ". Set a provider API key (env or ~/.pijota/settings.json) or run"
                                             + " `pijota login`.");
             return;
         }

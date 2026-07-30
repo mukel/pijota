@@ -114,7 +114,7 @@ public final class TmuxClient {
             return runner.run(command, timeout);
         } catch (IOException e) {
             String msg = ProcessRunner.isCommandNotFound(e)
-                                            ? "tmux not found — install tmux to use this extension"
+                                            ? "tmux not found. Install tmux to use this extension"
                                             : e.getMessage();
             return new Result(-1, "", msg);
         }
