@@ -282,14 +282,20 @@ class BashToolTest {
     }
 
     @Test
-    void renderResultWithOutputPathInBody() {
+    void renderResultPutsTheOutputPathOnItsOwnLineHomeAbbreviated() {
         var tool = new BashTool("/bin/bash", null);
         var lines = new StringBuilder();
         for (int i = 0; i < 50; i++)
             lines.append("line ").append(i).append('\n');
-        var tr = new Tool.ToolResult(lines.toString(), false, Map.of("outputPath", "/tmp/bash-xyz.log"));
+        String path = System.getProperty("user.home") + "/.pijota/tool-output/bash-123.txt";
+        var tr = new Tool.ToolResult(lines.toString(), false, Map.of("outputPath", path));
         var view = tool.renderResult(new Tool.Args(Map.of()), tr, "/cwd");
-        assertTrue(view.body().stream().anyMatch(l -> l.contains("full output")));
+
+        String pathLine = view.body().stream().filter(l -> l.contains("full output")).findFirst().orElseThrow();
+        assertTrue(pathLine.contains("~/.pijota/tool-output/bash-123.txt"), "home is abbreviated: " + pathLine);
+        // The omitted-lines cue is a SEPARATE, short line so a narrow terminal never has to wrap the path onto it.
+        String cue = view.body().stream().filter(l -> l.contains("omitted")).findFirst().orElseThrow();
+        assertFalse(cue.contains("full output"), "the ⋯ cue and the path are on different lines: " + cue);
     }
 
     @Test

@@ -586,7 +586,7 @@ public final class TaskTool implements Tool {
                     continue;
                 Object agent = log.get("agent");
                 String label = agent instanceof String a && !a.isBlank() && list.size() > 1 ? " (" + a + ")" : "";
-                body.add("╰→ full output" + label + ": " + p);
+                body.add("╰→ full output" + label + ": " + Util.shortenCwd(p));
             }
         }
         return ToolResultView.of(summary, body);

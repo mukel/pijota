@@ -299,7 +299,8 @@ public final class BashTool implements Tool, Tool.Detachable {
         summary = prefix + Util.count(output.lines().count(), "line", "lines");
 
         // Bare output lines — the framed layout (┌ … └▸) delimits the block, so no per-line rail. On overflow, show a
-        // head+tail preview split by one muted line that carries the omitted count and the saved-output path.
+        // head+tail preview split by a short "⋯ N omitted" cue; the saved-output path follows on its own line
+        // (home-abbreviated) so a narrow terminal isn't forced to wrap the cue.
         var body = new ArrayList<String>();
         var lines = output.lines().toList();
         if (lines.size() <= PREVIEW_LINES) {
@@ -307,10 +308,9 @@ public final class BashTool implements Tool, Tool.Detachable {
         } else {
             body.addAll(lines.subList(0, PREVIEW_HEAD_LINES));
             int omitted = lines.size() - PREVIEW_HEAD_LINES - PREVIEW_TAIL_LINES;
-            String omit = "⋯ " + omitted + " lines omitted";
+            body.add("⋯ " + omitted + " lines omitted");
             if (details.get("outputPath") instanceof String path)
-                omit += " · full output: " + path;
-            body.add(omit);
+                body.add("╰→ full output: " + Util.shortenCwd(path));
             body.addAll(lines.subList(lines.size() - PREVIEW_TAIL_LINES, lines.size()));
         }
         return ToolResultView.of(summary, body);
