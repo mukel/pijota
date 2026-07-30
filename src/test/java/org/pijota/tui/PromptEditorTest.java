@@ -225,6 +225,26 @@ class PromptEditorTest {
     }
 
     @Test
+    void reverseSearchFiltersHistoryAsYouType() {
+        editor.insertText("run the tests");
+        editor.apply(Key.Special.ENTER);
+        editor.insertText("read the file");
+        editor.apply(Key.Special.ENTER);
+        editor.insertText("commit changes");
+        editor.apply(Key.Special.ENTER);
+        editor.setText("");
+
+        editor.apply(Key.Special.CTRL_R);
+        assertEquals(3, editor.snapshot().completions().size(), "all history shown before typing a query");
+
+        editor.insertText("read"); // the buffer is the live query
+
+        var visible = editor.snapshot().completions().stream().map(CompletionItem::name).toList();
+        assertEquals(List.of("read the file"), visible, "reverse-search narrows to the matching entry");
+        assertTrue(editor.reverseHistoryActive(), "still in reverse-search while filtering");
+    }
+
+    @Test
     void selectingReverseHistoryItemInsertsIt() {
         editor.insertText("first");
         editor.apply(Key.Special.ENTER);

@@ -106,13 +106,15 @@ class FilterOutputExtensionTest {
     }
 
     @Test
-    void onReadyReadsFlagAndSetsStatus() {
+    void onReadyReadsFlagAndReflectsItInTheStatusLine() {
         var runtime = new FakeExtensionRuntime();
         runtime.setFlag("filter-secrets", "false");
         var ext = new FilterOutputExtension();
-        ext.init(new FakeExtensionAPI(runtime));
+        var api = new FakeExtensionAPI(runtime);
+        ext.init(api);
         ext.onReady(runtime);
-        assertTrue(runtime.keyedStatuses().containsKey("filter"));
+        // flag=false → redaction off → the live status supplier reports "visible"
+        assertTrue(String.join("", api.statusLineSuppliers().getFirst().get()).contains("visible"));
     }
 
     @Test
@@ -122,10 +124,10 @@ class FilterOutputExtensionTest {
         var ext = new FilterOutputExtension();
         ext.init(api);
         ext.onReady(runtime);
-        var before = runtime.keyedStatuses().get("filter");
+        var status = api.statusLineSuppliers().getFirst();
+        var before = status.get();
         api.slashCommand("filter-output").handler().accept("");
-        var after = runtime.keyedStatuses().get("filter");
-        assertNotEquals(before, after);
+        assertNotEquals(before, status.get());
     }
 
     @Test

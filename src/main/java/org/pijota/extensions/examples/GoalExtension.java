@@ -317,8 +317,12 @@ public final class GoalExtension implements Extension {
             return;
         }
         boolean wasLoop = current.continueOnIdle();
-        // The in-flight turn (if any) is stopped via the frontend's own interrupt (Esc / /stop / /interrupt).
         updateState(GoalState::clear);
+        // Stop a loop responsively: also interrupt the in-flight turn so "/loop stop" halts everything now, not after
+        // the current turn finishes generating. Only when a turn is actually running (abort while idle would arm the
+        // next turn's abort flag) and only for loops — a plain /goal just tracks, so its turn is left to finish.
+        if (wasLoop && !api.runtime().isIdle())
+            api.runtime().abort();
         api.runtime().setStatus(wasLoop ? Emojis.PAUSE + " Loop stopped" : "Goal cleared");
     }
 

@@ -1690,6 +1690,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             restoreRuntimeStateFromSession();
             refreshSessionName();
             appendPlain(List.of(theme.styled("statusText", "loaded session " + chosen.name())));
+            appendLoadRecap();
         } catch (IOException e) {
             appendPlain(List.of(theme.styled("toolError", "failed to load session: " + e.getMessage())));
         }
@@ -1925,9 +1926,25 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
             appendPlain(List.of(theme.styled("statusText",
                                             "loaded " + count + " messages from " + file.getFileName())));
+            appendLoadRecap();
         } catch (Exception e) {
             appendPlain(List.of(theme.styled("toolError", "load failed: " + e.getMessage())));
         }
+    }
+
+    // After a load the append-only UI doesn't reprint the whole conversation, so show the last exchange (one truncated
+    // line each) — enough to orient the user on where they left off without dumping the history.
+    private void appendLoadRecap() {
+        var users = session.userMessages();
+        String lastUser = users.isEmpty() ? null : users.get(users.size() - 1).content();
+        String lastAssistant = session.lastAssistantContent();
+        var lines = new ArrayList<String>();
+        if (lastUser != null && !lastUser.isBlank())
+            lines.add(theme.styled("dim", "  ↳ you · " + Util.ellipsize(lastUser.replace('\n', ' ').strip(), 74)));
+        if (lastAssistant != null && !lastAssistant.isBlank())
+            lines.add(theme.styled("dim", "  ↳ reply · " + Util.ellipsize(lastAssistant.replace('\n', ' ').strip(), 74)));
+        if (!lines.isEmpty())
+            appendPlain(lines);
     }
 
     void listSessions() {

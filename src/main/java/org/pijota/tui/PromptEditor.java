@@ -30,6 +30,7 @@ public final class PromptEditor {
     private final UndoStack undoStack = new UndoStack();
     private final KillRing killRing = new KillRing();
     private String suggestion = "";
+    private boolean reverseSearch; // true while a Ctrl+R reverse-i-search is open — the buffer is the live filter query
     private UndoStack.Snapshot preYank; // buffer state captured before the current yank, for yank-pop replacement
     private boolean yankActive; // true right after a yank/yank-pop, enabling yank-pop to cycle the ring
 
@@ -70,7 +71,7 @@ public final class PromptEditor {
     }
 
     public synchronized boolean reverseHistoryActive() {
-        return completions.active() && history.isReverseSearchItemCount(completions.itemCount());
+        return reverseSearch && completions.active();
     }
 
     public synchronized void setText(String text) {
@@ -351,7 +352,15 @@ public final class PromptEditor {
 
     private void refreshCompletions() {
         if (reverseHistoryActive()) {
-            suggestion = computeSuggestion();
+            // Reverse-i-search: the buffer text is the live query — narrow history to matches as the user types
+            // (readline feel), instead of a static list. Pre-filter (the dropdown renders the passed list directly);
+            // an empty query keeps all history.
+            String q = buffer.firstLine().toLowerCase();
+            var matches = history.reverseSearchItems().stream()
+                                            .filter(it -> SlashCommandRegistry.fuzzyMatch(q, it.searchText().toLowerCase()))
+                                            .toList();
+            completions.filter(matches, "");
+            suggestion = "";
             return;
         }
         if (buffer.isAtEndOfFirstLine()) {
@@ -384,6 +393,7 @@ public final class PromptEditor {
         var items = history.reverseSearchItems();
         if (items.isEmpty())
             return Result.unchangedResult();
+        reverseSearch = true;
         completions.show(items, "", "");
         return Result.didChange();
     }
@@ -391,6 +401,7 @@ public final class PromptEditor {
     void clearCompletions() {
         completions.clear();
         suggestion = "";
+        reverseSearch = false;
     }
 
     public synchronized void insertText(String text) {

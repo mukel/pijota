@@ -105,16 +105,19 @@ class SecurityExtensionTest {
     }
 
     @Test
-    void onReadyReadsFlagAndDisables() {
+    void onReadyReadsFlagAndToggleReflectsInStatusLine() {
         var runtime = new FakeExtensionRuntime();
         runtime.setFlag("security", "false");
         var ext = new SecurityExtension();
-        ext.onReady(runtime);
-        // toggle slash command should re-enable and set status
         var api = new FakeExtensionAPI(runtime);
         ext.init(api);
-        api.slashCommand("security").handler().accept("");
-        assertTrue(runtime.keyedStatuses().containsKey("security"));
+        ext.onReady(runtime);
+        var status = api.statusLineSuppliers().getFirst();
+        assertTrue(String.join("", status.get()).contains("unlocked"), "flag=false → blocking off → unlocked");
+
+        api.slashCommand("security").handler().accept(""); // toggle → blocking on
+
+        assertTrue(String.join("", status.get()).contains("secured"));
     }
 
     @Test

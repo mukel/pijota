@@ -1,6 +1,7 @@
 package org.pijota.extensions.examples;
 
 import org.pijota.extensions.testkit.FakeExtensionAPI;
+import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.messages.Message;
 import org.pijota.tools.Tool;
 
@@ -252,6 +253,33 @@ class GoalExtensionTest {
         int prompts = fake.sentUserMessages().size();
         fake.fireTurnEnd(1);
         assertEquals(prompts, fake.sentUserMessages().size(), "a stopped loop must not re-prompt");
+    }
+
+    @Test
+    void loopStopAbortsTheInFlightTurn() {
+        var runtime = new FakeExtensionRuntime();
+        var fake = new FakeExtensionAPI(runtime);
+        var ext = started(fake);
+        fake.slashCommand("loop").handler().accept("keep going");
+        runtime.setBusy(true); // a loop turn is running
+
+        fake.slashCommand("loop").handler().accept("stop");
+
+        assertTrue(runtime.aborted(), "/loop stop interrupts the in-flight turn so the stop is immediate");
+        assertEquals(GoalState.Status.IDLE, ext.currentState().status());
+    }
+
+    @Test
+    void goalStopDoesNotAbortTheTurn() {
+        var runtime = new FakeExtensionRuntime();
+        var fake = new FakeExtensionAPI(runtime);
+        started(fake);
+        fake.slashCommand("goal").handler().accept("do a thing");
+        runtime.setBusy(true);
+
+        fake.slashCommand("goal").handler().accept("stop");
+
+        assertFalse(runtime.aborted(), "a plain /goal just tracks — its turn is left to finish; only loops abort");
     }
 
     // ---- human slash verbs (shared by /goal and /loop) ----

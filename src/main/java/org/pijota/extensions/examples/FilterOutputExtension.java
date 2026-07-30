@@ -40,7 +40,6 @@ public final class FilterOutputExtension implements Extension {
                                     Pattern.MULTILINE);
 
     private volatile boolean enabled = true;
-    private ExtensionRuntime runtime;
 
     @Override
     public String name() {
@@ -56,6 +55,9 @@ public final class FilterOutputExtension implements Extension {
     public void init(ExtensionAPI api) {
         api.registerSlashCommand(new SlashCommand("filter-output", "Toggle secret/token redaction", List.of(),
                                         ignored -> toggle()));
+        // A live supplier keeps the chip in sync with the toggle everywhere, including after /new (which clears keyed
+        // setStatus entries but not this extension's state).
+        api.registerStatusLines(() -> List.of(enabled ? Emojis.SEE_NO_EVIL + " filtered" : Emojis.EYES + " visible"));
 
         api.onInput(text -> {
             if (!enabled)
@@ -82,17 +84,12 @@ public final class FilterOutputExtension implements Extension {
 
     @Override
     public void onReady(ExtensionRuntime rt) {
-        this.runtime = rt;
         if (!rt.getFlag("filter-secrets", true))
             enabled = false;
-        rt.setStatus("filter", enabled ? Emojis.SEE_NO_EVIL + " filtered" : Emojis.EYES + " visible");
     }
 
     private void toggle() {
         enabled = !enabled;
-        if (runtime != null) {
-            runtime.setStatus("filter", enabled ? Emojis.SEE_NO_EVIL + " filtered" : Emojis.EYES + " visible");
-        }
     }
 
     private static String contentOf(Message msg) {

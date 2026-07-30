@@ -17,10 +17,6 @@ final class PromptHistory {
         return index >= 0;
     }
 
-    boolean isReverseSearchItemCount(int itemCount) {
-        return !entries.isEmpty() && itemCount == entries.size();
-    }
-
     void add(String text) {
         if (text == null || text.isBlank())
             return;
