@@ -113,6 +113,15 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void leadingSpaceEscapesVimQuitIntoAMessage() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueue(FauxLlm.Response.contentWithUsage("ok"));
+        driveSession(ts, " :q\r".getBytes(StandardCharsets.UTF_8)); // leading space → literal message, not a quit
+        assertFalse(ts.session().userMessages().isEmpty(),
+                                        "a space-prefixed \":q\" is sent to the model as a message, not run as a quit");
+    }
+
+    @Test
     void lineEditingKeysAreProcessed() throws Exception {
         var ts = TestSession.in(tempDir).build();
         // type "abcdef", two backspaces (127), Ctrl+U (21) to clear — exercises the editor key paths in the loop
@@ -393,7 +402,7 @@ class AppendOnlyTuiInputLoopTest {
         // /save writes to an absolute temp path — a bare "/save x" would drop a session file in the repo root.
         // (/export writes "<id>-export.md" into the session's cwd, which TestSession sets to tempDir — no litter.)
         String saveTarget = tempDir.resolve("saved-session.jsonl").toString();
-        for (String cmd : List.of("/copy", "/context", "/export", "/save " + saveTarget, "/clone", "/tree", "/whoami",
+        for (String cmd : List.of("/copy", "/context", "/export", "/save " + saveTarget, "/tree",
                                         "/info", "/undo", "/logs", "/skills", "/settings", "/login", "/logout",
                                         "/remote")) {
             var ts = TestSession.in(tempDir).build();

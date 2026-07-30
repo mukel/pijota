@@ -1455,6 +1455,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             commandController.handle(payload.strip());
             return;
         }
+        if (!literal && isVimQuit(payload)) { // chef's kiss: :q (and its cousins) quit pijota, for Vim muscle memory
+            commandController.handle("/quit");
+            return;
+        }
         if (!literal && payload.startsWith("!!")) {
             shellCommands.run(payload.substring(2).strip(), false);
             return;
@@ -1501,6 +1505,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     static boolean isBareHelp(String payload) {
         return payload.equalsIgnoreCase("help");
+    }
+
+    /** Vim quit muscle memory: {@code :q} and its write/quit-all cousins exit pijota (autosaves, so :wq == :q). Input is
+     *  the already-stripped submission; a leading space is the literal escape (handled by the caller), so " :q" is text. */
+    static boolean isVimQuit(String payload) {
+        return switch (payload) {
+            case ":q", ":q!", ":wq", ":wq!", ":x", ":quit", ":qa", ":qa!" -> true;
+            default -> false;
+        };
     }
 
     void restoreQueuedFollowUp() {
@@ -1866,23 +1879,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         sessionCommands.branchSummary(instructions);
     }
 
-    void showSessionInfo() {
-        sessionCommands.showSessionInfo();
-    }
-
-    void showWhoami() {
-        var info = ModelRegistry.byId(model).orElse(null);
-        var lines = new ArrayList<String>();
-        lines.add(theme.styled("toolLabel", "model"));
-        lines.add(theme.styled("statusText", "id       " + model));
-        lines.add(theme.styled("statusText", "provider " + provider));
-        if (info != null) {
-            lines.add(theme.styled("statusText", "name     " + info.displayName()));
-            lines.add(theme.styled("statusText", "context  " + fmtCount((int) info.contextWindow()) + " tokens"));
-        }
-        appendPlain(lines);
-    }
-
     private void refreshSessionName() {
         try {
             sessionName = session.sessionName();
@@ -2171,12 +2167,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         } catch (Exception e) {
             appendPlain(List.of(theme.styled("toolError", "fork failed: " + e.getMessage())));
         }
-    }
-
-    void cloneSession() {
-        sessionCommands.cloneSession();
-        restoreRuntimeStateFromSession();
-        refreshSessionName();
     }
 
     void undoLastTurn() {

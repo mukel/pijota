@@ -182,6 +182,15 @@ class AppendOnlyTuiTest {
     }
 
     @Test
+    void vimQuitInputsExitInsteadOfPromptingModel() {
+        for (String q : new String[] {":q", ":q!", ":wq", ":wq!", ":x", ":quit", ":qa", ":qa!"})
+            assertTrue(AppendOnlyTui.isVimQuit(q), q + " should quit");
+        // a leading space is the literal escape (consumed by the caller's `literal` flag), so a spaced :q is just text
+        for (String notQuit : new String[] {" :q", ":q ", ":query", ":quack", "q", "quit", ":qq", "how do I :q"})
+            assertFalse(AppendOnlyTui.isVimQuit(notQuit), notQuit + " should NOT quit");
+    }
+
+    @Test
     void isReservedKeyEnter() {
         assertTrue(AppendOnlyTui.isReservedKey(Key.Special.ENTER));
     }

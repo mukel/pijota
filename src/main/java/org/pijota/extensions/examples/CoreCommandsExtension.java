@@ -51,10 +51,11 @@ public final class CoreCommandsExtension implements Extension {
     public void init(ExtensionAPI api) {
         this.api = api;
         api.registerSlashCommand(new SlashCommand("model", "Switch the active model (optionally: /model <query>)",
-                                        List.of(), this::cmdModel));
-        api.registerSlashCommand(new SlashCommand("new", "Start a new conversation", List.of(), arg -> cmdNew()));
+                                        List.of("models"), this::cmdModel));
+        api.registerSlashCommand(new SlashCommand("new", "Start a new conversation", List.of("clear", "reset"),
+                                        arg -> cmdNew()));
         api.registerSlashCommand(new SlashCommand("undo", "Undo the last user turn", List.of(), arg -> cmdUndo()));
-        api.registerSlashCommand(new SlashCommand("sessions", "Resume a previous session", List.of(),
+        api.registerSlashCommand(new SlashCommand("sessions", "Resume a previous session", List.of("resume"),
                                         arg -> cmdSessions()));
     }
 

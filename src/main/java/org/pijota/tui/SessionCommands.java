@@ -212,23 +212,6 @@ final class SessionCommands {
         return lines;
     }
 
-    void cloneSession() {
-        if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError", "/clone is unavailable while a turn is running")));
-            return;
-        }
-        if (host.session().sessionFile() == null) {
-            host.appendPlain(List.of(host.styled("toolError", "no active session")));
-            return;
-        }
-        try {
-            Path newFile = host.session().cloneCurrentBranch();
-            host.appendPlain(List.of(host.styled("statusText", "cloned session to " + newFile.getFileName())));
-        } catch (Exception e) {
-            host.appendPlain(List.of(host.styled("toolError", "clone failed: " + e.getMessage())));
-        }
-    }
-
     void branchSummary(String instructions) {
         if (host.busy()) {
             host.appendPlain(List.of(host.styled("toolError",
@@ -398,19 +381,4 @@ final class SessionCommands {
         host.appendPlain(lines);
     }
 
-    void showSessionInfo() {
-        host.refreshSessionName();
-        host.appendPlain(List.of(host.styled("toolLabel", "session"),
-                                        host.styled("statusText", "provider " + host.provider()),
-                                        host.styled("statusText", "model    " + host.model()),
-                                        host.styled("statusText", "cwd      " + host.cwd()),
-                                        host.styled("statusText", "tokens   " + host.tokenStatus()),
-                                        host.styled("statusText", "thinking " + host.thinkingLevel().label()),
-                                        host.styled("statusText", "compact  " + (host.settings() == null
-                                                                        || host.settings().compactionEnabled()
-                                                                                                        ? "auto"
-                                                                                                        : "off"))));
-        if (host.sessionName() != null)
-            host.appendPlain(List.of(host.styled("statusText", "name     " + host.sessionName())));
-    }
 }

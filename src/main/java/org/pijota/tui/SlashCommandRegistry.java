@@ -30,8 +30,6 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/dequeue", "Restore queued follow-up to editor"),
                                     new CompletionItem("/undo", "Edit previous message"),
                                     new CompletionItem("/copy", "Copy last assistant response"),
-                                    new CompletionItem("/session", "Show session info"),
-                                    new CompletionItem("/whoami", "Show current model info"),
                                     new CompletionItem("/new", "Start a new session"),
                                     new CompletionItem("/hotkeys", "Show keyboard shortcuts"),
                                     new CompletionItem("/login", "Log in to a provider via OAuth"),
@@ -40,7 +38,6 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/reload", "Reload runtime resources where possible"),
                                     new CompletionItem("/tree", "Show conversation tree"),
                                     new CompletionItem("/fork [message]", "Fork a new session from a previous message"),
-                                    new CompletionItem("/clone", "Clone current branch to a new session"),
                                     new CompletionItem("/remote-control",
                                                                     "Control this session from your phone/browser"),
                                     new CompletionItem("/skills [name]", "List available skills"),
@@ -76,10 +73,10 @@ final class SlashCommandRegistry {
         var out = new ArrayList<String>();
         out.add("pijota commands");
         appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/branch-summary", "/context", "/usage",
-                                        "/dequeue", "/whoami", "/skills");
-        appendGroup(out, "session", "/session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new",
+                                        "/dequeue", "/skills");
+        appendGroup(out, "session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new",
                                         "/delete");
-        appendGroup(out, "workspace", "/tree", "/fork", "/clone", "/undo", "/copy", "/theme");
+        appendGroup(out, "workspace", "/tree", "/fork", "/undo", "/copy", "/theme");
         appendGroup(out, "remote", "/remote-control");
         appendGroup(out, "account", "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/quit");
 

@@ -22,10 +22,10 @@ class PromptCompletionPolicyTest {
     void replacesCommonSlashCommandPrefixAndRequestsRefresh() {
         var policy = new PromptCompletionPolicy(new SlashCommandRegistry(), ignored -> List.of());
 
-        var decision = policy.complete("/ses");
+        var decision = policy.complete("/c");
 
         assertEquals(PromptCompletionPolicy.Kind.REPLACE, decision.kind());
-        assertEquals("/session", decision.replacement());
+        assertEquals("/co", decision.replacement());
         assertTrue(decision.refreshAfterReplace());
     }
 

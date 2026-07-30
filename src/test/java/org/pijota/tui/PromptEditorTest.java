@@ -202,11 +202,11 @@ class PromptEditorTest {
 
     @Test
     void tabInsertsCommonPrefixForMultipleSlashCommands() {
-        editor.insertText("/ses");
+        editor.insertText("/c");
         var result = editor.apply(Key.Special.TAB);
 
         assertTrue(result.changed());
-        assertEquals("/session", editor.text());
+        assertEquals("/co", editor.text());
     }
 
     @Test

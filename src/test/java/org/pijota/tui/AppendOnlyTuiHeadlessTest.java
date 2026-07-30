@@ -208,7 +208,6 @@ class AppendOnlyTuiHeadlessTest {
                 tui.copyLastResponse();
                 tui.exportSession("/export"); // writes into the session's cwd (the temp dir), not the repo root
                 tui.saveSession("/save " + tempDir.resolve("my-chat"));
-                tui.cloneSession();
             });
         } finally {
             tui.close();
@@ -241,7 +240,6 @@ class AppendOnlyTuiHeadlessTest {
         try {
             assertDoesNotThrow(() -> {
                 tui.showUsage();
-                tui.showSessionInfo();
                 tui.startNewSession();
             });
         } finally {
@@ -250,13 +248,12 @@ class AppendOnlyTuiHeadlessTest {
     }
 
     @Test
-    void treeWhoamiRemoteAndUndoRenderHeadless() throws Exception {
+    void treeRemoteAndUndoRenderHeadless() throws Exception {
         var ts = TestSession.in(tempDir).build();
         var tui = tui(ts);
         try {
             assertDoesNotThrow(() -> {
                 tui.showTree();
-                tui.showWhoami();
                 tui.showRemoteControl();
                 tui.undoLastTurn();
             });

@@ -21,9 +21,9 @@ final class TuiCommandController {
         String cmd = commandName(input);
         String arg = SlashCommand.argsOf(input);
         switch (cmd) {
-            case "/help" -> tui.showHelpOverlay();
-            case "/quit" -> tui.stop();
-            case "/model" -> handleModel(arg);
+            case "/help", "/?" -> tui.showHelpOverlay();
+            case "/quit", "/q", "/exit" -> tui.stop();
+            case "/model", "/models" -> handleModel(arg);
             case "/settings" -> tui.showSettingsSelector();
             case "/login" -> tui.showLoginSelector();
             case "/logout" -> tui.showLogoutSelector();
@@ -35,25 +35,22 @@ final class TuiCommandController {
             case "/branch-summary" -> tui.branchSummary(arg);
             case "/copy" -> tui.copyLastResponse();
             case "/hotkeys" -> tui.showHelpOverlay(true);
-            case "/session" -> tui.showSessionInfo();
             case "/context" -> tui.showContext();
-            case "/usage" -> tui.showUsage();
+            case "/usage", "/cost" -> tui.showUsage();
             case "/dequeue" -> tui.restoreQueuedFollowUp();
             case "/bg" -> tui.backgroundRunningTool(); // tmux-friendly alternative to ctrl+b ctrl+b
             case "/export" -> tui.exportSession(input);
             case "/import" -> tui.importSession(input);
             case "/save" -> tui.saveSession(input);
             case "/load" -> tui.loadSession(input);
-            case "/sessions" -> tui.showSessionPicker(arg);
+            case "/sessions", "/resume" -> tui.showSessionPicker(arg);
             case "/delete" -> tui.deleteSession(input);
             case "/name" -> renameSession(arg);
-            case "/new" -> tui.startNewSession();
+            case "/new", "/clear", "/reset" -> tui.startNewSession();
             case "/tree" -> tui.showTree(arg);
             case "/fork" -> tui.forkSession(input);
-            case "/clone" -> tui.cloneSession();
             case "/remote-control", "/remote" -> tui.showRemoteControl();
             case "/skills" -> tui.showSkills();
-            case "/whoami" -> tui.showWhoami();
             default -> handleUnknown(input, cmd);
         }
     }

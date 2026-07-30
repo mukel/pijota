@@ -16,14 +16,6 @@ class SlashCommandRegistryTest {
     }
 
     @Test
-    void ranksExactAndPrefixMatchesBeforeFuzzyMatches() {
-        var matches = registry.complete("/session");
-
-        assertEquals("/session", matches.getFirst());
-        assertTrue(matches.indexOf("/sessions") > matches.indexOf("/session"));
-    }
-
-    @Test
     void allReturnsEveryCommandUnfiltered() {
         // The command palette (Ctrl+P) sources its commands from all(); completeWithDescriptions("") returns nothing
         // because "" fails the slash-prefix guard, which used to leave the palette with zero commands.

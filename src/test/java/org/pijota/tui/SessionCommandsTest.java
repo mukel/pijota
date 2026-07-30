@@ -35,17 +35,6 @@ class SessionCommandsTest {
     }
 
     @Test
-    void cloneSessionRefusedWhenBusy() {
-        var host = new FakeHost();
-        host.busy = true;
-        var sc = new SessionCommands(host);
-
-        sc.cloneSession();
-
-        assertTrue(host.lines.get(0).contains("unavailable"));
-    }
-
-    @Test
     void deleteSessionShowsErrorWhenBlank() {
         var host = new FakeHost();
         var sc = new SessionCommands(host);
@@ -63,43 +52,6 @@ class SessionCommandsTest {
         sc.deleteSession("/delete");
 
         assertTrue(host.lines.get(0).contains("usage"));
-    }
-
-    @Test
-    void showSessionInfoIncludesProviderAndModel() {
-        var host = new FakeHost();
-        var sc = new SessionCommands(host);
-
-        sc.showSessionInfo();
-
-        String joined = String.join(" ", host.lines);
-        assertTrue(joined.contains("openai"));
-        assertTrue(joined.contains("gpt-4"));
-        assertTrue(joined.contains("thinking off"));
-    }
-
-    @Test
-    void showSessionInfoIncludesSessionNameWhenSet() {
-        var host = new FakeHost();
-        host.sessionName = "my-session";
-        var sc = new SessionCommands(host);
-
-        sc.showSessionInfo();
-
-        String joined = String.join(" ", host.lines);
-        assertTrue(joined.contains("my-session"));
-    }
-
-    @Test
-    void showSessionInfoOmitsNameWhenNull() {
-        var host = new FakeHost();
-        host.sessionName = null;
-        var sc = new SessionCommands(host);
-
-        sc.showSessionInfo();
-
-        String joined = String.join(" ", host.lines);
-        assertFalse(joined.contains("name"));
     }
 
     @Test
@@ -246,15 +198,6 @@ class SessionCommandsTest {
         new SessionCommands(host).copyLastResponse();
 
         assertTrue(String.join(" ", host.lines).contains("no assistant response"), host.lines.toString());
-    }
-
-    @Test
-    void cloneSessionWithoutAnActiveFileReportsNoSession() {
-        var host = hostWith(false); // --no-session => sessionFile() is null
-
-        new SessionCommands(host).cloneSession();
-
-        assertTrue(String.join(" ", host.lines).contains("no active session"), host.lines.toString());
     }
 
     private static final class FakeHost implements SessionCommands.Host {
