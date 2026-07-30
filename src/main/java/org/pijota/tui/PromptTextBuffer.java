@@ -96,11 +96,23 @@ final class PromptTextBuffer {
         return Effect.CLEAR_COMPLETIONS;
     }
 
+    // Cursor/edit steps span a whole code point, so an astral character (emoji, rare CJK — a UTF-16 surrogate pair)
+    // is never split into a lone surrogate. Splitting one corrupts the text (renders as "?") and produces an invalid
+    // string that can break JSON/UTF-8 encoding when the prompt is sent.
+    private static int stepBefore(String s, int i) {
+        return Character.charCount(s.codePointBefore(i));
+    }
+
+    private static int stepAt(String s, int i) {
+        return Character.charCount(s.codePointAt(i));
+    }
+
     Effect backspace() {
         if (col > 0) {
             String line = lines.get(row);
-            lines.set(row, line.substring(0, col - 1) + line.substring(col));
-            col--;
+            int step = stepBefore(line, col);
+            lines.set(row, line.substring(0, col - step) + line.substring(col));
+            col -= step;
             desiredCol = -1;
             return Effect.REFRESH_COMPLETIONS;
         }
@@ -113,7 +125,7 @@ final class PromptTextBuffer {
     Effect delete() {
         String line = lines.get(row);
         if (col < line.length()) {
-            lines.set(row, line.substring(0, col) + line.substring(col + 1));
+            lines.set(row, line.substring(0, col) + line.substring(col + stepAt(line, col)));
             desiredCol = -1;
             return Effect.REFRESH_COMPLETIONS;
         }
@@ -125,7 +137,7 @@ final class PromptTextBuffer {
 
     Effect left() {
         if (col > 0)
-            col--;
+            col -= stepBefore(lines.get(row), col);
         else if (row > 0) {
             row--;
             col = lines.get(row).length();
@@ -137,7 +149,7 @@ final class PromptTextBuffer {
 
     Effect right() {
         if (col < lines.get(row).length())
-            col++;
+            col += stepAt(lines.get(row), col);
         else if (row < lines.size() - 1) {
             row++;
             col = 0;

@@ -8,6 +8,32 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PromptTextBufferTest {
     @Test
+    void editsStepOverAstralCharactersWithoutSplittingSurrogatePairs() {
+        // 🎉 (U+1F389) is a UTF-16 surrogate pair. Backspace/delete/cursor must treat it as one unit — deleting half
+        // leaves a lone surrogate that renders as "?" and makes the prompt an invalid string.
+        var buffer = new PromptTextBuffer();
+        buffer.insertText("a🎉b"); // a🎉b
+
+        buffer.backspace(); // delete 'b'
+        assertEquals("a🎉", buffer.text());
+        buffer.backspace(); // one press deletes the whole emoji, not half of it
+        assertEquals("a", buffer.text());
+
+        var forward = new PromptTextBuffer();
+        forward.insertText("🎉x"); // 🎉x
+        forward.home();
+        forward.delete();
+        assertEquals("x", forward.text(), "forward delete removes the whole emoji");
+
+        var move = new PromptTextBuffer();
+        move.insertText("🎉"); // 🎉, cursor at end (col == 2)
+        move.left();
+        assertEquals(0, move.col(), "left steps over the whole surrogate pair");
+        move.right();
+        assertEquals(2, move.col(), "right steps over the whole surrogate pair");
+    }
+
+    @Test
     void insertsMovesAndDeletesWords() {
         var buffer = new PromptTextBuffer();
 
