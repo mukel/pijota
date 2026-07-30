@@ -1971,7 +1971,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var items = new ArrayList<TreeEntryItem>();
         for (var entry : entries) {
             String id = String.valueOf(entry.getOrDefault("id", ""));
-            if (!id.isBlank())
+            if (!id.isBlank() && !TreeEntryItem.isInternalMetadata(entry))
                 items.add(TreeEntryItem.from(entry, id.equals(leaf)));
         }
         if (items.isEmpty())
