@@ -392,10 +392,10 @@ public final class WebServer implements AutoCloseable {
                 session.followUp(t);
             } else {
                 broadcast("user", userEvent(t, attachments)); // thumbnails + named chips in the user bubble
-                session.prompt(t, attachments).exceptionally(err -> {
-                    broadcast("agent_error", Map.of("message", ErrorUtil.message(err)));
-                    return List.of();
-                });
+                // A failed turn is already reported to the browser by onEvent(AgentEvent.Error) (which also clears the
+                // spinner); just swallow here so the future can't surface as an uncaught exception. Re-broadcasting
+                // would show the error toast twice.
+                session.prompt(t, attachments).exceptionally(err -> List.of());
             }
         }
         send(ex, 204, "text/plain", new byte[0]);

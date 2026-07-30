@@ -424,6 +424,26 @@ class WebServerTest {
     }
 
     @Test
+    void aFailedTurnBroadcastsExactlyOneErrorToTheBrowser() throws Exception {
+        withServer((ts, client, base) -> {
+            ts.llm().enqueueError(new RuntimeException("boom")); // RuntimeException is non-retryable → one clean failure
+            var events = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
+                                            HttpResponse.BodyHandlers.ofInputStream());
+            readUntil(events.body(), "event: history", Duration.ofSeconds(5)); // drain initial replay frames
+
+            client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"fail please\"}"))
+                                            .build(), HttpResponse.BodyHandlers.ofString());
+
+            // Read through the whole failed-turn lifecycle — the spinner-clearing busy:false comes last. The turn error
+            // must surface as exactly ONE agent_error, not two (onEvent(Error) + a redundant handlePrompt broadcast).
+            String frames = readUntil(events.body(), "\"busy\":false", Duration.ofSeconds(5));
+            long errors = frames.lines().filter(l -> l.contains("event: agent_error")).count();
+            assertEquals(1, errors, "a failed turn must surface exactly one error toast: " + frames);
+        });
+    }
+
+    @Test
     void historyFrameReplaysAPriorTurnsMessages() throws Exception {
         var ts = TestSession.in(tempDir).tool(echoTool()).build();
         int port = freePort();
