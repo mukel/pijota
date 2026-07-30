@@ -118,6 +118,14 @@ final class SlashCommandRegistry {
                                         .toList();
     }
 
+    /**
+     * Every command, unfiltered. For the command palette, which lists all commands rather than completing a typed "/"
+     * prefix — {@link #completeWithDescriptions} returns nothing for a non-slash (e.g. empty) query by design.
+     */
+    public List<CompletionItem> all() {
+        return commands; // already an immutable List.copyOf
+    }
+
     public List<CompletionItem> completeWithDescriptions(String text) {
         if (text == null || !text.startsWith("/"))
             return List.of();

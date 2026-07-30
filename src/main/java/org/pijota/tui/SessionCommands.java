@@ -394,7 +394,7 @@ final class SessionCommands {
     void showSessionInfo() {
         host.refreshSessionName();
         host.appendPlain(List.of(host.styled("toolLabel", "session"),
-                                        host.styled("statusText", "provider  " + host.provider()),
+                                        host.styled("statusText", "provider " + host.provider()),
                                         host.styled("statusText", "model    " + host.model()),
                                         host.styled("statusText", "cwd      " + host.cwd()),
                                         host.styled("statusText", "tokens   " + host.tokenStatus()),

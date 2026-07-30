@@ -768,7 +768,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // ---- command palette ----
         @Override
         public List<CompletionItem> commands() {
-            return commands.completeWithDescriptions("");
+            return commands.all(); // the palette lists every command; "" would hit the slash-prefix guard and return none
         }
 
         @Override

@@ -24,6 +24,18 @@ class SlashCommandRegistryTest {
     }
 
     @Test
+    void allReturnsEveryCommandUnfiltered() {
+        // The command palette (Ctrl+P) sources its commands from all(); completeWithDescriptions("") returns nothing
+        // because "" fails the slash-prefix guard, which used to leave the palette with zero commands.
+        var all = registry.all();
+
+        assertTrue(all.size() > 20, "expected the full command set, got " + all.size());
+        assertTrue(all.stream().anyMatch(c -> c.name().equals("/help")));
+        assertTrue(all.stream().anyMatch(c -> c.name().equals("/theme")));
+        assertTrue(registry.completeWithDescriptions("").isEmpty(), "empty query still returns nothing (guard intact)");
+    }
+
+    @Test
     void descriptionsAreReturnedWithCompletionItems() {
         var matches = registry.completeWithDescriptions("/load");
 
