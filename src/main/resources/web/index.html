@@ -474,7 +474,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // empty conversation → centered greeting + composer; first message drops it to the bottom (auto-tracked).
   // The composer glides between the two positions via a FLIP: measure the input's box before and after the
   // layout flip, then animate the inverse transform back to zero (GPU transform only, no layout thrash).
-  const composerInner = $(".composer .inner");
+  const composer = $(".composer"), composerInner = $(".composer .inner");
   const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   let isEmpty = null; // null until first sync, so the initial state doesn't animate
   function setEmpty(empty) {
@@ -804,14 +804,16 @@ window.addEventListener("DOMContentLoaded", () => {
       return card;
     });
   }
+  // fallback for unparseable / non-object tool args: show the raw text verbatim in a <pre>
+  function rawPre(text) { const pre = document.createElement("pre"); pre.textContent = text || ""; return pre; }
   // Render a tool's args as a clean key/value list. Returns null when there's nothing worth showing — notably when the
   // summary detail already conveys the args (e.g. bash's {command} == the header command), so we don't repeat it as JSON.
   function renderToolArgs(name, argsJson, detail) {
     if (name === "question") return renderQuestionArgs(argsJson);
     const raw = (argsJson || "").trim();
     if (!raw || raw === "{}") return null;
-    let data; try { data = JSON.parse(raw); } catch { const pre = document.createElement("pre"); pre.textContent = raw; return pre; }
-    if (!data || typeof data !== "object" || Array.isArray(data)) { const pre = document.createElement("pre"); pre.textContent = raw; return pre; }
+    let data; try { data = JSON.parse(raw); } catch { return rawPre(raw); }
+    if (!data || typeof data !== "object" || Array.isArray(data)) return rawPre(raw);
     const det = (detail || "").trim();
     const entries = Object.entries(data).filter(([, v]) => {
       const s = typeof v === "string" ? v.trim() : JSON.stringify(v);
@@ -831,11 +833,11 @@ window.addEventListener("DOMContentLoaded", () => {
   // Render the question tool's args as a readable list (question text + options), falling back to raw JSON if it can't parse.
   function renderQuestionArgs(argsJson) {
     let data;
-    try { data = JSON.parse(argsJson || "{}"); } catch { const pre = document.createElement("pre"); pre.textContent = argsJson || ""; return pre; }
+    try { data = JSON.parse(argsJson || "{}"); } catch { return rawPre(argsJson); }
     const list = Array.isArray(data.questions) && data.questions.length ? data.questions
                : (data.question || data.text) ? [{ question: data.question || data.text, header: data.header, options: data.options, multiple: data.multiple }]
                : [];
-    if (!list.length) { const pre = document.createElement("pre"); pre.textContent = argsJson || ""; return pre; }
+    if (!list.length) return rawPre(argsJson);
     const box = document.createElement("div"); box.className = "qcard";
     list.forEach((q, i) => {
       const block = document.createElement("div"); block.className = "qcard-q";
@@ -1037,11 +1039,11 @@ window.addEventListener("DOMContentLoaded", () => {
       if (it.kind === "file") { const f = it.getAsFile(); if (f) { e.preventDefault(); addFile(f); } }
   });
   ["dragenter", "dragover"].forEach(ev => composerInner.addEventListener(ev,
-                                  e => { e.preventDefault(); $(".composer").classList.add("dragover"); }));
-  composerInner.addEventListener("dragleave", () => $(".composer").classList.remove("dragover"));
+                                  e => { e.preventDefault(); composer.classList.add("dragover"); }));
+  composerInner.addEventListener("dragleave", () => composer.classList.remove("dragover"));
   composerInner.addEventListener("drop", e => {
     e.preventDefault();
-    $(".composer").classList.remove("dragover");
+    composer.classList.remove("dragover");
     const files = e.dataTransfer && e.dataTransfer.files;
     if (files) for (const f of files) addFile(f);
   });
