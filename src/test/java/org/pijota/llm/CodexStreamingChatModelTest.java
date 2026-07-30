@@ -18,7 +18,9 @@ import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
@@ -335,6 +337,21 @@ class CodexStreamingChatModelTest {
         assertEquals("user", result.get(0).get("role").asText());
         assertEquals("message", result.get(1).get("type").asText());
         assertEquals("assistant", result.get(1).get("role").asText());
+    }
+
+    @Test
+    void userMessageSendsImagesAsInputImageNotText() {
+        // Regression: an attached image must become an "input_image" content part (data URI), not be stringified into
+        // "input_text" — the model can't read raw base64 in a text field (it echoed base64 garbage).
+        var user = UserMessage.from(TextContent.from("what is this?"), ImageContent.from("aGVsbG8=", "image/png"));
+
+        var content = CodexStreamingChatModel.userMessageItem(user).get("content");
+
+        assertEquals(2, content.size());
+        assertEquals("input_text", content.get(0).get("type").asText());
+        assertEquals("what is this?", content.get(0).get("text").asText());
+        assertEquals("input_image", content.get(1).get("type").asText());
+        assertEquals("data:image/png;base64,aGVsbG8=", content.get(1).get("image_url").asText());
     }
 
     @Test

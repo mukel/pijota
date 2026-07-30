@@ -10,7 +10,9 @@ import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.StreamingChatModel;
@@ -151,7 +153,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             if (message instanceof SystemMessage)
                 continue;
             if (message instanceof UserMessage user) {
-                input.add(messageItem("message", "user", userText(user)));
+                input.add(userMessageItem(user));
             } else if (message instanceof AiMessage ai) {
                 if (ai.text() != null && !ai.text().isBlank()) {
                     input.add(messageItem("message", "assistant", ai.text()));
@@ -177,10 +179,35 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         return input;
     }
 
-    static String userText(UserMessage user) {
-        if (user.hasSingleText())
-            return user.singleText();
-        return user.contents().stream().map(Object::toString).reduce((a, b) -> a + "\n" + b).orElse("");
+    // A user message is a Responses-API content array of typed parts. Images MUST be their own "input_image" part
+    // (a data URI / URL) — the old code stringified every part into one "input_text", so an attached image reached the
+    // model as raw base64 text it can't read (it echoed base64 garbage). Text parts stay "input_text".
+    static ObjectNode userMessageItem(UserMessage user) {
+        var item = Util.MAPPER.createObjectNode();
+        item.put("type", "message");
+        item.put("role", "user");
+        var content = Util.MAPPER.createArrayNode();
+        for (var part : user.contents()) {
+            if (part instanceof ImageContent image)
+                content.add(Util.MAPPER.createObjectNode().put("type", "input_image").put("image_url",
+                                                imageUrl(image)));
+            else if (part instanceof TextContent text)
+                content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text", text.text()));
+            else // audio/pdf/video have no Responses-API form here — best-effort text so the turn still goes through
+                content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text",
+                                                String.valueOf(part)));
+        }
+        if (content.isEmpty())
+            content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text", ""));
+        item.set("content", content);
+        return item;
+    }
+
+    static String imageUrl(ImageContent image) {
+        var img = image.image();
+        if (img.url() != null)
+            return img.url().toString();
+        return "data:" + img.mimeType() + ";base64," + img.base64Data();
     }
 
     static ObjectNode messageItem(String type, String role, String text) {
