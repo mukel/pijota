@@ -35,6 +35,17 @@ class PijotaSessionTest {
     }
 
     @Test
+    void sanitizeNameCollapsesControlCharsToSingleLine() {
+        // A /name value with a newline/tab/ESC must not corrupt the single-line status bar (or inject ANSI into it).
+        assertEquals("my session", PijotaSession.sanitizeName("my\nsession"));
+        assertEquals("a b", PijotaSession.sanitizeName("a\t\tb"));
+        assertEquals("clean", PijotaSession.sanitizeName("  clean  "));
+        assertEquals("x [31m y", PijotaSession.sanitizeName("x\u001b[31m y")); // ESC gone: no ANSI injection
+        assertNull(PijotaSession.sanitizeName("   \n\t "));
+        assertNull(PijotaSession.sanitizeName(null));
+    }
+
+    @Test
     void constructorCreatesSessionFileByDefault() throws Exception {
         var session = createSession(false);
 

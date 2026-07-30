@@ -425,7 +425,19 @@ public final class PijotaSession implements AutoCloseable {
     public void setSessionName(String name) throws IOException {
         if (sessionFile == null)
             throw new IOException("No active session");
-        sessionManager.appendSessionInfo(sessionFile, name);
+        sessionManager.appendSessionInfo(sessionFile, sanitizeName(name));
+    }
+
+    /**
+     * A session name must be a single plain line: collapse every control char — newlines and tabs (which would wrap
+     * the status bar onto extra lines) and ESC (which could otherwise inject ANSI into it) — to spaces, squeeze runs,
+     * and trim. Blank ⇒ null (name cleared).
+     */
+    public static String sanitizeName(String name) {
+        if (name == null)
+            return null;
+        String cleaned = name.replaceAll("\\p{Cntrl}+", " ").strip().replaceAll(" {2,}", " ");
+        return cleaned.isEmpty() ? null : cleaned;
     }
 
     public String sessionName() throws IOException {
