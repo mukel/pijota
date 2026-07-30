@@ -354,16 +354,16 @@ public final class LlmService implements LlmClient {
     }
 
     private StreamingChatModel lc4jModel() {
-        var providerModel = ModelRegistry.resolveProviderModel(providerName, modelName, null);
-        String effectiveModel = providerModel.model();
-        String effectiveProvider = providerModel.provider();
-        var key = new ModelCacheKey(effectiveProvider, effectiveModel, lastResolvedKey, thinkingLevel);
-        return modelCache.computeIfAbsent(key, cacheKey -> {
-            var factory = ProviderFactory.resolve(cacheKey.provider(), customProviders);
-            String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(cacheKey.provider());
-            return factory.create(url, cacheKey.apiKey(), cacheKey.model(), cacheKey.provider(),
-                                            cacheKey.thinkingLevel());
-        });
+        var pm = ModelRegistry.resolveProviderModel(providerName, modelName, null);
+        var key = new ModelCacheKey(pm.provider(), pm.model(), lastResolvedKey, thinkingLevel);
+        return modelCache.computeIfAbsent(key, ck -> createModel(ck.provider(), ck.model(), ck.apiKey()));
+    }
+
+    /** Builds a model handle from an already-resolved provider+model+key — the shared tail of both resolution paths. */
+    private StreamingChatModel createModel(String provider, String model, String key) {
+        var factory = ProviderFactory.resolve(provider, customProviders);
+        String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(provider);
+        return factory.create(url, key, model, provider, thinkingLevel);
     }
 
     public void abort() {
@@ -424,11 +424,7 @@ public final class LlmService implements LlmClient {
             effectiveModel = modelName; // never hand a null/blank model to a provider (e.g. Codex 400s on "the 'null'
                                         // model")
         String key = apiKeyResolver.apply(effectiveProvider);
-        if (key == null)
-            key = "";
-        var factory = ProviderFactory.resolve(effectiveProvider, customProviders);
-        String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(effectiveProvider);
-        return factory.create(url, key, effectiveModel, effectiveProvider, thinkingLevel);
+        return createModel(effectiveProvider, effectiveModel, key != null ? key : "");
     }
 
     public String provider() {
