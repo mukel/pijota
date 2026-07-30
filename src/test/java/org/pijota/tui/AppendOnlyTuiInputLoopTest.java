@@ -74,7 +74,7 @@ class AppendOnlyTuiInputLoopTest {
             Thread.sleep(80); // > the 20ms escape-sequence timeout, so ESC is read standalone
             feeder.write(CTRL_D); // Ctrl+D on an empty prompt → clean exit
             feeder.flush();
-            finished.get(10, TimeUnit.SECONDS); // run() must return, not hang
+            finished.get(30, TimeUnit.SECONDS); // run() must return, not hang (generous: a starved CI still isn't a hang)
         } finally {
             tui.close();
         }
@@ -189,7 +189,7 @@ class AppendOnlyTuiInputLoopTest {
 
             feeder.write(CTRL_D);
             feeder.flush();
-            finished.get(10, TimeUnit.SECONDS);
+            finished.get(30, TimeUnit.SECONDS);
         } finally {
             tui.close();
         }

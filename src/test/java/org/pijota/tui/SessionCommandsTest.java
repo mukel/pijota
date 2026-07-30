@@ -200,6 +200,28 @@ class SessionCommandsTest {
     }
 
     @Test
+    void exportWithFormatTokenAndPathWritesToThatPath() {
+        var host = hostWith(true);
+        Path out = tempDir.resolve("exp.md");
+
+        // "/export md <path>" — the leading format token must be parsed off, not folded into the filename.
+        new SessionCommands(host).exportSession("/export md " + out);
+
+        assertTrue(Files.exists(out), host.lines.toString());
+        assertTrue(String.join(" ", host.lines).contains("exported to"), host.lines.toString());
+    }
+
+    @Test
+    void exportWithFormatOnlyUsesDefaultFilename() {
+        var host = hostWith(true);
+
+        new SessionCommands(host).exportSession("/export md"); // format, no path → default name, not a file named "md"
+
+        assertFalse(Files.exists(Path.of(host.session().cwd()).resolve("md")), "must not name the file 'md'");
+        assertTrue(String.join(" ", host.lines).contains("exported to"), host.lines.toString());
+    }
+
+    @Test
     void showUsageReportsCumulativeTokens() {
         var host = hostWith(true);
 

@@ -263,15 +263,22 @@ final class SessionCommands {
             return;
         }
         String arg = input.startsWith("/export") ? input.substring("/export".length()).trim() : input.trim();
-        boolean html = "html".equalsIgnoreCase(arg) || arg.toLowerCase(Locale.ROOT).endsWith(".html");
+        // Optional leading format token — "/export md <path>" / "/export html <path>" (the documented [md|html] [path]
+        // form). Without it, infer the format from the path's extension, else default to markdown.
+        String format = null;
+        String path = arg;
+        var parts = arg.split("\\s+", 2);
+        if (parts[0].equalsIgnoreCase("md") || parts[0].equalsIgnoreCase("html")) {
+            format = parts[0].toLowerCase(Locale.ROOT);
+            path = parts.length == 2 ? parts[1].trim() : "";
+        }
+        boolean html = "html".equals(format) || (format == null && path.toLowerCase(Locale.ROOT).endsWith(".html"));
         try {
             String base = host.session().sessionFile().getFileName().toString().replace(".jsonl", "");
             // Resolve against the session's working directory (where pijota was launched) — the threaded cwd, not the
             // global user.dir property — so it's consistent with the rest of the app and isolatable in tests. resolve()
-            // leaves an absolute arg untouched, so an explicit /export /abs/path still lands exactly there.
-            String name = arg.isBlank() || "html".equalsIgnoreCase(arg)
-                                            ? base + "-export." + (html ? "html" : "md")
-                                            : arg;
+            // leaves an absolute path untouched, so an explicit /export /abs/path still lands exactly there.
+            String name = path.isBlank() ? base + "-export." + (html ? "html" : "md") : path;
             Path out = Path.of(host.session().cwd()).resolve(name);
             String content = html
                                             ? SessionExporter.toHtml(host.session().sessionFile())
