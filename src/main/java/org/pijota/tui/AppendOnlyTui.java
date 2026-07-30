@@ -1738,7 +1738,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         switchToModel(new ModelInfo(target.model(), target.provider(), target.provider() + "/" + target.model(), ctx));
     }
 
-    private void switchToModel(ModelInfo chosen) {
+    void switchToModel(ModelInfo chosen) {
         String key = settings != null ? settings.resolveApiKey(chosen.provider()) : null;
         if (key == null || (key.isBlank() && SettingsManager.requiresApiKey(chosen.provider()))) {
             appendPlain(List.of(theme.styled("toolError", "no API key for " + chosen.provider())));
@@ -1829,7 +1829,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         agentExecutor.submit(() -> {
             try {
                 if (!session.compact(instructions)) {
-                    appendPlain(List.of(theme.styled("statusText", "nothing to compact yet")));
+                    // Say why nothing happened: compaction is threshold-gated, so a small context has nothing to shed.
+                    appendPlain(List.of(theme.styled("statusText", "nothing to compact yet — context is "
+                                                    + promptPresenter.tokenStatus() + "; compaction kicks in near the "
+                                                    + "context limit")));
                 }
             } catch (Exception e) {
                 appendPlain(List.of(theme.styled("toolError", "compact failed: " + e.getMessage())));

@@ -68,8 +68,19 @@ final class TuiCommandController {
             return;
         }
         var matches = searchModels(arg);
-        if (matches.isEmpty())
+        if (matches.isEmpty()) {
             tui.appendError("no models match \"" + arg + "\"");
+            return;
+        }
+        // An unambiguous argument switches directly — an exact id/name match, or a single fuzzy hit — instead of
+        // opening a one-item picker that needs a second Enter. Ambiguous prefixes still open the selector to choose.
+        var exact = matches.stream()
+                                        .filter(m -> m.id().equalsIgnoreCase(arg) || m.displayName().equalsIgnoreCase(arg))
+                                        .findFirst();
+        if (exact.isPresent())
+            tui.switchToModel(exact.get());
+        else if (matches.size() == 1)
+            tui.switchToModel(matches.getFirst());
         else
             tui.showModelSelector(matches);
     }

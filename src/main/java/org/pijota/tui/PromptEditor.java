@@ -140,6 +140,8 @@ public final class PromptEditor {
 
     private Result right() {
         undoStack.breakRun();
+        if (canAcceptSuggestion())
+            return acceptSuggestion();
         return applyEffect(buffer.right());
     }
 
@@ -160,7 +162,22 @@ public final class PromptEditor {
 
     private Result end() {
         undoStack.breakRun();
+        if (canAcceptSuggestion())
+            return acceptSuggestion();
         return applyEffect(buffer.end());
+    }
+
+    // The inline ghost suggestion is accepted by →/End at the very end of the buffer (fish/zsh-autosuggestions feel).
+    // A suggestion only exists when the cursor is already at the end, so →/End have no cursor movement left to do here
+    // and accepting is the sensible action — including for a command ghost ("/mod" → "/model") while its menu is open,
+    // since →/End don't drive the dropdown (Up/Down/Enter/Tab do).
+    private boolean canAcceptSuggestion() {
+        return !suggestion.isEmpty() && buffer.cursorAtEndOfBuffer();
+    }
+
+    private Result acceptSuggestion() {
+        String suffix = suggestion;
+        return mutating(UndoStack.Kind.OTHER, () -> buffer.insertText(suffix));
     }
 
     /**

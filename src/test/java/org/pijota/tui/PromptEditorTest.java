@@ -105,6 +105,37 @@ class PromptEditorTest {
     }
 
     @Test
+    void rightArrowAtEndAcceptsTheGhostSuggestion() {
+        // Typing "/mod" shows a dimmed ghost completing to "/model"; → (or End) at the end accepts it (fish-style).
+        editor.insertText("/mod");
+        assertEquals("el", editor.suggestion(), "ghost suggests the '/model' completion");
+
+        editor.apply(Key.Special.RIGHT);
+
+        assertEquals("/model", editor.text());
+    }
+
+    @Test
+    void endKeyAtEndAlsoAcceptsTheGhostSuggestion() {
+        editor.insertText("/mod");
+
+        editor.apply(Key.Special.END);
+
+        assertEquals("/model", editor.text());
+    }
+
+    @Test
+    void rightArrowWithoutASuggestionJustMovesTheCursor() {
+        editor.insertText("abc");
+        editor.apply(Key.Special.LEFT); // cursor between b and c, no suggestion
+
+        var result = editor.apply(Key.Special.RIGHT);
+
+        assertEquals("abc", editor.text(), "no ghost → plain cursor move, text unchanged");
+        assertFalse(result.submitted().isPresent());
+    }
+
+    @Test
     void enterSubmitsCommandTokenNotTheArgSpecPlaceholder() {
         // Typing a command and pressing Enter with the completion menu open must submit the command token, not the
         // display name with placeholders — otherwise "/save" would submit "/save [path]" and treat "[path]" as an arg.
