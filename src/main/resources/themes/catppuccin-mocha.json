@@ -34,7 +34,7 @@
     "muted": "gray",
     "dim": "gray",
     "text": "",
-    "thinkingText": "gray",
+    "thinkingText": "#a6adc8",
     "selectedBg": "panelInfo",
     "userMessageBg": "panel",
     "userMessageText": "",

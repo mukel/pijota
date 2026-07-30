@@ -30,7 +30,7 @@
     "muted": "fgDim",
     "dim": "gray",
     "text": "fg",
-    "thinkingText": "gray",
+    "thinkingText": "fgDim",
     "selectedBg": "bg2",
     "userMessageBg": "userBg",
     "userMessageText": "fg",
