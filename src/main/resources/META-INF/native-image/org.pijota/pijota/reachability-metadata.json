@@ -8,121 +8,121 @@
       "type": "org.pijota.agent.HeadlessAgentRunner$DoneEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.agent.HeadlessAgentRunner$LogEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.agent.HeadlessAgentRunner$StreamEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.agent.HeadlessAgentRunner$StreamLinesEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.agent.HeadlessAgentRunner$ToolEndEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.agent.HeadlessAgentRunner$ToolResultEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.agent.HeadlessAgentRunner$ToolStartEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.config.AppConfig",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.config.AppConfig$CompactionConfig",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.config.PromptGlyphs",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.config.OAuthTokenStore$Entry",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.config.ProviderCatalog$Catalog",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.config.ProviderCatalog$OAuth",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.config.ProviderCatalog$Provider",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.llm.ModelInfo",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.llm.ModelRegistry$ModelCatalog",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.llm.ProviderCatalog$Catalog",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.llm.ProviderCatalog$OAuth",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.llm.ProviderCatalog$Provider",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.theme.AnsiTheme",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "ch.qos.logback.classic.encoder.PatternLayoutEncoder",
@@ -1191,157 +1191,157 @@
       "type": "org.pijota.config.TrustStore$TrustData",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.extensions.mcp.McpConfig$RawConfig",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.extensions.mcp.McpConfig$RawServer",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.extensions.tmux.TmuxSession",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.llm.ModelInfo$PricingTier",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$BotCommand",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$CallbackAnswerReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$CallbackQuery",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$ChatActionReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$DescriptionReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$EditMessageReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$GetFileReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$GetUpdatesReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$InlineKeyboard",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$InlineKeyboard$Button",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$LinkPreviewOptions",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$PhotoSize",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$SendMessageReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$SetCommandsReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$ShortDescriptionReq",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$TgChat",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$TgFile",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$TgMessage",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.telegram.TelegramClient$Update",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.worktree.WorktreePool$Entry",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     },
     {
       "type": "org.pijota.worktree.WorktreePool$Registry",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
-      "allPublicConstructors": true
+      "allDeclaredConstructors": true
     }
   ]
 }
