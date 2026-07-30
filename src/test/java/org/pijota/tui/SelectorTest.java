@@ -48,6 +48,20 @@ class SelectorTest {
     }
 
     @Test
+    void filteringBackFromNoMatchesResetsSelectionFromNegative() {
+        // Repro for "Index -1 out of bounds": a no-match search sets selected=-1; when a later query matches again,
+        // selected must snap back to a valid index rather than stay -1 (which crashed selectedItem() every keypress).
+        var s = new Selector<>(List.of(A, B, C));
+        s.activate("");
+        s.filter("zzz"); // no matches
+        assertEquals(-1, s.selectionIndex());
+        s.filter("a"); // matches A again
+        assertEquals(0, s.selectionIndex());
+        assertDoesNotThrow(s::selectedItem);
+        assertEquals("A", s.selectedItem().titleText());
+    }
+
+    @Test
     void selectNextAndPrevCycleThroughFilteredItems() {
         var s = new Selector<>(List.of(A, B, C));
         s.activate("");

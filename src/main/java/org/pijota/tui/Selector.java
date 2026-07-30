@@ -72,8 +72,9 @@ final class Selector<T extends SelectorItem> {
             selected = -1;
             return;
         }
-        if (selected >= visibleIndices.size())
-            selected = Math.max(0, visibleIndices.size() - 1);
+        // Clamp into range whenever there are matches: a prior empty filter leaves selected at -1, and a shrunk list
+        // leaves it past the end — both must snap back to a valid index (else selectedItem() does get(-1)/get(oob)).
+        selected = Math.max(0, Math.min(selected, visibleIndices.size() - 1));
     }
 
     void selectNext() {
