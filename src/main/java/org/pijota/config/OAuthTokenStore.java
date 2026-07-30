@@ -100,7 +100,13 @@ public final class OAuthTokenStore {
         try {
             Files.createDirectories(authFile.getParent());
             Util.restrictToOwner(authFile.getParent());
-            Util.MAPPER.writerWithDefaultPrettyPrinter().writeValue(authFile.toFile(), tokens);
+            // Atomic write (tmp + rename): a crash or full disk mid-write must never truncate auth.json — a corrupt
+            // file reads as empty and silently logs out every OAuth provider (refresh tokens lost).
+            String json = Util.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(tokens);
+            Path tmp = authFile.resolveSibling(authFile.getFileName() + ".tmp");
+            Files.writeString(tmp, json);
+            Util.restrictToOwner(tmp);
+            Util.replaceFile(tmp, authFile);
             Util.restrictToOwner(authFile); // OAuth access/refresh tokens — owner-only
         } catch (IOException e) {
             logger.warn("Failed to persist auth tokens: {}", e.getMessage());

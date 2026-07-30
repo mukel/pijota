@@ -48,8 +48,13 @@ public final class TrustStore {
         try {
             Files.createDirectories(file.getParent());
             Util.restrictToOwner(file.getParent());
-            Util.MAPPER.writerWithDefaultPrettyPrinter().writeValue(file.toFile(),
-                                            new TrustData(new ArrayList<>(trusted)));
+            // Atomic write (tmp + rename): a crash mid-write must never truncate trust.json.
+            String json = Util.MAPPER.writerWithDefaultPrettyPrinter()
+                                            .writeValueAsString(new TrustData(new ArrayList<>(trusted)));
+            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+            Files.writeString(tmp, json);
+            Util.restrictToOwner(tmp);
+            Util.replaceFile(tmp, file);
             Util.restrictToOwner(file);
         } catch (Exception ignored) {}
     }
