@@ -8,9 +8,8 @@ import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
+import org.pijota.util.Clipboard;
 
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -250,13 +249,12 @@ final class SessionCommands {
             host.appendPlain(List.of(host.styled("toolError", "no assistant response to copy")));
             return;
         }
-        try {
-            var clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-            clipboard.setContents(new StringSelection(last), null);
+        if (Clipboard.copy(last))
             host.appendPlain(List.of(host.styled("statusText", "copied last response to clipboard")));
-        } catch (Exception e) {
-            host.appendPlain(List.of(host.styled("toolError", "clipboard unavailable: " + e.getMessage())));
-        }
+        else
+            host.appendPlain(List.of(host.styled("toolError",
+                                            "clipboard unavailable (needs pbcopy on macOS, clip on Windows, or "
+                                                                            + "wl-copy/xclip/xsel on Linux)")));
     }
 
     void exportSession(String input) {
