@@ -243,8 +243,8 @@ public final class LlmService implements LlmClient {
                 String ptText = pt.text();
                 if (ptText != null) {
                     markFirstToken();
+                    thinkingBuf.append(ptText); // guard the append too — a null delta must not add the literal "null"
                 }
-                thinkingBuf.append(ptText);
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
 

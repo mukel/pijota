@@ -87,6 +87,7 @@ public final class WebServer implements AutoCloseable {
                                     .newSingleThreadScheduledExecutor(daemon("pijota-web-hb"));
 
     private HttpServer http;
+    private java.util.concurrent.ExecutorService httpExecutor;
 
     /**
      * @param commands
@@ -173,7 +174,8 @@ public final class WebServer implements AutoCloseable {
         http.createContext("/commands", secured(this::handleCommands));
         http.createContext("/vendor/", secured(this::serveVendor)); // version-pinned UI libs, served locally (no CDN)
         http.createContext("/", secured(this::serveIndex)); // catch-all: index for "/", 404 otherwise
-        http.setExecutor(Executors.newCachedThreadPool(daemon("pijota-web")));
+        httpExecutor = Executors.newCachedThreadPool(daemon("pijota-web"));
+        http.setExecutor(httpExecutor);
         // guard()ed so a single failure can't cancel the periodic task (scheduleAtFixedRate stops on a thrown
         // exception).
         heartbeat.scheduleAtFixedRate(guard(this::ping), HEARTBEAT_SECONDS, HEARTBEAT_SECONDS, TimeUnit.SECONDS);
@@ -229,6 +231,8 @@ public final class WebServer implements AutoCloseable {
         heartbeat.shutdownNow();
         if (http != null)
             http.stop(0);
+        if (httpExecutor != null)
+            httpExecutor.shutdownNow(); // http.stop(0) leaves its executor running — drop the request-handler pool too
         for (SseClient c : clients)
             c.release();
     }
