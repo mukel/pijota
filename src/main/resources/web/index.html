@@ -188,7 +188,7 @@
   details.think > summary { color: var(--muted); font-size: 12px; padding: 4px 2px; opacity: .7; border-radius: 4px; }
   details.think > summary:hover { background: transparent; color: var(--text); opacity: 1; }
   details.think[open] > summary { opacity: 1; }
-  .think .body { padding: 2px 0 8px 18px; color: var(--muted); font-style: italic; white-space: pre-wrap; line-height: 1.55; }
+  .think .body { padding: 2px 0 8px 18px; color: var(--muted); line-height: 1.55; } /* rendered as markdown (like the answer); muted keeps it quiet */
   /* copy the reasoning straight from the thinking block; revealed on hover/while open, separate from the output copy */
   .think-copy { margin-left: auto; font-family: var(--sans); font-style: normal; font-size: 11px; line-height: 1.4; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, border-color .12s; }
   details.think > summary:hover .think-copy, details.think[open] > summary .think-copy { opacity: 1; }
@@ -739,7 +739,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const d = document.createElement("details"); d.className = "think";
     const sum = document.createElement("summary"); sum.textContent = "Thinking";
     const body = document.createElement("div"); body.className = "body";
-    const copy = copyButton("think-copy", () => body.textContent, "Copy reasoning");
+    const copy = copyButton("think-copy", () => body._md || body.textContent, "Copy reasoning");
     copy.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); }); // copy, don't toggle the block
     // expanding it near the bottom would otherwise leave the revealed reasoning below the fold
     d.addEventListener("toggle", () => { if (d.open) d.scrollIntoView({ block: "nearest", behavior: "smooth" }); });
@@ -765,12 +765,14 @@ window.addEventListener("DOMContentLoaded", () => {
   function updateAssistant(b, content, thinking, isFinal) {
     if (thinking && thinking.trim()) {
       if (!b.thinkBody) b.thinkBody = thinkingBlock(b.wrap);
-      b.thinkBody.textContent = thinking;
+      b.pendingThink = thinking; // rendered as markdown in the rAF below, like the answer (tables, code, highlighting)
     }
     b.pending = content; // always render the newest content when the frame fires (don't drop a later update)
     b.final = !!isFinal;
     if (!b.raf) b.raf = requestAnimationFrame(() => {
-      b.raf = 0; withAutoScroll(() => renderMarkdown(b.content, b.pending, b.final));
+      b.raf = 0;
+      if (b.thinkBody && b.pendingThink != null) renderMarkdown(b.thinkBody, b.pendingThink, b.final);
+      withAutoScroll(() => renderMarkdown(b.content, b.pending, b.final));
       if (b.final) b.msg.setAttribute("aria-busy", "false"); // settled → announce the complete message once
       // once settled, float a copy at the answer's top-right (innerHTML rewrites b.content, so the button lives
       // on the sibling .answer wrapper, not inside it). The thinking block carries its own copy above. Skip it when
