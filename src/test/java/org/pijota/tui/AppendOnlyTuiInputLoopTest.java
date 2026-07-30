@@ -143,6 +143,59 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void overlaysAreCancelableWithEscAndSingleCtrlC() throws Exception {
+        // A selector must never trap the user into choosing: Esc or a single Ctrl+C closes it. Inspect overlay state
+        // between keystrokes (so a custom harness, not driveSession which auto-sends Esc+Ctrl+D).
+        var ts = TestSession.in(tempDir).build();
+        var feeder = new PipedOutputStream();
+        var pipedIn = new PipedInputStream(feeder, 8192);
+        var captured = new ByteArrayOutputStream();
+        Terminal terminal = TerminalBuilder.builder().streams(pipedIn, captured).build();
+        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
+        var tui = new AppendOnlyTui(ts.session(), AnsiTheme.plain(), "openai", "gpt-x", List.of(), settings, List.of(),
+                                        List::of, List.of(), terminal);
+        var finished = new CompletableFuture<Void>();
+        var runner = new Thread(() -> {
+            try {
+                tui.run("9.9.9", tempDir.toString());
+                finished.complete(null);
+            } catch (Throwable t) {
+                finished.completeExceptionally(t);
+            }
+        }, "tui-cancel-test");
+        runner.setDaemon(true);
+        runner.start();
+        try {
+            Thread.sleep(300);
+            // Ctrl+L opens the model selector (a selectors overlay). Esc closes it.
+            feeder.write(12);
+            feeder.flush();
+            Thread.sleep(150);
+            assertTrue(tui.anyOverlayActive(), "Ctrl+L opens the model selector");
+            feeder.write(ESC);
+            feeder.flush();
+            Thread.sleep(150);
+            assertFalse(tui.anyOverlayActive(), "Esc cancels the selector");
+
+            // Reopen — a SINGLE Ctrl+C must also cancel it (previously it fell through to interrupt/exit).
+            feeder.write(12);
+            feeder.flush();
+            Thread.sleep(150);
+            assertTrue(tui.anyOverlayActive(), "selector reopened");
+            feeder.write(3);
+            feeder.flush();
+            Thread.sleep(150);
+            assertFalse(tui.anyOverlayActive(), "a single Ctrl+C cancels the selector");
+
+            feeder.write(CTRL_D);
+            feeder.flush();
+            finished.get(10, TimeUnit.SECONDS);
+        } finally {
+            tui.close();
+        }
+    }
+
+    @Test
     void thinkingToggleAndStatusCollapseShortcuts() throws Exception {
         var ts = TestSession.in(tempDir).build();
         byte[] keys = {ESC, '[', 'Z', 15}; // Shift+Tab (cycle thinking), Ctrl+O (collapse status)

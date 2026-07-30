@@ -929,12 +929,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     if (handleExtensionKeybinding(key))
                         continue;
-                    if ((key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC) && selectors.anyActive()) {
-                        selectors.deactivateAll();
-                        clearStatusOverride();
-                        promptEditor.setText("");
-                        redrawPrompt();
-                        continue;
+                    // Every overlay is cancellable with Esc, double-Esc, or a single Ctrl+C — it closes instead of
+                    // falling through to interrupt/exit. The log viewer and select picker also consume plain Esc via
+                    // routeModalKey above; this is the single guarantee for their Ctrl+C and for the selectors, the
+                    // completions popup (incl. the Ctrl+R history search), and the message browser.
+                    if (key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C) {
+                        if (cancelActiveOverlay()) {
+                            redrawPrompt();
+                            continue;
+                        }
                     }
                     if (key == Key.Special.DOUBLE_ESC) {
                         handleEsc(true);
@@ -1174,6 +1177,44 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return false;
         task.cancel(true); // interrupt → the login poll's sleep/HTTP send throws; the handler reports "Login cancelled"
         return true;
+    }
+
+    /**
+     * Closes the topmost cancellable overlay — select picker, log viewer, one of the {@code selectors} (model/theme/
+     * session/…), the completions popup, or the message browser — returning whether one was closed. The single place
+     * that guarantees every overlay is dismissable with Esc or a single Ctrl+C, so none can trap the user into
+     * choosing.
+     */
+    private boolean cancelActiveOverlay() {
+        if (selector.active()) {
+            selector.cancel();
+            return true;
+        }
+        if (logViewer.active()) {
+            logViewer.close();
+            return true;
+        }
+        if (selectors.anyActive()) {
+            selectors.deactivateAll();
+            clearStatusOverride();
+            promptEditor.setText("");
+            return true;
+        }
+        if (promptEditor.hasCompletions()) {
+            promptEditor.clearCompletions();
+            return true;
+        }
+        if (messageBrowser.isActive()) {
+            messageBrowser.cancel();
+            return true;
+        }
+        return false;
+    }
+
+    /** Test seam: whether any cancellable overlay is currently open (mirrors {@link #cancelActiveOverlay}'s set). */
+    boolean anyOverlayActive() {
+        return selector.active() || logViewer.active() || selectors.anyActive() || promptEditor.hasCompletions()
+                                        || messageBrowser.isActive();
     }
 
     private void handleEsc(boolean forceInterrupt) {
