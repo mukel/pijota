@@ -80,9 +80,11 @@ class InputDecoderTest {
     }
 
     @Test
-    void readPasteReturnsNullWithoutTerminator() throws IOException {
-        assertNull(InputDecoder.readPaste(input('h', 'i')));
-        assertNull(InputDecoder.readPaste(input('h', 'i', 27, '[', 'A')));
+    void readPasteReturnsBestEffortContentWhenTerminatorIsMissing() throws IOException {
+        // A lost bracketed-paste terminator (EOF, or a non-201~ ESC) must not wedge the input thread: return the
+        // content read so far rather than blocking or discarding it.
+        assertEquals(new Key.Paste("hi"), InputDecoder.readPaste(input('h', 'i')));
+        assertEquals(new Key.Paste("hi"), InputDecoder.readPaste(input('h', 'i', 27, '[', 'A')));
     }
 
     @Test
