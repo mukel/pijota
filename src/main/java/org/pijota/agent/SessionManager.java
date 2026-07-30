@@ -32,8 +32,11 @@ public final class SessionManager {
     private static final int SESSION_VERSION = 3;
     private final Path sessionDir;
 
-    // The current branch position in the tree. New appends create children of this entry.
-    // null = root. Updated by append operations and load.
+    // The current branch position in the tree. New appends create children of this entry; null = root. Updated by
+    // append operations and load.
+    // Invariant: this is instance-wide, not per-file, so all appends between two create/load/fork/branch calls MUST
+    // target the same session file. Switching files always goes through loadContext/createSession, which reset it —
+    // so leafId can never leak one file's leaf into another's parentId. Don't append to a second file without a reset.
     private volatile String leafId;
 
     // Per-file write lock — ensures append-only writes from concurrent threads

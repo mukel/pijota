@@ -186,6 +186,8 @@ final class MarkdownTableRenderer {
     }
 
     static void fitWidths(int[] widths, int width) {
+        if (widths.length == 0)
+            return; // no columns → nothing to fit; also avoids the grow loop below spinning forever (sum stays 0)
         int cols = widths.length;
         int available = Math.max(cols * 5, width - ((cols - 1) * 3));
         for (int i = 0; i < widths.length; i++)

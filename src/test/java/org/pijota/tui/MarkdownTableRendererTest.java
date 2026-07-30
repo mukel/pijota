@@ -26,6 +26,13 @@ class MarkdownTableRendererTest {
         return result.get().stream().map(l -> AnsiStripper.strip(l.text())).toList();
     }
 
+    @Test
+    void fitWidthsOnZeroColumnsDoesNotSpin() {
+        // A degenerate table with no columns must not hang the grow loop (sum stays 0 < available forever).
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(1),
+                                        () -> MarkdownTableRenderer.fitWidths(new int[0], 80));
+    }
+
     // ─── couldBeTable ───
 
     @Test

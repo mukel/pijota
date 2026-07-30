@@ -480,15 +480,18 @@ public final class LlmService implements LlmClient {
     }
 
     static final class UsageTracker {
+        // Single writer (the LLM async thread, one turn at a time), multiple readers (the TUI/web render threads read
+        // the token/cost footer). volatile gives those readers visibility and rules out torn double reads of totalCost;
+        // the read-modify-write in add() is safe because there is exactly one writer.
         private final Double budgetLimit;
-        private int totalInputTokens;
-        private int totalOutputTokens;
-        private int totalCacheReadTokens; // input served from the provider cache (cache hits)
-        private int totalCacheWriteTokens; // input written to the provider cache (cache misses that populate it)
-        private int totalReasoningTokens; // thinking tokens billed within the output count
-        private int lastContextTokens; // input+output of the most recent response ≈ the next request's prompt size
-        private double totalCost;
-        private boolean hasUnpricedUsage;
+        private volatile int totalInputTokens;
+        private volatile int totalOutputTokens;
+        private volatile int totalCacheReadTokens; // input served from the provider cache (cache hits)
+        private volatile int totalCacheWriteTokens; // input written to the provider cache (cache misses that populate it)
+        private volatile int totalReasoningTokens; // thinking tokens billed within the output count
+        private volatile int lastContextTokens; // input+output of the most recent response ≈ next request's prompt size
+        private volatile double totalCost;
+        private volatile boolean hasUnpricedUsage;
 
         UsageTracker(Double budgetLimit) {
             this.budgetLimit = budgetLimit;
