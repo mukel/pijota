@@ -38,7 +38,10 @@
   /* 100dvh tracks the *visible* viewport (mobile URL bar + soft keyboard), with 100% as the fallback; together with
      interactive-widget=resizes-content this keeps the composer above the keyboard instead of behind it. */
   html, body { height: 100%; height: 100dvh; margin: 0; }
-  body { background: var(--bg); color: var(--text); font-family: var(--sans); display: flex; flex-direction: column; }
+  /* explicit 16px base (don't inherit the UA default) + antialiased rendering — crisper, lighter type on the dark
+     ground where subpixel AA doesn't apply anyway; message bodies bump the line-height for reading comfort. */
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; display: flex; flex-direction: column; }
   header {
     display: flex; align-items: center; gap: 10px; padding: 12px 20px;
     border-bottom: 1px solid var(--border); background: var(--panel); flex: none;
@@ -277,7 +280,8 @@
     /* sized to exactly one text line (no vertical padding); the flex row's align-items:center does the centering */
     flex: 1; resize: none; max-height: 200px; min-height: 22px; padding: 0; display: block;
     border: none; background: transparent; color: var(--text);
-    font-family: var(--sans); font-size: 15px; line-height: 22px; outline: none;
+    /* 16px matches the message text and keeps iOS Safari from auto-zooming the page on focus (it zooms any input <16px) */
+    font-family: var(--sans); font-size: 16px; line-height: 23px; outline: none;
   }
   textarea#input::placeholder { color: var(--muted); }
   button.act {
@@ -377,7 +381,7 @@
     .greeting .mark { font-size: 24px; }
     .composer { padding: 6px 10px 12px; }
     .composer .inner { border-radius: 20px; padding: 6px 6px 6px 14px; }
-    textarea#input { font-size: 16px; } /* ≥16px stops iOS Safari from auto-zooming the page on focus */
+    button.act, .attach, .stopbtn { width: 40px; height: 40px; } /* comfortable thumb targets on phones (≥40px; button.act to match the base selector's specificity) */
     .msg.user .bubble { max-width: 92%; }
     .overlay { padding-top: 8vh; }
     .modal { padding: 18px; }
