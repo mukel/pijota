@@ -472,7 +472,10 @@ public final class WebServer implements AutoCloseable {
                 if (!c.isSilent()) // persisted state snapshots (e.g. goal status) aren't shown in the transcript
                     broadcast("custom", Map.of("type", nz(c.customType()), "content", nz(c.content())));
             }
-            case AgentEvent.Error(Throwable t) -> broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
+            case AgentEvent.Error(Throwable t) -> {
+                broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
+                broadcast("turn", Map.of("busy", false)); // a failed turn fires Error, not TurnEnd — clear the spinner
+            }
             case AgentEvent.HistoryChanged ignored -> broadcast("history", history()); // re-render after new/load/undo
             default -> {
                 // TurnStart/compaction internals/stream deltas have no distinct browser representation here

@@ -79,13 +79,9 @@ final class Selector<T extends SelectorItem> {
                     visibleIndices.add(i);
             }
         }
-        if (visibleIndices.isEmpty()) {
-            selected = -1;
-            return;
-        }
-        // Clamp into range whenever there are matches: a prior empty filter leaves selected at -1, and a shrunk list
-        // leaves it past the end — both must snap back to a valid index (else selectedItem() does get(-1)/get(oob)).
-        selected = Math.max(0, Math.min(selected, visibleIndices.size() - 1));
+        // A fresh query highlights the top match (index 0) — like any fuzzy finder — so Enter takes the best result,
+        // not a stale mid-list cursor from the previous query. -1 when nothing matches (selectedItem() guards on it).
+        selected = visibleIndices.isEmpty() ? -1 : 0;
     }
 
     void selectNext() {

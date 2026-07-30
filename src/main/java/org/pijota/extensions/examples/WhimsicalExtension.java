@@ -1,7 +1,5 @@
 package org.pijota.extensions.examples;
 
-import org.pijota.extensions.ExtensionEvent;
-
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.modes.SlashCommand;
@@ -27,7 +25,6 @@ public final class WhimsicalExtension implements Extension {
     private static final long ROTATE_INTERVAL_MS = 2000;
 
     private volatile boolean enabled = true;
-    private volatile boolean visible;
     private volatile String currentPhrase = randomPhrase();
     private volatile long lastRotatedMs;
 
@@ -43,6 +40,7 @@ public final class WhimsicalExtension implements Extension {
 
     @Override
     public void init(ExtensionAPI api) {
+        var runtime = api.runtime();
         api.registerSlashCommand(new SlashCommand("whimsical", "Toggle whimsical status phrases", List.of(),
                                         ignored -> {
                                             enabled = !enabled;
@@ -50,24 +48,17 @@ public final class WhimsicalExtension implements Extension {
                                                 currentPhrase = randomPhrase();
                                         }));
 
+        // Show only while a turn is in flight. Deriving from isIdle() (not TurnStart/TurnEnd bookkeeping) means the
+        // phrase clears on *every* terminal path — success, abort, and a failed turn (which fires Error, not TurnEnd,
+        // and used to leave the phrase stuck on screen after an error).
         api.registerStatusLines(() -> {
-            if (!enabled || !visible)
+            if (!enabled || runtime.isIdle())
                 return List.of();
             maybeRotate();
             return List.of(displayPhrase());
         });
 
-        api.registerThinkingHeaderText(() -> enabled && visible ? displayPhrase() + Emojis.ELLIPSIS : null);
-
-        api.on(ExtensionEvent.TurnStart.class, ignored -> {
-            if (enabled) {
-                currentPhrase = randomPhrase();
-                lastRotatedMs = System.currentTimeMillis();
-                visible = true;
-            }
-        });
-
-        api.on(ExtensionEvent.TurnEnd.class, ignored -> visible = false);
+        api.registerThinkingHeaderText(() -> enabled && !runtime.isIdle() ? displayPhrase() + Emojis.ELLIPSIS : null);
     }
 
     private void maybeRotate() {

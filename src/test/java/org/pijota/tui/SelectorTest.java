@@ -80,6 +80,20 @@ class SelectorTest {
     }
 
     @Test
+    void filteringJumpsHighlightToTopMatch() {
+        // A fresh query highlights the best (first) match, not a stale cursor from the previous query — else Enter
+        // would select whatever row the cursor happened to sit on before the user started typing.
+        var s = new Selector<>(List.of(A, B, C));
+        s.activate("");
+        s.selectNext();
+        s.selectNext(); // cursor on C
+
+        s.filter("b"); // narrow to B
+        assertEquals(0, s.selectionIndex(), "cursor snaps to the top match");
+        assertEquals("B", s.selectedItem().titleText());
+    }
+
+    @Test
     void selectNextAndPrevCycleThroughFilteredItems() {
         var s = new Selector<>(List.of(A, B, C));
         s.activate("");
