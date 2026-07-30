@@ -65,6 +65,16 @@ final class PromptCompletionState {
         selectedIndex = selector.selectionIndex();
     }
 
+    void selectPageUp() {
+        selector.selectPageUp();
+        selectedIndex = selector.selectionIndex();
+    }
+
+    void selectPageDown() {
+        selector.selectPageDown();
+        selectedIndex = selector.selectionIndex();
+    }
+
     void clear() {
         visibleItems = List.of();
         selectedIndex = -1;

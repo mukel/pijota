@@ -39,6 +39,20 @@ class PromptSelectorTest {
     }
 
     @Test
+    void pageDownAndPageUpJumpByAWindow() {
+        var s = new PromptSelector();
+        var chosen = new AtomicInteger(-1);
+        s.show("pick", IntStream.range(0, 20).mapToObj(i -> "item" + i).toList(), chosen::set);
+
+        assertTrue(s.handleKey(Key.Special.PG_DOWN)); // 0 → 8
+        assertTrue(s.handleKey(Key.Special.PG_DOWN)); // 8 → 16
+        assertTrue(s.handleKey(Key.Special.PG_UP)); // 16 → 8
+        assertTrue(s.handleKey(Key.Special.ENTER));
+
+        assertEquals(8, chosen.get());
+    }
+
+    @Test
     void escCancelsWithoutInvokingCallback() {
         var s = new PromptSelector();
         var chosen = new AtomicInteger(-1);

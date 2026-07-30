@@ -393,6 +393,14 @@ public final class PromptEditor {
             selectNext();
             return true;
         }
+        if (key == Key.Special.PG_UP) {
+            completions.selectPageUp();
+            return true;
+        }
+        if (key == Key.Special.PG_DOWN) {
+            completions.selectPageDown();
+            return true;
+        }
         return false;
     }
 

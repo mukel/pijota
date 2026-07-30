@@ -54,6 +54,14 @@ final class PromptSelector {
             index = Math.min(current.size() - 1, index + 1);
             return true;
         }
+        if (key == Key.Special.PG_UP) {
+            index = Math.max(0, index - WINDOW);
+            return true;
+        }
+        if (key == Key.Special.PG_DOWN) {
+            index = Math.min(current.size() - 1, index + WINDOW);
+            return true;
+        }
         if (key == Key.Special.ENTER) {
             int chosen = index;
             var confirm = onConfirm;

@@ -3,6 +3,7 @@ package org.pijota.tui;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -24,6 +25,18 @@ class PromptCompletionStateTest {
 
         assertEquals(1, state.selectedIndex());
         assertEquals("beta", state.selectedItem().name());
+    }
+
+    @Test
+    void pageDownAndPageUpJumpBySeveral() {
+        var state = new PromptCompletionState();
+        state.show(IntStream.range(0, 12).mapToObj(i -> new CompletionItem("c" + i, "")).toList(), "", "");
+
+        assertEquals(0, state.selectedIndex());
+        state.selectPageDown();
+        assertEquals(5, state.selectedIndex()); // jumps by the visible-window size, not one row
+        state.selectPageUp();
+        assertEquals(0, state.selectedIndex());
     }
 
     @Test
