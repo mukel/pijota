@@ -259,7 +259,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                     List<ExtensionKeybinding> extensionKeybindings) throws IOException {
         this(session, theme, provider, model, extensionCommands, settings, skills, extensionLinesSupplier,
                                         extensionKeybindings,
-                                        TerminalBuilder.builder().dumb(false).jna(false).jansi(false).build());
+                                        // graphemeCluster(false): skip JLine's mode-2027 probe, which sends a query and
+                                        // blocks ~350ms on the path to the prompt when the terminal doesn't answer.
+                                        // pijota measures widths itself (AnsiWidth, wcwidth-based) and uses JLine only
+                                        // for raw key I/O, so its grapheme setting is irrelevant to our rendering.
+                                        TerminalBuilder.builder().dumb(false).jna(false).jansi(false)
+                                                                        .graphemeCluster(false).build());
     }
 
     /** Injectable-terminal constructor — lets tests drive the TUI against an in-memory terminal (no tty). */
