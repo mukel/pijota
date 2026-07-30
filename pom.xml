@@ -61,6 +61,8 @@
     <marked.version>12.0.0</marked.version>
     <dompurify.version>3.0.9</dompurify.version>
     <highlightjs.version>11.9.0</highlightjs.version>
+    <inter.version>5.1.1</inter.version> <!-- Inter variable (Latin subset) for readable, OS-consistent UI type -->
+    <inter.sha512>5e90f48b923bb95aeb49691d03dade8825c119b2fa28977ea170c41548900f4e0165e2869f97c7a9380d7ff8ff331a1da855500e5f7b0dfd2b9abd77a386bbf3</inter.sha512>
     <!-- PDF.js (legacy UMD build) downloaded into the build for browser-side PDF→markdown; see browser/README.md -->
     <pdfjs.version>3.11.174</pdfjs.version>
   </properties>
@@ -287,6 +289,18 @@
               <url>https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@${highlightjs.version}/build/styles/github.min.css</url>
               <outputFileName>github.min.css</outputFileName>
               <sha512>d1a3d0cb2799ad68fdb02038e949665a028e3f49948a92d0e8e657bbc97821c0260f6bb7d443c4cbd55c20cbe5ed2a0068a7bc6cb5d9858a0c684fe29fe81c80</sha512>
+            </configuration>
+          </execution>
+          <execution>
+            <id>vendor-inter-font</id>
+            <goals>
+              <goal>wget</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <url>https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@${inter.version}/files/inter-latin-wght-normal.woff2</url>
+              <outputFileName>inter.woff2</outputFileName>
+              <sha512>${inter.sha512}</sha512>
             </configuration>
           </execution>
           <!-- PDF.js (legacy UMD build) for browser-side PDF→markdown — lands in browser/, not web/vendor/. -->

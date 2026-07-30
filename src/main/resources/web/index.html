@@ -14,6 +14,12 @@
 <script defer src="/vendor/highlight.min.js"></script>
 <script defer src="/vendor/purify.min.js"></script>
 <style>
+  /* Inter (variable, Latin subset) vendored locally for OS-consistent, highly readable UI type. font-display:swap
+     paints immediately in the system fallback, then swaps in Inter once it loads (no invisible-text flash). */
+  @font-face {
+    font-family: "Inter"; src: url(/vendor/inter.woff2) format("woff2");
+    font-weight: 100 900; font-style: normal; font-display: swap;
+  }
   :root {
     /* a calm neutral dark (vs GitHub's cool blue-black); surfaces step up bg→code→panel→panel-2 for clean depth */
     --bg: #131316; --panel: #1c1c20; --panel-2: #26262c; --border: #34343c;
@@ -23,7 +29,7 @@
     --code-inline-bg: #ffffff14;
     --radius: 12px; --col: 768px; /* shared content-column width: transcript + composer + menus align to it */
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   :root[data-theme="light"] {
     /* a soft warm off-white (vs stark #fff); cards/panels read as white above it, code sits a touch below */

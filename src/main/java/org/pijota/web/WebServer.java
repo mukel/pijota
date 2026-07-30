@@ -337,7 +337,9 @@ public final class WebServer implements AutoCloseable {
                                             ? "text/css; charset=utf-8"
                                             : name.endsWith(".js")
                                                                             ? "text/javascript; charset=utf-8"
-                                                                            : "application/octet-stream";
+                                                                            : name.endsWith(".woff2")
+                                                                                                            ? "font/woff2"
+                                                                                                            : "application/octet-stream";
             ex.getResponseHeaders().set("Cache-Control", "max-age=86400"); // pinned; refetch daily, hard-reload after
                                                                            // update
             send(ex, 200, type, in.readAllBytes());
