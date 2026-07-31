@@ -110,6 +110,12 @@ final class AnsiWidth {
         int visible = 0;
         var sgr = new SgrState();
         String osc8Url = null;
+        // Last word-break opportunity on the current line: a space splits the emitted line (chunk[..breakStart], before
+        // the space) from the partial word carried to the next line (chunk[breakResume..], after it). -1 until the line
+        // has a space to break at — then a wrap prefers that boundary over slicing through the middle of a word.
+        int breakStart = -1;
+        int breakResume = -1;
+        int visibleAtResume = 0;
 
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
@@ -137,11 +143,20 @@ final class AnsiWidth {
                 if (osc8Url != null)
                     chunk.append("\033]8;;").append(osc8Url).append("\033\\");
                 visible = 0;
+                breakStart = breakResume = -1;
             } else if (Character.isISOControl(ch)) {
                 chunk.append(ch);
             } else {
                 int cw = charWidth(text, i);
                 if (visible > 0 && visible + cw > maxWidth) {
+                    // When the overflowing char is itself a space, the break consumes it (no leading space next line).
+                    // Otherwise prefer the last word boundary and carry the partial word forward, so words aren't sliced
+                    // mid-glyph; fall back to a hard break only for a single token longer than the whole line.
+                    boolean breakSpace = ch == ' ';
+                    boolean atWordBoundary = !breakSpace && breakResume >= 0 && breakStart > 0;
+                    String carried = atWordBoundary ? chunk.substring(breakResume) : "";
+                    if (atWordBoundary)
+                        chunk.setLength(breakStart); // drop the break space and the carried word from the emitted line
                     if (osc8Url != null)
                         chunk.append("\033]8;;\033\\");
                     out.add(closeChunk(chunk, sgr.active()));
@@ -149,7 +164,11 @@ final class AnsiWidth {
                     chunk.append(sgr.ansi());
                     if (osc8Url != null)
                         chunk.append("\033]8;;").append(osc8Url).append("\033\\");
-                    visible = 0;
+                    chunk.append(carried);
+                    visible = atWordBoundary ? visible - visibleAtResume : 0;
+                    breakStart = breakResume = -1;
+                    if (breakSpace)
+                        continue; // the space is the break; don't re-emit it at the head of the next line
                 }
                 chunk.append(ch);
                 if (Character.isHighSurrogate(ch) && i + 1 < text.length()) {
@@ -157,6 +176,11 @@ final class AnsiWidth {
                     i++;
                 }
                 visible += cw;
+                if (ch == ' ') { // record a break opportunity just past this space
+                    breakStart = chunk.length() - 1;
+                    breakResume = chunk.length();
+                    visibleAtResume = visible;
+                }
             }
         }
         if (osc8Url != null)
