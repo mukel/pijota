@@ -4,12 +4,11 @@
 
 ### A local-first AI coding agent for people who live in terminals.
 
-[![Java 21][badge-java]][java]
-[![Maven][badge-maven]][maven]
-[![GraalVM Native Image][badge-native]][graalvm]
-[![License: Apache 2.0][badge-license]][license]
-[![Local First][badge-local]][repo]
-[![Providers][badge-providers]][providers]
+<p align="center">
+  <a href="https://openjdk.org/projects/jdk/21/"><img src="https://img.shields.io/badge/Java-21-F29111?labelColor=00758F" alt="Java 21"></a>
+  <a href="https://www.graalvm.org/latest/reference-manual/native-image/"><img src="https://img.shields.io/badge/GraalVM-Native_Image-F29111?labelColor=00758F" alt="GraalVM Native Image"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a>
+</p>
 
 **A terminal-native coding agent with real tools, durable sessions, many models, and multiple frontends.**
 
@@ -302,15 +301,4 @@ If you need hard isolation, run Pijota inside a container, VM, locked-down user 
 
 [Apache 2.0][license]
 
-[repo]: .
 [license]: LICENSE
-[providers]: src/main/resources/providers.json
-[java]: https://openjdk.org/projects/jdk/21/
-[maven]: https://maven.apache.org/
-[graalvm]: https://www.graalvm.org/latest/reference-manual/native-image/
-[badge-java]: https://img.shields.io/badge/Java-21+-007396?style=flat-square&logo=openjdk&logoColor=white
-[badge-maven]: https://img.shields.io/badge/build-Maven-C71A36?style=flat-square&logo=apachemaven&logoColor=white
-[badge-native]: https://img.shields.io/badge/GraalVM-native_image-F29111?style=flat-square&logo=graalvm&logoColor=white
-[badge-license]: https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square
-[badge-local]: https://img.shields.io/badge/local--first-no_SaaS_lock--in-2ea44f?style=flat-square
-[badge-providers]: https://img.shields.io/badge/providers-20%2B-7c3aed?style=flat-square
