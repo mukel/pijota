@@ -94,13 +94,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final DialogHandler dialogs;
     private final PromptPresenter promptPresenter;
     private final PromptSelector selector = new PromptSelector();
-    private volatile boolean ctrlXPrefix;
-    private final CtrlXKeymap ctrlXKeymap = new CtrlXKeymap().bind('m', "model", this::showModelSelector)
-                                    .bind('l', "sessions", this::showSessionPicker)
-                                    .bind('n', "new", this::startNewSession).bind('t', "theme", this::showThemeSelector)
-                                    .bind('c', "compact", () -> triggerCompaction(""))
-                                    .bind('e', "editor", this::openPromptInEditor)
-                                    .bind('o', "logs", this::showLogSelector);
     private final GlobalKeyMap globalKeys;
     private final Map<Key.Special, Key.Special> editorKeyRemaps;
     private final Map<Key.Special, Key.Special> selectorKeyRemaps;
@@ -955,7 +948,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     if (routeModalKey(logViewer::active, logViewer::handleKey, key))
                         continue;
                     // The select picker is modal too: route keys to it before global ESC/etc. so Esc cancels the
-                    // picker (and Ctrl+X o's) rather than triggering a generic escape.
+                    // picker rather than triggering a generic escape.
                     if (routeModalKey(selector::active, selector::handleKey, key))
                         continue;
                     if (handleExtensionKeybinding(key))
@@ -986,32 +979,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         handleCtrlB();
                         continue;
                     }
-                    if (key == Key.Special.CTRL_X) {
-                        ctrlXPrefix = true;
-                        setStatusOverride(ctrlXKeymap.hint());
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (ctrlXPrefix) {
-                        if (key == Key.Special.ESC) {
-                            ctrlXPrefix = false;
-                            clearStatusOverride();
-                            redrawPrompt();
-                            continue;
-                        }
-                        if (key instanceof Key.Char c && ctrlXKeymap.dispatch(c.value())) {
-                            ctrlXPrefix = false;
-                            clearStatusOverride();
-                            continue;
-                        }
-                        ctrlXPrefix = false;
-                        clearStatusOverride();
-                    }
                     // The session picker's own Ctrl+D (delete) is handled before the global keymap. It no-ops unless
                     // the picker is open, so it's safe here first.
                     if (handleSessionPickerAction(key))
                         continue;
-                    if (globalKeys.dispatch(key))
+                    // App shortcuts (command palette, model picker, editor, …) are modal-suppressed while an overlay is
+                    // open — otherwise one selector-opening chord stacks a second selector on top of the first (e.g.
+                    // Ctrl+P over the /sessions picker). Mirrors the same guard on extension keybindings; Esc and the
+                    // navigation keys still reach the active overlay through the routing below.
+                    if (!anyOverlayActive() && globalKeys.dispatch(key))
                         continue;
                     if (key == Key.Special.ALT_UP) {
                         restoreQueuedFollowUp();
@@ -1163,7 +1139,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C
                                         || key == Key.Special.ENTER || key == Key.Special.NEWLINE
                                         || key == Key.Special.BACKSPACE || key == Key.Special.TAB
-                                        || key == Key.Special.PASTE_START || key == Key.Special.CTRL_X;
+                                        || key == Key.Special.PASTE_START;
     }
 
     static KeyChord toKeyChord(Key key) {
@@ -1598,11 +1574,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     void showThemeSelector() {
         themeCommands.showThemeSelector();
-    }
-
-    private void showLogSelector() {
-        var cmd = extensionCommand("/logs");
-        runExtensionCommand(cmd, "/logs");
     }
 
     @Override

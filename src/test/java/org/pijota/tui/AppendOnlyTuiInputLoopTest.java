@@ -89,6 +89,23 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void openOverlaySuppressesGlobalShortcutsSoSelectorsDoNotStack() throws Exception {
+        // Seed a resumable session so /sessions has an entry to open a picker over.
+        var seed = TestSession.in(tempDir).build();
+        seed.llm().enqueue(FauxLlm.Response.contentWithUsage("hi"));
+        seed.session().prompt("remember this", List.of()).get(5, TimeUnit.SECONDS);
+
+        var ts = TestSession.in(tempDir).build();
+        // "/sessions\r" opens the picker; Ctrl+P (0x10) must NOT open the command palette on top of it. An open
+        // overlay is modal, so app shortcuts are suppressed until it is dismissed — otherwise a second selector stacks.
+        String keys = "/sessions\r" + (char) 0x10;
+        String out = driveSession(ts, keys.getBytes(StandardCharsets.UTF_8));
+        assertTrue(out.contains("Enter load"), "the session picker opened (its status hint is shown): " + out);
+        assertFalse(out.contains("command palette"),
+                                        "Ctrl+P must not open the command palette while the session picker is open");
+    }
+
+    @Test
     void exitRestoresTerminalModesSoTheShellIsNotLeftWeird() throws Exception {
         var ts = TestSession.in(tempDir).build();
         String out = driveSession(ts, new byte[0]); // clean Ctrl+D exit runs the terminal restore
@@ -275,13 +292,6 @@ class AppendOnlyTuiInputLoopTest {
     void multiLineInputViaCtrlJ() throws Exception {
         var ts = TestSession.in(tempDir).build();
         byte[] keys = {'a', 10, 'b', 10, 'c'}; // Ctrl+J (newline=10) builds a multi-line buffer
-        assertDoesNotThrow(() -> driveSession(ts, keys));
-    }
-
-    @Test
-    void ctrlXPrefixDispatchesAKeymapCommand() throws Exception {
-        var ts = TestSession.in(tempDir).build();
-        byte[] keys = {24, 'm'}; // Ctrl+X then 'm' → model (the Ctrl+X keymap)
         assertDoesNotThrow(() -> driveSession(ts, keys));
     }
 
