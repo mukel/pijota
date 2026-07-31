@@ -118,9 +118,12 @@ public final class Main {
             return runAcp(b);
 
         if (parsedArgs.print() || !parsedArgs.promptArgs().isEmpty() || stdinRedirected()) {
-            String raw = !parsedArgs.promptArgs().isEmpty()
-                                            ? String.join(" ", parsedArgs.promptArgs())
-                                            : Util.readStdin();
+            // Piped stdin and a prompt argument compose: the pipe carries the data, the argument the instruction
+            // (`cat error.log | pj -p "what broke?"`). Reading stdin only when no prompt argument was given would
+            // silently drop the piped content.
+            String argPrompt = String.join(" ", parsedArgs.promptArgs());
+            String piped = stdinRedirected() ? Util.readStdin() : "";
+            String raw = piped.isBlank() ? argPrompt : argPrompt.isBlank() ? piped : piped + "\n\n" + argPrompt;
             String prompt = FileProcessor.processFileReferences(parsedArgs.fileArgs(), raw);
             if (prompt == null || prompt.isBlank())
                 return CliErrorReporter.fatal("No prompt provided");
