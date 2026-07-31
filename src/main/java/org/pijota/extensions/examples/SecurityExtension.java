@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Blocks dangerous bash commands — privilege escalation, recursive delete, disk destruction, fork bombs, shell-piping,
+ * Blocks dangerous bash commands: privilege escalation, recursive delete, disk destruction, fork bombs, shell-piping,
  * iptables, destructive git, and more. Toggle with {@code /security}.
  */
 public final class SecurityExtension implements Extension {
@@ -55,7 +55,7 @@ public final class SecurityExtension implements Extension {
         var runtime = api.runtime();
         api.registerSlashCommand(new SlashCommand("security", "Toggle dangerous command blocking", List.of(),
                                         ignored -> toggle()));
-        // A live supplier (re-evaluated each render) keeps the chip in sync with the toggle everywhere — including
+        // A live supplier (re-evaluated each render) keeps the chip in sync with the toggle everywhere, including
         // after /new, which clears keyed setStatus entries but not the extension's own state.
         api.registerStatusLines(() -> List.of(enabled ? Emojis.SHIELD + " secured" : Emojis.UNLOCK + " unlocked"));
 

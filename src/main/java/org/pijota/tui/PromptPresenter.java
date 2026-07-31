@@ -70,7 +70,7 @@ final class PromptPresenter {
             status = status != null ? status + "\n" + promptLine : promptLine;
         }
         AnsiTheme theme = host.theme();
-        // Two-line bar. Line 1 (cwd slot): the workspace — cwd · branch [· session]. Line 2 (status slot): token info,
+        // Two-line bar. Line 1 (cwd slot): the workspace: cwd · branch [· session]. Line 2 (status slot): token info,
         // then "provider model · reasoning" right after it, then the activity (spinner · phase · elapsed) during a
         // turn. Both lines wrap (not truncate) so a narrow terminal spills to the next row instead of losing the tail.
         var cwd = new StringBuilder(theme.styled("commandMeta", host.cwd()));

@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration-style coverage of the live input loop ({@link AppendOnlyTui#run}): a real (stream-backed) terminal is fed
  * keystrokes through a pipe from the test thread while {@code run()} executes on a background thread, exercising key
- * decoding, dispatch, submission and the clean Ctrl+D exit — the part no plain unit test can reach.
+ * decoding, dispatch, submission and the clean Ctrl+D exit, the part no plain unit test can reach.
  */
 class AppendOnlyTuiInputLoopTest {
 
@@ -109,7 +109,7 @@ class AppendOnlyTuiInputLoopTest {
     void exitRestoresTerminalModesSoTheShellIsNotLeftWeird() throws Exception {
         var ts = TestSession.in(tempDir).build();
         String out = driveSession(ts, new byte[0]); // clean Ctrl+D exit runs the terminal restore
-        // undo every mode the render loop may have set — a mid-frame exit could otherwise leave autowrap off (broken
+        // undo every mode the render loop may have set; a mid-frame exit could otherwise leave autowrap off (broken
         // line-wrap + readline cursor) or bracketed paste on, which reads to the user as "shortcuts don't work".
         assertTrue(out.contains("\033[?7h"), "autowrap must be re-enabled on exit");
         assertTrue(out.contains("\033[?2004l"), "bracketed paste must be disabled on exit");
@@ -152,7 +152,7 @@ class AppendOnlyTuiInputLoopTest {
     @Test
     void lineEditingKeysAreProcessed() throws Exception {
         var ts = TestSession.in(tempDir).build();
-        // type "abcdef", two backspaces (127), Ctrl+U (21) to clear — exercises the editor key paths in the loop
+        // type "abcdef", two backspaces (127), Ctrl+U (21) to clear; exercises the editor key paths in the loop
         byte[] keys = {'a', 'b', 'c', 'd', 'e', 'f', 127, 127, 21};
         assertDoesNotThrow(() -> driveSession(ts, keys));
     }
@@ -214,7 +214,7 @@ class AppendOnlyTuiInputLoopTest {
             Thread.sleep(150);
             assertFalse(tui.anyOverlayActive(), "Esc cancels the selector");
 
-            // Reopen — a SINGLE Ctrl+C must also cancel it (previously it fell through to interrupt/exit).
+            // Reopen: a SINGLE Ctrl+C must also cancel it (previously it fell through to interrupt/exit).
             feeder.write(12);
             feeder.flush();
             Thread.sleep(150);
@@ -420,8 +420,8 @@ class AppendOnlyTuiInputLoopTest {
     void everySessionSlashCommandRoutesThroughTheController() throws Exception {
         // each routes handleSubmit -> TuiCommandController switch -> the tui handler; driveSession dismisses any
         // overlay (ESC) and exits (Ctrl+D). Covers the command dispatch + the session/render handlers end-to-end.
-        // /save writes to an absolute temp path — a bare "/save x" would drop a session file in the repo root.
-        // (/export writes "<id>-export.md" into the session's cwd, which TestSession sets to tempDir — no litter.)
+        // /save writes to an absolute temp path; a bare "/save x" would drop a session file in the repo root.
+        // (/export writes "<id>-export.md" into the session's cwd, which TestSession sets to tempDir; no litter.)
         String saveTarget = tempDir.resolve("saved-session.jsonl").toString();
         for (String cmd : List.of("/copy", "/context", "/export", "/save " + saveTarget, "/tree",
                                         "/info", "/undo", "/logs", "/skills", "/settings", "/login", "/logout",

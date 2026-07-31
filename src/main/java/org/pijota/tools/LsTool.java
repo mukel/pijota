@@ -62,7 +62,7 @@ public final class LsTool implements Tool {
                 var sb = new StringBuilder();
                 for (Path entry : entries)
                     sb.append(entry.getFileName()).append(Files.isDirectory(entry) ? "/" : "").append('\n');
-                // count goes in details so the TUI summary reads a field, like grep/glob — no text re-parsing.
+                // count goes in details so the TUI summary reads a field, like grep/glob, with no text re-parsing.
                 return Tool.ToolResult.success(sb.toString().stripTrailing(), Map.of("count", entries.size()));
             } catch (IOException e) {
                 return Tool.ToolResult.error("Error listing directory: " + e.getMessage());

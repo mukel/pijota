@@ -117,7 +117,7 @@ final class ToolExecutor {
     }
 
     /**
-     * Records a tool failure — fires the end hook, adds the result to history, emits the event — shared by the async
+     * Records a tool failure (fires the end hook, adds the result to history, emits the event), shared by the async
      * ({@code exceptionally}) and synchronous ({@code catch}) failure paths so their contract can't drift.
      */
     private void emitToolError(ToolCall request, Throwable ex) {

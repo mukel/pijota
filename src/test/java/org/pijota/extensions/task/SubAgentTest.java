@@ -35,7 +35,7 @@ class SubAgentTest {
 
     @Test
     void loadAllIncludesBundledBuiltinAgents(@TempDir Path cwd) {
-        // Loaded by name from resources (getResourceAsStream), not by enumerating the classpath "agents" directory —
+        // Loaded by name from resources (getResourceAsStream), not by enumerating the classpath "agents" directory,
         // so the built-ins are present in a native image, where that directory can't be listed.
         var builtins = SubAgent.loadAll(cwd).stream().filter(a -> "builtin".equals(a.source())).map(SubAgent::name)
                                         .toList();
@@ -111,7 +111,7 @@ class SubAgentTest {
 
     @Test
     void markdownModelNullLiteralBecomesNullNotTheStringNull(@TempDir Path dir) throws Exception {
-        // `model: null` means "no override, inherit parent" — must NOT become the literal model "null" (Codex 400s on
+        // `model: null` means "no override, inherit parent"; must NOT become the literal model "null" (Codex 400s on
         // it).
         var file = dir.resolve("summarize.md");
         Files.writeString(file, "---\nname: summarize\nmodel: null\n---\nbody");

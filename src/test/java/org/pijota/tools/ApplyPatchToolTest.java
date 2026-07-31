@@ -35,7 +35,7 @@ class ApplyPatchToolTest {
         var path = tempDir.resolve("f.txt");
         Files.writeString(path, "a\nb\ntarget\nc\nd\n");
 
-        // deliberately wrong @@ line numbers — application must locate the hunk by its context
+        // deliberately wrong @@ line numbers; application must locate the hunk by its context
         var p = patch("--- a/f.txt", "+++ b/f.txt", "@@ -99,3 +99,3 @@", " b", "-target", "+TARGET", " c");
         var result = run(new ApplyPatchTool(), Map.of("patch", p), tempDir);
 

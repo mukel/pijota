@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * Pure ACP wire-format mapping: builds the {@code session/update} payloads, the {@code initialize} result, and the
  * {@code session/request_permission} params, and parses prompt content blocks and permission replies. Every method is a
- * total function of its arguments — no state, no IO — so the whole wire mapping is unit-testable in isolation (mirrors
+ * total function of its arguments (no state, no IO) so the whole wire mapping is unit-testable in isolation (mirrors
  * opencode's {@code content.ts}/{@code tool.ts}). {@link AcpFrontend} owns all state/IO and wraps these payloads with
  * the live {@code sessionId} before sending.
  */

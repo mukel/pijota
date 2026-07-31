@@ -6,12 +6,12 @@ public final class AttachmentMessages {
     private AttachmentMessages() {}
 
     public static String unsupportedImage(String name, String provider, String model) {
-        return "attachment \"" + name + "\" omitted — " + unsupportedImageLabel(name) + " images aren't supported by "
+        return "attachment \"" + name + "\" omitted: " + unsupportedImageLabel(name) + " images aren't supported by "
                                         + modelLabel(provider, model) + "; use JPEG/PNG/GIF/WebP";
     }
 
     public static String unsupportedImagePath(String path) {
-        return path + " — " + unsupportedImagePathLabel(path) + " images aren't supported; use JPEG/PNG/GIF/WebP";
+        return path + ": " + unsupportedImagePathLabel(path) + " images aren't supported; use JPEG/PNG/GIF/WebP";
     }
 
     public static String unsupportedImageLabel(String name) {

@@ -15,9 +15,9 @@ import java.util.function.Supplier;
 /**
  * Builds the styled scrollback lines for a completed tool call in the machine-block grammar: a one-line header (marker,
  * accent name, muted target, dim metadata), an optional body behind a dim {@code │} rail, and a dim {@code └} footer
- * only when a body was shown. Failures keep their metadata in the header — red on the failing token only — with the
+ * only when a body was shown. Failures keep their metadata in the header, red on the failing token only, with the
  * error excerpt railed like any other body. Pure given the message, the optional extension-provided
- * {@link Tool.ToolResultView}, and theming inputs — so the formatting is unit-testable, separate from the TUI's
+ * {@link Tool.ToolResultView}, and theming inputs, so the formatting is unit-testable, separate from the TUI's
  * stateful diff/preview handling which stays in the event loop.
  */
 final class ToolResultLines {
@@ -50,7 +50,7 @@ final class ToolResultLines {
 
         var lines = new ArrayList<String>();
         if (msg.isError()) {
-            // Failure: one-line header — red on the ✖ and the exit code only — then the excerpt railed like any other
+            // Failure: one-line header, red on the ✖ and the exit code only, then the excerpt railed like any other
             // body, so errors keep the block grammar instead of dumping multi-line content into the header.
             var meta = new ArrayList<String>();
             if (exit != null)
@@ -62,14 +62,14 @@ final class ToolResultLines {
                                             + (meta.isEmpty() ? "" : dot + String.join(dot, meta)));
             addBody(lines, errorBody(msg, rendered), theme, width);
         } else if (rendered != null && !rendered.body().isEmpty()) {
-            // Tool with output: the framed block — accent ┌ open, railed body, dim └ footer carrying the metadata.
+            // Tool with output: the framed block. Accent ┌ open, railed body, dim └ footer carrying the metadata.
             lines.add("");
             lines.add(theme.styled("toolLabel", "┌ ") + nameDetail);
             addBody(lines, rendered.body(), theme, width);
             var foot = metaChips(summary, exit, elapsedStr, theme);
             lines.add(theme.styled("commandMeta", "└") + (foot.isEmpty() ? "" : " " + String.join(dot, foot)));
         } else {
-            // Quiet tool: the header line is the whole block — metadata uniformly dim, stacked tight with siblings.
+            // Quiet tool: the header line is the whole block, metadata uniformly dim, stacked tight with siblings.
             var meta = metaChips(summary, exit, elapsedStr, theme);
             lines.add(theme.styled("toolLabel", glyph) + " " + nameDetail
                                             + (meta.isEmpty() ? "" : dot + String.join(dot, meta)));
@@ -78,7 +78,7 @@ final class ToolResultLines {
     }
 
     /**
-     * The trailing metadata chips — summary, exit code, elapsed — shared verbatim by the quiet header and the framed
+     * The trailing metadata chips (summary, exit code, elapsed) shared verbatim by the quiet header and the framed
      * footer. A zero exit stays dim; a non-zero one is the single cue that survives red into the closing line.
      */
     private static List<String> metaChips(String summary, Integer exit, String elapsedStr, AnsiTheme theme) {
@@ -94,7 +94,7 @@ final class ToolResultLines {
 
     /**
      * Rails a block body. Each logical line is wrapped to the railed width FIRST, so a line longer than the terminal
-     * gets the {@code │} on every physical row — otherwise the terminal wraps it itself and the continuation rows
+     * gets the {@code │} on every physical row. Otherwise the terminal wraps it itself and the continuation rows
      * dangle bare at column zero, visually breaking the block open.
      */
     private static void addBody(List<String> lines, List<String> body, AnsiTheme theme, int width) {
@@ -146,7 +146,7 @@ final class ToolResultLines {
 
     static String renderToolBodyLine(String line, AnsiTheme theme) {
         String rail = theme.styled("commandMeta", "│ ");
-        // Checklist items (e.g. from the todo tool) — colour by state marker, keyed on content not tool name. They
+        // Checklist items (e.g. from the todo tool), coloured by state marker, keyed on content not tool name. They
         // carry their own rail already.
         String todoSlot = null;
         if (line.startsWith("│ [✓]"))
@@ -161,7 +161,7 @@ final class ToolResultLines {
             return theme.styled("statusText", "╰→") + theme.styled("commandMeta", line.substring(2));
         if (line.equals("┴") || line.equals("┬"))
             return theme.styled("statusText", line);
-        if (line.startsWith("⋯")) // truncation cue — colored so the "N lines omitted" break stands out from the output
+        if (line.startsWith("⋯")) // truncation cue, colored so the "N lines omitted" break stands out from the output
             return rail + theme.styled("statusWarn", line);
         return rail + theme.styled("statusText", line);
     }

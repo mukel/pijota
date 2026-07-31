@@ -48,7 +48,7 @@ public final class ProcessRunner {
     private Map<String, String> environment = Map.of();
     private CompletableFuture<Void> detachSignal;
 
-    /** The program name only (never the args) — safe to log without leaking secrets passed on the command line. */
+    /** The program name only (never the args); safe to log without leaking secrets passed on the command line. */
     private String program() {
         return command.isEmpty() ? "?" : command.get(0);
     }
@@ -68,7 +68,7 @@ public final class ProcessRunner {
     /**
      * True when the throwable is the "executable not on PATH" failure {@link ProcessBuilder#start()} raises for a
      * missing binary (JVM: {@code Cannot run program "x": error=2, No such file or directory}). Lets callers turn the
-     * raw, locale-tinged JVM message into an actionable "x not found — install it" message, and distinguish a missing
+     * raw, locale-tinged JVM message into an actionable "x not found, install it" message, and distinguish a missing
      * tool from a tool that ran and exited non-zero.
      */
     public static boolean isCommandNotFound(Throwable e) {
@@ -112,7 +112,7 @@ public final class ProcessRunner {
     /**
      * A second wake-up source for the wait in {@link #run()}: completing {@code signal} while the process is alive
      * makes {@code run()} return immediately with a {@link Result#detached()} result carrying the output captured so
-     * far — WITHOUT killing the process or joining its output pumps. The capture reader is a daemon that keeps draining
+     * far, WITHOUT killing the process or joining its output pumps. The capture reader is a daemon that keeps draining
      * to EOF, so an {@link #onStdoutChunk} handler keeps receiving output after the detach; process stdin is closed (a
      * background process must never block on a tty read). Observe the eventual exit via {@code process.onExit()}.
      */
@@ -233,7 +233,7 @@ public final class ProcessRunner {
             finished = !process.isAlive();
             if (!finished && !detached && !noTimeout && !aborted.get()) {
                 timedOut = true;
-                log.warn("process '{}' timed out after {} — killing it", program(), timeout);
+                log.warn("process '{}' timed out after {}, killing it", program(), timeout);
                 killTree(process);
                 finished = process.waitFor(KILL_GRACE.toMillis(), TimeUnit.MILLISECONDS);
                 if (!finished)
@@ -245,7 +245,7 @@ public final class ProcessRunner {
             Thread.currentThread().interrupt();
         } finally {
             if (detached) {
-                // Hand-off, not teardown: the process lives on and the daemon capture reader keeps draining to EOF —
+                // Hand-off, not teardown: the process lives on and the daemon capture reader keeps draining to EOF;
                 // only stdin is retired (a background process must never block on a tty read).
                 if (stdinThread != null)
                     stdinThread.interrupt();
@@ -271,7 +271,7 @@ public final class ProcessRunner {
     }
 
     /**
-     * Blocks until the process exits, the (optional) detach signal fires, or the (optional) timeout elapses — whichever
+     * Blocks until the process exits, the (optional) detach signal fires, or the (optional) timeout elapses, whichever
      * comes first. The caller inspects process liveness / signal state to tell the outcomes apart.
      */
     private void waitForExitOrDetach(Process process, Duration timeout) throws InterruptedException {
@@ -289,7 +289,7 @@ public final class ProcessRunner {
             else
                 either.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (java.util.concurrent.TimeoutException e) {
-            // timeout path — the caller sees a live, undetached process and applies the kill protocol
+            // timeout path: the caller sees a live, undetached process and applies the kill protocol
         } catch (java.util.concurrent.ExecutionException e) {
             // a failed onExit/signal future still means "stop waiting"; liveness checks decide what happened
         }

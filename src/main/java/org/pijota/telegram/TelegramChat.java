@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * One Telegram chat bound to one {@link PijotaSession} — the chat <em>is</em> the conversation. Translates the agent's
+ * One Telegram chat bound to one {@link PijotaSession}. The chat <em>is</em> the conversation. Translates the agent's
  * {@link AgentEvent} stream into chat messages and feeds the chat's text/button input back into the session. The
  * agent's answer is streamed by editing a single message (throttled, since Telegram rate-limits edits) and then
  * finalized, splitting across messages if it exceeds Telegram's length cap.
@@ -52,7 +52,7 @@ public final class TelegramChat implements ChatHandler {
     private static final TelegramClient.InlineKeyboard STOP_BUTTON = TelegramClient.InlineKeyboard
                                     .row(TelegramClient.InlineKeyboard.button("⏹ Stop", ABORT_DATA));
 
-    /** The bot's command menu — registered with Telegram for {@code /} autocomplete and the source of {@code /help}. */
+    /** The bot's command menu, registered with Telegram for {@code /} autocomplete and the source of {@code /help}. */
     public static final List<TelegramClient.BotCommand> COMMANDS = List.of(
                                     new TelegramClient.BotCommand("stop", "Interrupt the running turn"),
                                     new TelegramClient.BotCommand("undo", "Undo the last message"),
@@ -68,7 +68,7 @@ public final class TelegramChat implements ChatHandler {
 
     /**
      * The bot's full {@code /} autocomplete menu: the built-in {@link #COMMANDS} plus extension-provided commands the
-     * chat actually handles (via {@code runExtensionCommand}), so they're discoverable in Telegram — not just /help.
+     * chat actually handles (via {@code runExtensionCommand}), so they're discoverable in Telegram, not just /help.
      * Telegram only allows {@code [a-z0-9_]{1,32}} names and caps the menu at 100, so hyphenated/duplicate names are
      * skipped rather than rejecting the whole call.
      */
@@ -181,7 +181,7 @@ public final class TelegramChat implements ChatHandler {
                                             + session.llm().model() + ". Send JPEG/PNG/GIF/WebP.");
             return;
         }
-        // The download is multi-MB and blocking — run it off the single poll/dispatch thread so other chats aren't
+        // The download is multi-MB and blocking. Run it off the single poll/dispatch thread so other chats aren't
         // stalled.
         CompletableFuture.runAsync(() -> downloadAndSubmit(fileId, mime, filename, caption, kind));
     }
@@ -196,7 +196,7 @@ public final class TelegramChat implements ChatHandler {
             tg.sendMessage(chatId, "⚠️ That " + kind + " is too large (max 5MB).");
             return;
         }
-        if (session.isBusy()) { // a turn may have started during the (async) download — don't prompt over it
+        if (session.isBusy()) { // a turn may have started during the (async) download; don't prompt over it
             tg.sendMessage(chatId, "➕ Busy now. Text replies are queued, but files are not. Send /stop to abort or "
                                             + "resend the " + kind + " after this turn finishes.");
             return;
@@ -215,7 +215,7 @@ public final class TelegramChat implements ChatHandler {
         String cmd = commandWord(text);
         switch (cmd) {
             case "/start" -> {
-                // Telegram deep link: t.me/<bot>?start=<payload> arrives as "/start <payload>" — a payload means the
+                // Telegram deep link: t.me/<bot>?start=<payload> arrives as "/start <payload>". A payload means the
                 // user opened the bot from the remote-control link/QR, so confirm the connection.
                 String payload = text.length() > cmd.length() ? text.substring(cmd.length()).strip() : "";
                 String prefix = payload.isBlank() ? "" : "🔗 Connected to your pijota session.\n\n";
@@ -249,7 +249,7 @@ public final class TelegramChat implements ChatHandler {
             case "/new" -> {
                 if (!requireIdle())
                     break;
-                // Confirm first (parity with the TUI) — an accidental /new tap shouldn't drop the live conversation.
+                // Confirm first (parity with the TUI). An accidental /new tap shouldn't drop the live conversation.
                 ui.confirm("🆕 Start a new conversation? The current one is cleared (it stays saved on disk).")
                                                 .thenAccept(yes -> {
                                                     if (!yes)
@@ -278,8 +278,8 @@ public final class TelegramChat implements ChatHandler {
     }
 
     /**
-     * Falls an unmatched {@code /command} through to an extension-registered {@link SlashCommand} — the same registry
-     * the TUI dispatches against — so {@code /plan}, {@code /goal}, {@code /btw}, {@code /mcp}, {@code /skills}… work
+     * Falls an unmatched {@code /command} through to an extension-registered {@link SlashCommand}, the same registry
+     * the TUI dispatches against, so {@code /plan}, {@code /goal}, {@code /btw}, {@code /mcp}, {@code /skills}… work
      * in chat too. Native commands above take precedence. Returns true if a command matched (failures are reported, not
      * thrown, since this runs on the poll thread).
      */
@@ -515,16 +515,16 @@ public final class TelegramChat implements ChatHandler {
 
         streamedProse = true;
         if (shouldAttach(text)) {
-            // Finalize the live message as a short preview + notice, and send the whole answer as a file — far nicer
+            // Finalize the live message as a short preview + notice, and send the whole answer as a file, far nicer
             // than a wall of split messages for big diffs, file dumps and logs.
             sendOrEdit(previewOf(text) + "\n\n📄 full answer attached" + footer(usage), null);
             tg.sendDocument(chatId, answerFileName(), text.getBytes(StandardCharsets.UTF_8), null);
         } else {
-            // Split the answer first (which closes any open code fence), then append the usage footer — so the footer
+            // Split the answer first (which closes any open code fence), then append the usage footer, so the footer
             // is always its own paragraph after the content, never swallowed into a trailing code block.
             var chunks = new ArrayList<>(split(text));
             appendFooter(chunks, footer(usage));
-            sendOrEdit(chunks.get(0), null); // finalize: drop the Stop button — the turn is done
+            sendOrEdit(chunks.get(0), null); // finalize: drop the Stop button, the turn is done
             for (int i = 1; i < chunks.size(); i++)
                 sendChunk(chunks.get(i)); // overflow as fresh messages, each still HTML-rendered
         }
@@ -606,7 +606,7 @@ public final class TelegramChat implements ChatHandler {
     }
 
     /**
-     * Shows the running tool as live feedback, but only until real answer prose appears — once the model is writing,
+     * Shows the running tool as live feedback, but only until real answer prose appears; once the model is writing,
      * the streamed answer is the better signal and we never clobber it with a tool line. Reuses the stream message (the
      * placeholder simply becomes the answer when prose arrives) and honors the same edit throttle.
      */
@@ -626,7 +626,7 @@ public final class TelegramChat implements ChatHandler {
     /**
      * A one-line "running" label for a tool call, e.g. {@code "$ bash: \"npm test\""} or {@code "📖 read: App.java"}.
      * The {@code glyph} is the tool's own display glyph and {@code detail} comes from the shared {@link ToolLabels}, so
-     * Telegram renders every tool — including extension and MCP tools — the same way the TUI and web frontends do
+     * Telegram renders every tool, including extension and MCP tools, the same way the TUI and web frontends do
      * (rather than a hardcoded switch that degraded unknown tools to a generic marker).
      */
     static String toolHint(String toolName, Supplier<String> args, String glyph, String cwd) {
@@ -647,7 +647,7 @@ public final class TelegramChat implements ChatHandler {
             try {
                 editHtmlOrPlain(streamMessageId, text, keyboard);
             } catch (RuntimeException e) {
-                // the streamed message is gone (deleted / no longer editable) — recover by starting a fresh one,
+                // the streamed message is gone (deleted / no longer editable); recover by starting a fresh one,
                 // otherwise the rest of the answer would stream into the void
                 log.debug("telegram edit failed; sending a fresh message: {}", e.getMessage());
                 streamMessageId = sendHtmlOrPlain(text, keyboard);
@@ -714,7 +714,7 @@ public final class TelegramChat implements ChatHandler {
             if (cur.length() > 0 && cur.length() + line.length() + 1 > limit) {
                 parts.add(flush(cur, inFence));
                 if (inFence)
-                    cur.append("```\n"); // reopen the code block (language is dropped — acceptable)
+                    cur.append("```\n"); // reopen the code block (language is dropped, acceptable)
             }
             cur.append(line).append('\n');
             if (isFence(line))

@@ -10,8 +10,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
 
 /**
- * Decorates a built-in file tool ({@code read}/{@code write}) so that — when the ACP client advertised the matching
- * filesystem capability — the tool's IO is routed through the client
+ * Decorates a built-in file tool ({@code read}/{@code write}) so that, when the ACP client advertised the matching
+ * filesystem capability, the tool's IO is routed through the client
  * ({@code fs/read_text_file}/{@code fs/write_text_file}) instead of the local disk, letting the editor's view (unsaved
  * buffers) drive reads and letting writes surface in the editor. When the capability is absent it delegates to the
  * original tool, so non-fs clients are unaffected. All metadata (name/schema/rendering) is delegated to the original,

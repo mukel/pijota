@@ -14,7 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * {@code /btw} — a "by the way" side conversation. Asks a read-only sub-agent a question while the main agent keeps
+ * {@code /btw}: a "by the way" side conversation. Asks a read-only sub-agent a question while the main agent keeps
  * working: it runs concurrently (separate process), can read/search the codebase but never edit, and its answer is
  * shown to the user as a custom message that is kept OUT of the main agent's context. {@code /btw:inject} feeds the
  * last answer back into the main thread when it's worth keeping.
@@ -22,7 +22,7 @@ import java.util.concurrent.Executors;
 public final class BtwExtension implements Extension {
 
     /**
-     * Tools the side agent may use — read-only, so it can never race the main agent's edits. Names must match the
+     * Tools the side agent may use, read-only, so it can never race the main agent's edits. Names must match the
      * registered tool names (see {@code ToolRegistry.createDefault}).
      */
     private static final List<String> READ_ONLY_TOOLS = List.of("read", "grep", "glob", "ls", "webfetch", "websearch",
@@ -145,7 +145,7 @@ public final class BtwExtension implements Extension {
         return sb.length() > headerLen ? sb.toString() : "";
     }
 
-    /** Shows text to the user as a custom message — displayed everywhere, never added to the main agent's context. */
+    /** Shows text to the user as a custom message, displayed everywhere, never added to the main agent's context. */
     private void note(String text) {
         api.sendMessage(new Message.Custom("btw", text));
     }

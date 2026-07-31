@@ -70,15 +70,15 @@ public final class GoalExtension implements Extension {
                                         "Autonomous goal (auto-continues): /loop <objective> [flags]; /loop stop",
                                         List.of(), args -> handleCommand(args, true)));
 
-        // Model-facing surface is deliberately tiny — work, and say when done. The rich management verbs
+        // Model-facing surface is deliberately tiny. Work, and say when done. The rich management verbs
         // (pause/resume/stop/progress, status) stay human-side on /goal + /loop. Caps are forgiving strings the model
-        // copies verbatim (no arithmetic — small models drop digits when converting "30m"→1800 or "1M"→1000000).
+        // copies verbatim (no arithmetic: small models drop digits when converting "30m"→1800 or "1M"→1000000).
         api.registerTool(Tool.named("goal_set").description(
                                         "Set the objective the agent should work toward, with optional limits. Replaces any existing goal.")
                                         .stringParam("objective", "What the agent should accomplish", true)
-                                        .stringParam("max_time", "Wall-clock limit as a duration string — e.g. \"30m\", \"2h\", \"90s\", \"1h30m\". Pass the user's phrasing directly; do NOT convert to seconds.",
+                                        .stringParam("max_time", "Wall-clock limit as a duration string, e.g. \"30m\", \"2h\", \"90s\", \"1h30m\". Pass the user's phrasing directly; do NOT convert to seconds.",
                                                                         false)
-                                        .stringParam("max_tokens", "Token budget — e.g. \"500k\", \"1M\", \"2.5M\". Copy the user's figure; do NOT expand to a raw integer.",
+                                        .stringParam("max_tokens", "Token budget, e.g. \"500k\", \"1M\", \"2.5M\". Copy the user's figure; do NOT expand to a raw integer.",
                                                                         false)
                                         .intParam("max_iterations", "Max auto-continue iterations before stopping (0 = unlimited)",
                                                                         false)
@@ -107,7 +107,7 @@ public final class GoalExtension implements Extension {
         api.on(ExtensionEvent.TurnStart.class, ignored -> enforceHardLimits());
 
         api.on(ExtensionEvent.TurnEnd.class, ignored -> {
-            consecutiveFailures.set(0); // a turn completed normally — clear the transient failure streak
+            consecutiveFailures.set(0); // a turn completed normally. Clear the transient failure streak
             if (enforceHardLimits())
                 return;
             GoalState current = state.get();
@@ -141,7 +141,7 @@ public final class GoalExtension implements Extension {
         long delay = ErrorUtil.backoffMs(BACKOFF_BASE_MS, fails - 1, ErrorUtil.MAX_BACKOFF_MS);
         backoffScheduler.accept(() -> {
             GoalState g = state.get();
-            // The agent went idle after the failure — single-arg sendUserMessage wakes it (FOLLOW_UP only drains at a
+            // The agent went idle after the failure. Single-arg sendUserMessage wakes it (FOLLOW_UP only drains at a
             // turn boundary, which a failed turn never reaches).
             if (g.isActive() && g.continueOnIdle())
                 api.sendUserMessage(continuationPrompt(g));
@@ -199,7 +199,7 @@ public final class GoalExtension implements Extension {
             api.sendUserMessage(continuationPrompt(restored));
     }
 
-    /** The current goal state — package-private for tests (the model reads it via tools; humans via /goal). */
+    /** The current goal state, package-private for tests (the model reads it via tools; humans via /goal). */
     GoalState currentState() {
         return state.get();
     }
@@ -274,7 +274,7 @@ public final class GoalExtension implements Extension {
             sb.append(" · criterion: ").append(current.completionCriterion());
         if (!current.progress().isEmpty())
             sb.append(" · progress: ").append(current.progress().size());
-        // Surface the management actions — the command advertises "view or manage", so show how.
+        // Surface the management actions. The command advertises "view or manage", so show how.
         sb.append("  ·  manage: ");
         sb.append(current.status() == GoalState.Status.PAUSED
                                         ? "/goal resume · clear"
@@ -320,7 +320,7 @@ public final class GoalExtension implements Extension {
         updateState(GoalState::clear);
         // Stop a loop responsively: also interrupt the in-flight turn so "/loop stop" halts everything now, not after
         // the current turn finishes generating. Only when a turn is actually running (abort while idle would arm the
-        // next turn's abort flag) and only for loops — a plain /goal just tracks, so its turn is left to finish.
+        // next turn's abort flag) and only for loops. A plain /goal just tracks, so its turn is left to finish.
         if (wasLoop && !api.runtime().isIdle())
             api.runtime().abort();
         api.runtime().setStatus(wasLoop ? Emojis.PAUSE + " Loop stopped" : "Goal cleared");
@@ -389,7 +389,7 @@ public final class GoalExtension implements Extension {
                 criterion = stripQuotes(p.substring("--stop-when=".length()));
                 criterionFromFlag = true;
             } else if (p.equals("--stop-when")) {
-                // The condition is free text — consume the rest of the line (so put --stop-when last).
+                // The condition is free text. Consume the rest of the line (so put --stop-when last).
                 var rest = new ArrayList<String>();
                 while (i + 1 < parts.length)
                     rest.add(parts[++i]);
@@ -577,7 +577,7 @@ public final class GoalExtension implements Extension {
 
     private void saveEntry(GoalState goalState) {
         boolean idle = goalState.status() == GoalState.Status.IDLE;
-        // These entries are state snapshots persisted for reload — shown via the status line, not as repeated
+        // These entries are state snapshots persisted for reload, shown via the status line, not as repeated
         // transcript
         // lines (Message.Custom.SILENT). Omit json when idle rather than storing null.
         var details = new HashMap<String, Object>();

@@ -77,7 +77,7 @@ class SecurityExtensionTest {
 
     @Test
     void toolCallBlocksDangerousJobsRunCommand() {
-        // jobs_run spawns shell commands in the background — it must be gated by the same guard, not a bypass
+        // jobs_run spawns shell commands in the background; it must be gated by the same guard, not a bypass
         var api = new FakeExtensionAPI();
         var ext = new SecurityExtension();
         ext.init(api);

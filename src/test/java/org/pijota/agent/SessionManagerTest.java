@@ -212,7 +212,7 @@ class SessionManagerTest {
     void resolveSessionThrowsWhenAmbiguous() throws Exception {
         var manager = new SessionManager(tempDir);
         // Two sessions sharing a known prefix so it reliably matches both. Session ids are random UUIDs, so
-        // resolving by a literal like "a" was flaky — it only reached the ambiguous branch when exactly the
+        // resolving by a literal like "a" was flaky: it only reached the ambiguous branch when exactly the
         // right number of UUIDs happened to start with that letter.
         Path dir = manager.createSession("/workspace/project").getParent();
         Files.writeString(dir.resolve("shared-one.jsonl"), "{\"type\":\"session\"}\n");

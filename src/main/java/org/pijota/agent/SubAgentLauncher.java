@@ -18,8 +18,8 @@ import java.util.Map;
 
 /**
  * Runs a one-shot sub-agent in a separate {@code pijota --agent --no-session} process and returns its final answer. A
- * child process (rather than an in-process loop) keeps it safely concurrent with the main session — separate LLM client
- * and state — and the {@code tools} allow-list restricts what the sub-agent may do (e.g. read-only).
+ * child process (rather than an in-process loop) keeps it safely concurrent with the main session (separate LLM client
+ * and state), and the {@code tools} allow-list restricts what the sub-agent may do (e.g. read-only).
  */
 public final class SubAgentLauncher {
 

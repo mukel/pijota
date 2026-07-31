@@ -154,7 +154,7 @@ class GoalExtensionTest {
         fake.fireTurnEnd(1); // a turn succeeded → streak resets
         for (int i = 0; i < 4; i++)
             fake.fireError("boom", true);
-        assertEquals(GoalState.Status.ACTIVE, ext.currentState().status(), "streak reset — not failed");
+        assertEquals(GoalState.Status.ACTIVE, ext.currentState().status(), "streak reset, not failed");
     }
 
     @Test
@@ -279,7 +279,7 @@ class GoalExtensionTest {
 
         fake.slashCommand("goal").handler().accept("stop");
 
-        assertFalse(runtime.aborted(), "a plain /goal just tracks — its turn is left to finish; only loops abort");
+        assertFalse(runtime.aborted(), "a plain /goal just tracks, its turn is left to finish; only loops abort");
     }
 
     // ---- human slash verbs (shared by /goal and /loop) ----

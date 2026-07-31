@@ -169,7 +169,7 @@ class EditToolTest {
 
     @Test
     void fuzzyMatchesAcrossIndentationDifference() throws Exception {
-        // file is tab-indented; the model reproduces the line with spaces — not a literal substring, so only the
+        // file is tab-indented; the model reproduces the line with spaces, not a literal substring, so only the
         // whitespace-insensitive fuzzy path can match it
         var path = tempDir.resolve("indent.py");
         Files.writeString(path, "if x:\n\tdo_thing()\n");

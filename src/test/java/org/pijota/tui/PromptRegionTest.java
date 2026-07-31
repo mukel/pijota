@@ -34,7 +34,7 @@ class PromptRegionTest {
 
     @Test
     void completionRowsNeverExceedWidthSoFrameHeightStaysAccurate() {
-        // A row wider than the terminal auto-wraps to 2 physical rows the frame never composed — that mismatch desyncs
+        // A row wider than the terminal auto-wraps to 2 physical rows the frame never composed; that mismatch desyncs
         // PromptLayout and stacks stale separators. Every composed row must stay within width.
         var region = new PromptRegion.Completions();
         int width = 40;
@@ -67,7 +67,7 @@ class PromptRegionTest {
     @Test
     void editorWrapsWideGlyphsByColumnsNotChars() {
         // 20 CJK chars are 40 visible columns. A char-counted wrap would put up to 2× the terminal width on one row
-        // and the terminal would auto-wrap it — an extra physical row the frame's bookkeeping never sees, shifting the
+        // and the terminal would auto-wrap it, an extra physical row the frame's bookkeeping never sees, shifting the
         // redraw by one on every keystroke. Column-accurate wrapping must keep every row within width.
         var region = new PromptRegion.Editor();
         int width = 24;

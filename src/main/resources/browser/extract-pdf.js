@@ -1,4 +1,4 @@
-// extract-pdf.js — extract a PDF's text layer as markdown, in the page, via the bundled (downloaded) PDF.js.
+// extract-pdf.js: extract a PDF's text layer as markdown, in the page, via the bundled (downloaded) PDF.js.
 //
 // Run by BrowserSession.extractPdf through BrowserBackend.evaluate (which awaits the returned promise). Preconditions
 // set by the caller before this runs:
@@ -6,7 +6,7 @@
 //   • globalThis.__pdfWorker = the pdf.worker.min.js source (used to build a Blob worker, no served file needed)
 //   • globalThis.__pdfB64    = base64 of the PDF bytes
 //
-// Returns a markdown-ish string (pages separated by `---`). Digital / text-layer PDFs only — a scanned (image-only)
+// Returns a markdown-ish string (pages separated by `---`). Digital / text-layer PDFs only; a scanned (image-only)
 // PDF has no text layer and yields little; the caller falls back to a native attachment / note in that case.
 (async () => {
   // the legacy UMD build exposes the lib under the webpack library name; older builds used `pdfjsLib`

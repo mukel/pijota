@@ -49,7 +49,7 @@ public final class WhimsicalExtension implements Extension {
                                         }));
 
         // Show only while a turn is in flight. Deriving from isIdle() (not TurnStart/TurnEnd bookkeeping) means the
-        // phrase clears on *every* terminal path — success, abort, and a failed turn (which fires Error, not TurnEnd,
+        // phrase clears on *every* terminal path: success, abort, and a failed turn (which fires Error, not TurnEnd,
         // and used to leave the phrase stuck on screen after an error).
         api.registerStatusLines(() -> {
             if (!enabled || runtime.isIdle())

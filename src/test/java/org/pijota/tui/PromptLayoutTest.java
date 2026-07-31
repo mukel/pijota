@@ -54,7 +54,7 @@ class PromptLayoutTest {
 
         String rendered = render(layout, 4, snapshot());
 
-        // A rule wider than the terminal would auto-wrap onto an extra physical row the frame never composed — the
+        // A rule wider than the terminal would auto-wrap onto an extra physical row the frame never composed, the
         // classic source of a one-row drift on every redraw. Even absurdly narrow terminals get exact-width rules.
         var lines = rendered.lines().filter(line -> line.indexOf('─') >= 0).toList();
         assertEquals(2, lines.size(), rendered);
@@ -87,7 +87,7 @@ class PromptLayoutTest {
         return AnsiStripper.strip(sw.toString());
     }
 
-    /** Rows {@link PromptLayout#eraseCurrent} walks up — i.e. how far above the parked cursor the frame top sits. */
+    /** Rows {@link PromptLayout#eraseCurrent} walks up, i.e. how far above the parked cursor the frame top sits. */
     private static int eraseUpRows(PromptLayout layout) {
         var sw = new StringWriter();
         layout.eraseCurrent(new PrintWriter(sw));
@@ -153,7 +153,7 @@ class PromptLayoutTest {
 
         var sw = new StringWriter();
         layout.eraseCurrent(new PrintWriter(sw));
-        // No \033[J before the redraw — the region is overwritten line-by-line, never blanked first (no strobe).
+        // No \033[J before the redraw: the region is overwritten line-by-line, never blanked first (no strobe).
         assertFalse(sw.toString().contains("\033[J"), sw.toString());
     }
 
@@ -172,7 +172,7 @@ class PromptLayoutTest {
 
         render(layout, 80, snap);
 
-        // Frame rows: top rule, editor input, editor bottom rule, cwd, status — and the cursor parks on the editor
+        // Frame rows: top rule, editor input, editor bottom rule, cwd, status, and the cursor parks on the editor
         // input (row 1). Erase must walk up exactly that far: walking the whole frame height instead would climb past
         // the frame top into committed scrollback and overwrite it on EVERY redraw (the eaten-lines regression).
         assertEquals(1, eraseUpRows(layout));
@@ -188,7 +188,7 @@ class PromptLayoutTest {
         int erase = eraseUpRows(layout);
 
         // 30 filler rows + separator + editor can't fit a 10-row screen: the frame keeps its BOTTOM 10 rows (the
-        // prompt), because rows above the screen top are unreachable by relative cursor moves — an unclamped frame
+        // prompt), because rows above the screen top are unreachable by relative cursor moves; an unclamped frame
         // loses its anchor and drifts on every redraw. Rows are separated by \r\n, so 10 rows = 9 separators.
         assertTrue(sw.toString().split("\r\n", -1).length <= 10, rendered);
         assertTrue(erase <= 9, "parked cursor must stay within the on-screen frame, was " + erase + " rows up");

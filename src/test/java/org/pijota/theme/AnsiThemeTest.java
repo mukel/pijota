@@ -35,7 +35,7 @@ class AnsiThemeTest {
         var theme = AnsiTheme.dark();
         var thinking = theme.thinking();
         // The thinking block renders through the same markdown pipeline as content, so every body/markdown slot must be
-        // dimmed (differ from the base theme) — otherwise prose, bold, code, etc. would show at full brightness.
+        // dimmed (differ from the base theme); otherwise prose, bold, code, etc. would show at full brightness.
         for (String slot : new String[] {"text", "bold", "italic", "heading", "codeBody", "synKeyword", "inlineCode"}) {
             assertNotEquals(theme.style(slot), thinking.style(slot), "thinking must dim slot: " + slot);
         }

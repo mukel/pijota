@@ -86,7 +86,7 @@ final class TreeRenderer {
     }
 
     /**
-     * Render a maximal linear run of turns starting at {@code start} at the same indent, then recurse — indenting only
+     * Render a maximal linear run of turns starting at {@code start} at the same indent, then recurse, indenting only
      * where the conversation actually forks (a turn with more than one child branch). {@code firstPrefix} is drawn
      * before the run's first turn (the branch connector), {@code restPrefix} before every later turn in the run.
      */
@@ -99,16 +99,16 @@ final class TreeRenderer {
         while (entry != null) {
             String id = entryId(entry);
             if (id != null && !seen.add(id))
-                break; // already rendered this turn — a cyclic parentId chain; stop rather than loop forever
+                break; // already rendered this turn; a cyclic parentId chain; stop rather than loop forever
             appendTurnLine(lines, entry, first ? firstPrefix : restPrefix, children, activePath, leafId, userNumbers);
             first = false;
             var nextTurns = firstUserDescendants(children.getOrDefault(id, List.of()), children);
             if (nextTurns.size() == 1) {
-                entry = nextTurns.getFirst(); // linear continuation — stay in the same column
+                entry = nextTurns.getFirst(); // linear continuation, stay in the same column
             } else if (nextTurns.isEmpty()) {
                 entry = null;
             } else {
-                for (int i = 0; i < nextTurns.size(); i++) { // a real fork — indent each branch under it
+                for (int i = 0; i < nextTurns.size(); i++) { // a real fork, indent each branch under it
                     boolean last = i == nextTurns.size() - 1;
                     appendSegment(lines, nextTurns.get(i), children, activePath, leafId, userNumbers,
                                                     restPrefix + (last ? "└ " : "├ "),

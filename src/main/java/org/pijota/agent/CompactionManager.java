@@ -60,7 +60,7 @@ public final class CompactionManager {
         int estimatedChars = estimateChars(messages);
         // Trust the provider's real prompt size when available: it captures tool-schema tokens + true tokenization
         // the byte heuristic misses, while the heuristic captures cached message bytes the provider reports
-        // separately — so the max of the two is the safe, conservative context-size estimate for the trigger.
+        // separately, so the max of the two is the safe, conservative context-size estimate for the trigger.
         int contextTokens = (int) Math.max(realContextTokens, estimateTokens(messages));
         int limit = Math.max(0, contextWindow - reserveTokens);
 
@@ -102,7 +102,7 @@ public final class CompactionManager {
             return 0;
 
         // A prior summary at the head is fed via the previousSummary param (the incremental-update prompt), not
-        // re-summarized inline — so it's incorporated exactly once, and the update path also works after a reload
+        // re-summarized inline, so it's incorporated exactly once, and the update path also works after a reload
         // (when the in-memory previousSummary is null but the loaded history still carries the CompactionSummary).
         int from = 1;
         String priorSummary = previousSummary;
@@ -126,7 +126,7 @@ public final class CompactionManager {
             summary = null;
         }
         if (summary == null || summary.isBlank()) {
-            summary = "[degraded — LLM summarizer unavailable] " + summarize(toSummarize);
+            summary = "[degraded: LLM summarizer unavailable] " + summarize(toSummarize);
         }
         summary = Util.stripSystemReminders(summary).strip();
         previousSummary = summary;

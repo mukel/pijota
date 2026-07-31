@@ -65,7 +65,7 @@ public final class TelegramUiContext implements UiContext {
     public CompletableFuture<String> prompt(String question, String defaultValue) {
         var future = new CompletableFuture<String>();
         if (!pendingPrompt.compareAndSet(null, future)) {
-            // Already waiting on an earlier prompt; don't lose it — fall back to the default rather than overwrite.
+            // Already waiting on an earlier prompt; don't lose it, fall back to the default rather than overwrite.
             return CompletableFuture.completedFuture(defaultValue);
         }
         tg.sendMessage(chatId, question);
@@ -130,7 +130,7 @@ public final class TelegramUiContext implements UiContext {
     }
 
     /**
-     * Unblock any tool waiting on a tap/prompt by resolving it as if cancelled — called when the bridge goes away
+     * Unblock any tool waiting on a tap/prompt by resolving it as if cancelled, called when the bridge goes away
      * (remote-control stop) so the agent turn can't hang waiting for an answer that can never arrive.
      */
     @Override

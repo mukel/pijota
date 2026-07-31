@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Live session state and control surface for extensions. Obtain via {@link ExtensionAPI#runtime()} during {@code init}
- * — the handle is stable for the session lifetime. Exposes the LLM client, tool registry, message snapshots,
+ * Live session state and control surface for extensions. Obtain via {@link ExtensionAPI#runtime()} during {@code init};
+ * the handle is stable for the session lifetime. Exposes the LLM client, tool registry, message snapshots,
  * filesystem, status lines, extension flags, process execution, and TUI suspend/resume.
  */
 public interface ExtensionRuntime {
@@ -71,7 +71,7 @@ public interface ExtensionRuntime {
     /** Set the main status bar text (overwritten by the next set). */
     void setStatus(String message);
 
-    /** Set a named status entry — appears alongside keyless status. */
+    /** Set a named status entry, appears alongside keyless status. */
     void setStatus(String key, String message);
 
     /** Remove a named status entry. */
@@ -91,7 +91,7 @@ public interface ExtensionRuntime {
     /** Run a command in the session's cwd; returns exit code, stdout, stderr. */
     ExecResult exec(List<String> command);
 
-    /** The UI context — null in headless/non-interactive modes. Terminal handover/output live here ({@code ui()}). */
+    /** The UI context, null in headless/non-interactive modes. Terminal handover/output live here ({@code ui()}). */
     UiContext ui();
 
     /** Output of a command run via {@link #exec}. */

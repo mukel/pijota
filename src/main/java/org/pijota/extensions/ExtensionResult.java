@@ -5,11 +5,11 @@ import java.util.List;
 /**
  * Typed results returned by decision-hook handlers. Each record corresponds to one hook type:
  * <ul>
- * <li>{@link Block} — veto a tool call</li>
- * <li>{@link InputResult} — transform or consume user input</li>
- * <li>{@link UserBashResult} — block/replace/allow a user-initiated command</li>
- * <li>{@link BashToolCallResult} — block/allow an LLM-initiated bash</li>
- * <li>{@link MessageRender} — render a custom extension message in the TUI</li>
+ * <li>{@link Block}: veto a tool call</li>
+ * <li>{@link InputResult}: transform or consume user input</li>
+ * <li>{@link UserBashResult}: block/replace/allow a user-initiated command</li>
+ * <li>{@link BashToolCallResult}: block/allow an LLM-initiated bash</li>
+ * <li>{@link MessageRender}: render a custom extension message in the TUI</li>
  * </ul>
  */
 public final class ExtensionResult {

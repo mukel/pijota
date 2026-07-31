@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
  * <p>
  * The {@code /mcp} command manages the live set without restarting pijota: {@code list} (default),
  * {@code connect <name>}, {@code disconnect <name>} (kills the process and removes its tools),
- * {@code reconnect <name>}, and {@code reload} (re-reads the config and reconciles — connecting added servers,
+ * {@code reconnect <name>}, and {@code reload} (re-reads the config and reconciles: connecting added servers,
  * disconnecting removed ones, restarting changed ones).
  */
 public final class McpExtension implements Extension {
@@ -62,7 +62,7 @@ public final class McpExtension implements Extension {
     private ExtensionRuntime runtime;
     // Two pools with distinct roles. lifecycle: a single thread that serializes every server mutation (startup
     // connects + all /mcp commands), so ServerState is never raced. completion: where McpClient resolves its async
-    // request futures (handshake + tool calls) — kept separate so a connect() blocked awaiting a response can't
+    // request futures (handshake + tool calls). Kept separate so a connect() blocked awaiting a response can't
     // deadlock against its own completion.
     private volatile ExecutorService lifecycle;
     private volatile ExecutorService completion;
@@ -327,7 +327,7 @@ public final class McpExtension implements Extension {
             this.name = name;
         }
 
-        /** Live connection state, derived from the client — so a server that died mid-session reads as offline. */
+        /** Live connection state, derived from the client, so a server that died mid-session reads as offline. */
         boolean connected() {
             return client != null && client.alive();
         }

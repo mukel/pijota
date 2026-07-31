@@ -23,7 +23,7 @@ class ModalityTest {
         assertTrue(Modality.isSupportedImage("image/gif"));
         assertTrue(Modality.isSupportedImage("image/webp"));
         assertTrue(Modality.isSupportedImage("IMAGE/PNG"), "case-insensitive");
-        // provider/model limitation — these formats are rejected (no native transcoding in the static image)
+        // provider/model limitation: these formats are rejected (no native transcoding in the static image)
         assertFalse(Modality.isSupportedImage("image/heic"));
         assertFalse(Modality.isSupportedImage("image/tiff"));
         assertFalse(Modality.isSupportedImage("image/bmp"));

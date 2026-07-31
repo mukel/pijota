@@ -1,7 +1,7 @@
 package org.pijota.extensions;
 
 /**
- * How a message sent by an extension is delivered relative to the agent's current activity — passed directly to the
+ * How a message sent by an extension is delivered relative to the agent's current activity; passed directly to the
  * agent layer ({@link ExtensionAPI#sendUserMessage} / {@code AgentContext.sendUserMessage}).
  */
 public enum DeliverAs {

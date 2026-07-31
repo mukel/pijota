@@ -516,7 +516,7 @@ class MarkdownTableRendererTest {
         var result = AnsiStripper.strip(raw);
         assertEquals("==unmatched ++valid++", result);
         assertTrue(raw.contains(THEME.style("diffAdd")),
-                                        "++valid++ should be highlighted even after unmatched == — BUG: unmatched marker swallows rest of string");
+                                        "++valid++ should be highlighted even after unmatched ==. BUG: unmatched marker swallows rest of string");
     }
 
     @Test

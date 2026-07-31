@@ -60,7 +60,7 @@ public final class ModelRegistry {
     public static String defaultModelForProvider(String provider) {
         String fromCatalog = ProviderCatalog.defaultModel(provider);
         // A catalogued provider default that's also a known model is the best pick. Otherwise fall back to the first
-        // known model for the provider — but if there are none (e.g. a user-defined/local provider whose models aren't
+        // known model for the provider, but if there are none (e.g. a user-defined/local provider whose models aren't
         // in the catalog), honor the declared default verbatim; model ids are free-form and reach the API as-is.
         if (fromCatalog != null && !fromCatalog.isBlank() && isKnownProviderModel(provider, fromCatalog)) {
             return fromCatalog;
@@ -83,7 +83,7 @@ public final class ModelRegistry {
     }
 
     /**
-     * The catalogued model for {@code provider} closest to {@code model} — a likely-typo suggestion. Returns a result
+     * The catalogued model for {@code provider} closest to {@code model}, a likely-typo suggestion. Returns a result
      * only when a known id is near enough (small edit distance) to be a confident "did you mean", so genuinely new /
      * uncatalogued models yield {@link Optional#empty()} rather than a misleading nudge.
      */
@@ -145,7 +145,7 @@ public final class ModelRegistry {
             this(inputPerMTok, outputPerMTok, List.of());
         }
 
-        /** The rates for a request of {@code totalInputTokens} — the highest exceeded tier, else the base rate. */
+        /** The rates for a request of {@code totalInputTokens}, the highest exceeded tier, else the base rate. */
         public Pricing ratesFor(long totalInputTokens) {
             double in = inputPerMTok, out = outputPerMTok;
             long threshold = -1;
@@ -287,7 +287,7 @@ public final class ModelRegistry {
                                     SettingsManager settings) {
         // Model aliases: "alias/<name>" resolves to a provider/model configured under settings "aliases"
         // (e.g. alias/fast -> anthropic/claude-haiku-4-5). Lets agents/sub-agents declare a role, not a concrete model.
-        // Returned verbatim — an explicit alias target is honored as-is (supports custom/local models not in the
+        // Returned verbatim. An explicit alias target is honored as-is (supports custom/local models not in the
         // catalog, and avoids silently substituting the provider default for an off-catalog id).
         if (ALIAS_PROVIDER.equalsIgnoreCase(explicitProvider) && explicitModel != null && settings != null) {
             var target = resolveAlias(explicitModel, settings);
@@ -304,7 +304,7 @@ public final class ModelRegistry {
             provider = "openai";
         if (model == null)
             model = settings != null ? settings.config().defaultModel() : null;
-        // Honor an explicit model verbatim — only fall back to the provider default when none was given. Off-catalog
+        // Honor an explicit model verbatim. Only fall back to the provider default when none was given. Off-catalog
         // ids (alias targets, local fine-tunes, models newer than the bundled catalog) must reach the provider API
         // as-is; silently swapping them for the default would diverge the live model from the UI and the session.
         if (model == null || model.isBlank()) {
@@ -335,7 +335,7 @@ public final class ModelRegistry {
     /**
      * The known models worth offering in a picker: their provider has a usable (non-blank) API key configured, and they
      * pass the user's {@code enabled_models} allowlist. Null settings → empty (nothing is runnable without keys). The
-     * single source of truth for every frontend's model picker — TUI, web and Telegram — so "which models can I switch
+     * single source of truth for every frontend's model picker (TUI, web and Telegram) so "which models can I switch
      * to" is answered identically everywhere (key check + allowlist), not re-derived per frontend.
      */
     public static List<ModelInfo> availableModels(SettingsManager settings) {
@@ -343,7 +343,7 @@ public final class ModelRegistry {
             return KNOWN_MODELS; // settings unknown → don't filter (production always has settings; this aids tests)
         var withKeys = KNOWN_MODELS.stream().filter(m -> {
             // Show models we can actually use: either a key is configured, or the provider is keyless (a local /
-            // no-auth OpenAI-compatible server) — otherwise a keyless custom provider's models never show in /model.
+            // no-auth OpenAI-compatible server). Otherwise a keyless custom provider's models never show in /model.
             String key = settings.resolveApiKey(m.provider());
             return (key != null && !key.isBlank()) || !SettingsManager.requiresApiKey(m.provider());
         }).toList();
@@ -351,7 +351,7 @@ public final class ModelRegistry {
     }
 
     /**
-     * Apply the {@code enabled_models} glob allowlist to a model list (shared by every frontend's picker). Fails open —
+     * Apply the {@code enabled_models} glob allowlist to a model list (shared by every frontend's picker). Fails open:
      * if the patterns would exclude everything, the unfiltered list is returned so a bad pattern can't lock the user
      * out of switching models. Null/empty patterns return the list unchanged.
      */

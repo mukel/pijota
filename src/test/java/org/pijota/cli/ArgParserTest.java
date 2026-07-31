@@ -89,7 +89,7 @@ class ArgParserTest {
     @Test
     void thinkingValuePassesThroughVerbatim() {
         assertEquals("high", ArgParser.parse(new String[] {"--thinking", "high"}).thinkingLevel());
-        // unknown value still passes through (warned, defaulted downstream) — parser doesn't reject it
+        // unknown value still passes through (warned, defaulted downstream); parser doesn't reject it
         assertEquals("hgh", ArgParser.parse(new String[] {"--thinking", "hgh"}).thinkingLevel());
     }
 

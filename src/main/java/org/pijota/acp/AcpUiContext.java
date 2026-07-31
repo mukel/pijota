@@ -16,7 +16,7 @@ import java.util.function.Predicate;
  *
  * <p>
  * All client I/O goes through the {@code emit} sink the frontend supplies, keeping this class free of transport
- * concerns — the same split as {@code WebUiContext}/{@code TelegramUiContext}.
+ * concerns, the same split as {@code WebUiContext}/{@code TelegramUiContext}.
  */
 final class AcpUiContext implements UiContext {
 
@@ -83,7 +83,7 @@ final class AcpUiContext implements UiContext {
                 future.complete(false);
                 return true;
             }
-            return false; // unrecognized — let the message be handled normally
+            return false; // unrecognized, let the message be handled normally
         };
         return future;
     }
@@ -113,7 +113,7 @@ final class AcpUiContext implements UiContext {
                 emit.accept("Please pick a number between 1 and " + choices.size() + ".");
                 return true;
             } catch (NumberFormatException e) {
-                return false; // not a number — treat as a normal message
+                return false; // not a number, treat as a normal message
             }
         };
     }

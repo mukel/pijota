@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Cross-OS detection of executables on {@code PATH} — like {@code which}/{@code where}, without spawning a process.
+ * Cross-OS detection of executables on {@code PATH}, like {@code which}/{@code where}, without spawning a process.
  * Lets features probe for optional external tools (rg, fzf, fd, tmux, a browser/driver, …) and degrade gracefully when
  * they are absent. On Windows an extensionless name is resolved through the {@code PATHEXT} suffixes
  * ({@code .EXE}/{@code .BAT}/{@code .CMD}/…); elsewhere the name is used verbatim.
@@ -20,7 +20,7 @@ public final class Executables {
         return find(name) != null;
     }
 
-    /** Whether any of {@code names} resolves to an executable — for tools whose binary name differs by OS. */
+    /** Whether any of {@code names} resolves to an executable, for tools whose binary name differs by OS. */
     public static boolean anyAvailable(List<String> names) {
         return findAny(names) != null;
     }
@@ -50,7 +50,7 @@ public final class Executables {
         return null;
     }
 
-    /** The first of {@code names} found on {@code PATH}, or {@code null} — for OS-specific binaries (e.g. browsers). */
+    /** The first of {@code names} found on {@code PATH}, or {@code null}, for OS-specific binaries (e.g. browsers). */
     public static Path findAny(List<String> names) {
         for (String n : names) {
             Path p = find(n);

@@ -31,7 +31,7 @@ public final class FauxLlm implements LlmClient {
 
     /**
      * Makes {@link #streamMessages} throw synchronously (a provider that fails on the calling thread), rather than
-     * returning a failed future — to exercise the agent loop's synchronous-failure resilience.
+     * returning a failed future, to exercise the agent loop's synchronous-failure resilience.
      */
     public FauxLlm throwOnStream(RuntimeException error) {
         this.streamThrows = error;
@@ -84,7 +84,7 @@ public final class FauxLlm implements LlmClient {
     }
 
     /**
-     * Runs at the start of every {@link #streamMessages} call — lets a test abort the agent while a request is in
+     * Runs at the start of every {@link #streamMessages} call, letting a test abort the agent while a request is in
      * flight.
      */
     public FauxLlm onRequest(Runnable hook) {
@@ -201,7 +201,7 @@ public final class FauxLlm implements LlmClient {
         }
 
         /**
-         * A single-content response carrying a nominal non-zero {@link Usage} (1 token in, 1 out) — the common "this
+         * A single-content response carrying a nominal non-zero {@link Usage} (1 token in, 1 out), the common "this
          * turn consumed some tokens" case for agent/session tests.
          */
         public static Response contentWithUsage(String content) {

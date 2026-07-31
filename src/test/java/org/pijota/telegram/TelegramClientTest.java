@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Verifies the snake_case wire mapping (the only fiddly part) with canned payloads — no network needed. */
+/** Verifies the snake_case wire mapping (the only fiddly part) with canned payloads; no network needed. */
 class TelegramClientTest {
 
     @Test

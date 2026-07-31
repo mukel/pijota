@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 public final class ToolRegistry {
 
     // Guarded by this: tools may be registered dynamically and from background threads (e.g. MCP servers connecting in
-    // parallel, or reconnecting) while the agent thread reads the active set each turn — so all access is
+    // parallel, or reconnecting) while the agent thread reads the active set each turn, so all access is
     // synchronized.
     // A LinkedHashMap preserves registration order; the per-turn cost of these short critical sections is negligible.
     private final Map<String, ToolEntry> tools = new LinkedHashMap<>();

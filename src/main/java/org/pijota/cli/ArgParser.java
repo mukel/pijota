@@ -12,7 +12,7 @@ import java.util.Set;
 
 public final class ArgParser {
 
-    /** Frontend subcommands: `pijota web|telegram|acp` — the positional twins of the {@code --web}/… flags. */
+    /** Frontend subcommands: `pijota web|telegram|acp`, the positional twins of the {@code --web}/… flags. */
     private static final Set<String> FRONTEND_SUBCOMMANDS = Set.of("web", "telegram", "acp", "tui");
 
     public static Args parse(String[] rawArgs) {
@@ -131,11 +131,11 @@ public final class ArgParser {
                     } else if (arg.startsWith("@")) {
                         fileArgs.add(arg.substring(1));
                     } else if (arg.startsWith("-")) {
-                        // Unknown single-dash flag — never a valid extension flag (those are --name), so it would
+                        // Unknown single-dash flag, never a valid extension flag (those are --name), so it would
                         // otherwise vanish silently. Warn instead of dropping it.
                         System.err.println("pijota: ignoring unknown option '" + arg + "'");
                     } else if (promptArgs.isEmpty() && FRONTEND_SUBCOMMANDS.contains(arg)) {
-                        // Frontend subcommand — positional twin of --web/--telegram/--acp. `tui` is the default, so a
+                        // Frontend subcommand, positional twin of --web/--telegram/--acp. `tui` is the default, so a
                         // no-op. Only `web` takes a trailing address (`pijota web 0.0.0.0:8080`).
                         if (!arg.equals("tui")) {
                             String value = arg.equals("web") ? cursor.optionalValue() : null;
@@ -228,7 +228,7 @@ public final class ArgParser {
 
     /**
      * Walks the raw argv left to right. {@link #value} consumes a required value for the flag just read; the
-     * {@code optional*} variants consume the next token only when it looks like a value rather than the next flag —
+     * {@code optional*} variants consume the next token only when it looks like a value rather than the next flag,
      * which is the whole point of the cursor: callers never touch the index, so a flag can't accidentally swallow the
      * next flag or skip its own value.
      */

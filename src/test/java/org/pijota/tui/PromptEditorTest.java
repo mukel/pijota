@@ -138,7 +138,7 @@ class PromptEditorTest {
     @Test
     void enterSubmitsCommandTokenNotTheArgSpecPlaceholder() {
         // Typing a command and pressing Enter with the completion menu open must submit the command token, not the
-        // display name with placeholders — otherwise "/save" would submit "/save [path]" and treat "[path]" as an arg.
+        // display name with placeholders, otherwise "/save" would submit "/save [path]" and treat "[path]" as an arg.
         editor.insertText("/save");
 
         var result = editor.apply(Key.Special.ENTER);
@@ -265,7 +265,7 @@ class PromptEditorTest {
         type("abc");
         assertEquals("abc", editor.text());
 
-        editor.apply(Key.Special.CTRL_UNDERSCORE); // undo — a coalesced typing run reverts at once
+        editor.apply(Key.Special.CTRL_UNDERSCORE); // undo, a coalesced typing run reverts at once
         assertEquals("", editor.text());
 
         editor.apply(Key.Special.ALT_UNDERSCORE); // redo

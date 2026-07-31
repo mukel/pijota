@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Creates a git stash checkpoint before each turn so the user can restore code to any previous turn. Tracks the last
- * modified tool to annotate checkpoints with what was changed. Not registered by default — intended as a demo of the
+ * modified tool to annotate checkpoints with what was changed. Not registered by default, intended as a demo of the
  * event + exec extension pattern.
  */
 public final class GitCheckpointExtension implements Extension {

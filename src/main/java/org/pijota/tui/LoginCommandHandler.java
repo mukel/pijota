@@ -129,7 +129,7 @@ final class LoginCommandHandler {
             var oauthCfg = oauth.get();
 
             // Output goes through the TUI append stream (not raw System.out) so the device URL renders cleanly above
-            // the prompt and the input loop stays live — letting Esc cancel the in-flight login (see handleEsc).
+            // the prompt and the input loop stays live, letting Esc cancel the in-flight login (see handleEsc).
             var result = oauthClient.login(oauthCfg, line -> host.appendPlain(List.of(line)));
 
             String tokenUrl = oauthCfg.oauthTokenEndpoint() != null && !oauthCfg.oauthTokenEndpoint().isBlank()

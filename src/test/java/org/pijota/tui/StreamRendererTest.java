@@ -99,7 +99,7 @@ class StreamRendererTest {
         r.streamThinking("reasoning one\nreasoning two\n");
         r.streamContent("answer"); // first content closes the thinking block
 
-        // The thinking body must already be emitted when the block closes — not held buffered until the final flush.
+        // The thinking body must already be emitted when the block closes, not held buffered until the final flush.
         String beforeFlush = sink.text();
         assertTrue(beforeFlush.contains("reasoning one"),
                                         "thinking body not rendered when block closed: " + beforeFlush);

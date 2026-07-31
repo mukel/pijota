@@ -184,7 +184,7 @@ public final class LlmService implements LlmClient {
         var future = new CompletableFuture<StreamResult>();
         var result = new StreamResult();
         // Safety net: if the provider stalls (no HTTP-level timeout fires), fail with a retryable timeout so AgentLoop
-        // retries — never silently return a truncated response as a successful turn. orTimeout cancels its timer once
+        // retries, never silently returning a truncated response as a successful turn. orTimeout cancels its timer once
         // the stream settles (nothing lingers); the hook then aborts the now-leaked stream.
         long streamTimeoutSeconds = LlmTimeouts.request().toSeconds();
         var settled = new AtomicBoolean(false);
@@ -200,7 +200,7 @@ public final class LlmService implements LlmClient {
         });
 
         // Gate attachments to the active model's accepted modalities (unsupported media is dropped with a note), so we
-        // never send an image/PDF/audio/video to a model that can't read it — langchain4j maps the rest natively.
+        // never send an image/PDF/audio/video to a model that can't read it; langchain4j maps the rest natively.
         var chatMessages = MessageConverter.toLangChain4j(messages,
                                         ModelRegistry.inputModalities(providerName, modelName));
         var requestBuilder = ChatRequest.builder().messages(chatMessages);
@@ -243,7 +243,7 @@ public final class LlmService implements LlmClient {
                 String ptText = pt.text();
                 if (ptText != null) {
                     markFirstToken();
-                    thinkingBuf.append(ptText); // guard the append too — a null delta must not add the literal "null"
+                    thinkingBuf.append(ptText); // guard the append too; a null delta must not add the literal "null"
                 }
                 onPartial.accept(result.content(), thinkingBuf.toString());
             }
@@ -303,7 +303,7 @@ public final class LlmService implements LlmClient {
 
     // Normalizes a provider's usage into pijota's Usage, whose inputTokens always EXCLUDES the cached ones (real prompt
     // size = input + cacheRead + cacheWrite). Each provider's extra counts live on a concrete TokenUsage subtype, read
-    // through the typed API (not reflection) so they still populate in the GraalVM native image — reflective getMethod
+    // through the typed API (not reflection) so they still populate in the GraalVM native image; reflective getMethod
     // would be dropped there without registration and silently return 0. Both modules are non-optional deps.
     //
     // Anthropic reports its cache tokens apart from the input count already; OpenAI-compatible providers (OpenAI,
@@ -359,7 +359,7 @@ public final class LlmService implements LlmClient {
         return modelCache.computeIfAbsent(key, ck -> createModel(ck.provider(), ck.model(), ck.apiKey()));
     }
 
-    /** Builds a model handle from an already-resolved provider+model+key — the shared tail of both resolution paths. */
+    /** Builds a model handle from an already-resolved provider+model+key, the shared tail of both resolution paths. */
     private StreamingChatModel createModel(String provider, String model, String key) {
         var factory = ProviderFactory.resolve(provider, customProviders);
         String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(provider);
@@ -387,7 +387,7 @@ public final class LlmService implements LlmClient {
                                         : "You are a context summarization assistant. Read the conversation and output only the structured summary requested.";
         try {
             // Reuse the main conversation's model handle (same cached, fully-resolved provider+model+key) so
-            // summarization works for every provider — notably Codex/OAuth, where re-resolving from modelName alone
+            // summarization works for every provider, notably Codex/OAuth, where re-resolving from modelName alone
             // loses the model. A summarize sub-agent can still force a different model via modelOverride.
             var model = (modelOverride != null && !modelOverride.isEmpty())
                                             ? lc4jModelForModel(modelOverride)

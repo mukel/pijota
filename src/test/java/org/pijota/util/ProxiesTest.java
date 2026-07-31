@@ -17,7 +17,7 @@ class ProxiesTest {
 
     @Test
     void noProxyConfiguredMeansNoSelector() {
-        // Env proxy vars aren't set in the test JVM, and the property is cleared — so nothing routes through a proxy.
+        // Env proxy vars aren't set in the test JVM, and the property is cleared, so nothing routes through a proxy.
         assertNull(Proxies.selector());
     }
 

@@ -44,7 +44,7 @@ final class StreamProcessor {
         suppressSystemReminder = false;
     }
 
-    /** Whether mid-{@code <system-reminder>} span (carried across lines) — used to skip live preview. */
+    /** Whether mid-{@code <system-reminder>} span (carried across lines), used to skip live preview. */
     boolean suppressing() {
         return suppressSystemReminder;
     }

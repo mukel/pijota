@@ -44,7 +44,7 @@
   /* 100dvh tracks the *visible* viewport (mobile URL bar + soft keyboard), with 100% as the fallback; together with
      interactive-widget=resizes-content this keeps the composer above the keyboard instead of behind it. */
   html, body { height: 100%; height: 100dvh; margin: 0; }
-  /* explicit 16px base (don't inherit the UA default) + antialiased rendering — crisper, lighter type on the dark
+  /* explicit 16px base (don't inherit the UA default) + antialiased rendering, crisper, lighter type on the dark
      ground where subpixel AA doesn't apply anyway; message bodies bump the line-height for reading comfort. */
   body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.55;
     -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; display: flex; flex-direction: column; }
@@ -77,7 +77,7 @@
   .greeting .hint { margin-top: 12px; color: var(--muted); font-size: 14px; }
   .greeting .hint code { font-family: var(--mono); font-size: 12.5px; background: var(--code-inline-bg); padding: 1px 6px; border-radius: 5px; }
   /* onboarding: a collapsed "what is pijota?" question on the empty landing; opens to a short, accurate guide
-     (authored here — the model itself doesn't know pijota) styled like one of pijota's own answers. */
+     (authored here, the model itself doesn't know pijota) styled like one of pijota's own answers. */
   .intro { text-align: left; max-width: 520px; margin: 22px auto 0; }
   .intro > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 9px; padding: 10px 15px;
     border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: 13.5px;
@@ -101,7 +101,7 @@
   body.empty .composer { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; }
   body.empty .greeting { display: block; }
 
-  /* transient status toasts (ephemeral feedback like "started a new conversation") — never enters the transcript */
+  /* transient status toasts (ephemeral feedback like "started a new conversation"), never enters the transcript */
   #toasts { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
   .toast { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 13px; box-shadow: 0 6px 24px var(--shadow-color); max-width: min(520px, 90vw); animation: toastin .18s ease both; }
   .toast.alert { color: var(--warn-text); border-color: #d29922; background: var(--panel-2); }
@@ -111,11 +111,11 @@
   @media (prefers-reduced-motion: reduce) { .toast, .toast.out { animation: none; } }
 
   .msg { display: flex; flex-direction: column; gap: 6px; animation: rise .22s ease both; }
-  #thread.replaying .msg { animation: none; } /* replayed history appears at once — don't rise the whole transcript on (re)connect */
+  #thread.replaying .msg { animation: none; } /* replayed history appears at once, don't rise the whole transcript on (re)connect */
   @media (prefers-reduced-motion: reduce) { .msg { animation: none; } } /* must follow the .msg rule to win on source order */
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   /* Per-message meta is an ABSOLUTE overlay faded in on hover, so revealing it never reflows the thread (no content
-     jump). The COPY button overlays a corner; the TIMESTAMP lives in the OUTER gutter beside the centred column — so
+     jump). The COPY button overlays a corner; the TIMESTAMP lives in the OUTER gutter beside the centred column, so
      time and copy never collide, and neither overlaps the message text. */
   .msg { position: relative; }
   .msg-time { position: absolute; top: 11px; font-size: 10.5px; line-height: 1.4; color: var(--muted); opacity: 0; pointer-events: none; transition: opacity .12s; white-space: nowrap; }
@@ -147,7 +147,7 @@
 
   /* markdown */
   .bubble p:first-child { margin-top: 0; } .bubble p:last-child { margin-bottom: 0; }
-  /* code block: a bordered card with a header bar (language + copy) above the scrollable code — like ChatGPT/Claude */
+  /* code block: a bordered card with a header bar (language + copy) above the scrollable code, like ChatGPT/Claude */
   .codeblock { margin: .85em 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--code-bg); }
   .codebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px 4px 14px; background: var(--panel-2); border-bottom: 1px solid var(--border); }
   .codebar .lang { font-family: var(--sans); font-size: 11px; letter-spacing: .4px; text-transform: lowercase; color: var(--muted); }
@@ -159,7 +159,7 @@
   .bubble pre::-webkit-scrollbar { height: 8px; }
   .bubble pre::-webkit-scrollbar-track { background: transparent; }
   .bubble pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
-  /* the hljs theme paints its own bg + padding on the code element — neutralize it so the block is one clean fill */
+  /* the hljs theme paints its own bg + padding on the code element. Neutralize it so the block is one clean fill */
   .bubble pre code, .bubble pre .hljs { background: transparent; padding: 0; }
   .bubble code { font-family: var(--mono); font-size: 13px; }
   .bubble :not(pre) > code { background: var(--code-inline-bg); padding: 2px 6px; border-radius: 5px; }
@@ -188,7 +188,7 @@
   details > summary::before { content: "▸"; color: var(--muted); transition: transform .15s; }
   details[open] > summary::before { transform: rotate(90deg); }
   /* thinking is a quiet "peek if curious" affordance, not a headline: no box, a small muted summary, so the answer
-     below is the hero. (tool cards keep their box — they carry results worth scanning.) */
+     below is the hero. (tool cards keep their box, they carry results worth scanning.) */
   details.think { border: none; background: transparent; border-radius: 0; overflow: visible; }
   details.think > summary { color: var(--muted); font-size: 12px; padding: 4px 2px; opacity: .7; border-radius: 4px; }
   details.think > summary:hover { background: transparent; color: var(--text); opacity: 1; }
@@ -219,7 +219,7 @@
   .tool.err > summary .name { color: var(--err); }
   .tool .badge { margin-left: auto; font-size: 11px; padding: 1px 8px; border-radius: 20px; background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
   .tool.err .badge { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
-  /* while a tool runs, the whole "running…" pill breathes — an obvious, opacity-only (vestibular-safe) cue. Under
+  /* while a tool runs, the whole "running…" pill breathes, an obvious, opacity-only (vestibular-safe) cue. Under
      prefers-reduced-motion the global rule below neutralizes it, leaving a static "running…" label (still clear). */
   .tool .badge.running { animation: pulse 1.3s ease-in-out infinite; }
 
@@ -229,7 +229,7 @@
     width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel);
     color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
     font-size: 17px; box-shadow: 0 4px 14px var(--shadow-color);
-    /* fade + a small rise on appear (display:none can't animate) — visibility keeps it out of tab order while hidden */
+    /* fade + a small rise on appear (display:none can't animate); visibility keeps it out of tab order while hidden */
     opacity: 0; visibility: hidden; pointer-events: none; transform: translateX(-50%) translateY(8px);
     transition: opacity .18s ease, transform .18s ease, visibility .18s, border-color .15s;
   }
@@ -257,7 +257,7 @@
   .stopbtn.show { display: flex; animation: stopGlow 1.8s ease-out infinite; } /* subtle "live" beacon while streaming */
   .stopbtn:hover { filter: brightness(1.08); }
   .stopbtn:active { transform: scale(.92); }
-  /* an expanding, fading red ring — signals the turn is live and abortable, without being loud */
+  /* an expanding, fading red ring, signaling the turn is live and abortable, without being loud */
   @keyframes stopGlow {
     0%   { box-shadow: 0 4px 14px var(--shadow-color), 0 0 0 0 color-mix(in srgb, var(--err) 55%, transparent); }
     70%  { box-shadow: 0 4px 16px var(--shadow-color), 0 0 0 11px color-mix(in srgb, var(--err) 0%, transparent); }
@@ -383,9 +383,9 @@
   main, .finder-list, .tool pre { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
   /* ---- responsive / touch ---- */
-  /* touch devices: hide the reveal-on-hover copy buttons entirely — long-press selects + copies text natively instead */
+  /* touch devices: hide the reveal-on-hover copy buttons entirely. Long-press selects + copies text natively instead */
   @media (hover: none) {
-    .answer-copy, .think-copy { display: none !important; } /* code-block copy stays — it's a bar button */
+    .answer-copy, .think-copy { display: none !important; } /* code-block copy stays, it's a bar button */
     .msg .bubble { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; } /* allow long-press copy */
     .scrollbtn { display: none; } /* on touch, flick-to-bottom is natural; avoid an overlapping floating button */
   }
@@ -462,16 +462,16 @@
 <script>
 window.addEventListener("DOMContentLoaded", () => {
   "use strict";
-  // The pairing token (?t=…) is now pinned as a cookie by the server — drop it from the address bar so the secret
+  // The pairing token (?t=…) is now pinned as a cookie by the server. Drop it from the address bar so the secret
   // doesn't linger in history or get re-shared. (Server serves the page directly; no redirect, so this is robust.)
   if (location.search) history.replaceState(null, "", location.pathname);
   const $ = s => document.querySelector(s);
   const thread = $("#thread"), main = $("#main"), input = $("#input"), sendBtn = $("#send");
   const stopBtn = $("#stop");
-  // phones: Enter = newline, the button sends (no Shift/Ctrl). Keyed off (hover: none) — the single touch signal the
-  // rest of this file already uses — so the Enter behaviour and the hover-only copy buttons agree on every device.
+  // phones: Enter = newline, the button sends (no Shift/Ctrl). Keyed off (hover: none), the single touch signal the
+  // rest of this file already uses, so the Enter behaviour and the hover-only copy buttons agree on every device.
   const isTouch = matchMedia("(hover: none)").matches;
-  // Apple keyboards use ⌘, everything else Ctrl — the palette binding accepts both (metaKey || ctrlKey); this only
+  // Apple keyboards use ⌘, everything else Ctrl. The palette binding accepts both (metaKey || ctrlKey); this only
   // picks which one we *show*. userAgentData.platform when present (navigator.platform is deprecated), else the UA.
   const isMac = /mac|iphone|ipad|ipod/i.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent);
   document.querySelectorAll(".palette-key").forEach(e => e.textContent = isMac ? "⌘K" : "Ctrl-K");
@@ -518,7 +518,7 @@ window.addEventListener("DOMContentLoaded", () => {
   applyTheme(storedTheme() || (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
   themeBtn.addEventListener("click", () => {
     applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
-    input.focus(); // an action button, not a focus target — return focus to the chat bar
+    input.focus(); // an action button, not a focus target, so return focus to the chat bar
   });
   let busy = false, live = null;           // live = current streaming assistant bubble
   let pendingFiles = [];                    // {mime, data(base64), url(dataURL), name, isImage} to attach
@@ -666,7 +666,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (role === "user") stampMsg(m.msg, ts);
     return m;
   }
-  // A subtle timestamp shown on hover under a message — server ts on a resumed session, else arrival time now.
+  // A subtle timestamp shown on hover under a message, server ts on a resumed session, else arrival time now.
   function stampMsg(el, ts) {
     const t = new Date(typeof ts === "number" ? ts : Date.now());
     if (isNaN(t.getTime())) return;
@@ -780,10 +780,10 @@ window.addEventListener("DOMContentLoaded", () => {
       if (b.final) b.msg.setAttribute("aria-busy", "false"); // settled → announce the complete message once
       // once settled, float a copy at the answer's top-right (innerHTML rewrites b.content, so the button lives
       // on the sibling .answer wrapper, not inside it). The thinking block carries its own copy above. Skip it when
-      // the answer leads with a code block — that block's own top-right copy is in the same spot (no double button).
+      // the answer leads with a code block. That block's own top-right copy is in the same spot (no double button).
       if (b.final && !b.copied && b.pending.trim()) {
         // decorateCodeBlock has wrapped a leading <pre> in <div class="codeblock"> by now, so check for that wrapper
-        // (not PRE) — otherwise the code card's own top-right copy and this one would overlap.
+        // (not PRE), otherwise the code card's own top-right copy and this one would overlap.
         const lead = b.content.firstElementChild;
         if (!lead || !lead.classList.contains("codeblock"))
           b.answer.appendChild(copyButton("answer-copy", () => b.pending, "Copy response"));
@@ -800,7 +800,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const sum = document.createElement("summary");
       sum.innerHTML = '<span class="name"></span><span class="detail"></span><span class="badge running">running…</span>';
       sum.querySelector(".name").textContent = name || "tool";
-      sum.querySelector(".detail").textContent = detail || ""; // path / command / pattern — full text shown on expand
+      sum.querySelector(".detail").textContent = detail || ""; // path / command / pattern, full text shown on expand
       d.appendChild(sum);
       const argEl = renderToolArgs(name, args, detail); // clean key/value; null when the header already shows it all
       if (argEl) { const argSec = document.createElement("div"); argSec.className = "section"; argSec.appendChild(argEl); d.appendChild(argSec); }
@@ -812,7 +812,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   // fallback for unparseable / non-object tool args: show the raw text verbatim in a <pre>
   function rawPre(text) { const pre = document.createElement("pre"); pre.textContent = text || ""; return pre; }
-  // Render a tool's args as a clean key/value list. Returns null when there's nothing worth showing — notably when the
+  // Render a tool's args as a clean key/value list. Returns null when there's nothing worth showing, notably when the
   // summary detail already conveys the args (e.g. bash's {command} == the header command), so we don't repeat it as JSON.
   function renderToolArgs(name, argsJson, detail) {
     if (name === "question") return renderQuestionArgs(argsJson);
@@ -885,7 +885,7 @@ window.addEventListener("DOMContentLoaded", () => {
     es.addEventListener("error", () => {
       conn.classList.remove("on");
       setOnline(false);
-      // EventSource auto-retries while CONNECTING, but a CLOSED stream is terminal — reconnect ourselves (capped backoff).
+      // EventSource auto-retries while CONNECTING, but a CLOSED stream is terminal, so reconnect ourselves (capped backoff).
       if (es.readyState === EventSource.CLOSED) {
         setTimeout(connect, reconnectDelay);
         reconnectDelay = Math.min(reconnectDelay * 2, 5000);
@@ -894,7 +894,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     es.addEventListener("history", e => {
       thread.innerHTML = ""; toolCards.clear(); live = null; activityBubble = null; sessionModalities.clear(); // replay re-populates it
-      thread.classList.add("replaying"); // replayed messages land all at once — suppress the per-message rise so the whole log doesn't flash in
+      thread.classList.add("replaying"); // replayed messages land all at once, so suppress the per-message rise so the whole log doesn't flash in
       try { for (const m of JSON.parse(e.data)) replayHistory(m); } finally { thread.classList.remove("replaying"); }
       toBottom();
     });
@@ -937,7 +937,7 @@ window.addEventListener("DOMContentLoaded", () => {
     } else if (m.role === "custom") {
       simple("custom", m.content);
     } else {
-      simple(m.role, m.content, m.images, m.files, m.ts); // user message — restore its thumbnails / chips + time
+      simple(m.role, m.content, m.images, m.files, m.ts); // user message, restore its thumbnails / chips + time
     }
   }
 
@@ -947,7 +947,7 @@ window.addEventListener("DOMContentLoaded", () => {
     // turn ended without a final frame (error/interrupt): release the streaming bubble so AT still announces it
     if (!b && live) { live.msg.setAttribute("aria-busy", "false"); live = null; }
     if (!b) clearActivity();
-    // any tool still "running…" when the turn ends (e.g. interrupted before its result) — stop the pulse
+    // any tool still "running…" when the turn ends (e.g. interrupted before its result), stop the pulse
     if (!b) thread.querySelectorAll(".tool .badge.running").forEach(badge => {
       badge.classList.remove("running"); badge.textContent = "stopped";
     });
@@ -975,7 +975,7 @@ window.addEventListener("DOMContentLoaded", () => {
     showActivity("thinking...");
     // Post immediately, even mid-stream: the server injects it into the running turn (session.followUp steers the
     // current task) and slash commands / interrupts take effect at once. Nothing is held client-side to lose on a
-    // disconnect or to mis-fire after Stop — Stop just interrupts, with no pending text to flush.
+    // disconnect or to mis-fire after Stop. Stop just interrupts, with no pending text to flush.
     post(text, files);
     updateComposer();
     input.focus(); // keep the chat bar focused after clicking Send
@@ -984,19 +984,19 @@ window.addEventListener("DOMContentLoaded", () => {
   // ---- file attachments (attach button / paste / drag-drop), gated to the model's modalities ----
   const attachEl = $("#attachments");
   const MAX_FILES = 8, MAX_FILE_BYTES = 5 * 1024 * 1024; // keep under provider limits (Anthropic ~5MB)
-  // mirrors org.pijota.llm.Modality.fromMime — keep the two in sync
+  // mirrors org.pijota.llm.Modality.fromMime, keep the two in sync
   function modalityOf(mime) {
     if (!mime) return "text";
     if (mime.startsWith("image/")) return "image";
     if (mime.startsWith("audio/")) return "audio";
     if (mime.startsWith("video/")) return "video";
     if (mime === "application/pdf") return "pdf";
-    return "text"; // text / code / docx — extracted server-side, works on any model
+    return "text"; // text / code / docx, extracted server-side, works on any model
   }
   // text (extracted server-side) and pdf (extracted via the web_pdf_to_markdown tool when the model isn't PDF-native) work
   // on any model; other media needs the model to declare the modality.
   function accepts(mime) { const m = modalityOf(mime); return m === "text" || m === "pdf" || modalities.includes(m); }
-  // providers accept only JPEG/PNG/GIF/WebP — a provider/model limitation; HEIC/TIFF/BMP etc. are rejected (no transcode)
+  // providers accept only JPEG/PNG/GIF/WebP, a provider/model limitation; HEIC/TIFF/BMP etc. are rejected (no transcode)
   const SUPPORTED_IMAGE = ["image/jpeg", "image/png", "image/gif", "image/webp"];
   function addFile(file) {
     if (!file) return;
@@ -1079,7 +1079,7 @@ window.addEventListener("DOMContentLoaded", () => {
     buildFinder(modal, labels, i => { close(); post(commands[i].name); }, close);
   }
   // builds the overlay + modal shell and mounts it; callers fill the modal and call close() to dismiss. close()
-  // returns focus to the chat bar explicitly — removing the focused dialog input does NOT reliably fire focusout
+  // returns focus to the chat bar explicitly, since removing the focused dialog input does NOT reliably fire focusout
   // in every browser, so the sticky-focus handler can't be relied on to snap focus back on its own.
   function openOverlay(modalClass) {
     const overlay = document.createElement("div"); overlay.className = "overlay";
@@ -1093,7 +1093,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); commandPalette(); }
   });
 
-  // sticky focus: pull focus back to the chat bar when it lands on nothing interactive — but never while a
+  // sticky focus: pull focus back to the chat bar when it lands on nothing interactive, but never while a
   // dialog is open (its search/input wants focus) or while the user is selecting text in the transcript.
   function refocusChat() {
     if (document.querySelector(".overlay")) return;
@@ -1103,7 +1103,7 @@ window.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("focusout", () => setTimeout(() => {
     const a = document.activeElement;
     // Hold focus only for real text fields and anything inside an open dialog. Everything else that can grab
-    // focus here — buttons, <summary> toggles, links, or clicked empty space — is transient, so snap the chat
+    // focus here (buttons, <summary> toggles, links, or clicked empty space) is transient, so snap the chat
     // bar back. (refocusChat still bows out while text is being selected.)
     if (a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.closest(".overlay"))) return;
     refocusChat();
@@ -1122,7 +1122,7 @@ window.addEventListener("DOMContentLoaded", () => {
       it.innerHTML = '<span class="cmd"></span><span class="desc"></span>';
       it.querySelector(".cmd").textContent = c.name;
       it.querySelector(".desc").textContent = c.description || "";
-      // tapping a command runs it (complete + send) — matches the desktop Enter-on-selection, and is the only way to
+      // tapping a command runs it (complete + send), matching the desktop Enter-on-selection, and is the only way to
       // run a command on mobile, where the textarea's return key inserts a newline rather than submitting. Use Tab
       // (desktop) to complete without sending when you want to add arguments.
       it.onclick = () => { completeMenu(i); send(); };
@@ -1145,7 +1145,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (e.key === "Enter" && menuSel >= 0) { e.preventDefault(); completeMenu(menuSel); send(); return; } // complete + run
       if (e.key === "Escape") { e.preventDefault(); return hideMenu(); }
     }
-    // Desktop: Enter sends, Shift+Enter = newline. Touch: Enter = newline (no Shift on phones) — the button sends.
+    // Desktop: Enter sends, Shift+Enter = newline. Touch: Enter = newline (no Shift on phones), the button sends.
     if (e.key === "Enter" && !e.shiftKey && !isTouch) { e.preventDefault(); send(); }
   });
 
@@ -1237,7 +1237,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
   function button(text, cls) { const b = document.createElement("button"); b.className = cls; b.textContent = text; return b; }
-  // a small ✕ pinned to the modal's top-right — the standard, keyboard-clear way to dismiss a dialog (mobile has no Esc)
+  // a small ✕ pinned to the modal's top-right, the standard, keyboard-clear way to dismiss a dialog (mobile has no Esc)
   function closeButton(onClose) {
     const b = document.createElement("button"); b.type = "button"; b.className = "modal-close";
     b.textContent = "✕"; b.setAttribute("aria-label", "Close"); b.onclick = onClose; return b;

@@ -180,7 +180,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
     }
 
     // A user message is a Responses-API content array of typed parts. Images MUST be their own "input_image" part
-    // (a data URI / URL) — the old code stringified every part into one "input_text", so an attached image reached the
+    // (a data URI / URL). The old code stringified every part into one "input_text", so an attached image reached the
     // model as raw base64 text it can't read (it echoed base64 garbage). Text parts stay "input_text".
     static ObjectNode userMessageItem(UserMessage user) {
         var item = Util.MAPPER.createObjectNode();
@@ -193,7 +193,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                                                 imageUrl(image)));
             else if (part instanceof TextContent text)
                 content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text", text.text()));
-            else // audio/pdf/video have no Responses-API form here — best-effort text so the turn still goes through
+            else // audio/pdf/video have no Responses-API form here, best-effort text so the turn still goes through
                 content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text",
                                                 String.valueOf(part)));
         }
@@ -247,7 +247,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (aborted)
-                    break; // turn was cancelled — stop consuming the stream
+                    break; // turn was cancelled, stop consuming the stream
                 if (!line.startsWith("data:"))
                     continue;
                 String data = line.substring(5).trim();

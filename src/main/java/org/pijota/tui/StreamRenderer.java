@@ -14,12 +14,12 @@ import static org.pijota.util.Util.deltaPrefix;
 
 /**
  * Renders streaming assistant content and "thinking" into terminal lines, emitting finished lines to an {@link Output}
- * sink. Owns all streaming text state — delta tracking, markdown formatters, line accumulators, and the thinking
+ * sink. Owns all streaming text state: delta tracking, markdown formatters, line accumulators, and the thinking
  * header/footer lifecycle; the host TUI only forwards stream updates and lifecycle calls.
  */
 final class StreamRenderer {
 
-    /** Sink for finished, styled lines — in the TUI this is the append-only scrollback. */
+    /** Sink for finished, styled lines. In the TUI this is the append-only scrollback. */
     interface Output {
         void appendLines(List<StyledLine> lines);
     }
@@ -57,7 +57,7 @@ final class StreamRenderer {
         this.markdown = new StreamingMarkdownFormatter(theme, style);
         // Thinking renders through the SAME markdown pipeline/config as content, but through the thinkingTheme:
         // prose collapses to the one dim thinking colour (an inline-code span never out-shouts the muted body),
-        // while fenced code keeps its syntax hues blended toward the background — dimmed, still readable as code.
+        // while fenced code keeps its syntax hues blended toward the background, dimmed, still readable as code.
         this.thinkingMarkdown = new StreamingMarkdownFormatter(thinkingTheme, style);
     }
 
@@ -151,7 +151,7 @@ final class StreamRenderer {
     /**
      * The in-progress content line for live preview at the bottom of the screen, or empty when there is nothing to
      * preview. Non-consuming: the partial is still committed (markdown-formatted, filtered) on its terminating newline
-     * via {@link #streamContent}/{@link #flush}. The preview is deliberately plain — it skips the stateful
+     * via {@link #streamContent}/{@link #flush}. The preview is deliberately plain. It skips the stateful
      * markdown/system-reminder pipeline, so a line may visually reflow when it commits. Suppressed inside a
      * {@code <system-reminder>} span or for reasoning-meta lines (both would be stripped on commit anyway).
      */
@@ -169,7 +169,7 @@ final class StreamRenderer {
 
     /**
      * The in-progress line to preview live at the bottom of the screen, PRE-STYLED: the thinking partial (dimmed, via
-     * the thinking theme) while reasoning, then the content partial (normal). Raw — no markdown — so it appears
+     * the thinking theme) while reasoning, then the content partial (normal). Raw, no markdown, so it appears
      * instantly and may reflow into formatted/dimmed scrollback when the line commits. Empty when nothing is streaming.
      */
     Optional<String> liveTail() {
@@ -196,7 +196,7 @@ final class StreamRenderer {
         }
         thinkingLines.flush().ifPresent(line -> appendThinking(List.of(line)));
         // Flush the thinking markdown buffer now so the thinking body is emitted IN ORDER (before the summary and the
-        // content). Otherwise it stays buffered until the global flush(), which emits content first — pushing the
+        // content). Otherwise it stays buffered until the global flush(), which emits content first, pushing the
         // whole thinking block below the answer where it looks like it never rendered.
         thinkingMarkdown.setWidth(railedWidth());
         var tail = thinkingMarkdown.flush();
@@ -249,7 +249,7 @@ final class StreamRenderer {
         flush();
     }
 
-    /** Footer of a visible thinking block — the header already said "thinking", so only the numbers remain. */
+    /** Footer of a visible thinking block. The header already said "thinking", so only the numbers remain. */
     static String thinkingSummary(String thinking, long startedAt, AnsiTheme theme) {
         return theme.styled("thinkingText", "└ " + thinkingMeta(thinking, startedAt));
     }
@@ -263,7 +263,7 @@ final class StreamRenderer {
         int tokens = (int) Util.approxTokens(thinking == null ? 0 : thinking.length());
         long elapsed = startedAt > 0 ? System.currentTimeMillis() - startedAt : 0;
         String meta = Util.count(tokens, "token", "tokens");
-        if (elapsed >= 1000) // a sub-second pause needs no clock — "· 0s" is noise
+        if (elapsed >= 1000) // a sub-second pause needs no clock. "· 0s" is noise
             meta += " · " + Util.formatDuration(elapsed);
         return meta;
     }
@@ -323,7 +323,7 @@ final class StreamRenderer {
 
     /**
      * The single choke point that puts the {@code │} rail on thinking output: every logical line is wrapped to the
-     * railed width FIRST, then every physical row — continuations included — gets the rail. A long thought can never
+     * railed width FIRST, then every physical row, continuations included, gets the rail. A long thought can never
      * shed its rail at the terminal edge, and no emission path (streaming, close, flush) can bypass it.
      */
     private List<StyledLine> railed(List<StyledLine> lines) {
@@ -341,7 +341,7 @@ final class StreamRenderer {
     }
 
     private String thinkingHeader() {
-        // The level label appears only when it deviates from the default — "┌ thinking" alone is calmer. The header
+        // The level label appears only when it deviates from the default. "┌ thinking" alone is calmer. The header
         // wears the thinking slot, not the tool accent: thinking is the quietest voice on screen, and an accent
         // header would make its blocks the loudest thing in the transcript.
         String label = thinkingLabel.get();

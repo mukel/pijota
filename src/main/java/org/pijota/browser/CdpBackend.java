@@ -21,7 +21,7 @@ import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
 /**
- * {@link BrowserBackend} over the Chrome DevTools Protocol — drives a real (visible) Chrome/Chromium. A dedicated
+ * {@link BrowserBackend} over the Chrome DevTools Protocol, driving a real (visible) Chrome/Chromium. A dedicated
  * persistent profile is launched lazily (after a confirmation) and reused; a dropped socket reconnects on the next
  * call.
  */
@@ -126,7 +126,7 @@ public final class CdpBackend implements BrowserBackend {
         if (!navErr.isBlank() && !"net::ERR_ABORTED".equals(navErr)) // ERR_ABORTED is normal on redirects/downloads
             throw new IOException("could not load " + url + " (" + navErr + ")");
         awaitLoad(); // Page.navigate returns on commit; block until the new document's load event (like BiDi
-                     // wait:"complete"). On timeout we proceed anyway — extraction still works on whatever loaded.
+                     // wait:"complete"). On timeout we proceed anyway; extraction still works on whatever loaded.
     }
 
     /** Blocks until {@code Page.loadEventFired} for the in-flight navigation, or {@link #LOAD_TIMEOUT_MS} elapses. */
@@ -193,7 +193,7 @@ public final class CdpBackend implements BrowserBackend {
                                         "the port may be in use or the profile locked");
     }
 
-    /** The WebSocket URL of a usable page target — reusing an existing one, else opening a fresh tab. */
+    /** The WebSocket URL of a usable page target, reusing an existing one, else opening a fresh tab. */
     private String pageWsUrl() throws Exception {
         String list = httpGet("/json");
         if (list != null)

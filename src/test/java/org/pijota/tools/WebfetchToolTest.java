@@ -214,7 +214,7 @@ class WebfetchToolTest {
 
     @Test
     void internalAddressesAreBlockedForSsrf() {
-        // loopback, link-local (incl. 169.254.169.254 cloud metadata), private, wildcard — must be refused.
+        // loopback, link-local (incl. 169.254.169.254 cloud metadata), private, wildcard: all must be refused.
         for (String h : new String[] {"127.0.0.1", "localhost", "169.254.169.254", "10.0.0.1", "192.168.1.1", "0.0.0.0",
                 "::1"})
             assertTrue(WebfetchTool.isInternalAddress(h), h + " should be blocked");

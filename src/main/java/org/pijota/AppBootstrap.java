@@ -125,11 +125,11 @@ public final class AppBootstrap {
         boolean projectTrusted = resolveProjectTrust(cwd, parsedArgs, settings);
         loadDiscoveredExtensions(ext, parsedArgs, cwd, projectTrusted);
 
-        // Niche tool, opt-in (--whoami) — gated through the same resolution as extensions.
+        // Niche tool, opt-in (--whoami), gated through the same resolution as extensions.
         if (ext.isEnabled("whoami", false))
             tools.registerBuiltin(new WhoamiTool());
 
-        // Built-in (shipped) extensions — skipped by --no-extensions (all off) or --no-builtin-extensions (keep only
+        // Built-in (shipped) extensions, skipped by --no-extensions (all off) or --no-builtin-extensions (keep only
         // discovered). Otherwise each is registered here and ExtensionRegistry.register() still gates it via
         // isEnabled()
         // on the declared default + settings + flags. (TranscendenceExtension is also JVM-only via its reason.)
@@ -178,7 +178,7 @@ public final class AppBootstrap {
         sessionRef.set(session);
         StartupTimer.mark("session initialized");
         ext.setSessionFile(session::sessionFile);
-        // Generic built-in commands (e.g. /model) usable by every frontend — registered once the session exists.
+        // Generic built-in commands (e.g. /model) usable by every frontend, registered once the session exists.
         ext.register(new CoreCommandsExtension(session, settings));
         boolean loadedSession = false;
         try {
@@ -196,7 +196,7 @@ public final class AppBootstrap {
                     loadedSession = true;
                     SelfRespawn.clearRecoveryFile();
                 } else {
-                    logger.warn("No recovery session found — starting fresh");
+                    logger.warn("No recovery session found · starting fresh");
                 }
             } else if (parsedArgs.continueSession()) {
                 session.continueLastSession();
@@ -217,12 +217,12 @@ public final class AppBootstrap {
         mergeTranscendWorktree(parsedArgs);
         StartupTimer.mark("bootstrap complete");
 
-        // One-line record of what the agent actually started with — the first thing to check when diagnosing "why did
+        // One-line record of what the agent actually started with, the first thing to check when diagnosing "why did
         // it behave like that": resolved provider/model, enabled tool count, and cwd.
         logger.info("bootstrap ready · {}/{} · {} tool(s) · cwd={}", provider, model, tools.activeToolNames().size(),
                                         cwd);
 
-        // Hand the shared registry to the frontends only when the jobs extension is actually active — otherwise
+        // Hand the shared registry to the frontends only when the jobs extension is actually active, otherwise
         // backgrounding a command (ctrl+b ctrl+b) would strand it with no jobs_* tools to observe or kill it, so the
         // TUI (which self-disables on a null registry) simply won't offer the gesture.
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd,
@@ -327,7 +327,7 @@ public final class AppBootstrap {
         if (trusted) {
             ext.loadFromDirectory(dir);
         } else if (dir.toFile().isDirectory()) {
-            logger.info("Skipped untrusted project extensions in {} — run /trust to enable them.", dir);
+            logger.info("Skipped untrusted project extensions in {} · run /trust to enable them.", dir);
         }
     }
 
@@ -376,7 +376,7 @@ public final class AppBootstrap {
             return;
         var resolved = ModelRegistry.resolve(selection, settings);
         if (resolved == null) {
-            logger.warn("Cannot restore model {}/{} — missing API key", selection.provider(), selection.model());
+            logger.warn("Cannot restore model {}/{} · missing API key", selection.provider(), selection.model());
             return;
         }
         session.restoreModel(resolved.provider(), resolved.model(), resolved.apiKey(), resolved.contextWindow());

@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 /**
- * A single child process a backend launched — the browser (CDP) or its WebDriver (BiDi). Captures stderr for
+ * A single child process a backend launched: the browser (CDP) or its WebDriver (BiDi). Captures stderr for
  * {@link #exitDiagnostic()}, tree-kills on demand, and installs a JVM-shutdown hook that tree-kills so browser children
  * (renderer/GPU/zygote) aren't orphaned. Shared by {@link CdpBackend} and {@link BiDiBackend}.
  */
@@ -24,7 +24,7 @@ final class LaunchedProcess {
      * Starts {@code cmd} (stdout discarded, stderr captured) and installs the one-shot shutdown hook on first launch.
      */
     void start(List<String> cmd) throws IOException {
-        deleteLog(stderrLog); // a relaunch (process died) reuses this instance — don't orphan the previous log
+        deleteLog(stderrLog); // a relaunch (process died) reuses this instance, don't orphan the previous log
         Path log = Files.createTempFile("pijota-browser-", ".log");
         this.stderrLog = log;
         process = new ProcessBuilder(cmd).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(log.toFile())
@@ -68,7 +68,7 @@ final class LaunchedProcess {
     }
 
     /**
-     * If the launched process has already exited, its exit code plus the tail of its captured stderr — so a "did not
+     * If the launched process has already exited, its exit code plus the tail of its captured stderr, so a "did not
      * come up" timeout can name the real cause instead of the symptom. Empty while running or never launched.
      */
     String exitDiagnostic() {

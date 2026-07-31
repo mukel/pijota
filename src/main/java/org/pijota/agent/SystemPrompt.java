@@ -17,7 +17,7 @@ public final class SystemPrompt {
                                     - Never assume a library is available. Check the codebase first.
 
                                     TOOL USE:
-                                    - Prefer the dedicated tools — read, edit, write, glob, grep, ls — over their shell equivalents (cat, sed, find, grep, ls) run through bash; they are faster and respect .gitignore. Use bash for commands, builds, tests, and git.
+                                    - Prefer the dedicated tools (read, edit, write, glob, grep, ls) over their shell equivalents (cat, sed, find, grep, ls) run through bash; they are faster and respect .gitignore. Use bash for commands, builds, tests, and git.
                                     - Find files with glob (by name) and search contents with grep; don't cat or find through the tree.
                                     - Make every tool call count: pass complete, valid arguments and act on the result rather than re-issuing the same call.
 

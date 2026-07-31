@@ -47,7 +47,7 @@ public final class TaskTool implements Tool {
     private final AtomicInteger logCounter = new AtomicInteger();
 
     /**
-     * How one sub-agent is executed — spawns a child JVM in production; injectable so tests drive the orchestration
+     * How one sub-agent is executed; spawns a child JVM in production; injectable so tests drive the orchestration
      * (single/parallel/chain, aggregation, worktrees) against canned results without spawning processes.
      */
     interface AgentRunner {

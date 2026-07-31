@@ -35,11 +35,11 @@ public final class SessionManager {
     // The current branch position in the tree. New appends create children of this entry; null = root. Updated by
     // append operations and load.
     // Invariant: this is instance-wide, not per-file, so all appends between two create/load/fork/branch calls MUST
-    // target the same session file. Switching files always goes through loadContext/createSession, which reset it —
+    // target the same session file. Switching files always goes through loadContext/createSession, which reset it,
     // so leafId can never leak one file's leaf into another's parentId. Don't append to a second file without a reset.
     private volatile String leafId;
 
-    // Per-file write lock — ensures append-only writes from concurrent threads
+    // Per-file write lock, ensures append-only writes from concurrent threads
     // (e.g. assistant message + tool result from overlapping turns) don't interleave.
     private final ConcurrentHashMap<Path, ReentrantLock> writeLocks = new ConcurrentHashMap<>();
 
@@ -71,7 +71,7 @@ public final class SessionManager {
     }
 
     /**
-     * Deletes a session file that holds no actual conversation — only a header and/or metadata (cache, model, etc.) but
+     * Deletes a session file that holds no actual conversation: only a header and/or metadata (cache, model, etc.) but
      * no {@code message} or {@code compaction} entry. Used to avoid littering the sessions directory with the files
      * created on every launch that the user never typed into. No-op if the file is missing or has content.
      */
@@ -95,7 +95,7 @@ public final class SessionManager {
                     Files.deleteIfExists(sessionFile);
             });
         } catch (IOException ignored) {
-            // best effort — a session we cannot read is left in place
+            // best effort, a session we cannot read is left in place
         }
         writeLocks.remove(sessionFile);
     }
@@ -184,7 +184,7 @@ public final class SessionManager {
 
     public void appendCompaction(Path sessionFile, String summary, int compactedCount, String firstKeptEntryId,
                                     Usage usage) throws IOException {
-        // DSYNC: compaction is the durability gate — losing it on crash would show stale context.
+        // DSYNC: compaction is the durability gate. Losing it on crash would show stale context.
         appendEntry(sessionFile, UUID.randomUUID().toString(), "compaction", entry -> {
             entry.put("summary", summary);
             entry.put("compactedCount", compactedCount);
@@ -544,7 +544,7 @@ public final class SessionManager {
                     if (id != null)
                         idToEntry.put(id, e);
                 } catch (Exception ex) {
-                    // a malformed line means a corrupt/truncated session file — skip it but leave a trace
+                    // a malformed line means a corrupt/truncated session file, skip it but leave a trace
                     log.debug("Skipping unparseable session entry: {}", ex.getMessage());
                 }
             });

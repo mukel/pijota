@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** The id→caller routing of the shared WebSocket JSON-RPC transport — exercised without a real socket. */
+/** The id→caller routing of the shared WebSocket JSON-RPC transport, exercised without a real socket. */
 class WsJsonRpcTest {
 
     private WsJsonRpc rpc() {

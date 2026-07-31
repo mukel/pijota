@@ -114,7 +114,7 @@ class HeadlessAgentRunnerTest {
 
     @Test
     void llmErrorEmitsDoneEventWithError() {
-        // A failed turn must surface as a done event carrying a non-blank error — SubAgentLauncher relies on this
+        // A failed turn must surface as a done event carrying a non-blank error; SubAgentLauncher relies on this
         // to report sub-agent failures instead of treating them as empty successes.
         var llm = new FauxLlm().enqueueError(new RuntimeException("401 unauthorized"));
         stdio.feedInput("{\"description\":\"x\",\"cwd\":\"" + tempDir.toString().replace("\\", "\\\\") + "\"}");

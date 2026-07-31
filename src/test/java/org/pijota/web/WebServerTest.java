@@ -194,7 +194,7 @@ class WebServerTest {
             var client = HttpClient.newBuilder().cookieHandler(new CookieManager()).build();
             String base = "http://127.0.0.1:" + port;
 
-            // the QR opens /?t=<token>: page is served directly (no redirect — robust across mobile browsers) and the
+            // the QR opens /?t=<token>: page is served directly (no redirect, robust across mobile browsers) and the
             // cookie is pinned. (The SPA strips ?t= from the address bar client-side via history.replaceState.)
             var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/?t=" + token)).build(),
                                             HttpResponse.BodyHandlers.ofString());
@@ -461,7 +461,7 @@ class WebServerTest {
                                             .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"fail please\"}"))
                                             .build(), HttpResponse.BodyHandlers.ofString());
 
-            // Read through the whole failed-turn lifecycle — the spinner-clearing busy:false comes last. The turn error
+            // Read through the whole failed-turn lifecycle. The spinner-clearing busy:false comes last. The turn error
             // must surface as exactly ONE agent_error, not two (onEvent(Error) + a redundant handlePrompt broadcast).
             String frames = readUntil(events.body(), "\"busy\":false", Duration.ofSeconds(5));
             long errors = frames.lines().filter(l -> l.contains("event: agent_error")).count();
@@ -638,7 +638,7 @@ class WebServerTest {
                         break;
                 }
             } catch (IOException ignored) {
-                // stream closed (server shutdown) — return what we have
+                // stream closed (server shutdown), return what we have
             }
             return sb.toString();
         });

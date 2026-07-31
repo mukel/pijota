@@ -30,7 +30,7 @@ public final class PromptEditor {
     private final UndoStack undoStack = new UndoStack();
     private final KillRing killRing = new KillRing();
     private String suggestion = "";
-    private boolean reverseSearch; // true while a Ctrl+R reverse-i-search is open — the buffer is the live filter query
+    private boolean reverseSearch; // true while a Ctrl+R reverse-i-search is open; the buffer is the live filter query
     private UndoStack.Snapshot preYank; // buffer state captured before the current yank, for yank-pop replacement
     private boolean yankActive; // true right after a yank/yank-pop, enabling yank-pop to cycle the ring
 
@@ -170,7 +170,7 @@ public final class PromptEditor {
 
     // The inline ghost suggestion is accepted by →/End at the very end of the buffer (fish/zsh-autosuggestions feel).
     // A suggestion only exists when the cursor is already at the end, so →/End have no cursor movement left to do here
-    // and accepting is the sensible action — including for a command ghost ("/mod" → "/model") while its menu is open,
+    // and accepting is the sensible action, including for a command ghost ("/mod" → "/model") while its menu is open,
     // since →/End don't drive the dropdown (Up/Down/Enter/Tab do).
     private boolean canAcceptSuggestion() {
         return !suggestion.isEmpty() && buffer.cursorAtEndOfBuffer();
@@ -328,7 +328,7 @@ public final class PromptEditor {
 
     private Result submitOrAcceptCompletion() {
         if (isSlashCommandCompletion()) {
-            // Submit the highlighted command's *token* only — its name carries an arg-spec for display
+            // Submit the highlighted command's *token* only. Its name carries an arg-spec for display
             // (e.g. "/kill <id> [SIGTERM]"); submitting that verbatim would pass "<id>"/"[SIGTERM]" as real args.
             // Preserve any arguments the user already typed after their own command token ("/name foo" → "/name foo").
             String command = PromptCompletionPolicy.commandToken(completions.selectedItem().name());
@@ -352,7 +352,7 @@ public final class PromptEditor {
 
     private void refreshCompletions() {
         if (reverseHistoryActive()) {
-            // Reverse-i-search: the buffer text is the live query — narrow history to matches as the user types
+            // Reverse-i-search: the buffer text is the live query, narrowing history to matches as the user types
             // (readline feel), instead of a static list. Pre-filter (the dropdown renders the passed list directly);
             // an empty query keeps all history.
             String q = buffer.firstLine().toLowerCase();

@@ -62,7 +62,7 @@ class AttachmentNormalizerTest {
         var big = new Message.Attachment("image/png", huge, "big.png");
         var result = AttachmentNormalizer.normalize("", List.of(big), Set.of(Modality.IMAGE), cwd.toString());
         assertTrue(result.media().isEmpty());
-        assertTrue(result.text().contains("omitted — larger than 5 MB"), result.text());
+        assertTrue(result.text().contains("omitted, larger than 5 MB"), result.text());
     }
 
     @Test

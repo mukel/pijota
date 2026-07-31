@@ -20,7 +20,7 @@ import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
 /**
- * {@link BrowserBackend} over the W3C WebDriver BiDi protocol — drives Firefox/Safari/Chrome through their WebDriver
+ * {@link BrowserBackend} over the W3C WebDriver BiDi protocol, driving Firefox/Safari/Chrome through their WebDriver
  * "driver" (geckodriver / safaridriver). The driver launches the browser; we POST {@code /session} requesting a
  * {@code webSocketUrl} and then speak BiDi over the shared {@link WsJsonRpc}, unwrapping typed remote values back to
  * plain JSON via {@link #bidiToJson}.
@@ -99,7 +99,7 @@ public final class BiDiBackend implements BrowserBackend {
         p.put("context", context);
         p.put("url", url);
         // Block until the document has loaded. CDP's Page.navigate returns once navigation COMMITS, but BiDi's
-        // wait:"none" returns before the URL even leaves about:blank — so BrowserSession's poll loop would see the
+        // wait:"none" returns before the URL even leaves about:blank, so BrowserSession's poll loop would see the
         // initial about:blank already "complete" and extract a blank page. "complete" returns on the loaded document.
         p.put("wait", "complete");
         rpc.call("browsingContext.navigate", p);
@@ -153,7 +153,7 @@ public final class BiDiBackend implements BrowserBackend {
         try {
             rpc.call("browsingContext.setViewport", p);
         } catch (Exception e) {
-            // Some drivers (older safaridriver) don't implement setViewport — best-effort: resize via script instead.
+            // Some drivers (older safaridriver) don't implement setViewport; best-effort: resize via script instead.
             log.accept("setViewport unsupported (" + e.getMessage() + "); falling back to window.resizeTo");
             evaluate("window.resizeTo(" + viewportW + "," + viewportH + ")");
         }

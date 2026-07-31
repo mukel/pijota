@@ -21,7 +21,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>
  * Hunks are located by their <em>context</em> (the {@code @@} line numbers are treated only as hints), so a patch still
- * applies when line numbers have drifted. The whole patch is computed before anything is written — if any hunk fails to
+ * applies when line numbers have drifted. The whole patch is computed before anything is written. If any hunk fails to
  * apply, no file is modified. Existing files keep their original line endings; {@code --- /dev/null} creates a file and
  * {@code +++ /dev/null} deletes one.
  */
@@ -119,7 +119,7 @@ public final class ApplyPatchTool implements Tool {
             List<String> before = h.lines().stream().filter(l -> l.type() != '+').map(Line::text).toList();
             List<String> after = h.lines().stream().filter(l -> l.type() != '-').map(Line::text).toList();
             int idx = indexOfSublist(lines, before, cursor);
-            if (idx < 0) // hunks may be out of order relative to the cursor — retry from the top
+            if (idx < 0) // hunks may be out of order relative to the cursor, so retry from the top
                 idx = indexOfSublist(lines, before, 0);
             if (idx < 0)
                 throw new PatchException("apply_patch: hunk does not apply to " + fp.oldPath()
@@ -161,7 +161,7 @@ public final class ApplyPatchTool implements Tool {
             i++;
             var hunks = new ArrayList<Hunk>();
             while (i < lines.length && lines[i].startsWith("@@")) {
-                i++; // the @@ -a,b +c,d @@ header — we match by content, so the numbers are ignored
+                i++; // the @@ -a,b +c,d @@ header. We match by content, so the numbers are ignored
                 var hl = new ArrayList<Line>();
                 while (i < lines.length && !lines[i].startsWith("@@") && !lines[i].startsWith("--- ")) {
                     String l = lines[i];

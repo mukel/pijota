@@ -7,9 +7,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * Extracts plain text from text-like files so their content can be inlined into a prompt — covering plain text / code
+ * Extracts plain text from text-like files so their content can be inlined into a prompt, covering plain text / code
  * (decoded as UTF-8) and Office-XML documents (.docx/.pptx/.xlsx, unzipped dependency-free). Binary media that a model
- * reads natively (images, PDFs, audio, video) returns {@code null} — those are sent as typed attachments instead.
+ * reads natively (images, PDFs, audio, video) returns {@code null}; those are sent as typed attachments instead.
  */
 public final class DocumentText {
     private DocumentText() {}
@@ -25,7 +25,7 @@ public final class DocumentText {
         if (name.endsWith(".docx") || name.endsWith(".pptx") || name.endsWith(".xlsx") || m.contains("openxmlformats"))
             return cap(extractOoxml(bytes));
         if (m.startsWith("image/") || m.startsWith("audio/") || m.startsWith("video/") || m.equals("application/pdf"))
-            return null; // native media — not text
+            return null; // native media, not text
         return looksLikeText(bytes) ? cap(new String(bytes, StandardCharsets.UTF_8)) : null;
     }
 

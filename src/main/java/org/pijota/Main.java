@@ -40,7 +40,7 @@ import java.nio.file.Path;
 
 public final class Main {
     static {
-        // Silence logback's startup status BEFORE the first logger (below) initializes the context — the console
+        // Silence logback's startup status BEFORE the first logger (below) initializes the context. The console
         // belongs to the TUI / CliErrorReporter (see logback.xml). Set as a system property, not a <statusListener> in
         // logback.xml, because these messages are emitted during logback's bootstrap, before it parses the config: a
         // native image built from a shaded jar can't read logback's version from the merged manifest, WARNs about it,
@@ -204,7 +204,7 @@ public final class Main {
         var session = b.session();
         b.tools().unregister("question");
         // Secure by default on the network: a non-loopback bind is token-gated (the agent runs shell + edits files, so
-        // an open LAN endpoint is dangerous). Loopback stays open — only the local user can reach it.
+        // an open LAN endpoint is dangerous). Loopback stays open; only the local user can reach it.
         String token = addr.isLoopback() ? null : WebServer.newPairingToken();
         var server = new WebServer(session, addr.host(), addr.port(), b.llm(), b.extensions()::statusLines,
                                         b.extensions().slashCommands(), token);
@@ -232,7 +232,7 @@ public final class Main {
 
     private static int runAcp(AppBootstrap.Result b) throws Exception {
         var session = b.session();
-        // No interactive selector over the wire in v1 — the /question tool would block with no UI to answer it.
+        // No interactive selector over the wire in v1; the /question tool would block with no UI to answer it.
         b.tools().unregister("question");
         var frontend = new AcpFrontend(session, b.extensions().slashCommands(), b.llm().thinkingLevel());
         b.extensions().setTui(frontend.ui());

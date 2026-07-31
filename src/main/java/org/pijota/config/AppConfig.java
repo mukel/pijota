@@ -41,7 +41,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
     public static final int DEFAULT_MAX_TURNS = 256;
 
     public AppConfig() {
-        // OS-appropriate default shell (Unix: /bin/bash — unchanged; Windows: PATH bash) instead of a hardcoded Unix
+        // OS-appropriate default shell (Unix: /bin/bash, unchanged; Windows: PATH bash) instead of a hardcoded Unix
         // path that wouldn't exist on Windows. The bash tool stays bash (the model emits bash syntax), not the user's
         // $SHELL.
         this(null, null, Map.of(), "medium", Platform.defaultShell(), null, null, null, null, List.of(), List.of(),
@@ -74,7 +74,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         Files.createDirectories(path.getParent());
         Util.restrictToOwner(path.getParent());
         String json = Util.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(this);
-        // Skip the write when nothing changed — no churn (and no clobber risk) on a no-op save.
+        // Skip the write when nothing changed: no churn (and no clobber risk) on a no-op save.
         if (Files.exists(path) && json.equals(Files.readString(path)))
             return;
         // Atomic write: serialize to a sibling .tmp, then rename over the real file, so a crash mid-write can never
@@ -83,7 +83,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         Files.writeString(tmp, json);
         Util.restrictToOwner(tmp);
         Util.replaceFile(tmp, path);
-        Util.restrictToOwner(path); // settings.json holds API keys — owner-only
+        Util.restrictToOwner(path); // settings.json holds API keys, owner-only
     }
 
     public AppConfig withApiKey(String provider, String apiKey) {
@@ -145,7 +145,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
     }
 
     /**
-     * Mutable copy-builder so the {@code withX} helpers forward every field by name — eliminating the positional
+     * Mutable copy-builder so the {@code withX} helpers forward every field by name, eliminating the positional
      * copy-constructor churn (and the class of bug where an unrelated change silently nulled another field).
      */
     public static final class Builder {

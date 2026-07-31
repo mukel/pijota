@@ -70,7 +70,7 @@ class AppendOnlyTuiHeadlessTest {
         var tui = tui(ts);
         try {
             tui.alert("heads up");
-            // confirm/prompt return pending futures (answered by a keypress we never send) — just exercise the wiring
+            // confirm/prompt return pending futures (answered by a keypress we never send), just exercise the wiring
             var confirm = tui.confirm("proceed?");
             assertFalse(confirm.isDone(), "confirm awaits a keypress");
             tui.select("pick one", List.of("a", "b"), s -> s, s -> {});

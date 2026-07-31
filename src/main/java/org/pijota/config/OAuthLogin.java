@@ -35,7 +35,7 @@ public final class OAuthLogin {
         return login(deviceEndpoint, tokenEndpoint, clientId, scope, out, Proxies.httpClientBuilder().build());
     }
 
-    /** Injectable-client variant — lets tests drive the device-code → poll flow against a fake HTTP client. */
+    /** Injectable-client variant. Lets tests drive the device-code → poll flow against a fake HTTP client. */
     static TokenResult login(String deviceEndpoint, String tokenEndpoint, String clientId, String scope,
                                     Consumer<String> out, HttpClient client) throws Exception {
         var device = requestDeviceCode(client, deviceEndpoint, clientId, scope);
@@ -48,7 +48,7 @@ public final class OAuthLogin {
         return loginOpenAI(deviceCodeUrl, tokenUrl, oauthTokenUrl, clientId, out, Proxies.httpClientBuilder().build());
     }
 
-    /** Injectable-client variant — lets tests drive the device-auth (and code-exchange) flow against a fake client. */
+    /** Injectable-client variant. Lets tests drive the device-auth (and code-exchange) flow against a fake client. */
     static TokenResult loginOpenAI(String deviceCodeUrl, String tokenUrl, String oauthTokenUrl, String clientId,
                                     Consumer<String> out, HttpClient client) throws Exception {
         var device = requestOpenAIDeviceCode(client, deviceCodeUrl, clientId);
@@ -191,7 +191,7 @@ public final class OAuthLogin {
 
     /**
      * Refreshes an expired access token. Works for both standard OAuth (tokenEndpoint) and OpenAI OAuth
-     * (oauthTokenEndpoint) — just pass the appropriate URL as tokenUrl.
+     * (oauthTokenEndpoint). Just pass the appropriate URL as tokenUrl.
      */
     public static TokenResult refreshToken(String tokenUrl, String clientId, String refreshToken) throws Exception {
         var client = Proxies.httpClientBuilder().build();
@@ -221,7 +221,7 @@ public final class OAuthLogin {
         int expiresIn = node.has("expires_in") ? node.get("expires_in").asInt() : 3600;
         long expiresAt = nowMs + (expiresIn * 1000L);
         String accountId = node.has("account_id") ? node.get("account_id").asText() : null;
-        // ChatGPT/Codex OAuth doesn't return a top-level account_id — it's a claim inside the id_token JWT.
+        // ChatGPT/Codex OAuth doesn't return a top-level account_id; it's a claim inside the id_token JWT.
         if ((accountId == null || accountId.isBlank()) && node.hasNonNull("id_token"))
             accountId = chatgptAccountIdFromIdToken(node.get("id_token").asText());
         return new TokenResult(accessToken, refreshToken, expiresAt, accountId);

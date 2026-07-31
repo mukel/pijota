@@ -87,7 +87,7 @@ class TrustStoreTest {
         Files.writeString(file, "{ this is not valid json");
         var store = new TrustStore(file); // must not throw
         assertFalse(store.isTrusted("/anything"));
-        store.trust("/now/valid"); // and recovers — overwrites with a good file
+        store.trust("/now/valid"); // and recovers, overwrites with a good file
         assertTrue(new TrustStore(file).isTrusted("/now/valid"));
     }
 

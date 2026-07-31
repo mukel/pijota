@@ -39,7 +39,7 @@ public sealed interface AgentEvent {
     }
 
     /**
-     * The conversation history was replaced wholesale (new session, load/resume, undo, fork) — not an incremental
+     * The conversation history was replaced wholesale (new session, load/resume, undo, fork), not an incremental
      * append. Frontends that mirror the transcript should re-render it from {@code session.messages()}. {@code reason}
      * is a short tag (e.g. {@code "new"}, {@code "load"}, {@code "undo"}, {@code "fork"}).
      */

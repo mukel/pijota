@@ -24,13 +24,13 @@ import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 /**
- * Background shell jobs, on by default ({@code --no-jobs} disables). Adds four tools — {@code jobs_run} to launch a
+ * Background shell jobs, on by default ({@code --no-jobs} disables). Adds four tools: {@code jobs_run} to launch a
  * long-running command without blocking the turn, {@code jobs_output} to poll or await its output, {@code jobs_list} to
- * inspect all jobs, and {@code jobs_kill} to stop one (SIGKILL by default, or SIGTERM for graceful shutdown) — plus a
+ * inspect all jobs, and {@code jobs_kill} to stop one (SIGKILL by default, or SIGTERM for graceful shutdown), plus a
  * live panel of running jobs and a completion notice when a job exits. Cross-platform by construction: the command runs
- * through the configured shell (the same resolved shell as the foreground bash tool — bash by default, honouring
+ * through the configured shell (the same resolved shell as the foreground bash tool, bash by default, honouring
  * {@code shell_path}, so it works on Windows with Git Bash/WSL) and lifecycle uses only the Java {@code Process}/
- * {@code ProcessHandle} API — no external {@code kill}/{@code sh}. Unlike {@code --tmux} it needs no external binary,
+ * {@code ProcessHandle} API, no external {@code kill}/{@code sh}. Unlike {@code --tmux} it needs no external binary,
  * so it works everywhere including the native image.
  */
 public final class JobsExtension implements Extension {
@@ -41,7 +41,7 @@ public final class JobsExtension implements Extension {
     private static final List<String> SUPPORTED_SIGNALS = List.of("SIGKILL", "SIGTERM");
 
     private final JobRegistry shared;
-    private final String shellPath; // the shell jobs_run launches through — the same resolved shell as foreground bash
+    private final String shellPath; // the shell jobs_run launches through, the same resolved shell as foreground bash
     private volatile JobRegistry jobs; // bound in init() when enabled; reaped in onShutdown()
     private ExtensionAPI api; // for the /jobs and /kill slash-command handlers to print to the user
 
@@ -49,7 +49,7 @@ public final class JobsExtension implements Extension {
         this(new JobRegistry());
     }
 
-    /** The registry may be shared with the host app — the TUI adopts user-backgrounded commands into the same one. */
+    /** The registry may be shared with the host app. The TUI adopts user-backgrounded commands into the same one. */
     public JobsExtension(JobRegistry shared) {
         this(shared, Platform.defaultShell());
     }
@@ -57,8 +57,8 @@ public final class JobsExtension implements Extension {
     /**
      * @param shellPath
      *            the shell {@code jobs_run} launches commands through. Pass {@code settings.effectiveShellPath()} so
-     *            background jobs honour the same configured shell (and {@code shell_path}) as the foreground bash tool
-     *            — which matters on Windows, where bash may not be on PATH but is set via {@code shell_path}.
+     *            background jobs honour the same configured shell (and {@code shell_path}) as the foreground bash tool,
+     *            which matters on Windows, where bash may not be on PATH but is set via {@code shell_path}.
      */
     public JobsExtension(JobRegistry shared, String shellPath) {
         this.shared = shared != null ? shared : new JobRegistry();
@@ -98,12 +98,12 @@ public final class JobsExtension implements Extension {
                                         this::killCommand));
     }
 
-    /** {@code /jobs} — the same listing the agent's jobs_list produces, shown to the user (not sent to the model). */
+    /** {@code /jobs}, the same listing the agent's jobs_list produces, shown to the user (not sent to the model). */
     private void showJobs() {
         api.sendMessage(new Message.Custom("jobs", renderList(jobs.list())));
     }
 
-    /** {@code /kill <id> [signal]} — terminate a job directly; reuses the jobs_kill body. */
+    /** {@code /kill <id> [signal]}: terminate a job directly; reuses the jobs_kill body. */
     private void killCommand(String args) {
         String[] parts = args == null ? new String[0] : args.strip().split("\\s+");
         if (parts.length == 0 || parts[0].isBlank()) {
@@ -149,7 +149,7 @@ public final class JobsExtension implements Extension {
                                                 String id = jobs.start(List.of(shell, shellFlag, command), workdir,
                                                                                 args.getString("name"), envOf(args));
                                                 return ToolResult.success("Started background job " + id
-                                                                                + " — read with jobs_output (id=\"" + id
+                                                                                + " · read with jobs_output (id=\"" + id
                                                                                 + "\"), stop with jobs_kill.",
                                                                                 Map.of("jobId", id));
                                             } catch (IOException e) {
@@ -177,7 +177,7 @@ public final class JobsExtension implements Extension {
     private static ToolDefinition outputTool(JobRegistry jobs) {
         return Tool.named("jobs_output").glyph("📡").description(
                                         "Read a background job's output produced since your last read, plus whether it is still running"
-                                                                        + " or its exit code. Optional: filter (regex — only matching lines), timeout (seconds to"
+                                                                        + " or its exit code. Optional: filter (regex, only matching lines), timeout (seconds to"
                                                                         + " wait for new output or exit), and wait_for_completion (block until the job exits).")
                                         .stringParam("id", "The background job id returned by jobs_run, e.g. \"bg_1\"",
                                                                         true)
@@ -193,7 +193,7 @@ public final class JobsExtension implements Extension {
 
     /**
      * Polls one job, accumulating the output it produces (so a job that finishes between polls never loses its tail),
-     * until it exits, the deadline passes, or — unless waiting for completion — it has matching output to show.
+     * until it exits, the deadline passes, or, unless waiting for completion, it has matching output to show.
      */
     private static ToolResult readOutput(JobRegistry jobs, Tool.Args args) {
         String id = args.getString("id");
@@ -268,7 +268,7 @@ public final class JobsExtension implements Extension {
     private static ToolDefinition listTool(JobRegistry jobs) {
         return Tool.named("jobs_list").glyph("📋").description(
                                         "List every background job (running and finished) with its id, status/exit code, output size,"
-                                                                        + " and command — so you can find a job id to read with jobs_output or stop with jobs_kill.")
+                                                                        + " and command, so you can find a job id to read with jobs_output or stop with jobs_kill.")
                                         .run((args, cwd) -> ToolResult.success(renderList(jobs.list())));
     }
 
@@ -300,7 +300,7 @@ public final class JobsExtension implements Extension {
                                                                         args.getString("signal", "SIGKILL")));
     }
 
-    /** Stops a job by id with an optional signal — shared by the jobs_kill tool and the /kill slash command. */
+    /** Stops a job by id with an optional signal, shared by the jobs_kill tool and the /kill slash command. */
     static ToolResult killJob(JobRegistry jobs, String id, String signal) {
         if (isBlank(id))
             return ToolResult.error("No job id provided");
@@ -317,12 +317,12 @@ public final class JobsExtension implements Extension {
 
     /**
      * Monitor: when a job finishes on its own, tell the agent so it needn't poll. Single-arg delivery steers the run if
-     * the agent is busy and wakes it if idle — so a completion (especially a failure) is never silently lost while the
+     * the agent is busy and wakes it if idle, so a completion (especially a failure) is never silently lost while the
      * agent sits awaiting input.
      */
     private static void notifyCompletion(ExtensionAPI api, JobRegistry.Completion c) {
         String label = hasDistinctName(c.name(), c.command()) ? c.name() + " · " : "";
-        String tail = " — read its output with jobs_output (id=\"" + c.id() + "\").";
+        String tail = " · read its output with jobs_output (id=\"" + c.id() + "\").";
         String msg = c.exitCode() == 0
                                         ? "⏳ background job " + c.id() + " finished · exit 0 · " + label
                                                                         + Util.ellipsize(c.command(), CMD_PREVIEW)

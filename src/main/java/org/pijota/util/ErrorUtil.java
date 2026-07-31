@@ -37,7 +37,7 @@ public final class ErrorUtil {
     }
 
     /**
-     * Human-readable fallback for exceptions that arrive with no message — a bare class name like "ConnectException"
+     * Human-readable fallback for exceptions that arrive with no message. A bare class name like "ConnectException"
      * tells a user nothing. Common network failures (the model endpoint unreachable / slow / misnamed) get actionable
      * text; anything else degrades to the class's simple name.
      */
@@ -57,7 +57,7 @@ public final class ErrorUtil {
     }
 
     /**
-     * Provider errors frequently arrive as a JSON blob — sometimes echoing the entire request (system prompt and all).
+     * Provider errors frequently arrive as a JSON blob, sometimes echoing the entire request (system prompt and all).
      * Pull out the human-readable part ({@code error.message}, plus {@code error.code} when present) so the terminal
      * shows one short line instead of a screenful. Returns the input unchanged when it isn't recognizable error JSON.
      */
@@ -80,7 +80,7 @@ public final class ErrorUtil {
                 return code != null && !code.isBlank() ? m + " (" + code + ")" : m;
             }
         } catch (Exception ignored) {
-            // not JSON we understand — fall back to the raw text (the caller truncates it)
+            // not JSON we understand, fall back to the raw text (the caller truncates it)
         }
         return msg;
     }
@@ -108,7 +108,7 @@ public final class ErrorUtil {
     }
 
     public static boolean isContextOverflow(Throwable t) {
-        // Check the RAW message, not the conciseified one — the overflow hint may live outside error.message.
+        // Check the RAW message, not the conciseified one. The overflow hint may live outside error.message.
         String m = t != null ? unwrap(t).getMessage() : null;
         if (m == null)
             return false;
@@ -133,10 +133,10 @@ public final class ErrorUtil {
         return false;
     }
 
-    // Hard quota/billing/subscription-cap failures: a 429 (or gateway error) that will NOT clear by retrying — the
+    // Hard quota/billing/subscription-cap failures: a 429 (or gateway error) that will NOT clear by retrying. The
     // account is out of credits or over a plan limit. Checked BEFORE the retryable patterns so it surfaces immediately
     // instead of burning the whole retry budget on backoff.
-    // NB: bare "quota exceeded" is deliberately NOT here — Gemini/Vertex RESOURCE_EXHAUSTED uses it for per-minute rate
+    // NB: bare "quota exceeded" is deliberately NOT here. Gemini/Vertex RESOURCE_EXHAUSTED uses it for per-minute rate
     // quotas that DO clear on retry (see isRetryableDetectsTransientErrors). Only unambiguously-hard billing/plan-cap
     // wording goes here.
     private static final List<String> NON_RETRYABLE = List.of("insufficient_quota", "out of budget", "billing",
@@ -172,7 +172,7 @@ public final class ErrorUtil {
             return false;
         if (isContextOverflow(unwrapped))
             return false;
-        if (containsAny(msg, NON_RETRYABLE)) // hard quota/billing — retrying won't help, fail fast
+        if (containsAny(msg, NON_RETRYABLE)) // hard quota/billing, retrying won't help, fail fast
             return false;
 
         return containsAny(msg, RETRYABLE) || unwrapped instanceof IOException || unwrapped instanceof TimeoutException;

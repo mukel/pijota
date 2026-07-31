@@ -15,7 +15,7 @@ class ErrorUtilTest {
 
     @Test
     void messagelessNetworkErrorsBecomeActionableText() {
-        // a bare "ConnectException" tells a user nothing — message() should explain it
+        // a bare "ConnectException" tells a user nothing. message() should explain it
         String connect = ErrorUtil.message(new ConnectException());
         assertFalse(connect.equals("ConnectException"), connect);
         assertTrue(connect.toLowerCase().contains("connect") || connect.toLowerCase().contains("reach"), connect);
@@ -88,7 +88,7 @@ class ErrorUtilTest {
 
     @Test
     void isRetryableRejectsHardQuotaAndBillingLimits() {
-        // A 429 that won't clear by retrying — surface it immediately instead of burning the retry budget.
+        // A 429 that won't clear by retrying. Surface it immediately instead of burning the retry budget.
         assertFalse(ErrorUtil.isRetryable(new RuntimeException("429 insufficient_quota: check your billing")));
         assertFalse(ErrorUtil.isRetryable(new RuntimeException("You are out of budget")));
         assertFalse(ErrorUtil.isRetryable(new RuntimeException("Monthly usage limit reached")));
@@ -151,7 +151,7 @@ class ErrorUtilTest {
 
     @Test
     void messageExtractsErrorFromNestedProviderJson() {
-        // Codex/OpenAI "response.failed" blob that echoes the whole request — must not dump it all.
+        // Codex/OpenAI "response.failed" blob that echoes the whole request. Must not dump it all.
         String blob = "{\"type\":\"response.failed\",\"response\":{\"id\":\"resp_abc\",\"status\":\"failed\","
                                         + "\"error\":{\"code\":\"server_is_overloaded\",\"message\":\"Our servers are currently "
                                         + "overloaded. Please try again later.\"},\"instructions\":\"You are pijota, a very long "

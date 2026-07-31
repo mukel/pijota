@@ -3,8 +3,8 @@ package org.pijota.tui;
 import java.util.List;
 
 /**
- * Accumulates the lines of a multi-line markdown block (a table, a blockquote) until it can be flushed as one chunk —
- * needed because the stream arrives one line at a time but these blocks parse only with full context.
+ * Accumulates the lines of a multi-line markdown block (a table, a blockquote) until it can be flushed as one chunk.
+ * Needed because the stream arrives one line at a time but these blocks parse only with full context.
  */
 final class LineBuffer {
     private final StringBuilder sb = new StringBuilder();

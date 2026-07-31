@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
  * Design notes that matter for correctness:
  * <ul>
  * <li>Every request future has a timeout, so a silent server can never hang an agent turn.</li>
- * <li>If the transport dies, all in-flight futures are failed — a leaked pending future would block the loop
+ * <li>If the transport dies, all in-flight futures are failed. A leaked pending future would block the loop
  * forever.</li>
  * <li>Futures are completed on a caller-supplied {@link Executor}, never the reader thread, so downstream tool/agent
  * continuations cannot stall further reads.</li>
@@ -191,10 +191,10 @@ final class McpClient {
                 completionExecutor.execute(() -> future.complete(result));
             }
         } else if (node.has("method") && hasId) {
-            // Server→client request: we expose no callable methods yet — reply so the server doesn't stall waiting.
+            // Server→client request: we expose no callable methods yet. Reply so the server doesn't stall waiting.
             replyMethodNotFound(node.get("id"));
         }
-        // else: a notification (method, no id) — ignored for now.
+        // else: a notification (method, no id), ignored for now.
     }
 
     private void replyMethodNotFound(JsonNode id) {

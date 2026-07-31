@@ -91,7 +91,7 @@ class SelectorTest {
 
     @Test
     void filteringJumpsHighlightToTopMatch() {
-        // A fresh query highlights the best (first) match, not a stale cursor from the previous query — else Enter
+        // A fresh query highlights the best (first) match, not a stale cursor from the previous query; else Enter
         // would select whatever row the cursor happened to sit on before the user started typing.
         var s = new Selector<>(List.of(A, B, C));
         s.activate("");

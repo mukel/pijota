@@ -35,7 +35,7 @@ class AppBootstrapTest {
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-tools", "--api-key", "sk-test"}),
                                         settings);
-        // The tool policy registers everything but activates none — --no-tools disables all tools, bash included.
+        // The tool policy registers everything but activates none. --no-tools disables all tools, bash included.
         assertTrue(result.tools().activeTools().isEmpty(),
                                         "--no-tools activates no tools: " + result.tools().activeTools());
     }
@@ -65,7 +65,7 @@ class AppBootstrapTest {
 
     @Test
     void backgroundingIsGatedOnTheJobsExtension() throws Exception {
-        // The shared job registry reaches the frontends (enabling ctrl+b ctrl+b) only when jobs is active — so a
+        // The shared job registry reaches the frontends (enabling ctrl+b ctrl+b) only when jobs is active, so a
         // backgrounded command always has jobs_output/jobs_kill to observe and stop it.
         Path tmp = Files.createTempDirectory("bootstrap-test");
         assertNotNull(AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--api-key", "sk-test"}),

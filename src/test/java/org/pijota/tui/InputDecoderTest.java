@@ -105,7 +105,7 @@ class InputDecoderTest {
 
     @Test
     void mapsUnknownControlCharToUnknown() throws IOException {
-        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(6))); // Ctrl+F — still unmapped
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(6))); // Ctrl+F, still unmapped
     }
 
     @Test

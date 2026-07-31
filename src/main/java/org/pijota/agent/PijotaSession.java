@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
- * Durable conversational session — the main public API. Wraps the agent loop, session persistence, and extension
+ * Durable conversational session, the main public API. Wraps the agent loop, session persistence, and extension
  * registry; messages, model/thinking-level changes, and compaction summaries are saved to disk and resume across
  * restarts.
  */
@@ -133,14 +133,14 @@ public final class PijotaSession implements AutoCloseable {
     // -- Session management --
 
     /**
-     * The underlying loop — low-level access for the one-shot print runner; frontends should drive the session via
+     * The underlying loop; low-level access for the one-shot print runner. Frontends should drive the session via
      * {@link #prompt}/{@link #followUp}/{@link #abort}, not reach in here.
      */
     public AgentLoop agentLoop() {
         return agentLoop;
     }
 
-    /** Look up a registered tool by name — frontends use this for display (glyph, labels). */
+    /** Look up a registered tool by name; frontends use this for display (glyph, labels). */
     public Optional<Tool> tool(String name) {
         return toolRegistry.get(name);
     }
@@ -214,7 +214,7 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     private static String fallbackBranchSummary(List<Message> messages, String instructions) {
-        var sb = new StringBuilder("[degraded — LLM summarizer unavailable]\n");
+        var sb = new StringBuilder("[degraded · LLM summarizer unavailable]\n");
         if (instructions != null && !instructions.isBlank())
             sb.append("Focus: ").append(instructions.strip()).append("\n");
         int start = Math.max(0, messages.size() - 12);
@@ -299,7 +299,7 @@ public final class PijotaSession implements AutoCloseable {
         agentLoop.removeEventListener(listener);
     }
 
-    /** The live model client (current provider/model + usage) — e.g. for an in-process web/Telegram remote control. */
+    /** The live model client (current provider/model + usage), e.g. for an in-process web/Telegram remote control. */
     public LlmClient llm() {
         return agentLoop.llm();
     }
@@ -367,7 +367,7 @@ public final class PijotaSession implements AutoCloseable {
     public long estimatedContextTokens() {
         // Anchor on the provider's real prompt size: the byte estimate of the current messages plus the fixed overhead
         // (system prompt + tool schemas + tokenizer diff) the provider reported last time. So the count stays within
-        // tokenizer error of reality and grows immediately as messages — including the streaming response — are added,
+        // tokenizer error of reality and grows immediately as messages, including the streaming response, are added,
         // instead of sitting at the stale real value until the next response. Before any real usage the overhead is 0,
         // so this falls back to the plain byte estimate.
         long base = CompactionManager.estimateTokens(agentLoop.messages());
@@ -429,8 +429,8 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     /**
-     * A session name must be a single plain line: collapse every control char — newlines and tabs (which would wrap
-     * the status bar onto extra lines) and ESC (which could otherwise inject ANSI into it) — to spaces, squeeze runs,
+     * A session name must be a single plain line: collapse every control char, newlines and tabs (which would wrap
+     * the status bar onto extra lines) and ESC (which could otherwise inject ANSI into it), to spaces, squeeze runs,
      * and trim. Blank ⇒ null (name cleared).
      */
     public static String sanitizeName(String name) {
@@ -456,7 +456,7 @@ public final class PijotaSession implements AutoCloseable {
     /**
      * Records the effective model and thinking level into a fresh session so it fully describes itself. Resume (e.g.
      * after {@code /transcend}) then restores the exact model the conversation was using, instead of re-deriving it
-     * from CLI args + settings.json — which can have drifted since launch.
+     * from CLI args + settings.json, which can have drifted since launch.
      */
     public void recordInitialModelState() {
         var llm = agentLoop.llm();

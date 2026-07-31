@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AgentEventLoggerTest {
 
-    /** True if some line contains all of {@code parts} — keeps the assertions short and readable. */
+    /** True if some line contains all of {@code parts}. Keeps the assertions short and readable. */
     private static boolean has(List<String> lines, String... parts) {
         return lines.stream().anyMatch(line -> Arrays.stream(parts).allMatch(line::contains));
     }
@@ -62,15 +62,15 @@ class AgentEventLoggerTest {
         logger.setLevel(Level.TRACE);
         try {
             var sut = new AgentEventLogger();
-            // per-chunk streaming update (null usage) — must NOT flood INFO
+            // per-chunk streaming update (null usage), must NOT flood INFO
             sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("partial", List.of(), null), null));
-            // final completion (has usage) — the one INFO line worth keeping
+            // final completion (has usage), the one INFO line worth keeping
             sut.onEvent(new AgentEvent.AssistantMessage(new Message.Assistant("done", List.of(), null),
                                             new Usage(1500, 42)));
 
             var infoMsgs = appender.list.stream().filter(e -> e.getLevel() == Level.INFO)
                                             .map(ILoggingEvent::getFormattedMessage).toList();
-            assertEquals(1, infoMsgs.size(), "one INFO line — the final completion, not the streaming update");
+            assertEquals(1, infoMsgs.size(), "one INFO line, the final completion, not the streaming update");
             assertTrue(infoMsgs.getFirst().contains("in=1500 out=42"), infoMsgs.toString());
         } finally {
             logger.setLevel(saved);

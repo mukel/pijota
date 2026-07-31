@@ -22,14 +22,14 @@ class ThemeManagerTest {
     @Test
     void builtinThemesListMatchesBundledResources() throws Exception {
         // Guards the native-image fix: BUILTIN_THEMES is an explicit list (resource dirs can't be enumerated in the
-        // native image), so it must stay in sync with the actual themes/*.json — checked here where enumeration works.
+        // native image), so it must stay in sync with the actual themes/*.json, checked here where enumeration works.
         var dir = ThemeManager.class.getClassLoader().getResource("themes");
         assertNotNull(dir, "bundled themes/ resource directory");
         try (var files = Files.list(Path.of(dir.toURI()))) {
             var actual = files.map(p -> p.getFileName().toString()).filter(n -> n.endsWith(".json"))
                                             .map(n -> n.substring(0, n.length() - ".json".length())).sorted().toList();
             assertEquals(actual, ThemeManager.BUILTIN_THEMES,
-                                            "BUILTIN_THEMES drifted from src/main/resources/themes/*.json — update it");
+                                            "BUILTIN_THEMES drifted from src/main/resources/themes/*.json. Update it");
         }
     }
 

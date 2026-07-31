@@ -60,7 +60,7 @@ public final class SettingsManager {
         try {
             return AppConfig.load(PijotaHome.resolve("settings.json"));
         } catch (Exception e) {
-            // A corrupt/unreadable settings.json otherwise silently reverts to defaults — surface why.
+            // A corrupt/unreadable settings.json otherwise silently reverts to defaults. Surface why.
             logger.warn("Could not read settings.json ({}); using defaults", ErrorUtil.message(e));
             return new AppConfig();
         }

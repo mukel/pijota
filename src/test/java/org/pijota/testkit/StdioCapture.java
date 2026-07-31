@@ -56,7 +56,7 @@ public final class StdioCapture implements BeforeEachCallback, AfterEachCallback
     }
 
     /**
-     * Feeds an object serialized as JSON (e.g. a {@code Map}) as {@code System.in} — so tests describe a task as a map
+     * Feeds an object serialized as JSON (e.g. a {@code Map}) as {@code System.in}, so tests describe a task as a map
      * instead of hand-building a JSON string and escaping filesystem paths.
      */
     public void feedInputJson(Object value) {

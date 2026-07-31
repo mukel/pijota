@@ -314,7 +314,7 @@ class MarkdownRenderIntegrationTest {
 
     @Test
     void blockquoteBuffersSoNestedTableRenders() {
-        // This is the exact test from StreamingMarkdownFormatterTest — but in the integration test.
+        // This is the exact test from StreamingMarkdownFormatterTest, but in the integration test.
         var f = new StreamingMarkdownFormatter(AnsiTheme.dark(), MarkdownStyle.RICH);
         f.setWidth(80);
         f.format("> intro");

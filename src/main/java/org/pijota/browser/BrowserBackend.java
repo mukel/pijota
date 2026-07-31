@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 public interface BrowserBackend extends AutoCloseable {
 
     /**
-     * Launches/attaches the browser, connects, and applies the configured viewport and init scripts — idempotent: a
+     * Launches/attaches the browser, connects, and applies the configured viewport and init scripts. Idempotent: a
      * no-op when already {@link #isAlive() alive}, and transparently reconnects after a dropped socket.
      */
     void start() throws Exception;

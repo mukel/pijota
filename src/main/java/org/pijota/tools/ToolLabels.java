@@ -115,7 +115,7 @@ public final class ToolLabels {
     private static String compact(String path) {
         int lastSep = path.lastIndexOf('/');
         if (lastSep <= 0)
-            return path; // a bare filename, "." or "~" — nothing to compact
+            return path; // a bare filename, "." or "~"; nothing to compact
         var sb = new StringBuilder();
         for (String seg : path.substring(0, lastSep).split("/", -1))
             sb.append(abbrev(seg)).append('/');
@@ -215,7 +215,7 @@ public final class ToolLabels {
     }
 
     /**
-     * Drops one leading {@code cd <path> && } — near-universal boilerplate that would otherwise spend the whole header
+     * Drops one leading {@code cd <path> && }, near-universal boilerplate that would otherwise spend the whole header
      * budget before the command the user actually cares about. Only a plain cd (no shell operators in the path) is
      * stripped, so anything unusual survives verbatim.
      */

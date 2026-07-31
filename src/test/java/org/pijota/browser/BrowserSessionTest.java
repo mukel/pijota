@@ -50,7 +50,7 @@ class BrowserSessionTest {
 
     @Test
     void normalizeUrlRejectsInternalAddressesForSsrf() {
-        // loopback, link-local (169.254.169.254 cloud metadata), private, wildcard — SSRF-blocked.
+        // loopback, link-local (169.254.169.254 cloud metadata), private, wildcard: all SSRF-blocked.
         for (String u : new String[] {"http://127.0.0.1:9333/json/version", "http://localhost/x",
                 "http://169.254.169.254/latest/meta-data/", "http://10.0.0.1", "http://192.168.1.1", "http://0.0.0.0"})
             assertThrows(IllegalArgumentException.class, () -> BrowserSession.normalizeUrl(u),

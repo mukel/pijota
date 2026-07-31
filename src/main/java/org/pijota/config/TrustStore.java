@@ -14,7 +14,7 @@ import java.util.Set;
 
 /**
  * Remembers which project directories the user has trusted. A trusted folder may load its own context files
- * ({@code AGENTS.md}, {@code CLAUDE.md}, {@code .pijota/CONTEXT.md}) into the agent's prompt — a cloned, untrusted repo
+ * ({@code AGENTS.md}, {@code CLAUDE.md}, {@code .pijota/CONTEXT.md}) into the agent's prompt; a cloned, untrusted repo
  * could otherwise inject instructions via those files. Trust is inherited by subdirectories. Persisted to
  * {@code ~/.pijota/trust.json} (owner-only).
  */
@@ -40,7 +40,7 @@ public final class TrustStore {
                     trusted.addAll(data.trusted());
             }
         } catch (Exception ignored) {
-            // a corrupt/unreadable store just means nothing is trusted yet — fail closed
+            // a corrupt/unreadable store just means nothing is trusted yet, fail closed
         }
     }
 

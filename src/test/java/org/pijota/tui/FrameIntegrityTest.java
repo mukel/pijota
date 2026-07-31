@@ -9,8 +9,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The renderer's contract, made executable: whatever the prompt frame does — typing, wide glyphs, streaming, long
- * warnings, modal regions, width changes, frames taller than the screen — committed scrollback lines must appear
+ * The renderer's contract, made executable: whatever the prompt frame does (typing, wide glyphs, streaming, long
+ * warnings, modal regions, width changes, frames taller than the screen), committed scrollback lines must appear
  * exactly once, in order, forever. One misdrawn frame after an external event is tolerable; drift that eats or
  * duplicates a line on every redraw is the bug class this suite exists to keep extinct.
  */
@@ -111,7 +111,7 @@ class FrameIntegrityTest {
         for (int i = 0; i < 5; i++) {
             term.feed(renderer.renderFrame(width, height, snapshot, List.of(), true, true, THEME));
             assertEquals(before, List.of(term.scrollback(), term.screenLines()),
-                                            "an unchanged snapshot must redraw pixel-identically — any delta compounds "
+                                            "an unchanged snapshot must redraw pixel-identically; any delta compounds "
                                                                             + "into drift on every keystroke");
         }
     }

@@ -29,7 +29,7 @@ import javax.net.ssl.SSLSession;
  *
  * <p>
  * The body must match the {@code BodyHandler} the code under test uses: {@link #ok(String)} for
- * {@code BodyHandlers.ofString()}, {@link #ok(byte[])} for {@code ofByteArray()}. The handler itself is ignored — the
+ * {@code BodyHandlers.ofString()}, {@link #ok(byte[])} for {@code ofByteArray()}. The handler itself is ignored, the
  * stored body is returned verbatim. The last request sent is exposed via {@link #lastRequest()} so tests can assert URL
  * / headers without a network round-trip.
  *
@@ -75,7 +75,7 @@ public final class FakeHttpClient extends HttpClient {
         return new FakeHttpClient(code, body);
     }
 
-    /** Returns each body (HTTP 200) in order across successive calls; the last repeats — for poll/retry flows. */
+    /** Returns each body (HTTP 200) in order across successive calls; the last repeats, for poll/retry flows. */
     public static FakeHttpClient sequence(String... bodies) {
         var list = new ArrayList<Resp>();
         for (String b : bodies)

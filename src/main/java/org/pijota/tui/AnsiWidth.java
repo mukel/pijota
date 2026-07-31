@@ -47,7 +47,7 @@ final class AnsiWidth {
             return 2;
         if (cp >= 0x2300 && cp <= 0x24FF)
             return 2;
-        // Dingbat angle-bracket (❮❯…) and arrow (➜➤…) ornaments render width 1, unlike the emoji in the same block —
+        // Dingbat angle-bracket (❮❯…) and arrow (➜➤…) ornaments render width 1, unlike the emoji in the same block,
         // so a ❯ caret doesn't shift the cursor. Carve them out before the block-wide rule below.
         if ((cp >= 0x276C && cp <= 0x2771) || (cp >= 0x2794 && cp <= 0x27BF))
             return 1;
@@ -72,7 +72,7 @@ final class AnsiWidth {
                     return text.substring(0, i) + "\033[0m";
             } else if (!Character.isISOControl(ch)) {
                 // Cut BEFORE the glyph that crosses maxWidth: a width-2 glyph landing on the boundary must be dropped,
-                // not kept — keeping it yields maxWidth+1 columns and the terminal auto-wraps an unmeasured row.
+                // not kept. Keeping it yields maxWidth+1 columns and the terminal auto-wraps an unmeasured row.
                 if (width + charWidth(text, i) > maxWidth)
                     return text.substring(0, i) + "\033[0m";
                 width += charWidth(text, i);
@@ -84,7 +84,7 @@ final class AnsiWidth {
     }
 
     /**
-     * First char index at or after {@code from} that no longer fits within {@code maxColumns} visible columns — the
+     * First char index at or after {@code from} that no longer fits within {@code maxColumns} visible columns: the
      * column-accurate wrap point for plain (unstyled) text. Always advances by at least one code point so callers can't
      * loop forever on a glyph wider than the budget.
      */

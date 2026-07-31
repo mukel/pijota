@@ -132,7 +132,7 @@ final class StreamingMarkdownFormatter {
         }
 
         // Blockquotes buffer their whole run (like tables) so a table or code block nested inside parses with full
-        // context — every line of a quote starts with '>' (after optional indent), so the run is self-delimiting.
+        // context. Every line of a quote starts with '>' (after optional indent), so the run is self-delimiting.
         if (line.stripLeading().startsWith(">")) {
             table.flushInto(out);
             flushPendingHeaderInto(out);

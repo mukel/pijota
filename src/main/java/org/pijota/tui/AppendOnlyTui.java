@@ -190,7 +190,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final DoublePressGate interruptGate = new DoublePressGate(INTERRUPT_WINDOW_MS);
     private final DoublePressGate exitGate = new DoublePressGate(EXIT_WINDOW_MS);
     private final DoublePressGate backgroundGate = new DoublePressGate(INTERRUPT_WINDOW_MS);
-    private volatile JobRegistry jobRegistry; // enables ctrl+b ctrl+b — null until the host wires it
+    private volatile JobRegistry jobRegistry; // enables ctrl+b ctrl+b; null until the host wires it
     private ThinkingLevel thinkingLevel = ThinkingLevel.OFF;
     private String sessionName;
     private Attributes originalAttributes;
@@ -256,10 +256,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     /**
      * Builds the real system terminal. Two startup concerns handled here so the injectable test constructor stays pure:
      * (1) {@code graphemeCluster(false)} skips JLine's mode-2027 probe, which otherwise sends a query and blocks ~350
-     * ms on the path to the prompt when the terminal doesn't answer — pijota measures widths itself (AnsiWidth,
+     * ms on the path to the prompt when the terminal doesn't answer; pijota measures widths itself (AnsiWidth,
      * wcwidth-based) and uses JLine only for raw key I/O, so its grapheme setting is irrelevant to rendering. (2) A
      * {@code dumb} (no-color) terminal can't render ANSI, so drop the theme to plain rather than spray escape codes as
-     * garbage — mirroring the {@code NO_COLOR} behaviour.
+     * garbage, mirroring the {@code NO_COLOR} behaviour.
      */
     private static Terminal systemTerminal(AnsiTheme theme) throws IOException {
         Terminal terminal = TerminalBuilder.builder().dumb(false).jna(false).jansi(false).graphemeCluster(false)
@@ -277,7 +277,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return type != null && type.startsWith("dumb") && !type.contains("color");
     }
 
-    /** Injectable-terminal constructor — lets tests drive the TUI against an in-memory terminal (no tty). */
+    /** Injectable-terminal constructor: lets tests drive the TUI against an in-memory terminal (no tty). */
     AppendOnlyTui(PijotaSession session, AnsiTheme theme, String provider, String model,
                                     List<SlashCommand> extensionCommands, SettingsManager settings,
                                     List<SkillLoader.Skill> skills, Supplier<List<String>> extensionLinesSupplier,
@@ -823,7 +823,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             animator.scheduleAtFixedRate(this::tickWorkingAnimation, 125, 125, TimeUnit.MILLISECONDS);
             inputThread = Thread.ofPlatform().name("pijota-tui-input").uncaughtExceptionHandler((t, e) -> {
                 // Last resort: never leave the terminal in raw mode if the input
-                // thread dies unexpectedly — restore it and unblock shutdown.
+                // thread dies unexpectedly; restore it and unblock shutdown.
                 restoreTerminalState();
                 shutdownLatch.countDown();
             }).start(this::readInputLoop);
@@ -859,7 +859,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 int width = Math.max(20, terminal.getWidth());
                 for (var it : items) {
                     String meta = compactSessionDetail(it.detailText());
-                    // Budget the title so title + meta fit one line — otherwise a long title hard-wraps mid-token
+                    // Budget the title so title + meta fit one line; otherwise a long title hard-wraps mid-token
                     // (e.g. "Jul 3" / "0 10:16") on narrow terminals. 4 = two leading + two separating spaces.
                     String desc = Util.ellipsize(it.description(), Math.max(8, width - meta.length() - 4));
                     lines.add(theme.styled("statusText", "  " + desc) + theme.styled("commandMeta", "  " + meta));
@@ -889,7 +889,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         animator.shutdownNow();
         session.extensionRegistry().cleanup();
         if (jobRegistry != null)
-            jobRegistry.killAll(); // backgrounded ≠ daemonized — backstop for when the jobs extension is disabled
+            jobRegistry.killAll(); // backgrounded ≠ daemonized; backstop for when the jobs extension is disabled
         if (SelfRespawn.isRespawnInProgress())
             return;
         try {
@@ -904,7 +904,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void restoreTerminalState() {
         try {
-            // Undo every mode the render loop may have set — including autowrap (?7h): each frame turns it OFF while
+            // Undo every mode the render loop may have set, including autowrap (?7h): each frame turns it OFF while
             // drawing the prompt and back ON after, so exiting mid-frame can leave the shell with autowrap disabled
             // (garbled line-wrap + readline cursor). End sync (?2026l), bracketed paste (?2004l), autowrap on (?7h),
             // show cursor (?25h), reset colors (0m).
@@ -953,7 +953,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     if (handleExtensionKeybinding(key))
                         continue;
-                    // Every overlay is cancellable with Esc, double-Esc, or a single Ctrl+C — it closes instead of
+                    // Every overlay is cancellable with Esc, double-Esc, or a single Ctrl+C; it closes instead of
                     // falling through to interrupt/exit. The log viewer and select picker also consume plain Esc via
                     // routeModalKey above; this is the single guarantee for their Ctrl+C and for the selectors, the
                     // completions popup (incl. the Ctrl+R history search), and the message browser.
@@ -1189,8 +1189,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * Closes the topmost cancellable overlay — select picker, log viewer, one of the {@code selectors} (model/theme/
-     * session/…), the completions popup, or the message browser — returning whether one was closed. The single place
+     * Closes the topmost cancellable overlay: select picker, log viewer, one of the {@code selectors} (model/theme/
+     * session/…), the completions popup, or the message browser, returning whether one was closed. The single place
      * that guarantees every overlay is dismissable with Esc or a single Ctrl+C, so none can trap the user into
      * choosing.
      */
@@ -1280,7 +1280,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     /**
      * @param freshLine
      *            advance to a new line on suspend. True for programs that print to stdout (their output then starts
-     *            below the prompt). False for alternate-screen programs (fzf): the screen — and cursor — are restored
+     *            below the prompt). False for alternate-screen programs (fzf): the screen (and cursor) are restored
      *            on exit, so an extra newline would leave the cursor one row below where
      *            {@link PromptLayout#eraseCurrent} expects it, so the in-place erase misses the top separator and a
      *            stale {@code ─} rule accumulates each time.
@@ -1298,7 +1298,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * Ctrl+Z job-control suspend. Raw mode turns off ISIG, so the kernel never turns Ctrl+Z into SIGTSTP — we do it
+     * Ctrl+Z job-control suspend. Raw mode turns off ISIG, so the kernel never turns Ctrl+Z into SIGTSTP; we do it
      * ourselves: drop to cooked mode, stop the process (the shell prints "Suspended"), then re-enter raw mode and
      * repaint when {@code fg} continues us. {@code Signal.raise} blocks here until SIGCONT.
      */
@@ -1309,7 +1309,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         try {
             sun.misc.Signal.raise(new sun.misc.Signal("TSTP"));
         } catch (IllegalArgumentException | UnsatisfiedLinkError ignored) {
-            // platform without SIGTSTP — fall through and just restore the prompt
+            // platform without SIGTSTP; fall through and just restore the prompt
         } finally {
             resumeTui();
         }
@@ -1341,7 +1341,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * Ctrl+T: fzf-pick a file and insert its <em>raw path</em> (no {@code @}) — for putting a path in the message text.
+     * Ctrl+T: fzf-pick a file and insert its <em>raw path</em> (no {@code @}), for putting a path in the message text.
      */
     private void pickPathWithFzf() {
         if (!activity.isBusy() && FzfFilePicker.available())
@@ -1403,7 +1403,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
-    /** Heads-up when the current model can't read some attached media — it'll be dropped to a note at send time. */
+    /** Heads-up when the current model can't read some attached media; it'll be dropped to a note at send time. */
     private void warnUnreadableAttachments(List<Message.Attachment> attachments) {
         if (attachments.isEmpty())
             return;
@@ -1454,7 +1454,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         warnUnreadableAttachments(attachments);
         appendPlain(promptEcho(submitted));
         if (activity.isBusy() && session.isBusy()) {
-            if (!attachments.isEmpty()) // followUp steers with text only — attachments can't ride along mid-turn
+            if (!attachments.isEmpty()) // followUp steers with text only; attachments can't ride along mid-turn
                 appendPlain(List.of(theme.styled("toolError",
                                                 "attachments aren't sent mid-turn. Resend after this turn")));
             session.followUp(payload);
@@ -1586,7 +1586,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void refreshModels() {
-        // ModelRefresher.refresh() is a multi-provider network call — run it off the input thread so the UI never
+        // ModelRefresher.refresh() is a multi-provider network call; run it off the input thread so the UI never
         // freezes (the input loop stays free to type / Esc); feedback is printed immediately, the result when it lands.
         if (activity.isBusy()) {
             appendPlain(List.of(theme.styled("toolError", "/refresh is unavailable while a turn is running")));
@@ -1715,7 +1715,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     void switchToAlias(String spec) {
         String name = ModelRegistry.parseProviderModel(spec).model();
         if (ModelRegistry.CURRENT_ALIAS.equalsIgnoreCase(name)) {
-            // alias/current is the dynamic, read-only alias for the live model — switching to it is a no-op.
+            // alias/current is the dynamic, read-only alias for the live model; switching to it is a no-op.
             appendPlain(List.of(theme.styled("statusText", "alias/current = " + provider + "/" + model)));
             return;
         }
@@ -1906,7 +1906,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     // After a load the append-only UI doesn't reprint the whole conversation, so show the last exchange (one truncated
-    // line each) — enough to orient the user on where they left off without dumping the history.
+    // line each), enough to orient the user on where they left off without dumping the history.
     private void appendLoadRecap() {
         var users = session.userMessages();
         String lastUser = users.isEmpty() ? null : users.get(users.size() - 1).content();
@@ -1995,7 +1995,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * {@code /remote-control} — pick a remote channel (web / Telegram) to drive this live session, or stop the active
+     * {@code /remote-control}: pick a remote channel (web / Telegram) to drive this live session, or stop the active
      * one.
      */
     void showRemoteControl() {
@@ -2051,13 +2051,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void confirmRemoteSelection() {
         var selected = selectors.selected(TuiSelectors.Slot.REMOTE);
         selectors.deactivate(TuiSelectors.Slot.REMOTE);
-        clearStatusOverride(); // drop the "Remote control — Enter to choose…" hint once a choice is made
+        clearStatusOverride(); // drop the "Remote control · Enter to choose…" hint once a choice is made
         if (selected.isEmpty()) {
             redrawPrompt();
             return;
         }
         switch (((RemoteOptionItem) selected.get()).id()) {
-            // Starting a channel can do network I/O (Telegram getMe + setMyCommands) or bind a socket — run it off the
+            // Starting a channel can do network I/O (Telegram getMe + setMyCommands) or bind a socket; run it off the
             // input thread so the UI never freezes; the banner is appended when it lands.
             case "web" -> startRemoteAsync(remoteControl::startWeb);
             case "telegram" -> startRemoteAsync(remoteControl::startTelegram);
@@ -2070,7 +2070,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     /**
      * Run a remote-control start (which may block on network/socket setup) off the input thread; print its banner
-     * after. Uses a dedicated thread, NOT {@code agentExecutor} (which is single-threaded) — a network-blocking start
+     * after. Uses a dedicated thread, NOT {@code agentExecutor} (which is single-threaded); a network-blocking start
      * must not queue behind a running turn, and we don't want it to block one either.
      */
     private void startRemoteAsync(Supplier<List<String>> start) {
@@ -2184,7 +2184,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         streamRenderer.recordThinking(msg.thinking()); // closeThinking explains the pause with ∴
                 }
                 // Assistant messages always stream. Message renderers apply to custom messages (handled by the
-                // CustomMessage case below), and never to assistant content — so they must not disable streaming.
+                // CustomMessage case below), and never to assistant content, so they must not disable streaming.
                 committed = streamRenderer.streamContent(content) || committed;
                 if (usage != null) {
                     streamRenderer.closeThinking();
@@ -2192,7 +2192,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     redrawPrompt(); // final frame: clears the now-committed tail, unthrottled
                 } else if (committed) {
                     // A line just committed: a full redraw keeps the committed line and the region (with the refreshed
-                    // tail) in one consistent frame — otherwise the stale tail makes the prompt jitter up then down.
+                    // tail) in one consistent frame; otherwise the stale tail makes the prompt jitter up then down.
                     redrawPrompt();
                 } else {
                     redrawStreamTail(); // live preview of the in-progress line, ~30fps
@@ -2226,7 +2226,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 Tool.ToolResultView rendered = renderToolResultView(msg);
                 if (isEditWrite(msg)) {
                     // The TUI renders the diff itself (the preview above, or the DiffRenderer below). Drop the tool
-                    // view's own diff body so the change isn't shown twice — keep only its one-line summary.
+                    // view's own diff body so the change isn't shown twice; keep only its one-line summary.
                     if (rendered != null)
                         rendered = Tool.ToolResultView.of(rendered.summary());
                     if (pendingEdit.hasEditResult() && !pendingEdit.previewShown())
@@ -2261,7 +2261,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case AgentEvent.CustomMessage(Message.Custom custom) -> {
                 streamRenderer.flush();
                 // Some custom entries are state snapshots persisted for reload (e.g. goal status), shown via a status
-                // line rather than the transcript — skip them so they don't print once per state change.
+                // line rather than the transcript; skip them so they don't print once per state change.
                 if (!custom.isSilent()) {
                     if (session.extensionRegistry().hasMessageRenderers()) {
                         var rendered = session.extensionRegistry().renderMessage(custom);
@@ -2290,8 +2290,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * A tool whose result never arrived (interrupt, turn failure) still gets its header committed — as a failure with
-     * "interrupted" for its metadata — so no block is ever left dangling and the live tail line has a resolution.
+     * A tool whose result never arrived (interrupt, turn failure) still gets its header committed, as a failure with
+     * "interrupted" for its metadata, so no block is ever left dangling and the live tail line has a resolution.
      */
     private void closeAbandonedTools() {
         if (toolsInProgress.isEmpty())
@@ -2316,9 +2316,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * The live stream-tail line while a tool runs: its would-be header, dim, with the working spinner and elapsed —
-     * committed results replace it in place, so the header appears to solidify. Null when no tool is in flight. Once
-     * the tool has run a few seconds and can be backgrounded, the line carries the ctrl+b hint — it appears exactly
+     * The live stream-tail line while a tool runs: its would-be header, dim, with the working spinner and elapsed.
+     * Committed results replace it in place, so the header appears to solidify. Null when no tool is in flight. Once
+     * the tool has run a few seconds and can be backgrounded, the line carries the ctrl+b hint; it appears exactly
      * when the user starts wondering, never for quick commands.
      */
     private static final long BACKGROUND_HINT_AFTER_MS = 3000;
@@ -2374,7 +2374,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         backgroundCurrentTool(current, detachable);
     }
 
-    /** The /bg command — same effect as ctrl+b ctrl+b, without the chord (ctrl+b is the tmux prefix). */
+    /** The /bg command: same effect as ctrl+b ctrl+b, without the chord (ctrl+b is the tmux prefix). */
     void backgroundRunningTool() {
         var current = newestToolInProgress();
         var detachable = current != null ? detachableTool(current.name()) : null;
@@ -2415,7 +2415,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * Forward an exception to extensions without rendering it — used for turn failures, which already surface to the
+     * Forward an exception to extensions without rendering it, used for turn failures, which already surface to the
      * user via the {@link AgentEvent.Error} event, so calling {@link #dispatchException} there would double-print it.
      */
     private void notifyExtensionsOfException(Throwable t) {
@@ -2462,11 +2462,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void tickWorkingAnimation() {
-        // scheduleAtFixedRate silently cancels the task forever if it ever throws — a single transient redraw error
+        // scheduleAtFixedRate silently cancels the task forever if it ever throws; a single transient redraw error
         // would then freeze the working spinner for the rest of the session (the prompt shows a frozen "●●●" while the
         // turn keeps running). Swallow everything so the next tick still fires.
         try {
-            // While suspended (editor/shell handed the terminal to a child), don't advance or repaint — the
+            // While suspended (editor/shell handed the terminal to a child), don't advance or repaint; the
             // redrawPrompt guard is the backstop; this stops the tick doing work at the source.
             if (!running.get() || SelfRespawn.isRespawnInProgress() || suspendDepth > 0)
                 return;
@@ -2488,7 +2488,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     /**
      * Routes a key to a modal component (log viewer, select picker) that consumes input while active. Returns true if
-     * the key was consumed, redrawing afterwards. Modals don't touch {@code busy} — that reflects the agent turn, so
+     * the key was consumed, redrawing afterwards. Modals don't touch {@code busy}; that reflects the agent turn, so
      * the working spinner shows only while the model is actually running, not while a viewer/picker is open.
      */
     private boolean routeModalKey(BooleanSupplier active, Predicate<Key> handleKey, Key key) {
@@ -2525,7 +2525,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         lastStreamRepaintAt = now;
         String tail = streamRenderer.liveTail().orElse(null);
         // Blank tail (between lines) needs no repaint: the just-committed line's append frame already refreshed the
-        // region. Otherwise repaint just the tail row in place — no whole-region erase, so streaming never strobes.
+        // region. Otherwise repaint just the tail row in place, no whole-region erase, so streaming never strobes.
         if (tail != null && !tail.isBlank())
             terminalUi.updateStreamTail(tail);
     }

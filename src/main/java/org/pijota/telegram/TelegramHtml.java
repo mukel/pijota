@@ -36,8 +36,8 @@ import java.util.stream.IntStream;
  * Renders the agent's Markdown into the small subset of HTML that Telegram's {@code parse_mode=HTML} accepts
  * (<a href="https://core.telegram.org/bots/api#html-style">b/i/u/s/code/pre/a/blockquote</a>). Telegram has no
  * headings, lists or tables, so headings degrade to bold, list bullets to plain bullet/number lines, and tables to a
- * monospace preformatted block. Parsing always yields well-formed output — even a half-streamed message with an
- * unclosed bold marker or code fence — because CommonMark auto-closes open nodes, so the result is always safe to send.
+ * monospace preformatted block. Parsing always yields well-formed output, even a half-streamed message with an
+ * unclosed bold marker or code fence, because CommonMark auto-closes open nodes, so the result is always safe to send.
  */
 final class TelegramHtml {
     private static final Parser PARSER = Parser.builder()
@@ -103,7 +103,7 @@ final class TelegramHtml {
 
     // A monospace <pre> grid wider than a phone's line turns into a horizontally-scrolling "raw file" in Telegram, so
     // wider tables are rendered as a vertical list of records instead. ponytail: a fixed char threshold, not the
-    // viewport (Telegram doesn't expose it) — tuned for mobile, where readability matters most.
+    // viewport (Telegram doesn't expose it), tuned for mobile, where readability matters most.
     private static final int MAX_PRE_TABLE_WIDTH = 40;
 
     private static void renderTable(TableBlock table, StringBuilder sb) {

@@ -18,9 +18,9 @@ import org.commonmark.node.Text;
 import java.util.List;
 
 /**
- * Renders CommonMark inline nodes to a styled string — shared by prose ({@link RichMarkdownRenderer}) and table cells
- * ({@link MarkdownTableRenderer}) so they look identical. Two modes: KEEP (delimiters shown dimmed — the barebones
- * look) and STRIP (delimiters consumed, styled — the rich look). Links use OSC 8 hyperlinks; STRIP additionally shows
+ * Renders CommonMark inline nodes to a styled string, shared by prose ({@link RichMarkdownRenderer}) and table cells
+ * ({@link MarkdownTableRenderer}) so they look identical. Two modes: KEEP (delimiters shown dimmed, the barebones
+ * look) and STRIP (delimiters consumed, styled, the rich look). Links use OSC 8 hyperlinks; STRIP additionally shows
  * the URL dimmed when it differs from the link text, so it stays readable on terminals without OSC 8 support.
  */
 final class MarkdownInline {
@@ -124,7 +124,7 @@ final class MarkdownInline {
         return osc8(url, visible);
     }
 
-    // ---- KEEP mode (delimiters shown dimmed) — the original barebones look ----
+    // ---- KEEP mode (delimiters shown dimmed), the original barebones look ----
 
     private String delim(String open, String slot, String inner, String close) {
         return styled("dim", open) + styled(slot, inner) + styled("dim", close);
@@ -187,7 +187,7 @@ final class MarkdownInline {
                 sb.append(run(text.substring(i, mark.start()), slot, italic, bold, strk, false));
             int contentStart = mark.start() + mark.marker().length();
             int end = text.indexOf(mark.marker(), contentStart);
-            if (end < 0) { // no closing marker — the delimiter is literal text
+            if (end < 0) { // no closing marker, the delimiter is literal text
                 sb.append(run(text.substring(mark.start(), contentStart), slot, italic, bold, strk, false));
                 i = contentStart;
                 continue;

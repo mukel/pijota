@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * A {@link SelectorItem} wrapper over the generic {@link SessionDescriptor} — the descriptor derives the readable label
+ * A {@link SelectorItem} wrapper over the generic {@link SessionDescriptor}: the descriptor derives the readable label
  * (shared by every frontend); this class only adds the terminal selector's presentation.
  */
 public record SessionItem(Path path, String name, String description, long mtime, boolean named, int messageCount,
@@ -24,7 +24,7 @@ public record SessionItem(Path path, String name, String description, long mtime
     }
 
     /**
-     * Like {@link #fromPaths(List)} but describes at most {@code limit} sessions — for the launch banner, which shows
+     * Like {@link #fromPaths(List)} but describes at most {@code limit} sessions, for the launch banner, which shows
      * only a few and shouldn't parse every session file on disk at startup.
      */
     public static List<SessionItem> fromPaths(List<Path> paths, int limit) {

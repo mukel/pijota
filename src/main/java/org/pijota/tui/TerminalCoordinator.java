@@ -31,7 +31,7 @@ final class TerminalCoordinator implements AutoCloseable {
     private PromptSnapshot prompt = new PromptSnapshot(List.of(""), 0, 0, List.of());
     // Spacing policy, enforced at the single point every scrollback line passes through: never two consecutive
     // fully-empty lines. Blocks may each claim their blank line of air without coordinating with their neighbours.
-    // Starts true so the session never opens with a blank. Only literally-empty text counts — styled padding (e.g.
+    // Starts true so the session never opens with a blank. Only literally-empty text counts. Styled padding (e.g.
     // code-block backgrounds) is content.
     private boolean lastLineWasEmpty = true;
 
@@ -111,7 +111,7 @@ final class TerminalCoordinator implements AutoCloseable {
 
         // Coalesce the whole batch into ONE frame: erase the prompt once, append every committed line in order, then
         // redraw the prompt once (including the live streaming preview). Rendering each append as its own frame would
-        // briefly leave the prompt region erased between frames — visible flicker when ops interleave during streaming.
+        // briefly leave the prompt region erased between frames, visible flicker when ops interleave during streaming.
         // The flicker-free write-then-trim protocol makes one full frame per throttled update cheap (~3ms measured), so
         // streaming repaints reuse it rather than a separate single-row in-place path.
         PromptSnapshot finalSnapshot = prompt;

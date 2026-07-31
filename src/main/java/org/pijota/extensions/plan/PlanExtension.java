@@ -59,13 +59,13 @@ public final class PlanExtension implements Extension {
             bas.systemPrompt().append("""
 
                                             [PLAN MODE ACTIVE]
-                                            You are in plan mode — read-only exploration. Available tools: read, bash (safe commands only), grep, glob, ls, question. Edit/write are disabled.
+                                            You are in plan mode, read-only exploration. Available tools: read, bash (safe commands only), grep, glob, ls, question. Edit/write are disabled.
                                             Create a numbered plan under a "Plan:" header:
                                             Plan:
                                             1. First step description
                                             2. Second step description
                                             ...
-                                            Do NOT attempt to make changes — just describe what you would do.""");
+                                            Do NOT attempt to make changes, just describe what you would do.""");
         });
 
         api.on(ExtensionEvent.SessionStart.class, _event -> {

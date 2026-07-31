@@ -69,7 +69,7 @@ class TelegramUiContextTest {
         assertTrue(answer.join());
 
         // The tap is acknowledged: the keyboard message is rewritten to show the choice (and, with no reply_markup on
-        // the edit, the buttons are dropped) — so the user doesn't see a dead keyboard that looks like nothing
+        // the edit, the buttons are dropped), so the user doesn't see a dead keyboard that looks like nothing
         // happened.
         assertEquals(1, api.edits.size());
         assertEquals(keyboardMsgId, api.edits.get(0).messageId());

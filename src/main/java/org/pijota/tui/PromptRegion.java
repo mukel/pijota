@@ -10,8 +10,8 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                                 PromptRegion.Custom {
 
     /**
-     * A region's content for one frame: pre-styled rows plus an optional caret position. Rows are plain styled text —
-     * no newlines, no cursor movement; {@link PromptLayout} clamps each row to the terminal width and owns all
+     * A region's content for one frame: pre-styled rows plus an optional caret position. Rows are plain styled text
+     * (no newlines, no cursor movement); {@link PromptLayout} clamps each row to the terminal width and owns all
      * emission, so the frame's height is <em>defined</em> as the number of composed rows. There is no separate
      * measurement to keep in sync: a region physically cannot make the frame taller or shorter than what it returned.
      */
@@ -31,7 +31,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
     Body compose(int width, AnsiTheme theme, PromptSnapshot ctx);
 
     /**
-     * Colour of the prompt frame rules. Only genuinely input-relevant states restyle the frame — a running model must
+     * Colour of the prompt frame rules. Only genuinely input-relevant states restyle the frame; a running model must
      * not (the input stays a live follow-up box), so BUSY looks the same as IDLE. Red on error, soft-grey otherwise.
      */
     static String ruleSlot(PromptSnapshot ctx) {
@@ -43,7 +43,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
     }
 
     /**
-     * The ghost suffix clipped to a single line that fits {@code room} visible columns — so a long or multiline history
+     * The ghost suffix clipped to a single line that fits {@code room} visible columns, so a long or multiline history
      * suggestion can't wrap onto the next terminal row and corrupt the prompt's cursor/layout bookkeeping.
      */
     static String ghostText(String suggestion, int room) {
@@ -56,7 +56,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
 
     /**
      * Columns available for text after a prefix of {@code prefixW} visible columns, keeping content off the frame's
-     * right edge. The single source of truth for where the prompt wraps — so the ghost clip and the text wrap agree.
+     * right edge. The single source of truth for where the prompt wraps, so the ghost clip and the text wrap agree.
      */
     static int bodyWidth(int width, int prefixW) {
         return Math.max(1, width - Math.max(prefixW, 2));
@@ -96,7 +96,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 }
                 if (cursorHere) {
                     cursorRow = i;
-                    // Caret column in visible columns, not chars — wide glyphs before the caret shift it two cells.
+                    // Caret column in visible columns, not chars; wide glyphs before the caret shift it two cells.
                     cursorCol = AnsiWidth.visibleWidth(line.prefix()) + AnsiWidth.visibleWidth(
                                                     line.text().substring(0, ctx.cursorCol() - line.startCol()));
                 }
@@ -127,8 +127,8 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 String text = ctx.lines().get(row);
                 String prefix = row == 0 ? firstPrefix : contPrefix;
                 String slot = row == 0 ? firstSlot : contSlot;
-                // Width math keys off the prefix's VISIBLE width (not char count), so any glyph — wide emoji, "", a
-                // multi-char caret — wraps and positions the cursor correctly.
+                // Width math keys off the prefix's VISIBLE width (not char count), so any glyph (wide emoji, "", a
+                // multi-char caret) wraps and positions the cursor correctly.
                 int prefixW = AnsiWidth.visibleWidth(prefix);
                 int bodyWidth = bodyWidth(width, prefixW);
                 String indent = " ".repeat(prefixW); // wrapped rows align under the first row's text
@@ -140,7 +140,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 boolean first = true;
                 while (start < text.length()) {
                     // Wrap by visible COLUMNS, not chars: a CJK/emoji glyph occupies two cells, and a char-counted
-                    // slice would overflow the terminal row and auto-wrap — an extra physical row the frame's
+                    // slice would overflow the terminal row and auto-wrap: an extra physical row the frame's
                     // bookkeeping would never see.
                     int end = AnsiWidth.wrapIndex(text, start, bodyWidth);
                     out.add(new VisLine(first ? prefix : indent, first ? slot : "statusText",
@@ -159,7 +159,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 case ERROR -> glyphs.error();
                 case QUESTION -> glyphs.question();
                 case CONTINUATION -> glyphs.continuation();
-                // A running model doesn't change the input caret — the box is still a live follow-up prompt.
+                // A running model doesn't change the input caret; the box is still a live follow-up prompt.
                 case IDLE, BUSY -> glyphs.caret();
             };
         }
@@ -190,7 +190,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
         public Body compose(int width, AnsiTheme theme, PromptSnapshot ctx) {
             var rows = new ArrayList<String>();
 
-            // Workspace line FIRST (cwd · branch · session): wrapped, never truncated — a long path spills to the next
+            // Workspace line FIRST (cwd · branch · session): wrapped, never truncated; a long path spills to the next
             // row rather than losing its tail. Stable within a turn, so wrapping it causes no per-frame jitter.
             if (hasText(ctx.cwd()))
                 for (String seg : AnsiWidth.wrapPreservingAnsi(ctx.cwd(), width))

@@ -184,7 +184,7 @@ final class SessionCommands {
         }
         String line = String.format(Locale.ROOT, "  rate    $%.2f in / $%.2f out per 1M  (%s)", pricing.inputPerMTok(),
                                         pricing.outputPerMTok(), model);
-        return hasUnpriced ? line + " — some usage on unpriced models" : line;
+        return hasUnpriced ? line + "  · some usage on unpriced models" : line;
     }
 
     /** Formats the cumulative session-usage block. Pure given the totals and a styler, so it is unit-testable. */
@@ -247,7 +247,7 @@ final class SessionCommands {
             return;
         }
         String arg = input.startsWith("/export") ? input.substring("/export".length()).trim() : input.trim();
-        // Optional leading format token — "/export md <path>" / "/export html <path>" (the documented [md|html] [path]
+        // Optional leading format token: "/export md <path>" / "/export html <path>" (the documented [md|html] [path]
         // form). Without it, infer the format from the path's extension, else default to markdown.
         String format = null;
         String path = arg;
@@ -259,8 +259,8 @@ final class SessionCommands {
         boolean html = "html".equals(format) || (format == null && path.toLowerCase(Locale.ROOT).endsWith(".html"));
         try {
             String base = host.session().sessionFile().getFileName().toString().replace(".jsonl", "");
-            // Resolve against the session's working directory (where pijota was launched) — the threaded cwd, not the
-            // global user.dir property — so it's consistent with the rest of the app and isolatable in tests. resolve()
+            // Resolve against the session's working directory (where pijota was launched; the threaded cwd, not the
+            // global user.dir property) so it's consistent with the rest of the app and isolatable in tests. resolve()
             // leaves an absolute path untouched, so an explicit /export /abs/path still lands exactly there.
             String name = path.isBlank() ? base + "-export." + (html ? "html" : "md") : path;
             Path out = Path.of(host.session().cwd()).resolve(name);

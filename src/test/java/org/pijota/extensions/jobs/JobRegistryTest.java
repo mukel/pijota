@@ -189,7 +189,7 @@ class JobRegistryTest {
         while (jobs.list().stream().anyMatch(JobRegistry.Status::running) && System.currentTimeMillis() < deadline)
             Thread.sleep(20);
         assertFalse(jobs.list().stream().anyMatch(JobRegistry.Status::running), "all jobs stopped");
-        assertNull(completions.poll(1, TimeUnit.SECONDS), "killAll is intentional — no completion notifications");
+        assertNull(completions.poll(1, TimeUnit.SECONDS), "killAll is intentional, no completion notifications");
     }
 
     @Test
@@ -265,7 +265,7 @@ class JobRegistryTest {
         Thread.sleep(100);
 
         assertTrue(jobs.stop(id, false));
-        // SIGTERM is graceful — killed is NOT set, so the natural exit must still fire a completion
+        // SIGTERM is graceful, killed is NOT set, so the natural exit must still fire a completion
         var c = completions.poll(5, TimeUnit.SECONDS);
         assertNotNull(c, "a SIGTERM'd job that exits must still report completion");
         assertEquals(id, c.id());
@@ -284,7 +284,7 @@ class JobRegistryTest {
         while (jobs.isRunning(id) && System.currentTimeMillis() < deadline)
             Thread.sleep(20);
         assertFalse(jobs.isRunning(id), "SIGKILL stops the job");
-        assertNull(completions.poll(1, TimeUnit.SECONDS), "a forced kill is intentional — no completion");
+        assertNull(completions.poll(1, TimeUnit.SECONDS), "a forced kill is intentional, no completion");
     }
 
     @Test
@@ -293,7 +293,7 @@ class JobRegistryTest {
         var jobs = new JobRegistry();
         assertFalse(jobs.stop("bg_999", false), "unknown job");
         String id = jobs.start(sh("sleep 30"), tempDir);
-        assertTrue(jobs.stop(id, false), "known job — SIGTERM");
+        assertTrue(jobs.stop(id, false), "known job · SIGTERM");
         jobs.stop(id, true); // and a forced stop is fine afterward
     }
 
@@ -318,7 +318,7 @@ class JobRegistryTest {
 
             assertEquals("early output\n", adopted.outputSoFar(), "the seed travels back for the synthetic result");
             var first = jobs.read(adopted.id());
-            assertEquals("", first.output(), "the synthetic result already showed the seed — reads start after it");
+            assertEquals("", first.output(), "the synthetic result already showed the seed, reads start after it");
             assertTrue(first.running());
 
             feed.get().accept("late output\n"); // the tool's pump keeps feeding the adopted job
@@ -385,7 +385,7 @@ class JobRegistryTest {
         var completions = new ArrayBlockingQueue<JobRegistry.Completion>(2);
         var jobs = new JobRegistry(completions::add);
         // `cat` with no file reads stdin forever; a backgrounded job gets no input, so start() closes the child's
-        // stdin — cat hits EOF immediately and exits, rather than hanging (and stranding its drain thread).
+        // stdin: cat hits EOF immediately and exits, rather than hanging (and stranding its drain thread).
         jobs.start(sh("cat"), tempDir);
         assertNotNull(completions.poll(5, TimeUnit.SECONDS),
                                         "a stdin-reading background job must not hang: stdin is closed at launch");

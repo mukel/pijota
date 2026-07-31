@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Opt-in structured todo list via the {@code todo} tool, plus a live, always-visible panel of the current list
- * (frontend-agnostic status lines — terminal, web, Telegram). The tool adds weight to every prompt and only helps
- * multi-step work, so it is OFF by default — enable with the {@code --todo} flag.
+ * (frontend-agnostic status lines: terminal, web, Telegram). The tool adds weight to every prompt and only helps
+ * multi-step work, so it is OFF by default. Enable with the {@code --todo} flag.
  */
 public final class TodoExtension implements Extension {
 
@@ -48,7 +48,7 @@ public final class TodoExtension implements Extension {
         long done = todos.stream().filter(t -> "completed".equals(t.status()) || "cancelled".equals(t.status()))
                                         .count();
         if (done == todos.size())
-            return List.of(); // all wrapped up — don't clutter the footer with a finished list
+            return List.of(); // all wrapped up, don't clutter the footer with a finished list
         var lines = new ArrayList<String>();
         lines.add("📋 todos · " + done + "/" + todos.size());
         int shown = Math.min(todos.size(), MAX_PANEL_ROWS);

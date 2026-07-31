@@ -41,7 +41,7 @@ class AcpPermissionExtensionTest {
     @Test
     void gatedSetIsTheCanonicalShellSetPlusFileMutators() {
         assertTrue(AcpPermissionExtension.isGated("bash"));
-        assertTrue(AcpPermissionExtension.isGated("tmux_bash")); // not just "bash" — the canonical shell set
+        assertTrue(AcpPermissionExtension.isGated("tmux_bash")); // not just "bash", the canonical shell set
         assertTrue(AcpPermissionExtension.isGated("jobs_run"));
         assertTrue(AcpPermissionExtension.isGated("write"));
         assertTrue(AcpPermissionExtension.isGated("edit"));

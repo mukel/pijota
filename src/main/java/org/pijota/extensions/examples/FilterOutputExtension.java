@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 /**
  * Auto-redacts secrets and tokens from user input and from every message in the provider request, so they never leave
  * for the model/provider. Detects AWS keys, GitHub tokens, Stripe keys, JWTs, Bearer/Basic auth headers, and
- * environment variable assignments containing secrets. The local TUI still shows the raw tool output — it's the user's
+ * environment variable assignments containing secrets. The local TUI still shows the raw tool output; it's the user's
  * own machine; only what is sent to the provider is redacted. On by default; toggle with {@code /filter-output}.
  */
 public final class FilterOutputExtension implements Extension {

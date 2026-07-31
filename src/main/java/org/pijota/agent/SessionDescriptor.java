@@ -33,7 +33,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
     }
 
     /**
-     * Describes {@code paths}, keeping only the sessions worth resuming — those with a real label
+     * Describes {@code paths}, keeping only the sessions worth resuming, those with a real label
      * ({@link #hasContent()}). Empty, assistant-only, or unreadable sessions carry no
      * {@code "(empty)"}/{@code "(unreadable)"} label a user could recognize, and resuming one is no different from
      * starting fresh, so they'd only clutter a recent-sessions list or a resume picker.
@@ -43,7 +43,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
     }
 
     /**
-     * Like {@link #describeResumable(List)} but stops after {@code limit} matches — the stream is lazy, so it parses
+     * Like {@link #describeResumable(List)} but stops after {@code limit} matches. The stream is lazy, so it parses
      * only as many (most-recent-first) session files as it needs. Lets the launch banner show its few recent sessions
      * without reading every file on disk at startup.
      */
@@ -78,7 +78,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
     /** One-line label for a flat selector: description, message/token counts, and a relative age when known. */
     public String label() {
         var sb = new StringBuilder(description);
-        // Skip counts for empty/unreadable sessions (0 msgs) — they'd just read "(empty) · 0 msgs".
+        // Skip counts for empty/unreadable sessions (0 msgs). They'd just read "(empty) · 0 msgs".
         if (messageCount > 0) {
             sb.append("  ·  ").append(Util.plural(messageCount, "msg"));
             if (estTokens > 0)
@@ -139,9 +139,9 @@ public record SessionDescriptor(Path path, String id, String description, boolea
                     continue;
                 }
                 if (!"message".equals(type))
-                    continue; // header / compaction / model_change / cache_metadata — not conversation
+                    continue; // header / compaction / model_change / cache_metadata · not conversation
                 String role = (String) entry.getOrDefault("role", "");
-                // Count conversational turns only — tool_result entries are plumbing and would inflate the picker
+                // Count conversational turns only, tool_result entries are plumbing and would inflate the picker
                 // count.
                 if ("user".equals(role) || "assistant".equals(role))
                     messages++;

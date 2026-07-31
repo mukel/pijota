@@ -11,9 +11,9 @@ import java.nio.file.Path;
  * the temp file. fzf draws its UI on {@code /dev/tty}, so the {@code > out} redirect captures only the selection.
  *
  * <p>
- * The file list is produced <em>once</em> and fzf filters it in-memory — no per-keystroke reload, so no flicker. Inside
+ * The file list is produced <em>once</em> and fzf filters it in-memory, so no per-keystroke reload and no flicker. Inside
  * a git repo the list is {@code git ls-files :/} (tracked + untracked-not-ignored, so no {@code .git}/build junk),
- * which emits paths <strong>relative to cwd, with {@code ../} for files above it</strong> — so {@code @../file} works
+ * which emits paths <strong>relative to cwd, with {@code ../} for files above it</strong>, so {@code @../file} works
  * with no re-rooting, and selections are already correct for {@link FileReferenceResolver}. Outside a repo it falls
  * back to {@code find} from cwd (parent search isn't available there). fzf runs full-screen (alternate screen) for a
  * clean enter/exit rather than inline overdraw.
@@ -28,7 +28,7 @@ final class FzfFilePicker {
     /**
      * The initial file list: the whole repo, cwd-relative ({@code ../} for in-repo parents), gitignore-aware; find is
      * the non-repo fallback. <strong>NUL-delimited</strong> ({@code -z} / {@code -print0}) so filenames with spaces,
-     * quotes or other specials survive verbatim — {@code git ls-files} would otherwise C-quote them (e.g.
+     * quotes or other specials survive verbatim ({@code git ls-files} would otherwise C-quote them, e.g.
      * {@code "a \"b\" c.txt"}). Reused by tests to exercise the exact pipeline non-interactively via {@code fzf -f}.
      */
     static String listCommand() {
@@ -52,8 +52,8 @@ final class FzfFilePicker {
      */
     static String script(Path out) {
         // fzf filters the static list in-memory → no per-keystroke reload → no flicker. Re-root ONLY when the query
-        // completes a directory (ends with /), e.g. `../` or `src/`: this reaches the real filesystem dir — including
-        // parents above / outside the repo that the static list can't see — and fires at most once per directory hop.
+        // completes a directory (ends with /), e.g. `../` or `src/`: this reaches the real filesystem dir (including
+        // parents above / outside the repo that the static list can't see) and fires at most once per directory hop.
         String reroot = "q={q}; case \"$q\" in */) echo \"reload(find \\\"${q%/}\\\" \\( -type f -o -type d \\)"
                                         + " -not -path '*/.git/*' -print0 2>/dev/null)\";; esac";
         return "fzf --read0 --print0 --reverse --prompt='@ ' --no-multi" + " --bind "
@@ -71,7 +71,7 @@ final class FzfFilePicker {
 
     /**
      * Formats a selected path for the input buffer. {@code asReference} → an {@code @}-reference (quoted/escaped, read
-     * as a file); otherwise the raw path shell-encoded (a leading {@code ./} trimmed), for use as plain text — the
+     * as a file); otherwise the raw path shell-encoded (a leading {@code ./} trimmed), for use as plain text: the
      * Ctrl+T behavior.
      */
     static String insertion(String selection, boolean asReference) {

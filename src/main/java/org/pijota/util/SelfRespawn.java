@@ -51,12 +51,12 @@ public final class SelfRespawn {
 
     public static boolean requestRespawn(Path jar, String mergeBranch, Path mergeWorktree) {
         if (jar == null || !Files.exists(jar)) {
-            logger.warn("requestRespawn: jar not found{} — build first: mvn package -Pfat -q",
+            logger.warn("requestRespawn: jar not found{} · build first: mvn package -Pfat -q",
                                             jar != null ? " at " + jar : "");
             return false;
         }
         if (pending.get()) {
-            logger.warn("respawn already pending — skipping duplicate request");
+            logger.warn("respawn already pending · skipping duplicate request");
             return false;
         }
         Path launchJar;
@@ -147,7 +147,7 @@ public final class SelfRespawn {
         if (jar == null || !Files.exists(jar)) {
             jar = findJarIn(Path.of(System.getProperty("user.dir")));
             if (jar == null || !Files.exists(jar)) {
-                lastRespawnError = "no jar found for respawn — rebuild with: mvn package -Pfat -q";
+                lastRespawnError = "no jar found for respawn · rebuild with: mvn package -Pfat -q";
                 logger.warn(lastRespawnError);
                 return;
             }
@@ -262,7 +262,7 @@ public final class SelfRespawn {
     public static void respawn(Path jar, Path sessionFile, boolean resumeSession, String mergeBranch,
                                     Path mergeWorktree) {
         if (jar == null || !Files.exists(jar)) {
-            lastRespawnError = "jar not found" + (jar != null ? " at " + jar : "") + " — rebuild: mvn package -Pfat -q";
+            lastRespawnError = "jar not found" + (jar != null ? " at " + jar : "") + " · rebuild: mvn package -Pfat -q";
             logger.warn("respawn aborted: {}", lastRespawnError);
             return;
         }

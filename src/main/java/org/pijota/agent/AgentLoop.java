@@ -38,7 +38,7 @@ public final class AgentLoop implements AgentContext {
     private final ExtensionRegistry extensionRegistry;
     private final CompactionManager compaction;
     // Synchronized: extensions can inject messages from background threads (e.g. a finished background job, a scheduled
-    // prompt) concurrently with the turn thread draining them — see sendUserMessage / drainAndProcess.
+    // prompt) concurrently with the turn thread draining them. See sendUserMessage / drainAndProcess.
     private final List<String> steeringMessages = Collections.synchronizedList(new ArrayList<>());
     private final List<String> followUpMessages = Collections.synchronizedList(new ArrayList<>());
     private final ToolExecutor toolExecutor;
@@ -184,7 +184,7 @@ public final class AgentLoop implements AgentContext {
             try {
                 chars += Util.MAPPER.writeValueAsString(tool.schema()).length();
             } catch (Exception ignored) {
-                // unserializable schema — skip it rather than fail the whole estimate
+                // unserializable schema; skip it rather than fail the whole estimate
             }
         }
         return Util.approxTokens(chars);
@@ -311,7 +311,7 @@ public final class AgentLoop implements AgentContext {
         CompletableFuture<List<Message>> result = activeResult.getAndSet(null);
         if (result != null && !result.isDone()) {
             // The turn's normal terminal paths bail on !isActive once aborted, so they never emit TurnEnd. Emit it here
-            // so event-driven frontends (the web Stop button / busy state) learn the turn ended — the TUI relies on the
+            // so event-driven frontends (the web Stop button / busy state) learn the turn ended. The TUI relies on the
             // future below, but the web only learns via this event. Consumers treat TurnEnd idempotently.
             fireEvent(new AgentEvent.TurnEnd(sessionTurn));
             result.complete(history.mutableSnapshot());
@@ -475,7 +475,7 @@ public final class AgentLoop implements AgentContext {
                 if (ErrorUtil.isContextOverflow(ex)) {
                     log.warn("Context overflow, compacting and retrying");
                     history.remove(history.size() - 1);
-                    runManualCompaction("overflow — compacted to recover from context limit");
+                    runManualCompaction("overflow: compacted to recover from context limit");
                     runLoopRecursive(result, turn);
                     return null;
                 }
@@ -539,7 +539,7 @@ public final class AgentLoop implements AgentContext {
     /**
      * Terminal handler for a failed turn: hands the cause to the extension exception handlers
      * ({@code registerExceptionHandler}), reports it to the user via {@link AgentEvent.Error}, and completes the turn
-     * future exceptionally so it can never hang. A no-op when the turn was aborted or superseded by a newer one — those
+     * future exceptionally so it can never hang. A no-op when the turn was aborted or superseded by a newer one; those
      * paths own completion. Resilient: a misbehaving handler or listener can't turn a failure into a crash.
      */
     private void failTurn(CompletableFuture<List<Message>> result, Throwable ex) {
@@ -574,11 +574,11 @@ public final class AgentLoop implements AgentContext {
 
     private <T> CompletableFuture<T> retry(Supplier<CompletableFuture<T>> task, int attempt) {
         return task.get().exceptionallyCompose(ex -> {
-            // Stop retrying once the user aborts (ESC) — don't keep hammering the provider through a cancelled turn.
+            // Stop retrying once the user aborts (ESC); don't keep hammering the provider through a cancelled turn.
             if (attempt >= MAX_RETRY_ATTEMPTS || aborted.get() || !ErrorUtil.isRetryable(ex))
                 return CompletableFuture.failedFuture(ex);
             // Exponential backoff, capped. (We don't honor a server Retry-After header: langchain4j drops response
-            // headers — HttpException carries only a status code — so there is no header to read.)
+            // headers (HttpException carries only a status code), so there is no header to read.)
             long delay = ErrorUtil.backoffMs(retryBaseDelayMs, attempt, ErrorUtil.MAX_BACKOFF_MS);
             log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}", attempt + 1, MAX_RETRY_ATTEMPTS + 1,
                                             delay, ErrorUtil.message(ex));

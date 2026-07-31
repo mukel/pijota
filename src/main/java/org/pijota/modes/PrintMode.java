@@ -27,7 +27,7 @@ public final class PrintMode {
         } catch (ExecutionException e) {
             Throwable cause = ErrorUtil.unwrap(e);
             if (cause instanceof InterruptedException)
-                return 1; // interrupted (e.g. Ctrl-C) — exit quietly
+                return 1; // interrupted (e.g. Ctrl-C), exit quietly
             return CliErrorReporter.fatal("Print mode failed", cause);
         } catch (Exception e) {
             return CliErrorReporter.fatal("Print mode failed", e);

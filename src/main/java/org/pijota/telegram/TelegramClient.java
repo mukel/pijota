@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * A minimal hand-rolled client over the Telegram Bot HTTP API — just the handful of methods a chat frontend needs
+ * A minimal hand-rolled client over the Telegram Bot HTTP API: just the handful of methods a chat frontend needs
  * (long-poll {@code getUpdates}, send/edit messages, answer button taps, show a typing indicator). Every call is an
  * HTTPS POST of a JSON body; the response is {@code {"ok":bool,"result":...}}. Self-contained: one {@link HttpClient}
  * and one dedicated {@link ObjectMapper} configured for Telegram's snake_case wire format, so the DTOs below stay plain
@@ -58,7 +58,7 @@ public final class TelegramClient implements TelegramApi {
                                         .build());
     }
 
-    /** Injectable-client constructor — lets tests drive the API methods against a fake HTTP client. */
+    /** Injectable-client constructor; lets tests drive the API methods against a fake HTTP client. */
     TelegramClient(String token, HttpClient http) {
         this.http = http;
         this.base = "https://api.telegram.org/bot" + token;
@@ -87,7 +87,7 @@ public final class TelegramClient implements TelegramApi {
         return updatesFrom(call("getUpdates", new GetUpdatesReq(offset, timeoutSeconds)));
     }
 
-    /** Sends a message (plain text — markdown conversion is the frontend's job); returns the new message id. */
+    /** Sends a message (plain text; markdown conversion is the frontend's job); returns the new message id. */
     public long sendMessage(long chatId, String text) {
         return sendMessage(chatId, text, null);
     }
@@ -105,13 +105,13 @@ public final class TelegramClient implements TelegramApi {
                                         .asLong();
     }
 
-    /** Rewrites an already-sent message — used to "stream" by coalescing partial answers into one edited message. */
+    /** Rewrites an already-sent message; used to "stream" by coalescing partial answers into one edited message. */
     public void editMessageText(long chatId, long messageId, String text) {
         call("editMessageText", new EditMessageReq(chatId, messageId, text, null, null, null));
     }
 
     /**
-     * Rewrites a message, rendering the new body as Telegram HTML. The {@code keyboard} is replaced wholesale — pass
+     * Rewrites a message, rendering the new body as Telegram HTML. The {@code keyboard} is replaced wholesale; pass
      * {@code null} to drop the inline keyboard (Telegram removes it when {@code reply_markup} is absent).
      */
     public void editHtml(long chatId, long messageId, String html, InlineKeyboard keyboard) {
@@ -134,7 +134,7 @@ public final class TelegramClient implements TelegramApi {
     }
 
     /**
-     * This bot's {@code @username} via {@code getMe} — for building a {@code https://t.me/<username>} link; null on
+     * This bot's {@code @username} via {@code getMe}, for building a {@code https://t.me/<username>} link; null on
      * failure.
      */
     public String getMyUsername() {
@@ -168,7 +168,7 @@ public final class TelegramClient implements TelegramApi {
 
     // ---- transport ----
 
-    // A fixed multipart boundary. ponytail: assumes uploaded content never contains this exact marker — true for the
+    // A fixed multipart boundary. ponytail: assumes uploaded content never contains this exact marker, true for the
     // Markdown/log payloads we attach; a content-derived boundary would be the upgrade if that ever stops holding.
     private static final String BOUNDARY = "----pijotaFormBoundary8x2KqzRm";
 
@@ -311,12 +311,12 @@ public final class TelegramClient implements TelegramApi {
             return new Button(text, callbackData);
         }
 
-        /** One horizontal row — e.g. Yes / No. */
+        /** One horizontal row, e.g. Yes / No. */
         public static InlineKeyboard row(Button... buttons) {
             return new InlineKeyboard(List.of(List.of(buttons)));
         }
 
-        /** One button per row (vertical) — better for a long list of choices. */
+        /** One button per row (vertical); better for a long list of choices. */
         public static InlineKeyboard column(Button... buttons) {
             return new InlineKeyboard(Stream.of(buttons).map(List::of).toList());
         }

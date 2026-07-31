@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * A strict, minimal terminal emulator for renderer tests: it interprets exactly the control sequences the TUI emits and
  * throws on anything else, so any protocol drift fails loudly instead of silently corrupting the model. It tracks a
- * cols×rows screen plus scrollback, wide glyphs, DECAWM auto-wrap and bottom-row scrolling — precise enough to assert
+ * cols×rows screen plus scrollback, wide glyphs, DECAWM auto-wrap and bottom-row scrolling: precise enough to assert
  * the renderer's core invariant: committed scrollback is never eaten, duplicated, or shifted by prompt redraws.
  */
 final class VtEmulator {
@@ -49,7 +49,7 @@ final class VtEmulator {
         }
     }
 
-    /** Lines that scrolled off the top — committed history the renderer must never touch. */
+    /** Lines that scrolled off the top: committed history the renderer must never touch. */
     List<String> scrollback() {
         return List.copyOf(scrollback);
     }
@@ -63,7 +63,7 @@ final class VtEmulator {
         int w = glyphWidth(cp);
         if (col + w > cols) {
             if (!autowrap)
-                return; // clipped at the right margin — the terminal never materialises an extra row
+                return; // clipped at the right margin; the terminal never materialises an extra row
             lineFeed();
             col = 0;
         }

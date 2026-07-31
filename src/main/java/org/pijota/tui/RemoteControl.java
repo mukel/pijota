@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Starts and stops an in-process remote-control channel — a web server or a Telegram bridge — attached to the LIVE
+ * Starts and stops an in-process remote-control channel, a web server or a Telegram bridge, attached to the LIVE
  * session, so the running TUI keeps working while a phone/browser drives the same conversation. One channel at a time.
  */
 final class RemoteControl {
@@ -31,7 +31,7 @@ final class RemoteControl {
     private final SettingsManager settings;
     private final Supplier<List<String>> statusLines;
     private final Supplier<List<SlashCommand>> commands;
-    private final UiContext primaryUi; // the local TUI — restored as the extension UI owner when a channel stops
+    private final UiContext primaryUi; // the local TUI, restored as the extension UI owner when a channel stops
 
     private volatile Channel active; // written from the start/stop worker thread, read from the input/render threads
 
@@ -130,7 +130,7 @@ final class RemoteControl {
         try {
             active.onStop().run();
         } catch (Exception ignored) {
-            // best effort — onStop detaches the session listener and stops the server/poll loop
+            // best effort, onStop detaches the session listener and stops the server/poll loop
         }
         active = null;
         session.extensionRegistry().setTui(primaryUi); // hand the extension UI back to the local terminal

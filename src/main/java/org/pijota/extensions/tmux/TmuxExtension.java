@@ -34,7 +34,7 @@ public final class TmuxExtension implements Extension {
     private static final Pattern FORBIDDEN_KEYS = Pattern.compile("[\\p{Cntrl}]");
     private static final int MAX_OUTPUT_LINES = 1000;
     private static final int MAX_STATUS_NAMES = 3;
-    private static final long ALIVE_TTL_MS = 2000; // cap `tmux has-session` probes — the status line polls this ~1×/s
+    private static final long ALIVE_TTL_MS = 2000; // cap `tmux has-session` probes, the status line polls this ~1×/s
 
     private final TmuxClient client;
     private final Map<String, TmuxSession> sessions = new ConcurrentHashMap<>();
@@ -62,7 +62,7 @@ public final class TmuxExtension implements Extension {
 
     @Override
     public boolean enabledByDefault() {
-        return false; // opt-in: --tmux (previously registered unconditionally — that was a bug)
+        return false; // opt-in: --tmux (previously registered unconditionally, that was a bug)
     }
 
     @Override
@@ -251,7 +251,7 @@ public final class TmuxExtension implements Extension {
         if (target == null)
             return Tool.ToolResult.error("target is required");
 
-        // Only kill sessions Pijota started — a raw tmux target could be the user's own session/window.
+        // Only kill sessions Pijota started. A raw tmux target could be the user's own session/window.
         var session = sessions.get(target);
         if (session == null)
             return Tool.ToolResult.error("unknown session \"" + target
@@ -337,11 +337,11 @@ public final class TmuxExtension implements Extension {
         try {
             json = Files.readString(stateFile);
         } catch (IOException e) {
-            return; // no prior state (or unreadable) — start fresh
+            return; // no prior state (or unreadable), start fresh
         }
         for (TmuxSession session : parseSessions(json)) // tolerates corrupt/legacy content (→ nothing)
             sessions.putIfAbsent(session.friendlyName(), session);
-        refreshAlive(true); // the sidecar is only a hint — reconcile it against what tmux actually reports
+        refreshAlive(true); // the sidecar is only a hint, reconcile it against what tmux actually reports
         if (sessions.values().removeIf(s -> !s.alive())) // drop tombstones (e.g. everything died over a reboot)
             saveState();
     }
@@ -357,7 +357,7 @@ public final class TmuxExtension implements Extension {
         }
     }
 
-    /** Whether tmux is installed — memoized, since it can't change within a single process. */
+    /** Whether tmux is installed, memoized, since it can't change within a single process. */
     private boolean hasTmux() {
         Boolean cached = tmuxAvailable;
         if (cached == null)
@@ -368,7 +368,7 @@ public final class TmuxExtension implements Extension {
     private void refreshAlive(boolean force) {
         long now = System.currentTimeMillis();
         if (!force && now - lastAliveRefresh < ALIVE_TTL_MS)
-            return; // serve cached liveness — statusLines() polls this roughly once a second
+            return; // serve cached liveness, statusLines() polls this roughly once a second
         lastAliveRefresh = now;
         if (!hasTmux())
             return;

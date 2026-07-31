@@ -76,7 +76,7 @@ class SessionItemTest {
 
         var items = SessionItem.fromPaths(List.of(missing, empty, real));
 
-        // Only the session with actual content survives — you can't meaningfully resume an empty/corrupt one.
+        // Only the session with actual content survives. You can't meaningfully resume an empty/corrupt one.
         assertEquals(1, items.size());
         assertEquals("hi", items.get(0).description());
     }

@@ -24,12 +24,12 @@ final class FakeTelegramApi implements TelegramApi {
     private final List<Doc> documents = new ArrayList<>();
     private final AtomicLong nextMessageId = new AtomicLong(100);
 
-    /** An uploaded document — content decoded as UTF-8 for easy assertion. */
+    /** An uploaded document, content decoded as UTF-8 for easy assertion. */
     record Doc(String filename, String content, String caption) {
     }
 
     /**
-     * Every keyboard passed to a streamed send/edit, in order — e.g. assert a Stop button appeared then was dropped.
+     * Every keyboard passed to a streamed send/edit, in order, e.g. assert a Stop button appeared then was dropped.
      */
     synchronized List<InlineKeyboard> keyboards() {
         return new ArrayList<>(keyboards); // ArrayList (not List.copyOf): the list intentionally holds nulls (no
@@ -44,7 +44,7 @@ final class FakeTelegramApi implements TelegramApi {
         return List.copyOf(sent);
     }
 
-    /** All message text the bot would display this turn — both freshly sent and edited-in-place. */
+    /** All message text the bot would display this turn, both freshly sent and edited-in-place. */
     synchronized List<String> allText() {
         var all = new ArrayList<>(sent);
         all.addAll(edits);

@@ -1,5 +1,5 @@
 # Web-UI libraries are downloaded into the build (target/classes/web/vendor) by the
-# download-maven-plugin — never committed. This guards against accidentally adding them
+# download-maven-plugin, never committed. This guards against accidentally adding them
 # here if they ever get written into the source tree. Only README.md lives here.
 *.js
 *.css

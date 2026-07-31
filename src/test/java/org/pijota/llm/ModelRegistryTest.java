@@ -83,7 +83,7 @@ class ModelRegistryTest {
 
     @Test
     void searchNarrowsAGivenListWithoutReachingIntoTheCatalogue() {
-        // The composition --list-models uses: usable models (by key), then a text filter — never the full catalogue.
+        // The composition --list-models uses: usable models (by key), then a text filter, never the full catalogue.
         var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
         var usable = ModelRegistry.availableModels(settings);
         var matches = ModelRegistry.search(usable, "gpt");

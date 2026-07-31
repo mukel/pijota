@@ -333,7 +333,7 @@ class TmuxExtensionTest {
     void tmuxKillRejectsUnmanagedTarget() throws Exception {
         var client = fakeClient();
         var api = init(client);
-        // a raw target Pijota never started could be the user's own session — refuse it
+        // a raw target Pijota never started could be the user's own session, so refuse it
         var result = runTool(api, "tmux_kill", Map.of("target", "some-other-session", "confirm", true));
         assertTrue(result.isError());
         assertTrue(killed.isEmpty());
@@ -386,7 +386,7 @@ class TmuxExtensionTest {
         runTool(api, "tmux_capture", Map.of("target", "a"));
         runTool(api, "tmux_list", Map.of());
         long probes = commands.stream().filter(c -> c.equals("tmux -V")).count();
-        assertEquals(1, probes, "tmux availability is fixed per process — it should be memoized, not re-probed");
+        assertEquals(1, probes, "tmux availability is fixed per process, so it should be memoized, not re-probed");
     }
 
     // ---- state persistence ----

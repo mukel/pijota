@@ -17,7 +17,7 @@ final class ShellCommandRunner {
     }
 
     private final Host host;
-    private final String shell; // resolved shell (config / $SHELL / OS default) — portable across Unix & Windows
+    private final String shell; // resolved shell (config / $SHELL / OS default), portable across Unix & Windows
     private volatile Process activeProcess;
     private volatile Thread commandThread;
 

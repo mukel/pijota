@@ -3,7 +3,7 @@ package org.pijota;
 /**
  * Best-effort detection of the terminal's background brightness, for the {@code theme: "auto"} / {@code --theme auto}
  * setting. Reads the {@code COLORFGBG} environment variable (exported by konsole, urxvt, and terminals/users that opt
- * in) — a safe, synchronous signal that needs no terminal round-trip, so it can't hang or corrupt the terminal at
+ * in). A safe, synchronous signal that needs no terminal round-trip, so it can't hang or corrupt the terminal at
  * startup. When {@code COLORFGBG} is absent or unparseable the mode is {@link Mode#UNKNOWN} and the caller falls back
  * to the dark theme.
  */

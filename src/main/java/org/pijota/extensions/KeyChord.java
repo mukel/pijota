@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 
-/** A key plus a set of modifier keys (Ctrl, Shift, Alt) — used with {@link ExtensionKeybinding}. */
+/** A key plus a set of modifier keys (Ctrl, Shift, Alt), used with {@link ExtensionKeybinding}. */
 public record KeyChord(Key key, Set<Modifier> modifiers) {
 
     public KeyChord(Key key, Modifier... modifiers) {

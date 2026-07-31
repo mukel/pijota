@@ -63,10 +63,10 @@ final class FileReferenceResolver {
                             attachments.add(media);
                             result.append("[").append(media.filename()).append("]");
                         } else {
-                            result.append("[").append(path).append(" — too large or unreadable]");
+                            result.append("[").append(path).append(", too large or unreadable]");
                         }
                     } else if (AttachmentMessages.unsupportedImagePathLabel(path) != null && !path.contains("*")) {
-                        // a recognized image format the providers can't read (HEIC/TIFF/BMP) — say so, don't inline
+                        // a recognized image format the providers can't read (HEIC/TIFF/BMP). Say so, don't inline
                         // bytes
                         result.append("[").append(AttachmentMessages.unsupportedImagePath(path)).append(']');
                     } else {
@@ -87,8 +87,8 @@ final class FileReferenceResolver {
     /**
      * Formats a path as an {@code @}-reference for the input buffer (e.g. fzf completion), round-tripping through
      * {@link #expand}'s quote-aware parser. A slash-less name gets a {@code ./} so it parses as a path rather than a
-     * bare {@code @word} (which the resolver leaves literal). The result is double-quoted — with {@code \\} and
-     * {@code "} escaped (apostrophes need none inside double quotes) — when it contains whitespace or starts with a
+     * bare {@code @word} (which the resolver leaves literal). The result is double-quoted, with {@code \\} and
+     * {@code "} escaped (apostrophes need none inside double quotes), when it contains whitespace or starts with a
      * quote; otherwise it's emitted bare. An inner {@code @} is harmless (only a boundary {@code @} triggers parsing).
      */
     static String reference(String path) {
@@ -100,7 +100,7 @@ final class FileReferenceResolver {
 
     /**
      * Resolves {@code ref} to a base64 attachment for media / office documents (image, pdf, audio, video, docx, …), or
-     * {@code null} if it isn't a recognized (small enough) media/doc file — those stay on the inline-text path.
+     * {@code null} if it isn't a recognized (small enough) media/doc file. Those stay on the inline-text path.
      */
     private Message.Attachment mediaAttachment(String ref) {
         if (ref.contains("*") || ref.contains("?"))

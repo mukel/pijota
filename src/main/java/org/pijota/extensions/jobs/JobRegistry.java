@@ -20,7 +20,7 @@ import java.util.function.Consumer;
  * Registry of fire-and-forget shell jobs the agent starts via {@code jobs_run} and later reads or kills (via
  * {@code jobs_output} / {@code jobs_kill}). Each job's merged stdout+stderr is drained by a daemon thread into a capped
  * rolling buffer; {@link #read} returns only the slice produced since the previous read, so the model sees incremental
- * progress. Unlike the tmux integration this needs no external binary — plain JDK process management, always available
+ * progress. Unlike the tmux integration this needs no external binary, plain JDK process management, always available
  * and native-image safe.
  */
 public final class JobRegistry {
@@ -33,16 +33,16 @@ public final class JobRegistry {
 
     public JobRegistry() {
         // Cleanup is driven by JobsExtension.onShutdown (the extension lifecycle), not a per-instance JVM shutdown
-        // hook — that keeps shutdown ordered/logged by ExtensionRegistry and avoids one dangling hook per instance.
+        // hook. That keeps shutdown ordered/logged by ExtensionRegistry and avoids one dangling hook per instance.
     }
 
-    /** {@code onComplete} fires (off the drain thread) when a job exits on its own — not when it's killed. */
+    /** {@code onComplete} fires (off the drain thread) when a job exits on its own, not when it's killed. */
     public JobRegistry(Consumer<Completion> onComplete) {
         this();
         onCompletion(onComplete);
     }
 
-    /** Adds a completion listener — one registry serves both the TUI and the jobs extension. */
+    /** Adds a completion listener. One registry serves both the TUI and the jobs extension. */
     public void onCompletion(Consumer<Completion> listener) {
         if (listener != null)
             completionListeners.add(listener);
@@ -105,7 +105,7 @@ public final class JobRegistry {
             });
         Process process = pb.start();
         // A background job gets no input: close the child's stdin so a command that reads it (cat, an interactive
-        // tool) can't block forever — which would also leave the drain thread stuck and the job "running" for good.
+        // tool) can't block forever, which would also leave the drain thread stuck and the job "running" for good.
         try {
             process.getOutputStream().close();
         } catch (IOException ignored) {}
@@ -128,7 +128,7 @@ public final class JobRegistry {
                 job.append(buf, n);
             }
         } catch (IOException ignored) {
-            // stream closed because the process ended or was killed — nothing more to drain
+            // stream closed because the process ended or was killed, nothing more to drain
         }
         // EOF means the process has exited (or was killed) and all output is buffered: report completion so the agent
         // is notified instead of having to poll. waitFor() yields the exit code; intentional kills are not reported.
@@ -144,7 +144,7 @@ public final class JobRegistry {
 
     /**
      * Adopts a process handed off by a detached tool call (the user backgrounded a running command). The output feed is
-     * re-pointed at this job's buffer — atomically, so the seed and the live feed never lose or duplicate a chunk — and
+     * re-pointed at this job's buffer, atomically, so the seed and the live feed never lose or duplicate a chunk, and
      * the buffer's read offset starts AFTER the seed: the detach's synthetic tool result already showed the output so
      * far, so {@code jobs_output} reports only what is new. No drain thread is needed; the tool's own pump keeps
      * feeding, and {@code onExit} delivers the completion.
@@ -154,7 +154,7 @@ public final class JobRegistry {
         String label = (name != null && !name.isBlank()) ? name : detached.command();
         var job = new Job(id, detached.command(), label, detached.process());
         // Seed under the job lock: the switch happens while we hold it, so a concurrently delivered live chunk blocks
-        // on job.append until the seed is written — the buffer can never interleave live output before the seed.
+        // on job.append until the seed is written. The buffer can never interleave live output before the seed.
         String outputSoFar;
         synchronized (job) {
             outputSoFar = detached.redirectOutput().apply(chunk -> {
@@ -182,11 +182,11 @@ public final class JobRegistry {
     public record Adopted(String id, String outputSoFar) {
     }
 
-    /** The synthetic result that resolves a backgrounded tool call — what the model sees instead of the output. */
+    /** The synthetic result that resolves a backgrounded tool call, what the model sees instead of the output. */
     public static Tool.ToolResult backgroundedResult(String jobId, String outputSoFar) {
         var content = new StringBuilder("Command moved to background by the user as job \"").append(jobId)
                                         .append("\". It is still running. Poll new output with jobs_output(id=\"")
-                                        .append(jobId).append("\") — it blocks up to its timeout — and stop it with ")
+                                        .append(jobId).append("\"); it blocks up to its timeout. Stop it with ")
                                         .append("jobs_kill. Do not re-run the command.");
         String tail = lastLines(outputSoFar, 30);
         if (!tail.isBlank())
@@ -227,9 +227,9 @@ public final class JobRegistry {
     }
 
     /**
-     * Stops a job by signalling its whole process tree (not just the shell wrapper). {@code force=true} is SIGKILL —
-     * forced, and suppresses the completion notification since the exit is intentional; {@code force=false} is SIGTERM
-     * — graceful, so a process that traps it and later exits on its own is still reported complete. Idempotent: returns
+     * Stops a job by signalling its whole process tree (not just the shell wrapper). {@code force=true} is SIGKILL,
+     * forced, and suppresses the completion notification since the exit is intentional; {@code force=false} is SIGTERM,
+     * graceful, so a process that traps it and later exits on its own is still reported complete. Idempotent: returns
      * {@code true} for any known job (a no-op if it already finished), {@code false} only if the id is unknown. Uses
      * the Java {@code ProcessHandle} API throughout, so it works the same on Linux, macOS, and Windows.
      */
@@ -239,7 +239,7 @@ public final class JobRegistry {
             return false;
         if (job.process.isAlive()) {
             if (force) {
-                job.killed = true; // a forced kill is intentional — don't report it as a natural completion
+                job.killed = true; // a forced kill is intentional, don't report it as a natural completion
                 ProcessRunner.killTree(job.process);
             } else {
                 job.process.descendants().forEach(ProcessHandle::destroy);

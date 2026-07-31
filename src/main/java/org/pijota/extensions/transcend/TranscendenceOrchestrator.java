@@ -24,7 +24,7 @@ final class TranscendenceOrchestrator {
         this.runtime = api.runtime();
     }
 
-    // Transcend progress is operation output (build/test/respawn status), not model output — so it goes to the terminal
+    // Transcend progress is operation output (build/test/respawn status), not model output, so it goes to the terminal
     // scrollback via the TUI's cursor-bookkept append, never added to the conversation/session message log.
     private String styled(String slot, String text) {
         return runtime.ui().theme().styled(slot, text);
@@ -224,7 +224,7 @@ final class TranscendenceOrchestrator {
             if (testMode) {
                 appendPlain(List.of(styled("statusText", "  … launching test instance")));
 
-                // The test instance is a full interactive child that takes the terminal — hand it over (resume()
+                // The test instance is a full interactive child that takes the terminal. Hand it over (resume()
                 // restores raw mode and repaints the prompt afterwards).
                 runtime.ui().suspend();
                 try {

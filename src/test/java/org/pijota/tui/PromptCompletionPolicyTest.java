@@ -49,7 +49,7 @@ class PromptCompletionPolicyTest {
         // Ghost text is only the trailing suffix ("/sess" + "ions" → "/sessions"), not the whole command name.
         assertEquals("ions", policy.commandSuggestion("/sess"));
         assertEquals("", policy.commandSuggestion("plain text"));
-        // A fuzzy (non-prefix) match offers no inline suggestion — appending its suffix would not read correctly.
+        // A fuzzy (non-prefix) match offers no inline suggestion; appending its suffix would not read correctly.
         assertEquals("", policy.commandSuggestion("/ssns"));
     }
 }

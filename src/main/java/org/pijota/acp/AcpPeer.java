@@ -24,15 +24,15 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * Newline-delimited JSON-RPC 2.0 peer over a byte stream (stdio) — the transport for the ACP frontend. Unlike
+ * Newline-delimited JSON-RPC 2.0 peer over a byte stream (stdio), the transport for the ACP frontend. Unlike
  * {@link org.pijota.modes.RpcMode}, which only answers requests, this is fully duplex: besides serving incoming
  * requests it can issue its own requests to the peer (ACP {@code session/request_permission}, {@code fs/*},
  * {@code terminal/*}) and correlate their replies. One JSON message per line; the three JSON-RPC frame shapes are
  * distinguished as:
  * <ul>
- * <li>request — has {@code method} and {@code id} → routed to a request handler, which produces a result</li>
- * <li>notification — has {@code method}, no {@code id} → routed to a notification handler (fire-and-forget)</li>
- * <li>response — has {@code id}, no {@code method} → completes the matching outbound {@link #request}</li>
+ * <li>request: has {@code method} and {@code id} → routed to a request handler, which produces a result</li>
+ * <li>notification: has {@code method}, no {@code id} → routed to a notification handler (fire-and-forget)</li>
+ * <li>response: has {@code id}, no {@code method} → completes the matching outbound {@link #request}</li>
  * </ul>
  * The owning frontend may write from several threads (request handlers on the read loop; {@code session/update}
  * notifications from the agent thread), so {@link #writeMessage} is serialized.
@@ -44,8 +44,8 @@ public final class AcpPeer {
     private final Object writeLock = new Object();
 
     // Optional protocol tracing for debugging a client (set PIJOTA_ACP_WIRELOG=/path). Incoming lines are prefixed
-    // "<< ", outgoing ">> ". Null (off) unless the env var is set, so it never touches the normal path. Opened once —
-    // not reopened per frame — since streaming emits one frame per token.
+    // "<< ", outgoing ">> ". Null (off) unless the env var is set, so it never touches the normal path. Opened once,
+    // not reopened per frame, since streaming emits one frame per token.
     private final Writer wireLog = openWireLog();
 
     private final AtomicLong nextId = new AtomicLong(1);
@@ -72,7 +72,7 @@ public final class AcpPeer {
     }
 
     /**
-     * Registers a hook run with the request's method name immediately after that request's result is written — the seam
+     * Registers a hook run with the request's method name immediately after that request's result is written, the seam
      * for a follow-up notification that must be strictly ordered after a response (e.g.
      * {@code available_commands_update} after {@code session/new}). For a synchronously-resolved handler it runs on the
      * read thread, right after the write.
@@ -230,7 +230,7 @@ public final class AcpPeer {
             return Files.newBufferedWriter(Path.of(p), StandardCharsets.UTF_8, StandardOpenOption.CREATE,
                                             StandardOpenOption.APPEND);
         } catch (IOException e) {
-            return null; // tracing is best-effort — never block startup on it
+            return null; // tracing is best-effort, never block startup on it
         }
     }
 
@@ -265,7 +265,7 @@ public final class AcpPeer {
         try {
             return Long.parseLong(idNode.asText());
         } catch (NumberFormatException e) {
-            return null; // A string id we never issued — no pending slot to match anyway.
+            return null; // A string id we never issued, no pending slot to match anyway.
         }
     }
 

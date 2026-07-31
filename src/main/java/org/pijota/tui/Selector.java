@@ -28,7 +28,7 @@ final class Selector<T extends SelectorItem> {
     }
 
     /**
-     * Replaces the items but keeps the current selection (clamped) — for a live refresh of the same rows with changed
+     * Replaces the items but keeps the current selection (clamped), for a live refresh of the same rows with changed
      * content, e.g. cycling a setting value in place. Unlike {@link #setItems}, which resets to the top.
      */
     void refreshItems(List<T> items) {
@@ -82,7 +82,7 @@ final class Selector<T extends SelectorItem> {
         } else {
             String q = query.toLowerCase();
             // score each item once (Schwartzian) so the sort is a cheap array lookup, not a matchScore + toLowerCase
-            // recompute per comparison — this runs on every keystroke over the whole (e.g. ~400-model) list.
+            // recompute per comparison; this runs on every keystroke over the whole (e.g. ~400-model) list.
             int[] scoreByIndex = new int[allItems.size()];
             for (int i = 0; i < allItems.size(); i++) {
                 String searchText = allItems.get(i).searchText().toLowerCase();
@@ -96,7 +96,7 @@ final class Selector<T extends SelectorItem> {
             // "deepseek-v4-pro" (substring) above a scattered match instead of leaving list order untouched.
             visibleIndices.sort(Comparator.comparingInt(i -> scoreByIndex[i]));
         }
-        // A fresh query highlights the top match (index 0) — like any fuzzy finder — so Enter takes the best result,
+        // A fresh query highlights the top match (index 0), like any fuzzy finder, so Enter takes the best result,
         // not a stale mid-list cursor from the previous query. -1 when nothing matches (selectedItem() guards on it).
         selected = visibleIndices.isEmpty() ? -1 : 0;
     }

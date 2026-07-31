@@ -15,7 +15,7 @@ final class WebTools {
 
     private WebTools() {}
 
-    /** Desktop Chrome User-Agent — some sites gate content behind a browser-like UA. */
+    /** Desktop Chrome User-Agent. Some sites gate content behind a browser-like UA. */
     static final String BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                                     + " (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
@@ -29,7 +29,7 @@ final class WebTools {
                                         .build();
     }
 
-    /** Decodes the common HTML entities — one canonical set for both tools ({@code &amp;} first, as before). */
+    /** Decodes the common HTML entities, one canonical set for both tools ({@code &amp;} first, as before). */
     static String decodeEntities(String text) {
         if (text == null)
             return null;

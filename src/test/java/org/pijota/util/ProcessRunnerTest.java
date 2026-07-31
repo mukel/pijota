@@ -365,7 +365,7 @@ class ProcessRunnerTest {
     void signalFiringAfterExitIsNotADetach() throws IOException {
         var signal = new java.util.concurrent.CompletableFuture<Void>();
         var result = ProcessRunner.command("/bin/sh", "-c", "echo done").detachSignal(signal).run();
-        signal.complete(null); // too late — the process already finished normally
+        signal.complete(null); // too late, the process already finished normally
         assertFalse(result.detached());
         assertEquals("done\n", result.stdout());
     }

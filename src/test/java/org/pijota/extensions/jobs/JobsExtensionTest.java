@@ -78,7 +78,7 @@ class JobsExtensionTest {
 
         String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
 
-        // /jobs shows the user the same listing jobs_list gives the agent — via a custom message, not a model turn
+        // /jobs shows the user the same listing jobs_list gives the agent, via a custom message, not a model turn
         api.slashCommand("jobs").handler().accept("");
         String listing = lastCustom(api);
         assertTrue(listing.contains(id) && listing.contains("running") && listing.contains("sleep 30"), listing);
@@ -110,7 +110,7 @@ class JobsExtensionTest {
 
     @Test
     void killJobValidatesIdAndSignalWithoutAShell() {
-        // The shared helper behind both jobs_kill and /kill — its guards are pure, so assert them directly.
+        // The shared helper behind both jobs_kill and /kill; its guards are pure, so assert them directly.
         var jobs = new JobRegistry();
         assertTrue(JobsExtension.killJob(jobs, "", "SIGKILL").content().contains("No job id"), "blank id");
         assertTrue(JobsExtension.killJob(jobs, null, null).content().contains("No job id"), "null id");
@@ -455,7 +455,7 @@ class JobsExtensionTest {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);
         run(api, "jobs_run", Map.of("command", "echo hi"));
-        // single-arg delivery (steers if busy, wakes if idle) — so the completion always surfaces
+        // single-arg delivery (steers if busy, wakes if idle), so the completion always surfaces
         assertTrue(awaitUserMessage(api, "finished · exit 0", 5000), api.sentUserMessages().toString());
     }
 
@@ -482,7 +482,7 @@ class JobsExtensionTest {
     void monitorStillNotifiesAfterSigterm() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);
-        // SIGTERM is graceful and does NOT suppress completion — the resulting exit must still reach the agent
+        // SIGTERM is graceful and does NOT suppress completion; the resulting exit must still reach the agent
         String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
         run(api, "jobs_kill", Map.of("id", id, "signal", "SIGTERM"));
         assertTrue(awaitUserMessage(api, "background job " + id, 5000), api.sentUserMessages().toString());

@@ -22,7 +22,7 @@ public final class TodoTool implements Tool {
         this(todos -> {});
     }
 
-    /** {@code onUpdate} receives the full list on every write — lets a frontend surface a live todo panel. */
+    /** {@code onUpdate} receives the full list on every write, letting a frontend surface a live todo panel. */
     public TodoTool(Consumer<List<Todo>> onUpdate) {
         this.onUpdate = onUpdate;
     }
@@ -42,7 +42,7 @@ public final class TodoTool implements Tool {
         return "Maintain a structured todo list for multi-step work. Use it when a task needs 3+ distinct steps "
                                         + "or the user gives multiple tasks; skip it for single/trivial or purely conversational requests. "
                                         + "States: pending, in_progress (exactly ONE at a time), completed, cancelled. Update status in "
-                                        + "real time and mark completed only after the work — including any verification — is actually done.";
+                                        + "real time and mark completed only after the work, including any verification, is actually done.";
     }
 
     @Override
@@ -92,7 +92,7 @@ public final class TodoTool implements Tool {
         return sb.toString();
     }
 
-    /** Status icon for a todo state — shared with the live panel so both stay in sync. */
+    /** Status icon for a todo state, shared with the live panel so both stay in sync. */
     public static String icon(String status) {
         return switch (status) {
             case "completed" -> "[✓]";

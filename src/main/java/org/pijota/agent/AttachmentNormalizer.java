@@ -14,7 +14,7 @@ import java.util.Set;
 /**
  * Turns a user's raw attachments into prompt text plus typed media parts. Text-like files (txt/code/docx/…) are
  * extracted and inlined into the prompt; binary media (image/pdf/audio/video) is carried as {@link Message.Attachment}s
- * and gated to the model's modalities at send time. Pure and stateless — it holds no session state, so it takes
+ * and gated to the model's modalities at send time. Pure and stateless, it holds no session state, so it takes
  * everything it needs as parameters.
  */
 public final class AttachmentNormalizer {
@@ -52,21 +52,21 @@ public final class AttachmentNormalizer {
                 if (mod == Modality.PDF && supported != null && !supported.contains(Modality.PDF)) {
                     String rel = stageFile(cwd, name, a.base64());
                     sb.append(rel != null
-                                                    ? "\n\n[Attached PDF \"" + name + "\" saved to " + rel + " — "
+                                                    ? "\n\n[Attached PDF \"" + name + "\" saved to " + rel + ", "
                                                                                     + AttachmentMessages.modelLabel(provider,
                                                                                                                     model)
                                                                                     + " can't read PDFs "
                                                                                     + "directly; use the web_pdf_to_markdown tool to read it.]"
                                                     : "\n\n[attachment \"" + name + "\" couldn't be saved]");
                 }
-                // image formats the providers can't read (HEIC/TIFF/BMP/…) — reject rather than let the API 400 later
+                // image formats the providers can't read (HEIC/TIFF/BMP/…); reject rather than let the API 400 later
                 else if (mod == Modality.IMAGE && !Modality.isSupportedImage(a.mime()))
                     sb.append("\n\n[").append(AttachmentMessages.unsupportedImage(name, provider, model)).append(']');
-                else if (a.approxBytes() <= Message.Attachment.MAX_BYTES) // core size floor — every frontend inherits
+                else if (a.approxBytes() <= Message.Attachment.MAX_BYTES) // core size floor, every frontend inherits
                                                                           // it
                     media.add(a); // image / pdf / audio / video → sent as a typed content part (gated by the model)
-                else // never drop silently — leave a note so the model (and transcript) know it was omitted
-                    sb.append("\n\n[attachment \"").append(name).append("\" omitted — larger than 5 MB]");
+                else // never drop silently; leave a note so the model (and transcript) know it was omitted
+                    sb.append("\n\n[attachment \"").append(name).append("\" omitted, larger than 5 MB]");
                 continue;
             }
             byte[] bytes;

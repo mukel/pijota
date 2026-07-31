@@ -14,10 +14,10 @@ import org.slf4j.LoggerFactory;
  * TRACE} add stream boundaries, tool arguments, and the per-delta firehose for deep diagnosis:
  *
  * <ul>
- * <li>INFO — turn start/end, each tool call + result, assistant message + token usage, compaction</li>
- * <li>DEBUG — message-stream boundaries, tool arguments (secret-scrubbed), custom/history events</li>
- * <li>TRACE — per-token stream deltas</li>
- * <li>ERROR — a turn failure</li>
+ * <li>INFO: turn start/end, each tool call + result, assistant message + token usage, compaction</li>
+ * <li>DEBUG: message-stream boundaries, tool arguments (secret-scrubbed), custom/history events</li>
+ * <li>TRACE: per-token stream deltas</li>
+ * <li>ERROR: a turn failure</li>
  * </ul>
  *
  * Arguments and error text are routed through {@link ErrorUtil} so API keys / bearer tokens never reach the log.
@@ -31,7 +31,7 @@ final class AgentEventLogger {
             case AgentEvent.TurnEnd e -> log.info("turn {} ■ end", e.turn());
             case AgentEvent.AssistantMessage e -> {
                 // Only the final completion carries token usage; the pre-stream placeholder and the per-chunk streaming
-                // updates have null usage and would flood INFO, so they drop to TRACE — the MessageStreamDelta firehose
+                // updates have null usage and would flood INFO, so they drop to TRACE; the MessageStreamDelta firehose
                 // already covers the streaming detail. (A provider that omits token counts logs its completion at TRACE
                 // too, but the surrounding turn/tool events still trace the turn at INFO.)
                 if (e.usage() != null) {

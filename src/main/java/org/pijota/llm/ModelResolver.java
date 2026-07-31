@@ -6,7 +6,7 @@ import org.pijota.config.SettingsManager;
 import org.pijota.util.CliErrorReporter;
 
 /**
- * Resolves the effective {@code (provider, model, apiKey)} a run should use, from CLI args + settings — the one gnarly
+ * Resolves the effective {@code (provider, model, apiKey)} a run should use, from CLI args + settings, the one gnarly
  * decision that used to sit inline in {@link org.pijota.AppBootstrap#bootstrap}. Kept separate so the rules
  * (print-alias, env detection, provider-switch-also-switches-model, the reserved-{@code alias} failure, missing-key
  * error, and the "did you mean" typo pre-flight) are readable and unit-testable on their own.
@@ -33,7 +33,7 @@ public final class ModelResolver {
                                         ? ModelRegistry.resolveProviderModel(ModelRegistry.ALIAS_PROVIDER, "print",
                                                                         settings)
                                         : ModelRegistry.resolveProviderModel(args.provider(), args.model(), settings);
-        // "alias" is reserved: if it survived resolution, the named alias is undefined — fail clearly instead of
+        // "alias" is reserved: if it survived resolution, the named alias is undefined. Fail clearly instead of
         // silently falling through to the default provider.
         if (ModelRegistry.ALIAS_PROVIDER.equalsIgnoreCase(resolved.provider()))
             throw new IllegalStateException("Unknown model alias '" + args.model()
@@ -50,7 +50,7 @@ public final class ModelResolver {
                     if (detected != null) {
                         provider = detected;
                         apiKey = settings.resolveApiKey(detected);
-                        // Switching provider must switch the model too — otherwise we'd run the detected provider with
+                        // Switching provider must switch the model too, otherwise we'd run the detected provider with
                         // the previous provider's model (e.g. openai-codex with "gpt-4o").
                         if (!ModelRegistry.isKnownProviderModel(detected, model))
                             model = ModelRegistry.defaultModelForProvider(detected);
@@ -65,7 +65,7 @@ public final class ModelResolver {
 
         // Pre-flight typo check: an explicitly chosen model that isn't in a catalogued provider's list is usually a
         // typo. Suggest the closest known model up front instead of letting the provider API reject it after a wasted
-        // round-trip. Non-fatal — new/uncatalogued models still pass straight through.
+        // round-trip. Non-fatal: new/uncatalogued models still pass straight through.
         if (args.model() != null && !ModelRegistry.isKnownProviderModel(provider, model)
                                         && !ModelRegistry.forProvider(provider).isEmpty()) {
             String chosenProvider = provider;

@@ -361,7 +361,7 @@ class AgentLoopTest {
 
     @Test
     void abortEmitsTurnEndSoEventDrivenFrontendsClearBusy() throws Exception {
-        // The TUI keys off the prompt future, but the web learns the turn ended only via the TurnEnd event — without
+        // The TUI keys off the prompt future, but the web learns the turn ended only via the TurnEnd event. Without
         // it, the web Stop button lingers after an interrupt (the turn's normal paths skip TurnEnd once aborted).
         var llm = new FauxLlm().blockUntilAborted();
         var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
@@ -520,7 +520,7 @@ class AgentLoopTest {
     @Test
     void stopsAtConfiguredMaxTurnsAndClearsBusy() throws Exception {
         // A turn that keeps calling tools must stop at the configured cap, and that terminal path must clear the busy
-        // flag — otherwise isBusy() stays stuck true and wrongly blocks /transcend, /model, etc. ("a turn is running"
+        // flag, otherwise isBusy() stays stuck true and wrongly blocks /transcend, /model, etc. ("a turn is running"
         // with nothing to interrupt).
         var llm = new FauxLlm();
         for (int i = 0; i < 6; i++)

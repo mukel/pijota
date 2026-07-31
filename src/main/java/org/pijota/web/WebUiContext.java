@@ -41,7 +41,7 @@ public final class WebUiContext implements UiContext {
 
     @Override
     public void setStatus(String message) {
-        // Unkeyed status is a discrete notification (e.g. command output) — surface it inline in the transcript.
+        // Unkeyed status is a discrete notification (e.g. command output); surface it inline in the transcript.
         status(message, false);
     }
 
@@ -59,7 +59,7 @@ public final class WebUiContext implements UiContext {
     }
 
     // Keyed status (setStatus(key,…)/clearStatus) is intentionally NOT overridden: the runtime stores those in its own
-    // map and never routes them through UiContext — WebServer polls statusLines() for them instead (TUI parity).
+    // map and never routes them through UiContext; WebServer polls statusLines() for them instead (TUI parity).
 
     @Override
     public void viewer(String title, List<String> lines) {
@@ -132,7 +132,7 @@ public final class WebUiContext implements UiContext {
         }
     }
 
-    /** Payloads of dialogs still awaiting an answer — replayed to a tab that connects after the dialog was emitted. */
+    /** Payloads of dialogs still awaiting an answer, replayed to a tab that connects after the dialog was emitted. */
     public List<Map<String, Object>> pendingDialogs() {
         return dialogs.values().stream().map(Pending::payload).toList();
     }
@@ -144,7 +144,7 @@ public final class WebUiContext implements UiContext {
     @Override
     public void cancelPending() {
         for (String id : List.copyOf(dialogs.keySet()))
-            resolve(id, ""); // empty answer → confirm=false, prompt/question="" — the waiting tool returns
+            resolve(id, ""); // empty answer → confirm=false, prompt/question=""; the waiting tool returns
     }
 
     /** Registers a pending dialog (id + handler + replayable payload) and pushes it to connected tabs. */

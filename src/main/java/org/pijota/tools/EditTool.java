@@ -213,7 +213,7 @@ public final class EditTool implements Tool {
     }
 
     /**
-     * Whole-line fuzzy match: locates the unique run of file lines whose canonical form equals oldText's lines —
+     * Whole-line fuzzy match: locates the unique run of file lines whose canonical form equals oldText's lines,
      * ignoring leading/trailing whitespace (so a block copied at a different indent still matches) and Unicode
      * variants. Returns a real span in {@code content}, so only the matched region is rewritten. Null when there is no
      * match, more than one, or the pattern is blank.
@@ -244,7 +244,7 @@ public final class EditTool implements Tool {
             if (ok && ++count == 1)
                 foundLine = i;
             if (count > 1)
-                return null; // ambiguous — caller asks the model to add context
+                return null; // ambiguous; caller asks the model to add context
         }
         if (count != 1)
             return null;

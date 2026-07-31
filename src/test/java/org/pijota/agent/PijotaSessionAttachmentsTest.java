@@ -59,7 +59,7 @@ class PijotaSessionAttachmentsTest {
 
     @Test
     void oversizedMediaIsDroppedWithANote() throws Exception {
-        // approxBytes = base64Length * 3/4 — 7M chars ≈ 5.25 MB, just over the 5 MB cap
+        // approxBytes = base64Length * 3/4; 7M chars ≈ 5.25 MB, just over the 5 MB cap
         var att = new Message.Attachment("image/png", "A".repeat(7_000_000), "big.png");
         var u = runWith("big one", List.of(att));
 

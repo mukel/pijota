@@ -91,7 +91,7 @@ public class TranscendenceTool implements Tool {
             Path currentJar = findCurrentJar();
             backupJar(currentJar);
         } catch (IOException e) {
-            // non-fatal — backup is best-effort
+            // non-fatal; backup is best-effort
         }
 
         ProcessRunner.Result result;
@@ -175,7 +175,7 @@ public class TranscendenceTool implements Tool {
             Path currentJar = findCurrentJar();
             backupJar(currentJar);
         } catch (IOException e) {
-            // non-fatal — backup is best-effort
+            // non-fatal; backup is best-effort
         }
 
         ProcessRunner.Result buildResult;

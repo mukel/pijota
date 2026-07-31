@@ -19,8 +19,8 @@ import java.util.Locale;
  * <p>
  * Callers that build a {@link HttpClient} route it through {@link #httpClientBuilder()}. Because {@code HttpClient}
  * ignores the JVM's proxy system properties, {@link #installSystemProperties()} mirrors the configured proxy into
- * {@code https.proxyHost}/etc. at startup so URLConnection-based paths — and providers whose client we can't configure
- * directly (Gemini) — route through it rather than silently bypassing it.
+ * {@code https.proxyHost}/etc. at startup so URLConnection-based paths (and providers whose client we can't configure
+ * directly, like Gemini) route through it rather than silently bypassing it.
  */
 public final class Proxies {
     private Proxies() {}
@@ -110,7 +110,7 @@ public final class Proxies {
         int scheme = v.indexOf("://");
         if (scheme >= 0)
             v = v.substring(scheme + 3);
-        int at = v.lastIndexOf('@'); // strip any credentials — auth is handled separately, not by the address
+        int at = v.lastIndexOf('@'); // strip any credentials; auth is handled separately, not by the address
         if (at >= 0)
             v = v.substring(at + 1);
         int slash = v.indexOf('/');

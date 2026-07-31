@@ -3,9 +3,9 @@ package org.pijota.util;
 /**
  * Resolves pijota's own configuration that may come from the environment. Convention: every {@code PIJOTA_*}
  * environment variable has a matching {@code -Dpijota.*} system property that <b>overrides</b> it (the property wins),
- * so the same setting can be passed either way — e.g. {@code PIJOTA_GECKODRIVER} ⟷ {@code -Dpijota.browse.geckodriver}.
- * Blank values count as unset. (External/standard variables — API keys, {@code NO_COLOR}, {@code EDITOR},
- * {@code SHELL}, {@code PATH} — are not pijota's to remap and are read directly.)
+ * so the same setting can be passed either way, e.g. {@code PIJOTA_GECKODRIVER} ⟷ {@code -Dpijota.browse.geckodriver}.
+ * Blank values count as unset. (External/standard variables such as API keys, {@code NO_COLOR}, {@code EDITOR},
+ * {@code SHELL}, and {@code PATH} are not pijota's to remap and are read directly.)
  */
 public final class Env {
     private Env() {}

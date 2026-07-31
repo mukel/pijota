@@ -61,7 +61,7 @@ public final class TruncatedToolExtension implements Extension {
 
                                                 // rg exit codes: 0 = matches, 1 = no matches, >=2 = error; our exec()
                                                 // returns -1 when the spawn itself failed (e.g. ripgrep not installed).
-                                                // Only 0/1 are real searches — anything else is a failure, not "no
+                                                // Only 0/1 are real searches; anything else is a failure, not "no
                                                 // matches".
                                                 if (result.exitCode() < 0 || result.exitCode() >= 2) {
                                                     String stderr = result.stderr() == null

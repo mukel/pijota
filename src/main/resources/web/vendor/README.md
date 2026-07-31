@@ -24,4 +24,4 @@ fetch, so subsequent builds work offline.
    curl -fsSL https://cdn.jsdelivr.net/npm/marked@<new>/marked.min.js | openssl dgst -sha512
    ```
 3. Replace the matching `<sha512>` in the plugin's `<execution>`.
-4. `mvn clean package` — the build re-downloads and verifies. Commit the `pom.xml` diff (version + hash).
+4. `mvn clean package`. The build re-downloads and verifies. Commit the `pom.xml` diff (version + hash).

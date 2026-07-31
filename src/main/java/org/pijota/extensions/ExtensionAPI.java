@@ -14,7 +14,7 @@ import java.util.function.Supplier;
  * The registration and control surface exposed to {@link Extension#init}. Subscribe to events for observe-only or
  * decision hooks, register tools/slash-commands/keybindings/prompt-contributions, render custom messages, and inject
  * messages into the session. Returns {@code this} for chaining on all hook/registration methods. The {@link #runtime()}
- * handle is valid immediately and stays valid for the entire session lifetime — handlers that need UI or live state
+ * handle is valid immediately and stays valid for the entire session lifetime; handlers that need UI or live state
  * reach it through {@code runtime()} (and {@code runtime().ui()}).
  */
 public interface ExtensionAPI {
@@ -35,7 +35,7 @@ public interface ExtensionAPI {
 
     // ---- decision events (return a typed result) ----
 
-    /** Decides whether a tool call may proceed — return {@link ExtensionResult.Block} to veto. */
+    /** Decides whether a tool call may proceed; return {@link ExtensionResult.Block} to veto. */
     ExtensionAPI onToolCall(Function<ExtensionEvent.ToolCall, ExtensionResult.Block> handler);
 
     /** Decides whether a user-initiated bash command may run. */
@@ -52,7 +52,7 @@ public interface ExtensionAPI {
     /** Registers a full {@link Tool} (keeps its glyph/result-rendering/execution-mode/abort). */
     void registerTool(Tool tool);
 
-    /** Registers a lightweight tool from a definition — convenient for lambda-style example tools. */
+    /** Registers a lightweight tool from a definition; convenient for lambda-style example tools. */
     void registerTool(Tool.ToolDefinition tool);
 
     void registerSlashCommand(SlashCommand command);

@@ -53,7 +53,7 @@ public final class PromptTemplateLoader {
         // slice patterns: ${@:N} and ${@:N:L}
         expanded = expandSlices(expanded, args);
 
-        // $@ and $ARGUMENTS — all args joined with space
+        // $@ and $ARGUMENTS, all args joined with space
         String allArgs = String.join(" ", args);
         expanded = expanded.replace("$@", Matcher.quoteReplacement(allArgs));
         expanded = expanded.replace("$ARGUMENTS", Matcher.quoteReplacement(allArgs));

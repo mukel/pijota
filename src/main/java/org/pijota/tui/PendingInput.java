@@ -5,7 +5,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * A single in-flight request for user input. The agent/tool thread {@link #open}s a request and awaits the returned
  * future; the UI thread later {@link #fulfill}s or {@link #cancel}s it. The backing future reference is
- * {@code volatile} so the UI thread always observes a request opened on another thread — getting this wrong silently
+ * {@code volatile} so the UI thread always observes a request opened on another thread. Getting this wrong silently
  * drops the answer and deadlocks the waiting agent. Centralising the lifecycle here makes that correct by construction
  * for every dialog kind.
  */

@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 /**
  * Internal bridge from pijota {@link org.pijota.messages.Message}s to langchain4j message types. Package-private so the
- * langchain4j dependency stays an implementation detail of the LLM boundary and never leaks into the public API — only
+ * langchain4j dependency stays an implementation detail of the LLM boundary and never leaks into the public API, only
  * {@link LlmService} (same package) calls it.
  */
 final class MessageConverter {
@@ -39,7 +39,7 @@ final class MessageConverter {
      * @param allowed
      *            the modalities the active model accepts; attachments of any other modality are dropped and called out
      *            in a note so the conversation still makes sense. {@code null} means allow every modality (e.g. an
-     *            unknown model — let the provider decide).
+     *            unknown model, let the provider decide).
      */
     public static List<ChatMessage> toLangChain4j(List<Message> messages, Set<Modality> allowed) {
         var chatMessages = new ArrayList<ChatMessage>();
@@ -104,7 +104,7 @@ final class MessageConverter {
     // source,
     // OpenAI image_url, Gemini inlineData). With no usable images it stays a plain text message.
     private static ChatMessage userMessage(Message.User u, Set<Modality> allowed) {
-        // only binary media reaches here as attachments — text-like files are extracted & inlined upstream
+        // only binary media reaches here as attachments; text-like files are extracted & inlined upstream
         var media = u.attachments().stream()
                                         .filter(a -> a.mime() != null && Modality.fromMime(a.mime()) != Modality.TEXT)
                                         .toList();
@@ -125,7 +125,7 @@ final class MessageConverter {
             var notes = dropped.entrySet().stream().map(
                                             e -> Util.plural(e.getValue(), e.getKey().name().toLowerCase(Locale.ROOT)))
                                             .toList();
-            String note = "[" + String.join(" and ", notes) + " omitted — the current model can't read "
+            String note = "[" + String.join(" and ", notes) + " omitted, the current model can't read "
                                             + (total == 1 ? "it" : "them") + "]";
             text = hasText(text) ? text + "\n\n" + note : note;
         }
@@ -140,7 +140,7 @@ final class MessageConverter {
     }
 
     // langchain4j maps each typed content to the provider's native shape (Anthropic source/document, OpenAI image_url/
-    // input_audio, Gemini inlineData). Text modality never reaches here — those files are inlined as text upstream.
+    // input_audio, Gemini inlineData). Text modality never reaches here; those files are inlined as text upstream.
     private static Content contentFor(Modality m, Message.Attachment a) {
         return switch (m) {
             case IMAGE -> ImageContent.from(a.base64(), a.mime());

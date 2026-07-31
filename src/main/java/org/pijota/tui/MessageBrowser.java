@@ -22,7 +22,7 @@ final class MessageBrowser {
     }
 
     /**
-     * Handles a key while browsing. Up/Down move, Enter accepts (exit), Esc cancels — all consumed (return true). Any
+     * Handles a key while browsing. Up/Down move, Enter accepts (exit), Esc cancels, all consumed (return true). Any
      * other key exits the browser and is NOT consumed (returns false) so the caller routes it onward to the editor.
      */
     boolean handleKey(Key key) {

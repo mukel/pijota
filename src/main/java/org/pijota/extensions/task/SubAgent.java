@@ -22,7 +22,7 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
                                 String source) {
     private static final Logger logger = LoggerFactory.getLogger(SubAgent.class);
     /**
-     * The sub-agents shipped in resources ({@code src/main/resources/agents}), loaded by name — the classpath
+     * The sub-agents shipped in resources ({@code src/main/resources/agents}), loaded by name. The classpath
      * {@code agents} directory can't be enumerated in a native image, so this list is the authority.
      */
     private static final List<String> BUILTIN_AGENTS = List.of("explore", "summarize");
@@ -57,7 +57,7 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
                     switch (key) {
                         case "name" -> name = value;
                         case "description" -> description = value;
-                        // YAML null literals mean "no override" — without this, `model: null` becomes the literal
+                        // YAML null literals mean "no override"; without this, `model: null` becomes the literal
                         // string "null" and is sent as the model (e.g. Codex rejects "the 'null' model").
                         case "model" -> model = yamlNull(value);
                         case "tools" -> tools = Arrays.stream(value.split("[,;]")).map(String::strip)

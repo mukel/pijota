@@ -8,7 +8,7 @@ public final class Net {
     private Net() {}
 
     /**
-     * The machine's primary site-local IPv4 address (e.g. {@code 192.168.x.x}) — the address a phone on the same LAN
+     * The machine's primary site-local IPv4 address (e.g. {@code 192.168.x.x}), the address a phone on the same LAN
      * would use to reach this host. Returns {@code null} when none can be determined.
      */
     public static String lanAddress() {
@@ -22,7 +22,7 @@ public final class Net {
                 }
             }
         } catch (Exception ignored) {
-            // fall through to null — caller decides the fallback
+            // fall through to null. Caller decides the fallback
         }
         return null;
     }

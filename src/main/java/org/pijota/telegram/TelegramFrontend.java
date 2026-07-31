@@ -52,7 +52,7 @@ public final class TelegramFrontend {
                     }
                 }
             } catch (Throwable e) {
-                // the poll loop must never die — back off and keep going on ANY failure (network, API, etc.)
+                // the poll loop must never die. Back off and keep going on ANY failure (network, API, etc.)
                 log.warn("telegram poll failed; backing off: {}", e.toString());
                 sleep(ERROR_BACKOFF_MS);
             }

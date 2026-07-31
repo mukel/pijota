@@ -10,7 +10,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Covers {@link LaunchedProcess#exitDiagnostic()} — the mechanism that lets a "browser/driver did not come up" timeout
+ * Covers {@link LaunchedProcess#exitDiagnostic()}, the mechanism that lets a "browser/driver did not come up" timeout
  * name the real cause (exit code + captured stderr tail) instead of just the symptom. Uses a trivial shell process, no
  * browser.
  */

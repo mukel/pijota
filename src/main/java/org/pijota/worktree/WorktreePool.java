@@ -103,7 +103,7 @@ public final class WorktreePool {
             var reg = load();
             boolean known = reg.stream().anyMatch(e -> samePath(e.path, wt));
             if (!known)
-                return null; // not a managed worktree — nothing to do
+                return null; // not a managed worktree, nothing to do
             reset(wt, defaultRef());
             reg.replaceAll(e -> samePath(e.path, wt) ? new Entry(e.path, e.createdMs, now(), false, null) : e);
             save(reg);
@@ -144,7 +144,7 @@ public final class WorktreePool {
             var reg = load();
             reg.removeIf(e -> !Files.isDirectory(Path.of(e.path)));
             String originDefault = originDefaultRef();
-            if (originDefault == null) // origin unreachable / no remote — never risk removing unmerged work
+            if (originDefault == null) // origin unreachable / no remote: never risk removing unmerged work
                 return new PruneResult(List.of(), false, "no reachable origin default branch; nothing pruned");
             // best-effort refresh so "merged" is judged against the real remote tip
             git(repoRoot, "fetch", "origin", originDefault.substring("origin/".length()));

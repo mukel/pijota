@@ -8,7 +8,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Covers {@link Main#run}'s non-frontend entry points — the flags that print and exit without starting a TUI/web/
+ * Covers {@link Main#run}'s non-frontend entry points, the flags that print and exit without starting a TUI/web/
  * Telegram session (help, version, model listing, and the bad-argument path). The interactive frontends and the
  * login/logout flows (which read stdin / hit the network) are exercised by the opt-in {@code PIJOTA_LIVE} tier.
  */

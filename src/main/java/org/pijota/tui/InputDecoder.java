@@ -73,7 +73,7 @@ public final class InputDecoder {
         if (ch == 25)
             return Key.Special.CTRL_Y;
         if (ch == 31)
-            return Key.Special.CTRL_UNDERSCORE; // Ctrl+_ / Ctrl+/ — readline/zsh undo
+            return Key.Special.CTRL_UNDERSCORE; // Ctrl+_ / Ctrl+/ · readline/zsh undo
         if (ch == 24)
             return Key.Special.CTRL_X;
         if (ch == 26)
@@ -96,7 +96,7 @@ public final class InputDecoder {
     // Bracketed-paste bytes arrive back-to-back; a gap this long means the burst is over or the ESC[201~ terminator was
     // lost. Reading with a timeout (never blocking) keeps a buggy/hostile terminal from wedging the input thread, and
     // the char cap bounds memory against a giant paste. On an incomplete paste we return the best-effort content rather
-    // than discard it — a missing terminator is a terminal quirk, not intent to drop the pasted text.
+    // than discard it. A missing terminator is a terminal quirk, not intent to drop the pasted text.
     private static final int PASTE_READ_TIMEOUT_MS = 500;
     private static final int MAX_PASTE_CHARS = 4_000_000;
 
@@ -104,7 +104,7 @@ public final class InputDecoder {
         var sb = new StringBuilder();
         while (sb.length() < MAX_PASTE_CHARS) {
             int ch = in.read(PASTE_READ_TIMEOUT_MS);
-            if (ch < 0) // timeout or EOF — the terminator never arrived; stop rather than block forever
+            if (ch < 0) // timeout or EOF: the terminator never arrived; stop rather than block forever
                 break;
             if (ch == 27) { // maybe the ESC[201~ terminator
                 if (in.read(PASTE_READ_TIMEOUT_MS) == '[') {

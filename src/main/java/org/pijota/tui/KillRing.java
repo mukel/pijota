@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Emacs-style kill ring: text removed by the word/line kill commands is pushed here instead of being lost, so it can be
  * yanked back (possibly elsewhere). {@link #yank()} returns the most recent kill; repeated {@link #yankPop()} walk to
- * older kills, wrapping around — the editor uses this to cycle a just-yanked region.
+ * older kills, wrapping around. The editor uses this to cycle a just-yanked region.
  */
 final class KillRing {
 

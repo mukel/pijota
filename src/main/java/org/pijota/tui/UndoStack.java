@@ -27,7 +27,7 @@ final class UndoStack {
 
     /**
      * Whether an edit of this {@code kind} would start a fresh undo step rather than coalesce into the current run.
-     * Lets the caller skip capturing a pre-edit {@link Snapshot} (an O(n) buffer copy) on coalesced keystrokes — the
+     * Lets the caller skip capturing a pre-edit {@link Snapshot} (an O(n) buffer copy) on coalesced keystrokes, the
      * common case while typing a run of characters.
      */
     boolean beginsNewStep(Kind kind) {
@@ -36,7 +36,7 @@ final class UndoStack {
 
     /**
      * Records the pre-edit state. Coalesces with the previous edit when both are the same TYPING/DELETING run, in which
-     * case {@code before} is ignored (and may be null — see {@link #beginsNewStep}).
+     * case {@code before} is ignored (and may be null, see {@link #beginsNewStep}).
      */
     void record(Snapshot before, Kind kind) {
         redo.clear();

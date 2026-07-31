@@ -19,7 +19,7 @@ public final class CliErrorReporter {
         System.err.println("Error: " + message);
         if (cause != null) {
             // route through ErrorUtil: unwraps Completion/ExecutionException wrappers and scrubs secrets (API keys,
-            // bearer tokens) so a fatal never leaks credentials to the terminal — same contract as every other path.
+            // bearer tokens) so a fatal never leaks credentials to the terminal; same contract as every other path.
             String detail = ErrorUtil.message(cause);
             if (!detail.isBlank())
                 System.err.println("Cause: " + detail);

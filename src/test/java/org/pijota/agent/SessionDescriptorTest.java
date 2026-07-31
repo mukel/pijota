@@ -9,7 +9,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** SessionDescriptor is the single place every frontend derives a session's label/counts from — pure, core logic. */
+/** SessionDescriptor is the single place every frontend derives a session's label/counts from: pure, core logic. */
 class SessionDescriptorTest {
 
     private static Path sessionFile(Path dir, String name, String... lines) throws Exception {

@@ -48,7 +48,7 @@ final class LogViewer {
 
     /**
      * Opens the viewer on a live source re-read periodically (e.g. a still-running sub-agent's log). Starts pinned to
-     * the tail in follow mode — like {@code tail -f}; scrolling up detaches, scrolling/jumping to the bottom
+     * the tail in follow mode, like {@code tail -f}; scrolling up detaches, scrolling/jumping to the bottom
      * re-attaches.
      */
     void showLive(String title, Supplier<List<String>> source) {
@@ -80,7 +80,7 @@ final class LogViewer {
 
     /**
      * Re-reads a live source if the refresh interval has elapsed, keeping the tail pinned in follow mode. Returns true
-     * if it refreshed (so the host should repaint); false for a static view or before the interval elapses — so an open
+     * if it refreshed (so the host should repaint); false for a static view or before the interval elapses, so an open
      * static viewer (help, a finished log) isn't needlessly repainted on every animation tick.
      */
     boolean refreshIfDue() {
@@ -95,7 +95,7 @@ final class LogViewer {
 
     /**
      * Re-reads the live source now (unthrottled), keeping the tail pinned in follow mode. Returns true if the content
-     * changed (so the host should repaint). Skips the re-strip when the line count is unchanged — an append-only log
+     * changed (so the host should repaint). Skips the re-strip when the line count is unchanged: an append-only log
      * that hasn't grown (e.g. a finished log left open) costs nothing. No-op for static views.
      */
     boolean refresh() {

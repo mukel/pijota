@@ -25,7 +25,7 @@ public final class TestTools {
     }
 
     /**
-     * A tool that echoes its {@code "value"} argument back as {@code "tool:<value>"} — for agent/executor tests that
+     * A tool that echoes its {@code "value"} argument back as {@code "tool:<value>"}, for agent/executor tests that
      * need to assert the tool actually received the model's arguments. Schema: one optional string {@code value}.
      */
     public static Tool echoing(String name) {

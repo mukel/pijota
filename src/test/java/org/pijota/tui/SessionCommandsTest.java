@@ -156,7 +156,7 @@ class SessionCommandsTest {
         var host = hostWith(true);
         Path out = tempDir.resolve("exp.md");
 
-        // "/export md <path>" — the leading format token must be parsed off, not folded into the filename.
+        // "/export md <path>": the leading format token must be parsed off, not folded into the filename.
         new SessionCommands(host).exportSession("/export md " + out);
 
         assertTrue(Files.exists(out), host.lines.toString());

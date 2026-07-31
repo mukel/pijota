@@ -10,13 +10,13 @@ final class TerminalFrameRenderer {
     static final String HIDE_CURSOR = "\033[?25l";
     static final String SHOW_CURSOR = "\033[?25h";
 
-    // CSI 2026 / DECSET Synchronized Output — tells the terminal to buffer all
+    // CSI 2026 / DECSET Synchronized Output: tells the terminal to buffer all
     // writes between BEGIN and END, then apply them as one atomic frame.
     static final String BEGIN_SYNC = "\033[?2026h";
     static final String END_SYNC = "\033[?2026l";
 
     // DECAWM auto-wrap, disabled around the prompt frame only: if a glyph-width miscount ever lets a frame row exceed
-    // the terminal width, the terminal clips it instead of wrapping — a cosmetic slip, never an unmeasured physical
+    // the terminal width, the terminal clips it instead of wrapping, a cosmetic slip, never an unmeasured physical
     // row that would desync the erase bookkeeping and eat/duplicate scrollback on every following redraw. Committed
     // scrollback lines are written with auto-wrap ON so an over-wide line can never lose content.
     static final String AUTOWRAP_OFF = "\033[?7l";

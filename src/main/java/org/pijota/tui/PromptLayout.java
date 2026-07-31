@@ -10,7 +10,7 @@ import java.util.List;
  * Composes and emits the prompt frame (stream tail, divider, regions) as a flat list of physical rows.
  *
  * <p>
- * The frame's height is <em>defined</em> as the number of composed rows — there is no separate measurement that could
+ * The frame's height is <em>defined</em> as the number of composed rows. There is no separate measurement that could
  * disagree with what was drawn. Every row is clamped to the terminal width before emission and the renderer disables
  * terminal auto-wrap around the frame, so the terminal can never materialise more rows than were composed. Together
  * with the {@link Stamp} below this makes redraw drift structurally impossible: at worst a single frame is misdrawn
@@ -23,7 +23,7 @@ public final class PromptLayout {
 
     /**
      * Where the previous frame left the terminal: how many rows it occupies and on which of them the cursor was parked.
-     * Erase distance and park position are one value written by one method — they cannot diverge (the eaten-scrollback
+     * Erase distance and park position are one value written by one method, so they cannot diverge (the eaten-scrollback
      * regression fixed here was exactly these two numbers being maintained independently).
      */
     private record Stamp(int rows, int cursorRowFromTop) {
@@ -59,12 +59,12 @@ public final class PromptLayout {
     /**
      * Moves to the top of the previously rendered frame WITHOUT clearing it. The frame is then redrawn line by line,
      * each line overwritten then trimmed to its right (write-then-trim), and {@link #renderAfterErase} clears any
-     * trailing rows at the very end. The screen is therefore never blanked before the redraw, so nothing strobes — even
+     * trailing rows at the very end. The screen is therefore never blanked before the redraw, so nothing strobes, even
      * on terminals that ignore synchronized output. (Callers that append committed lines wrap them to physical rows
      * first, so no terminal auto-wrap can leave stale content that a per-line clear would miss.)
      *
      * <p>
-     * The cursor is parked on the caret row, not the frame's last row — so the way back to the frame top is exactly
+     * The cursor is parked on the caret row, not the frame's last row, so the way back to the frame top is exactly
      * {@code stamp.cursorRowFromTop()} rows, no more: over-moving would climb into committed scrollback and overwrite
      * it on every redraw.
      */
@@ -98,7 +98,7 @@ public final class PromptLayout {
         int cursorCol = -1;
 
         // The in-progress line is previewed live above the separator, wrapped to physical rows by the SAME routine that
-        // wraps committed lines (wrapPreservingAnsi) and at the same width — so styling, which never changes a glyph's
+        // wraps committed lines (wrapPreservingAnsi) and at the same width, so styling, which never changes a glyph's
         // visible width, can't move a wrap point: committing the line changes only colors, never layout (no reflow).
         // The preview is capped to the rows left on screen after the separator + prompt regions, keeping the NEWEST
         // rows, so a long in-progress block streams in full yet can never push the prompt off the bottom. A non-null
@@ -112,7 +112,7 @@ public final class PromptLayout {
             rows.addAll(tailRows.subList(Math.max(0, tailRows.size() - tailBudget), tailRows.size()));
         }
 
-        // Top rule of the prompt frame (the Editor draws the matching bottom rule) — a clean frame without a box; the
+        // Top rule of the prompt frame (the Editor draws the matching bottom rule): a clean frame without a box; the
         // in-box caret carries state, so the rule stays plain. Tinted by state (red on error). Optional (top_divider).
         if (topDivider)
             rows.add(theme.styled(PromptRegion.ruleSlot(snapshot), PromptRegion.rule(width)));
@@ -132,7 +132,7 @@ public final class PromptLayout {
         if (rows.size() > terminalHeight) {
             int drop = rows.size() - terminalHeight;
             rows.subList(0, drop).clear();
-            cursorRow -= drop; // may go negative (caret row dropped) — the park below falls back to the last row
+            cursorRow -= drop; // may go negative (caret row dropped); the park below falls back to the last row
         }
         return new Frame(rows, cursorRow, cursorCol);
     }
@@ -143,7 +143,7 @@ public final class PromptLayout {
             if (i > 0)
                 out.print("\r\n");
             out.print('\r');
-            // Single choke point for row hygiene: no row may carry line breaks or exceed the terminal width — an
+            // Single choke point for row hygiene: no row may carry line breaks or exceed the terminal width; an
             // overlong row would auto-wrap into a physical row the frame never composed (auto-wrap is also disabled
             // around the frame as a second line of defence, where a width miscount degrades to a clipped glyph).
             String row = rows.get(i);
@@ -155,7 +155,7 @@ public final class PromptLayout {
                 vw = width;
             }
             out.print(row);
-            // Write-then-trim: clear leftover only after the row's content is drawn. Skipped for exactly-full rows —
+            // Write-then-trim: clear leftover only after the row's content is drawn. Skipped for exactly-full rows:
             // there is nothing to their right, and on xterm-family terminals the cursor then sits deferred-wrap ON the
             // last column, where EL would erase the glyph just written.
             if (vw < width)

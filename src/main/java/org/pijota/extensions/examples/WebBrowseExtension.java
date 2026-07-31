@@ -24,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Opt-in web browsing through a real (visible) Chrome — the ds4 approach. Off by default; enable with {@code --browse}.
+ * Opt-in web browsing through a real (visible) Chrome, the ds4 approach. Off by default; enable with {@code --browse}.
  * Exposes two tools, {@code web_google_search} and {@code web_visit_page}, returning clean markdown from a rendered
  * page (so paywalls/consent walls/SPAs that defeat a plain fetch work). The browser uses a dedicated persistent profile
  * under Pijota's config directory, is launched lazily on first use after an interactive confirmation, reused across the
@@ -97,7 +97,7 @@ public final class WebBrowseExtension implements Extension {
 
         api.registerTool(new Tool.ToolDefinition("web_pdf_to_markdown",
                                         "Extract a local PDF's text as markdown using the browser's PDF.js. Digital (text-layer) "
-                                                                        + "PDFs only — scanned/image-only PDFs have no text layer and yield little.",
+                                                                        + "PDFs only. Scanned/image-only PDFs have no text layer and yield little.",
                                         oneArg("path", "Path to the .pdf file, relative to the workspace"),
                                         (id, args, cwd) -> run(() -> session.extractPdf(
                                                                         readPdfBase64(cwd, args.getString("path")))))
@@ -122,7 +122,7 @@ public final class WebBrowseExtension implements Extension {
 
     /**
      * The browser's remote-debugging port. A free port is auto-picked so the user never has to think about it; the
-     * undocumented {@code browse-port} override pins a specific one — used by tests to attach to a fake browser, and to
+     * undocumented {@code browse-port} override pins a specific one, used by tests to attach to a fake browser, and to
      * attach to an already-running instance.
      */
     private static int debugPort(ExtensionRuntime rt) {

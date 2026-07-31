@@ -293,7 +293,7 @@ class AppendOnlyTuiTest {
     void thinkingSummaryFormatsTokens() {
         var theme = new AnsiTheme();
         var result = StreamRenderer.thinkingSummary("hello world", 0, theme);
-        assertTrue(result.contains("└ "), "footer of a visible block — the header already said thinking");
+        assertTrue(result.contains("└ "), "footer of a visible block; the header already said thinking");
         assertTrue(result.contains("tokens"));
         assertFalse(result.contains("thought"), "no word the header already carried");
     }
@@ -317,7 +317,7 @@ class AppendOnlyTuiTest {
         var ctx = new PromptSnapshot(List.of(), 0, 0, List.of())
                                         .withPendingMessages(List.of("short", "very long message that wraps"));
         var rows = new AppendOnlyTui.PendingRegion().compose(15, AnsiTheme.dark(), ctx).rows();
-        assertEquals(2, rows.size(), "exactly one row per queued message — never a wrapped extra row");
+        assertEquals(2, rows.size(), "exactly one row per queued message, never a wrapped extra row");
         for (String row : rows)
             assertTrue(AnsiWidth.visibleWidth(row) <= 15, "queued row exceeds width: " + row);
     }

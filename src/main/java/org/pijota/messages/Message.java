@@ -121,7 +121,7 @@ public sealed interface Message {
         }
 
         /**
-         * True when this is a persisted state snapshot (e.g. goal status) — kept for reload but shown via a status
+         * True when this is a persisted state snapshot (e.g. goal status), kept for reload but shown via a status
          * line, not echoed into the transcript. Read by every frontend so the {@link #SILENT} key lives in one place.
          */
         public boolean isSilent() {
@@ -129,7 +129,7 @@ public sealed interface Message {
         }
 
         // Map.copyOf rejects null values, but older persisted snapshots can carry one (e.g. a goal entry written as
-        // {"json":null} before that key was omitted) — tolerate it so reloading those sessions doesn't throw.
+        // {"json":null} before that key was omitted), so tolerate it so reloading those sessions doesn't throw.
         private static Map<String, Object> copyOfNullable(Map<String, Object> details) {
             var copy = new HashMap<String, Object>(details);
             return Collections.unmodifiableMap(copy);

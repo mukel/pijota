@@ -25,7 +25,7 @@ public final class WorktreeCommand {
                                     String path, String error) {
     }
 
-    /** Pure arg parser (no IO) — {@code args[0]} is "worktree". */
+    /** Pure arg parser (no IO); {@code args[0]} is "worktree". */
     static Parsed parse(String[] args) {
         Action action = Action.BARE;
         boolean help = false, lease = false, yes = false, includeDirty = false, includeInUse = false;

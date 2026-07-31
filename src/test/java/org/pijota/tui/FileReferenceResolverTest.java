@@ -253,7 +253,7 @@ class FileReferenceResolverTest {
     @Test
     void specialCharacterFilenamesRoundTripThroughReferenceAndExpand(@TempDir Path tmp) throws Exception {
         for (String name : new String[] {"pom.xml", // slash-less top-level (was left literal before the ./ fix)
-                "re@port.txt", // @ inside the name — only a boundary @ triggers parsing
+                "re@port.txt", // @ inside the name, only a boundary @ triggers parsing
                 "John's.txt", // apostrophe, no space → bare
                 "a 'b'.txt", // apostrophe + space → double-quoted (no escaping needed for ')
                 "a \"b\" c.txt", // double-quote + space → quoted with \" escapes

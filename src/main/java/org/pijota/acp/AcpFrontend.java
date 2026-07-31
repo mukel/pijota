@@ -19,10 +19,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * ACP (Agent Client Protocol) frontend — lets an ACP client (Zed, IntelliJ/JetBrains AI Assistant, Neovim, …) drive
+ * ACP (Agent Client Protocol) frontend: lets an ACP client (Zed, IntelliJ/JetBrains AI Assistant, Neovim, …) drive
  * pijota over stdio. It owns the JSON-RPC transport ({@link AcpPeer}), answers the {@code initialize → session/new →
  * session/prompt} lifecycle, drives {@link PijotaSession#prompt}, and mirrors the session's {@link AgentEvent} stream
- * out as {@code session/update} notifications — the same "subscribe to events, translate to the wire" shape as the web
+ * out as {@code session/update} notifications, the same "subscribe to events, translate to the wire" shape as the web
  * and Telegram frontends.
  *
  * <p>
@@ -32,7 +32,7 @@ import java.util.function.Consumer;
  *
  * <p>
  * Not yet wired: {@code fs/*} and {@code terminal/*} client routing, {@code session/load}, and multiple concurrent
- * sessions — those layer on as follow-ups. v1 serves a single session per connection (the bootstrap session).
+ * sessions. Those layer on as follow-ups. v1 serves a single session per connection (the bootstrap session).
  */
 public final class AcpFrontend {
 
@@ -126,7 +126,7 @@ public final class AcpFrontend {
         ObjectNode result = Util.MAPPER.createObjectNode();
         result.put("sessionId", sid);
         result.set("modes", AcpMessages.sessionModes(thinkingLevel.name().toLowerCase(), THINKING_MODES));
-        // Commands are advertised in afterResponded(), strictly after this response is written — a session/update that
+        // Commands are advertised in afterResponded(), strictly after this response is written. A session/update that
         // arrives before the client has registered the session id is dropped (why Zed showed no commands).
         return CompletableFuture.completedFuture(result);
     }
@@ -139,7 +139,7 @@ public final class AcpFrontend {
         return CompletableFuture.completedFuture(Util.MAPPER.createObjectNode());
     }
 
-    /** Runs after a request's response is written — sends the follow-ups that must be ordered after it. */
+    /** Runs after a request's response is written: sends the follow-ups that must be ordered after it. */
     private void afterResponded(String method) {
         if ("session/new".equals(method))
             advertiseCommands(sessionId);

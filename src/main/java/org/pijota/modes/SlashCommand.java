@@ -16,7 +16,7 @@ public record SlashCommand(String name, String description, String argumentHint,
 
     /**
      * The command in {@code commands} whose name/alias matches the first whitespace-delimited token of {@code input}
-     * (leading "/" optional), or {@code null} if none — the shared command-line lookup every frontend uses.
+     * (leading "/" optional), or {@code null} if none. This is the shared command-line lookup every frontend uses.
      */
     public static SlashCommand find(List<SlashCommand> commands, String input) {
         if (input == null)
@@ -39,7 +39,7 @@ public record SlashCommand(String name, String description, String argumentHint,
     }
 
     /**
-     * The argument text after the command word — everything past the first whitespace-delimited token, stripped. e.g.
+     * The argument text after the command word, i.e. everything past the first whitespace-delimited token, stripped. e.g.
      * {@code "/btw what is X"} → {@code "what is X"}, {@code "/plan"} → {@code ""}. Tab- and multi-space-tolerant, so
      * every frontend parses command arguments the same way.
      */

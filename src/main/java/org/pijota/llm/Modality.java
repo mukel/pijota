@@ -14,7 +14,7 @@ public enum Modality {
     // The image formats the vision providers accept. This is a provider/model limitation, not ours: Anthropic and
     // OpenAI take only JPEG/PNG/GIF/WebP (Gemini also accepts HEIC/HEIF), so we send the cross-provider intersection
     // and reject the rest (HEIC, TIFF, BMP, …). Transcoding them would need a native HEVC/HEIF codec, incompatible
-    // with the single static native-image build — so unsupported formats are rejected with a clear message instead.
+    // with the single static native-image build, so unsupported formats are rejected with a clear message instead.
     private static final Set<String> SUPPORTED_IMAGE_MIMES = Set.of("image/jpeg", "image/png", "image/gif",
                                     "image/webp");
 
@@ -35,7 +35,7 @@ public enum Modality {
             return VIDEO;
         if (m.equals("application/pdf"))
             return PDF;
-        return TEXT; // text/*, application/json, docx, etc. — extracted to text rather than sent as a content part
+        return TEXT; // text/*, application/json, docx, etc. Extracted to text rather than sent as a content part
     }
 
     /** Parses a modality name as written in the catalog ({@code "image"}); null for unknown tokens. */

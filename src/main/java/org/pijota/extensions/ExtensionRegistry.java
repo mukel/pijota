@@ -36,7 +36,7 @@ import java.util.function.Supplier;
  * Core registry that loads, registers, and dispatches to all extensions. Owns the lifecycle: loads extensions from
  * ServiceLoader and a directory, wires them into the agent loop, fires events, dispatches tool-call/user-bash
  * decisions, collects slash commands/keybindings/status lines/skills, and handles shutdown cleanup. This is the
- * host-facing API — extension authors use {@link ExtensionAPI}, not this class.
+ * host-facing API; extension authors use {@link ExtensionAPI}, not this class.
  */
 public final class ExtensionRegistry {
     private static final Logger log = LoggerFactory.getLogger(ExtensionRegistry.class);
@@ -147,7 +147,7 @@ public final class ExtensionRegistry {
 
     public void setTui(UiContext t) {
         this.uiContext = t;
-        // The interactive /question tool follows the active UI owner — route it to t's askQuestions (null → text
+        // The interactive /question tool follows the active UI owner; route it to t's askQuestions (null → text
         // fallback).
         SlashCommandTool.setQuestionHandler(t == null ? null : t::askQuestions);
     }

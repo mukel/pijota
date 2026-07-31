@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** The pure protocol-translation surface of the WebDriver BiDi backend — no browser/driver needed. */
+/** The pure protocol-translation surface of the WebDriver BiDi backend; no browser/driver needed. */
 class BiDiBackendTest {
 
     private static JsonNode parse(String json) throws Exception {
@@ -49,7 +49,7 @@ class BiDiBackendTest {
 
     @Test
     void unwrapsObjectsWithStringKeysRecursively() throws Exception {
-        // Mirrors reader.js's return: {title, byline, content} — the shape readerArticle() reads.
+        // Mirrors reader.js's return: {title, byline, content}, the shape readerArticle() reads.
         JsonNode obj = bidi("{\"type\":\"object\",\"value\":[" + "[\"title\",{\"type\":\"string\",\"value\":\"T\"}],"
                                         + "[\"byline\",{\"type\":\"null\"}],"
                                         + "[\"content\",{\"type\":\"string\",\"value\":\"<p>x</p>\"}]]}");

@@ -6,7 +6,7 @@ import org.pijota.llm.LlmClient;
 import java.util.List;
 
 /**
- * Bridge between {@link ExtensionRegistry} and the agent loop. Extension authors do <em>not</em> implement this — they
+ * Bridge between {@link ExtensionRegistry} and the agent loop. Extension authors do <em>not</em> implement this; they
  * use {@link ExtensionRuntime} (reached via {@code api.runtime()}), which delegates here.
  */
 public interface AgentContext {

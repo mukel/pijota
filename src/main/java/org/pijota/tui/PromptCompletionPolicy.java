@@ -67,7 +67,7 @@ final class PromptCompletionPolicy {
     /**
      * Ghost-text suffix for the top command match, rendered dimmed after what the user has typed. Returns only the
      * trailing portion (e.g. {@code "nscend"} for {@code "/tra"} → {@code "/transcend"}), and only when the match
-     * genuinely extends the typed text as a prefix — fuzzy (non-prefix) matches get no inline suggestion, since
+     * genuinely extends the typed text as a prefix; fuzzy (non-prefix) matches get no inline suggestion, since
      * appending their suffix would not read as the completed command.
      */
     String commandSuggestion(String text) {

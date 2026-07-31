@@ -57,7 +57,7 @@ final class MessageHistory {
         }
     }
 
-    /** A fresh, independently-mutable copy taken under the lock — safe to hand to callers and mutate. */
+    /** A fresh, independently-mutable copy taken under the lock, safe to hand to callers and mutate. */
     List<Message> mutableSnapshot() {
         synchronized (messages) {
             return new ArrayList<>(messages);
@@ -66,7 +66,7 @@ final class MessageHistory {
 
     /**
      * The live backing list, for the single caller that compacts it in place ({@link CompactionManager}, which
-     * synchronizes on the returned list — the same monitor this class uses). Everyone else takes a copy via
+     * synchronizes on the returned list, the same monitor this class uses). Everyone else takes a copy via
      * {@link #snapshot()} / {@link #mutableSnapshot()}.
      */
     List<Message> mutableList() {

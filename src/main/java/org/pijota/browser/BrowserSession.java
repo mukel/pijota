@@ -19,8 +19,8 @@ import java.util.function.Consumer;
 
 /**
  * Reads JS-rendered pages and search results the way a person's browser sees them (not a blocked headless fetch) and
- * returns markdown. Owns the browser-agnostic part — lazy-load settling, Mozilla Readability, the visible-DOM
- * extraction tiers, markdown conversion — over a pluggable {@link BrowserBackend}. Calls are serialized so they can't
+ * returns markdown. Owns the browser-agnostic part (lazy-load settling, Mozilla Readability, the visible-DOM
+ * extraction tiers, markdown conversion) over a pluggable {@link BrowserBackend}. Calls are serialized so they can't
  * race the protocol.
  */
 public final class BrowserSession {
@@ -30,7 +30,7 @@ public final class BrowserSession {
     private static final int MAX_HTML = 1_500_000; // cap the rendered DOM pulled back (fallback path only)
 
     /**
-     * Wall-clock waits for the settle heuristics that have <i>no</i> protocol event — "the visible text stopped
+     * Wall-clock waits for the settle heuristics that have <i>no</i> protocol event: "the visible text stopped
      * growing" (SPA/lazy content) and the consent-dismissal reflow. The load wait itself is event-driven in the backend
      * ({@code Page.loadEventFired} / BiDi {@code wait:"complete"}), so it isn't here. Production values match the tuned
      * ds4 behavior; tests set {@code -Dpijota.browser.fastSettle} to collapse them (an instantly-ready fake has nothing
@@ -134,7 +134,7 @@ public final class BrowserSession {
         backend.navigate(normalizeUrl(url)); // returns once the new document has loaded (event-driven in the backend)
         dismissConsent();
         loadSettle();
-        String reader = readerArticle(); // tier 1: Mozilla Readability ("Firefox reader mode") — clean articles
+        String reader = readerArticle(); // tier 1: Mozilla Readability ("Firefox reader mode"), clean articles
         if (!reader.isBlank())
             return reader;
         String md = str(evaluate(PAGE_EXTRACT_JS)); // tier 2: visible-only DOM walk
@@ -144,7 +144,7 @@ public final class BrowserSession {
     }
 
     /**
-     * Extracts a PDF's text layer as markdown using the bundled PDF.js, run in the real browser — digital (text-layer)
+     * Extracts a PDF's text layer as markdown using the bundled PDF.js, run in the real browser; digital (text-layer)
      * PDFs only; a scanned/image-only PDF has no text layer and yields little. {@code base64} is the raw PDF bytes. The
      * lib + worker are injected via {@link #evaluate} and the parsing happens in-page, so nothing is linked into the
      * native image. Returns a placeholder string (never throws on a bad PDF) so the caller can fall back gracefully.
@@ -152,7 +152,7 @@ public final class BrowserSession {
     public synchronized String extractPdf(String base64) throws Exception {
         String lib = pdfLibJs();
         if (lib.isBlank())
-            return "[pdf.js unavailable — it is downloaded at build time; see src/main/resources/browser/README.md]";
+            return "[pdf.js unavailable · it is downloaded at build time; see src/main/resources/browser/README.md]";
         cancelled = false;
         backend.start();
         backend.navigate("about:blank");
@@ -193,7 +193,7 @@ public final class BrowserSession {
 
     /**
      * Triggers lazy-loaded content (adaptive scroll, only on long pages) then waits until the visible text stops
-     * growing — so dynamic/SPA pages and search/feed results are fully present before extraction (ds4's behavior).
+     * growing, so dynamic/SPA pages and search/feed results are fully present before extraction (ds4's behavior).
      */
     private void loadSettle() throws Exception {
         int innerH = evaluate("innerHeight").asInt(VIEW_H);
@@ -314,7 +314,7 @@ public final class BrowserSession {
     }
 
     // The injected JS lives as raw resources under src/main/resources/browser/ (alongside the vendored Mozilla
-    // Readability.js — the engine behind Firefox Reader View, Apache-2.0). Readability is injected once per page (as an
+    // Readability.js, the engine behind Firefox Reader View, Apache-2.0). Readability is injected once per page (as an
     // init script the backend applies on every new document); reader.js then runs it on a clone of the rendered DOM.
     private static final String READABILITY_JS = loadResource("/browser/Readability.js");
     private static final String READER_EXTRACT_JS = loadResource("/browser/reader.js");
@@ -323,7 +323,7 @@ public final class BrowserSession {
     private static final String CONSENT_JS = loadResource("/browser/dismiss-consent.js");
     private static final String EXTRACT_PDF_JS = loadResource("/browser/extract-pdf.js");
 
-    // PDF.js (lib + worker) is large and downloaded at build time — load it lazily so a browse session that never reads
+    // PDF.js (lib + worker) is large and downloaded at build time, so load it lazily so a browse session that never reads
     // a PDF doesn't hold ~1.5 MB, and so its absence (e.g. an offline first build) can't break class loading.
     private static volatile String pdfLib;
     private static volatile String pdfWorker;

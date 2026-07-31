@@ -53,7 +53,7 @@ import org.slf4j.LoggerFactory;
 /**
  * A tiny web frontend for a {@link PijotaSession}: the chat <em>is</em> the conversation, served as a single page. The
  * agent's {@link AgentEvent} stream is pushed to the browser over Server-Sent Events; the browser POSTs prompts,
- * interrupts and dialog answers back. Built entirely on the JDK's {@link HttpServer} — no web framework, no extra
+ * interrupts and dialog answers back. Built entirely on the JDK's {@link HttpServer}. No web framework, no extra
  * dependency.
  *
  * <p>
@@ -80,7 +80,7 @@ public final class WebServer implements AutoCloseable {
     private final Supplier<List<String>> statusLines; // keyed statuses + registered status/footer lines (TUI parity)
     private final List<SlashCommand> commands;
     private final WebUiContext ui;
-    // When non-null, every request must carry this token (cookie or ?t=) — required once the server binds past
+    // When non-null, every request must carry this token (cookie or ?t=), required once the server binds past
     // loopback.
     private final String authToken;
     private final Consumer<AgentEvent> eventListener = this::onEvent; // stored so close() can remove it
@@ -93,7 +93,7 @@ public final class WebServer implements AutoCloseable {
 
     /**
      * @param commands
-     *            the registered slash commands the browser may run — all frontend-agnostic (extension commands plus
+     *            the registered slash commands the browser may run, all frontend-agnostic (extension commands plus
      *            generic built-ins like {@code /model} from {@code CoreCommandsExtension}). Terminal-bound TUI commands
      *            are not in this set.
      */
@@ -168,7 +168,7 @@ public final class WebServer implements AutoCloseable {
 
     public void start() throws IOException {
         http = HttpServer.create(new InetSocketAddress(host, port), 0);
-        // Auth is gated centrally (secured) so it's structural — a new route can't accidentally ship unauthenticated.
+        // Auth is gated centrally (secured) so it's structural. A new route can't accidentally ship unauthenticated.
         http.createContext("/events", secured(this::serveEvents));
         http.createContext("/prompt", secured(this::handlePrompt));
         http.createContext("/interrupt", secured(this::handleInterrupt));
@@ -203,7 +203,7 @@ public final class WebServer implements AutoCloseable {
     private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
 
     /**
-     * A 192-bit URL-safe pairing token — the shared way to authenticate non-loopback web access (--web /
+     * A 192-bit URL-safe pairing token, the shared way to authenticate non-loopback web access (--web /
      * remote-control).
      */
     public static String newPairingToken() {
@@ -234,25 +234,25 @@ public final class WebServer implements AutoCloseable {
         if (http != null)
             http.stop(0);
         if (httpExecutor != null)
-            httpExecutor.shutdownNow(); // http.stop(0) leaves its executor running — drop the request-handler pool too
+            httpExecutor.shutdownNow(); // http.stop(0) leaves its executor running. Drop the request-handler pool too
         for (SseClient c : clients)
             c.release();
     }
 
     /**
      * Token gate for non-loopback binds: when {@link #authToken} is set, a request is allowed only if it carries the
-     * token via the {@code pijota_rc} cookie or a {@code ?t=} query param (the latter is how the QR/URL bootstraps —
+     * token via the {@code pijota_rc} cookie or a {@code ?t=} query param (the latter is how the QR/URL bootstraps,
      * the first GET sets the cookie). Returns true (and sends 403) when refused. No token configured ⇒ never gates.
      */
     private boolean authBlocked(HttpExchange ex) throws IOException {
         if (authToken == null)
-            return false; // no token configured — open (loopback --web behaviour)
+            return false; // no token configured, open (loopback --web behaviour)
         if (tokenMatches(cookieToken(ex)))
             return false; // already paired
         if (tokenMatches(queryToken(ex))) {
             // bootstrap from the URL/QR token: pin it as an HttpOnly cookie so later XHRs (no token in URL) still pass
             // Persistent (not a session cookie) so a paired browser survives a restart even though the SPA strips ?t=
-            // from the URL — otherwise the bootstrap secret would be gone and every request 403s. SameSite=Lax (not
+            // from the URL. Otherwise the bootstrap secret would be gone and every request 403s. SameSite=Lax (not
             // Strict) so it rides top-level navigations/reloads reliably (state-changing POSTs are Origin-checked).
             ex.getResponseHeaders().add("Set-Cookie", "pijota_rc=" + authToken
                                             + "; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax");
@@ -293,7 +293,7 @@ public final class WebServer implements AutoCloseable {
     // ---- routes ----
 
     /**
-     * Wraps a handler so every request is token-checked first — auth is one structural gate, not a per-route checklist.
+     * Wraps a handler so every request is token-checked first. Auth is one structural gate, not a per-route checklist.
      */
     private HttpHandler secured(HttpHandler handler) {
         return ex -> {
@@ -308,7 +308,7 @@ public final class WebServer implements AutoCloseable {
             return;
         }
         // The pairing token arrives as ?t=… ; authBlocked pinned it as a cookie. We serve the page directly (no
-        // redirect — a 302 + cookie is dropped by some mobile browsers under SameSite, causing "unauthorized"); the
+        // redirect, a 302 + cookie is dropped by some mobile browsers under SameSite, causing "unauthorized"); the
         // SPA strips ?t= from the address bar client-side via history.replaceState so the secret doesn't linger.
         try (InputStream in = WebServer.class.getResourceAsStream("/web/index.html")) {
             byte[] html = in.readAllBytes();
@@ -322,7 +322,7 @@ public final class WebServer implements AutoCloseable {
     private void serveVendor(HttpExchange ex) throws IOException {
         String name = ex.getRequestURI().getPath().substring("/vendor/".length());
         if (name.isEmpty() || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.contains("..")) { // flat
-                                                                                                          // whitelist —
+                                                                                                          // whitelist,
                                                                                                           // no path
                                                                                                           // traversal
             send(ex, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
@@ -375,7 +375,7 @@ public final class WebServer implements AutoCloseable {
         if (requirePost(ex) || crossOriginBlocked(ex)) // auth is handled by the secured() wrapper
             return;
         String body = readBody(ex);
-        if (body == null) { // over the size cap — tell the client instead of silently dropping the message
+        if (body == null) { // over the size cap, tell the client instead of silently dropping the message
             send(ex, 413, "text/plain", "attachments too large".getBytes(StandardCharsets.UTF_8));
             return;
         }
@@ -386,11 +386,11 @@ public final class WebServer implements AutoCloseable {
             if (t.stripLeading().startsWith("/"))
                 runCommand(t.strip());
             else if (session.isBusy()) {
-                // mid-reply: followUp steers the running turn with text only — attachments can't ride along, so don't
+                // mid-reply: followUp steers the running turn with text only. Attachments can't ride along, so don't
                 // echo media as if it was sent; tell the user to resend it after the turn.
                 if (!attachments.isEmpty())
                     broadcast("status", Map.of("message",
-                                                    "Attachments aren't added mid-reply — resend after this turn.",
+                                                    "Attachments aren't added mid-reply. Resend after this turn.",
                                                     "alert", true));
                 broadcast("user", Map.of("content", t, "images", List.of(), "files", List.of()));
                 session.followUp(t);
@@ -478,7 +478,7 @@ public final class WebServer implements AutoCloseable {
             }
             case AgentEvent.Error(Throwable t) -> {
                 broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
-                broadcast("turn", Map.of("busy", false)); // a failed turn fires Error, not TurnEnd — clear the spinner
+                broadcast("turn", Map.of("busy", false)); // a failed turn fires Error, not TurnEnd, so clear the spinner
             }
             case AgentEvent.HistoryChanged ignored -> broadcast("history", history()); // re-render after new/load/undo
             default -> {
@@ -583,7 +583,7 @@ public final class WebServer implements AutoCloseable {
         if (llm == null)
             return Map.of();
         // media modalities the active model accepts (excluding text), so the composer can gate uploads; an unknown
-        // model (null) advertises all of them — the server still gates at send time.
+        // model (null) advertises all of them. The server still gates at send time.
         var mods = ModelRegistry.inputModalities(llm.provider(), llm.model());
         var modalities = mods == null
                                         ? List.of("image", "pdf", "audio", "video")
@@ -611,7 +611,7 @@ public final class WebServer implements AutoCloseable {
     /**
      * CSRF guard for the state-changing endpoints: a browser tab on any other site can POST to this server, so a
      * malicious page could drive the (shell-executing) agent. Same-origin means the request's {@code Origin} host
-     * matches the {@code Host} header the browser actually connected to — true for loopback AND for a LAN/0.0.0.0 bind
+     * matches the {@code Host} header the browser actually connected to, true for loopback AND for a LAN/0.0.0.0 bind
      * reached from another device (e.g. a phone), since the served page and its POSTs share that host. A genuine
      * cross-site request carries the attacking site's Origin, which won't match our Host. Absent Origin = a non-browser
      * client (curl/CLI) with no CSRF vector. Returns true (and sends 403) when the request was refused.
@@ -697,7 +697,7 @@ public final class WebServer implements AutoCloseable {
 
     private static void send(HttpExchange ex, int code, String contentType, byte[] body) throws IOException {
         ex.getResponseHeaders().set("Content-Type", contentType);
-        // gzip text responses (page, vendored JS/CSS, JSON) when the client accepts it — the biggest single load win
+        // gzip text responses (page, vendored JS/CSS, JSON) when the client accepts it, the biggest single load win
         // (the page + libs are ~270KB raw, ~75KB gzipped). SSE bypasses send(), so streaming is never buffered/gzipped.
         if (acceptsGzip(ex) && compressible(contentType) && body.length >= 512) {
             body = gzip(body);

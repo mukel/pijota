@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * Builds the {@code /help} (and {@code /hotkeys}) content: the slash-command groups, the fixed keyboard shortcuts, and
  * any extension keybindings. The host shows the result in the scrollable {@link LogViewer}, so this is a pure builder
- * with no state — the viewer owns scrolling, search, and fit-to-terminal.
+ * with no state. The viewer owns scrolling, search, and fit-to-terminal.
  */
 final class HelpOverlay {
 

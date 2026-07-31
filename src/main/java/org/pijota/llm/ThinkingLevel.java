@@ -1,7 +1,7 @@
 package org.pijota.llm;
 
 public enum ThinkingLevel {
-    // Labels are bare level names — callers add their own context ("thinking " + label, " · " + label). OFF was
+    // Labels are bare level names; callers add their own context ("thinking " + label, " · " + label). OFF was
     // "thinking off", which rendered as "thinking thinking off" when cycling and " · thinking off" in the footer.
     OFF("off", 0), MINIMAL("minimal", 1024), LOW("low", 2048), MEDIUM("medium", 8192), HIGH("high",
                                     16384), XHIGH("xhigh", 32768), MAX("max", 65536);

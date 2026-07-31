@@ -9,8 +9,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Drives the real {@link BrowserSession} end-to-end against {@link FakeChrome} (a fake CDP endpoint) — no browser
- * launched — covering attach/reuse, navigate, visit/search extraction, error surfacing, reconnect, and close.
+ * Drives the real {@link BrowserSession} end-to-end against {@link FakeChrome} (a fake CDP endpoint), no browser
+ * launched, covering attach/reuse, navigate, visit/search extraction, error surfacing, reconnect, and close.
  */
 class BrowserSessionCdpTest {
 
@@ -142,7 +142,7 @@ class BrowserSessionCdpTest {
 
     @Test
     void declinedLaunchThrowsWithoutSpawningChrome() {
-        // point at a dead port (no DevTools) so ensureReady would launch — but confirm says no → it must not spawn.
+        // point at a dead port (no DevTools) so ensureReady would launch, but confirm says no → it must not spawn.
         var s = new BrowserSession(1, PROFILE, "/nonexistent/chrome", null, () -> false);
         var ex = assertThrows(Exception.class, () -> s.visit("https://example.com"));
         assertTrue(ex.getMessage().toLowerCase().contains("declined"), ex.getMessage());

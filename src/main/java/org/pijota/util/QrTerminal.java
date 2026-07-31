@@ -84,7 +84,7 @@ public final class QrTerminal {
         }
     }
 
-    /** A "scan to open" banner: an indented caption, the URL, and its QR — the one place that lays this out. */
+    /** A "scan to open" banner: an indented caption, the URL, and its QR, the one place that lays this out. */
     public static List<String> scannable(String caption, String url) {
         var out = new ArrayList<String>();
         out.add("   " + caption);

@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CodexStreamingChatModelTest {
 
-    /** An SSE stream that yields its preloaded bytes, then blocks on read() until closed — mimics a live socket. */
+    /** An SSE stream that yields its preloaded bytes, then blocks on read() until closed, mimics a live socket. */
     private static final class BlockingStream extends InputStream {
         private final byte[] preloaded;
         private int pos;
@@ -54,7 +54,7 @@ class CodexStreamingChatModelTest {
 
         @Override
         public int read(byte[] b, int off, int len) {
-            // Return available bytes immediately (like a socket) — don't block to fill the buffer, or the reader would
+            // Return available bytes immediately (like a socket); don't block to fill the buffer, or the reader would
             // never surface the first line. Once preloaded is drained, block until close(), then signal EOF.
             if (pos < preloaded.length) {
                 int n = Math.min(len, preloaded.length - pos);
@@ -342,7 +342,7 @@ class CodexStreamingChatModelTest {
     @Test
     void userMessageSendsImagesAsInputImageNotText() {
         // Regression: an attached image must become an "input_image" content part (data URI), not be stringified into
-        // "input_text" — the model can't read raw base64 in a text field (it echoed base64 garbage).
+        // "input_text": the model can't read raw base64 in a text field (it echoed base64 garbage).
         var user = UserMessage.from(TextContent.from("what is this?"), ImageContent.from("aGVsbG8=", "image/png"));
 
         var content = CodexStreamingChatModel.userMessageItem(user).get("content");

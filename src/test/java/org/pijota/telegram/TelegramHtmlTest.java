@@ -69,7 +69,7 @@ class TelegramHtmlTest {
 
     @Test
     void wideTwoColumnTableRendersAsVerticalRecords() {
-        // a monospace grid this wide is a horizontally-scrolling "raw file" on a phone — render it vertically instead
+        // a monospace grid this wide is a horizontally-scrolling "raw file" on a phone, so render it vertically instead
         String md = """
                                         | Repo | Description |
                                         |------|-------------|

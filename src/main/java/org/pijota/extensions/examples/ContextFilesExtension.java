@@ -20,7 +20,7 @@ import java.util.List;
  *
  * <p>
  * Injection is also gated by <b>project trust</b>: a folder must be trusted (via {@code /trust}, remembered in
- * {@link TrustStore}) before its context files load — otherwise a cloned, untrusted repo could inject instructions into
+ * {@link TrustStore}) before its context files load; otherwise a cloned, untrusted repo could inject instructions into
  * the agent through its {@code AGENTS.md}/{@code CLAUDE.md}. Trusting takes effect from the next turn.
  */
 public final class ContextFilesExtension implements Extension {

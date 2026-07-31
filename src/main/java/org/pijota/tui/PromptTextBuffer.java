@@ -96,7 +96,7 @@ final class PromptTextBuffer {
         return Effect.CLEAR_COMPLETIONS;
     }
 
-    // Cursor/edit steps span a whole code point, so an astral character (emoji, rare CJK — a UTF-16 surrogate pair)
+    // Cursor/edit steps span a whole code point, so an astral character (emoji, rare CJK: a UTF-16 surrogate pair)
     // is never split into a lone surrogate. Splitting one corrupts the text (renders as "?") and produces an invalid
     // string that can break JSON/UTF-8 encoding when the prompt is sent.
     private static int stepBefore(String s, int i) {

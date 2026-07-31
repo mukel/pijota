@@ -286,7 +286,7 @@ class TelegramChatFlowTest {
     @Test
     void pdfDocumentIsAcceptedAndStagedOnANonPdfModel() {
         var ts = TestSession.in(tempDir).build();
-        ts.llm().provider("deepseek").model("deepseek-v4-pro"); // text-only model — can't read PDFs natively
+        ts.llm().provider("deepseek").model("deepseek-v4-pro"); // text-only model, can't read PDFs natively
         ts.llm().enqueue(FauxLlm.Response.contentWithUsage("ok"));
         var api = new FakeTelegramApi();
         api.onDownload("%PDF-1.7 hello".getBytes());
@@ -321,7 +321,7 @@ class TelegramChatFlowTest {
     @Test
     void voiceMessageIsRejectedOnATextOnlyModel() {
         var ts = TestSession.in(tempDir).build();
-        ts.llm().provider("deepseek").model("deepseek-v4-pro"); // text-only — audio is disabled for it
+        ts.llm().provider("deepseek").model("deepseek-v4-pro"); // text-only, audio is disabled for it
         var api = new FakeTelegramApi();
         var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
 

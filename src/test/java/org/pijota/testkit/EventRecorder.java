@@ -26,7 +26,7 @@ public final class EventRecorder {
         return recorder;
     }
 
-    /** A live list of the agent's events (mutates as they arrive) — drop-in for plain stream/anyMatch assertions. */
+    /** A live list of the agent's events (mutates as they arrive), drop-in for plain stream/anyMatch assertions. */
     public static List<AgentEvent> capture(AgentLoop agent) {
         var list = new CopyOnWriteArrayList<AgentEvent>();
         agent.addEventListener(list::add);

@@ -5,14 +5,14 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Copies text to the OS clipboard by piping it to the platform's native clipboard command — {@code pbcopy} (macOS),
+ * Copies text to the OS clipboard by piping it to the platform's native clipboard command: {@code pbcopy} (macOS),
  * {@code clip} (Windows), or {@code wl-copy} / {@code xclip} / {@code xsel} (Linux), whichever is present. This
  * deliberately avoids {@code java.awt.Toolkit}: on macOS it forces an AWT/Dock startup that steals focus from the
  * terminal, and it is absent from the GraalVM native image (pijota's primary distribution).
  *
  * <p>
  * Output is discarded rather than captured: {@code xclip}/{@code wl-copy} fork a child that keeps stdout open to serve
- * the selection, which would block a capturing reader — so we redirect to the null device and never read it.
+ * the selection, which would block a capturing reader, so we redirect to the null device and never read it.
  */
 public final class Clipboard {
     private static final long TIMEOUT_MS = 5000;
@@ -37,12 +37,12 @@ public final class Clipboard {
                 stdin.write(text.getBytes(StandardCharsets.UTF_8));
             }
             // pbcopy/clip exit after reading; xclip/wl-copy fork a persistent child and the parent exits. If the parent
-            // hasn't returned by the timeout it is that persistent daemon holding the selection — the copy succeeded.
+            // hasn't returned by the timeout it is that persistent daemon holding the selection, so the copy succeeded.
             if (!p.waitFor(TIMEOUT_MS, TimeUnit.MILLISECONDS))
                 return true;
             return p.exitValue() == 0;
         } catch (Exception e) {
-            return false; // a missing or misbehaving tool must never crash the caller — fall through to the next
+            return false; // a missing or misbehaving tool must never crash the caller, fall through to the next
         }
     }
 

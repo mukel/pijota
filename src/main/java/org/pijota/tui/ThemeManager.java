@@ -89,7 +89,7 @@ final class ThemeManager {
 
     /**
      * The bundled themes ({@code src/main/resources/themes/*.json}). Kept as an explicit list because resource
-     * <em>directories</em> can't be enumerated in the native image — GraalVM's {@code resource:} protocol has no
+     * <em>directories</em> can't be enumerated in the native image; GraalVM's {@code resource:} protocol has no
      * filesystem view, and a jar/classpath scan silently returns nothing there, so only the code-fallback dark/light
      * would show. {@code ThemeManagerTest} cross-checks this list against the actual files to catch drift.
      */

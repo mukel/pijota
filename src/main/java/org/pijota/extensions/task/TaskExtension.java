@@ -269,7 +269,7 @@ public final class TaskExtension implements Extension {
             ui.viewer(file.getFileName().toString(), () -> readLogLines(file));
             return;
         }
-        // Headless: no interactive viewer — post a tail of the log as a message.
+        // Headless: no interactive viewer, post a tail of the log as a message.
         List<String> lines = readLogLines(file);
         int from = Math.max(0, lines.size() - 200);
         var sb = new StringBuilder(file.getFileName().toString()).append('\n');

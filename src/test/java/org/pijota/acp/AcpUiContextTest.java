@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Tests the "pose as text, answer via next prompt" UiContext — its emit sink and pending-reply state machine. */
+/** Tests the "pose as text, answer via next prompt" UiContext, its emit sink and pending-reply state machine. */
 class AcpUiContextTest {
 
     private final List<String> emitted = new ArrayList<>();

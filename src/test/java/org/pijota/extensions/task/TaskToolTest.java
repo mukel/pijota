@@ -33,7 +33,7 @@ class TaskToolTest {
 
     private TaskTool toolWith(List<SubAgent> agents, TaskTool.AgentRunner runner) {
         var tool = new TaskTool(agents, null, List::of, () -> "", (a, l) -> {}, (a, s, t) -> {}, orchTempDir, 0);
-        tool.setAgentRunner(runner); // no real sub-process spawn — canned results drive the orchestration
+        tool.setAgentRunner(runner); // no real sub-process spawn, canned results drive the orchestration
         return tool;
     }
 
@@ -72,7 +72,7 @@ class TaskToolTest {
     void realSpawnProducesAResultWithoutHanging() throws Exception {
         // No setAgentRunner → exercises the real spawnAgent (reinvokes the JVM as `Main --agent`). A keyless FauxLlm
         // means the spawned sub-agent fails fast, so this verifies the spawn/stream/result-collection path produces a
-        // result (typically an error) rather than hanging — without a working LLM.
+        // result (typically an error) rather than hanging, without a working LLM.
         var tool = new TaskTool(List.of(ALPHA), new FauxLlm(), List::of, () -> "", (a, l) -> {}, (a, s, t) -> {},
                                         orchTempDir, 0);
         // Isolate the sub-agent log dir into the test's @TempDir so the spawn doesn't pollute the shared

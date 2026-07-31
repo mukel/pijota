@@ -77,7 +77,7 @@ public class AnsiTheme {
 
     // -- factory presets -------------------------------
 
-    /** A no-color theme whose {@link #styled} returns text unchanged — the safe fallback for non-terminal frontends. */
+    /** A no-color theme whose {@link #styled} returns text unchanged, the safe fallback for non-terminal frontends. */
     private static final AnsiTheme PLAIN = plainTheme();
 
     public static AnsiTheme plain() {
@@ -131,8 +131,8 @@ public class AnsiTheme {
         final String base = resolvedBase != null ? resolvedBase : isLightTheme() ? "#666666" : "#7AA6B8";
 
         // Prose speaks with one voice: every hue collapses to the dim base, so a green inline-code span or an orange
-        // heading can't out-shout the muted body. Fenced code keeps its syntax hues — just blended toward the
-        // background — because a code block is a quotation, not prose, and uniform grey would cost real legibility.
+        // heading can't out-shout the muted body. Fenced code keeps its syntax hues, just blended toward the
+        // background, because a code block is a quotation, not prose, and uniform grey would cost real legibility.
         for (String slot : THINKING_PROSE_SLOTS) {
             t.setSlotSpec(slot, opacitySpec(slotSpec(slot), bg, opacity, base, true, true));
         }
@@ -160,7 +160,7 @@ public class AnsiTheme {
 
     /**
      * A thinking-theme slot spec. Style attributes (bold, italic, …) always survive. With {@code monochrome} every
-     * foreground hue — hex, named, or ansi: — collapses to the single blended base colour (prose slots); without it
+     * foreground hue (hex, named, or ansi:) collapses to the single blended base colour (prose slots); without it
      * each hue is kept and blended toward the background (code slots), i.e. dimmed but still recognisable.
      */
     private static String opacitySpec(String spec, String bg, double opacity, String fallbackColor,
@@ -508,7 +508,7 @@ public class AnsiTheme {
     }
 
     // Every slot the markdown/syntax renderers use for body output, so a thinking block renders exactly like regular
-    // output — just dimmed. "text" (the default body slot, also table-cell text) is included so prose isn't left at
+    // output, just dimmed. "text" (the default body slot, also table-cell text) is included so prose isn't left at
     // full
     // brightness; link slots (mdLink/mdLinkUrl) are dimmed via the extra-slot pass in thinking().
     /** Prose slots: collapsed to the one dim thinking colour (structure survives, hue does not). */
@@ -516,7 +516,7 @@ public class AnsiTheme {
             "strikethrough", "blockquote", "hr", "inlineCode", "toolLabel", "commandMeta", "statusText", "statusWarn",
             "thinkingText"};
 
-    /** Fenced-code slots: syntax hues kept, blended toward the background — dimmed but still readable as code. */
+    /** Fenced-code slots: syntax hues kept, blended toward the background, dimmed but still readable as code. */
     private static final String[] THINKING_CODE_SLOTS = {"codeFence", "codeBody", "synKeyword", "synType", "synString",
             "synNumber", "synComment", "synFunction", "synVariable", "synOperator", "synPunctuation"};
 

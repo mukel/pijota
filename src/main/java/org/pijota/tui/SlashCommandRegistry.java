@@ -85,7 +85,7 @@ final class SlashCommandRegistry {
         if (!extensions.isEmpty())
             appendGroup(out, "extensions", extensions.stream().map(CompletionItem::name).toArray(String[]::new));
 
-        // Keyboard shortcuts are appended by HelpOverlay (the single canonical table) — don't duplicate them here.
+        // Keyboard shortcuts are appended by HelpOverlay (the single canonical table); don't duplicate them here.
         return out;
     }
 
@@ -117,7 +117,7 @@ final class SlashCommandRegistry {
 
     /**
      * Every command, unfiltered. For the command palette, which lists all commands rather than completing a typed "/"
-     * prefix — {@link #completeWithDescriptions} returns nothing for a non-slash (e.g. empty) query by design.
+     * prefix. {@link #completeWithDescriptions} returns nothing for a non-slash (e.g. empty) query by design.
      */
     public List<CompletionItem> all() {
         return commands; // already an immutable List.copyOf
@@ -165,7 +165,7 @@ final class SlashCommandRegistry {
 
     /**
      * Character indices in {@code target} that a match of {@code query} lands on: the contiguous substring when present
-     * (so the exact run is highlighted), otherwise a greedy subsequence — mirroring {@link #fuzzyMatch}. Compared
+     * (so the exact run is highlighted), otherwise a greedy subsequence, mirroring {@link #fuzzyMatch}. Compared
      * case-insensitively; the indices are into the original {@code target}. Empty when there is no match.
      */
     static int[] matchPositions(String query, String target) {

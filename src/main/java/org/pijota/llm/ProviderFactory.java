@@ -111,7 +111,7 @@ public interface ProviderFactory {
                                             .customHeaders(ProviderCatalog.headers(providerName))
                                             // cache the large static prefix (system prompt + tool schemas) re-sent
                                             // every
-                                            // turn — cache reads ≈ 10% of input cost. Other providers auto-cache this.
+                                            // turn. Cache reads ≈ 10% of input cost. Other providers auto-cache this.
                                             .cacheSystemMessages(true).cacheTools(true);
             applyProxy(builder::httpClientBuilder);
             if (thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF) {

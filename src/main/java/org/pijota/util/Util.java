@@ -28,7 +28,7 @@ public final class Util {
                                     .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     /**
-     * Best-effort restrict a path to its owner — files to {@code 0600}, directories to {@code 0700} — so secrets (API
+     * Best-effort restrict a path to its owner (files to {@code 0600}, directories to {@code 0700}) so secrets (API
      * keys, OAuth tokens) and session transcripts under {@code ~/.pijota} aren't readable by other local users. No-op
      * on non-POSIX filesystems (e.g. Windows), where filesystem ACLs govern access instead.
      */
@@ -37,7 +37,7 @@ public final class Util {
             Files.setPosixFilePermissions(path, PosixFilePermissions
                                             .fromString(Files.isDirectory(path) ? "rwx------" : "rw-------"));
         } catch (UnsupportedOperationException | IOException ignored) {
-            // non-POSIX filesystem, or the path vanished — best effort, not a hard guarantee.
+            // non-POSIX filesystem, or the path vanished. Best effort, not a hard guarantee.
         }
     }
 
@@ -54,7 +54,7 @@ public final class Util {
      * SSRF guard: true if {@code host} resolves to a loopback, link-local (incl. {@code 169.254.169.254} cloud
      * metadata), site-local/private, wildcard, or multicast address. Used to stop a prompt-injected agent from steering
      * an outbound fetcher (webfetch, the headless browser) at internal services or the metadata endpoint. Fails open on
-     * resolution errors — an unresolvable host just fails the fetch with a normal network error.
+     * resolution errors. An unresolvable host just fails the fetch with a normal network error.
      */
     public static boolean isInternalAddress(String host) {
         try {
@@ -161,7 +161,7 @@ public final class Util {
         try {
             return MAPPER.readValue(jsonArgs, Map.class);
         } catch (Exception e) {
-            // a tool then runs with NO arguments, which looks like a mysterious tool bug — record why
+            // a tool then runs with NO arguments, which looks like a mysterious tool bug. Record why
             LOG.debug("Could not parse tool arguments as JSON ({}); treating as empty", e.getMessage());
             return Map.of();
         }
@@ -379,7 +379,7 @@ public final class Util {
     }
 
     /**
-     * Tool names whose {@code command} argument is a shell command — so security/permission gates (which key on this
+     * Tool names whose {@code command} argument is a shell command, so security/permission gates (which key on this
      * set) inspect them like the {@code bash} tool: the bash tool, tmux's runner, and the background-jobs runner.
      */
     public static final Set<String> SHELL_TOOL_NAMES = Set.of("bash", "tmux_bash", "jobs_run");
@@ -425,7 +425,7 @@ public final class Util {
         return value.matches("[A-Za-z0-9._/@%+,:=~-]+") ? value : shellQuote(value);
     }
 
-    /** "1 item" / "3 items" — a count with its regularly-pluralized noun (the recurring {@code n==1?"":"s"} idiom). */
+    /** "1 item" / "3 items": a count with its regularly-pluralized noun (the recurring {@code n==1?"":"s"} idiom). */
     public static String plural(long n, String noun) {
         return n + " " + noun + (n == 1 ? "" : "s");
     }

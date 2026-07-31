@@ -70,7 +70,7 @@ final class RichMarkdownRenderer implements MarkdownRenderer {
         var doc = PARSER.parse(indent == 0 ? markdown : MarkdownTableRenderer.stripIndent(markdown, indent));
         for (Node block = doc.getFirstChild(); block != null; block = block.getNext())
             renderBlock(block, base, defaultItalic, 0, blocks);
-        if (blocks.isEmpty()) // whitespace-only or unparsed — echo it styled with the base slot
+        if (blocks.isEmpty()) // whitespace-only or unparsed, echo it styled with the base slot
             return List.of(StyledLine.of(theme.styled(base, markdown)));
         if (indent == 0)
             return blocks;
@@ -105,7 +105,7 @@ final class RichMarkdownRenderer implements MarkdownRenderer {
                 for (StyledLine line : inner)
                     out.add(StyledLine.of(bar + line.text()));
         } else if (node instanceof ThematicBreak) {
-            // Same glyph, width, and colour as table divisions (the "hr" slot — soft grey, thin).
+            // Same glyph, width, and colour as table divisions (the "hr" slot: soft grey, thin).
             out.add(StyledLine.of(theme.styled("hr", "─".repeat(Math.max(3, width)))));
         } else if (node instanceof TableBlock table) {
             out.addAll(MarkdownTableRenderer.renderTable(table, theme, width, true)); // table nested in a quote/list

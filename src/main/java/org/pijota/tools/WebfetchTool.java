@@ -136,7 +136,7 @@ public final class WebfetchTool implements Tool {
     }
 
     /**
-     * SSRF guard — see {@link Util#isInternalAddress(String)}. Local development goes through the bash tool instead.
+     * SSRF guard. See {@link Util#isInternalAddress(String)}. Local development goes through the bash tool instead.
      */
     static boolean isInternalAddress(String host) {
         return Util.isInternalAddress(host);

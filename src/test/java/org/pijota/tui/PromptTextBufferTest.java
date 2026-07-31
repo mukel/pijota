@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PromptTextBufferTest {
     @Test
     void editsStepOverAstralCharactersWithoutSplittingSurrogatePairs() {
-        // 🎉 (U+1F389) is a UTF-16 surrogate pair. Backspace/delete/cursor must treat it as one unit — deleting half
+        // 🎉 (U+1F389) is a UTF-16 surrogate pair. Backspace/delete/cursor must treat it as one unit. Deleting half
         // leaves a lone surrogate that renders as "?" and makes the prompt an invalid string.
         var buffer = new PromptTextBuffer();
         buffer.insertText("a🎉b"); // a🎉b

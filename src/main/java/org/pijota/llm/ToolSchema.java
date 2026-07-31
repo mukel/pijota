@@ -98,12 +98,12 @@ public final class ToolSchema {
             return this;
         }
 
-        /** Builds a closed object schema (with {@code additionalProperties: false}) — the standard top-level form. */
+        /** Builds a closed object schema (with {@code additionalProperties: false}), the standard top-level form. */
         public Map<String, Object> build() {
             return build(true);
         }
 
-        /** Builds an open object schema (no {@code additionalProperties} key) — used for some nested array items. */
+        /** Builds an open object schema (no {@code additionalProperties} key), used for some nested array items. */
         public Map<String, Object> buildOpen() {
             return build(false);
         }

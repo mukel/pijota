@@ -39,7 +39,7 @@ public final class SlashCommandTool implements Tool {
     @Override
     public String description() {
         return "Ask the user one or more questions and wait for their answer. Use it only when you are genuinely "
-                                        + "blocked on a decision, preference, or missing fact you cannot reasonably infer or look up — not "
+                                        + "blocked on a decision, preference, or missing fact you cannot reasonably infer or look up, not "
                                         + "for things you can decide yourself, and not to narrate progress. Pass a non-empty `questions` "
                                         + "array of {question, header, options?, multiple?}: `question` is the full question text (required), "
                                         + "`header` a 1-3 word label, `options` an optional list of {label, description?} choices, `multiple` "

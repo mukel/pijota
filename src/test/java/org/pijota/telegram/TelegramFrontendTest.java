@@ -128,7 +128,7 @@ class TelegramFrontendTest {
         var chats = new ConcurrentHashMap<Long, RecordingChat>();
         var f = frontend(chats, new AtomicInteger(), id -> true);
 
-        // voice: no filename, mime audio/ogg (document/audio/video null) — file() must surface it
+        // voice: no filename, mime audio/ogg (document/audio/video null); file() must surface it
         var voice = new TgMessage(20, new TgChat(100), null, null, null, null, null,
                                         new TelegramClient.TgFile("vid", null, "audio/ogg", 500), null);
         var audio = new TgMessage(21, new TgChat(100), null, "song", null, null,

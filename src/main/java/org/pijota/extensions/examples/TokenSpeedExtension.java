@@ -9,7 +9,7 @@ import java.util.Locale;
 
 /**
  * Opt-in status line showing the prefill (prompt-processing) and decode (generation) tokens-per-second of the most
- * recent request, e.g. {@code ⚡ pp 2.5K · tg 48 tok/s}. Off by default — enable with {@code --token-speed}. The speed
+ * recent request, e.g. {@code ⚡ pp 2.5K · tg 48 tok/s}. Off by default. Enable with {@code --token-speed}. The speed
  * is measured by the LLM client and read via {@link ExtensionRuntime#llm()}; this extension only renders it.
  */
 public final class TokenSpeedExtension implements Extension {

@@ -38,12 +38,12 @@ final class Supervisor {
             }
 
             // No restart requested. If a freshly-respawned build crashed without ever signalling a healthy startup,
-            // auto-roll-back to the previous build — a self-modification that compiles + tests but dies on boot must
+            // auto-roll-back to the previous build. A self-modification that compiles + tests but dies on boot must
             // never brick the agent. The session arg is carried over, so the conversation is preserved.
             if (respawned && exitCode != 0 && !rolledBack && SelfRespawn.isBooting()) {
                 var rollback = SelfRespawn.autoRollbackCommand(command);
                 if (rollback.isPresent()) {
-                    logger.warn("New build failed to start (exit {}) — rolled back to the previous build; session preserved",
+                    logger.warn("New build failed to start (exit {}); rolled back to the previous build; session preserved",
                                                     exitCode);
                     command = rollback.get();
                     rolledBack = true; // respawned is already true here; the rollback relaunch is armed next loop

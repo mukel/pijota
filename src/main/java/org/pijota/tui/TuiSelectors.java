@@ -29,7 +29,7 @@ final class TuiSelectors {
     private final EnumMap<Slot, SelectorBinding> bindings = new EnumMap<>(Slot.class);
 
     /**
-     * Every slot starts with a no-op confirm; callers {@link #bind} the ones they handle — by name, so none can be
+     * Every slot starts with a no-op confirm; callers {@link #bind} the ones they handle, by name, so none can be
      * swapped.
      */
     TuiSelectors() {
@@ -84,7 +84,7 @@ final class TuiSelectors {
 
     <T extends SelectorItem> void refresh(Slot slot, List<T> items) {
         checkItems(slot, items);
-        selector(slot).refreshItems(new ArrayList<>(items)); // keep the cursor put — a live refresh, not a fresh open
+        selector(slot).refreshItems(new ArrayList<>(items)); // keep the cursor put: a live refresh, not a fresh open
     }
 
     boolean handle(Key key, Runnable redraw) {

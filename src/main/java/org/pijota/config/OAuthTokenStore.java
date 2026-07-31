@@ -81,10 +81,10 @@ public final class OAuthTokenStore {
         } catch (IOException e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
             if (msg.contains("400") || msg.contains("401") || msg.contains("403") || msg.contains("invalid_grant")) {
-                // refresh token invalid/revoked — clear it so the user is prompted to re-login
+                // refresh token invalid/revoked; clear it so the user is prompted to re-login
                 tokens.remove(provider);
                 persist();
-                logger.warn("OAuth refresh token for {} was rejected; cleared it — re-login required", provider);
+                logger.warn("OAuth refresh token for {} was rejected; cleared it, re-login required", provider);
             } else {
                 // a transient network/IO error otherwise vanishes as a null token, looking like a revoked login
                 logger.warn("OAuth token refresh for {} failed (network/IO): {}", provider, ErrorUtil.message(e));
@@ -100,14 +100,14 @@ public final class OAuthTokenStore {
         try {
             Files.createDirectories(authFile.getParent());
             Util.restrictToOwner(authFile.getParent());
-            // Atomic write (tmp + rename): a crash or full disk mid-write must never truncate auth.json — a corrupt
+            // Atomic write (tmp + rename): a crash or full disk mid-write must never truncate auth.json; a corrupt
             // file reads as empty and silently logs out every OAuth provider (refresh tokens lost).
             String json = Util.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(tokens);
             Path tmp = authFile.resolveSibling(authFile.getFileName() + ".tmp");
             Files.writeString(tmp, json);
             Util.restrictToOwner(tmp);
             Util.replaceFile(tmp, authFile);
-            Util.restrictToOwner(authFile); // OAuth access/refresh tokens — owner-only
+            Util.restrictToOwner(authFile); // OAuth access/refresh tokens, owner-only
         } catch (IOException e) {
             logger.warn("Failed to persist auth tokens: {}", e.getMessage());
         }
@@ -122,7 +122,7 @@ public final class OAuthTokenStore {
             Map<String, Entry> map = Util.MAPPER.readValue(authFile.toFile(), type);
             return new HashMap<>(map != null ? map : Collections.emptyMap());
         } catch (Exception e) {
-            // corrupt auth.json otherwise silently logs everyone out — say so (no token contents, just the reason)
+            // corrupt auth.json otherwise silently logs everyone out; say so (no token contents, just the reason)
             logger.warn("Could not read stored auth tokens ({}); starting with an empty store", ErrorUtil.message(e));
             return new HashMap<>();
         }

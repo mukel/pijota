@@ -71,7 +71,7 @@ public final class BashTool implements Tool, Tool.Detachable {
                     tail.delete(0, tail.length() - TAIL_CHARS);
                 d = delegate; // captured under the same lock as the tail write, so switchAndDrain sees a
                               // consistent world: every chunk is either in the returned tail or delivered to the
-                              // new delegate — never lost, never both
+                              // new delegate, never lost, never both
             }
             if (d != null) {
                 try {
@@ -140,9 +140,9 @@ public final class BashTool implements Tool, Tool.Detachable {
     public String description() {
         return "Execute a bash command in the current working directory (for builds, tests, git, and other shell "
                                         + "commands). Returns stdout and stderr; output is truncated at 100KB; optional timeout in seconds "
-                                        + "(default 120s). Do NOT use it to read or search files — use read/grep/glob/ls instead, which are "
+                                        + "(default 120s). Do NOT use it to read or search files; use read/grep/glob/ls instead, which are "
                                         + "faster and respect .gitignore. For long-running processes (servers, watchers) prefer jobs_run. "
-                                        + "The user may move a running command to the background — you then receive a job id: poll it with "
+                                        + "The user may move a running command to the background, then you receive a job id: poll it with "
                                         + "jobs_output instead of re-running the command.";
     }
 
@@ -166,7 +166,7 @@ public final class BashTool implements Tool, Tool.Detachable {
     public CompletableFuture<ToolResult> execute(String toolCallId, Args args, String sessionCwd,
                                     Consumer<String> onProgress) {
         // The future is completed by whichever comes first: the command finishing here, or a user detach completing
-        // it with a synthetic "moved to background" result — CompletableFuture.complete makes the race safe (first
+        // it with a synthetic "moved to background" result. CompletableFuture.complete makes the race safe (first
         // wins, the loser's complete() is a no-op).
         var future = new CompletableFuture<ToolResult>();
         var signal = new CompletableFuture<Void>();
@@ -272,7 +272,7 @@ public final class BashTool implements Tool, Tool.Detachable {
                                         || !process.isAlive() || future.isDone())
             return Optional.empty();
         currentProcess = null;
-        // The signal fires only when the adopter completes the call — by then the output feed is already re-pointed,
+        // The signal fires only when the adopter completes the call; by then the output feed is already re-pointed,
         // so ProcessRunner's detached return can never race a chunk past the hand-off.
         return Optional.of(new Tool.DetachedProcess(process, command, outputSink::switchAndDrain, result -> {
             future.complete(result);
@@ -284,7 +284,7 @@ public final class BashTool implements Tool, Tool.Detachable {
     public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         String summary;
         Map<String, Object> details = result.details();
-        // A user-backgrounded call renders as a quiet one-liner — the long model-facing guidance stays out of the
+        // A user-backgrounded call renders as a quiet one-liner; the long model-facing guidance stays out of the
         // transcript; the job id is the only thing the user needs.
         if (details.get("jobId") instanceof String jobId && Boolean.TRUE.equals(details.get("backgrounded")))
             return ToolResultView.of("backgrounded → " + jobId);
@@ -298,7 +298,7 @@ public final class BashTool implements Tool, Tool.Detachable {
         }
         summary = prefix + Util.count(output.lines().count(), "line", "lines");
 
-        // Bare output lines — the framed layout (┌ … └▸) delimits the block, so no per-line rail. On overflow, show a
+        // Bare output lines. The framed layout (┌ … └▸) delimits the block, so no per-line rail. On overflow, show a
         // head+tail preview split by a short "⋯ N omitted" cue; the saved-output path follows on its own line
         // (home-abbreviated) so a narrow terminal isn't forced to wrap the cue.
         var body = new ArrayList<String>();

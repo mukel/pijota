@@ -3,10 +3,10 @@ package org.pijota.extensions;
 import java.util.List;
 
 /**
- * Catalog of the user-toggleable built-in extensions — the single source for rendering the extension section of
+ * Catalog of the user-toggleable built-in extensions; the single source for rendering the extension section of
  * {@code --help}, so it can't drift from reality. Each is flipped uniformly with {@code --<name>} / {@code --no-<name>}
  * (or persisted in {@code settings.json} {@code "extensions"}), resolved by {@link ExtensionRegistry#isEnabled}. The
- * always-on core extensions (task, goal, schedule, mcp, inline-bash, btw, whimsical) aren't listed — they're not meant
+ * always-on core extensions (task, goal, schedule, mcp, inline-bash, btw, whimsical) aren't listed; they're not meant
  * to be toggled.
  */
 public final class BuiltinExtensions {

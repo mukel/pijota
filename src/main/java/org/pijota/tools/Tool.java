@@ -30,7 +30,7 @@ public interface Tool {
         return execute(toolCallId, arguments, null);
     }
 
-    /** Execute the tool — {@code sessionCwd} is the session's working directory at call time. */
+    /** Execute the tool. {@code sessionCwd} is the session's working directory at call time. */
     CompletableFuture<ToolResult> execute(String toolCallId, Args arguments, String sessionCwd);
 
     /** Execute with optional progress updates. Tools that do not stream progress use the normal execute path. */
@@ -55,7 +55,7 @@ public interface Tool {
 
     /**
      * A tool whose running OS process can be handed off to the background: the pending tool call completes early with a
-     * caller-supplied synthetic result and the process lives on. The turn is never made asynchronous — the call just
+     * caller-supplied synthetic result and the process lives on. The turn is never made asynchronous; the call just
      * finishes sooner.
      */
     interface Detachable {
@@ -69,7 +69,7 @@ public interface Tool {
 
     /**
      * A live process handed off by a detached tool call. {@code redirectOutput} atomically re-points the output feed at
-     * the adopter's consumer and returns everything captured before the switch — no chunk is ever lost or duplicated
+     * the adopter's consumer and returns everything captured before the switch, so no chunk is ever lost or duplicated
      * across the hand-off. The adopter observes the eventual exit via {@code process().onExit()} and MUST resolve the
      * still-pending tool call through {@code complete} (which also releases the tool's foreground wait).
      */
@@ -102,7 +102,7 @@ public interface Tool {
         ToolResultView render(Args args, ToolResult result, String cwd);
     }
 
-    /** Lightweight tool registration record — wraps name, description, schema, and an execute lambda. */
+    /** Lightweight tool registration record; wraps name, description, schema, and an execute lambda. */
     record ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
                                     boolean defaultEnabled, ResultRenderer resultRenderer, String glyph) {
         public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute) {
@@ -124,7 +124,7 @@ public interface Tool {
             return new ToolDefinition(name, description, schema, execute, defaultEnabled, resultRenderer, glyph);
         }
 
-        /** Adapts a full {@link Tool} into a definition — the inverse of {@link #toTool()}. */
+        /** Adapts a full {@link Tool} into a definition; the inverse of {@link #toTool()}. */
         public static ToolDefinition from(Tool tool) {
             return new ToolDefinition(tool.name(), tool.description(), tool.schema(),
                                             (id, args, cwd) -> tool.execute(id, args, cwd), tool.defaultEnabled(),
@@ -189,7 +189,7 @@ public interface Tool {
     }
 
     /**
-     * Start defining a tool fluently — the JSON schema is generated from the declared params, so extensions don't
+     * Start defining a tool fluently. The JSON schema is generated from the declared params, so extensions don't
      * hand-build {@code Map.of("type","object",…)}:
      *
      * <pre>{@code
@@ -201,7 +201,7 @@ public interface Tool {
         return new Builder(name);
     }
 
-    /** Read-only view over a tool call's arguments with typed accessors — no manual {@code (String) args.get(...)}. */
+    /** Read-only view over a tool call's arguments with typed accessors; no manual {@code (String) args.get(...)}. */
     record Args(Map<String, Object> map) {
         public String getString(String key) {
             Object v = map.get(key);
@@ -254,7 +254,7 @@ public interface Tool {
         }
     }
 
-    /** Synchronous tool body — {@link Builder#run} wraps it into a completed future. */
+    /** Synchronous tool body; {@link Builder#run} wraps it into a completed future. */
     @FunctionalInterface
     interface SyncExecute {
         ToolResult run(Args args, String sessionCwd);
@@ -333,7 +333,7 @@ public interface Tool {
             return runAsync((id, args, cwd) -> CompletableFuture.completedFuture(body.run(args, cwd)));
         }
 
-        /** Finish with a full async body — for streaming or long-running tools. */
+        /** Finish with a full async body, for streaming or long-running tools. */
         public ToolDefinition runAsync(Execute body) {
             return new ToolDefinition(name, description, rawSchema != null ? rawSchema : schema.build(), body,
                                             defaultEnabled, resultRenderer, glyph);

@@ -102,7 +102,7 @@ class ToolResultLinesTest {
         var view = new Tool.ToolResultView("1 line", List.of("x".repeat(200)));
         var lines = compose(msg, view, 0);
 
-        // 200 columns at width 80 (78 railed) → 3 physical rows, every one railed — a bare continuation row at
+        // 200 columns at width 80 (78 railed) → 3 physical rows, every one railed; a bare continuation row at
         // column zero would visually break the block open.
         long railed = lines.stream().map(AnsiStripper::strip).filter(l -> l.startsWith("│ ")).count();
         assertEquals(3, railed, visible(lines));

@@ -190,7 +190,7 @@ final class MarkdownTableRenderer {
             return; // no columns → nothing to fit
         int cols = widths.length;
         // available is an UPPER bound: columns keep their content width (compact, GitHub-style) and are only shrunk
-        // when the row would overflow the terminal — never grown to fill it (which left short tables mostly padding).
+        // when the row would overflow the terminal, never grown to fill it (which left short tables mostly padding).
         int available = Math.max(cols * 5, width - ((cols - 1) * 3));
         for (int i = 0; i < widths.length; i++)
             widths[i] = Math.max(3, widths[i]);

@@ -16,13 +16,13 @@ import java.util.List;
 
 /**
  * Built-in commands that work on every frontend. Each operates purely on {@link PijotaSession} and the active
- * {@link UiContext} (select/confirm/alert), so it renders natively wherever it runs — a terminal selector, a Telegram
- * inline keyboard, or a web dialog — with no per-UI code. Registered once in {@code AppBootstrap} for all frontends;
+ * {@link UiContext} (select/confirm/alert), so it renders natively wherever it runs: a terminal selector, a Telegram
+ * inline keyboard, or a web dialog, with no per-UI code. Registered once in {@code AppBootstrap} for all frontends;
  * this is the generic home for feature access that previously had to be re-solved per UI.
  *
  * <p>
  * The TUI currently still intercepts some of these (e.g. {@code /model}) with a richer terminal-native handler; that is
- * a display-state optimization, not a second implementation of the feature — the logic of record lives here.
+ * a display-state optimization, not a second implementation of the feature; the logic of record lives here.
  */
 public final class CoreCommandsExtension implements Extension {
 
@@ -92,9 +92,9 @@ public final class CoreCommandsExtension implements Extension {
             return;
         }
         // resumableSessions() is sorted most-recent-first; cap the picker to a manageable, recent slice and label
-        // each with the shared SessionDescriptor (name or first message + age) — same labels every frontend shows.
+        // each with the shared SessionDescriptor (name or first message + age): same labels every frontend shows.
         var recent = session.resumableSessions().stream().limit(MAX_SESSION_CHOICES).toList();
-        var sessions = SessionDescriptor.describeResumable(recent); // skip empty/abandoned sessions — nothing to resume
+        var sessions = SessionDescriptor.describeResumable(recent); // skip empty/abandoned sessions, nothing to resume
         if (sessions.isEmpty()) {
             ui.alert("no previous sessions to resume");
             return;
@@ -112,7 +112,7 @@ public final class CoreCommandsExtension implements Extension {
         }
     }
 
-    /** {@code /model [query]} — switch the active model via the frontend's native selector (or directly on a match). */
+    /** {@code /model [query]}: switch the active model via the frontend's native selector (or directly on a match). */
     private void cmdModel(String arg) {
         UiContext ui = api.runtime().ui();
         if (session.isBusy()) {
