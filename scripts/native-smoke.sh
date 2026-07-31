@@ -9,7 +9,14 @@
 set -u
 
 PJ="${PJ:-target/pj}"
+PJ="$(realpath "$PJ" 2>/dev/null || echo "$PJ")"
 FAILED=0
+
+# Run every model turn from a neutral temp directory: a project cwd loads its context files (CLAUDE.md
+# and friends) into the system prompt, and with that much context small models get pedantic about
+# instructions like "reply with the piped word", flaking the assertions for non-code reasons.
+WORKDIR=$(mktemp -d)
+trap 'rm -rf "$WORKDIR"' EXIT
 
 say() { printf '%s\n' "$*"; }
 fail() { say "FAIL: $*"; FAILED=1; }
@@ -30,7 +37,7 @@ run_family() {
         return
     fi
     local out
-    out=$(timeout 90 "$PJ" --no-session -m "$model" -p "Reply with exactly: SMOKE-OK" 2>&1)
+    out=$(cd "$WORKDIR" && timeout 90 "$PJ" --no-session -m "$model" -p "Reply with exactly: SMOKE-OK" 2>&1)
     if grep -q "SMOKE-OK" <<<"$out"; then
         say "ok: $family ($model)"
     else
@@ -42,7 +49,8 @@ run_family "anthropic-style" "kimi-coding/k3"
 run_family "gemini" "google/gemini-3.1-flash-lite-preview"
 
 say "== stdin pipe =="
-out=$(echo "SMOKE-PIPE" | timeout 90 "$PJ" --no-session -p "Reply with exactly the piped word." 2>&1)
+out=$(cd "$WORKDIR" && echo "SMOKE-PIPE" | timeout 90 "$PJ" --no-session \
+    -p "The first line of this message is a code word. Reply with exactly that code word and nothing else." 2>&1)
 grep -q "SMOKE-PIPE" <<<"$out" && say "ok: piped stdin reaches the prompt" || fail "stdin pipe: $(tail -2 <<<"$out")"
 
 if [ "$FAILED" = 0 ]; then say "== native smoke: ALL OK =="; else say "== native smoke: FAILURES =="; fi
