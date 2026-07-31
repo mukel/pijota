@@ -112,7 +112,7 @@ final class AnsiWidth {
         String osc8Url = null;
         // Last word-break opportunity on the current line: a space splits the emitted line (chunk[..breakStart], before
         // the space) from the partial word carried to the next line (chunk[breakResume..], after it). -1 until the line
-        // has a space to break at — then a wrap prefers that boundary over slicing through the middle of a word.
+        // has a space to break at; then a wrap prefers that boundary over slicing through the middle of a word.
         int breakStart = -1;
         int breakResume = -1;
         int visibleAtResume = 0;

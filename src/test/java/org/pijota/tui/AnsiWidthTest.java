@@ -229,7 +229,7 @@ class AnsiWidthTest {
 
     // ------------------------------------------------------------------------------------------------------------
     // Comprehensive wrap invariants. A wrapped row that exceeds the pane width makes the terminal auto-wrap an extra
-    // physical row, which desyncs the append-only frame bookkeeping — so these properties are load-bearing, not nice
+    // physical row, which desyncs the append-only frame bookkeeping, so these properties are load-bearing, not nice
     // to have. Each is checked across a spread of realistic inputs (prose, styling, CJK, emoji, links, long tokens)
     // and every width, since the wrap point sweeps through every glyph as the width changes.
     // ------------------------------------------------------------------------------------------------------------
@@ -262,7 +262,7 @@ class AnsiWidthTest {
 
     @Test
     void wrappingPreservesEveryVisibleGlyphInOrder() {
-        // Wrapping only ever drops the space it breaks at — never a printable glyph, never a duplicate. Comparing with
+        // Wrapping only ever drops the space it breaks at, never a printable glyph, never a duplicate. Comparing with
         // spaces removed sidesteps which spaces were consumed by soft breaks while still catching any lost/reordered char.
         for (String in : WRAP_CORPUS) {
             String expected = stripAnsi(in).replace(" ", "");
@@ -305,7 +305,7 @@ class AnsiWidthTest {
     @Test
     void wrappingKeepsOsc8HyperlinksBalancedAndNeverBleeding() {
         // A hyperlink must open and close an even number of times across the whole wrap (never left dangling past the
-        // output), and no row may end still inside a link — otherwise the link would extend into the row's blank gutter
+        // output), and no row may end still inside a link; otherwise the link would extend into the row's blank gutter
         // and, worse, into the next frame. (A row may carry a harmless stray close for a link that opens later; a
         // close with no active link is a terminal no-op, so we count net balance rather than forbidding it.)
         String in = "before \033]8;;https://example.com/very/long/path\033\\clickable link words here\033]8;;\033\\ after tail";

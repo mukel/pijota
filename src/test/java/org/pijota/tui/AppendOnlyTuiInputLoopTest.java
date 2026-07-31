@@ -97,7 +97,7 @@ class AppendOnlyTuiInputLoopTest {
 
         var ts = TestSession.in(tempDir).build();
         // "/sessions\r" opens the picker; Ctrl+P (0x10) must NOT open the command palette on top of it. An open
-        // overlay is modal, so app shortcuts are suppressed until it is dismissed — otherwise a second selector stacks.
+        // overlay is modal, so app shortcuts are suppressed until it is dismissed; otherwise a second selector stacks.
         String keys = "/sessions\r" + (char) 0x10;
         String out = driveSession(ts, keys.getBytes(StandardCharsets.UTF_8));
         assertTrue(out.contains("Enter load"), "the session picker opened (its status hint is shown): " + out);

@@ -984,7 +984,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     if (handleSessionPickerAction(key))
                         continue;
                     // App shortcuts (command palette, model picker, editor, …) are modal-suppressed while an overlay is
-                    // open — otherwise one selector-opening chord stacks a second selector on top of the first (e.g.
+                    // open; otherwise one selector-opening chord stacks a second selector on top of the first (e.g.
                     // Ctrl+P over the /sessions picker). Mirrors the same guard on extension keybindings; Esc and the
                     // navigation keys still reach the active overlay through the routing below.
                     if (!anyOverlayActive() && globalKeys.dispatch(key))
@@ -1385,7 +1385,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         try {
-            suspendTui();
+            suspendTui(false); // the editor takes over the alternate screen like fzf → no fresh-line, or a stale ─ accumulates
             String editor = System.getenv().getOrDefault("EDITOR", Platform.isWindows() ? "notepad" : "vi");
             String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
             var result = externalEditor.edit(shell, editor, promptEditor.text());
