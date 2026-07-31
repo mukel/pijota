@@ -158,6 +158,61 @@ class McpExtensionTest {
     }
 
     @Test
+    void aFailingServersStderrTailIsShownInTheOfflineReason() {
+        var runtime = new FakeExtensionRuntime();
+        runtime.setToolRegistry(new ToolRegistry());
+        var api = new FakeExtensionAPI(runtime);
+
+        // A transport that opens but whose server dies talking, having explained itself on stderr (the npx-404 shape).
+        McpTransport.Factory factory = (cfg, cwd) -> new McpTransport() {
+            public void send(String line) {}
+
+            public String receive() throws IOException {
+                throw new IOException("server closed the stream");
+            }
+
+            public void close() {}
+
+            public String stderrTail() {
+                return "npm error 404 Not Found";
+            }
+        };
+        var ext = new McpExtension(oneServer(), factory);
+        ext.init(api);
+        ext.onReady(runtime);
+
+        api.slashCommand("mcp").handler().accept("");
+        assertTrue(api.lastSentMessage().contains("npm error 404"),
+                                        "the offline reason must carry the server's stderr tail: "
+                                                                        + api.lastSentMessage());
+        ext.onShutdown(runtime);
+    }
+
+    @Test
+    void disabledServersAreListedAsDisabledNotMissing() {
+        var registry = new ToolRegistry();
+        var runtime = new FakeExtensionRuntime();
+        runtime.setToolRegistry(registry);
+        var api = new FakeExtensionAPI(runtime);
+
+        Function<Path, List<McpServerConfig>> loader = cwd -> List.of(
+                                        new McpServerConfig("dormant", "cmd", List.of(), Map.of(), false));
+        var ext = new McpExtension(loader, (cfg, cwd) -> {
+            throw new AssertionError("a disabled server must never be auto-started");
+        });
+        ext.init(api);
+        ext.onReady(runtime);
+
+        api.slashCommand("mcp").handler().accept("");
+        assertTrue(api.lastSentMessage().contains("dormant") && api.lastSentMessage().contains("disabled"),
+                                        "configured-but-disabled shows as disabled, not as missing: "
+                                                                        + api.lastSentMessage());
+        assertTrue(api.statusLineSuppliers().getFirst().get().isEmpty(),
+                                        "a deliberately-disabled server is not footer noise");
+        ext.onShutdown(runtime);
+    }
+
+    @Test
     void aFailedHandshakeClosesTheTransportInsteadOfLeakingIt() {
         var registry = new ToolRegistry();
         var runtime = new FakeExtensionRuntime();

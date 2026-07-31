@@ -140,8 +140,19 @@ final class ToolResultLines {
             case "ls" -> details.get("count") instanceof Number n
                                             ? Util.count(n.longValue(), "entry", "entries")
                                             : Util.firstLine(msg.content());
-            default -> Util.firstLine(msg.content());
+            default -> summaryLine(msg.content());
         };
+    }
+
+    /**
+     * First line of the content, except pretty-printed JSON (common from MCP tools) whose first line is a lone brace:
+     * collapse it so the summary shows actual content instead of "{".
+     */
+    private static String summaryLine(String content) {
+        String first = Util.firstLine(content);
+        if (!"{".equals(first) && !"[".equals(first))
+            return first;
+        return Util.ellipsize(content.replaceAll("\\s+", " "), 80);
     }
 
     static String renderToolBodyLine(String line, AnsiTheme theme) {

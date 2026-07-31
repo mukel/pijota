@@ -119,4 +119,14 @@ class ToolResultLinesTest {
         String body = AnsiStripper.strip(lines.get(2));
         assertTrue(body.startsWith("│ [✓]"), "todo lines keep their own rail, un-doubled: " + body);
     }
+
+    @Test
+    void prettyJsonResultsSummarizeAsContentNotALoneBrace() {
+        // MCP tools commonly return pretty-printed JSON; its first line is "{", which as a summary says nothing.
+        var msg = new Message.ToolResult("id", "mcp__srv__tool", "{\n  \"thoughtNumber\": 1,\n  \"done\": true\n}",
+                                        false);
+        String summary = ToolResultLines.toolResultSummary(msg);
+        assertTrue(summary.contains("thoughtNumber"), "the summary shows real content: " + summary);
+        assertFalse(summary.equals("{"), "never just the opening brace");
+    }
 }

@@ -104,6 +104,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     @Override
+    public void refresh() {
+        redrawPrompt(); // async extension state changed (e.g. an MCP server connected); repaint the chrome
+    }
+
+    @Override
     public AnsiTheme theme() {
         return theme;
     }

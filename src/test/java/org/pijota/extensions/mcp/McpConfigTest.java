@@ -52,7 +52,7 @@ class McpConfigTest {
     }
 
     @Test
-    void disabledServersAreSkippedAndProjectOverridesGlobal(@TempDir Path dir) throws Exception {
+    void disabledServersAreKeptWithTheirFlagAndProjectOverridesGlobal(@TempDir Path dir) throws Exception {
         Path global = write(dir, "g.json", """
                                         { "servers": {
                                           "off": { "command": "x", "enabled": false },
@@ -62,8 +62,12 @@ class McpConfigTest {
                                         { "servers": { "shared": { "command": "project-cmd" } } }""");
 
         var servers = McpConfig.load(global, project, k -> null);
-        assertTrue(servers.stream().noneMatch(s -> s.name().equals("off")), "disabled server must be skipped");
+        // Disabled servers stay in the list (so the UI can say "disabled" rather than "none configured" and
+        // /mcp connect can start them on request); the flag records the intent.
+        var off = servers.stream().filter(s -> s.name().equals("off")).findFirst().orElseThrow();
+        assertFalse(off.enabled(), "disabled server is kept, flagged disabled");
         var shared = servers.stream().filter(s -> s.name().equals("shared")).findFirst().orElseThrow();
+        assertTrue(shared.enabled(), "enabled is the default");
         assertEquals("project-cmd", shared.command(), "project config overrides global");
     }
 

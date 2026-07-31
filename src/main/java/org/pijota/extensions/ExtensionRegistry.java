@@ -698,6 +698,12 @@ public final class ExtensionRegistry {
         }
 
         @Override
+        public void refresh() {
+            if (uiContext != null)
+                uiContext.refresh();
+        }
+
+        @Override
         public void setStatus(String key, String message) {
             if (key == null || key.isBlank())
                 return;

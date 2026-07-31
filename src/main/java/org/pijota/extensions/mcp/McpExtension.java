@@ -6,6 +6,7 @@ import org.pijota.extensions.ExtensionRuntime;
 import org.pijota.messages.Message;
 import org.pijota.modes.SlashCommand;
 import org.pijota.tools.ToolRegistry;
+import org.pijota.util.Util;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -106,8 +107,11 @@ public final class McpExtension implements Extension {
         var futures = new ArrayList<CompletableFuture<Void>>();
         for (var cfg : configs) {
             var state = new ServerState(cfg.name());
+            state.config = cfg;
             servers.put(cfg.name(), state);
-            futures.add(CompletableFuture.runAsync(() -> connect(cfg, state, registry), lifecycle()));
+            // Disabled servers are tracked (visible in /mcp, startable via /mcp connect) but never auto-started.
+            if (cfg.enabled())
+                futures.add(CompletableFuture.runAsync(() -> connect(cfg, state, registry), lifecycle()));
         }
         try {
             CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).get(STARTUP_WAIT.toMillis(),
@@ -138,8 +142,10 @@ public final class McpExtension implements Extension {
     private void connect(McpServerConfig cfg, ServerState state, ToolRegistry registry) {
         state.config = cfg;
         McpClient client = null;
+        McpTransport transport = null;
         try {
-            client = new McpClient(cfg.name(), transports.open(cfg, runtime.cwd()), completion());
+            transport = transports.open(cfg, runtime.cwd());
+            client = new McpClient(cfg.name(), transport, completion());
             client.connect(CONNECT_TIMEOUT);
             List<McpToolDescriptor> tools = client.listTools(LIST_TIMEOUT);
             for (var descriptor : tools) {
@@ -153,8 +159,14 @@ public final class McpExtension implements Extension {
         } catch (Exception e) {
             if (client != null)
                 client.close(); // don't leak the process + reader thread when the handshake/listing fails
-            state.error = e.getMessage();
-            log.warn("MCP server {} failed: {}", cfg.name(), e.getMessage());
+            // The server's stderr usually names the actual cause (npm 404, missing binary, bad flag); without it the
+            // only visible symptom is an undebuggable "disconnected".
+            String tail = transport == null ? "" : transport.stderrTail();
+            state.error = e.getMessage() + (tail.isBlank() ? "" : " · stderr: " + Util.ellipsize(tail, 220));
+            log.warn("MCP server {} failed: {}", cfg.name(), state.error);
+        } finally {
+            // Connects finish asynchronously (startup, /mcp commands): repaint so the status lines reflect reality.
+            runtime.refresh();
         }
     }
 
@@ -185,6 +197,8 @@ public final class McpExtension implements Extension {
                 sb.append("  ").append(state.toolNames.size()).append(" tool(s)");
             else if (state.error != null)
                 sb.append("  offline: ").append(state.error); // failed to connect
+            else if (state.config != null && !state.config.enabled())
+                sb.append("  disabled (enable in mcp.json, or /mcp connect ").append(state.name).append(")");
             else if (state.client != null)
                 sb.append("  offline (died)"); // connected, then the process exited
             else
@@ -255,12 +269,16 @@ public final class McpExtension implements Extension {
             var state = servers.get(cfg.name());
             if (state == null) {
                 state = new ServerState(cfg.name());
+                state.config = cfg;
                 servers.put(cfg.name(), state);
-                connect(cfg, state, registry);
+                if (cfg.enabled())
+                    connect(cfg, state, registry);
                 added++;
             } else if (!cfg.equals(state.config)) {
                 closeAndUnregister(state);
-                connect(cfg, state, registry);
+                state.config = cfg;
+                if (cfg.enabled())
+                    connect(cfg, state, registry);
                 updated++;
             }
         }
@@ -300,8 +318,8 @@ public final class McpExtension implements Extension {
         for (var state : servers.values()) {
             if (state.connected())
                 lines.add("🔌 mcp:" + state.name + "  ✓ " + state.toolNames.size() + " tools");
-            else
-                lines.add("🔌 mcp:" + state.name + "  ✗ offline");
+            else if (state.config == null || state.config.enabled())
+                lines.add("🔌 mcp:" + state.name + "  ✗ offline"); // deliberately-disabled servers are not noise
         }
         return lines;
     }

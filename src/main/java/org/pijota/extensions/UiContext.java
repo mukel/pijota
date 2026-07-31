@@ -17,6 +17,12 @@ public interface UiContext {
     /** Set the main status bar text. */
     void setStatus(String message);
 
+    /**
+     * Request a repaint of any live UI chrome (status lines, footer). For async state changes that don't produce
+     * output: without a repaint an append-only frontend shows the state as of its last redraw.
+     */
+    default void refresh() {}
+
     /** Modal yes/no confirmation. Returns false when no UI is attached. */
     default CompletableFuture<Boolean> confirm(String question) {
         return CompletableFuture.completedFuture(false);

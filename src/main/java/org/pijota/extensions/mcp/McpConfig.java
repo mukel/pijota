@@ -41,7 +41,11 @@ final class McpConfig {
         return load(global, project, System::getenv);
     }
 
-    /** Testable variant: explicit file paths and a {@code ${VAR}} resolver; returns only enabled servers. */
+    /**
+     * Testable variant: explicit file paths and a {@code ${VAR}} resolver. Disabled servers are returned too (with
+     * {@code enabled()} false), so the UI can say "configured but disabled" instead of the misleading "none
+     * configured", and {@code /mcp connect} can still start one on explicit request.
+     */
     static List<McpServerConfig> load(Path globalFile, Path projectFile, Function<String, String> env) {
         var merged = new LinkedHashMap<String, RawServer>();
         readFile(globalFile, merged);
@@ -53,10 +57,8 @@ final class McpConfig {
             if (raw == null || raw.command == null || raw.command.isBlank())
                 continue;
             boolean enabled = raw.enabled == null || raw.enabled;
-            if (!enabled)
-                continue;
             out.add(new McpServerConfig(entry.getKey(), expand(raw.command, env), expandAll(raw.args, env),
-                                            expandValues(raw.env, env), true));
+                                            expandValues(raw.env, env), enabled));
         }
         return out;
     }

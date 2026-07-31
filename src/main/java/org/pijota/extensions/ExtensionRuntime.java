@@ -71,6 +71,9 @@ public interface ExtensionRuntime {
     /** Set the main status bar text (overwritten by the next set). */
     void setStatus(String message);
 
+    /** Repaint live UI chrome (status lines, footer) after an async state change that produced no output. */
+    default void refresh() {}
+
     /** Set a named status entry, appears alongside keyless status. */
     void setStatus(String key, String message);
 

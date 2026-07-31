@@ -22,6 +22,11 @@ interface McpTransport extends AutoCloseable {
         return true;
     }
 
+    /** The last few stderr lines the server wrote, for diagnosing failed connects; empty when none or unsupported. */
+    default String stderrTail() {
+        return "";
+    }
+
     @Override
     void close();
 
