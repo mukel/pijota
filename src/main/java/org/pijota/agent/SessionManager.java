@@ -149,6 +149,12 @@ public final class SessionManager {
 
     // -- Entry types --
 
+    /**
+     * Durability stance: ordinary appends are process-crash durable only (the write has left the JVM when this
+     * returns; no fsync promise against power loss). Compaction is the deliberate exception and passes
+     * {@code dsync=true}: losing a compaction on crash would rebuild context from the pre-compaction entries and
+     * silently present stale context. A torn tail from a crash mid-append is repaired on the next live open.
+     */
     private void appendEntry(Path sessionFile, String entryId, String type,
                                     Consumer<LinkedHashMap<String, Object>> fields, boolean dsync) throws IOException {
         lockAndWrite(sessionFile, () -> {
@@ -330,6 +336,7 @@ public final class SessionManager {
         if (!Files.exists(sessionFile))
             return List.of();
 
+        repairTornTail(sessionFile);
         var idToEntry = readAllEntries(sessionFile);
         if (idToEntry.isEmpty())
             return List.of();
@@ -368,7 +375,7 @@ public final class SessionManager {
             return List.of();
 
         if (!entry.containsKey("parentId")) {
-            return buildFlat(idToEntry);
+            return reconcileToolCalls(buildFlat(idToEntry));
         }
 
         var path = buildBranchPath(idToEntry, leafId);
@@ -400,12 +407,43 @@ public final class SessionManager {
             for (int i = compactionIdx + 1; i < path.size(); i++) {
                 appendContextMessage(messages, path.get(i));
             }
-            return messages;
+            return reconcileToolCalls(messages);
         }
 
         for (var pathEntry : path)
             appendContextMessage(messages, pathEntry);
-        return messages;
+        return reconcileToolCalls(messages);
+    }
+
+    /**
+     * A crash between a persisted assistant tool-call batch and its results leaves calls without answers, and
+     * providers reject such context on the next request. Insert a synthetic error result for each unanswered call,
+     * directly after its batch's surviving results (not at the tail: the user may have continued past the crash, and
+     * call/result pairing must hold mid-context too). In-memory only, deliberately not persisted: the tree keeps the
+     * truth that these calls never completed, and every load repairs identically.
+     */
+    static List<Message> reconcileToolCalls(List<Message> messages) {
+        var answered = new HashSet<String>();
+        for (var m : messages)
+            if (m instanceof Message.ToolResult tr)
+                answered.add(tr.toolCallId());
+        var out = new ArrayList<Message>(messages.size());
+        for (int i = 0; i < messages.size(); i++) {
+            var m = messages.get(i);
+            out.add(m);
+            if (m instanceof Message.Assistant a && a.toolCalls() != null && !a.toolCalls().isEmpty()) {
+                while (i + 1 < messages.size() && messages.get(i + 1) instanceof Message.ToolResult tr) {
+                    out.add(tr); // the batch's surviving results stay first, in their recorded order
+                    i++;
+                }
+                for (ToolCall tc : a.toolCalls())
+                    if (!answered.contains(tc.id()))
+                        out.add(new Message.ToolResult(UUID.randomUUID(), Instant.now(), tc.id(), tc.name(),
+                                                        "[interrupted: the session ended before this tool finished]",
+                                                        true, Map.of()));
+            }
+        }
+        return out;
     }
 
     private static void appendContextMessage(List<Message> messages, Map<String, Object> entry) {
@@ -530,6 +568,69 @@ public final class SessionManager {
         return new ArrayList<>(readAllEntries(file).values());
     }
 
+    /**
+     * Repairs the torn tail a crashed append can leave. Blind {@code APPEND} would concatenate the next entry onto a
+     * partial final line, corrupting both entries and orphaning their children (silently truncated context), so every
+     * live open repairs before any append can happen. A parseable unterminated tail lost only its newline: complete
+     * it. Any other content after the last complete line was never acknowledged: drop it. The header line is never
+     * touched; deeper damage is mid-file corruption, which {@link #readAllEntries} surfaces and skips.
+     */
+    private void repairTornTail(Path file) throws IOException {
+        lockAndWrite(file, () -> {
+            byte[] bytes = Files.readAllBytes(file);
+            if (bytes.length == 0)
+                return;
+            int lastNl = -1;
+            for (int i = bytes.length - 1; i >= 0; i--) {
+                if (bytes[i] == '\n') {
+                    lastNl = i;
+                    break;
+                }
+            }
+            if (lastNl == -1)
+                return; // a single unterminated line is the header; leave the lenient loader to cope
+            String tail; // the bytes under repair: either an unterminated suffix or the last complete line
+            int keep; // file length to truncate to when the tail is beyond saving
+            if (lastNl < bytes.length - 1) {
+                tail = new String(bytes, lastNl + 1, bytes.length - lastNl - 1, java.nio.charset.StandardCharsets.UTF_8);
+                keep = lastNl + 1;
+                if (parses(tail)) { // the crash cut exactly between the JSON and its newline: complete the line
+                    Files.writeString(file, "\n", StandardOpenOption.APPEND);
+                    log.warn("Completed torn session tail in {}", file.getFileName());
+                    return;
+                }
+            } else {
+                int prevNl = -1;
+                for (int i = lastNl - 1; i >= 0; i--) {
+                    if (bytes[i] == '\n') {
+                        prevNl = i;
+                        break;
+                    }
+                }
+                if (prevNl == -1)
+                    return; // the last complete line is the header; never touch it
+                tail = new String(bytes, prevNl + 1, lastNl - prevNl - 1, java.nio.charset.StandardCharsets.UTF_8);
+                keep = prevNl + 1;
+                if (parses(tail))
+                    return; // healthy file
+            }
+            try (var ch = java.nio.channels.FileChannel.open(file, StandardOpenOption.WRITE)) {
+                ch.truncate(keep);
+            }
+            log.warn("Dropped torn session tail in {} ({} bytes, never acknowledged)", file.getFileName(),
+                                            bytes.length - keep);
+        });
+    }
+
+    private static boolean parses(String line) {
+        try {
+            Util.MAPPER.readTree(line);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static Map<String, Map<String, Object>> readAllEntries(Path file) throws IOException {
         var idToEntry = new LinkedHashMap<String, Map<String, Object>>();
         try (Stream<String> lines = Files.lines(file)) {
@@ -544,8 +645,9 @@ public final class SessionManager {
                     if (id != null)
                         idToEntry.put(id, e);
                 } catch (Exception ex) {
-                    // a malformed line means a corrupt/truncated session file, skip it but leave a trace
-                    log.debug("Skipping unparseable session entry: {}", ex.getMessage());
+                    // Mid-file corruption (the torn TAIL is repaired before live opens). Load the valid prefix rather
+                    // than refuse, but say so loudly: entries after a skipped line may reference a missing parent.
+                    log.warn("Skipping unparseable session entry in {}: {}", file.getFileName(), ex.getMessage());
                 }
             });
         }

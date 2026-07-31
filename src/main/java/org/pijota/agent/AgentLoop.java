@@ -394,6 +394,9 @@ public final class AgentLoop implements AgentContext {
 
         fireEvent(new AgentEvent.TurnStart(turn));
 
+        // Checkpoint (pi harness vocabulary): between steps, queued steering is consumed here and auto-compaction runs
+        // after the tool batch below. Both append at the context tail, keeping the provider prefix (KV cache) stable;
+        // compaction is the one deliberate exception. Follow-ups are consumed only when the model would stop.
         processSteeringMessages();
 
         var requestMessages = history.snapshot();
@@ -461,8 +464,8 @@ public final class AgentLoop implements AgentContext {
                 if (!isActive(result))
                     return;
                 fireEvent(new AgentEvent.TurnEnd(turn));
-                runAutoCompaction("auto");
-                runLoopRecursive(result, turn + 1);
+                runAutoCompaction("auto"); // checkpoint: compact if the next request would not fit
+                runLoopRecursive(result, turn + 1); // a tool batch always forces another step (results must be seen)
             }).exceptionally(ex -> {
                 failTurn(result, ex);
                 return null;

@@ -8,8 +8,10 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -300,5 +302,128 @@ class SessionManagerTest {
         var loaded = manager.loadMessages(file);
 
         assertTrue(loaded.stream().anyMatch(m -> m instanceof Message.CompactionSummary));
+    }
+
+    // -- Crash safety: torn-tail repair (a crashed append leaves a partial final line) --
+
+    @Test
+    void tornTailMalformedFinalLineIsTruncatedOnLoad() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession(tempDir.toString());
+        manager.appendMessage(file, new Message.User("hello"));
+        Files.writeString(file, "{\"id\":\"partial", StandardOpenOption.APPEND); // crash mid-append: no newline
+
+        var loaded = new SessionManager(tempDir).loadMessages(file); // fresh manager = new process resuming
+
+        assertEquals(1, loaded.size(), "the acknowledged entry survives, the torn tail does not");
+        String content = Files.readString(file);
+        assertTrue(content.endsWith("\n"), "the repaired file is newline-terminated again");
+        assertFalse(content.contains("partial"), "the never-acknowledged tail is gone");
+    }
+
+    @Test
+    void tornTailCompleteJsonWithoutNewlineIsCompleted() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession(tempDir.toString());
+        var first = new Message.User("hello");
+        manager.appendMessage(file, first);
+        // The crash cut exactly between the JSON and its newline: the entry itself is intact.
+        String tail = "{\"id\":\"" + UUID.randomUUID() + "\",\"parentId\":\"" + first.id()
+                                        + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"tail\"}";
+        Files.writeString(file, tail, StandardOpenOption.APPEND);
+
+        var loaded = new SessionManager(tempDir).loadMessages(file);
+
+        assertEquals(2, loaded.size(), "an intact unterminated entry is kept, not dropped");
+        assertEquals("tail", ((Message.User) loaded.get(1)).content());
+        assertTrue(Files.readString(file).endsWith("\n"), "the missing newline was added");
+    }
+
+    @Test
+    void appendAfterTornTailDoesNotMergeLines() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession(tempDir.toString());
+        manager.appendMessage(file, new Message.User("one"));
+        Files.writeString(file, "{\"garbage", StandardOpenOption.APPEND);
+
+        // Resume: load (repairs the tail), then append; the new entry must land on its own line, not be
+        // concatenated onto the partial one (which would corrupt both entries and orphan their children).
+        var resumed = new SessionManager(tempDir);
+        resumed.loadMessages(file);
+        resumed.appendMessage(file, new Message.User("two"));
+
+        var reloaded = new SessionManager(tempDir).loadMessages(file);
+        assertEquals(2, reloaded.size(), "both entries survive as separate, parseable lines");
+        assertEquals("two", ((Message.User) reloaded.get(1)).content());
+    }
+
+    @Test
+    void midFileMalformedLineIsSkippedNotFatal() throws Exception {
+        var file = tempDir.resolve("mid.jsonl");
+        String a = UUID.randomUUID().toString();
+        String b = UUID.randomUUID().toString();
+        Files.writeString(file, "{\"type\":\"session\",\"version\":3}\n" //
+                                        + "{\"id\":\"" + a + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"one\"}\n" //
+                                        + "not json at all\n" // mid-file corruption: skipped with a warning, not fatal
+                                        + "{\"id\":\"" + b + "\",\"parentId\":\"" + a
+                                        + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"two\"}\n");
+
+        var loaded = new SessionManager(tempDir).loadMessages(file);
+
+        assertEquals(2, loaded.size(), "the valid entries load; the corrupt line is skipped");
+    }
+
+    // -- Crash safety: dangling tool calls (crash between the assistant batch and its results) --
+
+    @Test
+    void danglingToolCallsGetSyntheticErrorResults() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = tempDir.resolve("dangling.jsonl");
+        manager.saveMessages(file, List.of(new Message.User("q"),
+                                        new Message.Assistant("a", List.of(new ToolCall("t1", "read", "{}"),
+                                                                        new ToolCall("t2", "bash", "{}")), null),
+                                        new Message.ToolResult("t1", "read", "ok", false)), "/ws");
+
+        var loaded = new SessionManager(tempDir).loadMessages(file);
+
+        assertEquals(4, loaded.size(), "user, assistant, surviving result, synthetic result");
+        assertEquals("t1", ((Message.ToolResult) loaded.get(2)).toolCallId(), "surviving results keep their order");
+        var synthetic = assertInstanceOf(Message.ToolResult.class, loaded.get(3));
+        assertEquals("t2", synthetic.toolCallId());
+        assertTrue(synthetic.isError(), "a synthesized result is an error, not a fake success");
+        assertTrue(synthetic.content().contains("interrupted"), synthetic.content());
+    }
+
+    @Test
+    void danglingToolCallsMidContextAreReconciledInPlace() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = tempDir.resolve("midctx.jsonl");
+        // The user continued past the crash: the synthetic result must be inserted after its batch,
+        // not at the tail, so call/result pairing holds for the provider.
+        manager.saveMessages(file, List.of(new Message.User("q"),
+                                        new Message.Assistant("a", List.of(new ToolCall("t1", "read", "{}")), null),
+                                        new Message.User("continued anyway")), "/ws");
+
+        var loaded = new SessionManager(tempDir).loadMessages(file);
+
+        assertEquals(4, loaded.size());
+        var synthetic = assertInstanceOf(Message.ToolResult.class, loaded.get(2), "inserted right after its batch");
+        assertEquals("t1", synthetic.toolCallId());
+        assertTrue(synthetic.isError());
+        assertInstanceOf(Message.User.class, loaded.get(3), "the continuation stays after the repaired batch");
+    }
+
+    @Test
+    void fullyAnsweredBatchesAreUntouched() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = tempDir.resolve("healthy.jsonl");
+        manager.saveMessages(file, List.of(new Message.User("q"),
+                                        new Message.Assistant("a", List.of(new ToolCall("t1", "read", "{}")), null),
+                                        new Message.ToolResult("t1", "read", "ok", false)), "/ws");
+
+        var loaded = new SessionManager(tempDir).loadMessages(file);
+
+        assertEquals(3, loaded.size(), "no spurious synthesis on a healthy session");
+        assertTrue(loaded.stream().noneMatch(m -> m instanceof Message.ToolResult tr && tr.isError()));
     }
 }
