@@ -5,7 +5,7 @@
 ### A local-first AI coding agent for people who live in terminals.
 
 <p align="center">
-  <a href="https://openjdk.org/projects/jdk/21/"><img src="https://img.shields.io/badge/Java-21-F29111?labelColor=00758F" alt="Java 21"></a>
+  <a href="https://openjdk.org/projects/jdk/21/"><img src="https://img.shields.io/badge/Java-21+-007396?logo=openjdk&logoColor=white" alt="Java 21"></a>
   <a href="https://www.graalvm.org/latest/reference-manual/native-image/"><img src="https://img.shields.io/badge/GraalVM-Native_Image-F29111?labelColor=00758F" alt="GraalVM Native Image"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a>
 </p>
