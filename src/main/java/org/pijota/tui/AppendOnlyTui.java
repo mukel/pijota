@@ -1008,6 +1008,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         ctrlXPrefix = false;
                         clearStatusOverride();
                     }
+                    // The session picker's own Ctrl+P (path) / Ctrl+D (delete) must win over the global keymap, where
+                    // Ctrl+P opens the command palette. It no-ops unless the picker is open, so it's safe here first.
+                    if (handleSessionPickerAction(key))
+                        continue;
                     if (globalKeys.dispatch(key))
                         continue;
                     if (key == Key.Special.ALT_UP) {
@@ -1022,8 +1026,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         }
                         continue;
                     }
-                    if (handleSessionPickerAction(key))
-                        continue;
                     key = remapSpecial(key, selectorKeyRemaps);
                     if (selectors.handle(key, this::redrawPrompt))
                         continue;

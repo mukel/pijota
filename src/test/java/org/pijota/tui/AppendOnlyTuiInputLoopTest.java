@@ -89,6 +89,21 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void sessionPickerCtrlPTogglesPathNotTheCommandPalette() throws Exception {
+        // persist a resumable session so the picker has an entry (with a selection for the Ctrl+P action to target)
+        var seed = TestSession.in(tempDir).build();
+        seed.llm().enqueue(FauxLlm.Response.contentWithUsage("hi"));
+        seed.session().prompt("remember this", List.of()).get(5, TimeUnit.SECONDS);
+
+        var ts = TestSession.in(tempDir).build();
+        // "/sessions\r" opens the picker, then Ctrl+P (0x10): the picker's "path" action must win over the global
+        // keymap, where Ctrl+P opens the command palette.
+        String out = driveSession(ts, "/sessions\r\u0010".getBytes(StandardCharsets.UTF_8));
+        assertTrue(out.contains("path display on"), "Ctrl+P in the session picker toggles path display");
+        assertFalse(out.contains("Run a command"), "Ctrl+P must not open the command palette while the picker is open");
+    }
+
+    @Test
     void exitRestoresTerminalModesSoTheShellIsNotLeftWeird() throws Exception {
         var ts = TestSession.in(tempDir).build();
         String out = driveSession(ts, new byte[0]); // clean Ctrl+D exit runs the terminal restore
