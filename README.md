@@ -2,7 +2,7 @@
 
 # Pijota
 
-### A local-first AI coding agent for people who live in terminals.
+### Written once, self-improving forever...
 
 <p align="center">
   <a href="https://openjdk.org/projects/jdk/21/"><img src="https://img.shields.io/badge/Java-21+-007396?logo=openjdk&logoColor=white" alt="Java 21"></a>
@@ -10,7 +10,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a>
 </p>
 
-**A terminal-native coding agent with real tools, durable sessions, many models, and multiple frontends.**
+**A coding agent written in Java.
+One native binary. Any model. Built to be hacked.**
 
 The command is **`pj`**.
 
@@ -34,6 +35,7 @@ It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp 
 
 | Feature | Why It Matters |
 |---|---|
+| **Single native binary** | GraalVM native-image compiles the whole agent into one executable with instant startup. |
 | **Append-only TUI** | No alt-screen takeover. Output stays in normal terminal scrollback, so copy/search/scroll/panes keep working. |
 | **Real coding tools** | Read, write, edit, patch, grep, glob, run bash, fetch URLs, ask questions, and delegate to sub-agents. |
 | **Bring your own model** | OpenAI, Anthropic, Gemini, OpenAI-compatible APIs, local endpoints, custom providers, aliases, OAuth, and API keys. |
@@ -41,7 +43,7 @@ It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp 
 | **Multiple frontends** | Use the terminal, print mode, JSON-RPC, ACP in editors, the local web UI, or Telegram. |
 | **Extensions everywhere** | Add tools, slash commands, keybindings, prompt context, status lines, and safety hooks. |
 | **Browser and MCP** | Browse rendered pages, extract readable Markdown, and import tools from MCP servers. |
-| **Self-modifying mode** | Opt in to let Pijota edit, build, test, respawn, and recover from failed self-updates. |
+| **Self-modifying mode** | Off by default, for hacking on Pijota itself: the agent edits its own source, builds, tests, respawns, and recovers. |
 
 ---
 
@@ -235,6 +237,8 @@ Persist extension choices in `~/.pijota/settings.json`:
 ### Transcendence
 
 `--transcendence` enables self-modification. Pijota can edit its own Java source, build, test, respawn, and recover if a self-update fails.
+
+Off by default. This is a development feature for working on Pijota itself: useful if you hack on the codebase, unnecessary for everyday coding.
 
 ```bash
 pj --transcendence
