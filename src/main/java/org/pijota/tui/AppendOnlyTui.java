@@ -221,7 +221,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final WorkingAnimation animation = new WorkingAnimation();
     private final FollowUpQueue followUps = new FollowUpQueue();
     private final MessageBrowser messageBrowser;
-    private boolean sessionShowPath;
     private PendingEditManager pendingEdit;
     private final Supplier<List<String>> extensionLinesSupplier;
     private final RemoteControl remoteControl;
@@ -1008,8 +1007,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         ctrlXPrefix = false;
                         clearStatusOverride();
                     }
-                    // The session picker's own Ctrl+P (path) / Ctrl+D (delete) must win over the global keymap, where
-                    // Ctrl+P opens the command palette. It no-ops unless the picker is open, so it's safe here first.
+                    // The session picker's own Ctrl+D (delete) is handled before the global keymap. It no-ops unless
+                    // the picker is open, so it's safe here first.
                     if (handleSessionPickerAction(key))
                         continue;
                     if (globalKeys.dispatch(key))
@@ -1649,18 +1648,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var items = SessionItem.fromPaths(sessions);
         selectors.show(TuiSelectors.Slot.SESSION, items, query);
         promptEditor.setText(query == null ? "" : query);
-        setStatusOverride("Sessions: Enter load, Ctrl+D delete, Ctrl+P path");
+        setStatusOverride("Sessions: Enter load, Ctrl+D delete");
         redrawPrompt();
     }
 
     private boolean handleSessionPickerAction(Key key) {
         if (selectors.<SessionItem>selected(TuiSelectors.Slot.SESSION).isEmpty())
             return false;
-        if (key == Key.Special.CTRL_P) {
-            sessionShowPath = !sessionShowPath;
-            refreshSessionPicker(sessionShowPath ? "path display on" : "path display off");
-            return true;
-        }
         if (key == Key.Special.CTRL_D) {
             deleteSelectedSession();
             return true;
@@ -1669,7 +1663,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void refreshSessionPicker(String status) {
-        var items = SessionItem.fromPaths(session.resumableSessions(), sessionShowPath);
+        var items = SessionItem.fromPaths(session.resumableSessions());
         if (items.isEmpty()) {
             selectors.deactivate(TuiSelectors.Slot.SESSION);
             clearStatusOverride();

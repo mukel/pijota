@@ -23,7 +23,7 @@ final class HelpOverlay {
             {"Ctrl+R", "reverse history search"}, {"Ctrl+G", "open in editor"},
             {"Ctrl+O", "expand/collapse status bar"}, {"@", "fzf file completion (@ref)"},
             {"Ctrl+T", "fzf path completion (raw)"}, {"/help", "show help"},
-            {"/sessions", "picker: Enter load, Ctrl+D delete, Ctrl+P path"}};
+            {"/sessions", "picker: Enter load, Ctrl+D delete"}};
 
     private HelpOverlay() {}
 

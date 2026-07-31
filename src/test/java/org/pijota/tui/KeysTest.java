@@ -23,8 +23,8 @@ class KeysTest {
 
     @Test
     void macRewritesEveryTokenInASentence() {
-        assertEquals("Sessions: Enter load, ⌃D delete, ⌃P path",
-                Keys.render("Sessions: Enter load, Ctrl+D delete, Ctrl+P path", true));
+        assertEquals("Sessions: Enter load, ⌃D delete",
+                Keys.render("Sessions: Enter load, Ctrl+D delete", true));
     }
 
     @Test
