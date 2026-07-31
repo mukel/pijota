@@ -163,6 +163,30 @@ final class SlashCommandRegistry {
         return 10 + gap;
     }
 
+    /**
+     * Character indices in {@code target} that a match of {@code query} lands on: the contiguous substring when present
+     * (so the exact run is highlighted), otherwise a greedy subsequence — mirroring {@link #fuzzyMatch}. Compared
+     * case-insensitively; the indices are into the original {@code target}. Empty when there is no match.
+     */
+    static int[] matchPositions(String query, String target) {
+        if (query == null || query.isEmpty() || target == null)
+            return new int[0];
+        String q = query.toLowerCase(), t = target.toLowerCase();
+        int idx = t.indexOf(q);
+        if (idx >= 0) {
+            int[] pos = new int[q.length()];
+            for (int i = 0; i < q.length(); i++)
+                pos[i] = idx + i;
+            return pos;
+        }
+        int[] pos = new int[q.length()];
+        int qi = 0;
+        for (int ti = 0; ti < t.length() && qi < q.length(); ti++)
+            if (t.charAt(ti) == q.charAt(qi))
+                pos[qi++] = ti;
+        return qi == q.length() ? pos : new int[0];
+    }
+
     private static String commandToken(String name) {
         return name.split("\\s+", 2)[0];
     }

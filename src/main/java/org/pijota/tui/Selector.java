@@ -13,6 +13,7 @@ final class Selector<T extends SelectorItem> {
     private int selected;
     private boolean active;
     private String title = "select";
+    private String query = ""; // the active filter, kept so the renderer can highlight matched characters
 
     Selector(List<T> items) {
         allItems = List.copyOf(items);
@@ -45,6 +46,10 @@ final class Selector<T extends SelectorItem> {
         return title;
     }
 
+    String query() {
+        return query;
+    }
+
     void activate(String query) {
         filter(query);
         active = true;
@@ -69,6 +74,7 @@ final class Selector<T extends SelectorItem> {
     }
 
     void filter(String query) {
+        this.query = query == null ? "" : query;
         visibleIndices.clear();
         if (query == null || query.isBlank()) {
             for (int i = 0; i < allItems.size(); i++)

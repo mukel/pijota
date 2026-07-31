@@ -1,5 +1,6 @@
 package org.pijota.tui;
 
+import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 
 import java.util.ArrayList;
@@ -36,6 +37,26 @@ class SelectorRegionTest {
         var region = new SelectorRegion<>(selector);
 
         assertFalse(compose(region).rows().isEmpty(), "rows should be composed when active with items");
+    }
+
+    @Test
+    void highlightBoldsMatchedCharactersAndPreservesVisibleText() {
+        String out = SelectorRegion.highlight(THEME, "model", "heading", new int[] {1, 2, 3});
+        assertEquals("model", AnsiStripper.strip(out), "no visible characters added or lost");
+        assertTrue(out.contains(THEME.style("bold")), "the matched run is bolded");
+
+        String plain = SelectorRegion.highlight(THEME, "model", "heading", new int[0]);
+        assertEquals(THEME.styled("heading", "model"), plain, "no match → plain base style, no bold");
+    }
+
+    @Test
+    void activeSelectorRowHighlightsTheTypedQuery() {
+        var selector = new Selector<>(List.<SelectorItem>of(new CompletionItem("model", "switch model")));
+        selector.activate("ode"); // subsequence/substring of "model"
+        var region = new SelectorRegion<>(selector);
+        String row = compose(region).rows().stream()
+                                        .filter(r -> AnsiStripper.strip(r).contains("model")).findFirst().orElseThrow();
+        assertTrue(row.contains(THEME.style("bold")), "the matched run is bolded in the rendered row: " + row);
     }
 
     @Test

@@ -79,4 +79,21 @@ class SlashCommandRegistryTest {
         assertTrue(exact < prefix && prefix < contiguous, "exact < prefix < fuzzy");
         assertTrue(gappy > contiguous, "more gaps rank worse");
     }
+
+    @Test
+    void matchPositionsPrefersSubstringThenSubsequence() {
+        assertArrayEquals(new int[] {1, 2, 3}, SlashCommandRegistry.matchPositions("ode", "model"),
+                                        "contiguous substring highlights the exact run");
+        assertArrayEquals(new int[] {0, 2, 4}, SlashCommandRegistry.matchPositions("mdl", "model"),
+                                        "no substring → greedy subsequence m(0) d(2) l(4)");
+        assertArrayEquals(new int[] {0, 1, 2, 3, 4}, SlashCommandRegistry.matchPositions("MODEL", "model"),
+                                        "case-insensitive; indices into the original target");
+    }
+
+    @Test
+    void matchPositionsEmptyWhenNoMatchOrBlankQuery() {
+        assertEquals(0, SlashCommandRegistry.matchPositions("xyz", "model").length, "no match → no positions");
+        assertEquals(0, SlashCommandRegistry.matchPositions("", "model").length, "blank query → no highlight");
+        assertEquals(0, SlashCommandRegistry.matchPositions("mo", null).length, "null target → no positions");
+    }
 }
