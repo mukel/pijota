@@ -81,15 +81,20 @@ final class Selector<T extends SelectorItem> {
                 visibleIndices.add(i);
         } else {
             String q = query.toLowerCase();
+            // score each item once (Schwartzian) so the sort is a cheap array lookup, not a matchScore + toLowerCase
+            // recompute per comparison — this runs on every keystroke over the whole (e.g. ~400-model) list.
+            int[] scoreByIndex = new int[allItems.size()];
             for (int i = 0; i < allItems.size(); i++) {
-                if (SlashCommandRegistry.fuzzyMatch(q, allItems.get(i).searchText().toLowerCase()))
+                String searchText = allItems.get(i).searchText().toLowerCase();
+                if (SlashCommandRegistry.fuzzyMatch(q, searchText)) {
+                    scoreByIndex[i] = SlashCommandRegistry.matchScore(q, searchText);
                     visibleIndices.add(i);
+                }
             }
             // rank best matches first: prefix beats substring beats a scattered subsequence. A stable sort keeps
             // equal-scoring items in their original order (e.g. the configured model/theme order), so "pro" surfaces
             // "deepseek-v4-pro" (substring) above a scattered match instead of leaving list order untouched.
-            visibleIndices.sort(Comparator.comparingInt(
-                                            i -> SlashCommandRegistry.matchScore(q, allItems.get(i).searchText().toLowerCase())));
+            visibleIndices.sort(Comparator.comparingInt(i -> scoreByIndex[i]));
         }
         // A fresh query highlights the top match (index 0) — like any fuzzy finder — so Enter takes the best result,
         // not a stale mid-list cursor from the previous query. -1 when nothing matches (selectedItem() guards on it).

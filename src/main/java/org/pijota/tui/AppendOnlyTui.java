@@ -1290,7 +1290,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         promptEditor.setText("");
-        setTransientStatus(Keys.label("Press Ctrl+C again to exit"), 2500);
+        setTransientStatus("Press Ctrl+C again to exit", 2500);
         redrawPrompt();
     }
 
@@ -1649,7 +1649,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var items = SessionItem.fromPaths(sessions);
         selectors.show(TuiSelectors.Slot.SESSION, items, query);
         promptEditor.setText(query == null ? "" : query);
-        setStatusOverride(Keys.label("Sessions: Enter load, Ctrl+D delete, Ctrl+P path"));
+        setStatusOverride("Sessions: Enter load, Ctrl+D delete, Ctrl+P path");
         redrawPrompt();
     }
 
@@ -2402,7 +2402,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         if (!backgroundGate.tryFire()) {
-            setTransientStatus(Keys.label("Press Ctrl+B again to move " + current.name() + " to the background"), 2000);
+            setTransientStatus("Press Ctrl+B again to move " + current.name() + " to the background", 2000);
             return;
         }
         backgroundGate.disarm();
@@ -2473,12 +2473,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return out;
     }
 
+    // Keys.label here is the single chokepoint for OS-native shortcut notation (⌃⌥⇧ on macOS): every status string
+    // flows through set/setTransient, so callers never have to remember to wrap "Ctrl+…" themselves. It's a no-op on
+    // strings without modifier tokens, and idempotent, so double-labelling is harmless.
     private void setStatusOverride(String status) {
-        statusOverride.set(status);
+        statusOverride.set(Keys.label(status));
     }
 
     private void setTransientStatus(String status, long durationMs) {
-        statusOverride.setTransient(status, durationMs);
+        statusOverride.setTransient(Keys.label(status), durationMs);
     }
 
     private void clearStatusOverride() {

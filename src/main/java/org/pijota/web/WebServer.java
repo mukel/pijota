@@ -717,9 +717,9 @@ public final class WebServer implements AutoCloseable {
     }
 
     private static boolean compressible(String contentType) {
+        // text/ already covers html/css/javascript; json is the only non-text body served, plus svg/xml if ever added
         String ct = contentType.toLowerCase(Locale.ROOT);
-        return ct.startsWith("text/") || ct.contains("javascript") || ct.contains("json")
-                                        || ct.contains("css") || ct.contains("svg") || ct.contains("xml");
+        return ct.startsWith("text/") || ct.contains("json") || ct.contains("svg") || ct.contains("xml");
     }
 
     private static byte[] gzip(byte[] data) throws IOException {

@@ -29,21 +29,10 @@ public record KeyChord(Key key, Set<Modifier> modifiers) {
 
     private String keyLabel() {
         return switch (key) {
-            case ENTER -> "Enter";
-            case BACKSPACE -> "Backspace";
-            case DELETE -> "Delete";
-            case SPACE -> "Space";
-            case TAB -> "Tab";
-            case ESC -> "Esc";
-            case UP -> "Up";
-            case DOWN -> "Down";
-            case LEFT -> "Left";
-            case RIGHT -> "Right";
             case PG_UP -> "PgUp";
             case PG_DOWN -> "PgDn";
-            case HOME -> "Home";
-            case END -> "End";
-            default -> key.name(); // A-Z and F1-F12 read fine as-is
+            // title-case the enum name: A/F1 stay themselves; ENTER→Enter, BACKSPACE→Backspace, etc.
+            default -> key.name().charAt(0) + key.name().substring(1).toLowerCase();
         };
     }
 

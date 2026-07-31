@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.function.BiFunction;
 
 import static org.pijota.util.Util.fmtCount;
+import static org.pijota.util.Util.plural;
 
 final class SessionCommands {
     interface Host extends TuiHost {
@@ -298,10 +299,6 @@ final class SessionCommands {
         }
     }
 
-    private static String msgCount(long n) {
-        return n + (n == 1 ? " msg" : " msgs");
-    }
-
     private static Path uniqueImportTarget(Path dir, String fileName) {
         Path target = dir.resolve(fileName);
         if (!Files.exists(target))
@@ -352,7 +349,7 @@ final class SessionCommands {
         long overhead = Math.max(0, host.session().estimatedContextTokens() - messageTok);
 
         var lines = new ArrayList<String>();
-        lines.add(host.styled("toolLabel", "context  " + msgCount(msgs.size()) + "  " + host.tokenStatus()));
+        lines.add(host.styled("toolLabel", "context  " + plural(msgs.size(), "msg") + "  " + host.tokenStatus()));
         lines.add(host.styled("statusText", "  auto-compact  "
                                         + (host.settings() == null || host.settings().compactionEnabled()
                                                                         ? "on"
@@ -361,16 +358,16 @@ final class SessionCommands {
             lines.add(host.styled("statusText", "  overhead   system prompt + tools  " + fmtCount((int) overhead)
                                             + " est tokens"));
         if (systems > 0)
-            lines.add(host.styled("statusText", "  system     " + msgCount(systems) + "  " + fmtCount((int) systemTok)
+            lines.add(host.styled("statusText", "  system     " + plural(systems, "msg") + "  " + fmtCount((int) systemTok)
                                             + " est tokens"));
         lines.add(host.styled("statusText",
-                                        "  user       " + msgCount(users) + "  " + fmtCount((int) userTok) + " est tokens"));
-        lines.add(host.styled("statusText", "  assistant  " + msgCount(assistants) + "  " + fmtCount((int) assistantTok)
+                                        "  user       " + plural(users, "msg") + "  " + fmtCount((int) userTok) + " est tokens"));
+        lines.add(host.styled("statusText", "  assistant  " + plural(assistants, "msg") + "  " + fmtCount((int) assistantTok)
                                         + " est tokens"));
         lines.add(host.styled("statusText",
-                                        "  tool       " + msgCount(tools) + "  " + fmtCount((int) toolTok) + " est tokens"));
+                                        "  tool       " + plural(tools, "msg") + "  " + fmtCount((int) toolTok) + " est tokens"));
         if (compactions > 0) {
-            lines.add(host.styled("statusText", "  summaries  " + msgCount(compactions) + "  " + fmtCount((int) summaryTok)
+            lines.add(host.styled("statusText", "  summaries  " + plural(compactions, "msg") + "  " + fmtCount((int) summaryTok)
                                             + " est tokens"));
             for (var m : msgs) {
                 if (m instanceof Message.CompactionSummary cs) {
