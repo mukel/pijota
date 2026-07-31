@@ -30,11 +30,15 @@ final class ToolResultLines {
     static List<String> compose(Message.ToolResult msg, Tool.ToolResultView rendered, Supplier<String> args,
                                     AnsiTheme theme, String rawCwd, PathDisplay pathDisplay, long elapsedMs,
                                     String glyph, int width) {
-        // Name (accent) · target detail (muted) — identical in every layout; only the marker before it varies.
-        var nameDetail = new StringBuilder(theme.styled("toolLabel", msg.toolName()));
+        // Name (accent) · target detail (muted) — identical in every layout; only the marker before it varies. Bash is
+        // the exception: its name is noise (the command IS the content), so it shows a shell "$" prompt instead of the
+        // word "bash", and its command renders in the readable text tone — not the muted target tone — so emphasis
+        // lands where you actually read.
+        boolean shell = msg.toolName().equals("bash");
+        var nameDetail = new StringBuilder(theme.styled("toolLabel", shell ? "$" : msg.toolName()));
         String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay);
         if (!detail.isBlank())
-            nameDetail.append(' ').append(theme.styled("statusText", detail));
+            nameDetail.append(' ').append(theme.styled(shell ? "text" : "statusText", detail));
 
         String summary = rendered != null ? rendered.summary() : msg.isError() ? "" : toolResultSummary(msg);
         Integer exit = null;

@@ -45,7 +45,7 @@ class ToolResultLinesTest {
         // blank air + ┌ header + two railed body lines + └ footer
         assertEquals(5, lines.size(), visible(lines));
         assertEquals("", lines.get(0), "a framed block claims one blank line of air above itself");
-        assertTrue(AnsiStripper.strip(lines.get(1)).startsWith("┌ bash"), visible(lines));
+        assertTrue(AnsiStripper.strip(lines.get(1)).startsWith("┌ $"), visible(lines)); // bash shows a "$" shell prompt
         assertTrue(AnsiStripper.strip(lines.get(2)).startsWith("│ line one"), visible(lines));
         assertTrue(AnsiStripper.strip(lines.get(3)).startsWith("│ line two"), visible(lines));
         String foot = AnsiStripper.strip(lines.get(4));
@@ -61,7 +61,7 @@ class ToolResultLinesTest {
         var lines = compose(msg, null, 4_000);
 
         String header = AnsiStripper.strip(lines.get(1));
-        assertTrue(header.startsWith("✖ bash"), header);
+        assertTrue(header.startsWith("✖ $"), header); // bash shows a "$" shell prompt, not the word
         assertTrue(header.contains("exit 101"), header);
         assertFalse(header.contains("error[E0308]"), "the excerpt lives in the body, never the header: " + header);
         assertTrue(AnsiStripper.strip(lines.get(2)).startsWith("│ error[E0308]"), visible(lines));
