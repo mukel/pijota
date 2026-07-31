@@ -69,4 +69,13 @@ class KeyChordTest {
         assertNotNull(KeyChord.Modifier.ALT);
         assertEquals(3, KeyChord.Modifier.values().length);
     }
+
+    @Test
+    void displayRendersWrittenModifiersAndKey() {
+        // canonical Ctrl+Alt+Shift order regardless of construction order; not the raw record toString()
+        assertEquals("Ctrl+Alt+P", new KeyChord(KeyChord.Key.P, KeyChord.Modifier.ALT, KeyChord.Modifier.CTRL).display());
+        assertEquals("Ctrl+Shift+K", new KeyChord(KeyChord.Key.K, KeyChord.Modifier.SHIFT, KeyChord.Modifier.CTRL).display());
+        assertEquals("Ctrl+Enter", new KeyChord(KeyChord.Key.ENTER, KeyChord.Modifier.CTRL).display());
+        assertEquals("P", new KeyChord(KeyChord.Key.P).display());
+    }
 }

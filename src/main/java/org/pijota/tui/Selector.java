@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -78,6 +79,11 @@ final class Selector<T extends SelectorItem> {
                 if (SlashCommandRegistry.fuzzyMatch(q, allItems.get(i).searchText().toLowerCase()))
                     visibleIndices.add(i);
             }
+            // rank best matches first: prefix beats substring beats a scattered subsequence. A stable sort keeps
+            // equal-scoring items in their original order (e.g. the configured model/theme order), so "pro" surfaces
+            // "deepseek-v4-pro" (substring) above a scattered match instead of leaving list order untouched.
+            visibleIndices.sort(Comparator.comparingInt(
+                                            i -> SlashCommandRegistry.matchScore(q, allItems.get(i).searchText().toLowerCase())));
         }
         // A fresh query highlights the top match (index 0) — like any fuzzy finder — so Enter takes the best result,
         // not a stale mid-list cursor from the previous query. -1 when nothing matches (selectedItem() guards on it).

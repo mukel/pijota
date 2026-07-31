@@ -116,6 +116,17 @@ class LogViewerTest {
     }
 
     @Test
+    void spaceAndBPageLikeLess() {
+        var v = viewer(3, 10); // viewport 3, maxTop 7
+        type(v, " "); // Space pages down by a viewport
+        assertEquals(3, v.top());
+        type(v, " ");
+        assertEquals(6, v.top());
+        type(v, "b"); // b pages back
+        assertEquals(3, v.top());
+    }
+
+    @Test
     void qClosesViewer() {
         var v = viewer(3, 10);
         assertTrue(v.handleKey(new Key.Char('q')));

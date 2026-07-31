@@ -13,7 +13,7 @@ import java.util.function.Supplier;
  * unit-testable; the host TUI only forwards keys ({@link #handleKey}) and draws {@link #renderLines}.
  *
  * <p>
- * Keys (when active): Up/Down or j/k scroll; PgUp/PgDn page; Home/g top; End/G bottom; {@code /} starts a search (type,
+ * Keys (when active): Up/Down or j/k scroll; PgUp/PgDn or Space/b page; Home/g top; End/G bottom; {@code /} starts a search (type,
  * Enter to commit, Esc to cancel); n / N jump to next / previous match; Esc or q closes the viewer.
  */
 final class LogViewer {
@@ -177,6 +177,8 @@ final class LogViewer {
                 case 'q' -> close();
                 case 'k' -> scrollBy(-1);
                 case 'j' -> scrollBy(1);
+                case ' ' -> scrollBy(viewport);  // less-style: Space pages down
+                case 'b' -> scrollBy(-viewport); // less-style: b pages back
                 case 'g' -> jumpTop();
                 case 'G' -> jumpBottom();
                 case '/' -> {

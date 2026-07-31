@@ -298,6 +298,10 @@ final class SessionCommands {
         }
     }
 
+    private static String msgCount(long n) {
+        return n + (n == 1 ? " msg" : " msgs");
+    }
+
     private static Path uniqueImportTarget(Path dir, String fileName) {
         Path target = dir.resolve(fileName);
         if (!Files.exists(target))
@@ -348,7 +352,7 @@ final class SessionCommands {
         long overhead = Math.max(0, host.session().estimatedContextTokens() - messageTok);
 
         var lines = new ArrayList<String>();
-        lines.add(host.styled("toolLabel", "context  " + msgs.size() + " msgs  " + host.tokenStatus()));
+        lines.add(host.styled("toolLabel", "context  " + msgCount(msgs.size()) + "  " + host.tokenStatus()));
         lines.add(host.styled("statusText", "  auto-compact  "
                                         + (host.settings() == null || host.settings().compactionEnabled()
                                                                         ? "on"
@@ -357,16 +361,16 @@ final class SessionCommands {
             lines.add(host.styled("statusText", "  overhead   system prompt + tools  " + fmtCount((int) overhead)
                                             + " est tokens"));
         if (systems > 0)
-            lines.add(host.styled("statusText", "  system     " + systems + " msg  " + fmtCount((int) systemTok)
+            lines.add(host.styled("statusText", "  system     " + msgCount(systems) + "  " + fmtCount((int) systemTok)
                                             + " est tokens"));
         lines.add(host.styled("statusText",
-                                        "  user       " + users + " msgs  " + fmtCount((int) userTok) + " est tokens"));
-        lines.add(host.styled("statusText", "  assistant  " + assistants + " msgs  " + fmtCount((int) assistantTok)
+                                        "  user       " + msgCount(users) + "  " + fmtCount((int) userTok) + " est tokens"));
+        lines.add(host.styled("statusText", "  assistant  " + msgCount(assistants) + "  " + fmtCount((int) assistantTok)
                                         + " est tokens"));
         lines.add(host.styled("statusText",
-                                        "  tool       " + tools + " msgs  " + fmtCount((int) toolTok) + " est tokens"));
+                                        "  tool       " + msgCount(tools) + "  " + fmtCount((int) toolTok) + " est tokens"));
         if (compactions > 0) {
-            lines.add(host.styled("statusText", "  summaries  " + compactions + " msg  " + fmtCount((int) summaryTok)
+            lines.add(host.styled("statusText", "  summaries  " + msgCount(compactions) + "  " + fmtCount((int) summaryTok)
                                             + " est tokens"));
             for (var m : msgs) {
                 if (m instanceof Message.CompactionSummary cs) {
