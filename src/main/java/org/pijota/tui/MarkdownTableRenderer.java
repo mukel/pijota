@@ -187,8 +187,10 @@ final class MarkdownTableRenderer {
 
     static void fitWidths(int[] widths, int width) {
         if (widths.length == 0)
-            return; // no columns → nothing to fit; also avoids the grow loop below spinning forever (sum stays 0)
+            return; // no columns → nothing to fit
         int cols = widths.length;
+        // available is an UPPER bound: columns keep their content width (compact, GitHub-style) and are only shrunk
+        // when the row would overflow the terminal — never grown to fill it (which left short tables mostly padding).
         int available = Math.max(cols * 5, width - ((cols - 1) * 3));
         for (int i = 0; i < widths.length; i++)
             widths[i] = Math.max(3, widths[i]);
@@ -197,10 +199,6 @@ final class MarkdownTableRenderer {
             if (widths[idx] <= 5)
                 break;
             widths[idx]--;
-        }
-        while (sum(widths) < available) {
-            for (int i = 0; i < widths.length && sum(widths) < available; i++)
-                widths[i]++;
         }
     }
 

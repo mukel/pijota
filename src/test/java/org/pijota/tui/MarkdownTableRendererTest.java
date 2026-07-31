@@ -73,6 +73,20 @@ class MarkdownTableRendererTest {
     }
 
     @Test
+    void shortContentTablesStayCompactNotFullWidth() {
+        // tiny cells must not be stretched to fill the terminal (columns are content-sized, GitHub-style)
+        var clean = renderTable("| a | b |\n|---|---|\n| 1 | 2 |", 80);
+        int maxWidth = clean.stream().mapToInt(String::length).max().orElse(0);
+        assertTrue(maxWidth < 20, "short table should stay compact, was " + maxWidth + " wide: " + clean);
+    }
+
+    @Test
+    void wideContentTablesStillShrinkToFitTheTerminal() {
+        var narrow = renderTable("| " + "x".repeat(60) + " | " + "y".repeat(60) + " |\n|---|---|\n| a | b |", 40);
+        assertTrue(narrow.stream().allMatch(l -> l.length() <= 40), "columns must shrink to fit width 40: " + narrow);
+    }
+
+    @Test
     void returnsEmptyForNonTableMarkdown() {
         assertTrue(MarkdownTableRenderer.renderIfTable("not a table", THEME, 80).isEmpty());
     }
@@ -551,10 +565,10 @@ class MarkdownTableRendererTest {
     }
 
     @Test
-    void fitWidthsWidensNarrowColumns() {
+    void fitWidthsKeepsNarrowColumnsCompactNotFullWidth() {
         var widths = new int[] {3, 3};
         MarkdownTableRenderer.fitWidths(widths, 50);
-        assertEquals(47, MarkdownTableRenderer.sum(widths));
+        assertEquals(6, MarkdownTableRenderer.sum(widths), "columns keep their content width, not grown to fill 50");
     }
 
     @Test
@@ -566,10 +580,10 @@ class MarkdownTableRendererTest {
     }
 
     @Test
-    void fitWidthsSingleColumnFillsAvailable() {
+    void fitWidthsSingleColumnStaysContentSized() {
         var widths = new int[] {5};
         MarkdownTableRenderer.fitWidths(widths, 80);
-        assertEquals(80, MarkdownTableRenderer.sum(widths));
+        assertEquals(5, MarkdownTableRenderer.sum(widths), "a single narrow column is not stretched across the terminal");
     }
 
     @Test
@@ -597,13 +611,10 @@ class MarkdownTableRendererTest {
     }
 
     @Test
-    void fitWidthsWidensEvenlyLeftToRight() {
+    void fitWidthsKeepsContentSizedColumnsUnchangedWhenTheyFit() {
         var widths = new int[] {3, 3, 3};
-        MarkdownTableRenderer.fitWidths(widths, 30);
-        int available = Math.max(15, 30 - 6);
-        assertEquals(available, MarkdownTableRenderer.sum(widths));
-        assertTrue(widths[0] >= widths[2], "left columns should be at least as wide as right: " + widths[0] + " >= "
-                                        + widths[2]);
+        MarkdownTableRenderer.fitWidths(widths, 30); // fits within 30 → unchanged (no growth)
+        assertEquals(9, MarkdownTableRenderer.sum(widths), "content-sized columns that fit are left as-is");
     }
 
     // ─── separator ───
