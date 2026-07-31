@@ -89,6 +89,17 @@ class AppendOnlyTuiInputLoopTest {
     }
 
     @Test
+    void exitRestoresTerminalModesSoTheShellIsNotLeftWeird() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        String out = driveSession(ts, new byte[0]); // clean Ctrl+D exit runs the terminal restore
+        // undo every mode the render loop may have set — a mid-frame exit could otherwise leave autowrap off (broken
+        // line-wrap + readline cursor) or bracketed paste on, which reads to the user as "shortcuts don't work".
+        assertTrue(out.contains("\033[?7h"), "autowrap must be re-enabled on exit");
+        assertTrue(out.contains("\033[?2004l"), "bracketed paste must be disabled on exit");
+        assertTrue(out.contains("\033[?25h"), "cursor must be shown on exit");
+    }
+
+    @Test
     void typedPromptIsSubmittedAndRunsATurn() throws Exception {
         var ts = TestSession.in(tempDir).build();
         ts.llm().enqueue(FauxLlm.Response.contentWithUsage("hi back"));

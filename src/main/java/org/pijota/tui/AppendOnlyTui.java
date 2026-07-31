@@ -912,7 +912,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void restoreTerminalState() {
         try {
-            terminal.writer().print("\033[?2026l\033[?2004l\033[?25h\033[0m");
+            // Undo every mode the render loop may have set — including autowrap (?7h): each frame turns it OFF while
+            // drawing the prompt and back ON after, so exiting mid-frame can leave the shell with autowrap disabled
+            // (garbled line-wrap + readline cursor). End sync (?2026l), bracketed paste (?2004l), autowrap on (?7h),
+            // show cursor (?25h), reset colors (0m).
+            terminal.writer().print("\033[?2026l\033[?2004l\033[?7h\033[?25h\033[0m");
             terminal.writer().flush();
         } catch (Exception ignored) {}
         try {
@@ -1307,7 +1311,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     public void suspendTui(boolean freshLine) {
         if (suspendDepth++ > 0)
             return;
-        terminal.writer().print(freshLine ? "\033[?25h\033[0m\r\n" : "\033[?25h\033[0m");
+        // Hand a clean terminal to the suspended program / shell-out: end sync (?2026l) + restore autowrap (?7h, which
+        // the render loop turns off while drawing) + show cursor + reset colors. resumeTui re-enters raw mode and the
+        // next frame re-manages these, so nothing here needs undoing on resume.
+        terminal.writer().print(freshLine ? "\033[?2026l\033[?7h\033[?25h\033[0m\r\n" : "\033[?2026l\033[?7h\033[?25h\033[0m");
         terminal.writer().flush();
         if (originalAttributes != null)
             terminal.setAttributes(originalAttributes);
