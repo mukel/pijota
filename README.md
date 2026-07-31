@@ -11,9 +11,7 @@
 </p>
 
 **A coding agent written in Java.
-One native binary. Any model. Built to be hacked.**
-
-The command is **`pj`**.
+One native binary. Any model. Yours to hack and improve.**
 
 </div>
 
