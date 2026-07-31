@@ -5,6 +5,42 @@
       "allPublicConstructors": true
     },
     {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicMessageContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicTextContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicImageContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicPdfContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicThinkingContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicRedactedThinkingContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicToolUseContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicToolResultContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicMessage[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicTool[]"
+    },
+    {
+      "type": "dev.langchain4j.model.anthropic.internal.api.AnthropicModelInfo[]"
+    },
+    {
       "type": "org.pijota.agent.HeadlessAgentRunner$DoneEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
