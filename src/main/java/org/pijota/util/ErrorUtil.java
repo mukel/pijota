@@ -141,7 +141,12 @@ public final class ErrorUtil {
     // wording goes here.
     private static final List<String> NON_RETRYABLE = List.of("insufficient_quota", "out of budget", "billing",
                                     "monthly usage limit reached", "available balance", "gousagelimiterror",
-                                    "freeusagelimiterror");
+                                    "freeusagelimiterror",
+                                    // bad credentials never heal on retry; providers word them without a status code
+                                    // (OpenAI "incorrect api key", Anthropic "authentication_error", Gemini "api key
+                                    // not valid"), so name them or a dead key silently backs off for minutes
+                                    "invalid_api_key", "incorrect api key", "invalid api key", "api key not valid",
+                                    "authentication_error", "unauthorized");
 
     // Transient failures worth retrying: throttles, 5xx, transport drops, and premature stream endings that typically
     // clear on a fresh request. Substrings are matched against the lower-cased message.

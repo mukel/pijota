@@ -1,6 +1,645 @@
 {
   "reflection": [
     {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateFileRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateFileRequest$FileBatch",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateFileRequest$FileInputConfig",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateRequest$Batch",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateRequest$InlinedRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateRequest$InputConfig",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateRequest$Requests",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateResponse$InlinedResponseWrapper",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchCreateResponse$InlinedResponses",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchError",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchFileRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchIncomplete",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchJobState",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchName",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$BatchSuccess",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$ListOperationsResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$Operation",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse$Operation$Status",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiBatchRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart$GeminiBlob",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart$GeminiCodeExecutionResult",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart$GeminiCodeExecutionResult$GeminiOutcome",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart$GeminiExecutableCode",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart$GeminiExecutableCode$GeminiLanguage",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart$GeminiFileData",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart$GeminiFunctionCall",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent$GeminiPart$GeminiFunctionResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiCountTokensRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiCountTokensResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiEmbeddingRequestResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiEmbeddingRequestResponse$GeminiBatchEmbeddingRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiEmbeddingRequestResponse$GeminiBatchEmbeddingResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiEmbeddingRequestResponse$GeminiEmbeddingRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiEmbeddingRequestResponse$GeminiEmbeddingResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiEmbeddingRequestResponse$GeminiEmbeddingResponse$GeminiEmbeddingResponseValues",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFiles",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFiles$GeminiFile",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFiles$GeminiFileMetadata",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFiles$GeminiFileMetadata$FileInfo",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFiles$GeminiFileResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFiles$GeminiFilesListResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFiles$GeminiUploadFailureException",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFunctionCallingConfig",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFunctionDeclaration",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentRequest",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentRequest$GeminiTool",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentRequest$GeminiTool$GeminiCodeExecution",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentRequest$GeminiTool$GeminiGoogleMaps",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentRequest$GeminiTool$GeminiGoogleSearchRetrieval",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentRequest$GeminiTool$GeminiUrlContext",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentRequest$GeminiToolConfig",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentResponse$GeminiCandidate",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentResponse$GeminiCandidate$GeminiFinishReason",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentResponse$GeminiUrlContextMetadata",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentResponse$GeminiUrlMetadata",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentResponse$GeminiUrlRetrievalStatus",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentResponse$GeminiUsageMetadata",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerationConfig",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerationConfig$GeminiImageConfig",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiHarmBlockThreshold",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiHarmCategory",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiMediaResolution",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiMediaResolutionLevel",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiMode",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiModelInfo",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiModelsListResponse",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiResponseModality",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiRole",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiSafetySetting",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiSchema",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiThinkingConfig",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiThinkingConfig$GeminiThinkingLevel",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiType",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$GroundingChunk",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$GroundingChunk$Maps",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$GroundingChunk$Maps$PlaceAnswerSources",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$GroundingChunk$Maps$ReviewSnippet",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$GroundingChunk$RetrievedContext",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$GroundingChunk$Web",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$GroundingSupport",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$RetrievalMetadata",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$SearchEntryPoint",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata$Segment",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.UrlContextMetadata",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.UrlContextMetadata$UrlMetadata",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.BatchRequestResponse[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiBatchRequest[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiContent[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiCountTokensRequest[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiCountTokensResponse[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiEmbeddingRequestResponse[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFiles[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFunctionCallingConfig[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiFunctionDeclaration[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentRequest[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerateContentResponse[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiGenerationConfig[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiHarmBlockThreshold[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiHarmCategory[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiMediaResolution[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiMediaResolutionLevel[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiMode[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiModelInfo[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiModelsListResponse[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiResponseModality[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiRole[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiSafetySetting[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiSchema[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiThinkingConfig[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GeminiType[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.GroundingMetadata[]"
+    },
+    {
+      "type": "dev.langchain4j.model.googleai.UrlContextMetadata[]"
+    },
+    {
       "type": "ch.qos.logback.core.status.NopStatusListener",
       "allPublicConstructors": true
     },

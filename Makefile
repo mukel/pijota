@@ -17,7 +17,7 @@
 #   make coverage   run tests and generate JaCoCo coverage report
 #   make clean        remove build artifacts
 
-.PHONY: build test test-live check jar run fat native native-pgo-instrument native-pgo-build setup-musl native-static clean format format-check coverage
+.PHONY: build test test-live check jar run fat native native-smoke native-pgo-instrument native-pgo-build setup-musl native-static clean format format-check coverage
 
 # Prefer the Maven Daemon (mvnd) when present — its warm JVM makes the dev loop far faster (compile ~4x, tests ~1.3x);
 # falls back to plain mvn. Override with `make MVN=mvn ...` to force a fresh, daemonless run.
@@ -51,6 +51,12 @@ fat:
 
 native:
 	@$(MVN) -q -DskipTests -Pnative package
+
+# One turn per provider FAMILY (openai-compatible, anthropic-style, gemini): each family has its own
+# native-image reflection surface, so a single-provider test cannot catch a missing-metadata break.
+# Families without a configured key are skipped. Needs target/pj (make native).
+native-smoke:
+	@bash scripts/native-smoke.sh
 
 # Fully standalone (statically linked, no libc dependency) native image via musl + musl-built zlib.
 # One-time: `make setup-musl` (needs musl-gcc — e.g. `sudo pacman -S musl` / `apt install musl-tools`).

@@ -357,12 +357,31 @@ public final class Main {
     }
 
     private static boolean stdinRedirected() {
-        if (System.console() != null)
-            return false;
+        // Ask what stdin IS, not whether bytes have arrived: the native binary starts in ~10ms and can beat the
+        // pipe's writer, so available()==0 races on `echo x | pj`. On Linux /proc names the fd's target; a pipe or
+        // file means redirected (readStdin then blocks until EOF and gets everything), a tty means interactive.
         try {
-            return System.in.available() > 0;
+            var fd0 = java.nio.file.Path.of("/proc/self/fd/0");
+            if (Files.exists(fd0)) {
+                String target = Files.readSymbolicLink(fd0).toString();
+                return !target.startsWith("/dev/pts") && !target.startsWith("/dev/tty");
+            }
+        } catch (Exception ignored) {
+            // fall through to the console probes on platforms without /proc
+        }
+        Console console = System.console();
+        if (console == null) {
+            try {
+                return System.in.available() > 0;
+            } catch (Exception e) {
+                return true;
+            }
+        }
+        try {
+            // Java 22+ hands out a Console even with redirected streams; only isTerminal() tells them apart.
+            return !(boolean) Console.class.getMethod("isTerminal").invoke(console);
         } catch (Exception e) {
-            return true;
+            return false; // pre-22: a non-null console means an interactive terminal
         }
     }
 

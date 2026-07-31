@@ -1239,6 +1239,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             session.abort();
             streamRenderer.flush();
             streamRenderer.reset();
+            // A visible cut mark: without it the transcript just stops mid-sentence, and on a later re-read there is
+            // no way to tell an interrupt from a crash or a model that trailed off.
+            appendPlain(List.of(theme.styled("statusText", "■ interrupted")));
             shellCommands.interruptProcess();
             restoreQueuedFollowUpsAfterAbort();
         } else {
@@ -2282,7 +2285,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case AgentEvent.TurnEnd ignored -> closeAbandonedTools();
             case AgentEvent.Error(Throwable t) -> {
                 closeAbandonedTools();
-                appendPlain(List.of(theme.styled("toolError", "error: " + ErrorUtil.message(t))));
+                String msg = ErrorUtil.message(t);
+                appendPlain(List.of(theme.styled("toolError", "error: " + msg)));
+                // A bad credential is a dead end the user can fix in one command; say which one.
+                String lower = msg == null ? "" : msg.toLowerCase(Locale.ROOT);
+                if (lower.contains("api key") || lower.contains("unauthorized") || lower.contains("invalid_api_key")
+                                                || lower.contains("authentication"))
+                    appendPlain(List.of(theme.styled("statusText",
+                                                    "run /login " + session.llm().provider() + " to update the key")));
             }
             case AgentEvent.HistoryChanged ignored -> seedPromptHistoryFromSession(); // /load, /new, /undo, /fork
             default -> {}
