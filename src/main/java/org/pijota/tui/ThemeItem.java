@@ -13,7 +13,7 @@ record ThemeItem(String name, String path, boolean current) implements SelectorI
 
     @Override
     public String detailText() {
-        return current ? "*" : path;
+        return path;
     }
 
     @Override

@@ -86,7 +86,11 @@ final class StreamRenderer {
         thinkingStartedAt = 0;
         lastContent = "";
         lastThinking = "";
-        blankBeforeNextContent = false;
+        // blankBeforeNextContent deliberately survives: it describes what was already printed (a tool block), not the
+        // message being reset. A tool call ends a turn, so clearing it here dropped the separation for exactly the
+        // common case -- the answer that follows a tool call -- while thinking, which shares its turn with the answer,
+        // kept its blank. Same boundary, two different spacings. A stray flag is harmless; the coordinator collapses
+        // consecutive blank lines.
         markdown.reset();
         thinkingMarkdown.reset();
     }

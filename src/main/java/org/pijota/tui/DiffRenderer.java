@@ -75,11 +75,13 @@ final class DiffRenderer {
 
     private String header(String action, String path, int added, int deleted, int width) {
         String name = path == null || path.isBlank() ? "diff" : shortenPath(path);
-        String text = theme.styled("diffMeta", "- ") + theme.styled("diffHeader", action + " " + name) + "  "
-                                        + theme.styled("diffAdd", "+" + added) + " "
-                                        + theme.styled("diffDelete", "-" + deleted) + " ";
+        // Label first, then the rule filling the line. The header used to open with "- ", which sat right next to the
+        // "-0" deleted count and above a gutter of "-" markers, so the one dash that meant "rule" looked like the
+        // three that mean "removed". The rule is drawn with ─, the same glyph as every other rule in the UI.
+        String text = theme.styled("diffHeader", action + " " + name) + "  " + theme.styled("diffAdd", "+" + added)
+                                        + " " + theme.styled("diffDelete", "-" + deleted) + " ";
         int fill = Math.max(5, width - AnsiWidth.visibleWidth(text));
-        return text + theme.styled("diffMeta", "-".repeat(fill));
+        return text + theme.styled("diffMeta", "─".repeat(fill));
     }
 
     private String format(DiffAlgorithm.Row row, int oldWidth, int newWidth, String body, int width) {

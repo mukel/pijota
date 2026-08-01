@@ -42,7 +42,11 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
             var item = selector.visibleItem(i - start);
             String title = item.titleText();
             int[] match = SlashCommandRegistry.matchPositions(selector.query(), title);
-            String tail = " ".repeat(Math.max(0, maxTitle - title.length() + 4))
+            // The "this is the active one" marker gets its own fixed column, so a marked row's detail still starts
+            // where every other row's does. Each selector used to bake its own marker into its text (three different
+            // glyphs across models, themes and the tree), and the model one pushed that row's provider out of line.
+            String marker = item.selected() ? theme.styled("prompt", "● ") : "  ";
+            String tail = " ".repeat(Math.max(0, maxTitle - title.length() + 2)) + marker
                                             + AnsiWidth.truncateVisual(item.detailText(), detailWidth);
             if (i == sel) {
                 rows.add(theme.styled("prompt", "› ") + highlight(theme, title, "heading", match)

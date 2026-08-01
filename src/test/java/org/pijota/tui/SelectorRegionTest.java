@@ -5,6 +5,7 @@ import org.pijota.theme.AnsiTheme;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,49 @@ class SelectorRegionTest {
 
     private static PromptRegion.Body compose(SelectorRegion<?> region) {
         return region.compose(80, THEME, SNAPSHOT);
+    }
+
+    /** An item that is "the active one" -- the current model, the current theme, the current tree node. */
+    private record MarkedItem(String title, String detail, boolean active) implements SelectorItem {
+        @Override
+        public String searchText() {
+            return title;
+        }
+
+        @Override
+        public String titleText() {
+            return title;
+        }
+
+        @Override
+        public String detailText() {
+            return detail;
+        }
+
+        @Override
+        public boolean selected() {
+            return active;
+        }
+    }
+
+    @Test
+    void theActiveItemIsMarkedWithoutPushingItsDetailOutOfTheColumn() {
+        // The marker used to live inside each item's own detail text, so the marked row's detail started three
+        // columns further right than every other row's and the metadata no longer lined up down the list.
+        var items = List.<SelectorItem>of(new MarkedItem("short", "[a]  meta", false),
+                                        new MarkedItem("a-much-longer-name", "[b]  meta", true),
+                                        new MarkedItem("mid-name", "[c]  meta", false));
+        var selector = new Selector<>(items);
+        selector.activate("");
+        var rows = compose(new SelectorRegion<>(selector)).rows().stream().map(AnsiStripper::strip).toList();
+
+        var detailColumns = rows.stream().filter(r -> r.contains("meta")).map(r -> r.indexOf("[")).toList();
+        assertEquals(3, detailColumns.size(), rows.toString());
+        assertEquals(1, Set.copyOf(detailColumns).size(), "details must share one column: " + rows);
+
+        String marked = rows.stream().filter(r -> r.contains("a-much-longer-name")).findFirst().orElseThrow();
+        assertTrue(marked.contains("●"), "the active item is marked: " + marked);
+        assertEquals(1, rows.stream().filter(r -> r.contains("●")).count(), "only the active one: " + rows);
     }
 
     @Test

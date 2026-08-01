@@ -49,10 +49,14 @@ class ModelItemTest {
     }
 
     @Test
-    void detailTextShowsStarWhenCurrent() {
-        var info = new ModelInfo("gpt-4", "openai", "GPT-4", 128_000);
-        var item = new ModelItem(info, true);
-        assertTrue(item.detailText().startsWith("*"));
+    void detailTextCarriesNoCurrentMarkerSoTheColumnsStayAligned() {
+        // The marker is drawn by SelectorRegion in its own gutter. Baked in here, it pushed this row's provider tag
+        // three columns right of every other row's, and each selector spelled the marker differently.
+        var current = new ModelItem(new ModelInfo("gpt-4", "openai", "GPT-4", 128_000), true);
+        var other = new ModelItem(new ModelInfo("gpt-5", "openai", "GPT-5", 128_000), false);
+        assertTrue(current.detailText().startsWith("["), current.detailText());
+        assertEquals(other.detailText().indexOf("["), current.detailText().indexOf("["), "same starting column");
+        assertTrue(current.selected(), "being current is reported, not drawn");
     }
 
     @Test

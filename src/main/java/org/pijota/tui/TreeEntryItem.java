@@ -38,7 +38,7 @@ record TreeEntryItem(String id, String parentId, String role, String content, St
 
     @Override
     public String titleText() {
-        return (current ? "→ " : "  ") + role;
+        return role;
     }
 
     @Override

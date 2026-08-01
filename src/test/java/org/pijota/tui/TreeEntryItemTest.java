@@ -31,6 +31,7 @@ class TreeEntryItemTest {
                                         true);
         assertEquals("user", item.role());
         assertEquals("hello world", item.content(), "newlines are flattened for a single-line row");
-        assertTrue(item.titleText().startsWith("→ "), "the current entry is marked");
+        assertEquals("user", item.titleText(), "no marker baked into the title; the selector draws it");
+        assertTrue(item.selected(), "the current entry reports itself as selected");
     }
 }

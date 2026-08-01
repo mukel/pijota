@@ -16,7 +16,7 @@ record ModelItem(ModelInfo info, boolean current) implements SelectorItem {
 
     @Override
     public String detailText() {
-        return (current ? "*  " : "") + "[" + info.provider() + "]  " + ModelDisplay.summary(info);
+        return "[" + info.provider() + "]  " + ModelDisplay.summary(info);
     }
 
     @Override

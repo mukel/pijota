@@ -178,4 +178,22 @@ class StreamRendererTest {
 
         assertFalse(sink.text().contains("secret reasoning"), sink.text());
     }
+
+    @Test
+    void theAnswerKeepsItsBlankLineOfAirWhenItFollowsAToolCall() {
+        // A tool call ends the turn, so the separation request set at the tool result used to be wiped by the next
+        // turn's reset -- and the answer butted straight against the tool block. Thinking, which shares its turn with
+        // the answer, kept its blank. Same boundary, two different spacings.
+        var sink = new CapturingSink();
+        var renderer = renderer(sink, true);
+        renderer.separateNextContent(); // what the TUI does after rendering a tool result
+        renderer.reset(); // ... and then the next turn starts
+        renderer.streamContent("Done.\n");
+        renderer.flush();
+
+        assertFalse(sink.lines.isEmpty(), "content was rendered");
+        assertTrue(sink.lines.get(0).isEmpty(), "the answer opens with one blank line of air: " + sink.lines);
+        assertTrue(sink.lines.stream().anyMatch(t -> t.contains("Done.")), sink.text());
+    }
+
 }

@@ -21,9 +21,12 @@ class ThemeItemTest {
     }
 
     @Test
-    void detailTextShowsStarWhenCurrent() {
+    void detailTextShowsThePathEvenForTheCurrentTheme() {
+        // It used to show "*" instead of the path, so selecting the active theme was the one row that told you
+        // nothing about where it came from. The marker now lives in the selector's gutter.
         var item = new ThemeItem("dark", "/path/dark.json", true);
-        assertEquals("*", item.detailText());
+        assertEquals("/path/dark.json", item.detailText());
+        assertTrue(item.selected());
     }
 
     @Test
