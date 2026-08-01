@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 final class DiffRenderer {
     private static final int CONTEXT_LINES = 3;
     private static final int MAX_RENDERED_ROWS = 300;
+    private static final int MIN_RULE = 5; // the header always ends in at least a stub of rule
     private static final Pattern ANSI_RESET = Pattern.compile("\033\\[0m");
 
     private final AnsiTheme theme;
@@ -75,12 +76,17 @@ final class DiffRenderer {
 
     private String header(String action, String path, int added, int deleted, int width) {
         String name = path == null || path.isBlank() ? "diff" : shortenPath(path);
+        // Budget the path to what is left after the label, the counts and a stub of rule. An absolute path longer than
+        // the terminal used to wrap mid-path, so the header broke across two rows and the second row started with the
+        // middle of a directory name. Truncating the middle keeps both ends, and the filename is the end that matters.
+        int fixed = action.length() + 1 + 2 + ("+" + added).length() + 1 + ("-" + deleted).length() + 1 + MIN_RULE;
+        name = AnsiWidth.truncateMiddle(name, Math.max(12, width - fixed));
         // Label first, then the rule filling the line. The header used to open with "- ", which sat right next to the
         // "-0" deleted count and above a gutter of "-" markers, so the one dash that meant "rule" looked like the
         // three that mean "removed". The rule is drawn with ─, the same glyph as every other rule in the UI.
         String text = theme.styled("diffHeader", action + " " + name) + "  " + theme.styled("diffAdd", "+" + added)
                                         + " " + theme.styled("diffDelete", "-" + deleted) + " ";
-        int fill = Math.max(5, width - AnsiWidth.visibleWidth(text));
+        int fill = Math.max(MIN_RULE, width - AnsiWidth.visibleWidth(text));
         return text + theme.styled("diffMeta", "─".repeat(fill));
     }
 
