@@ -824,6 +824,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         Runtime.getRuntime().addShutdownHook(new Thread(this::close, "pijota-tui-shutdown"));
         try {
             originalAttributes = terminal.enterRawMode();
+            // Ask for unambiguous modifiers before anything reads a key. Terminals without the protocol are unchanged.
+            kittyKeyboard = KittyKeyboard.negotiate(terminal);
+            log.info("kitty keyboard protocol: {}", kittyKeyboard ? "enabled" : "not supported by this terminal");
             terminal.writer().print("\033[?2004h");
             terminal.writer().flush();
             appendStartupGreeting(version, cwd);
@@ -920,7 +923,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             // drawing the prompt and back ON after, so exiting mid-frame can leave the shell with autowrap disabled
             // (garbled line-wrap + readline cursor). End sync (?2026l), bracketed paste (?2004l), autowrap on (?7h),
             // show cursor (?25h), reset colors (0m).
-            terminal.writer().print("\033[?2026l\033[?2004l\033[?7h\033[?25h\033[0m");
+            // Pop the Kitty keyboard mode first: once it is off, a late key release cannot arrive as a CSI-u
+            // sequence that the shell would print as literal text.
+            terminal.writer().print((kittyKeyboard ? KittyKeyboard.DISABLE : "")
+                                            + "\033[?2026l\033[?2004l\033[?7h\033[?25h\033[0m");
             terminal.writer().flush();
         } catch (Exception ignored) {}
         try {
@@ -1287,6 +1293,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     // Reentrant: nested suspend/resume pairs (e.g. transcendence brackets its whole flow, then suspends again around a
     // subprocess launch) only toggle the terminal on the outermost transition.
+    private boolean kittyKeyboard; // the terminal accepted the Kitty keyboard protocol; pop it back off on the way out
     private volatile int suspendDepth = 0;
 
     public void suspendTui() {
@@ -1307,9 +1314,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // Hand a clean terminal to the suspended program / shell-out: end sync (?2026l) + restore autowrap (?7h, which
         // the render loop turns off while drawing) + show cursor + reset colors. resumeTui re-enters raw mode and the
         // next frame re-manages these, so nothing here needs undoing on resume.
+        String kitty = kittyKeyboard ? KittyKeyboard.DISABLE : ""; // hand the shell-out a terminal it understands
         terminal.writer().print(freshLine
-                                        ? "\033[?2026l\033[?7h\033[?25h\033[0m\r\n"
-                                        : "\033[?2026l\033[?7h\033[?25h\033[0m");
+                                        ? kitty + "\033[?2026l\033[?7h\033[?25h\033[0m\r\n"
+                                        : kitty + "\033[?2026l\033[?7h\033[?25h\033[0m");
         terminal.writer().flush();
         if (originalAttributes != null)
             terminal.setAttributes(originalAttributes);
@@ -1338,6 +1346,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         try {
             originalAttributes = terminal.enterRawMode();
+            if (kittyKeyboard) { // suspendTui popped it; the suspended program has given the terminal back
+                terminal.writer().print(KittyKeyboard.ENABLE);
+                terminal.writer().flush();
+            }
         } catch (Exception ignored) {}
         redrawPrompt();
     }
