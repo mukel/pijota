@@ -40,13 +40,33 @@ class SelectorRegionTest {
     }
 
     @Test
-    void highlightBoldsMatchedCharactersAndPreservesVisibleText() {
+    void highlightMarksMatchedCharactersAndPreservesVisibleText() {
+        String marker = THEME.style("selectorMatch");
+        assertFalse(marker.isEmpty(), "the marker must resolve to a real escape, or every assertion below is vacuous");
+
         String out = SelectorRegion.highlight(THEME, "model", "heading", new int[] {1, 2, 3});
         assertEquals("model", AnsiStripper.strip(out), "no visible characters added or lost");
-        assertTrue(out.contains(THEME.style("bold")), "the matched run is bolded");
+        assertTrue(out.contains(marker), "the matched run is marked");
+        // The row's own style is kept underneath, so a match never reads duller than the text around it.
+        assertTrue(out.contains(THEME.style("heading")), "the base style survives on matched runs");
 
         String plain = SelectorRegion.highlight(THEME, "model", "heading", new int[0]);
-        assertEquals(THEME.styled("heading", "model"), plain, "no match → plain base style, no bold");
+        assertEquals(THEME.styled("heading", "model"), plain, "no match → plain base style, no marker");
+        assertFalse(plain.contains(marker), "unmatched text carries no marker");
+    }
+
+    @Test
+    void theMatchMarkerReadsTheSameOnSelectedAndUnselectedRows() {
+        // The selected row is bold+accent, unselected rows are dim. A marker that REPLACED the base style (the old
+        // "pure bold") dropped the accent and vanished into the selected row; an attribute composes with either.
+        String marker = THEME.style("selectorMatch");
+        assertFalse(marker.isEmpty(), "guard against a vacuous contains(\"\")");
+
+        String onSelected = SelectorRegion.highlight(THEME, "model", "heading", new int[] {0, 1});
+        String onMuted = SelectorRegion.highlight(THEME, "model", "statusText", new int[] {0, 1});
+        assertTrue(onSelected.contains(marker) && onMuted.contains(marker), "both rows mark matches the same way");
+        assertTrue(onSelected.contains(THEME.style("heading")), "selected keeps its accent: " + onSelected);
+        assertTrue(onMuted.contains(THEME.style("statusText")), "muted keeps its dim: " + onMuted);
     }
 
     @Test
@@ -56,7 +76,7 @@ class SelectorRegionTest {
         var region = new SelectorRegion<>(selector);
         String row = compose(region).rows().stream()
                                         .filter(r -> AnsiStripper.strip(r).contains("model")).findFirst().orElseThrow();
-        assertTrue(row.contains(THEME.style("bold")), "the matched run is bolded in the rendered row: " + row);
+        assertTrue(row.contains(THEME.style("selectorMatch")), "the matched run is marked in the rendered row: " + row);
     }
 
     @Test

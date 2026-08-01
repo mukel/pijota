@@ -29,6 +29,11 @@ public class AnsiTheme {
     public String bold = "bold";
     public String italic = "italic";
     public String highlight = "inverse";
+    /**
+     * Marks the characters a picker query matched. Composes with the row's own style rather than replacing it (it is
+     * prefixed, not substituted), so it must be an attribute like underline: a colour here would fight the row.
+     */
+    public String selectorMatch = "underline";
     public String dim = "dim";
     public String strikethrough = "strikethrough";
 

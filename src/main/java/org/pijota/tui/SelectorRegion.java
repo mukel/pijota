@@ -85,9 +85,12 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
             while (j < text.length() && hit[j] == h)
                 j++;
             String run = text.substring(i, j);
-            // matched chars render as pure bold (dropping the base's dim/colour), so they read as bright against a
-            // muted statusText row and still stand out from the already-bold heading of the selected row.
-            sb.append(theme.styled(h ? "bold" : baseSlot, run));
+            // Matched chars keep the row's own style and get the marker PREFIXED (styled() ends with a full reset, so
+            // the marker clears with the run). The marker is an attribute, not a colour, so it reads the same on a
+            // muted row and on the selected one; the previous "pure bold" dropped the selected row's accent colour,
+            // which made matches read DULLER than the text around them.
+            String styled = theme.styled(baseSlot, run);
+            sb.append(h ? theme.style("selectorMatch") + styled : styled);
             i = j;
         }
         return sb.toString();
