@@ -24,6 +24,8 @@ class FzfFilePickerTest {
         assertTrue(s.contains("*/)"), "re-root only when the query ends in / → reaches @../ outside the repo");
         assertFalse(s.contains("change:reload"), "no per-keystroke reload → no flicker");
         assertTrue(s.contains("/tmp/sel.txt"), "selection captured to the temp file");
+        assertTrue(s.contains("--print-query"), "the query comes back on a no-match Enter (typed input never lost)");
+        assertTrue(s.contains("tab:accept"), "Tab accepts like Enter (default Tab is a no-op under --no-multi)");
     }
 
     @Test
@@ -50,13 +52,16 @@ class FzfFilePickerTest {
     }
 
     @Test
-    void selectionFromTakesThePathBeforeTheNul() {
-        assertEquals("a/b.txt", FzfFilePicker.selectionFrom("a/b.txt\0"));
-        assertEquals("my file.txt", FzfFilePicker.selectionFrom("my file.txt\0")); // inner whitespace preserved
-        assertEquals("  pad  ", FzfFilePicker.selectionFrom("  pad  \0")); // NUL delimits → keep surrounding spaces
-        assertEquals("first", FzfFilePicker.selectionFrom("first\0second\0")); // first of multiple
-        assertEquals("", FzfFilePicker.selectionFrom("")); // cancel (Esc) → empty
-        assertEquals("nonul", FzfFilePicker.selectionFrom("  nonul  ")); // no NUL → stripped fallback
+    void insertionFromHandlesMatchQueryFallbackAndCancel() {
+        // Match accepted: query NUL selection NUL → the selection, formatted (an @-reference here).
+        assertEquals("@a/b.txt", FzfFilePicker.insertionFrom("alp\0a/b.txt\0", true));
+        assertEquals("a/b.txt", FzfFilePicker.insertionFrom("alp\0a/b.txt\0", false)); // Ctrl+T: raw path
+        // No-match Enter: query NUL → the TYPED text comes back verbatim; never silently discarded.
+        assertEquals("@halves.png ? One word.", FzfFilePicker.insertionFrom("halves.png ? One word.\0", true));
+        assertEquals("some words", FzfFilePicker.insertionFrom("some words\0", false));
+        // Cancel (Esc): empty output → nothing inserted (a deliberate cancel is not a fallback).
+        assertEquals("", FzfFilePicker.insertionFrom("", true));
+        assertEquals("", FzfFilePicker.insertionFrom("\0", true)); // empty query accepted → still nothing
     }
 
     @Test

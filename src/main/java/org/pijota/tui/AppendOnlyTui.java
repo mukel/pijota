@@ -1369,10 +1369,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
             ProcessRunner.command(shell, Platform.shellCommandFlag(shell), FzfFilePicker.script(out)).runInteractive();
             resumeTui();
-            // fzf --print0 writes the selection then a NUL. Empty → cancel (Esc) → insert nothing, not even a stray @.
-            String selection = FzfFilePicker.selectionFrom(Files.readString(out, StandardCharsets.UTF_8));
-            if (!selection.isEmpty())
-                promptEditor.insertText(FzfFilePicker.insertion(selection, asReference) + " ");
+            // Selection, typed-query fallback (no-match Enter), or "" on cancel — typed input is never discarded.
+            String text = FzfFilePicker.insertionFrom(Files.readString(out, StandardCharsets.UTF_8), asReference);
+            if (!text.isEmpty())
+                promptEditor.insertText(text + " ");
         } catch (Exception e) {
             resumeTui();
             setStatusOverride("fzf error: " + e.getMessage());

@@ -56,17 +56,30 @@ final class FzfFilePicker {
         // parents above / outside the repo that the static list can't see) and fires at most once per directory hop.
         String reroot = "q={q}; case \"$q\" in */) echo \"reload(find \\\"${q%/}\\\" \\( -type f -o -type d \\)"
                                         + " -not -path '*/.git/*' -print0 2>/dev/null)\";; esac";
-        return "fzf --read0 --print0 --reverse --prompt='@ ' --no-multi" + " --bind "
+        // --print-query + tab:accept: never destroy typed input. Enter with no match would otherwise close fzf
+        // printing nothing, silently discarding everything typed since @ (mid-sentence file refs lost their tail);
+        // with --print-query the query comes back and is inserted verbatim. Tab accepts like Enter (fzf's default
+        // Tab is a multi-select toggle, a no-op here under --no-multi, which reads as "Tab does nothing").
+        return "fzf --read0 --print0 --print-query --reverse --prompt='@ ' --no-multi" + " --bind tab:accept --bind "
                                         + Util.shellQuote("start:reload:" + listCommand()) + " --bind "
                                         + Util.shellQuote("change:transform:" + reroot) + " > "
                                         + Util.shellQuote(out.toString());
     }
 
-    /** The chosen path from fzf's {@code --print0} output: the bytes before the first NUL, or {@code ""} on cancel. */
-    static String selectionFrom(String fzfOutput) {
-        int nul = fzfOutput.indexOf('\0');
-        return nul >= 0 ? fzfOutput.substring(0, nul) : fzfOutput.strip(); // keep inner whitespace; NUL is the
-                                                                           // delimiter
+    /**
+     * The text to insert from fzf's {@code --print-query --print0} output. Three shapes (NUL-delimited): a match
+     * accepted → {@code query NUL selection NUL} → the selection, formatted via {@link #insertion}; Enter with no
+     * match → {@code query NUL} → the typed query verbatim ({@code @}-prefixed for the reference flow), because typed
+     * input is never silently discarded; cancel (Esc) → empty → empty (deliberate cancel inserts nothing).
+     */
+    static String insertionFrom(String fzfOutput, boolean asReference) {
+        String[] tokens = fzfOutput.split("\0", -1); // trailing NUL yields a final empty token; keep inner whitespace
+        if (tokens.length >= 3 && !tokens[1].isEmpty())
+            return insertion(tokens[1], asReference);
+        String query = tokens[0].strip();
+        if (query.isEmpty())
+            return "";
+        return asReference ? "@" + query : query;
     }
 
     /**
