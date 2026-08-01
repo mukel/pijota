@@ -1,5 +1,6 @@
 package org.pijota.browser;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -16,12 +17,17 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Real-browser integration coverage of {@link CdpBackend}: launches an actual Chrome, attaches over the DevTools
- * protocol, navigates and evaluates JS end-to-end. Skipped (not failed) when Chrome isn't installed, so it stays green
- * on machines without a browser; deterministic where Chrome is present because it only touches {@code about:blank}.
+ * protocol, navigates and evaluates JS end-to-end. Opt-in ({@code PIJOTA_BROWSER_IT=1}) and tagged {@code live}, like
+ * every other test here that starts a browser: a CI runner ships the Chrome binary but cannot launch it (no sandbox),
+ * so probing for the executable alone made these fail there instead of skipping. {@link BrowserSessionCdpTest} covers
+ * the orchestration in the normal suite; run these with {@code make test-live}.
  */
+@Tag("live")
 class CdpBackendIntegrationTest {
 
     private static boolean chromeAvailable() {
+        if (!"1".equals(System.getenv("PIJOTA_BROWSER_IT")))
+            return false; // opt-in: launching a browser is not something the default suite should do
         try {
             return CdpBackend.findChrome(null) != null;
         } catch (Exception e) {

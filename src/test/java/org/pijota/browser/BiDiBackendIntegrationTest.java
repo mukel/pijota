@@ -1,5 +1,6 @@
 package org.pijota.browser;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.pijota.util.Executables;
@@ -12,13 +13,16 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Real-browser integration coverage of {@link BiDiBackend}: launches Firefox via geckodriver, speaks WebDriver BiDi,
- * navigates and evaluates JS. Skipped (not failed) when geckodriver/Firefox aren't installed; deterministic where they
- * are because it only renders an inline {@code data:} document.
+ * navigates and evaluates JS. Opt-in ({@code PIJOTA_BROWSER_IT=1}) and tagged {@code live}, like every other test here
+ * that starts a browser: a runner with the binaries installed may still be unable to launch them, and that should skip
+ * rather than fail. Run with {@code make test-live}.
  */
+@Tag("live")
 class BiDiBackendIntegrationTest {
 
     private static boolean geckodriverAvailable() {
-        return Executables.isAvailable("geckodriver");
+        // opt-in: launching a browser is not something the default suite should do
+        return "1".equals(System.getenv("PIJOTA_BROWSER_IT")) && Executables.isAvailable("geckodriver");
     }
 
     private static int freePort() throws Exception {
