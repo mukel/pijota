@@ -144,4 +144,27 @@ class ToolResultLinesTest {
         assertTrue(summary.contains("thoughtNumber"), "the summary shows real content: " + summary);
         assertFalse(summary.equals("{"), "never just the opening brace");
     }
+
+    @Test
+    void aLongCommandStaysInsideTheBlockInsteadOfOverflowingToColumnZero() {
+        // At 52 columns a long shell command used to be wrapped by the terminal, so its continuation started at
+        // column zero -- outside the frame, breaking the box open right where the command is hardest to read.
+        String command = "python -c \"from calc import divide; print(divide(10,2)); print(divide(1,0))\"";
+        var msg = new Message.ToolResult("call-1", "bash", "5.0", false, Map.of("command", command, "exitCode", 0));
+        var view = Tool.ToolResultView.of("1 line", List.of("5.0"));
+
+        String argsJson = "{\"command\": \"" + command.replace("\"", "\\\"") + "\"}";
+        var lines = ToolResultLines.compose(msg, view, () -> argsJson, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0,
+                                        "$", 52);
+
+        var visible = lines.stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList();
+        for (String line : visible) {
+            assertTrue(AnsiWidth.visibleWidth(line) <= 52, "row overflows the terminal: [" + line + "]");
+            // Every row of the block is framed: the opener, the rail, or the footer. None dangles bare.
+            assertTrue(line.startsWith("┌") || line.startsWith("│") || line.startsWith("└"),
+                                            "row escaped the frame: [" + line + "] in " + visible);
+        }
+        assertTrue(visible.size() > 3, "the command really did need more than one row: " + visible);
+    }
+
 }

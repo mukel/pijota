@@ -58,7 +58,7 @@ final class DiffRenderer {
                     truncated = true;
                     break;
                 }
-                out.add(format(row, oldWidth, newWidth, highlighter.highlightLine(row.text()), terminalWidth));
+                out.addAll(format(row, oldWidth, newWidth, highlighter.highlightLine(row.text()), terminalWidth));
                 rendered++;
             }
             if (truncated)
@@ -84,7 +84,13 @@ final class DiffRenderer {
         return text + theme.styled("diffMeta", "─".repeat(fill));
     }
 
-    private String format(DiffAlgorithm.Row row, int oldWidth, int newWidth, String body, int width) {
+    /**
+     * One diff row, as the physical lines it occupies. A row longer than the terminal is wrapped here rather than left
+     * to the terminal, which would restart the overflow at column zero: the code would then sit outside the line-number
+     * gutter and under a different row's numbers. Continuations are indented to the gutter width, so wrapped code stays
+     * under the code column and the numbers still read straight down.
+     */
+    private List<String> format(DiffAlgorithm.Row row, int oldWidth, int newWidth, String body, int width) {
         String oldNo = row.oldLine() > 0 ? pad(row.oldLine(), oldWidth) : " ".repeat(oldWidth);
         String newNo = row.newLine() > 0 ? pad(row.newLine(), newWidth) : " ".repeat(newWidth);
         String mark = switch (row.kind()) {
@@ -98,12 +104,20 @@ final class DiffRenderer {
             case CONTEXT -> "diffContext";
         };
         String prefix = theme.styled("diffMeta", "  " + oldNo + " " + newNo + " ") + theme.styled(slot, mark) + " ";
-        String line = prefix + body + (row.kind() == DiffAlgorithm.Kind.CONTEXT ? "" : " ");
-        return switch (row.kind()) {
-            case ADD -> withBackground("diffAddLine", line);
-            case DELETE -> withBackground("diffDeleteLine", line);
-            case CONTEXT -> line;
-        };
+        int gutter = AnsiWidth.visibleWidth(prefix);
+        String continuation = " ".repeat(gutter);
+        var out = new ArrayList<String>();
+        var wrapped = AnsiWidth.wrapPreservingAnsi(body, Math.max(8, width - gutter));
+        for (int i = 0; i < wrapped.size(); i++) {
+            String line = (i == 0 ? prefix : continuation) + wrapped.get(i)
+                                            + (row.kind() == DiffAlgorithm.Kind.CONTEXT ? "" : " ");
+            out.add(switch (row.kind()) {
+                case ADD -> withBackground("diffAddLine", line);
+                case DELETE -> withBackground("diffDeleteLine", line);
+                case CONTEXT -> line;
+            });
+        }
+        return out;
     }
 
     private String withBackground(String slot, String line) {

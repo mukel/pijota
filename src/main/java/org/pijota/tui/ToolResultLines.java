@@ -58,21 +58,23 @@ final class ToolResultLines {
             if (elapsedStr != null)
                 meta.add(theme.styled("commandMeta", elapsedStr));
             lines.add(""); // framed blocks get one blank line of air (the coordinator collapses doubles)
-            lines.add(theme.styled("toolError", "✖") + " " + nameDetail
-                                            + (meta.isEmpty() ? "" : dot + String.join(dot, meta)));
+            addHeader(lines, theme.styled("toolError", "✖") + " ",
+                                            nameDetail + (meta.isEmpty() ? "" : dot + String.join(dot, meta)), theme,
+                                            width);
             addBody(lines, errorBody(msg, rendered), theme, width);
         } else if (rendered != null && !rendered.body().isEmpty()) {
             // Tool with output: the framed block. Accent ┌ open, railed body, dim └ footer carrying the metadata.
             lines.add("");
-            lines.add(theme.styled("toolLabel", "┌ ") + nameDetail);
+            addHeader(lines, theme.styled("toolLabel", "┌ "), nameDetail.toString(), theme, width);
             addBody(lines, rendered.body(), theme, width);
             var foot = metaChips(summary, exit, elapsedStr, theme);
             lines.add(theme.styled("commandMeta", "└") + (foot.isEmpty() ? "" : " " + String.join(dot, foot)));
         } else {
             // Quiet tool: the header line is the whole block, metadata uniformly dim, stacked tight with siblings.
             var meta = metaChips(summary, exit, elapsedStr, theme);
-            lines.add(theme.styled("toolLabel", glyph) + " " + nameDetail
-                                            + (meta.isEmpty() ? "" : dot + String.join(dot, meta)));
+            addHeader(lines, theme.styled("toolLabel", glyph) + " ",
+                                            nameDetail + (meta.isEmpty() ? "" : dot + String.join(dot, meta)), theme,
+                                            width);
         }
         return lines;
     }
@@ -101,6 +103,18 @@ final class ToolResultLines {
         for (String line : body)
             for (String row : AnsiWidth.wrapPreservingAnsi(line, Math.max(1, width - 2)))
                 lines.add(renderToolBodyLine(row, theme));
+    }
+
+    /**
+     * A header line, wrapped to the block's width rather than left to the terminal. A long shell command overflowed to
+     * column zero, so its continuation sat outside the frame and broke the box open exactly where the command is
+     * hardest to read. Continuations carry the same {@code │} rail as the body, so the whole block reads as one thing.
+     */
+    private static void addHeader(List<String> lines, String prefix, String text, AnsiTheme theme, int width) {
+        int lead = AnsiWidth.visibleWidth(prefix);
+        var rows = AnsiWidth.wrapPreservingAnsi(text, Math.max(8, width - lead));
+        for (int i = 0; i < rows.size(); i++)
+            lines.add(i == 0 ? prefix + rows.get(i) : renderToolBodyLine(rows.get(i), theme));
     }
 
     /**
