@@ -59,8 +59,11 @@ public final class ModelResolver {
             }
         }
         if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
-            if (!args.agent())
+            if (!args.agent()) {
+                if (ModelRegistry.availableModels(settings).isEmpty())
+                    throw new SetupRequiredException(firstRunMessage()); // first run: onboard, don't report a failure
                 throw new IllegalStateException(missingApiKeyMessage(provider, model, settings));
+            }
         }
 
         // Pre-flight typo check: an explicitly chosen model that isn't in a catalogued provider's list is usually a
@@ -78,6 +81,10 @@ public final class ModelResolver {
     }
 
     static String missingApiKeyMessage(String provider, String model, SettingsManager settings) {
+        // Nothing configured anywhere: this is a first run, not a misconfiguration. Diagnosing the model pijota
+        // happened to default to would answer a question the user never asked; onboard instead.
+        if (ModelRegistry.availableModels(settings).isEmpty())
+            return firstRunMessage();
         String hint = settings.apiKeyHint(provider);
         StringBuilder sb = new StringBuilder("No API key for ").append(provider).append('/').append(model).append('.');
         if (hint != null && !hint.isBlank())
@@ -86,6 +93,22 @@ public final class ModelResolver {
             sb.append(" Or run `pijota login ").append(provider).append("`.");
         sb.append(" Use `pijota --list-models ").append(provider).append("` to see available models.");
         sb.append(" For a local/OpenAI-compatible server, add a keyless provider in ~/.pijota/settings.json.");
+        return sb.toString();
+    }
+
+    /**
+     * The very first thing a new user sees if they launch before configuring anything. It names the two ways in
+     * (sign in, or export a key) with copy-pasteable commands, rather than reporting a failure about a model they
+     * never chose.
+     */
+    static String firstRunMessage() {
+        var sb = new StringBuilder("No provider configured yet. Two ways to get started:\n\n");
+        ProviderCatalog.providers().stream().filter(p -> p.oauth() != null).map(ProviderCatalog.Provider::id)
+                                        .findFirst().ifPresent(p -> sb.append("  pijota login ").append(p)
+                                                                        .append("      sign in, no API key needed\n"));
+        sb.append("  export DEEPSEEK_API_KEY=…   or ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, KIMI_API_KEY\n");
+        sb.append("\n`pijota --list-models` shows what you can run once a key is set.");
+        sb.append("\nRunning a local model? Add a keyless provider in ~/.pijota/settings.json.");
         return sb.toString();
     }
 }

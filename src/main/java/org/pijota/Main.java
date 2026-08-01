@@ -94,6 +94,10 @@ public final class Main {
                 return Supervisor.run(args);
 
             return runFrontend(parsedArgs);
+        } catch (org.pijota.llm.SetupRequiredException e) {
+            // Not a crash: nothing is configured yet. Print the guidance plainly, without the failure framing.
+            System.err.println(e.getMessage());
+            return 1;
         } catch (Throwable e) {
             return CliErrorReporter.fatal("Pijota failed", e);
         }

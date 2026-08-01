@@ -52,4 +52,25 @@ class ModelResolverTest {
                                         settings(Map.of(), "gpt-5.5")));
         assertTrue(ex.getMessage().toLowerCase().contains("alias"), ex.getMessage());
     }
+
+    @Test
+    void aConfiguredUserGetsTheSpecificMissingKeyDiagnostic() {
+        // Some provider works, another was asked for: name the key that is missing, for that provider.
+        String msg = ModelResolver.missingApiKeyMessage("mistral", "mistral-large", settings(Map.of(), "gpt-5.5"));
+        assertTrue(msg.contains("mistral"), msg);
+        assertTrue(msg.contains("MISTRAL_API_KEY"), msg);
+        assertFalse(msg.contains("get started"), "an already-configured user is not onboarded again: " + msg);
+    }
+
+    @Test
+    void theFirstRunMessageOnboardsInsteadOfDiagnosing() {
+        // Shown when nothing is configured at all. Asserted on content only: which branch fires depends on the
+        // ambient environment (provider env vars), which this class deliberately does not exercise.
+        String msg = ModelResolver.firstRunMessage();
+        assertTrue(msg.contains("No provider configured yet"), msg);
+        assertTrue(msg.contains("pijota login"), "the sign-in path is offered: " + msg);
+        assertTrue(msg.contains("API_KEY"), "the key path is offered too: " + msg);
+        assertFalse(msg.contains("gpt-5.5"), "no diagnosis of a default the user never chose: " + msg);
+        assertFalse(msg.startsWith("No API key for"), "not phrased as a failure: " + msg);
+    }
 }
