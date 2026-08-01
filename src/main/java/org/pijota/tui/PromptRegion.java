@@ -190,11 +190,11 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
         public Body compose(int width, AnsiTheme theme, PromptSnapshot ctx) {
             var rows = new ArrayList<String>();
 
-            // Workspace line FIRST (cwd · branch · session): wrapped, never truncated; a long path spills to the next
-            // row rather than losing its tail. Stable within a turn, so wrapping it causes no per-frame jitter.
+            // Workspace line FIRST (cwd · branch · session): always ONE row. A deep path used to spill over several
+            // rows, eating a tenth of a narrow terminal; eliding the middle keeps what identifies the workspace (the
+            // root and the project/branch tail) at a fixed cost. Stable within a turn, so no per-frame jitter.
             if (hasText(ctx.cwd()))
-                for (String seg : AnsiWidth.wrapPreservingAnsi(ctx.cwd(), width))
-                    rows.add(theme.styled("cwdLine", seg));
+                rows.add(theme.styled("cwdLine", AnsiWidth.truncateMiddle(ctx.cwd(), width)));
 
             // Stats line (token info · (provider) model · reasoning · activity): pre-styled per segment, wrapped so a
             // narrow terminal spills to the next row instead of truncating.

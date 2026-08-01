@@ -29,7 +29,7 @@ final class TuiCommandController {
             case "/logout" -> tui.showLogoutSelector();
             case "/refresh" -> tui.refreshModels();
             case "/reload" -> tui.reloadRuntimeResources();
-            case "/theme" -> tui.showThemeSelector();
+            case "/theme" -> tui.showThemeSelector(arg);
             case "/undo" -> tui.undoLastTurn();
             case "/compact" -> tui.triggerCompaction(arg);
             case "/branch-summary" -> tui.branchSummary(arg);

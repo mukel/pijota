@@ -1588,7 +1588,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showThemeSelector() {
-        themeCommands.showThemeSelector();
+        showThemeSelector("");
+    }
+
+    void showThemeSelector(String arg) {
+        themeCommands.showThemeSelector(arg);
     }
 
     @Override

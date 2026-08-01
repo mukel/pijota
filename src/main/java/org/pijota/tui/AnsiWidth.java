@@ -58,6 +58,37 @@ final class AnsiWidth {
         return 1;
     }
 
+    /**
+     * Fits {@code text} into {@code maxWidth} columns by eliding its MIDDLE, keeping both ends. For paths the tail
+     * (the project directory) identifies the thing and the head gives its root, so a plain end-truncation would cut
+     * off the useful part. Text that already fits is returned unchanged. Plain text only: the elision point ignores
+     * ANSI state, so callers style the result rather than passing styled input.
+     */
+    public static String truncateMiddle(String text, int maxWidth) {
+        if (text == null || maxWidth <= 0)
+            return "";
+        if (visibleWidth(text) <= maxWidth)
+            return text;
+        if (maxWidth <= 1)
+            return "…";
+        int keep = maxWidth - 1; // one column for the ellipsis
+        int tail = keep / 2; // ties go to the head, which carries the root
+        int head = keep - tail;
+        String start = truncateVisual(text, head).replace(RESET, "");
+        // Walk back from the end until the tail fits; charWidth handles wide glyphs.
+        int i = text.length();
+        int width = 0;
+        while (i > 0) {
+            int prev = text.offsetByCodePoints(i, -1);
+            int cw = charWidth(text, prev);
+            if (width + cw > tail)
+                break;
+            width += cw;
+            i = prev;
+        }
+        return start + "…" + text.substring(i);
+    }
+
     public static String truncateVisual(String text, int maxWidth) {
         if (maxWidth <= 0)
             return "";

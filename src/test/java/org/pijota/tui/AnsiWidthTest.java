@@ -171,6 +171,38 @@ class AnsiWidthTest {
     }
 
     @Test
+    void truncateMiddleKeepsBothEndsOfAPath() {
+        // The workspace line must stay one row: a deep path keeps its root AND the project/branch tail that
+        // identifies it, unlike an end-truncation which would drop exactly the useful part.
+        String path = "/home/user/work/monorepo/packages/service/src/main (feature-branch)";
+        String out = AnsiWidth.truncateMiddle(path, 40);
+        assertTrue(AnsiWidth.visibleWidth(out) <= 40, "fits the width: " + out);
+        assertTrue(out.startsWith("/home"), "root kept: " + out);
+        assertTrue(out.endsWith("(feature-branch)"), "tail kept: " + out);
+        assertTrue(out.contains("…"), "elision marked: " + out);
+    }
+
+    @Test
+    void truncateMiddleLeavesFittingTextAlone() {
+        assertEquals("~/proj (main)", AnsiWidth.truncateMiddle("~/proj (main)", 40));
+        assertEquals("", AnsiWidth.truncateMiddle("anything", 0)); // no room at all
+        assertEquals("…", AnsiWidth.truncateMiddle("anything", 1)); // room only for the marker
+    }
+
+    @Test
+    void truncateMiddleNeverSplitsAWideGlyph() {
+        String cjk = "/项目/很长的路径名称/子目录/源代码/主要 (分支)";
+        for (int w = 2; w <= 30; w++) {
+            String out = AnsiWidth.truncateMiddle(cjk, w);
+            assertTrue(AnsiWidth.visibleWidth(out) <= w, "width " + w + " overflows: " + out);
+            for (int i = 0; i < out.length(); i++)
+                if (Character.isHighSurrogate(out.charAt(i)))
+                    assertTrue(i + 1 < out.length() && Character.isLowSurrogate(out.charAt(i + 1)),
+                                                    "width " + w + ": split surrogate in " + out);
+        }
+    }
+
+    @Test
     void wrapPreservingAnsiEmptyInput() {
         var lines = AnsiWidth.wrapPreservingAnsi("", 10);
         assertEquals(List.of(""), lines);

@@ -136,10 +136,10 @@ Inside the TUI, start with `/help`.
 | `/login` | Configure provider credentials. |
 | `/model` | Switch models. |
 | `/settings` | Adjust runtime settings. |
-| `/status` | Show current model, session, cwd, usage, and busy state. |
+| `/context` | Show the token-usage breakdown for the current context. |
 | `/name` | Name the current session. |
 | `/new` | Start a new conversation. |
-| `/stop` | Abort the current turn. |
+| `/undo` | Edit the previous message. |
 | `/compact` | Summarize older context. |
 | `/usage` | Show tokens, cost, and context. |
 | `/dequeue` | Restore a queued follow-up to the editor. |
