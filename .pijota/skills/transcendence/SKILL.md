@@ -1,6 +1,6 @@
 ---
 name: transcendence
-description: Autonomous self-modification — edit pijota's source, build, test, and respawn
+description: Autonomous self-modification, edit pijota's source, build, test, and respawn
 ---
 
 ## What transcendence is
@@ -103,7 +103,7 @@ transcendence action="respawn" [worktree="../pijota-wip"]
 
 This builds one more time (with backup), queues the respawn, and the process
 restarts **after your current turn completes**. You can give the user a final
-message summarizing what changed — it will be visible before the restart.
+message summarizing what changed, it will be visible before the restart.
 
 After respawn, the same session resumes automatically. The user won't even notice
 a transition except that the new code is running.
@@ -144,11 +144,11 @@ If the new build is broken or crashes after respawn:
 - ALWAYS build before respawning. The respawn action builds internally but
   explicitly building first catches errors earlier.
 - ALWAYS test before respawning. Don't respawn with a broken test suite.
-- NEVER skip the backup — the respawn action creates it automatically.
-- NEVER respawn twice in one turn — the second request is ignored.
+- NEVER skip the backup: the respawn action creates it automatically.
+- NEVER respawn twice in one turn: the second request is ignored.
 - The respawn happens AFTER your turn, so finish your message before calling it.
 - If running in a worktree, use `worktree="..."` on ALL actions.
-- After respawn, you are the same agent in the same conversation — the session
+- After respawn, you are the same agent in the same conversation: the session
   file is passed to the new process so no context is lost.
 
 ## Example: Adding a new tool
@@ -180,12 +180,12 @@ User: "the read tool truncates output at 1000 lines instead of 2000"
 
 ## /transcend slash command
 
-- `/transcend "add a reverse tool"` — set a self-modification goal. A git worktree
+- `/transcend "add a reverse tool"`: set a self-modification goal. A git worktree
   is created automatically (the user doesn't see this). The agent autonomously
-  edits, builds, tests, and respawns. Worktrees are an implementation detail —
+  edits, builds, tests, and respawns. Worktrees are an implementation detail , 
   don't mention them to the user.
-- `/transcend` — integrate current source changes: compile/test/package and respawn from
+- `/transcend`: integrate current source changes: compile/test/package and respawn from
   the current tree (no goal)
-- `/transcend --test` — build and launch a test instance (interactive)
-- `/transcend --rollback` — restore backup jar and respawn
-- `/transcend --merge feat/name` — merge branch, build, respawn
+- `/transcend --test`: build and launch a test instance (interactive)
+- `/transcend --rollback`: restore backup jar and respawn
+- `/transcend --merge feat/name`: merge branch, build, respawn

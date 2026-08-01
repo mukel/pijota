@@ -1,4 +1,4 @@
-# Pijota — opinionated terminal coding assistant
+# Pijota: opinionated terminal coding assistant
 #
 # Usage:
 #   make build        compile only
@@ -21,7 +21,7 @@
 
 .PHONY: build test test-live check jar run fat native native-smoke acp-smoke native-pgo-instrument native-pgo-build setup-musl native-static clean format format-check coverage
 
-# Prefer the Maven Daemon (mvnd) when present — its warm JVM makes the dev loop far faster (compile ~4x, tests ~1.3x);
+# Prefer the Maven Daemon (mvnd) when present, its warm JVM makes the dev loop far faster (compile ~4x, tests ~1.3x);
 # falls back to plain mvn. Override with `make MVN=mvn ...` to force a fresh, daemonless run.
 MVN  ?= $(shell command -v mvnd 2>/dev/null || echo mvn)
 # Derive JAVA_HOME from the java on PATH when unset, so mvnd skips its (warned) probe and the build stays quiet.
@@ -66,13 +66,13 @@ acp-smoke:
 	@python3 scripts/acp-smoke.py target/pj
 
 # Fully standalone (statically linked, no libc dependency) native image via musl + musl-built zlib.
-# One-time: `make setup-musl` (needs musl-gcc — e.g. `sudo pacman -S musl` / `apt install musl-tools`).
+# One-time: `make setup-musl` (needs musl-gcc, e.g. `sudo pacman -S musl` / `apt install musl-tools`).
 MUSL_LIBDIR ?= $(HOME)/.local/share/pijota-staticlibs/lib
 ZLIB_VERSION ?= 1.3.1
 
 setup-musl:
 	@[ "$$(uname -s)" = "Linux" ] || { echo "setup-musl is Linux-only (musl static linking); on macOS/Windows use 'make native'."; exit 1; }
-	@command -v musl-gcc >/dev/null 2>&1 || { echo "musl-gcc not found — install musl (pacman -S musl / apt install musl-tools)"; exit 1; }
+	@command -v musl-gcc >/dev/null 2>&1 || { echo "musl-gcc not found, install musl (pacman -S musl / apt install musl-tools)"; exit 1; }
 	@mkdir -p "$(MUSL_LIBDIR)"
 	@: > /tmp/pijota-empty.c && gcc -c /tmp/pijota-empty.c -o /tmp/pijota-empty.o && ar rcs "$(MUSL_LIBDIR)/libatomic_asneeded.a" /tmp/pijota-empty.o
 	@tmp=$$(mktemp -d) && cd $$tmp && \
@@ -88,7 +88,7 @@ native-static:
 	@$(MVN) -q -DskipTests -Pnative,static -Dmusl.libdir="$(MUSL_LIBDIR)" package
 	@echo "Fully static native image: target/pj ($$(file -b target/pj | grep -o 'statically linked'))"
 
-# Profile-Guided Optimization (Oracle GraalVM) — typically 10-30% faster/smaller. Two phases:
+# Profile-Guided Optimization (Oracle GraalVM), typically 10-30% faster/smaller. Two phases:
 #   1) make native-pgo-instrument   build an instrumented binary
 #   2) run REAL, representative pijota sessions (a coding session, not just --help) → writes default.iprof on exit
 #   3) make native-pgo-build         rebuild optimized using the collected profile
@@ -99,7 +99,7 @@ native-pgo-instrument:
 	@echo "then: make native-pgo-build"
 
 native-pgo-build:
-	@test -f default.iprof || { echo "default.iprof not found — run the instrumented binary first (native-pgo-instrument)"; exit 1; }
+	@test -f default.iprof || { echo "default.iprof not found, run the instrumented binary first (native-pgo-instrument)"; exit 1; }
 	@$(MVN) -q -DskipTests -Pnative "-Dpgo.arg=--pgo=$(CURDIR)/default.iprof" package
 	@echo "PGO-optimized native image: target/pj"
 

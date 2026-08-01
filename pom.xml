@@ -61,7 +61,8 @@
     <marked.version>12.0.0</marked.version>
     <dompurify.version>3.0.9</dompurify.version>
     <highlightjs.version>11.9.0</highlightjs.version>
-    <inter.version>5.1.1</inter.version> <!-- Inter variable (Latin subset) for readable, OS-consistent UI type -->
+    <inter.version>5.1.1</inter.version>
+    <!-- Inter variable (Latin subset) for readable, OS-consistent UI type -->
     <inter.sha512>5e90f48b923bb95aeb49691d03dade8825c119b2fa28977ea170c41548900f4e0165e2869f97c7a9380d7ff8ff331a1da855500e5f7b0dfd2b9abd77a386bbf3</inter.sha512>
     <!-- PDF.js (legacy UMD build) downloaded into the build for browser-side PDF→markdown; see browser/README.md -->
     <pdfjs.version>3.11.174</pdfjs.version>
@@ -148,7 +149,7 @@
       <version>${commonmark.version}</version>
     </dependency>
 
-    <!-- QR code generation (terminal QR for /remote-control); pure Java, no reflection — native-image friendly. -->
+    <!-- QR code generation (terminal QR for /remote-control); pure Java, no reflection, native-image friendly. -->
     <dependency>
       <groupId>io.nayuki</groupId>
       <artifactId>qrcodegen</artifactId>
@@ -208,7 +209,7 @@
         <version>3.5.4</version>
         <configuration>
           <!-- Run test classes across 4 reused JVMs (sweet spot on this suite: ~19s vs ~27s serial; more forks lose
-               to JVM-startup overhead). Safe here — tests use ephemeral ports and per-JVM system properties. -->
+               to JVM-startup overhead). Safe here, tests use ephemeral ports and per-JVM system properties. -->
           <forkCount>4</forkCount>
           <reuseForks>true</reuseForks>
           <!-- Collapse BrowserSession's settle/consent waits (no protocol event to react to) against the instantly-
@@ -303,7 +304,7 @@
               <sha512>${inter.sha512}</sha512>
             </configuration>
           </execution>
-          <!-- PDF.js (legacy UMD build) for browser-side PDF→markdown — lands in browser/, not web/vendor/. -->
+          <!-- PDF.js (legacy UMD build) for browser-side PDF→markdown, lands in browser/, not web/vendor/. -->
           <execution>
             <id>browser-pdfjs</id>
             <goals>
