@@ -9,6 +9,8 @@
 #   make jar          build thin jar
 #   make fat          build fat jar (single uber-jar)
 #   make native       build GraalVM native image (portable -march=compatibility; macOS/Linux/Windows, incl. Apple Silicon)
+#   make native-smoke smoke-test target/pj: one turn per provider family + stdin pipe (needs provider keys)
+#   make acp-smoke    end-to-end ACP smoke: a scripted client drives `pj acp` like an editor would
 #   make native-pgo-instrument / native-pgo-build   profile-guided optimized native image (2 phases)
 #   make setup-musl   [Linux only] one-time: build musl static libs (zlib + stub) for fully static builds
 #   make native-static  [Linux only] fully standalone statically-linked native image (musl; needs setup-musl)
@@ -17,7 +19,7 @@
 #   make coverage   run tests and generate JaCoCo coverage report
 #   make clean        remove build artifacts
 
-.PHONY: build test test-live check jar run fat native native-smoke native-pgo-instrument native-pgo-build setup-musl native-static clean format format-check coverage
+.PHONY: build test test-live check jar run fat native native-smoke acp-smoke native-pgo-instrument native-pgo-build setup-musl native-static clean format format-check coverage
 
 # Prefer the Maven Daemon (mvnd) when present — its warm JVM makes the dev loop far faster (compile ~4x, tests ~1.3x);
 # falls back to plain mvn. Override with `make MVN=mvn ...` to force a fresh, daemonless run.
@@ -57,6 +59,11 @@ native:
 # Families without a configured key are skipped. Needs target/pj (make native).
 native-smoke:
 	@bash scripts/native-smoke.sh
+
+# End-to-end ACP (editor protocol) smoke: a scripted client plays Zed's role against `pj acp`,
+# covering the handshake, streaming, permission round-trips, client-side fs, and cancel.
+acp-smoke:
+	@python3 scripts/acp-smoke.py target/pj
 
 # Fully standalone (statically linked, no libc dependency) native image via musl + musl-built zlib.
 # One-time: `make setup-musl` (needs musl-gcc — e.g. `sudo pacman -S musl` / `apt install musl-tools`).
