@@ -42,8 +42,16 @@ class MainTest {
     void listModelsIncludesCapabilitiesAndPricing() {
         int code = Main.run(new String[] {"--list-models", "gpt"});
         assertEquals(0, code);
-        assertTrue(stdio.out().contains("input:"), stdio.out());
-        assertTrue(stdio.out().contains("price:"), stdio.out());
+        // Only models whose provider has a usable key are listed, so the outcome depends on the machine: a
+        // configured one prints rows, a bare CI runner prints guidance. Both are correct; assert whichever
+        // happened is well-formed, and never that the machine happens to hold a key. The formatting itself is
+        // pinned hermetically in ModelDisplayTest.
+        var rows = stdio.out().lines().filter(l -> l.startsWith("  ")).toList();
+        if (rows.isEmpty()) {
+            assertTrue(stdio.out().contains("No usable models"), stdio.out());
+            return;
+        }
+        assertTrue(rows.stream().allMatch(l -> l.contains("input:") && l.contains("price:")), stdio.out());
     }
 
     @Test
@@ -80,7 +88,14 @@ class MainTest {
         int code = Main.run(new String[] {"--list-models", "deepseek-v4-flash"});
 
         assertEquals(0, code);
-        assertTrue(stdio.out().contains("deepseek/deepseek-v4-flash"), stdio.out());
+        // Env-independent invariant: whatever is listed matches the filter, and nothing else leaks in. On a machine
+        // with no deepseek key nothing is listed, and the guidance names the filter that found nothing.
+        var rows = stdio.out().lines().filter(l -> l.startsWith("  ")).toList();
+        if (rows.isEmpty()) {
+            assertTrue(stdio.out().contains("No usable models matching \"deepseek-v4-flash\""), stdio.out());
+            return;
+        }
+        assertTrue(rows.stream().allMatch(l -> l.contains("deepseek-v4-flash")), stdio.out());
         assertFalse(stdio.out().contains("openai/gpt-4o"), stdio.out());
     }
 }

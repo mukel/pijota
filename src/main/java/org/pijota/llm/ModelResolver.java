@@ -60,8 +60,12 @@ public final class ModelResolver {
         }
         if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
             if (!args.agent()) {
-                if (ModelRegistry.availableModels(settings).isEmpty())
-                    throw new SetupRequiredException(firstRunMessage()); // first run: onboard, don't report a failure
+                // Onboard only when the user asked for nothing in particular AND nothing is configured: that is a
+                // first run. Someone who typed --provider/--model made a choice and wants to know what is wrong with
+                // THAT choice, not a tour of how to get started.
+                boolean chosen = args.provider() != null || args.model() != null;
+                if (!chosen && ModelRegistry.availableModels(settings).isEmpty())
+                    throw new SetupRequiredException(firstRunMessage());
                 throw new IllegalStateException(missingApiKeyMessage(provider, model, settings));
             }
         }
@@ -80,11 +84,11 @@ public final class ModelResolver {
         return new Resolved(provider, model, apiKey);
     }
 
+    /**
+     * Names the key missing for one provider. Always a diagnosis: the caller decides whether the situation is instead a
+     * first run (nothing configured AND nothing asked for), which {@link #firstRunMessage} answers.
+     */
     static String missingApiKeyMessage(String provider, String model, SettingsManager settings) {
-        // Nothing configured anywhere: this is a first run, not a misconfiguration. Diagnosing the model pijota
-        // happened to default to would answer a question the user never asked; onboard instead.
-        if (ModelRegistry.availableModels(settings).isEmpty())
-            return firstRunMessage();
         String hint = settings.apiKeyHint(provider);
         StringBuilder sb = new StringBuilder("No API key for ").append(provider).append('/').append(model).append('.');
         if (hint != null && !hint.isBlank())
