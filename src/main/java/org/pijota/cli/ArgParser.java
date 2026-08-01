@@ -205,6 +205,14 @@ public final class ArgParser {
                                           --no-approve, -na         Ignore project-local resources for this run
 
                                         """);
+        System.out.println("""
+                                        COMMANDS (before any options):
+                                          login [provider] [model]  Sign in to a provider (OAuth where supported, else an API key)
+                                          logout [provider]         Forget a provider's stored credential
+                                          auth <cmd> --provider <p> Print a credential for another tool (print-api-key,
+                                                                    print-bearer-token); see `pijota auth --help`
+                                          worktree <cmd>            Manage git worktrees; see `pijota worktree --help`
+                                        """);
         System.out.println(BuiltinExtensions.helpSection());
         System.out.println();
         System.out.println("""

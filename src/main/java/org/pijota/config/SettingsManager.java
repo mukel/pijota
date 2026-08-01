@@ -200,6 +200,16 @@ public final class SettingsManager {
         if (oauthToken != null && !oauthToken.isBlank())
             return oauthToken;
 
+        String key = resolveApiKeyOnly(provider);
+        return key == null || key.isBlank() ? null : key;
+    }
+
+    /**
+     * The static API key only: settings (with {@code ${ENV}} interpolation), then the provider's env vars. Unlike
+     * {@link #resolveApiKey} this never returns an OAuth access token, which is what {@code pijota auth
+     * print-api-key} promises; an OAuth bearer token used as an API key fails in ways that look like a server error.
+     */
+    public String resolveApiKeyOnly(String provider) {
         String key = config.apiKeys() != null ? config.apiKeys().get(provider) : null;
         if (key != null) {
             key = ProviderCatalog.interpolateEnv(key);
