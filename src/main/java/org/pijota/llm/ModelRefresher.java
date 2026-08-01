@@ -49,13 +49,23 @@ public final class ModelRefresher {
             try {
                 models.addAll(fetchOpenAiCompatible(client, provider, token, accountId, oauthToken));
             } catch (Exception e) {
-                errors.add(provider.id() + ": " + e.getMessage());
+                errors.add(provider.id() + ": " + oneLineReason(e));
             }
         }
 
         models.sort(Comparator.comparing(ModelInfo::provider).thenComparing(ModelInfo::id));
         ModelRegistry.replaceDiscovered(models);
         return new Result(providersChecked, models.size(), List.copyOf(errors));
+    }
+
+    /**
+     * One compact line per failed provider. {@code getMessage()} alone produced two bad outcomes here: a bare
+     * {@code null} for exceptions carrying no message (unreadable), and a provider's whole JSON error body spilled
+     * across the transcript for a single 401. {@link ErrorUtil#message} never yields null (and scrubs credentials);
+     * squeezing whitespace keeps a refresh summary scannable when several providers fail at once.
+     */
+    static String oneLineReason(Exception e) {
+        return Util.ellipsize(ErrorUtil.message(e).replaceAll("\\s+", " ").strip(), 160);
     }
 
     // package-private: tested directly with an injected (fake) HttpClient against canned /models responses

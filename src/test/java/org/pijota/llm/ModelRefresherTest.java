@@ -119,4 +119,21 @@ class ModelRefresherTest {
         assertEquals(0, result.modelsFound());
         assertTrue(result.errors().isEmpty());
     }
+
+    @Test
+    void aRefreshFailureIsAlwaysOneReadableLine() {
+        // An exception with no message used to print "provider: null", and a provider's JSON error body used to
+        // spill across the transcript. A refresh summary must stay scannable when several providers fail at once.
+        String noMessage = ModelRefresher.oneLineReason(new IllegalStateException());
+        assertFalse(noMessage.isBlank(), "never blank");
+        assertFalse(noMessage.contains("null"), "never the literal null: " + noMessage);
+
+        String jsonBody = ModelRefresher.oneLineReason(new RuntimeException(
+                                        "HTTP 401 - {\n  \"error\": {\n    \"message\": \"Incorrect API key\"\n  }\n}"));
+        assertFalse(jsonBody.contains("\n"), "collapsed to one line: " + jsonBody);
+        assertTrue(jsonBody.length() <= 161, "bounded: " + jsonBody.length());
+        // ErrorUtil digs the human sentence out of a provider's JSON error body; the braces never reach the user.
+        assertTrue(jsonBody.contains("Incorrect API key"), "the useful part survives: " + jsonBody);
+        assertFalse(jsonBody.contains("{"), "no raw JSON: " + jsonBody);
+    }
 }
