@@ -128,10 +128,21 @@ public final class BrowserSession {
 
     /** Navigates to a URL in the real browser and returns the rendered page as markdown. */
     public synchronized String visit(String url) throws Exception {
+        return visitNormalized(normalizeUrl(url));
+    }
+
+    /**
+     * The extraction pipeline, with the URL policy already applied. Split out so the live browser tests can point a
+     * real Chrome/Firefox at their own loopback fixture server: the SSRF guard in {@link #normalizeUrl} correctly
+     * refuses 127.0.0.1, so a test that went through {@link #visit} could only pass by weakening the guard. Every
+     * production caller goes through {@code visit}; {@code url} here is trusted and must never come from a model or a
+     * page.
+     */
+    synchronized String visitNormalized(String url) throws Exception {
         cancelled = false;
         lastUseNanos = System.nanoTime();
         backend.start();
-        backend.navigate(normalizeUrl(url)); // returns once the new document has loaded (event-driven in the backend)
+        backend.navigate(url); // returns once the new document has loaded (event-driven in the backend)
         dismissConsent();
         loadSettle();
         String reader = readerArticle(); // tier 1: Mozilla Readability ("Firefox reader mode"), clean articles

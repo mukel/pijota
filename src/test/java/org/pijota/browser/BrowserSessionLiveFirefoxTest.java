@@ -89,7 +89,9 @@ class BrowserSessionLiveFirefoxTest {
         var session = BrowserSession.create("firefox", freePort(), profile, null, m -> System.err.println("[it] " + m),
                                         () -> true);
         try {
-            return session.visit("http://" + InetAddress.getLoopbackAddress().getHostAddress() + ":"
+            // visitNormalized, not visit: the SSRF guard rightly refuses loopback, and this
+            // fixture URL is ours, not a model's. The guard itself is tested in BrowserSessionTest.
+            return session.visitNormalized("http://" + InetAddress.getLoopbackAddress().getHostAddress() + ":"
                                             + fixture.getAddress().getPort() + "/");
         } finally {
             session.close();
