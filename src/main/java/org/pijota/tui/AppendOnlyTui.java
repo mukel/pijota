@@ -219,6 +219,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final WorkingAnimation animation = new WorkingAnimation();
     private final FollowUpQueue followUps = new FollowUpQueue();
     private final MessageBrowser messageBrowser;
+    /** The prompt draft a selector displaced when it borrowed the input line; restored if the selector is cancelled. */
+    private String promptStash = "";
     private PendingEditManager pendingEdit;
     private final Supplier<List<String>> extensionLinesSupplier;
     private final RemoteControl remoteControl;
@@ -443,6 +445,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
         @Override
         public void clearPrompt() {
+            // Selectors borrow the prompt line for their query, so opening one clears the editor. Stash what was
+            // there: cancelling must give the user their draft back, not eat it (Ctrl+P over a half-written message
+            // is the common case). A confirmed selection clears again over an empty editor, dropping the stash.
+            promptStash = promptEditor.text();
             promptEditor.setText("");
         }
 
@@ -1211,7 +1217,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (selectors.anyActive()) {
             selectors.deactivateAll();
             clearStatusOverride();
-            promptEditor.setText("");
+            promptEditor.setText(promptStash); // give back the draft the selector borrowed the line from
+            promptStash = "";
             return true;
         }
         if (promptEditor.hasCompletions()) {
