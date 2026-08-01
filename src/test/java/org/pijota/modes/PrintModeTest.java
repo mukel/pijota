@@ -58,14 +58,26 @@ class PrintModeTest {
     }
 
     @Test
-    void jsonModePrintsMessagesArray() {
+    void jsonModeReportsTheModelThatAnsweredAndWhatItUsed() {
         var loop = loopReturning("hello world");
         int code = PrintMode.run("hi", loop, Args.OutputMode.JSON);
         assertEquals(0, code);
         String out = capturedOut.toString();
-        assertTrue(out.contains("\"model\": \"unknown\""));
-        assertTrue(out.contains("\"role\": \"assistant\""));
-        assertTrue(out.contains("hello world"));
+        assertTrue(out.contains("hello world"), out);
+        assertTrue(out.contains("\"role\""), out);
+        // A script driving pijota must be able to attribute and budget the run. "unknown" was hardcoded here.
+        assertFalse(out.contains("unknown"), "the answering model is named, not hardcoded unknown: " + out);
+        assertTrue(out.contains("\"provider\"") && out.contains("\"model\""), out);
+        assertTrue(out.contains("\"usage\"") && out.contains("inputTokens"), "usage is reported: " + out);
+    }
+
+    @Test
+    void jsonModeIsValidJsonEvenWhenTheAnswerContainsQuotesAndNewlines() {
+        // Hand-built JSON used to escape this by hand; a mapper makes malformed output impossible.
+        var loop = loopReturning("say \"hi\"\nand a \\ backslash\ttab");
+        assertEquals(0, PrintMode.run("hi", loop, Args.OutputMode.JSON));
+        assertDoesNotThrow(() -> org.pijota.util.Util.MAPPER.readTree(capturedOut.toString()),
+                                        "output must parse: " + capturedOut);
     }
 
     @Test

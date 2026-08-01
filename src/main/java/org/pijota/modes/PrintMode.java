@@ -8,7 +8,10 @@ import org.pijota.util.CliErrorReporter;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.Util;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -21,7 +24,7 @@ public final class PrintMode {
         try {
             var result = streamAndWait(prompt, agentLoop, outputMode);
             if (outputMode == Args.OutputMode.JSON) {
-                printJson(result);
+                printJson(result, agentLoop);
             }
             return 0;
         } catch (ExecutionException e) {
@@ -85,23 +88,38 @@ public final class PrintMode {
         }
     }
 
-    private static void printJson(List<Message> result) {
-        System.out.println("{");
-        System.out.println("  \"model\": \"unknown\",");
-        System.out.println("  \"messages\": [");
-        boolean first = true;
+    /**
+     * The machine-readable result of a print run: which model answered, what it said, and what it cost. The model was
+     * previously hardcoded to "unknown", and usage was absent entirely, so a script driving pijota could neither
+     * attribute nor budget a run. Serialized through Jackson rather than hand-built strings, so content escaping is the
+     * mapper's problem.
+     */
+    private static void printJson(List<Message> result, AgentLoop agentLoop) {
+        var messages = new ArrayList<Map<String, Object>>();
+        long in = 0, out = 0, cacheRead = 0, cacheWrite = 0, reasoning = 0;
         for (var msg : result) {
-            if (msg instanceof Message.Assistant a && a.content() != null && !a.content().isBlank()) {
-                if (!first)
-                    System.out.println(",");
-                first = false;
-                System.out.println("    {");
-                System.out.println("      \"role\": \"assistant\",");
-                System.out.println("      \"content\": \"" + Util.escapeJson(a.content()) + "\"");
-                System.out.print("    }");
+            if (!(msg instanceof Message.Assistant a))
+                continue;
+            if (a.content() != null && !a.content().isBlank())
+                messages.add(Map.of("role", "assistant", "content", a.content()));
+            if (a.usage() != null) { // every request of the turn contributes, not just the final message
+                in += a.usage().inputTokens();
+                out += a.usage().outputTokens();
+                cacheRead += a.usage().cacheReadTokens();
+                cacheWrite += a.usage().cacheWriteTokens();
+                reasoning += a.usage().reasoningTokens();
             }
         }
-        System.out.println("\n  ]");
-        System.out.println("}");
+        var payload = new LinkedHashMap<String, Object>();
+        payload.put("provider", agentLoop.llm().provider());
+        payload.put("model", agentLoop.llm().model());
+        payload.put("messages", messages);
+        payload.put("usage", Map.of("inputTokens", in, "outputTokens", out, "cacheReadTokens", cacheRead,
+                                        "cacheWriteTokens", cacheWrite, "reasoningTokens", reasoning));
+        try {
+            System.out.println(Util.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(payload));
+        } catch (Exception e) {
+            CliErrorReporter.warn("could not serialize JSON result: " + ErrorUtil.message(e));
+        }
     }
 }
