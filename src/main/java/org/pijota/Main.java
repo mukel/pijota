@@ -51,13 +51,9 @@ public final class Main {
 
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-    static {
-        try {
-            sun.misc.Signal.handle(new sun.misc.Signal("HUP"), sun.misc.SignalHandler.SIG_IGN);
-        } catch (Throwable e) {
-            logger.warn("Failed to ignore SIGHUP", e);
-        }
-    }
+    // SIGHUP is deliberately left at its default (terminate): closing a terminal ends the session it was running,
+    // which is what every other terminal program does. Surviving the hangup is a job for nohup/setsid/tmux, and
+    // ignoring it stranded `pijota web` holding its port with no way left to Ctrl-C it.
 
     public static void main(String[] args) {
         int exitCode = run(args);
