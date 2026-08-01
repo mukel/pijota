@@ -17,7 +17,7 @@ public final class BuiltinExtensions {
 
     public static final List<Spec> TOGGLEABLE = List.of(new Spec("browse", false,
                                     "web browsing via a real browser (--browse=chrome|firefox|safari)"),
-                                    new Spec("jobs", false, "background shell jobs (jobs_run / jobs_output / jobs_list / jobs_kill)"),
+                                    new Spec("jobs", true, "background shell jobs (jobs_run / jobs_output / jobs_list / jobs_kill)"),
                                     new Spec("tmux", false, "supervise long-lived processes via tmux"),
                                     new Spec("todo", false, "structured todo list with a live panel"),
                                     new Spec("token-speed", false, "tokens/sec in the status bar"), new Spec(
