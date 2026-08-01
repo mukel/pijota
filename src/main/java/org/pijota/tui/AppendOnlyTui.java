@@ -2223,8 +2223,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 streamRenderer.flush();
                 if (toolCallId != null)
                     toolsInProgress.put(toolCallId, new ToolInProgress(name, ToolLabels.detail(name, args, rawCwd,
-                                                    settings != null ? settings.pathDisplay() : PathDisplay.COMPACT),
-                                                    args, System.currentTimeMillis()));
+                                                    settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
+                                                    ToolLabels.FULL_COMMAND), args, System.currentTimeMillis()));
                 pendingEdit.onToolStart(name, args);
                 activity.setPhase("tool " + name);
                 if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)

@@ -82,6 +82,7 @@ public final class ApplyPatchTool implements Tool {
                 var labels = planned.stream().map(Planned::label).toList();
                 var details = new LinkedHashMap<String, Object>();
                 details.put("files", labels);
+                details.put("patch", patch); // the applied diff, so the UI can show WHAT changed, not just where
                 return ToolResult.success("Applied patch to " + Util.count(labels.size(), "file", "files") + ": "
                                                 + String.join(", ", labels), details);
             } catch (PatchException e) {
@@ -207,6 +208,39 @@ public final class ApplyPatchTool implements Tool {
 
     private record FilePatch(String oldPath, String newPath, List<Hunk> hunks) {
     }
+
+    /**
+     * Shows the applied diff, not just which files were touched: this is the multi-file editing tool, so "what
+     * changed" is the thing worth seeing. The patch is already a unified diff, so it renders as-is (the TUI colors
+     * {@code +}/{@code -}/{@code @@} lines) and is capped like {@code edit}'s preview so a large patch cannot flood
+     * the transcript.
+     */
+    @Override
+    public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
+        if (result.isError())
+            return ToolResultView.of(result.content());
+        String summary = result.content();
+        if (!(result.details().get("patch") instanceof String patch) || patch.isBlank())
+            return ToolResultView.of(summary);
+        var lines = patch.strip().split("\n");
+        var body = new ArrayList<String>();
+        for (String line : lines) {
+            if (body.size() >= MAX_PREVIEW_LINES) {
+                body.add("⋯ " + Util.count(lines.length - MAX_PREVIEW_LINES, "more line", "more lines"));
+                break;
+            }
+            body.add(line);
+        }
+        return ToolResultView.of(summary, body);
+    }
+
+    @Override
+    public boolean hasResultView() {
+        return true;
+    }
+
+    /** Diff lines shown before the {@code ⋯ N more lines} cue; matches the edit tool's preview budget. */
+    private static final int MAX_PREVIEW_LINES = 20;
 
     /** A computed file mutation: {@code content == null} means delete, otherwise write {@code content}. */
     private record Planned(Path path, String content, String label) {

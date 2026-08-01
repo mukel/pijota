@@ -38,7 +38,20 @@ public final class ToolLabels {
         };
     }
 
+    /** Compact command budget: chat/web hints are notifications, where a long command would drown the message. */
+    public static final int COMPACT_COMMAND = 60;
+    /**
+     * Inspectable command budget for the TUI transcript, where seeing exactly what ran IS the point. The header wraps
+     * like any other line, so a long command costs rows, not information; the cap only stops a pasted megabyte.
+     */
+    public static final int FULL_COMMAND = 500;
+
     public static String detail(String toolName, Supplier<String> args, String cwd, PathDisplay pathDisplay) {
+        return detail(toolName, args, cwd, pathDisplay, COMPACT_COMMAND);
+    }
+
+    public static String detail(String toolName, Supplier<String> args, String cwd, PathDisplay pathDisplay,
+                                    int maxCommand) {
         Map<String, Object> a = parse(args);
         if (a.isEmpty())
             return "";
@@ -47,7 +60,7 @@ public final class ToolLabels {
             case "write", "edit" -> displayPath(pathArg(a), cwd, pathDisplay);
             // No wrapping quotes: the command routinely contains its own, and a truncation landing inside them reads
             // as garbage ("python3 -c " with..."). The muted style already delimits the command.
-            case "bash" -> shorten(stripCdPrefix(oneLine(a.getOrDefault("command", "").toString())), 60);
+            case "bash" -> shorten(stripCdPrefix(oneLine(a.getOrDefault("command", "").toString())), maxCommand);
             case "question" -> shorten(questionText(a), 60);
             case "ls" -> displayPath(a.getOrDefault("path", ".").toString(), cwd, pathDisplay) + options(a, "limit");
             case "grep" ->

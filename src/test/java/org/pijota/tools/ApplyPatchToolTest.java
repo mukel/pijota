@@ -182,4 +182,38 @@ class ApplyPatchToolTest {
         assertTrue(result.isError());
         assertFalse(Files.exists(tempDir.resolve("missing.txt")));
     }
+
+    @Test
+    void theResultViewShowsTheAppliedDiffNotJustTheFileNames() throws Exception {
+        Files.writeString(tempDir.resolve("a.txt"), "one\ntwo\n");
+        var tool = new ApplyPatchTool();
+        var p = patch("--- a/a.txt", "+++ b/a.txt", "@@ -1,2 +1,2 @@", " one", "-two", "+TWO");
+        var result = run(tool, Map.of("patch", p), tempDir);
+        assertFalse(result.isError(), result.content());
+
+        assertTrue(tool.hasResultView(), "apply_patch must advertise a view, or the TUI never calls renderResult");
+        var view = tool.renderResult(new Tool.Args(Map.of("patch", p)), result, tempDir.toString());
+        String body = String.join("\n", view.body());
+        assertTrue(body.contains("-two") && body.contains("+TWO"), "the change itself is visible: " + body);
+        assertTrue(view.summary().contains("a.txt"), "the summary still names the file: " + view.summary());
+    }
+
+    @Test
+    void aHugePatchIsCappedWithACue() throws Exception {
+        var sb = new StringBuilder("x\n".repeat(60));
+        Files.writeString(tempDir.resolve("big.txt"), sb.toString());
+        var lines = new java.util.ArrayList<String>(java.util.List.of("--- a/big.txt", "+++ b/big.txt",
+                                        "@@ -1,60 +1,60 @@"));
+        for (int i = 0; i < 60; i++) {
+            lines.add("-x");
+            lines.add("+y");
+        }
+        var tool = new ApplyPatchTool();
+        var result = run(tool, Map.of("patch", patch(lines.toArray(String[]::new))), tempDir);
+        assertFalse(result.isError(), result.content());
+
+        var view = tool.renderResult(new Tool.Args(Map.of()), result, tempDir.toString());
+        assertTrue(view.body().size() <= 21, "a large patch cannot flood the transcript: " + view.body().size());
+        assertTrue(view.body().getLast().startsWith("⋯"), "the cut is announced: " + view.body().getLast());
+    }
 }

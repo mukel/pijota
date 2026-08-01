@@ -284,4 +284,20 @@ class ToolLabelsTest {
         assertEquals("Platform.java", ToolLabels.displayPath(rel, "/proj", PathDisplay.NAME));
         assertEquals("/proj/" + rel, ToolLabels.displayPath(rel, "/proj", PathDisplay.FULL));
     }
+
+    @Test
+    void theBashCommandBudgetDiffersBySurface() {
+        // The TUI transcript is where you inspect what ran, so the command stays whole there; chat/web hints are
+        // notifications, where the same command would drown the message. One label, two deliberate budgets.
+        String command = "grep -rn 'needle' src/ | head -50 && echo '"
+                                        + "this-tail-says-what-the-command-was-actually-for".repeat(3) + "'";
+        java.util.function.Supplier<String> args = () -> "{\"command\":\"" + command + "\"}";
+
+        String compact = ToolLabels.detail("bash", args, "/proj", PathDisplay.COMPACT);
+        String full = ToolLabels.detail("bash", args, "/proj", PathDisplay.COMPACT, ToolLabels.FULL_COMMAND);
+
+        assertTrue(compact.length() < command.length(), "chat hints stay short: " + compact.length());
+        assertTrue(full.length() > compact.length(), "the transcript shows more than the hint");
+        assertTrue(full.contains("actually-for"), "the tail, which says what it was FOR, survives: " + full);
+    }
 }

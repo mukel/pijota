@@ -121,6 +121,21 @@ class ToolResultLinesTest {
     }
 
     @Test
+    void diffBodyLinesAreColoredByChangeMarker() {
+        var theme = AnsiTheme.dark();
+        // Keyed on content, not tool name, so any tool emitting a unified diff (apply_patch today) reads as a diff.
+        assertNotEquals(ToolResultLines.renderToolBodyLine("+added", theme),
+                                        ToolResultLines.renderToolBodyLine("-removed", theme),
+                                        "additions and deletions must not share a color");
+        assertTrue(ToolResultLines.renderToolBodyLine("+added", theme).contains(theme.style("diffAdd")));
+        assertTrue(ToolResultLines.renderToolBodyLine("-removed", theme).contains(theme.style("diffDelete")));
+        assertTrue(ToolResultLines.renderToolBodyLine("@@ -1 +1 @@", theme).contains(theme.style("diffHunk")));
+        // The +++/--- file headers are hunk chrome, not content changes.
+        assertTrue(ToolResultLines.renderToolBodyLine("+++ b/x.txt", theme).contains(theme.style("diffHunk")));
+        assertTrue(ToolResultLines.renderToolBodyLine("--- a/x.txt", theme).contains(theme.style("diffHunk")));
+    }
+
+    @Test
     void prettyJsonResultsSummarizeAsContentNotALoneBrace() {
         // MCP tools commonly return pretty-printed JSON; its first line is "{", which as a summary says nothing.
         var msg = new Message.ToolResult("id", "mcp__srv__tool", "{\n  \"thoughtNumber\": 1,\n  \"done\": true\n}",

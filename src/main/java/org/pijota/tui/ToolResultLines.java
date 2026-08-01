@@ -36,7 +36,7 @@ final class ToolResultLines {
         // lands where you actually read.
         boolean shell = msg.toolName().equals("bash");
         var nameDetail = new StringBuilder(theme.styled("toolLabel", shell ? "$" : msg.toolName()));
-        String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay);
+        String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay, ToolLabels.FULL_COMMAND);
         if (!detail.isBlank())
             nameDetail.append(' ').append(theme.styled(shell ? "text" : "statusText", detail));
 
@@ -174,6 +174,14 @@ final class ToolResultLines {
             return theme.styled("statusText", line);
         if (line.startsWith("⋯")) // truncation cue, colored so the "N lines omitted" break stands out from the output
             return rail + theme.styled("statusWarn", line);
+        // Unified-diff body (apply_patch): color the change markers so a patch reads like a diff, not like prose.
+        // Keyed on content, so any tool that emits diff text gets it.
+        if (line.startsWith("+") && !line.startsWith("+++"))
+            return rail + theme.styled("diffAdd", line);
+        if (line.startsWith("-") && !line.startsWith("---"))
+            return rail + theme.styled("diffDelete", line);
+        if (line.startsWith("@@") || line.startsWith("+++") || line.startsWith("---"))
+            return rail + theme.styled("diffHunk", line);
         return rail + theme.styled("statusText", line);
     }
 }
