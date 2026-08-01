@@ -12,15 +12,23 @@ Manual checklist for publishing Pijota to Maven Central.
 - Confirm `LICENSE` is tracked.
 - Confirm no generated or scratch files are present in the repo root.
 - Confirm no stale `ai.pijota` references remain in tracked source files.
+- Confirm `CHANGELOG.md` has a section for the version being released.
 
 ## Verify
 
 ```bash
-make check
+make check                 # spotless + full test suite (also runs in CI)
 mvn -Prelease -Dgpg.skip package
 ```
 
 If signing locally, omit `-Dgpg.skip` before deploy.
+
+The smoke tests need provider credentials, so CI cannot run them; do it here:
+
+```bash
+make native && make native-smoke   # one real turn per provider family + stdin pipe
+make acp-smoke                     # editor-protocol client against `pj acp`
+```
 
 ## Publish
 
