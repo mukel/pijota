@@ -45,24 +45,25 @@ class AppendOnlyTuiTest {
     }
 
     @Test
-    void compactSessionDetailNull() {
-        assertEquals("", AppendOnlyTui.compactSessionDetail(null));
+    void bannerSessionMetaReadsAtAGlanceWithoutTwoCompetingTimeFormats() {
+        var item = new SessionItem(java.nio.file.Path.of("/tmp/s.jsonl"), "id", "a session", System.currentTimeMillis(),
+                                        false, 12, 277);
+        String meta = AppendOnlyTui.bannerSessionMeta(item);
+        assertTrue(meta.contains("12 msgs"), meta);
+        assertTrue(meta.contains("~277"), meta);
+        // The selector's detail line also carries an absolute timestamp and the session id; at three banner rows a
+        // second time format only competes with the relative age, and the id is not what you recognize a session by.
+        assertFalse(meta.matches(".*\\b\\d{2}:\\d{2}\\b.*"), "no clock time: " + meta);
+        assertFalse(meta.contains("id"), meta);
     }
 
     @Test
-    void compactSessionDetailBlank() {
-        assertEquals("", AppendOnlyTui.compactSessionDetail("  "));
-    }
-
-    @Test
-    void compactSessionDetailTrimsUuidFromEnd() {
-        var result = AppendOnlyTui.compactSessionDetail("hello world  12345678-1234");
-        assertEquals("hello world", result);
-    }
-
-    @Test
-    void compactSessionDetailNoUuid() {
-        assertEquals("simple text", AppendOnlyTui.compactSessionDetail("simple text"));
+    void bannerSessionMetaOmitsCountsForAnEmptySession() {
+        var empty = new SessionItem(java.nio.file.Path.of("/tmp/s.jsonl"), "id", "empty", System.currentTimeMillis(),
+                                        false, 0, 0);
+        String meta = AppendOnlyTui.bannerSessionMeta(empty);
+        assertFalse(meta.contains("msg"), "0 msgs is noise, not information: " + meta);
+        assertFalse(meta.endsWith("·") || meta.startsWith("·"), "no dangling separator: " + meta);
     }
 
     @Test

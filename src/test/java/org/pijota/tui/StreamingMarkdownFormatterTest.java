@@ -2,6 +2,8 @@ package org.pijota.tui;
 
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
+import java.util.stream.Collectors;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -72,19 +74,33 @@ class StreamingMarkdownFormatterTest {
     }
 
     @Test
-    void rendersCodeFenceMarkersAsStyledVisibleLines() {
-        var theme = AnsiTheme.dark();
-        var formatter = new StreamingMarkdownFormatter(theme);
+    void introducesACodeBlockByLanguageRatherThanShowingItsFenceMarkers() {
+        // Everything else in this view is rendered rather than quoted: tables show borders, not pipes; headings show
+        // weight, not hashes. A literal ``` was the one place the source format leaked through, and it rendered
+        // differently depending on nesting (the rich renderer already consumed it).
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
 
-        var opening = formatter.format("```python").getFirst().text();
+        var opening = formatter.format("```python");
         var code = formatter.format("@lru_cache(maxsize=None)").getFirst().text();
-        var closing = formatter.format("```").getFirst().text();
+        var closing = formatter.format("```");
 
-        assertEquals("```python", AnsiStripper.strip(opening));
+        String openText = opening.stream().map(l -> AnsiStripper.strip(l.text())).collect(Collectors.joining("\n"));
+        assertFalse(openText.contains("```"), "no fence marker: " + openText);
+        assertTrue(openText.contains("python"), "the language introduces the block: " + openText);
         assertEquals("@lru_cache(maxsize=None)", AnsiStripper.strip(code));
-        assertEquals("```", AnsiStripper.strip(closing));
-        assertTrue(opening.contains("\u001B["), "fence marker should be theme styled");
         assertTrue(code.contains("\u001B["), "code should be syntax styled");
+        for (var line : closing)
+            assertFalse(AnsiStripper.strip(line.text()).contains("```"), "no closing marker: " + line.text());
+        assertTrue(opening.stream().anyMatch(l -> l.text().contains("\u001B[")), "the label is theme styled");
+    }
+
+    @Test
+    void anUnlabelledCodeBlockAddsNoLabelLine() {
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        formatter.format("Some text.");
+        var opening = formatter.format("```");
+        var stripped = opening.stream().map(l -> AnsiStripper.strip(l.text())).toList();
+        assertTrue(stripped.stream().allMatch(String::isBlank), "only separation, nothing to label: " + stripped);
     }
 
     @Test
@@ -96,7 +112,11 @@ class StreamingMarkdownFormatterTest {
 
         var flushed = formatter.flush();
 
-        assertEquals("```", AnsiStripper.strip(flushed.getLast().text()));
+        // The point is that the block is closed, not that a marker is printed: the next line must render as markdown
+        // again rather than as more code.
+        assertTrue(AnsiStripper.strip(flushed.getLast().text()).isBlank(), "block is closed off: " + flushed);
+        assertTrue(AnsiStripper.strip(formatter.format("# After").getFirst().text()).contains("After"),
+                                        "the formatter left fence mode");
     }
 
     @Test
@@ -105,6 +125,29 @@ class StreamingMarkdownFormatterTest {
         var lines = formatter.format(null);
         assertEquals(1, lines.size());
         assertEquals("", lines.get(0).text());
+    }
+
+    @Test
+    void aRunOfBlankLinesCollapsesToOneButTheFirstIsKept() {
+        // A leading blank sets the message off from the thinking block or tool result above it, so it must survive;
+        // the extra ones models emit freely are just vertical noise.
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        assertEquals(1, formatter.format("").size(), "the separating blank is kept");
+        assertEquals(0, formatter.format("").size(), "a second blank adds nothing");
+        assertEquals(0, formatter.format("   ").size(), "whitespace-only counts as blank too");
+        assertEquals("text", AnsiStripper.strip(formatter.format("text").getFirst().text()));
+        assertEquals(1, formatter.format("").size(), "after content, a blank breaks the paragraph again");
+    }
+
+    @Test
+    void aCodeBlockIsFollowedByOneBlankLineNotTwo() {
+        // The block closes with a blank of its own; the model's own trailing blank used to add a second.
+        var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
+        formatter.format("```python");
+        formatter.format("print(1)");
+        int closing = formatter.format("```").size();
+        int modelBlank = formatter.format("").size();
+        assertEquals(1, closing + modelBlank, "exactly one blank separates the block from what follows");
     }
 
     @Test
@@ -187,8 +230,9 @@ class StreamingMarkdownFormatterTest {
     @Test
     void tildeFenceMarkersWork() {
         var formatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
-        var opening = formatter.format("~~~ruby").getFirst().text();
-        assertEquals("```ruby", AnsiStripper.strip(opening));
+        var opening = formatter.format("~~~ruby");
+        String label = opening.stream().map(l -> AnsiStripper.strip(l.text())).collect(Collectors.joining());
+        assertEquals("ruby", label, "a ~~~ fence is a fence, and is labelled the same way");
     }
 
     @Test
@@ -234,12 +278,13 @@ class StreamingMarkdownFormatterTest {
     @Test
     void fenceLanguageBlankAndPrefix() {
         var noLangFormatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
-        var noLang = noLangFormatter.format("```").getFirst().text();
-        assertEquals("```", AnsiStripper.strip(noLang));
+        var noLang = noLangFormatter.format("```").stream().map(l -> AnsiStripper.strip(l.text())).toList();
+        assertTrue(noLang.stream().allMatch(String::isBlank), "nothing to label: " + noLang);
 
         var prefixedFormatter = new StreamingMarkdownFormatter(AnsiTheme.dark());
-        var prefixed = prefixedFormatter.format("```language-js").getFirst().text();
-        assertEquals("```language-js", AnsiStripper.strip(prefixed));
+        String prefixed = prefixedFormatter.format("```language-js").stream().map(l -> AnsiStripper.strip(l.text()))
+                                        .collect(Collectors.joining());
+        assertEquals("javascript", prefixed, "the label is the normalized language, not the raw info string");
     }
 
     @Test

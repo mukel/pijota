@@ -149,7 +149,8 @@ class MarkdownRenderIntegrationTest {
         String all = Stream.concat(Stream.concat(codeLine.stream(), contentLine.stream()), flushed.stream())
                                         .map(l -> AnsiStripper.strip(l.text())).collect(joining("\n"));
         assertTrue(all.contains("key: value"), "code content present: " + all);
-        assertTrue(all.endsWith("```") || all.contains("\n```"), "flush closes fence: " + all);
+        assertFalse(all.contains("```"), "fence markers are never shown: " + all);
+        assertTrue(all.strip().endsWith("key: value"), "the block is closed off, not left open: " + all);
     }
 
     // ─── tables ───

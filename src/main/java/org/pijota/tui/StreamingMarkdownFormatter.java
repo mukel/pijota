@@ -22,6 +22,7 @@ final class StreamingMarkdownFormatter {
     private boolean inFence;
     private SyntaxHighlighter fenceHighlighter;
     private boolean previousNonBlank;
+    private boolean lastEmittedBlank; // only consecutive blanks collapse; see addBlank
 
     public StreamingMarkdownFormatter(AnsiTheme theme) {
         this(theme, "text", false, MarkdownStyle.PLAIN);
@@ -63,6 +64,7 @@ final class StreamingMarkdownFormatter {
         if (inFence) {
             var rendered = List.of(StyledLine.of(renderCodeLine(line)));
             previousNonBlank = true;
+            lastEmittedBlank = false;
             return rendered;
         }
         return renderChunks(acceptMarkdownLine(line));
@@ -70,10 +72,9 @@ final class StreamingMarkdownFormatter {
 
     public List<StyledLine> flush() {
         var out = renderChunks(flushBufferedMarkdown());
-        if (inFence) {
+        if (inFence) { // a stream that ended mid-block still closes cleanly
             leaveFence();
-            out.add(fenceLine("```"));
-            previousNonBlank = true;
+            addBlank(out);
         }
         return out;
     }
@@ -84,16 +85,27 @@ final class StreamingMarkdownFormatter {
         pendingTableHeader = null;
         leaveFence();
         previousNonBlank = false;
+        lastEmittedBlank = false;
     }
 
+    /**
+     * A fence opens or closes. The markers themselves are never shown: everything else in this view is rendered rather
+     * than quoted (a table shows borders, not pipes; a heading shows weight, not hashes), and a stray {@code ```} is
+     * the one place the source format used to leak through. The block is set off by blank lines and introduced by its
+     * language instead, so the code lines stay bare and can be selected and copied without picking up a rail.
+     */
     private List<StyledLine> toggleFence(String stripped, String marker) {
         var out = new ArrayList<>(renderChunks(flushBufferedMarkdown()));
         if (inFence) {
             leaveFence();
-            out.add(fenceLine("```"));
-        } else {
-            String info = enterFence(stripped, marker);
-            out.add(fenceLine("```" + info));
+            addBlank(out);
+            return out;
+        }
+        String language = fenceLanguage(enterFence(stripped, marker));
+        addBlank(out); // never let a code block butt against the paragraph above it
+        if (!language.isBlank()) {
+            out.add(fenceLine(language));
+            lastEmittedBlank = false;
         }
         previousNonBlank = true;
         return out;
@@ -189,8 +201,7 @@ final class StreamingMarkdownFormatter {
         var out = new ArrayList<StyledLine>();
         for (var chunk : chunks) {
             if (chunk.isEmpty()) {
-                out.add(StyledLine.of(""));
-                previousNonBlank = false;
+                addBlank(out);
                 continue;
             }
             if (previousNonBlank && startsWithHeading(chunk)) {
@@ -199,6 +210,8 @@ final class StreamingMarkdownFormatter {
             var rendered = renderer.render(chunk, defaultTextSlot, defaultItalic);
             out.addAll(rendered);
             previousNonBlank = rendered.stream().anyMatch(line -> !line.text().isEmpty());
+            if (previousNonBlank)
+                lastEmittedBlank = false;
         }
         return out;
     }
@@ -227,6 +240,20 @@ final class StreamingMarkdownFormatter {
             case "c#" -> "csharp";
             default -> lang;
         };
+    }
+
+    /** The language label above a code block; the "codeFence" slot, dim so it introduces without competing. */
+    /**
+     * One blank line is a paragraph break; a run of them is the same break with extra vertical noise, and models emit
+     * runs freely. Only consecutive blanks collapse: a leading blank is kept, because it is what separates a message
+     * from the thinking block or tool result above it. Blanks inside a fence never reach this path.
+     */
+    private void addBlank(List<StyledLine> out) {
+        if (!lastEmittedBlank) {
+            out.add(StyledLine.of(""));
+            lastEmittedBlank = true;
+        }
+        previousNonBlank = false;
     }
 
     private StyledLine fenceLine(String text) {

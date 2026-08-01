@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.agent.AgentEvent;
+import org.pijota.agent.SessionDescriptor;
 import org.pijota.agent.PijotaSession;
 import org.pijota.config.PromptGlyphs;
 import org.pijota.llm.ModelDisplay;
@@ -872,23 +873,39 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 lines.add("");
                 lines.add(theme.styled("dim", "recent sessions"));
                 int width = Math.max(20, terminal.getWidth());
-                for (var it : items) {
-                    String meta = compactSessionDetail(it.detailText());
-                    // Budget the title so title + meta fit one line; otherwise a long title hard-wraps mid-token
-                    // (e.g. "Jul 3" / "0 10:16") on narrow terminals. 4 = two leading + two separating spaces.
-                    String desc = Util.ellipsize(it.description(), Math.max(8, width - meta.length() - 4));
-                    lines.add(theme.styled("statusText", "  " + desc) + theme.styled("commandMeta", "  " + meta));
-                }
+                var metas = items.stream().map(AppendOnlyTui::bannerSessionMeta).toList();
+                // Metadata in one column so ages and counts can be compared straight down the list; trailing each
+                // title, it landed somewhere different on every row. The column sits just past the longest title
+                // rather than against the right margin, which would leave a canyon of blank the eye has to cross.
+                int metaWidth = metas.stream().mapToInt(String::length).max().orElse(0);
+                int titleRoom = Math.max(8, width - metaWidth - 4); // 2 leading + 2 separating spaces
+                var titles = items.stream().map(it -> Util.ellipsize(it.description(), titleRoom)).toList();
+                int titleColumn = titles.stream().mapToInt(String::length).max().orElse(0);
+                for (int i = 0; i < titles.size(); i++)
+                    lines.add(theme.styled("statusText", "  " + titles.get(i)) + "  ".repeat(1)
+                                                    + " ".repeat(titleColumn - titles.get(i).length() + 1)
+                                                    + theme.styled("commandMeta", metas.get(i)));
             }
         } catch (Exception ignored) {}
         appendPlain(lines);
     }
 
-    static String compactSessionDetail(String detail) {
-        if (detail == null || detail.isBlank())
-            return "";
-        int uuidStart = detail.lastIndexOf("  ");
-        return uuidStart > 0 ? detail.substring(0, uuidStart).stripTrailing() : detail;
+    /**
+     * The banner's one-glance metadata for a session. Built from the item's own fields rather than by cutting up the
+     * selector's detail string, which also carried an absolute timestamp and the session id: at three rows the question
+     * is "which one was I just in", and a relative age answers it without a second time format competing.
+     */
+    static String bannerSessionMeta(SessionItem item) {
+        var parts = new ArrayList<String>();
+        String age = SessionDescriptor.relativeAge(item.mtime());
+        if (age != null && !age.isBlank())
+            parts.add(age);
+        if (item.messageCount() > 0) {
+            parts.add(Util.plural(item.messageCount(), "msg"));
+            if (item.estTokens() > 0)
+                parts.add("~" + SessionDescriptor.formatTokens(item.estTokens()));
+        }
+        return String.join(" · ", parts);
     }
 
     @Override
@@ -2476,9 +2493,16 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private List<String> promptEcho(String text) {
         var out = new ArrayList<String>();
         out.add(""); // breathing room: set each turn off from the previous answer instead of butting them together
-        String[] split = text.split("\\R", -1);
-        for (int i = 0; i < split.length; i++) {
-            out.add(theme.styled("promptEcho", i == 0 ? "▸ " : "│ ") + split[i]);
+        // Wrap to the railed width ourselves before adding the rail, the same rule tool-result bodies follow: let the
+        // terminal wrap instead and the continuation rows dangle bare at column zero, breaking the block open so a
+        // long prompt stops looking like one thing the user said.
+        int width = Math.max(20, terminal.getWidth());
+        boolean first = true;
+        for (String logical : text.split("\\R", -1)) {
+            for (String row : AnsiWidth.wrapPreservingAnsi(logical, Math.max(1, width - 2))) {
+                out.add(theme.styled("promptEcho", first ? "▸ " : "│ ") + row);
+                first = false;
+            }
         }
         return out;
     }
