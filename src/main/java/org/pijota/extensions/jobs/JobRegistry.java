@@ -66,6 +66,10 @@ public final class JobRegistry {
         int readOffset; // guarded by this
         boolean truncated; // guarded by this
         volatile boolean killed; // set before an intentional kill so its exit isn't reported as completion
+        // Whether every byte the process wrote has reached `out`. Process exit does NOT imply this: the pipe can
+        // still hold output the drain thread hasn't copied yet. Adopted jobs have no drain thread, so they start
+        // true and the tool's own pump keeps feeding.
+        volatile boolean drained = true;
 
         Job(String id, String command, String name, Process process) {
             this.id = id;
@@ -113,6 +117,7 @@ public final class JobRegistry {
         String label = (name != null && !name.isBlank()) ? name : String.join(" ", command);
         var job = new Job(id, String.join(" ", command), label, process);
         jobs.put(id, job);
+        job.drained = false; // a drain thread owns the pipe now; nothing is fully captured until it hits EOF
         var drain = new Thread(() -> drain(job), "bg-job-" + id);
         drain.setDaemon(true);
         drain.start();
@@ -129,6 +134,8 @@ public final class JobRegistry {
             }
         } catch (IOException ignored) {
             // stream closed because the process ended or was killed, nothing more to drain
+        } finally {
+            job.drained = true; // EOF (or a dead stream): everything the process wrote is now in the buffer
         }
         // EOF means the process has exited (or was killed) and all output is buffered: report completion so the agent
         // is notified instead of having to poll. waitFor() yields the exit code; intentional kills are not reported.
@@ -217,7 +224,7 @@ public final class JobRegistry {
         }
         boolean running = job.process.isAlive();
         Integer exitCode = running ? null : job.process.exitValue();
-        return new Read(id, chunk, running, exitCode, truncated, outSize);
+        return new Read(id, chunk, running, job.drained, exitCode, truncated, outSize);
     }
 
     /** Check whether a job is still running without consuming any buffered output. */
@@ -270,7 +277,7 @@ public final class JobRegistry {
             stop(id, true);
     }
 
-    public record Read(String id, String output, boolean running, Integer exitCode, boolean truncated,
+    public record Read(String id, String output, boolean running, boolean drained, Integer exitCode, boolean truncated,
                                     int outputChars) {
     }
 

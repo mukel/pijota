@@ -164,6 +164,39 @@ class JobsExtensionTest {
         assertFalse(out.contains("cherry"), out);
     }
 
+    /**
+     * A short-lived command exits while its output is still sitting in the pipe. jobs_output used to stop polling the
+     * moment the process was no longer alive, so under load it reported "(no lines matching filter yet)" for output
+     * that had already been written -- the model then concludes the pattern is absent and acts on it. Repeated because
+     * the race is timing-dependent: it only reproduced when the machine was busy.
+     */
+    @Test
+    void jobsOutputDoesNotMissOutputOfACommandThatExitsImmediately() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var api = initWithFlag(true);
+        for (int i = 0; i < 30; i++) {
+            String id = (String) run(api, "jobs_run", Map.of("command", "printf 'apple\\nbanana\\ncherry\\n'"))
+                                            .details().get("jobId");
+            var out = run(api, "jobs_output", Map.of("id", id, "filter", "banana", "timeout", 5)).content();
+            assertTrue(out.contains("banana"), "iteration " + i + " lost already-written output: " + out);
+            assertFalse(out.contains("no lines matching filter"), "iteration " + i + ": " + out);
+        }
+    }
+
+    /** The unfiltered read has the same race: exit must not cut the poll short before the pipe is drained. */
+    @Test
+    void jobsOutputReturnsFullOutputOfACommandThatExitsImmediately() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var api = initWithFlag(true);
+        for (int i = 0; i < 30; i++) {
+            String id = (String) run(api, "jobs_run", Map.of("command", "printf 'one\\ntwo\\nthree\\n'")).details()
+                                            .get("jobId");
+            var out = run(api, "jobs_output", Map.of("id", id, "timeout", 5)).content();
+            for (String line : new String[] {"one", "two", "three"})
+                assertTrue(out.contains(line), "iteration " + i + " lost '" + line + "': " + out);
+        }
+    }
+
     @Test
     void jobsOutputWaitsForLateOutput() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");

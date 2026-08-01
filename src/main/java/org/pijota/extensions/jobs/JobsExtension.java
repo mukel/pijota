@@ -219,7 +219,10 @@ public final class JobsExtension implements Extension {
         while (true) {
             acc.append(read.output());
             boolean ready = !waitCompletion && !filtered(acc.toString(), filter).isEmpty();
-            if (!read.running() || ready || System.currentTimeMillis() >= deadline)
+            // read.drained(), not just !running(): a short-lived command exits while its output is still in the pipe,
+            // and stopping at exit reported "(no lines matching filter yet)" for output that was already written. The
+            // model then believes the pattern is absent. The deadline still bounds the wait.
+            if ((!read.running() && read.drained()) || ready || System.currentTimeMillis() >= deadline)
                 break;
             try {
                 Thread.sleep(100);
