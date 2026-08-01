@@ -62,13 +62,16 @@ final class HelpOverlay {
         out.add("keyboard shortcuts");
         int keyWidth = 0;
         for (var k : SHORTCUTS)
-            keyWidth = Math.max(keyWidth, Keys.label(k[0]).length()); // pad the notation we actually print (⌃K is shorter than Ctrl+K)
+            keyWidth = Math.max(keyWidth, Keys.label(k[0]).length()); // pad the notation we actually print (⌃K is
+                                                                      // shorter than Ctrl+K)
         for (var binding : keybindings)
             keyWidth = Math.max(keyWidth, Keys.label(binding.key().display()).length());
         keyWidth += 2;
         for (var k : SHORTCUTS)
-            out.add("  " + padRight(Keys.label(k[0]), keyWidth) + Keys.label(k[1])); // k[1] carries shortcuts too (the /sessions row)
-        for (var binding : keybindings) // display() → "Ctrl+Alt+P" (not the raw record toString), OS-mapped by Keys.label
+            out.add("  " + padRight(Keys.label(k[0]), keyWidth) + Keys.label(k[1])); // k[1] carries shortcuts too (the
+                                                                                     // /sessions row)
+        for (var binding : keybindings) // display() → "Ctrl+Alt+P" (not the raw record toString), OS-mapped by
+                                        // Keys.label
             out.add("  " + padRight(Keys.label(binding.key().display()), keyWidth) + binding.description());
         if (Platform.isMac())
             out.add("  note: ⌥ shortcuts need \"Use Option as Meta key\" enabled in your terminal");

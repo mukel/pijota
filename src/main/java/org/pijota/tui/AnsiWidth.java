@@ -59,10 +59,10 @@ final class AnsiWidth {
     }
 
     /**
-     * Fits {@code text} into {@code maxWidth} columns by eliding its MIDDLE, keeping both ends. For paths the tail
-     * (the project directory) identifies the thing and the head gives its root, so a plain end-truncation would cut
-     * off the useful part. Text that already fits is returned unchanged. Plain text only: the elision point ignores
-     * ANSI state, so callers style the result rather than passing styled input.
+     * Fits {@code text} into {@code maxWidth} columns by eliding its MIDDLE, keeping both ends. For paths the tail (the
+     * project directory) identifies the thing and the head gives its root, so a plain end-truncation would cut off the
+     * useful part. Text that already fits is returned unchanged. Plain text only: the elision point ignores ANSI state,
+     * so callers style the result rather than passing styled input.
      */
     public static String truncateMiddle(String text, int maxWidth) {
         if (text == null || maxWidth <= 0)
@@ -181,7 +181,8 @@ final class AnsiWidth {
                 int cw = charWidth(text, i);
                 if (visible > 0 && visible + cw > maxWidth) {
                     // When the overflowing char is itself a space, the break consumes it (no leading space next line).
-                    // Otherwise prefer the last word boundary and carry the partial word forward, so words aren't sliced
+                    // Otherwise prefer the last word boundary and carry the partial word forward, so words aren't
+                    // sliced
                     // mid-glyph; fall back to a hard break only for a single token longer than the whole line.
                     boolean breakSpace = ch == ' ';
                     boolean atWordBoundary = !breakSpace && breakResume >= 0 && breakStart > 0;

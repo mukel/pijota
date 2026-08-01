@@ -487,7 +487,8 @@ public final class LlmService implements LlmClient {
         private volatile int totalInputTokens;
         private volatile int totalOutputTokens;
         private volatile int totalCacheReadTokens; // input served from the provider cache (cache hits)
-        private volatile int totalCacheWriteTokens; // input written to the provider cache (cache misses that populate it)
+        private volatile int totalCacheWriteTokens; // input written to the provider cache (cache misses that populate
+                                                    // it)
         private volatile int totalReasoningTokens; // thinking tokens billed within the output count
         private volatile int lastContextTokens; // input+output of the most recent response ≈ next request's prompt size
         private volatile double totalCost;

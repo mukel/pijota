@@ -429,9 +429,9 @@ public final class PijotaSession implements AutoCloseable {
     }
 
     /**
-     * A session name must be a single plain line: collapse every control char, newlines and tabs (which would wrap
-     * the status bar onto extra lines) and ESC (which could otherwise inject ANSI into it), to spaces, squeeze runs,
-     * and trim. Blank ⇒ null (name cleared).
+     * A session name must be a single plain line: collapse every control char, newlines and tabs (which would wrap the
+     * status bar onto extra lines) and ESC (which could otherwise inject ANSI into it), to spaces, squeeze runs, and
+     * trim. Blank ⇒ null (name cleared).
      */
     public static String sanitizeName(String name) {
         if (name == null)

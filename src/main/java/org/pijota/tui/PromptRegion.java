@@ -10,10 +10,10 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                                 PromptRegion.Custom {
 
     /**
-     * A region's content for one frame: pre-styled rows plus an optional caret position. Rows are plain styled text
-     * (no newlines, no cursor movement); {@link PromptLayout} clamps each row to the terminal width and owns all
-     * emission, so the frame's height is <em>defined</em> as the number of composed rows. There is no separate
-     * measurement to keep in sync: a region physically cannot make the frame taller or shorter than what it returned.
+     * A region's content for one frame: pre-styled rows plus an optional caret position. Rows are plain styled text (no
+     * newlines, no cursor movement); {@link PromptLayout} clamps each row to the terminal width and owns all emission,
+     * so the frame's height is <em>defined</em> as the number of composed rows. There is no separate measurement to
+     * keep in sync: a region physically cannot make the frame taller or shorter than what it returned.
      */
     record Body(List<String> rows, int cursorRow, int cursorCol) {
         static final Body EMPTY = new Body(List.of(), -1, -1);

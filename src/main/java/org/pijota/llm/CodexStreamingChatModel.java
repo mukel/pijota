@@ -194,8 +194,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             else if (part instanceof TextContent text)
                 content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text", text.text()));
             else // audio/pdf/video have no Responses-API form here, best-effort text so the turn still goes through
-                content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text",
-                                                String.valueOf(part)));
+                content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text", String.valueOf(part)));
         }
         if (content.isEmpty())
             content.add(Util.MAPPER.createObjectNode().put("type", "input_text").put("text", ""));

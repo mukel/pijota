@@ -363,7 +363,8 @@ class SessionManagerTest {
         String a = UUID.randomUUID().toString();
         String b = UUID.randomUUID().toString();
         Files.writeString(file, "{\"type\":\"session\",\"version\":3}\n" //
-                                        + "{\"id\":\"" + a + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"one\"}\n" //
+                                        + "{\"id\":\"" + a
+                                        + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"one\"}\n" //
                                         + "not json at all\n" // mid-file corruption: skipped with a warning, not fatal
                                         + "{\"id\":\"" + b + "\",\"parentId\":\"" + a
                                         + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"two\"}\n");

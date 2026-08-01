@@ -121,8 +121,8 @@ public sealed interface Message {
         }
 
         /**
-         * True when this is a persisted state snapshot (e.g. goal status), kept for reload but shown via a status
-         * line, not echoed into the transcript. Read by every frontend so the {@link #SILENT} key lives in one place.
+         * True when this is a persisted state snapshot (e.g. goal status), kept for reload but shown via a status line,
+         * not echoed into the transcript. Read by every frontend so the {@link #SILENT} key lives in one place.
          */
         public boolean isSilent() {
             return details != null && Boolean.TRUE.equals(details.get(SILENT));

@@ -165,8 +165,8 @@ public class AnsiTheme {
 
     /**
      * A thinking-theme slot spec. Style attributes (bold, italic, …) always survive. With {@code monochrome} every
-     * foreground hue (hex, named, or ansi:) collapses to the single blended base colour (prose slots); without it
-     * each hue is kept and blended toward the background (code slots), i.e. dimmed but still recognisable.
+     * foreground hue (hex, named, or ansi:) collapses to the single blended base colour (prose slots); without it each
+     * hue is kept and blended toward the background (code slots), i.e. dimmed but still recognisable.
      */
     private static String opacitySpec(String spec, String bg, double opacity, String fallbackColor,
                                     boolean colorizeStyleOnly, boolean monochrome) {

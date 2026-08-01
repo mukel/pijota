@@ -51,8 +51,7 @@ public sealed interface ExtensionEvent {
     }
 
     /**
-     * Emitted just before the agent starts; mutate {@code systemPrompt} or {@code selectedTools} to influence the
-     * turn.
+     * Emitted just before the agent starts; mutate {@code systemPrompt} or {@code selectedTools} to influence the turn.
      */
     record BeforeAgentStart(List<Message> messages, StringBuilder systemPrompt,
                                     List<Tool.ToolInfo> selectedTools) implements ExtensionEvent {
@@ -107,8 +106,7 @@ public sealed interface ExtensionEvent {
 
     /**
      * An agent turn failed (LLM/tool error after retries). Fired in addition to completing the turn exceptionally, so
-     * extensions (e.g. an autonomous loop) can recover; {@code retryable} hints whether a backed-off retry is
-     * sensible.
+     * extensions (e.g. an autonomous loop) can recover; {@code retryable} hints whether a backed-off retry is sensible.
      */
     record Error(String message, boolean retryable) implements ExtensionEvent {
     }

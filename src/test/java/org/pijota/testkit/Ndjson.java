@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Parses NDJSON output (one JSON object per line, e.g. the headless agent / sub-agent event stream) into typed maps,
- * so tests assert on fields ({@code event.get("type")}) instead of brittle raw-substring checks on the serialized JSON.
+ * Parses NDJSON output (one JSON object per line, e.g. the headless agent / sub-agent event stream) into typed maps, so
+ * tests assert on fields ({@code event.get("type")}) instead of brittle raw-substring checks on the serialized JSON.
  */
 public final class Ndjson {
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {

@@ -210,10 +210,10 @@ public final class ApplyPatchTool implements Tool {
     }
 
     /**
-     * Shows the applied diff, not just which files were touched: this is the multi-file editing tool, so "what
-     * changed" is the thing worth seeing. The patch is already a unified diff, so it renders as-is (the TUI colors
-     * {@code +}/{@code -}/{@code @@} lines) and is capped like {@code edit}'s preview so a large patch cannot flood
-     * the transcript.
+     * Shows the applied diff, not just which files were touched: this is the multi-file editing tool, so "what changed"
+     * is the thing worth seeing. The patch is already a unified diff, so it renders as-is (the TUI colors
+     * {@code +}/{@code -}/{@code @@} lines) and is capped like {@code edit}'s preview so a large patch cannot flood the
+     * transcript.
      */
     @Override
     public ToolResultView renderResult(Args args, ToolResult result, String cwd) {

@@ -97,9 +97,9 @@ public final class ModelResolver {
     }
 
     /**
-     * The very first thing a new user sees if they launch before configuring anything. It names the two ways in
-     * (sign in, or export a key) with copy-pasteable commands, rather than reporting a failure about a model they
-     * never chose.
+     * The very first thing a new user sees if they launch before configuring anything. It names the two ways in (sign
+     * in, or export a key) with copy-pasteable commands, rather than reporting a failure about a model they never
+     * chose.
      */
     static String firstRunMessage() {
         var sb = new StringBuilder("No provider configured yet. Two ways to get started:\n\n");

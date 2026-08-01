@@ -3,9 +3,9 @@ package org.pijota.tools;
 import java.util.Set;
 
 /**
- * Which tools are active, resolved by <em>name</em> across all sources (built-in, extension, custom); origin only
- * seeds the default. Mirrors Pi: a base scope ({@code --no-tools} / {@code --no-builtin-tools}) sets what's on by
- * default, then {@code --tools} (allowlist) and {@code --exclude-tools} (denylist) refine it.
+ * Which tools are active, resolved by <em>name</em> across all sources (built-in, extension, custom); origin only seeds
+ * the default. Mirrors Pi: a base scope ({@code --no-tools} / {@code --no-builtin-tools}) sets what's on by default,
+ * then {@code --tools} (allowlist) and {@code --exclude-tools} (denylist) refine it.
  */
 public record ToolPolicy(Scope base, Set<String> allow, Set<String> deny) {
 

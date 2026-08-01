@@ -8,7 +8,8 @@ import org.pijota.util.Platform;
  * {@code ⌥Y}, {@code ⌃⇧P}); on every other platform the written {@code Ctrl+}/{@code Alt+}/{@code Shift+} is kept. Base
  * keys (letters, {@code Tab}, {@code Enter}…) stay as text either way.
  *
- * <p>This only changes how a shortcut is <em>shown</em>, never which key fires it: a terminal delivers Ctrl on every OS
+ * <p>
+ * This only changes how a shortcut is <em>shown</em>, never which key fires it: a terminal delivers Ctrl on every OS
  * (⌘/Cmd never reaches a TUI program), so the bindings are Ctrl-based everywhere; macOS just reads ⌃ for that key.
  */
 final class Keys {

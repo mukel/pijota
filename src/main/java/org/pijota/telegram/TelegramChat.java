@@ -279,8 +279,8 @@ public final class TelegramChat implements ChatHandler {
 
     /**
      * Falls an unmatched {@code /command} through to an extension-registered {@link SlashCommand}, the same registry
-     * the TUI dispatches against, so {@code /plan}, {@code /goal}, {@code /btw}, {@code /mcp}, {@code /skills}… work
-     * in chat too. Native commands above take precedence. Returns true if a command matched (failures are reported, not
+     * the TUI dispatches against, so {@code /plan}, {@code /goal}, {@code /btw}, {@code /mcp}, {@code /skills}… work in
+     * chat too. Native commands above take precedence. Returns true if a command matched (failures are reported, not
      * thrown, since this runs on the poll thread).
      */
     private boolean runExtensionCommand(String cmd, String text) {
@@ -606,8 +606,8 @@ public final class TelegramChat implements ChatHandler {
     }
 
     /**
-     * Shows the running tool as live feedback, but only until real answer prose appears; once the model is writing,
-     * the streamed answer is the better signal and we never clobber it with a tool line. Reuses the stream message (the
+     * Shows the running tool as live feedback, but only until real answer prose appears; once the model is writing, the
+     * streamed answer is the better signal and we never clobber it with a tool line. Reuses the stream message (the
      * placeholder simply becomes the answer when prose arrives) and honors the same edit throttle.
      */
     private void showToolActivity(String hint) {
@@ -626,8 +626,8 @@ public final class TelegramChat implements ChatHandler {
     /**
      * A one-line "running" label for a tool call, e.g. {@code "$ bash: \"npm test\""} or {@code "📖 read: App.java"}.
      * The {@code glyph} is the tool's own display glyph and {@code detail} comes from the shared {@link ToolLabels}, so
-     * Telegram renders every tool, including extension and MCP tools, the same way the TUI and web frontends do
-     * (rather than a hardcoded switch that degraded unknown tools to a generic marker).
+     * Telegram renders every tool, including extension and MCP tools, the same way the TUI and web frontends do (rather
+     * than a hardcoded switch that degraded unknown tools to a generic marker).
      */
     static String toolHint(String toolName, Supplier<String> args, String glyph, String cwd) {
         String detail = ToolLabels.detail(toolName, args, cwd, PathDisplay.RELATIVE);

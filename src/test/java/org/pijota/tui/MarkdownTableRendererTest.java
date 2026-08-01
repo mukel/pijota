@@ -583,7 +583,8 @@ class MarkdownTableRendererTest {
     void fitWidthsSingleColumnStaysContentSized() {
         var widths = new int[] {5};
         MarkdownTableRenderer.fitWidths(widths, 80);
-        assertEquals(5, MarkdownTableRenderer.sum(widths), "a single narrow column is not stretched across the terminal");
+        assertEquals(5, MarkdownTableRenderer.sum(widths),
+                                        "a single narrow column is not stretched across the terminal");
     }
 
     @Test

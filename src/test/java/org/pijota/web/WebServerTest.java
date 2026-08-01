@@ -116,9 +116,8 @@ class WebServerTest {
     void gzipsTextResponsesWhenClientAcceptsIt() throws Exception {
         withServer((ts, client, base) -> {
             // Accept-Encoding: gzip → compressed, and the decompressed body is the SPA
-            var gz = client.send(HttpRequest.newBuilder(URI.create(base + "/"))
-                                            .header("Accept-Encoding", "gzip").build(),
-                                            HttpResponse.BodyHandlers.ofByteArray());
+            var gz = client.send(HttpRequest.newBuilder(URI.create(base + "/")).header("Accept-Encoding", "gzip")
+                                            .build(), HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200, gz.statusCode());
             assertEquals("gzip", gz.headers().firstValue("Content-Encoding").orElse(""));
             assertTrue(gz.headers().allValues("Vary").stream().anyMatch(v -> v.contains("Accept-Encoding")),
@@ -452,7 +451,8 @@ class WebServerTest {
     @Test
     void aFailedTurnBroadcastsExactlyOneErrorToTheBrowser() throws Exception {
         withServer((ts, client, base) -> {
-            ts.llm().enqueueError(new RuntimeException("boom")); // RuntimeException is non-retryable → one clean failure
+            ts.llm().enqueueError(new RuntimeException("boom")); // RuntimeException is non-retryable → one clean
+                                                                 // failure
             var events = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
                                             HttpResponse.BodyHandlers.ofInputStream());
             readUntil(events.body(), "event: history", Duration.ofSeconds(5)); // drain initial replay frames

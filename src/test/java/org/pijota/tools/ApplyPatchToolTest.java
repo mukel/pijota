@@ -202,8 +202,8 @@ class ApplyPatchToolTest {
     void aHugePatchIsCappedWithACue() throws Exception {
         var sb = new StringBuilder("x\n".repeat(60));
         Files.writeString(tempDir.resolve("big.txt"), sb.toString());
-        var lines = new java.util.ArrayList<String>(java.util.List.of("--- a/big.txt", "+++ b/big.txt",
-                                        "@@ -1,60 +1,60 @@"));
+        var lines = new java.util.ArrayList<String>(
+                                        java.util.List.of("--- a/big.txt", "+++ b/big.txt", "@@ -1,60 +1,60 @@"));
         for (int i = 0; i < 60; i++) {
             lines.add("-x");
             lines.add("+y");

@@ -195,8 +195,8 @@ class McpExtensionTest {
         runtime.setToolRegistry(registry);
         var api = new FakeExtensionAPI(runtime);
 
-        Function<Path, List<McpServerConfig>> loader = cwd -> List.of(
-                                        new McpServerConfig("dormant", "cmd", List.of(), Map.of(), false));
+        Function<Path, List<McpServerConfig>> loader = cwd -> List
+                                        .of(new McpServerConfig("dormant", "cmd", List.of(), Map.of(), false));
         var ext = new McpExtension(loader, (cfg, cwd) -> {
             throw new AssertionError("a disabled server must never be auto-started");
         });

@@ -97,7 +97,8 @@ class AnsiWidthTest {
 
     @Test
     void wrapPreservingAnsiBreaksAtWordBoundaryNotMidWord() {
-        // "hello world" at width 8 must wrap at the space (-> "hello" / "world"), not slice the word ("hello wo" / "rld").
+        // "hello world" at width 8 must wrap at the space (-> "hello" / "world"), not slice the word ("hello wo" /
+        // "rld").
         var lines = AnsiWidth.wrapPreservingAnsi("hello world", 8);
         assertEquals(List.of("hello", "world"), lines);
     }
@@ -268,15 +269,15 @@ class AnsiWidthTest {
 
     /** A representative corpus that exercises every branch of the wrapper. */
     private static final List<String> WRAP_CORPUS = List.of(
-                    "the quick brown fox jumps over the lazy dog again and again",
-                    "a bb ccc dddd eeeee ffffff ggggggg hhhhhhhh",
-                    "supercalifragilisticexpialidocious antidisestablishmentarianism",
-                    "one really-long-hyphenated-token-with-no-spaces-at-all end",
-                    "\033[1mbold\033[0m and \033[31mred\033[0m and \033[3;4mfancy\033[0m words wrapping here",
-                    "你好 世界 这是 一个 换行 测试 文本 需要 处理 宽字符",
-                    "mixed 你好world 123 \033[32mgreen你好\033[0m tail words here now",
-                    "emoji 🙈 🙉 🙊 and 👨‍👩‍👧 families sprinkled 🚀 through the text",
-                    "visit \033]8;;https://example.com/a/very/long/path\033\\the link text\033]8;;\033\\ then more words");
+                                    "the quick brown fox jumps over the lazy dog again and again",
+                                    "a bb ccc dddd eeeee ffffff ggggggg hhhhhhhh",
+                                    "supercalifragilisticexpialidocious antidisestablishmentarianism",
+                                    "one really-long-hyphenated-token-with-no-spaces-at-all end",
+                                    "\033[1mbold\033[0m and \033[31mred\033[0m and \033[3;4mfancy\033[0m words wrapping here",
+                                    "你好 世界 这是 一个 换行 测试 文本 需要 处理 宽字符",
+                                    "mixed 你好world 123 \033[32mgreen你好\033[0m tail words here now",
+                                    "emoji 🙈 🙉 🙊 and 👨‍👩‍👧 families sprinkled 🚀 through the text",
+                                    "visit \033]8;;https://example.com/a/very/long/path\033\\the link text\033]8;;\033\\ then more words");
 
     private static String stripAnsi(String s) {
         // Drop OSC8 hyperlink wrappers (ESC ] 8 ; ... ESC \) then CSI/SGR sequences (ESC [ ... final-byte).
@@ -288,14 +289,15 @@ class AnsiWidthTest {
         for (String in : WRAP_CORPUS)
             for (int w = 2; w <= 40; w++)
                 for (String row : AnsiWidth.wrapPreservingAnsi(in, w))
-                    assertTrue(AnsiWidth.visibleWidth(row) <= w, "width " + w + ": row exceeds pane: <"
-                                    + stripAnsi(row) + "> visible=" + AnsiWidth.visibleWidth(row) + " from: " + in);
+                    assertTrue(AnsiWidth.visibleWidth(row) <= w, "width " + w + ": row exceeds pane: <" + stripAnsi(row)
+                                                    + "> visible=" + AnsiWidth.visibleWidth(row) + " from: " + in);
     }
 
     @Test
     void wrappingPreservesEveryVisibleGlyphInOrder() {
         // Wrapping only ever drops the space it breaks at, never a printable glyph, never a duplicate. Comparing with
-        // spaces removed sidesteps which spaces were consumed by soft breaks while still catching any lost/reordered char.
+        // spaces removed sidesteps which spaces were consumed by soft breaks while still catching any lost/reordered
+        // char.
         for (String in : WRAP_CORPUS) {
             String expected = stripAnsi(in).replace(" ", "");
             for (int w = 2; w <= 40; w++) {
@@ -303,7 +305,7 @@ class AnsiWidthTest {
                 for (String row : AnsiWidth.wrapPreservingAnsi(in, w))
                     joined.append(stripAnsi(row));
                 assertEquals(expected, joined.toString().replace(" ", ""),
-                                "width " + w + " lost/duplicated a glyph for: " + in);
+                                                "width " + w + " lost/duplicated a glyph for: " + in);
             }
         }
     }
@@ -326,10 +328,10 @@ class AnsiWidthTest {
                     for (int i = 0; i < v.length(); i++) {
                         if (Character.isHighSurrogate(v.charAt(i)))
                             assertTrue(i + 1 < v.length() && Character.isLowSurrogate(v.charAt(i + 1)),
-                                            "width " + w + ": dangling high surrogate in: " + v);
+                                                            "width " + w + ": dangling high surrogate in: " + v);
                         if (Character.isLowSurrogate(v.charAt(i)))
                             assertTrue(i > 0 && Character.isHighSurrogate(v.charAt(i - 1)),
-                                            "width " + w + ": dangling low surrogate in: " + v);
+                                                            "width " + w + ": dangling low surrogate in: " + v);
                     }
                 }
     }
@@ -350,8 +352,8 @@ class AnsiWidthTest {
                 // the last OSC8 sequence on any row must be a close (empty URL), so the link never bleeds off the row
                 int last = row.lastIndexOf("\033]8;");
                 if (last >= 0)
-                    assertTrue(row.startsWith("\033]8;;\033\\", last), "width " + w + ": row ends inside a link: "
-                                    + stripAnsi(row));
+                    assertTrue(row.startsWith("\033]8;;\033\\", last),
+                                                    "width " + w + ": row ends inside a link: " + stripAnsi(row));
             }
             assertEquals(0, total % 2, "width " + w + ": hyperlink opens/closes are unbalanced across the wrap");
         }
@@ -378,14 +380,14 @@ class AnsiWidthTest {
     void styledAndPlainWrapToIdenticalVisibleWidthsAcrossManyWidths() {
         String plain = "the quick brown fox jumps over the lazy dog once more with feeling";
         String styled = "the \033[1mquick\033[0m brown \033[31mfox\033[0m jumps over the \033[3mlazy\033[0m dog "
-                        + "once more with feeling";
+                                        + "once more with feeling";
         for (int w = 4; w <= 30; w++) {
             var p = AnsiWidth.wrapPreservingAnsi(plain, w);
             var s = AnsiWidth.wrapPreservingAnsi(styled, w);
             assertEquals(p.size(), s.size(), "width " + w + ": styling changed the row count");
             for (int i = 0; i < p.size(); i++)
                 assertEquals(AnsiWidth.visibleWidth(p.get(i)), AnsiWidth.visibleWidth(s.get(i)),
-                                "width " + w + " row " + i + ": styling moved the wrap point");
+                                                "width " + w + " row " + i + ": styling moved the wrap point");
         }
     }
 

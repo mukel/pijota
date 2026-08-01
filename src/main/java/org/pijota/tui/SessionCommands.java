@@ -358,17 +358,17 @@ final class SessionCommands {
             lines.add(host.styled("statusText", "  overhead   system prompt + tools  " + fmtCount((int) overhead)
                                             + " est tokens"));
         if (systems > 0)
-            lines.add(host.styled("statusText", "  system     " + plural(systems, "msg") + "  " + fmtCount((int) systemTok)
-                                            + " est tokens"));
-        lines.add(host.styled("statusText",
-                                        "  user       " + plural(users, "msg") + "  " + fmtCount((int) userTok) + " est tokens"));
-        lines.add(host.styled("statusText", "  assistant  " + plural(assistants, "msg") + "  " + fmtCount((int) assistantTok)
+            lines.add(host.styled("statusText", "  system     " + plural(systems, "msg") + "  "
+                                            + fmtCount((int) systemTok) + " est tokens"));
+        lines.add(host.styled("statusText", "  user       " + plural(users, "msg") + "  " + fmtCount((int) userTok)
                                         + " est tokens"));
-        lines.add(host.styled("statusText",
-                                        "  tool       " + plural(tools, "msg") + "  " + fmtCount((int) toolTok) + " est tokens"));
+        lines.add(host.styled("statusText", "  assistant  " + plural(assistants, "msg") + "  "
+                                        + fmtCount((int) assistantTok) + " est tokens"));
+        lines.add(host.styled("statusText", "  tool       " + plural(tools, "msg") + "  " + fmtCount((int) toolTok)
+                                        + " est tokens"));
         if (compactions > 0) {
-            lines.add(host.styled("statusText", "  summaries  " + plural(compactions, "msg") + "  " + fmtCount((int) summaryTok)
-                                            + " est tokens"));
+            lines.add(host.styled("statusText", "  summaries  " + plural(compactions, "msg") + "  "
+                                            + fmtCount((int) summaryTok) + " est tokens"));
             for (var m : msgs) {
                 if (m instanceof Message.CompactionSummary cs) {
                     lines.add(host.styled("hr", "─".repeat(40)));

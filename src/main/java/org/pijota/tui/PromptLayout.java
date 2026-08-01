@@ -23,8 +23,8 @@ public final class PromptLayout {
 
     /**
      * Where the previous frame left the terminal: how many rows it occupies and on which of them the cursor was parked.
-     * Erase distance and park position are one value written by one method, so they cannot diverge (the eaten-scrollback
-     * regression fixed here was exactly these two numbers being maintained independently).
+     * Erase distance and park position are one value written by one method, so they cannot diverge (the
+     * eaten-scrollback regression fixed here was exactly these two numbers being maintained independently).
      */
     private record Stamp(int rows, int cursorRowFromTop) {
         static final Stamp NONE = new Stamp(1, 0);

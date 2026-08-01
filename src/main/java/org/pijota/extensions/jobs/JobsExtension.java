@@ -30,8 +30,8 @@ import java.util.stream.Collectors;
  * live panel of running jobs and a completion notice when a job exits. Cross-platform by construction: the command runs
  * through the configured shell (the same resolved shell as the foreground bash tool, bash by default, honouring
  * {@code shell_path}, so it works on Windows with Git Bash/WSL) and lifecycle uses only the Java {@code Process}/
- * {@code ProcessHandle} API, no external {@code kill}/{@code sh}. Unlike {@code --tmux} it needs no external binary,
- * so it works everywhere including the native image.
+ * {@code ProcessHandle} API, no external {@code kill}/{@code sh}. Unlike {@code --tmux} it needs no external binary, so
+ * it works everywhere including the native image.
  */
 public final class JobsExtension implements Extension {
 

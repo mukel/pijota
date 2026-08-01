@@ -10,8 +10,8 @@ import java.util.List;
  * through it.
  *
  * <p>
- * Every primitive has an inert default (mirroring {@link org.pijota.extensions.UiContext}) so an implementer, chiefly
- * a test double, overrides only the capabilities it exercises. The live TUI overrides them all.
+ * Every primitive has an inert default (mirroring {@link org.pijota.extensions.UiContext}) so an implementer, chiefly a
+ * test double, overrides only the capabilities it exercises. The live TUI overrides them all.
  */
 interface TuiHost {
 

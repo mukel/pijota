@@ -103,8 +103,7 @@ final class CommandPaletteHandler {
 
     private static String commandCategory(String name) {
         return switch (commandToken(name)) {
-            case "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete" ->
-                "Session";
+            case "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete" -> "Session";
             case "/tree", "/fork", "/undo", "/copy", "/theme" -> "Workspace";
             case "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/quit" -> "Account";
             case "/remote-control" -> "Remote";

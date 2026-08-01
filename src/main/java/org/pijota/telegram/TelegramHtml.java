@@ -36,8 +36,8 @@ import java.util.stream.IntStream;
  * Renders the agent's Markdown into the small subset of HTML that Telegram's {@code parse_mode=HTML} accepts
  * (<a href="https://core.telegram.org/bots/api#html-style">b/i/u/s/code/pre/a/blockquote</a>). Telegram has no
  * headings, lists or tables, so headings degrade to bold, list bullets to plain bullet/number lines, and tables to a
- * monospace preformatted block. Parsing always yields well-formed output, even a half-streamed message with an
- * unclosed bold marker or code fence, because CommonMark auto-closes open nodes, so the result is always safe to send.
+ * monospace preformatted block. Parsing always yields well-formed output, even a half-streamed message with an unclosed
+ * bold marker or code fence, because CommonMark auto-closes open nodes, so the result is always safe to send.
  */
 final class TelegramHtml {
     private static final Parser PARSER = Parser.builder()

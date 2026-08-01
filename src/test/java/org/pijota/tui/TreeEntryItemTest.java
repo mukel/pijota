@@ -27,8 +27,8 @@ class TreeEntryItemTest {
 
     @Test
     void fromRendersRoleAndEllipsizedContent() {
-        var item = TreeEntryItem.from(Map.of("id", "x1", "type", "message", "role", "user",
-                                        "content", "hello\nworld"), true);
+        var item = TreeEntryItem.from(Map.of("id", "x1", "type", "message", "role", "user", "content", "hello\nworld"),
+                                        true);
         assertEquals("user", item.role());
         assertEquals("hello world", item.content(), "newlines are flattened for a single-line row");
         assertTrue(item.titleText().startsWith("→ "), "the current entry is marked");

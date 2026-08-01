@@ -74,8 +74,8 @@ class SelectorRegionTest {
         var selector = new Selector<>(List.<SelectorItem>of(new CompletionItem("model", "switch model")));
         selector.activate("ode"); // subsequence/substring of "model"
         var region = new SelectorRegion<>(selector);
-        String row = compose(region).rows().stream()
-                                        .filter(r -> AnsiStripper.strip(r).contains("model")).findFirst().orElseThrow();
+        String row = compose(region).rows().stream().filter(r -> AnsiStripper.strip(r).contains("model")).findFirst()
+                                        .orElseThrow();
         assertTrue(row.contains(THEME.style("selectorMatch")), "the matched run is marked in the rendered row: " + row);
     }
 

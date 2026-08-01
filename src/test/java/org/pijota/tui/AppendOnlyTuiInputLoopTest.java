@@ -74,7 +74,8 @@ class AppendOnlyTuiInputLoopTest {
             Thread.sleep(80); // > the 20ms escape-sequence timeout, so ESC is read standalone
             feeder.write(CTRL_D); // Ctrl+D on an empty prompt → clean exit
             feeder.flush();
-            finished.get(30, TimeUnit.SECONDS); // run() must return, not hang (generous: a starved CI still isn't a hang)
+            finished.get(30, TimeUnit.SECONDS); // run() must return, not hang (generous: a starved CI still isn't a
+                                                // hang)
         } finally {
             tui.close();
         }
@@ -423,9 +424,8 @@ class AppendOnlyTuiInputLoopTest {
         // /save writes to an absolute temp path; a bare "/save x" would drop a session file in the repo root.
         // (/export writes "<id>-export.md" into the session's cwd, which TestSession sets to tempDir; no litter.)
         String saveTarget = tempDir.resolve("saved-session.jsonl").toString();
-        for (String cmd : List.of("/copy", "/context", "/export", "/save " + saveTarget, "/tree",
-                                        "/info", "/undo", "/logs", "/skills", "/settings", "/login", "/logout",
-                                        "/remote")) {
+        for (String cmd : List.of("/copy", "/context", "/export", "/save " + saveTarget, "/tree", "/info", "/undo",
+                                        "/logs", "/skills", "/settings", "/login", "/logout", "/remote")) {
             var ts = TestSession.in(tempDir).build();
             assertDoesNotThrow(() -> driveSession(ts, (cmd + "\r").getBytes(StandardCharsets.UTF_8)), cmd);
         }

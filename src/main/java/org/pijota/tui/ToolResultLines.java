@@ -15,10 +15,10 @@ import java.util.function.Supplier;
 /**
  * Builds the styled scrollback lines for a completed tool call in the machine-block grammar: a one-line header (marker,
  * accent name, muted target, dim metadata), an optional body behind a dim {@code │} rail, and a dim {@code └} footer
- * only when a body was shown. Failures keep their metadata in the header, red on the failing token only, with the
- * error excerpt railed like any other body. Pure given the message, the optional extension-provided
- * {@link Tool.ToolResultView}, and theming inputs, so the formatting is unit-testable, separate from the TUI's
- * stateful diff/preview handling which stays in the event loop.
+ * only when a body was shown. Failures keep their metadata in the header, red on the failing token only, with the error
+ * excerpt railed like any other body. Pure given the message, the optional extension-provided
+ * {@link Tool.ToolResultView}, and theming inputs, so the formatting is unit-testable, separate from the TUI's stateful
+ * diff/preview handling which stays in the event loop.
  */
 final class ToolResultLines {
 
@@ -94,8 +94,8 @@ final class ToolResultLines {
 
     /**
      * Rails a block body. Each logical line is wrapped to the railed width FIRST, so a line longer than the terminal
-     * gets the {@code │} on every physical row. Otherwise the terminal wraps it itself and the continuation rows
-     * dangle bare at column zero, visually breaking the block open.
+     * gets the {@code │} on every physical row. Otherwise the terminal wraps it itself and the continuation rows dangle
+     * bare at column zero, visually breaking the block open.
      */
     private static void addBody(List<String> lines, List<String> body, AnsiTheme theme, int width) {
         for (String line : body)

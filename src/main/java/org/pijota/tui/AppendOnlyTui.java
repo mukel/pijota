@@ -771,7 +771,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // ---- command palette ----
         @Override
         public List<CompletionItem> commands() {
-            return commands.all(); // the palette lists every command; "" would hit the slash-prefix guard and return none
+            return commands.all(); // the palette lists every command; "" would hit the slash-prefix guard and return
+                                   // none
         }
 
         @Override
@@ -1295,10 +1296,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     /**
      * @param freshLine
      *            advance to a new line on suspend. True for programs that print to stdout (their output then starts
-     *            below the prompt). False for alternate-screen programs (fzf): the screen (and cursor) are restored
-     *            on exit, so an extra newline would leave the cursor one row below where
-     *            {@link PromptLayout#eraseCurrent} expects it, so the in-place erase misses the top separator and a
-     *            stale {@code ─} rule accumulates each time.
+     *            below the prompt). False for alternate-screen programs (fzf): the screen (and cursor) are restored on
+     *            exit, so an extra newline would leave the cursor one row below where {@link PromptLayout#eraseCurrent}
+     *            expects it, so the in-place erase misses the top separator and a stale {@code ─} rule accumulates each
+     *            time.
      */
     public void suspendTui(boolean freshLine) {
         if (suspendDepth++ > 0)
@@ -1306,7 +1307,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // Hand a clean terminal to the suspended program / shell-out: end sync (?2026l) + restore autowrap (?7h, which
         // the render loop turns off while drawing) + show cursor + reset colors. resumeTui re-enters raw mode and the
         // next frame re-manages these, so nothing here needs undoing on resume.
-        terminal.writer().print(freshLine ? "\033[?2026l\033[?7h\033[?25h\033[0m\r\n" : "\033[?2026l\033[?7h\033[?25h\033[0m");
+        terminal.writer().print(freshLine
+                                        ? "\033[?2026l\033[?7h\033[?25h\033[0m\r\n"
+                                        : "\033[?2026l\033[?7h\033[?25h\033[0m");
         terminal.writer().flush();
         if (originalAttributes != null)
             terminal.setAttributes(originalAttributes);
@@ -1400,7 +1403,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         try {
-            suspendTui(false); // the editor takes over the alternate screen like fzf → no fresh-line, or a stale ─ accumulates
+            suspendTui(false); // the editor takes over the alternate screen like fzf → no fresh-line, or a stale ─
+                               // accumulates
             String editor = System.getenv().getOrDefault("EDITOR", Platform.isWindows() ? "notepad" : "vi");
             String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
             var result = externalEditor.edit(shell, editor, promptEditor.text());
@@ -1506,8 +1510,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return payload.equalsIgnoreCase("help");
     }
 
-    /** Vim quit muscle memory: {@code :q} and its write/quit-all cousins exit pijota (autosaves, so :wq == :q). Input is
-     *  the already-stripped submission; a leading space is the literal escape (handled by the caller), so " :q" is text. */
+    /**
+     * Vim quit muscle memory: {@code :q} and its write/quit-all cousins exit pijota (autosaves, so :wq == :q). Input is
+     * the already-stripped submission; a leading space is the literal escape (handled by the caller), so " :q" is text.
+     */
     static boolean isVimQuit(String payload) {
         return switch (payload) {
             case ":q", ":q!", ":wq", ":wq!", ":x", ":quit", ":qa", ":qa!" -> true;
@@ -1934,7 +1940,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (lastUser != null && !lastUser.isBlank())
             lines.add(theme.styled("dim", "  ↳ you · " + Util.ellipsize(lastUser.replace('\n', ' ').strip(), 74)));
         if (lastAssistant != null && !lastAssistant.isBlank())
-            lines.add(theme.styled("dim", "  ↳ reply · " + Util.ellipsize(lastAssistant.replace('\n', ' ').strip(), 74)));
+            lines.add(theme.styled("dim", "  ↳ reply · "
+                                            + Util.ellipsize(lastAssistant.replace('\n', ' ').strip(), 74)));
         if (!lines.isEmpty())
             appendPlain(lines);
     }
@@ -2344,8 +2351,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     /**
      * The live stream-tail line while a tool runs: its would-be header, dim, with the working spinner and elapsed.
      * Committed results replace it in place, so the header appears to solidify. Null when no tool is in flight. Once
-     * the tool has run a few seconds and can be backgrounded, the line carries the ctrl+b hint; it appears exactly
-     * when the user starts wondering, never for quick commands.
+     * the tool has run a few seconds and can be backgrounded, the line carries the ctrl+b hint; it appears exactly when
+     * the user starts wondering, never for quick commands.
      */
     private static final long BACKGROUND_HINT_AFTER_MS = 3000;
 
@@ -2514,8 +2521,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     /**
      * Routes a key to a modal component (log viewer, select picker) that consumes input while active. Returns true if
-     * the key was consumed, redrawing afterwards. Modals don't touch {@code busy}; that reflects the agent turn, so
-     * the working spinner shows only while the model is actually running, not while a viewer/picker is open.
+     * the key was consumed, redrawing afterwards. Modals don't touch {@code busy}; that reflects the agent turn, so the
+     * working spinner shows only while the model is actually running, not while a viewer/picker is open.
      */
     private boolean routeModalKey(BooleanSupplier active, Predicate<Key> handleKey, Key key) {
         if (!active.getAsBoolean() || !handleKey.test(key))

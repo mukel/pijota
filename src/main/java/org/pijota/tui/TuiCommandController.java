@@ -71,8 +71,7 @@ final class TuiCommandController {
         }
         // An unambiguous argument switches directly (an exact id/name match, or a single fuzzy hit) instead of
         // opening a one-item picker that needs a second Enter. Ambiguous prefixes still open the selector to choose.
-        var exact = matches.stream()
-                                        .filter(m -> m.id().equalsIgnoreCase(arg) || m.displayName().equalsIgnoreCase(arg))
+        var exact = matches.stream().filter(m -> m.id().equalsIgnoreCase(arg) || m.displayName().equalsIgnoreCase(arg))
                                         .findFirst();
         if (exact.isPresent())
             tui.switchToModel(exact.get());

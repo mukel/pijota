@@ -19,9 +19,9 @@ import java.util.function.Consumer;
 
 /**
  * Reads JS-rendered pages and search results the way a person's browser sees them (not a blocked headless fetch) and
- * returns markdown. Owns the browser-agnostic part (lazy-load settling, Mozilla Readability, the visible-DOM
- * extraction tiers, markdown conversion) over a pluggable {@link BrowserBackend}. Calls are serialized so they can't
- * race the protocol.
+ * returns markdown. Owns the browser-agnostic part (lazy-load settling, Mozilla Readability, the visible-DOM extraction
+ * tiers, markdown conversion) over a pluggable {@link BrowserBackend}. Calls are serialized so they can't race the
+ * protocol.
  */
 public final class BrowserSession {
 
@@ -30,8 +30,8 @@ public final class BrowserSession {
     private static final int MAX_HTML = 1_500_000; // cap the rendered DOM pulled back (fallback path only)
 
     /**
-     * Wall-clock waits for the settle heuristics that have <i>no</i> protocol event: "the visible text stopped
-     * growing" (SPA/lazy content) and the consent-dismissal reflow. The load wait itself is event-driven in the backend
+     * Wall-clock waits for the settle heuristics that have <i>no</i> protocol event: "the visible text stopped growing"
+     * (SPA/lazy content) and the consent-dismissal reflow. The load wait itself is event-driven in the backend
      * ({@code Page.loadEventFired} / BiDi {@code wait:"complete"}), so it isn't here. Production values match the tuned
      * ds4 behavior; tests set {@code -Dpijota.browser.fastSettle} to collapse them (an instantly-ready fake has nothing
      * to settle), keeping the suite fast without changing production behavior.
@@ -323,7 +323,8 @@ public final class BrowserSession {
     private static final String CONSENT_JS = loadResource("/browser/dismiss-consent.js");
     private static final String EXTRACT_PDF_JS = loadResource("/browser/extract-pdf.js");
 
-    // PDF.js (lib + worker) is large and downloaded at build time, so load it lazily so a browse session that never reads
+    // PDF.js (lib + worker) is large and downloaded at build time, so load it lazily so a browse session that never
+    // reads
     // a PDF doesn't hold ~1.5 MB, and so its absence (e.g. an offline first build) can't break class loading.
     private static volatile String pdfLib;
     private static volatile String pdfWorker;

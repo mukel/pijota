@@ -7,8 +7,8 @@ import org.pijota.tools.Tool;
 import java.util.Map;
 
 /**
- * Minimal custom-tool example: registers a {@code hello} tool with the fluent {@link Tool#named} builder (the schema
- * is generated from the declared params). The simplest possible extension; not registered by default.
+ * Minimal custom-tool example: registers a {@code hello} tool with the fluent {@link Tool#named} builder (the schema is
+ * generated from the declared params). The simplest possible extension; not registered by default.
  */
 public final class HelloExtension implements Extension {
 

@@ -1,0 +1,65 @@
+name: CI
+
+# Formatting + the full test suite on every push and PR, and a real native-image
+# build on demand. The provider smoke tests (make native-smoke / acp-smoke) need
+# API keys, so they stay a local step; the native BUILD is what CI can verify,
+# and it is the part that breaks silently (a missing reflection entry compiles
+# fine and only fails at runtime).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: format + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: make check (spotless + full suite)
+        run: make check
+
+  native:
+    name: native image (${{ matrix.os }})
+    # The long job: only on main and manual runs, so PRs stay fast.
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: graalvm
+          cache: maven
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: make native
+        run: make native
+      - name: binary runs
+        # Smoke without credentials: these exercise resource loading (models.json,
+        # providers.json) and arg parsing, which is where native builds usually break.
+        run: |
+          ./target/pj --version
+          ./target/pj --help > /dev/null
+          ./target/pj --list-models > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pj-${{ matrix.os }}
+          path: target/pj
+          if-no-files-found: error

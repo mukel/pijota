@@ -356,8 +356,8 @@ public final class PromptEditor {
             // (readline feel), instead of a static list. Pre-filter (the dropdown renders the passed list directly);
             // an empty query keeps all history.
             String q = buffer.firstLine().toLowerCase();
-            var matches = history.reverseSearchItems().stream()
-                                            .filter(it -> SlashCommandRegistry.fuzzyMatch(q, it.searchText().toLowerCase()))
+            var matches = history.reverseSearchItems().stream().filter(
+                                            it -> SlashCommandRegistry.fuzzyMatch(q, it.searchText().toLowerCase()))
                                             .toList();
             completions.filter(matches, "");
             suggestion = "";

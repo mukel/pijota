@@ -20,8 +20,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Validates the WebDriver BiDi backend against a real Firefox driven by geckodriver, using local fixture pages (no
  * network). Opt-in: launches a visible browser, so it runs only when {@code PIJOTA_BROWSER_IT=1} and geckodriver is
  * installed (on {@code PATH} or {@code PIJOTA_GECKODRIVER}). This is the end-to-end check the {@code BiDiBackendTest}
- * unit tests can't do, in particular the {@code script.addPreloadScript} Readability injection and
- * {@code setViewport}.
+ * unit tests can't do, in particular the {@code script.addPreloadScript} Readability injection and {@code setViewport}.
  */
 @Tag("live")
 class BrowserSessionLiveFirefoxTest {

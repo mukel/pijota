@@ -11,12 +11,12 @@ import java.nio.file.Path;
  * the temp file. fzf draws its UI on {@code /dev/tty}, so the {@code > out} redirect captures only the selection.
  *
  * <p>
- * The file list is produced <em>once</em> and fzf filters it in-memory, so no per-keystroke reload and no flicker. Inside
- * a git repo the list is {@code git ls-files :/} (tracked + untracked-not-ignored, so no {@code .git}/build junk),
- * which emits paths <strong>relative to cwd, with {@code ../} for files above it</strong>, so {@code @../file} works
- * with no re-rooting, and selections are already correct for {@link FileReferenceResolver}. Outside a repo it falls
- * back to {@code find} from cwd (parent search isn't available there). fzf runs full-screen (alternate screen) for a
- * clean enter/exit rather than inline overdraw.
+ * The file list is produced <em>once</em> and fzf filters it in-memory, so no per-keystroke reload and no flicker.
+ * Inside a git repo the list is {@code git ls-files :/} (tracked + untracked-not-ignored, so no {@code .git}/build
+ * junk), which emits paths <strong>relative to cwd, with {@code ../} for files above it</strong>, so {@code @../file}
+ * works with no re-rooting, and selections are already correct for {@link FileReferenceResolver}. Outside a repo it
+ * falls back to {@code find} from cwd (parent search isn't available there). fzf runs full-screen (alternate screen)
+ * for a clean enter/exit rather than inline overdraw.
  */
 final class FzfFilePicker {
     private FzfFilePicker() {}
@@ -68,9 +68,9 @@ final class FzfFilePicker {
 
     /**
      * The text to insert from fzf's {@code --print-query --print0} output. Three shapes (NUL-delimited): a match
-     * accepted → {@code query NUL selection NUL} → the selection, formatted via {@link #insertion}; Enter with no
-     * match → {@code query NUL} → the typed query verbatim ({@code @}-prefixed for the reference flow), because typed
-     * input is never silently discarded; cancel (Esc) → empty → empty (deliberate cancel inserts nothing).
+     * accepted → {@code query NUL selection NUL} → the selection, formatted via {@link #insertion}; Enter with no match
+     * → {@code query NUL} → the typed query verbatim ({@code @}-prefixed for the reference flow), because typed input
+     * is never silently discarded; cancel (Esc) → empty → empty (deliberate cancel inserts nothing).
      */
     static String insertionFrom(String fzfOutput, boolean asReference) {
         String[] tokens = fzfOutput.split("\0", -1); // trailing NUL yields a final empty token; keep inner whitespace

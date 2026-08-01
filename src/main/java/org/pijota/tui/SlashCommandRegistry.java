@@ -74,8 +74,7 @@ final class SlashCommandRegistry {
         out.add("pijota commands");
         appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/branch-summary", "/context", "/usage",
                                         "/dequeue", "/skills");
-        appendGroup(out, "session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new",
-                                        "/delete");
+        appendGroup(out, "session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete");
         appendGroup(out, "workspace", "/tree", "/fork", "/undo", "/copy", "/theme");
         appendGroup(out, "remote", "/remote-control");
         appendGroup(out, "account", "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/quit");

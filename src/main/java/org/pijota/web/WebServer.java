@@ -241,8 +241,8 @@ public final class WebServer implements AutoCloseable {
 
     /**
      * Token gate for non-loopback binds: when {@link #authToken} is set, a request is allowed only if it carries the
-     * token via the {@code pijota_rc} cookie or a {@code ?t=} query param (the latter is how the QR/URL bootstraps,
-     * the first GET sets the cookie). Returns true (and sends 403) when refused. No token configured ⇒ never gates.
+     * token via the {@code pijota_rc} cookie or a {@code ?t=} query param (the latter is how the QR/URL bootstraps, the
+     * first GET sets the cookie). Returns true (and sends 403) when refused. No token configured ⇒ never gates.
      */
     private boolean authBlocked(HttpExchange ex) throws IOException {
         if (authToken == null)
@@ -389,8 +389,7 @@ public final class WebServer implements AutoCloseable {
                 // mid-reply: followUp steers the running turn with text only. Attachments can't ride along, so don't
                 // echo media as if it was sent; tell the user to resend it after the turn.
                 if (!attachments.isEmpty())
-                    broadcast("status", Map.of("message",
-                                                    "Attachments aren't added mid-reply. Resend after this turn.",
+                    broadcast("status", Map.of("message", "Attachments aren't added mid-reply. Resend after this turn.",
                                                     "alert", true));
                 broadcast("user", Map.of("content", t, "images", List.of(), "files", List.of()));
                 session.followUp(t);
@@ -478,7 +477,8 @@ public final class WebServer implements AutoCloseable {
             }
             case AgentEvent.Error(Throwable t) -> {
                 broadcast("agent_error", Map.of("message", ErrorUtil.message(t)));
-                broadcast("turn", Map.of("busy", false)); // a failed turn fires Error, not TurnEnd, so clear the spinner
+                broadcast("turn", Map.of("busy", false)); // a failed turn fires Error, not TurnEnd, so clear the
+                                                          // spinner
             }
             case AgentEvent.HistoryChanged ignored -> broadcast("history", history()); // re-render after new/load/undo
             default -> {
@@ -702,7 +702,8 @@ public final class WebServer implements AutoCloseable {
         if (acceptsGzip(ex) && compressible(contentType) && body.length >= 512) {
             body = gzip(body);
             ex.getResponseHeaders().set("Content-Encoding", "gzip");
-            ex.getResponseHeaders().add("Vary", "Accept-Encoding"); // a cache must key on encoding (vendored libs cache)
+            ex.getResponseHeaders().add("Vary", "Accept-Encoding"); // a cache must key on encoding (vendored libs
+                                                                    // cache)
         }
         ex.sendResponseHeaders(code, body.length == 0 ? -1 : body.length);
         if (body.length > 0)

@@ -15,7 +15,10 @@ public record KeyChord(Key key, Set<Modifier> modifiers) {
         modifiers = Set.copyOf(modifiers);
     }
 
-    /** Human-readable form like {@code Ctrl+Alt+P} (written modifiers; {@code org.pijota.tui.Keys} maps them to ⌃⌥⇧ on macOS). */
+    /**
+     * Human-readable form like {@code Ctrl+Alt+P} (written modifiers; {@code org.pijota.tui.Keys} maps them to ⌃⌥⇧ on
+     * macOS).
+     */
     public String display() {
         var sb = new StringBuilder();
         if (modifiers.contains(Modifier.CTRL))

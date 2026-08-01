@@ -7,9 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Cross-OS detection of executables on {@code PATH}, like {@code which}/{@code where}, without spawning a process.
- * Lets features probe for optional external tools (rg, fzf, fd, tmux, a browser/driver, …) and degrade gracefully when
- * they are absent. On Windows an extensionless name is resolved through the {@code PATHEXT} suffixes
+ * Cross-OS detection of executables on {@code PATH}, like {@code which}/{@code where}, without spawning a process. Lets
+ * features probe for optional external tools (rg, fzf, fd, tmux, a browser/driver, …) and degrade gracefully when they
+ * are absent. On Windows an extensionless name is resolved through the {@code PATHEXT} suffixes
  * ({@code .EXE}/{@code .BAT}/{@code .CMD}/…); elsewhere the name is used verbatim.
  */
 public final class Executables {

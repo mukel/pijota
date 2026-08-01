@@ -50,7 +50,7 @@ class SelectorTest {
     @Test
     void ranksSubstringMatchesAboveScatteredSubsequences() {
         var scattered = item("scattered", "xaxbxc"); // "abc" only as a scattered subsequence
-        var substring = item("substring", "zabc");    // "abc" as a contiguous substring
+        var substring = item("substring", "zabc"); // "abc" as a contiguous substring
         var s = new Selector<>(List.of(scattered, substring)); // scattered listed first
         s.activate("abc");
         assertEquals("substring", s.selectedItem().titleText(),

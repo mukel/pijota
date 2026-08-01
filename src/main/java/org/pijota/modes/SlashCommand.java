@@ -39,9 +39,9 @@ public record SlashCommand(String name, String description, String argumentHint,
     }
 
     /**
-     * The argument text after the command word, i.e. everything past the first whitespace-delimited token, stripped. e.g.
-     * {@code "/btw what is X"} → {@code "what is X"}, {@code "/plan"} → {@code ""}. Tab- and multi-space-tolerant, so
-     * every frontend parses command arguments the same way.
+     * The argument text after the command word, i.e. everything past the first whitespace-delimited token, stripped.
+     * e.g. {@code "/btw what is X"} → {@code "what is X"}, {@code "/plan"} → {@code ""}. Tab- and multi-space-tolerant,
+     * so every frontend parses command arguments the same way.
      */
     public static String argsOf(String input) {
         if (input == null)

@@ -19,9 +19,9 @@ import java.util.List;
 
 /**
  * Renders CommonMark inline nodes to a styled string, shared by prose ({@link RichMarkdownRenderer}) and table cells
- * ({@link MarkdownTableRenderer}) so they look identical. Two modes: KEEP (delimiters shown dimmed, the barebones
- * look) and STRIP (delimiters consumed, styled, the rich look). Links use OSC 8 hyperlinks; STRIP additionally shows
- * the URL dimmed when it differs from the link text, so it stays readable on terminals without OSC 8 support.
+ * ({@link MarkdownTableRenderer}) so they look identical. Two modes: KEEP (delimiters shown dimmed, the barebones look)
+ * and STRIP (delimiters consumed, styled, the rich look). Links use OSC 8 hyperlinks; STRIP additionally shows the URL
+ * dimmed when it differs from the link text, so it stays readable on terminals without OSC 8 support.
  */
 final class MarkdownInline {
     private static final String BOLD = "\033[1m", ITALIC = "\033[3m", UNDERLINE = "\033[4m", STRIKE = "\033[9m";

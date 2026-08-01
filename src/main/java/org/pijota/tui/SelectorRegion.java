@@ -69,7 +69,9 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
         return max;
     }
 
-    /** {@code text} in {@code baseSlot}, with the matched characters at {@code match} bolded (kept in the base colour). */
+    /**
+     * {@code text} in {@code baseSlot}, with the matched characters at {@code match} bolded (kept in the base colour).
+     */
     static String highlight(AnsiTheme theme, String text, String baseSlot, int[] match) {
         if (match.length == 0)
             return theme.styled(baseSlot, text);

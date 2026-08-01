@@ -169,8 +169,8 @@ final class StreamRenderer {
 
     /**
      * The in-progress line to preview live at the bottom of the screen, PRE-STYLED: the thinking partial (dimmed, via
-     * the thinking theme) while reasoning, then the content partial (normal). Raw, no markdown, so it appears
-     * instantly and may reflow into formatted/dimmed scrollback when the line commits. Empty when nothing is streaming.
+     * the thinking theme) while reasoning, then the content partial (normal). Raw, no markdown, so it appears instantly
+     * and may reflow into formatted/dimmed scrollback when the line commits. Empty when nothing is streaming.
      */
     Optional<String> liveTail() {
         if (contentStarted)
@@ -323,8 +323,8 @@ final class StreamRenderer {
 
     /**
      * The single choke point that puts the {@code │} rail on thinking output: every logical line is wrapped to the
-     * railed width FIRST, then every physical row, continuations included, gets the rail. A long thought can never
-     * shed its rail at the terminal edge, and no emission path (streaming, close, flush) can bypass it.
+     * railed width FIRST, then every physical row, continuations included, gets the rail. A long thought can never shed
+     * its rail at the terminal edge, and no emission path (streaming, close, flush) can bypass it.
      */
     private List<StyledLine> railed(List<StyledLine> lines) {
         int width = railedWidth();

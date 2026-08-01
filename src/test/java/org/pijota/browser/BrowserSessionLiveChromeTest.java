@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Validates the real extraction JS against an actual Chrome over CDP, using local fixture pages (no network). Opt-in:
- * launches a visible browser, so it runs only when {@code PIJOTA_BROWSER_IT=1} and Chrome is present. The
- * deterministic {@link BrowserSessionCdpTest} covers the orchestration in the normal suite.
+ * launches a visible browser, so it runs only when {@code PIJOTA_BROWSER_IT=1} and Chrome is present. The deterministic
+ * {@link BrowserSessionCdpTest} covers the orchestration in the normal suite.
  */
 @Tag("live")
 class BrowserSessionLiveChromeTest {

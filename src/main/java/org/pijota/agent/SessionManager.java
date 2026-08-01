@@ -150,10 +150,10 @@ public final class SessionManager {
     // -- Entry types --
 
     /**
-     * Durability stance: ordinary appends are process-crash durable only (the write has left the JVM when this
-     * returns; no fsync promise against power loss). Compaction is the deliberate exception and passes
-     * {@code dsync=true}: losing a compaction on crash would rebuild context from the pre-compaction entries and
-     * silently present stale context. A torn tail from a crash mid-append is repaired on the next live open.
+     * Durability stance: ordinary appends are process-crash durable only (the write has left the JVM when this returns;
+     * no fsync promise against power loss). Compaction is the deliberate exception and passes {@code dsync=true}:
+     * losing a compaction on crash would rebuild context from the pre-compaction entries and silently present stale
+     * context. A torn tail from a crash mid-append is repaired on the next live open.
      */
     private void appendEntry(Path sessionFile, String entryId, String type,
                                     Consumer<LinkedHashMap<String, Object>> fields, boolean dsync) throws IOException {
@@ -416,11 +416,11 @@ public final class SessionManager {
     }
 
     /**
-     * A crash between a persisted assistant tool-call batch and its results leaves calls without answers, and
-     * providers reject such context on the next request. Insert a synthetic error result for each unanswered call,
-     * directly after its batch's surviving results (not at the tail: the user may have continued past the crash, and
-     * call/result pairing must hold mid-context too). In-memory only, deliberately not persisted: the tree keeps the
-     * truth that these calls never completed, and every load repairs identically.
+     * A crash between a persisted assistant tool-call batch and its results leaves calls without answers, and providers
+     * reject such context on the next request. Insert a synthetic error result for each unanswered call, directly after
+     * its batch's surviving results (not at the tail: the user may have continued past the crash, and call/result
+     * pairing must hold mid-context too). In-memory only, deliberately not persisted: the tree keeps the truth that
+     * these calls never completed, and every load repairs identically.
      */
     static List<Message> reconcileToolCalls(List<Message> messages) {
         var answered = new HashSet<String>();
@@ -571,9 +571,9 @@ public final class SessionManager {
     /**
      * Repairs the torn tail a crashed append can leave. Blind {@code APPEND} would concatenate the next entry onto a
      * partial final line, corrupting both entries and orphaning their children (silently truncated context), so every
-     * live open repairs before any append can happen. A parseable unterminated tail lost only its newline: complete
-     * it. Any other content after the last complete line was never acknowledged: drop it. The header line is never
-     * touched; deeper damage is mid-file corruption, which {@link #readAllEntries} surfaces and skips.
+     * live open repairs before any append can happen. A parseable unterminated tail lost only its newline: complete it.
+     * Any other content after the last complete line was never acknowledged: drop it. The header line is never touched;
+     * deeper damage is mid-file corruption, which {@link #readAllEntries} surfaces and skips.
      */
     private void repairTornTail(Path file) throws IOException {
         lockAndWrite(file, () -> {
@@ -592,7 +592,8 @@ public final class SessionManager {
             String tail; // the bytes under repair: either an unterminated suffix or the last complete line
             int keep; // file length to truncate to when the tail is beyond saving
             if (lastNl < bytes.length - 1) {
-                tail = new String(bytes, lastNl + 1, bytes.length - lastNl - 1, java.nio.charset.StandardCharsets.UTF_8);
+                tail = new String(bytes, lastNl + 1, bytes.length - lastNl - 1,
+                                                java.nio.charset.StandardCharsets.UTF_8);
                 keep = lastNl + 1;
                 if (parses(tail)) { // the crash cut exactly between the JSON and its newline: complete the line
                     Files.writeString(file, "\n", StandardOpenOption.APPEND);
