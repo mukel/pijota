@@ -6,7 +6,6 @@ import org.pijota.cli.Args;
 import org.pijota.messages.Message;
 import org.pijota.util.CliErrorReporter;
 import org.pijota.util.ErrorUtil;
-import org.pijota.util.Util;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -43,7 +42,11 @@ public final class PrintMode {
         var done = new CompletableFuture<List<Message>>();
         var textStarted = new AtomicBoolean(false);
 
+        var events = outputMode == Args.OutputMode.JSON ? new JsonEventStream(System.out) : null;
+
         Consumer<AgentEvent> listener = event -> {
+            if (events != null)
+                events.emit(event); // NDJSON: one line per event, live, so a wrapper can follow the run
             if (event instanceof AgentEvent.AssistantMessage(var msg, var usage)) {
                 if (outputMode == Args.OutputMode.JSON)
                     return;
@@ -89,10 +92,9 @@ public final class PrintMode {
     }
 
     /**
-     * The machine-readable result of a print run: which model answered, what it said, and what it cost. The model was
-     * previously hardcoded to "unknown", and usage was absent entirely, so a script driving pijota could neither
-     * attribute nor budget a run. Serialized through Jackson rather than hand-built strings, so content escaping is the
-     * mapper's problem.
+     * The final line of the JSON stream: which model answered, what it said, and what it cost. It carries
+     * {@code "type": "result"} like every other line, so a consumer can read the stream uniformly and stop at the
+     * result; {@code tail -1} alone is enough for a caller that only wants the outcome.
      */
     private static void printJson(List<Message> result, AgentLoop agentLoop) {
         var messages = new ArrayList<Map<String, Object>>();
@@ -111,15 +113,12 @@ public final class PrintMode {
             }
         }
         var payload = new LinkedHashMap<String, Object>();
+        payload.put("type", "result");
         payload.put("provider", agentLoop.llm().provider());
         payload.put("model", agentLoop.llm().model());
         payload.put("messages", messages);
         payload.put("usage", Map.of("inputTokens", in, "outputTokens", out, "cacheReadTokens", cacheRead,
                                         "cacheWriteTokens", cacheWrite, "reasoningTokens", reasoning));
-        try {
-            System.out.println(Util.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(payload));
-        } catch (Exception e) {
-            CliErrorReporter.warn("could not serialize JSON result: " + ErrorUtil.message(e));
-        }
+        new JsonEventStream(System.out).write(payload);
     }
 }
