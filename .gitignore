@@ -41,6 +41,7 @@ __pycache__/
 !/README.md
 !/AGENTS.md
 !/CLAUDE.md
+!/CHANGELOG.md
 
 # Test artifacts at repo root (session exports, ad-hoc test output)
 /*.jsonl
