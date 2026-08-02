@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -197,7 +198,7 @@ public final class ExtensionRegistry {
     private static boolean isBoolFlag(String value) {
         if (value == null)
             return true;
-        String v = value.trim().toLowerCase(java.util.Locale.ROOT);
+        String v = value.trim().toLowerCase(Locale.ROOT);
         return v.equals("true") || v.equals("false") || v.equals("1") || v.equals("0") || v.equals("yes")
                                         || v.equals("no") || v.equals("on") || v.equals("off");
     }
@@ -646,7 +647,7 @@ public final class ExtensionRegistry {
         @Override
         public void setActiveTools(List<String> toolNames) {
             if (toolRegistry != null)
-                toolRegistry.setActiveTools(java.util.Set.copyOf(toolNames));
+                toolRegistry.setActiveTools(Set.copyOf(toolNames));
         }
 
         @Override

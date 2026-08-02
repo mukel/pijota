@@ -3,6 +3,7 @@ package org.pijota.tui;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -402,7 +403,7 @@ class PromptEditorTest {
      */
     @Test
     void noCompletionsOpenWhileSomethingElseOwnsTheScreen() {
-        var selectorOpen = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var selectorOpen = new AtomicBoolean(true);
         var editor = new PromptEditor(new SlashCommandRegistry());
         editor.setCompletionsAllowed(() -> !selectorOpen.get());
 
@@ -418,7 +419,7 @@ class PromptEditorTest {
     /** Whatever was already open closes rather than lingering behind the thing that took over. */
     @Test
     void completionsAlreadyOpenAreDroppedWhenTheScreenIsTakenOver() {
-        var selectorOpen = new java.util.concurrent.atomic.AtomicBoolean(false);
+        var selectorOpen = new AtomicBoolean(false);
         var editor = new PromptEditor(new SlashCommandRegistry());
         editor.setCompletionsAllowed(() -> !selectorOpen.get());
 

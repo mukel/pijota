@@ -8,6 +8,9 @@ import org.pijota.extensions.UiContext;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -67,7 +70,7 @@ public final class SuggestExtension implements Extension {
                                       credentials, security, destructive actions, or private data
                                     """;
 
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SuggestExtension.class);
+    private static final Logger log = LoggerFactory.getLogger(SuggestExtension.class);
 
     private ExtensionAPI api;
 

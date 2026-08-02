@@ -1,5 +1,6 @@
 package org.pijota.tui;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,10 +78,10 @@ class ExternalEditorTest {
         var editor = new ExternalEditor((shell, command) -> {
             Path file = Path.of(command.substring(command.lastIndexOf(' ') + 1).replace("'", ""));
             seenFile.set(file);
-            throw new java.io.IOException("launch failed");
+            throw new IOException("launch failed");
         });
 
-        var ex = assertThrows(java.io.IOException.class, () -> editor.edit("/bin/sh", "fake-editor", "initial"));
+        var ex = assertThrows(IOException.class, () -> editor.edit("/bin/sh", "fake-editor", "initial"));
 
         assertEquals("launch failed", ex.getMessage());
         assertFalse(Files.exists(seenFile.get().getParent()));

@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 /** Loads simple action -> key mappings from {@code ~/.pijota/keybindings.json}. */
 final class UserKeybindings {
@@ -77,11 +78,11 @@ final class UserKeybindings {
         return List.copyOf(out);
     }
 
-    private static java.util.Optional<Key.Special> parseKey(String raw) {
+    private static Optional<Key.Special> parseKey(String raw) {
         if (raw == null)
-            return java.util.Optional.empty();
+            return Optional.empty();
         String s = raw.trim().toLowerCase(Locale.ROOT).replace(" ", "");
-        return java.util.Optional.ofNullable(switch (s) {
+        return Optional.ofNullable(switch (s) {
             case "ctrl+g" -> Key.Special.CTRL_G;
             case "shift+tab" -> Key.Special.SHIFT_TAB;
             case "ctrl+l" -> Key.Special.CTRL_L;

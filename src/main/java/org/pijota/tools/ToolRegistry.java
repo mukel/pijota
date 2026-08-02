@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Thread-safe registry of tools, keyed by name in insertion order. Tools move through three explicit states: registered
@@ -239,9 +240,8 @@ public final class ToolRegistry {
     private void pruneActiveNames() {
         if (activeNames == null)
             return;
-        var available = availableTools().stream().map(Tool::name).collect(java.util.stream.Collectors.toSet());
-        activeNames = activeNames.stream().filter(available::contains)
-                                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        var available = availableTools().stream().map(Tool::name).collect(Collectors.toSet());
+        activeNames = activeNames.stream().filter(available::contains).collect(Collectors.toUnmodifiableSet());
     }
 
     public static ToolRegistry createDefault() {

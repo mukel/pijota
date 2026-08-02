@@ -1,5 +1,7 @@
 package org.pijota.config;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -30,8 +32,8 @@ public enum PathDisplay {
     }
 
     /** The settings strings a user may write, so a message about them cannot list a value that is not one. */
-    public static java.util.List<String> names() {
-        return java.util.Arrays.stream(ALL).map(PathDisplay::config).toList();
+    public static List<String> names() {
+        return Arrays.stream(ALL).map(PathDisplay::config).toList();
     }
 
     /** Whether {@code value} names a mode. {@link #fromConfig} falls back for a typo, which a validator must not. */

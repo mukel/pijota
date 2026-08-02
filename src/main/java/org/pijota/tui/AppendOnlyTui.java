@@ -41,6 +41,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -2424,8 +2425,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (toolsInProgress.isEmpty())
             return;
         var abandoned = toolsInProgress.entrySet().stream()
-                                        .sorted(java.util.Comparator.comparingLong(e -> e.getValue().startedAtMs()))
-                                        .toList();
+                                        .sorted(Comparator.comparingLong(e -> e.getValue().startedAtMs())).toList();
         abandoned.forEach(e -> interruptedCalls.add(e.getKey()));
         toolsInProgress.clear();
         String dot = theme.styled("commandMeta", " · ");

@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 public final class ToolLabels {
 
@@ -119,7 +120,7 @@ public final class ToolLabels {
     }
 
     // The cwd may carry a trailing annotation like " (git)"; strip it once (cached pattern, not recompiled per call).
-    private static final java.util.regex.Pattern CWD_ANNOTATION = java.util.regex.Pattern.compile("\\(.*\\)");
+    private static final Pattern CWD_ANNOTATION = Pattern.compile("\\(.*\\)");
 
     private static String cleanCwd(String cwd) {
         return CWD_ANNOTATION.matcher(cwd).replaceAll("").strip();

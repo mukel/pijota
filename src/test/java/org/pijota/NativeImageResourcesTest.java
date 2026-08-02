@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
@@ -65,7 +66,7 @@ class NativeImageResourcesTest {
                                             .filter(name -> !name.endsWith(".class"))
                                             // The native-image config describes the image; it is not itself loaded.
                                             .filter(name -> !name.startsWith("META-INF/native-image/"))
-                                            .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
+                                            .collect(Collectors.toCollection(TreeSet::new));
             assertFalse(out.isEmpty(), "no packaged resources under " + CLASSES + "; run the build first");
             return out;
         }

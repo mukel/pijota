@@ -3,6 +3,7 @@ package org.pijota.worktree;
 import org.pijota.util.Platform;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -194,7 +195,7 @@ public final class WorktreeCommand {
         return (secs / 86400) + "d";
     }
 
-    private static void printUsage(java.io.PrintStream out) {
+    private static void printUsage(PrintStream out) {
         out.println("""
                                         pijota worktree: a reusable pool of git worktrees for parallel sessions
 

@@ -3,7 +3,12 @@ package org.pijota.tui;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.pijota.extensions.KeyChord;
+import org.pijota.extensions.plan.PlanExtension;
+import org.pijota.extensions.testkit.FakeExtensionAPI;
+import org.pijota.extensions.testkit.FakeExtensionRuntime;
+import org.pijota.extensions.transcend.TranscendenceExtension;
 
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -39,12 +44,10 @@ class ExtensionKeybindingReachabilityTest {
      */
     @Test
     void everyChordShippedExtensionsBindIsDeliverable() throws Exception {
-        var extensions = java.util.List.of(new org.pijota.extensions.plan.PlanExtension(),
-                                        new org.pijota.extensions.transcend.TranscendenceExtension());
+        var extensions = List.of(new PlanExtension(), new TranscendenceExtension());
         int bound = 0;
         for (var extension : extensions) {
-            var api = new org.pijota.extensions.testkit.FakeExtensionAPI(
-                                            new org.pijota.extensions.testkit.FakeExtensionRuntime());
+            var api = new FakeExtensionAPI(new FakeExtensionRuntime());
             extension.init(api);
             for (var binding : api.keybindings()) {
                 bound++;

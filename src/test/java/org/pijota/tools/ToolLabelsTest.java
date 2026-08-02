@@ -4,6 +4,7 @@ import org.pijota.config.PathDisplay;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
@@ -291,7 +292,7 @@ class ToolLabelsTest {
         // notifications, where the same command would drown the message. One label, two deliberate budgets.
         String command = "grep -rn 'needle' src/ | head -50 && echo '"
                                         + "this-tail-says-what-the-command-was-actually-for".repeat(3) + "'";
-        java.util.function.Supplier<String> args = () -> "{\"command\":\"" + command + "\"}";
+        Supplier<String> args = () -> "{\"command\":\"" + command + "\"}";
 
         String compact = ToolLabels.detail("bash", args, "/proj", PathDisplay.COMPACT);
         String full = ToolLabels.detail("bash", args, "/proj", PathDisplay.COMPACT, ToolLabels.FULL_COMMAND);

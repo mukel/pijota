@@ -1,6 +1,9 @@
 package org.pijota.config;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +19,7 @@ class SettingsManagerTest {
     void constructionNeverPersistsSettings() {
         // Guards against the footgun where startup rewrote settings.json every launch (project_dir auto-save),
         // risking clobbering the user's file. project_dir is resolved in-memory; nothing is written on construction.
-        var saves = new java.util.concurrent.atomic.AtomicInteger();
+        var saves = new AtomicInteger();
         var sm = new SettingsManager(new AppConfig(), c -> saves.incrementAndGet()); // project_dir unset
         assertEquals(0, saves.get(), "constructing a SettingsManager must not write settings.json");
         assertNotNull(sm.projectDir(), "project_dir is still resolved on demand");
@@ -104,8 +107,7 @@ class SettingsManagerTest {
     @Test
     void sessionDirCustom() {
         var config = new AppConfig(null, null, null, null, null, null, "/custom/sessions", null, null, null, null, null,
-                                        false, false, null, null, null, null, null, java.util.List.of(),
-                                        java.util.Map.of(), null);
+                                        false, false, null, null, null, null, null, List.of(), Map.of(), null);
         var sm = managerWith(config);
         assertEquals(Path.of("/custom/sessions"), sm.sessionDir());
     }
@@ -136,8 +138,7 @@ class SettingsManagerTest {
     @Test
     void effectiveShellPathUsesConfig() {
         var config = new AppConfig(null, null, null, null, "/bin/zsh", null, null, null, null, null, null, null, false,
-                                        false, null, null, null, null, null, java.util.List.of(), java.util.Map.of(),
-                                        null);
+                                        false, null, null, null, null, null, List.of(), Map.of(), null);
         var sm = managerWith(config);
         assertEquals("/bin/zsh", sm.effectiveShellPath());
     }
@@ -209,7 +210,7 @@ class SettingsManagerTest {
     @Test
     void effectiveShellPathFallsBackToShellEnvironmentVariable() {
         var config = new AppConfig(null, null, null, null, null, null, null, null, null, null, null, null, false, false,
-                                        null, null, null, null, null, java.util.List.of(), java.util.Map.of(), null);
+                                        null, null, null, null, null, List.of(), Map.of(), null);
         var sm = managerWith(config);
         String expected = System.getenv().getOrDefault("SHELL", "/bin/bash");
         assertEquals(expected, sm.effectiveShellPath());

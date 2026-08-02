@@ -2,6 +2,7 @@ package org.pijota.tools;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -55,7 +56,7 @@ class ToolPolicyTest {
 
     @Test
     void constructorDefensivelyCopiesTheLists() {
-        var allow = new java.util.HashSet<>(Set.of("web"));
+        var allow = new HashSet<>(Set.of("web"));
         var p = policy(ToolPolicy.Scope.NONE, allow, Set.of());
         allow.add("bash"); // mutating the source must not affect the policy
         assertFalse(p.keep("bash", true, true));

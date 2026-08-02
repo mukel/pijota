@@ -11,6 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -535,8 +536,8 @@ class JobsExtensionTest {
         return false;
     }
 
-    private String readUntil(FakeExtensionAPI api, String id, java.util.function.Predicate<String> condition,
-                                    long timeoutMs) throws Exception {
+    private String readUntil(FakeExtensionAPI api, String id, Predicate<String> condition, long timeoutMs)
+                                    throws Exception {
         long deadline = System.currentTimeMillis() + timeoutMs;
         String content = "";
         while (System.currentTimeMillis() < deadline) {

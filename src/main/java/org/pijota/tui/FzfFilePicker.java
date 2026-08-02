@@ -1,5 +1,6 @@
 package org.pijota.tui;
 
+import org.pijota.theme.AnsiTheme;
 import org.pijota.util.Executables;
 import org.pijota.util.Util;
 
@@ -56,7 +57,7 @@ final class FzfFilePicker {
      * The shell script: seed a static list → fzf (in-memory filter) → re-root only when the query ends in {@code /}.
      * {@code theme} colours the picker to match the session; see {@link FzfTheme}.
      */
-    static String script(Path out, org.pijota.theme.AnsiTheme theme) {
+    static String script(Path out, AnsiTheme theme) {
         // fzf filters the static list in-memory → no per-keystroke reload → no flicker. Re-root ONLY when the query
         // completes a directory (ends with /), e.g. `../` or `src/`: this reaches the real filesystem dir (including
         // parents above / outside the repo that the static list can't see) and fires at most once per directory hop.

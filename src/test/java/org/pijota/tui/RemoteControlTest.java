@@ -5,6 +5,7 @@ import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.extensions.testkit.FakeUiContext;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,7 +39,7 @@ class RemoteControlTest {
 
     @Test
     void telegramReportsMissingEnvWhenNotConfigured(@TempDir Path tmp) {
-        org.junit.jupiter.api.Assumptions.assumeTrue(System.getenv("TELEGRAM_BOT_TOKEN") == null,
+        Assumptions.assumeTrue(System.getenv("TELEGRAM_BOT_TOKEN") == null,
                                         "skip when a bot token is configured in the environment");
         var rc = remoteControl(tmp);
         assertTrue(String.join(" ", rc.startTelegram()).contains("TELEGRAM_BOT_TOKEN"));

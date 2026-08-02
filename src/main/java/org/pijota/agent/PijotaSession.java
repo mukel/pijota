@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -61,15 +62,14 @@ public final class PijotaSession implements AutoCloseable {
         // "summarize" sub-agent can override the model/system-prompt; null fields fall back to the main model.
         CompactionManager.SummaryGenerator summaryGen = new CompactionManager.SummaryGenerator() {
             @Override
-            public String generate(List<Message> msgs, String instr, String prev,
-                                            java.util.function.BiConsumer<String, String> onPart) {
+            public String generate(List<Message> msgs, String instr, String prev, BiConsumer<String, String> onPart) {
                 var result = generateWithUsage(msgs, instr, prev, onPart);
                 return result != null ? result.text() : null;
             }
 
             @Override
             public SummaryResult generateWithUsage(List<Message> msgs, String instr, String prev,
-                                            java.util.function.BiConsumer<String, String> onPart) {
+                                            BiConsumer<String, String> onPart) {
                 var summaryAgent = findSummarizeAgent(cwd);
                 return llm.summarizeWithUsage(msgs, instr, prev, onPart,
                                                 summaryAgent != null ? summaryAgent.model() : null,

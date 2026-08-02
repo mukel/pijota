@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.time.Duration;
 import java.util.List;
 
 import org.commonmark.ext.gfm.tables.TableCell;
@@ -29,8 +30,7 @@ class MarkdownTableRendererTest {
     @Test
     void fitWidthsOnZeroColumnsDoesNotSpin() {
         // A degenerate table with no columns must not hang the grow loop (sum stays 0 < available forever).
-        assertTimeoutPreemptively(java.time.Duration.ofSeconds(1),
-                                        () -> MarkdownTableRenderer.fitWidths(new int[0], 80));
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> MarkdownTableRenderer.fitWidths(new int[0], 80));
     }
 
     // ─── couldBeTable ───

@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,7 +39,7 @@ class UserKeybindingsTest {
         Path file = temp.resolve("keybindings.json");
         Files.writeString(file, "{\"tui.editor.cursorUp\":\"ctrl+p\"}");
 
-        var remaps = UserKeybindings.load(file).remaps(java.util.Map.of("tui.editor.cursorUp", Key.Special.UP));
+        var remaps = UserKeybindings.load(file).remaps(Map.of("tui.editor.cursorUp", Key.Special.UP));
 
         assertEquals(Key.Special.UP, remaps.get(Key.Special.CTRL_P));
     }

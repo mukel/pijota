@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.pijota.util.Util;
 
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,7 +15,7 @@ class ProviderCatalogTest {
     /** Reset the process-wide user-provider overlay so it can't bleed into other tests in the same JVM fork. */
     @AfterEach
     void clearUserProviders() {
-        ProviderCatalog.registerUserProviders(java.util.List.of());
+        ProviderCatalog.registerUserProviders(List.of());
     }
 
     @Test
@@ -25,9 +27,9 @@ class ProviderCatalogTest {
     @Test
     void userProvidersFromSettingsMergeIntoTheCatalog() {
         // a local OpenAI-compatible server defined in settings.json's "providers"
-        var local = new ProviderCatalog.Provider("local", "Local", "openai", "http://localhost:8080/v1",
-                                        java.util.List.of(), "my-model", java.util.Map.of(), null, null);
-        ProviderCatalog.registerUserProviders(java.util.List.of(local));
+        var local = new ProviderCatalog.Provider("local", "Local", "openai", "http://localhost:8080/v1", List.of(),
+                                        "my-model", Map.of(), null, null);
+        ProviderCatalog.registerUserProviders(List.of(local));
         assertEquals("http://localhost:8080/v1", ProviderCatalog.baseUrl("local"));
         assertEquals("openai", ProviderCatalog.apiType("local"));
         assertEquals("my-model", ProviderCatalog.defaultModel("local"));

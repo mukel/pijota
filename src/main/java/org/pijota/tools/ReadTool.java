@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -72,7 +73,7 @@ public final class ReadTool implements Tool {
      * Formats file {@code lines} for tool output: offset/limit slicing, per-line and 50KB byte truncation, and
      * continuation hints. Shared by the local {@code read} tool and the ACP client-backed override.
      */
-    public static ToolResult format(java.util.List<String> lines, int offset, int limit) {
+    public static ToolResult format(List<String> lines, int offset, int limit) {
         int totalLines = lines.size();
         if (totalLines == 0)
             return ToolResult.success("", Map.of("totalLines", 0));

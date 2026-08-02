@@ -13,10 +13,11 @@ import org.pijota.cli.FileProcessor;
 import org.pijota.cli.LicenseCommand;
 import org.pijota.config.OAuthLogin;
 import org.pijota.config.OAuthTokenStore;
+import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelDisplay;
 import org.pijota.llm.ModelRegistry;
-import org.pijota.config.ProviderCatalog;
+import org.pijota.llm.SetupRequiredException;
 import org.pijota.modes.PrintMode;
 import org.pijota.modes.RpcMode;
 import org.pijota.telegram.TelegramChat;
@@ -32,6 +33,7 @@ import org.pijota.util.SelfRespawn;
 import org.pijota.util.StartupTimer;
 import org.pijota.util.Util;
 
+import ch.qos.logback.classic.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +41,7 @@ import java.io.Console;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 public final class Main {
     static {
@@ -75,8 +78,9 @@ public final class Main {
     private static void enableDebugLogging() {
         try {
             var root = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+            // Qualified on purpose: this is logback's Logger, and the file already speaks SLF4J's.
             if (root instanceof ch.qos.logback.classic.Logger logbackRoot)
-                logbackRoot.setLevel(ch.qos.logback.classic.Level.DEBUG);
+                logbackRoot.setLevel(Level.DEBUG);
         } catch (Throwable ignored) {
             // Another SLF4J binding, or none: --verbose is a diagnostic aid, never a reason to fail to start.
         }
@@ -93,7 +97,7 @@ public final class Main {
                 return WorktreeCommand.run(args);
             // Before ArgParser: `auth` has its own grammar and must work without resolving a model or building an LLM.
             if (args.length > 0 && AuthCommand.NAME.equals(args[0]))
-                return AuthCommand.run(java.util.List.of(args).subList(1, args.length), new SettingsManager());
+                return AuthCommand.run(List.of(args).subList(1, args.length), new SettingsManager());
 
             var parsedArgs = ArgParser.parse(args);
             if (parsedArgs.verbose())
@@ -119,7 +123,7 @@ public final class Main {
                 return Supervisor.run(args);
 
             return runFrontend(parsedArgs);
-        } catch (org.pijota.llm.SetupRequiredException e) {
+        } catch (SetupRequiredException e) {
             // Not a crash: nothing is configured yet. Print the guidance plainly, without the failure framing.
             System.err.println(e.getMessage());
             return 1;
@@ -390,7 +394,7 @@ public final class Main {
         // pipe's writer, so available()==0 races on `echo x | pj`. On Linux /proc names the fd's target; a pipe or
         // file means redirected (readStdin then blocks until EOF and gets everything), a tty means interactive.
         try {
-            var fd0 = java.nio.file.Path.of("/proc/self/fd/0");
+            var fd0 = Path.of("/proc/self/fd/0");
             if (Files.exists(fd0)) {
                 String target = Files.readSymbolicLink(fd0).toString();
                 return !target.startsWith("/dev/pts") && !target.startsWith("/dev/tty");

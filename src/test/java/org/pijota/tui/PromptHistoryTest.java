@@ -1,5 +1,7 @@
 package org.pijota.tui;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,7 +52,7 @@ class PromptHistoryTest {
         var history = new PromptHistory();
         history.add("typed before load");
 
-        history.replaceAll(java.util.List.of("first prompt", "second prompt")); // e.g. a loaded session's user msgs
+        history.replaceAll(List.of("first prompt", "second prompt")); // e.g. a loaded session's user msgs
 
         // prior entry is gone; up-arrow recalls the loaded session's prompts, newest first.
         assertEquals("second prompt", history.previous("draft").orElseThrow());

@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -146,7 +147,7 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
     @Override
     public void setActiveTools(List<String> toolNames) {
         if (toolRegistry != null)
-            toolRegistry.setActiveTools(java.util.Set.copyOf(toolNames));
+            toolRegistry.setActiveTools(Set.copyOf(toolNames));
     }
 
     @Override

@@ -6,6 +6,8 @@ import org.pijota.messages.Usage;
 import org.pijota.util.Util;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -592,8 +594,7 @@ public final class SessionManager {
             String tail; // the bytes under repair: either an unterminated suffix or the last complete line
             int keep; // file length to truncate to when the tail is beyond saving
             if (lastNl < bytes.length - 1) {
-                tail = new String(bytes, lastNl + 1, bytes.length - lastNl - 1,
-                                                java.nio.charset.StandardCharsets.UTF_8);
+                tail = new String(bytes, lastNl + 1, bytes.length - lastNl - 1, StandardCharsets.UTF_8);
                 keep = lastNl + 1;
                 if (parses(tail)) { // the crash cut exactly between the JSON and its newline: complete the line
                     Files.writeString(file, "\n", StandardOpenOption.APPEND);
@@ -610,12 +611,12 @@ public final class SessionManager {
                 }
                 if (prevNl == -1)
                     return; // the last complete line is the header; never touch it
-                tail = new String(bytes, prevNl + 1, lastNl - prevNl - 1, java.nio.charset.StandardCharsets.UTF_8);
+                tail = new String(bytes, prevNl + 1, lastNl - prevNl - 1, StandardCharsets.UTF_8);
                 keep = prevNl + 1;
                 if (parses(tail))
                     return; // healthy file
             }
-            try (var ch = java.nio.channels.FileChannel.open(file, StandardOpenOption.WRITE)) {
+            try (var ch = FileChannel.open(file, StandardOpenOption.WRITE)) {
                 ch.truncate(keep);
             }
             log.warn("Dropped torn session tail in {} ({} bytes, never acknowledged)", file.getFileName(),

@@ -4,6 +4,9 @@ import org.pijota.util.Util;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,8 +27,8 @@ public final class ProviderCatalog {
     public static List<String> validateUserProviders(List<Provider> providers) {
         if (providers == null || providers.isEmpty())
             return List.of();
-        var warnings = new java.util.ArrayList<String>();
-        var seen = new java.util.HashSet<String>();
+        var warnings = new ArrayList<String>();
+        var seen = new HashSet<String>();
         for (var p : providers) {
             if (p == null) {
                 warnings.add("settings.providers contains a null entry");
@@ -50,7 +53,7 @@ public final class ProviderCatalog {
     public static List<Provider> providers() {
         if (userProviders.isEmpty())
             return CATALOG.providers();
-        var byId = new java.util.LinkedHashMap<String, Provider>();
+        var byId = new LinkedHashMap<String, Provider>();
         for (var p : CATALOG.providers())
             byId.put(p.id(), p);
         for (var p : userProviders)
@@ -80,7 +83,7 @@ public final class ProviderCatalog {
 
     public static Map<String, String> headers(String provider) {
         return find(provider).map(Provider::headers).filter(v -> v != null && !v.isEmpty()).map(headers -> {
-            var out = new java.util.LinkedHashMap<String, String>();
+            var out = new LinkedHashMap<String, String>();
             headers.forEach((k, v) -> out.put(k, interpolateEnv(v)));
             return Map.copyOf(out);
         }).orElse(Map.of());

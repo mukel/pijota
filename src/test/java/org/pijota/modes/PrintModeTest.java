@@ -7,6 +7,9 @@ import org.pijota.agent.TestSession;
 import org.pijota.cli.Args;
 import org.pijota.messages.Message;
 import org.pijota.testkit.FauxLlm;
+import org.pijota.util.Util;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -65,10 +68,9 @@ class PrintModeTest {
     }
 
     /** Every non-blank line of the stream, parsed. Fails the test if any line is not valid JSON. */
-    private List<com.fasterxml.jackson.databind.JsonNode> lines() {
-        return capturedOut.toString().lines().filter(l -> !l.isBlank())
-                                        .map(l -> assertDoesNotThrow(() -> org.pijota.util.Util.MAPPER.readTree(l),
-                                                                        "not valid JSON: " + l))
+    private List<JsonNode> lines() {
+        return capturedOut.toString().lines().filter(l -> !l.isBlank()).map(
+                                        l -> assertDoesNotThrow(() -> Util.MAPPER.readTree(l), "not valid JSON: " + l))
                                         .toList();
     }
 

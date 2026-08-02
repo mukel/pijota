@@ -1,5 +1,6 @@
 package org.pijota.tui;
 
+import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 
 import java.time.Instant;
@@ -82,7 +83,7 @@ class TreeRendererTest {
     void theTreeOpensLikeEveryOtherPanel() {
         var lines = new TreeRenderer(fakeTheme()).render(List.of(), List.of(), null);
         assertEquals("", lines.get(0), "a panel claims its line of air");
-        String header = org.pijota.testkit.AnsiStripper.strip(lines.get(1));
+        String header = AnsiStripper.strip(lines.get(1));
         assertEquals("tree  0 turns · 0 entries · /fork N", header,
                                         "lowercase title, then ·-joined chips, like every other panel");
         assertFalse(String.join("\n", lines).contains("Conversation Tree"), "no Title Case heading survives");

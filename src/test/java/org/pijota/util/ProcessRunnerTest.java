@@ -5,9 +5,12 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,7 +45,7 @@ class ProcessRunnerTest {
 
     @Test
     void environmentCanRemoveInheritedVariables() throws IOException {
-        var env = new java.util.LinkedHashMap<String, String>();
+        var env = new LinkedHashMap<String, String>();
         env.put("PIJOTA_PROVIDER", "openai");
         env.put("PIJOTA_MODEL", null);
         var result = ProcessRunner.command("/bin/sh", "-c",
@@ -286,13 +289,13 @@ class ProcessRunnerTest {
 
     @Test
     void detachReturnsEarlyWithOutputSoFarAndTheProcessSurvivesItsTimeout() throws Exception {
-        var signal = new java.util.concurrent.CompletableFuture<Void>();
+        var signal = new CompletableFuture<Void>();
         var processRef = new AtomicReference<Process>();
 
         // Would time out (and be killed) after 1s; the detach at ~200ms must win and must NOT kill it.
         var runner = ProcessRunner.command("/bin/sh", "-c", "echo started; sleep 30").timeout(1, TimeUnit.SECONDS)
                                         .detachSignal(signal).onStart(processRef::set);
-        var detacher = java.util.concurrent.CompletableFuture.runAsync(() -> {
+        var detacher = CompletableFuture.runAsync(() -> {
             try {
                 Thread.sleep(200);
             } catch (InterruptedException ignored) {}
@@ -316,7 +319,7 @@ class ProcessRunnerTest {
 
     @Test
     void detachedProcessKeepsFeedingTheChunkHandler() throws Exception {
-        var signal = new java.util.concurrent.CompletableFuture<Void>();
+        var signal = new CompletableFuture<Void>();
         var processRef = new AtomicReference<Process>();
         var chunks = new StringBuilder();
 
@@ -346,8 +349,7 @@ class ProcessRunnerTest {
 
     @Test
     void unfiredDetachSignalChangesNothing() throws IOException {
-        var result = ProcessRunner.command("/bin/sh", "-c", "echo plain")
-                                        .detachSignal(new java.util.concurrent.CompletableFuture<>()).run();
+        var result = ProcessRunner.command("/bin/sh", "-c", "echo plain").detachSignal(new CompletableFuture<>()).run();
         assertFalse(result.detached());
         assertEquals(0, result.exitCode());
         assertEquals("plain\n", result.stdout());
@@ -356,14 +358,14 @@ class ProcessRunnerTest {
     @Test
     void detachSignalWithTimeoutStillTimesOutWhenNeverFired() throws IOException {
         var result = ProcessRunner.command("/bin/sh", "-c", "sleep 30").timeout(300, TimeUnit.MILLISECONDS)
-                                        .detachSignal(new java.util.concurrent.CompletableFuture<>()).run();
+                                        .detachSignal(new CompletableFuture<>()).run();
         assertTrue(result.timedOut(), "an unfired signal must not defeat the timeout");
         assertFalse(result.detached());
     }
 
     @Test
     void signalFiringAfterExitIsNotADetach() throws IOException {
-        var signal = new java.util.concurrent.CompletableFuture<Void>();
+        var signal = new CompletableFuture<Void>();
         var result = ProcessRunner.command("/bin/sh", "-c", "echo done").detachSignal(signal).run();
         signal.complete(null); // too late, the process already finished normally
         assertFalse(result.detached());
@@ -381,7 +383,7 @@ class ProcessRunnerTest {
      */
     @Test
     void aCapturedChildWithNothingToReadGetsEofNotAnOpenPipe() throws Exception {
-        var result = assertTimeoutPreemptively(java.time.Duration.ofSeconds(10),
+        var result = assertTimeoutPreemptively(Duration.ofSeconds(10),
                                         () -> ProcessRunner.command("/bin/sh", "-c", "read line; echo \"got:$line\"")
                                                                         .redirectErrorStream(true).run(),
                                         "reading stdin blocked, so the pipe never reached EOF");

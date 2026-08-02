@@ -46,7 +46,7 @@ class ToolGlyphsTest {
 
     @Test
     void everyMarkIsOneNonEmojiCodePoint() {
-        var all = new java.util.TreeSet<>(LANGUAGE);
+        var all = new TreeSet<>(LANGUAGE);
         all.addAll(STATUS);
         for (String glyph : all) {
             assertEquals(1, glyph.codePointCount(0, glyph.length()), "not a single code point: [" + glyph + "]");

@@ -313,7 +313,7 @@ public final class AppBootstrap {
         // Fold the legacy typed --no-* flags into the SAME resolution so they keep working as aliases (the --tools
         // registry switch and --no-extensions discovery toggle are separate axes and stay above). Install this before
         // loading ANY extension, because ExtensionRegistry.register() gates immediately.
-        var flags = new java.util.LinkedHashMap<>(parsedArgs.extensionFlags());
+        var flags = new LinkedHashMap<>(parsedArgs.extensionFlags());
         if (parsedArgs.noSkills())
             flags.put("no-skills", "true");
         if (parsedArgs.noPromptTemplates())

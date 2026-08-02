@@ -2,6 +2,8 @@ package org.pijota.tui;
 
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
+
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -9,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class DiffRendererTest {
 
     /** The block opens with its line of air, so the header is the row after it. */
-    private static String header(java.util.List<String> lines) {
+    private static String header(List<String> lines) {
         return AnsiStripper.strip(lines.get(1));
     }
 

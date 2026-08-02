@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 public final class PromptEditor {
@@ -26,7 +27,7 @@ public final class PromptEditor {
     private final PromptCompletionPolicy completionPolicy;
     private final PromptTextBuffer buffer = new PromptTextBuffer();
     private final PromptCompletionState completions = new PromptCompletionState();
-    private java.util.function.BooleanSupplier completionsAllowed = () -> true;
+    private BooleanSupplier completionsAllowed = () -> true;
     private final PromptHistory history = new PromptHistory();
     private final UndoStack undoStack = new UndoStack();
     private final KillRing killRing = new KillRing();
@@ -56,7 +57,7 @@ public final class PromptEditor {
      * opened a second overlay on top. Both then drew their own "Enter select" footer, the status line described a third
      * behaviour, and Enter did nothing at all, leaving Esc as the only way out.
      */
-    synchronized void setCompletionsAllowed(java.util.function.BooleanSupplier allowed) {
+    synchronized void setCompletionsAllowed(BooleanSupplier allowed) {
         this.completionsAllowed = allowed == null ? () -> true : allowed;
     }
 

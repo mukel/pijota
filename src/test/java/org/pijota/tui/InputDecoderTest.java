@@ -3,7 +3,9 @@ package org.pijota.tui;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -283,7 +285,7 @@ class InputDecoderTest {
 
     /** CSI <params> u with the protocol's params; builds the byte stream a real terminal would send. */
     private static InputDecoder.Input csiU(String params) {
-        var seq = new java.util.ArrayList<Integer>(java.util.List.of(27, (int) '['));
+        var seq = new ArrayList<Integer>(List.of(27, (int) '['));
         params.chars().forEach(seq::add);
         seq.add((int) 'u');
         return input(seq.stream().mapToInt(Integer::intValue).toArray());

@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -44,7 +45,7 @@ public final class SettingsManager {
     }
 
     public static List<String> validate(AppConfig config) {
-        var warnings = new java.util.ArrayList<String>();
+        var warnings = new ArrayList<String>();
         if (config == null)
             return warnings;
         String trust = config.defaultProjectTrust();

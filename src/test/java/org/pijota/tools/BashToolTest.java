@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
@@ -189,8 +191,8 @@ class BashToolTest {
                 onStart.accept(real);
                 onOutput.accept("early output\n");
                 try {
-                    detachSignal.get(5, java.util.concurrent.TimeUnit.SECONDS); // a long-running command: block until
-                                                                                // the user detaches
+                    detachSignal.get(5, TimeUnit.SECONDS); // a long-running command: block until
+                                                           // the user detaches
                 } catch (Exception e) {
                     throw new IOException("expected a detach", e);
                 }
@@ -201,7 +203,7 @@ class BashToolTest {
             var future = tool.execute("id", new Tool.Args(Map.of("command", "sleep 30")), "/tmp", chunk -> {});
 
             // The running call becomes detachable as soon as the executor has published the process.
-            var detached = java.util.Optional.<Tool.DetachedProcess>empty();
+            var detached = Optional.<Tool.DetachedProcess>empty();
             long deadline = System.currentTimeMillis() + 5000;
             while (detached.isEmpty() && System.currentTimeMillis() < deadline) {
                 Thread.sleep(10);
@@ -219,7 +221,7 @@ class BashToolTest {
             handoff.complete().accept(Tool.ToolResult.success("moved to background",
                                             Map.of("jobId", "bg_9", "backgrounded", true)));
 
-            var result = future.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            var result = future.get(2, TimeUnit.SECONDS);
             assertEquals("moved to background", result.content(), "the synthetic result resolves the call");
 
             // The executor's own (detached) return must not overwrite the synthetic result…

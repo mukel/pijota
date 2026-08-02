@@ -3,6 +3,7 @@ package org.pijota.util;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.TreeMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -32,7 +33,7 @@ public final class DocumentText {
     // Pull readable text out of an Office Open XML container (a ZIP): the Word body, PowerPoint slides, Excel strings.
     private static String extractOoxml(byte[] bytes) {
         var sb = new StringBuilder();
-        var slides = new java.util.TreeMap<Integer, String>(); // collected separately so they emit in numeric order
+        var slides = new TreeMap<Integer, String>(); // collected separately so they emit in numeric order
         try (var zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
             ZipEntry e;
             while ((e = zip.getNextEntry()) != null) {

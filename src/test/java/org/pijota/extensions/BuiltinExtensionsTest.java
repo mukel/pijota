@@ -9,6 +9,7 @@ import org.pijota.extensions.skills.SkillExtension;
 import org.pijota.extensions.tmux.TmuxExtension;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
@@ -24,8 +25,8 @@ class BuiltinExtensionsTest {
     void catalogDefaultsMatchTheExtensionsThemselves() {
         List<Extension> real = List.of(new JobsExtension(), new TmuxExtension(), new SkillExtension(List.of()),
                                         new PromptTemplateExtension(List.of()), new ContextFilesExtension("/tmp"));
-        var catalog = BuiltinExtensions.TOGGLEABLE.stream().collect(java.util.stream.Collectors
-                                        .toMap(BuiltinExtensions.Spec::name, BuiltinExtensions.Spec::enabledByDefault));
+        var catalog = BuiltinExtensions.TOGGLEABLE.stream().collect(Collectors.toMap(BuiltinExtensions.Spec::name,
+                                        BuiltinExtensions.Spec::enabledByDefault));
         for (var ext : real) {
             Boolean declared = catalog.get(ext.name());
             assertNotNull(declared, ext.name() + " is toggleable but missing from the --help catalog");

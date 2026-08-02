@@ -5,6 +5,7 @@ import org.pijota.testkit.TestTools;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -247,7 +248,7 @@ class ToolRegistryTest {
     void manifestSnapshotCanonicalizesSchemaFieldOrderForStableHashes() {
         var schemaOne = Map.<String, Object>of("type", "object", "properties",
                                         Map.of("b", Map.of("type", "string"), "a", Map.of("type", "integer")));
-        var schemaTwo = new java.util.LinkedHashMap<String, Object>();
+        var schemaTwo = new LinkedHashMap<String, Object>();
         schemaTwo.put("properties", Map.of("a", Map.of("type", "integer"), "b", Map.of("type", "string")));
         schemaTwo.put("type", "object");
         var one = new ToolRegistry();

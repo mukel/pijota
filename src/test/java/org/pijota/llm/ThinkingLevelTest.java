@@ -1,5 +1,7 @@
 package org.pijota.llm;
 
+import java.util.Arrays;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -55,8 +57,7 @@ class ThinkingLevelTest {
      */
     @Test
     void theAcceptedNamesAreTheLevelsThemselves() {
-        assertEquals(java.util.Arrays.stream(ThinkingLevel.values()).map(ThinkingLevel::label).toList(),
-                                        ThinkingLevel.names());
+        assertEquals(Arrays.stream(ThinkingLevel.values()).map(ThinkingLevel::label).toList(), ThinkingLevel.names());
         for (var level : ThinkingLevel.values())
             assertTrue(ThinkingLevel.isKnown(level.label()), level + " is not recognised by its own name");
     }

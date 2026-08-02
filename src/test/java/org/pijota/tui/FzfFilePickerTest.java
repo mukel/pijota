@@ -1,5 +1,7 @@
 package org.pijota.tui;
 
+import org.pijota.theme.AnsiTheme;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -146,7 +148,7 @@ class FzfFilePickerTest {
 
     @Test
     void thePickerUsesPijotasOwnCursorAndPalette() {
-        String s = FzfFilePicker.script(java.nio.file.Path.of("/tmp/sel.txt"), org.pijota.theme.AnsiTheme.dark());
+        String s = FzfFilePicker.script(Path.of("/tmp/sel.txt"), AnsiTheme.dark());
         // The picker takes the whole terminal mid-sentence. Arriving in fzf's default look made it read as another
         // program; these are what make it read as the same one.
         assertTrue(s.contains("--pointer"), "the cursor must be pijota's ›, not fzf's bar: " + s);
@@ -157,7 +159,7 @@ class FzfFilePickerTest {
 
     @Test
     void aPickerWithoutAThemeStillRunsAndIsMonochrome() {
-        String s = FzfFilePicker.script(java.nio.file.Path.of("/tmp/sel.txt"), null);
+        String s = FzfFilePicker.script(Path.of("/tmp/sel.txt"), null);
         assertTrue(s.contains("--color="), s);
         assertTrue(s.contains("bw"), "no theme means fzf's monochrome preset, not a broken flag: " + s);
     }

@@ -2,8 +2,11 @@ package org.pijota.util;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.net.InetSocketAddress;
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +32,7 @@ class ProxiesTest {
 
         var proxies = selector.select(URI.create("https://api.openai.com/v1"));
         assertEquals(1, proxies.size());
-        var address = (java.net.InetSocketAddress) proxies.get(0).address();
+        var address = (InetSocketAddress) proxies.get(0).address();
         assertEquals("proxy.example", address.getHostString());
         assertEquals(8080, address.getPort());
     }
@@ -37,7 +40,7 @@ class ProxiesTest {
     @Test
     void credentialsAndPathInProxyUrlAreStripped() {
         System.setProperty("pijota.proxy", "http://user:pass@proxy.example:3128/");
-        var address = (java.net.InetSocketAddress) Proxies.selector().select(URI.create("https://x")).get(0).address();
+        var address = (InetSocketAddress) Proxies.selector().select(URI.create("https://x")).get(0).address();
         assertEquals("proxy.example", address.getHostString());
         assertEquals(3128, address.getPort());
     }
@@ -66,15 +69,13 @@ class ProxiesTest {
      */
     @Test
     void everyClientFromTheSharedBuilderBoundsItsConnectAttempt() {
-        assertEquals(java.util.Optional.of(Proxies.connectTimeout()),
-                                        Proxies.httpClientBuilder().build().connectTimeout());
+        assertEquals(Optional.of(Proxies.connectTimeout()), Proxies.httpClientBuilder().build().connectTimeout());
     }
 
     /** A caller with its own configured timeout still wins; the builder only supplies the floor. */
     @Test
     void aCallerCanStillChooseItsOwnTimeout() {
-        var own = java.time.Duration.ofSeconds(3);
-        assertEquals(java.util.Optional.of(own),
-                                        Proxies.httpClientBuilder().connectTimeout(own).build().connectTimeout());
+        var own = Duration.ofSeconds(3);
+        assertEquals(Optional.of(own), Proxies.httpClientBuilder().connectTimeout(own).build().connectTimeout());
     }
 }

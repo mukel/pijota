@@ -1,5 +1,9 @@
 package org.pijota.llm;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+
 public enum ThinkingLevel {
     // Labels are bare level names; callers add their own context ("thinking " + label, " · " + label). OFF was
     // "thinking off", which rendered as "thinking thinking off" when cycling and " · thinking off" in the footer.
@@ -47,8 +51,8 @@ public enum ThinkingLevel {
     }
 
     /** The spellings a user may write, in ramp order, for anything that has to say what it expected. */
-    public static java.util.List<String> names() {
-        return java.util.Arrays.stream(values()).map(ThinkingLevel::label).toList();
+    public static List<String> names() {
+        return Arrays.stream(values()).map(ThinkingLevel::label).toList();
     }
 
     /**
@@ -57,7 +61,7 @@ public enum ThinkingLevel {
      * did not recognise them.
      */
     public static boolean isKnown(String s) {
-        return s != null && names().contains(s.trim().toLowerCase(java.util.Locale.ROOT));
+        return s != null && names().contains(s.trim().toLowerCase(Locale.ROOT));
     }
 
     public static ThinkingLevel fromString(String s) {

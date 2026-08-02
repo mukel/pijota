@@ -2,6 +2,8 @@ package org.pijota.tui;
 
 import org.pijota.llm.ModelInfo;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,7 +43,7 @@ class ModelItemTest {
 
     @Test
     void detailTextShowsCapabilitiesAndPricing() {
-        var info = new ModelInfo("vision", "openai", "Vision", 128_000, 1.25, 10.0, java.util.List.of("image"));
+        var info = new ModelInfo("vision", "openai", "Vision", 128_000, 1.25, 10.0, List.of("image"));
         var item = new ModelItem(info, false);
 
         assertTrue(item.detailText().contains("input image,text"), item.detailText());

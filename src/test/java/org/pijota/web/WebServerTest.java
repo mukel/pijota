@@ -13,6 +13,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.Consumer;
 import java.util.zip.GZIPInputStream;
 import java.net.CookieManager;
 import java.net.ServerSocket;
@@ -560,7 +561,7 @@ class WebServerTest {
 
             @Override
             public CompletableFuture<Tool.ToolResult> execute(String toolCallId, Tool.Args args, String sessionCwd,
-                                            java.util.function.Consumer<String> onProgress) {
+                                            Consumer<String> onProgress) {
                 onProgress.accept("chunk-one");
                 return CompletableFuture.completedFuture(Tool.ToolResult.success("done"));
             }

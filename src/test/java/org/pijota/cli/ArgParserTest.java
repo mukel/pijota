@@ -1,15 +1,20 @@
 package org.pijota.cli;
 
+import org.pijota.testkit.StdioCapture;
+
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.util.List;
+import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class ArgParserTest {
 
-    @org.junit.jupiter.api.extension.RegisterExtension
-    final org.pijota.testkit.StdioCapture stdio = new org.pijota.testkit.StdioCapture();
+    @RegisterExtension
+    final StdioCapture stdio = new StdioCapture();
 
     @Test
     void parseProvider() {
@@ -423,11 +428,11 @@ class ArgParserTest {
      */
     @Test
     void theOptionColumnDoesNotDrift() {
-        var starts = new java.util.TreeMap<Integer, String>();
+        var starts = new TreeMap<Integer, String>();
         for (String line : help().split("\n")) {
             if (!line.startsWith("  -") || line.isBlank())
                 continue;
-            var m = java.util.regex.Pattern.compile("^ {2}\\S.*?  +(\\S)").matcher(line);
+            var m = Pattern.compile("^ {2}\\S.*?  +(\\S)").matcher(line);
             if (m.find())
                 starts.putIfAbsent(m.start(1), line);
         }
@@ -452,7 +457,7 @@ class ArgParserTest {
      */
     @Test
     void theLicenseCommandPrintsTextsAndNotJustNames() {
-        int code = org.pijota.cli.LicenseCommand.run();
+        int code = LicenseCommand.run();
         String out = stdio.out();
 
         assertEquals(0, code);

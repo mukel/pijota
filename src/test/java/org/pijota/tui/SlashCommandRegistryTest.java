@@ -1,6 +1,13 @@
 package org.pijota.tui;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
@@ -100,16 +107,15 @@ class SlashCommandRegistryTest {
      */
     @Test
     void everyDispatchedCommandIsDiscoverableAndEveryListedOneDispatches() throws Exception {
-        String source = java.nio.file.Files.readString(
-                                        java.nio.file.Path.of("src/main/java/org/pijota/tui/TuiCommandController.java"),
-                                        java.nio.charset.StandardCharsets.UTF_8);
+        String source = Files.readString(Path.of("src/main/java/org/pijota/tui/TuiCommandController.java"),
+                                        StandardCharsets.UTF_8);
         // One entry per case label, each holding all the names that label answers to. Grouping them is what makes an
         // alias an alias: "/quit", "/q", "/exit" is one feature, and listing any one of the three makes it findable.
-        var cases = new ArrayList<java.util.Set<String>>();
-        var m = java.util.regex.Pattern.compile("case ((?:\"/[a-z?-]+\"(?:, )?)+) ->").matcher(source);
+        var cases = new ArrayList<Set<String>>();
+        var m = Pattern.compile("case ((?:\"/[a-z?-]+\"(?:, )?)+) ->").matcher(source);
         while (m.find()) {
-            var names = new java.util.TreeSet<String>();
-            var each = java.util.regex.Pattern.compile("\"(/[a-z?-]+)\"").matcher(m.group(1));
+            var names = new TreeSet<String>();
+            var each = Pattern.compile("\"(/[a-z?-]+)\"").matcher(m.group(1));
             while (each.find())
                 names.add(each.group(1));
             cases.add(names);
@@ -117,14 +123,13 @@ class SlashCommandRegistryTest {
         assertFalse(cases.isEmpty(), "no cases parsed; the dispatcher's shape changed");
 
         var listed = registry.all().stream().map(item -> item.name().split(" ")[0])
-                                        .collect(java.util.stream.Collectors.toCollection(java.util.TreeSet::new));
+                                        .collect(Collectors.toCollection(TreeSet::new));
 
         var undiscoverable = cases.stream().filter(names -> names.stream().noneMatch(listed::contains)).toList();
         assertTrue(undiscoverable.isEmpty(), "handled but in no completion list, /help or palette: " + undiscoverable);
 
-        var dispatched = cases.stream().flatMap(java.util.Set::stream)
-                                        .collect(java.util.stream.Collectors.toCollection(java.util.TreeSet::new));
-        var dead = new java.util.TreeSet<>(listed);
+        var dispatched = cases.stream().flatMap(Set::stream).collect(Collectors.toCollection(TreeSet::new));
+        var dead = new TreeSet<>(listed);
         dead.removeAll(dispatched);
         assertTrue(dead.isEmpty(), "advertised but nothing handles them: " + dead);
     }

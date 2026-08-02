@@ -13,7 +13,9 @@ import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
 import org.pijota.tools.Tool;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -227,8 +229,7 @@ class SuggestExtensionTest {
         var llm = new CountingLlm();
         var ui = new DraftUi();
         var api = apiWith(ui, llm);
-        lastRuntime.seedMessage(new Message.User(java.util.UUID.randomUUID(), java.time.Instant.now(),
-                                        "add a zero guard", java.util.List.of()));
+        lastRuntime.seedMessage(new Message.User(UUID.randomUUID(), Instant.now(), "add a zero guard", List.of()));
         ready(api);
 
         api.fire(new ExtensionEvent.AgentEnd());

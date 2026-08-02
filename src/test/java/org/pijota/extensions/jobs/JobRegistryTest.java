@@ -1,5 +1,6 @@
 package org.pijota.extensions.jobs;
 
+import org.pijota.tools.Tool;
 import org.pijota.util.Executables;
 
 import org.junit.jupiter.api.Test;
@@ -10,7 +11,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -299,9 +303,9 @@ class JobRegistryTest {
 
     // -- adoption of user-backgrounded (detached) commands --
 
-    private static org.pijota.tools.Tool.DetachedProcess handoff(Process process, String command, String seed,
-                                    java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>> feed) {
-        return new org.pijota.tools.Tool.DetachedProcess(process, command, next -> {
+    private static Tool.DetachedProcess handoff(Process process, String command, String seed,
+                                    AtomicReference<Consumer<String>> feed) {
+        return new Tool.DetachedProcess(process, command, next -> {
             feed.set(next);
             return seed;
         }, result -> {});
@@ -312,7 +316,7 @@ class JobRegistryTest {
         assumeTrue(Executables.isAvailable("sleep"), "needs a long-lived POSIX process");
         var jobs = new JobRegistry();
         Process process = new ProcessBuilder("sleep", "30").start();
-        var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        var feed = new AtomicReference<Consumer<String>>();
         try {
             var adopted = jobs.adopt(handoff(process, "npm run dev", "early output\n", feed), "npm run dev");
 
@@ -333,14 +337,14 @@ class JobRegistryTest {
     void adoptedJobReportsCompletionWithExitCodeOnItsOwnExit() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var jobs = new JobRegistry();
-        var completions = new java.util.concurrent.LinkedBlockingQueue<JobRegistry.Completion>();
+        var completions = new LinkedBlockingQueue<JobRegistry.Completion>();
         jobs.onCompletion(completions::add);
         Process process = new ProcessBuilder("sh", "-c", "exit 3").start();
-        var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        var feed = new AtomicReference<Consumer<String>>();
 
         var adopted = jobs.adopt(handoff(process, "flaky", "", feed), null);
 
-        var completion = completions.poll(5, java.util.concurrent.TimeUnit.SECONDS);
+        var completion = completions.poll(5, TimeUnit.SECONDS);
         assertNotNull(completion, "onExit must fire the completion listeners");
         assertEquals(adopted.id(), completion.id());
         assertEquals(3, completion.exitCode());
@@ -351,12 +355,12 @@ class JobRegistryTest {
         assumeTrue(Executables.isAvailable("sleep"), "needs a long-lived POSIX process");
         var jobs = new JobRegistry();
         Process process = new ProcessBuilder("sleep", "30").start();
-        var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        var feed = new AtomicReference<Consumer<String>>();
         var adopted = jobs.adopt(handoff(process, "sleep 30", "", feed), null);
 
         assertTrue(jobs.isRunning(adopted.id()));
         assertTrue(jobs.stop(adopted.id(), true));
-        process.onExit().get(5, java.util.concurrent.TimeUnit.SECONDS);
+        process.onExit().get(5, TimeUnit.SECONDS);
         assertFalse(jobs.isRunning(adopted.id()));
     }
 
@@ -401,7 +405,7 @@ class JobRegistryTest {
         assumeTrue(Executables.isAvailable("sleep"), "needs a long-lived POSIX process");
         var jobs = new JobRegistry();
         Process process = new ProcessBuilder("sleep", "30").start();
-        var feed = new java.util.concurrent.atomic.AtomicReference<java.util.function.Consumer<String>>();
+        var feed = new AtomicReference<Consumer<String>>();
         try {
             String big = "x".repeat(250_000); // over the 200KB retained-buffer cap
             var adopted = jobs.adopt(handoff(process, "big", big, feed), null);

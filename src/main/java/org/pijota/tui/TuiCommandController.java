@@ -1,5 +1,6 @@
 package org.pijota.tui;
 
+import org.pijota.agent.PijotaSession;
 import org.pijota.llm.ModelInfo;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.modes.SlashCommand;
@@ -84,7 +85,7 @@ final class TuiCommandController {
     private void renameSession(String name) {
         // Sanitize before caching locally so the status bar shows the same single-line name that gets persisted; a
         // multi-line/ANSI name must not corrupt the footer (setSessionName sanitizes the persisted copy identically).
-        tui.sessionName(org.pijota.agent.PijotaSession.sanitizeName(name));
+        tui.sessionName(PijotaSession.sanitizeName(name));
         try {
             tui.session().setSessionName(tui.sessionName());
             tui.appendStatus(tui.sessionName() != null

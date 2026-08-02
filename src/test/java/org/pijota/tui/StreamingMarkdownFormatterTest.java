@@ -2,6 +2,8 @@ package org.pijota.tui;
 
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
@@ -12,7 +14,7 @@ class StreamingMarkdownFormatterTest {
 
     private static String richJoined(String... lines) {
         var f = new StreamingMarkdownFormatter(AnsiTheme.dark(), MarkdownStyle.RICH);
-        var out = new java.util.ArrayList<StyledLine>();
+        var out = new ArrayList<StyledLine>();
         for (String l : lines)
             out.addAll(f.format(l));
         out.addAll(f.flush());
@@ -43,7 +45,7 @@ class StreamingMarkdownFormatterTest {
         content.setWidth(60);
         thinking.setWidth(60);
 
-        var lines = java.util.List.of("# Heading", "A **bold** word, an *italic* one, and `inline code`.", "```java",
+        var lines = List.of("# Heading", "A **bold** word, an *italic* one, and `inline code`.", "```java",
                                         "int answer = 42;", "```", "| Col A | Col B |", "|-------|-------|",
                                         "| 1     | 2     |", "");
         var c = new StringBuilder();

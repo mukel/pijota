@@ -18,7 +18,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -291,9 +293,9 @@ public final class ProcessRunner {
                 either.get();
             else
                 either.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (java.util.concurrent.TimeoutException e) {
+        } catch (TimeoutException e) {
             // timeout path: the caller sees a live, undetached process and applies the kill protocol
-        } catch (java.util.concurrent.ExecutionException e) {
+        } catch (ExecutionException e) {
             // a failed onExit/signal future still means "stop waiting"; liveness checks decide what happened
         }
     }

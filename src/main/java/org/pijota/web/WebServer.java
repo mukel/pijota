@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.concurrent.ExecutorService;
 import java.util.zip.GZIPOutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -89,7 +90,7 @@ public final class WebServer implements AutoCloseable {
                                     .newSingleThreadScheduledExecutor(daemon("pijota-web-hb"));
 
     private HttpServer http;
-    private java.util.concurrent.ExecutorService httpExecutor;
+    private ExecutorService httpExecutor;
 
     /**
      * @param commands

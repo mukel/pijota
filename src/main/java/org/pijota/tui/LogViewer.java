@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
  * A modal, scrollable, searchable text viewer rendered inside the TUI (no external pager). Owns its scroll position,
@@ -18,7 +19,7 @@ import java.util.function.Supplier;
  */
 final class LogViewer {
 
-    private static final java.util.regex.Pattern ANSI = java.util.regex.Pattern.compile("\\u001B\\[[0-?]*[ -/]*[@-~]");
+    private static final Pattern ANSI = Pattern.compile("\\u001B\\[[0-?]*[ -/]*[@-~]");
 
     private static final long REFRESH_INTERVAL_MS = 400;
 

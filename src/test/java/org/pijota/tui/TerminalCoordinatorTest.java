@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
 
@@ -148,7 +149,7 @@ class TerminalCoordinatorTest {
             // Match tokens, not whole rows: erasing and redrawing the prompt can leave a divider on the same output
             // row as the next appended line, which says nothing about the order the lines were committed in.
             var seen = new ArrayList<String>();
-            var token = java.util.regex.Pattern.compile("line-\\d\\d").matcher(rig.rendered());
+            var token = Pattern.compile("line-\\d\\d").matcher(rig.rendered());
             while (token.find())
                 seen.add(token.group());
             var expected = new ArrayList<String>();

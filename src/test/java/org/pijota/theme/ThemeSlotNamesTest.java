@@ -3,6 +3,7 @@ package org.pijota.theme;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,9 +14,13 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.pijota.llm.ThinkingLevel;
 import org.pijota.util.Util;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 import org.junit.jupiter.api.Test;
 
@@ -44,9 +49,8 @@ class ThemeSlotNamesTest {
     private static final Pattern ADD_EXTRA = Pattern.compile("addExtra\\(t, c, vars,(.*?)\\);", Pattern.DOTALL);
 
     private static Set<String> declaredFields() {
-        return Arrays.stream(AnsiTheme.class.getFields()).filter(f -> f.getType() == String.class)
-                                        .map(java.lang.reflect.Field::getName)
-                                        .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
+        return Arrays.stream(AnsiTheme.class.getFields()).filter(f -> f.getType() == String.class).map(Field::getName)
+                                        .collect(Collectors.toCollection(TreeSet::new));
     }
 
     /** Extra slots are not fields; they live in a map fed by theme files, so read the registration from the source. */
@@ -75,7 +79,7 @@ class ThemeSlotNamesTest {
     }
 
     /** One theme file, parsed. The path and the read were written out at four separate call sites. */
-    private static com.fasterxml.jackson.databind.JsonNode themeJson(String name) throws IOException {
+    private static JsonNode themeJson(String name) throws IOException {
         return Util.MAPPER.readTree(Files.readString(Path.of("src/main/resources/themes", name + ".json"),
                                         StandardCharsets.UTF_8));
     }
@@ -160,7 +164,7 @@ class ThemeSlotNamesTest {
         known.addAll(registeredExtras());
         for (String name : shippedThemes()) {
             AnsiTheme theme = AnsiTheme.loadResource("themes/" + name + ".json");
-            for (var level : org.pijota.llm.ThinkingLevel.values()) {
+            for (var level : ThinkingLevel.values()) {
                 assertTrue(known.contains(level.themeSlot()), level + " uses slot \"" + level.themeSlot()
                                                 + "\", which is not registered");
                 assertFalse(theme.style(level.themeSlot()).isEmpty(), name + ": " + level
@@ -179,8 +183,8 @@ class ThemeSlotNamesTest {
         for (String name : shippedThemes()) {
             var json = Util.MAPPER.readTree(Files.readString(Path.of("src/main/resources/themes", name + ".json"),
                                             StandardCharsets.UTF_8));
-            var seen = new java.util.LinkedHashSet<String>();
-            for (var level : org.pijota.llm.ThinkingLevel.values()) {
+            var seen = new LinkedHashSet<String>();
+            for (var level : ThinkingLevel.values()) {
                 String raw = json.path("colors").path(level.themeSlot()).asText("");
                 String hex = raw.startsWith("#") ? raw : json.path("vars").path(raw).asText(raw);
                 assertTrue(seen.add(hex), name + ": " + level + " reuses " + hex + ", so two effort levels are "

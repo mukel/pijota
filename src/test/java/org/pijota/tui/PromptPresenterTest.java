@@ -6,6 +6,7 @@ import org.pijota.llm.ThinkingLevel;
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -111,7 +112,7 @@ class PromptPresenterTest {
     /** Cycling must never produce two presses that look the same, or Shift+Tab stops being legible. */
     @Test
     void noTwoLevelsRenderTheSameStatusBar() {
-        var seen = new java.util.LinkedHashMap<String, ThinkingLevel>();
+        var seen = new LinkedHashMap<String, ThinkingLevel>();
         for (var level : ThinkingLevel.values()) {
             var theme = AnsiTheme.dark();
             String styled = theme.styled(level.themeSlot(), level.label());

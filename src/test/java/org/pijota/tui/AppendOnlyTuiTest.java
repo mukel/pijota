@@ -10,6 +10,7 @@ import org.pijota.tools.ReadTool;
 import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.WhoamiTool;
 import org.pijota.tools.WriteTool;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -50,8 +51,8 @@ class AppendOnlyTuiTest {
 
     @Test
     void bannerSessionMetaReadsAtAGlanceWithoutTwoCompetingTimeFormats() {
-        var item = new SessionItem(java.nio.file.Path.of("/tmp/s.jsonl"), "id", "a session", System.currentTimeMillis(),
-                                        false, 12, 277);
+        var item = new SessionItem(Path.of("/tmp/s.jsonl"), "id", "a session", System.currentTimeMillis(), false, 12,
+                                        277);
         String meta = AppendOnlyTui.bannerSessionMeta(item);
         assertTrue(meta.contains("12 msgs"), meta);
         assertTrue(meta.contains("~277"), meta);
@@ -63,8 +64,7 @@ class AppendOnlyTuiTest {
 
     @Test
     void bannerSessionMetaOmitsCountsForAnEmptySession() {
-        var empty = new SessionItem(java.nio.file.Path.of("/tmp/s.jsonl"), "id", "empty", System.currentTimeMillis(),
-                                        false, 0, 0);
+        var empty = new SessionItem(Path.of("/tmp/s.jsonl"), "id", "empty", System.currentTimeMillis(), false, 0, 0);
         String meta = AppendOnlyTui.bannerSessionMeta(empty);
         assertFalse(meta.contains("msg"), "0 msgs is noise, not information: " + meta);
         assertFalse(meta.endsWith("·") || meta.startsWith("·"), "no dangling separator: " + meta);
