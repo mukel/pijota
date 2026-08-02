@@ -1111,6 +1111,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         continue;
                     }
                     var result = promptEditor.apply(remapSpecial(key, editorKeyRemaps));
+                    // Ctrl+R on an empty history opened nothing and said nothing, so an advertised key read as
+                    // broken. The editor reports no change in that case, so the redraw below never runs: say it here.
+                    if (key == Key.Special.CTRL_R && !promptEditor.hasCompletions()) {
+                        setTransientStatus("no history to search yet", 2500);
+                        redrawPrompt();
+                    }
                     if (result.exit()) {
                         running.set(false);
                         break;

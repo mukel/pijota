@@ -11,6 +11,10 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SettingsCommandHandlerTest {
+    /**
+     * Lowercase, like every other label column in the interface. /context already called the first of these
+     * "auto-compact" while this menu called it "Auto-compact": one setting, two spellings, one screen apart.
+     */
     @Test
     void buildsSettingsItemsFromSnapshot() {
         var snapshot = new SettingsCommandHandler.SettingsSnapshot(true, false, PathDisplay.COMPACT,
@@ -18,19 +22,19 @@ class SettingsCommandHandlerTest {
 
         var items = SettingsCommandHandler.items(snapshot);
 
-        assertEquals("Auto-compact", items.get(0).titleText());
+        assertEquals("auto-compact", items.get(0).titleText());
         assertEquals("off", items.get(0).detailText());
-        assertEquals("Context files", items.get(1).titleText());
+        assertEquals("context files", items.get(1).titleText());
         assertEquals("on  next session", items.get(1).detailText());
-        assertEquals("Path display", items.get(2).titleText());
+        assertEquals("path display", items.get(2).titleText());
         assertEquals("compact", items.get(2).detailText());
-        assertEquals("Thinking", items.get(3).titleText());
+        assertEquals("thinking", items.get(3).titleText());
         assertEquals("medium", items.get(3).detailText());
-        assertEquals("Hide thinking", items.get(4).titleText());
+        assertEquals("hide thinking", items.get(4).titleText());
         assertEquals("off", items.get(4).detailText());
-        assertEquals("Quiet startup", items.get(5).titleText());
+        assertEquals("quiet startup", items.get(5).titleText());
         assertEquals("on  next start", items.get(5).detailText());
-        assertEquals("Animation", items.get(6).titleText());
+        assertEquals("animation", items.get(6).titleText());
         assertEquals("dots", items.get(6).detailText());
     }
 
@@ -50,7 +54,7 @@ class SettingsCommandHandlerTest {
     void confirmAutoCompactTogglesAndSyncsSessionCompaction() {
         var host = new FakeHost();
         host.compactionEnabled = false;
-        host.selected = new SettingsItem("auto_compact", "Auto-compact", "off", false);
+        host.selected = new SettingsItem("auto_compact", "auto-compact", "off", false);
         var handler = new SettingsCommandHandler(host);
 
         handler.confirmSettingsSelection();
@@ -58,32 +62,32 @@ class SettingsCommandHandlerTest {
         assertTrue(host.compactionEnabled);
         assertTrue(host.sessionAutoCompactionEnabled);
         assertFalse(host.refreshedItems.isEmpty());
-        assertEquals("Auto-compact updated", host.status);
+        assertEquals("auto-compact updated", host.status);
     }
 
     @Test
     void confirmRestartScopedSettingUsesRestartStatus() {
         var host = new FakeHost();
-        host.selected = new SettingsItem("quiet_startup", "Quiet startup", "off  next start", false);
+        host.selected = new SettingsItem("quiet_startup", "quiet startup", "off  next start", false);
         var handler = new SettingsCommandHandler(host);
 
         handler.confirmSettingsSelection();
 
         assertTrue(host.quietStartup);
-        assertEquals("Quiet startup updated for next start/session", host.status);
+        assertEquals("quiet startup updated for next start/session", host.status);
     }
 
     @Test
     void confirmThinkingCyclesLevel() {
         var host = new FakeHost();
         host.thinkingLevel = ThinkingLevel.LOW;
-        host.selected = new SettingsItem("thinking_level", "Thinking", "low", true);
+        host.selected = new SettingsItem("thinking_level", "thinking", "low", true);
         var handler = new SettingsCommandHandler(host);
 
         handler.confirmSettingsSelection();
 
         assertEquals(ThinkingLevel.MEDIUM, host.thinkingLevel);
-        assertEquals("Thinking updated", host.status);
+        assertEquals("thinking updated", host.status);
     }
 
     private static final class FakeHost implements SettingsCommandHandler.Host {

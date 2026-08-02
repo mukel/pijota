@@ -79,25 +79,29 @@ final class SettingsCommandHandler {
         host.setTransientStatus(statusMessage(chosen), 2500);
     }
 
+    /**
+     * Lowercase, like every other label column in the interface. {@code /context} already called the first of these
+     * "auto-compact" while this menu called it "Auto-compact" -- one setting, two spellings, one screen apart.
+     */
     static List<SettingsItem> items(SettingsSnapshot snapshot) {
-        return List.of(new SettingsItem("auto_compact", "Auto-compact", snapshot.compactionEnabled() ? "on" : "off",
+        return List.of(new SettingsItem("auto_compact", "auto-compact", snapshot.compactionEnabled() ? "on" : "off",
                                         snapshot.compactionEnabled()),
-                                        new SettingsItem("context_files", "Context files",
+                                        new SettingsItem("context_files", "context files",
                                                                         snapshot.contextFilesEnabled()
                                                                                                         ? "on  next session"
                                                                                                         : "off  next session",
                                                                         snapshot.contextFilesEnabled()),
-                                        new SettingsItem("path_display", "Path display",
+                                        new SettingsItem("path_display", "path display",
                                                                         snapshot.pathDisplay().config(), true),
-                                        new SettingsItem("thinking_level", "Thinking", snapshot.thinkingLevel().label(),
+                                        new SettingsItem("thinking_level", "thinking", snapshot.thinkingLevel().label(),
                                                                         true),
-                                        new SettingsItem("hide_thinking", "Hide thinking",
+                                        new SettingsItem("hide_thinking", "hide thinking",
                                                                         snapshot.hideThinking() ? "on" : "off",
                                                                         snapshot.hideThinking()),
-                                        new SettingsItem("quiet_startup", "Quiet startup", snapshot.quietStartup()
+                                        new SettingsItem("quiet_startup", "quiet startup", snapshot.quietStartup()
                                                                         ? "on  next start"
                                                                         : "off  next start", snapshot.quietStartup()),
-                                        new SettingsItem("animation", "Animation", snapshot.workingAnimation(), true));
+                                        new SettingsItem("animation", "animation", snapshot.workingAnimation(), true));
     }
 
     static String statusMessage(SettingsItem chosen) {
