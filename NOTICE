@@ -1,0 +1,64 @@
+Pijota
+Copyright 2026 Alfonso² Peterssen
+
+This product includes software developed by third parties, listed below. The
+pijota binary embeds these components, so this notice travels with it.
+
+Pijota itself is licensed under the Apache License, Version 2.0; see LICENSE.
+
+================================================================================
+Embedded in the binary
+================================================================================
+
+Mozilla Readability (src/main/resources/browser/Readability.js)
+  Copyright (c) 2010 Arc90 Inc
+  Licensed under the Apache License, Version 2.0
+  https://github.com/mozilla/readability
+
+  The engine behind Firefox Reader View. Injected into the page to extract
+  article text when browsing.
+
+================================================================================
+Downloaded at build time and embedded in the binary
+================================================================================
+
+These are version-pinned and sha512-verified by the Maven build (see pom.xml);
+they are not committed to this repository.
+
+PDF.js 3.11.174
+  Copyright Mozilla Foundation and contributors
+  Licensed under the Apache License, Version 2.0
+  https://github.com/mozilla/pdf.js
+
+marked 12.0.0
+  Copyright (c) 2018+ MarkedJS, (c) 2011-2018 Christopher Jeffrey
+  Licensed under the MIT License
+  https://github.com/markedjs/marked
+
+DOMPurify 3.0.9
+  Copyright (c) Dr.-Ing. Mario Heiderich, Cure53
+  Dual licensed under the Apache License, Version 2.0 or the Mozilla Public
+  License, Version 2.0
+  https://github.com/cure53/DOMPurify
+
+highlight.js 11.9.0 (library and the github / github-dark themes)
+  Copyright (c) 2006, Ivan Sagalaev
+  Licensed under the BSD 3-Clause License
+  https://github.com/highlightjs/highlight.js
+
+Inter (vendored web font)
+  Copyright (c) 2016 The Inter Project Authors
+  Licensed under the SIL Open Font License, Version 1.1
+  https://github.com/rsms/inter
+
+================================================================================
+Java dependencies
+================================================================================
+
+Resolved by Maven and bundled into the fat jar and native image. Their licenses
+are those declared in their own artifacts.
+
+  LangChain4j 1.16.3            Apache License, Version 2.0
+  JLine 4.2.1                   BSD 3-Clause License
+  Jackson 2.22.0                Apache License, Version 2.0
+  SLF4J / Logback 1.5.34        SLF4J: MIT; Logback: EPL-1.0 or LGPL-2.1

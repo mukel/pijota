@@ -4,6 +4,8 @@
       { "pattern": "providers\\.json" },
       { "pattern": "models\\.json" },
       { "pattern": "logback\\.xml" },
+      { "pattern": "LICENSE" },
+      { "pattern": "NOTICE" },
       { "pattern": "web/.*" },
       { "pattern": "browser/.*\\.js" },
       { "pattern": "themes/.*\\.json" },

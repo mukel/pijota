@@ -212,6 +212,7 @@ public final class ArgParser {
                                           auth <cmd> --provider <p> Print a credential for another tool (print-api-key,
                                                                     print-bearer-token); see `pijota auth --help`
                                           worktree <cmd>            Manage git worktrees; see `pijota worktree --help`
+                                          license [--notice]        Print the license and third-party notices
                                         """);
         System.out.println(BuiltinExtensions.helpSection());
         System.out.println();

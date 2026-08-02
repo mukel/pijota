@@ -10,6 +10,7 @@ import org.pijota.cli.ArgParser;
 import org.pijota.cli.Args;
 import org.pijota.cli.AuthCommand;
 import org.pijota.cli.FileProcessor;
+import org.pijota.cli.LicenseCommand;
 import org.pijota.config.OAuthLogin;
 import org.pijota.config.OAuthTokenStore;
 import org.pijota.config.SettingsManager;
@@ -90,6 +91,8 @@ public final class Main {
                 return logout(args);
             if (args.length > 0 && "worktree".equals(args[0]))
                 return WorktreeCommand.run(args);
+            if (args.length > 0 && LicenseCommand.NAME.equals(args[0]))
+                return LicenseCommand.run(java.util.List.of(args).subList(1, args.length));
             // Before ArgParser: `auth` has its own grammar and must work without resolving a model or building an LLM.
             if (args.length > 0 && AuthCommand.NAME.equals(args[0]))
                 return AuthCommand.run(java.util.List.of(args).subList(1, args.length), new SettingsManager());

@@ -4,7 +4,7 @@
 
   <groupId>org.pijota</groupId>
   <artifactId>pijota</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <packaging>jar</packaging>
 
   <name>Pijota</name>
@@ -186,7 +186,18 @@
              the file names it as a source path to go and read. -->
         <excludes>
           <exclude>browser/README.md</exclude>
+          <exclude>web/vendor/README.md</exclude>
+          <exclude>web/vendor/.gitignore</exclude>
         </excludes>
+      </resource>
+      <resource>
+        <!-- Packaged from the repository root rather than copied into resources: `pijota license` has to print the
+             same text the repository carries, and two copies of a license are two texts that can disagree. -->
+        <directory>${project.basedir}</directory>
+        <includes>
+          <include>LICENSE</include>
+          <include>NOTICE</include>
+        </includes>
       </resource>
     </resources>
     <plugins>
