@@ -145,13 +145,23 @@ final class ToolResultLines {
      * bare at column zero, visually breaking the block open.
      */
     private static void addBody(List<String> lines, List<String> rawBody, AnsiTheme theme, int width) {
+        lines.addAll(railedBody(rawBody, theme, width));
+    }
+
+    /**
+     * A block body: wrapped to the railed width and given the {@code │} rail, blank edges dropped. Shared with the
+     * user's own {@code !} commands, so a command's output looks the same whether the model ran it or you did.
+     */
+    static List<String> railedBody(List<String> rawBody, AnsiTheme theme, int width) {
         // Blank edges become bare rail rows -- a │ with nothing on it, which reads as the block having lost its
         // content. Trimmed here rather than at each source, since it is the rail that makes them wrong.
         var body = trimBlankEdges(rawBody);
         boolean diff = looksLikeUnifiedDiff(body);
+        var out = new ArrayList<String>();
         for (String line : body)
             for (String row : AnsiWidth.wrapPreservingAnsi(line, Math.max(1, width - 2)))
-                lines.add(renderToolBodyLine(row, theme, diff));
+                out.add(renderToolBodyLine(row, theme, diff));
+        return out;
     }
 
     /**

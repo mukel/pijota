@@ -599,6 +599,16 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
+        public List<String> railed(List<String> body) {
+            return ToolResultLines.railedBody(body, theme, terminal.getWidth());
+        }
+
+        @Override
+        public void setRunningShellCommand(String command) {
+            runningShell = command == null ? null : new RunningShell(command, System.currentTimeMillis());
+        }
+
+        @Override
         public Map<String, String> shellEnvironment() {
             var env = new HashMap<String, String>();
             env.put("PIJOTA_PROVIDER", null);
@@ -2433,7 +2443,18 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      */
     private static final long BACKGROUND_HINT_AFTER_MS = 3000;
 
+    /** The user's own {@code !} command while it runs; the live tail names it the way it names a tool call. */
+    private record RunningShell(String command, long startedAtMs) {
+    }
+
+    private volatile RunningShell runningShell;
+
     private String runningToolTail() {
+        RunningShell shell = runningShell;
+        if (shell != null)
+            return theme.styled("commandMeta", tailMeta(new StringBuilder("! ").append(shell.command()),
+                                            System.currentTimeMillis() - shell.startedAtMs(),
+                                            Keys.label(" · Esc twice to interrupt")));
         ToolInProgress current = newestToolInProgress();
         if (current == null)
             return null;
@@ -2444,14 +2465,22 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                         .append(ToolResultLines.label(current.name()));
         if (!current.detail().isBlank())
             line.append(' ').append(current.detail());
-        // No spinner here: the status bar one row down is already animating, and two of them running at different
-        // phases read as two separate things working.
         long elapsed = System.currentTimeMillis() - current.startedAtMs();
-        if (elapsed >= 1000)
-            line.append("  ").append(elapsed / 1000).append('s');
-        if (elapsed >= BACKGROUND_HINT_AFTER_MS && detachableTool(current.name()) != null)
-            line.append(Keys.label(" · Ctrl+B twice to background"));
-        return theme.styled("commandMeta", line.toString());
+        String hint = detachableTool(current.name()) != null ? Keys.label(" · Ctrl+B twice to background") : "";
+        return theme.styled("commandMeta", tailMeta(line, elapsed, hint));
+    }
+
+    /**
+     * The tail's trailing metadata: how long it has been running, and once it is slow enough to wonder about, what to
+     * press. No spinner -- the status bar one row down is already animating, and two of them running at different
+     * phases read as two separate things working.
+     */
+    private static String tailMeta(StringBuilder line, long elapsedMs, String hint) {
+        if (elapsedMs >= 1000)
+            line.append("  ").append(elapsedMs / 1000).append('s');
+        if (elapsedMs >= BACKGROUND_HINT_AFTER_MS && !hint.isEmpty())
+            line.append(hint);
+        return line.toString();
     }
 
     private ToolInProgress newestToolInProgress() {
