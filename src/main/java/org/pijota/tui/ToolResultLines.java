@@ -116,7 +116,7 @@ final class ToolResultLines {
             // Quiet tool: the header line is the whole block, metadata uniformly dim, stacked tight with siblings.
             var meta = metaChips(summary, exit, elapsedStr, theme);
             String open = glyphPrefix(glyph, msg.toolName());
-            addHeader(lines, open.isEmpty() ? "" : theme.styled("toolLabel", open),
+            addQuietHeader(lines, open.isEmpty() ? "" : theme.styled("toolLabel", open),
                                             nameDetail + (meta.isEmpty() ? "" : dot + String.join(dot, meta)), theme,
                                             width);
         }
@@ -246,6 +246,19 @@ final class ToolResultLines {
      */
     private static void addHeader(List<String> lines, String prefix, String text, AnsiTheme theme, int width) {
         lines.addAll(AnsiWidth.wrapPrefixed(text, width, prefix, row -> renderToolBodyLine(row, theme, false)));
+    }
+
+    /**
+     * A header for a tool with nothing to show: one logical line, wrapped but not railed. Railing it invented a block
+     * that nothing ever closed -- a long path under {@code path_display: full} rendered as a {@code │} run with no
+     * {@code └}, which reads as output that stopped arriving. Continuations indent to the text instead, the way a
+     * wrapped prompt row does.
+     */
+    private static void addQuietHeader(List<String> lines, String prefix, String text, AnsiTheme theme, int width) {
+        // Exactly the opener's width: wrapPrefixed budgets the wrap from the FIRST prefix, so a wider continuation
+        // would push every following row past the terminal edge.
+        String indent = " ".repeat(AnsiWidth.visibleWidth(prefix));
+        lines.addAll(AnsiWidth.wrapPrefixed(text, width, prefix, row -> indent + theme.styled("statusText", row)));
     }
 
     /**

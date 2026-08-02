@@ -471,4 +471,30 @@ class AnsiWidthTest {
         assertEquals(0, AnsiWidth.visibleWidth(AnsiWidth.truncateVisual(emoji, 1)),
                                         "and one that does not is dropped entire, not cut in half");
     }
+
+    /**
+     * pijota's own mark language, measured against what a terminal actually draws. The symbol blocks hold both genuine
+     * two-cell emoji and ambiguous marks drawn in one, and the hand-drawn range boundary called all of them wide -- so
+     * every tool line, every rail and every selector row carrying one of these was measured a column wider than it
+     * rendered. Unicode's Emoji_Presentation property is the boundary; each of these was checked by printing it into a
+     * tmux pane and reading the cursor column back.
+     */
+    @Test
+    void everyMarkTheInterfaceDrawsIsMeasuredAsTheTerminalDrawsIt() {
+        for (String oneCell : List.of("●", "○", "✖", "✓", "◆", "▸", "⏸", "■", "❯", "➜", "│", "└", "┌", "─", "⋯", "…",
+                                        "→", "▶", "★", "⬤"))
+            assertEquals(1, AnsiWidth.visibleWidth(oneCell), oneCell + " is one cell in a terminal");
+        for (String twoCells : List.of("✅", "🙈", "你"))
+            assertEquals(2, AnsiWidth.visibleWidth(twoCells), twoCells + " really is two");
+    }
+
+    /** The rule, not the list: within the symbol blocks, an emoji is wide and everything else is not. */
+    @Test
+    void withinTheSymbolBlocksOnlyEmojiAreWide() {
+        for (int cp = 0x2300; cp <= 0x27BF; cp++) {
+            String s = new String(Character.toChars(cp));
+            assertEquals(Character.isEmojiPresentation(cp) ? 2 : 1, AnsiWidth.visibleWidth(s),
+                                            () -> String.format("U+%04X", s.codePointAt(0)));
+        }
+    }
 }

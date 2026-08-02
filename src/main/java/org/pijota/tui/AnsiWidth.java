@@ -83,6 +83,11 @@ final class AnsiWidth {
         return regionalIndicator(cp) && precedingRegionalIndicators(text, index) % 2 == 1;
     }
 
+    /** The blocks where a codepoint's width depends on whether it is an emoji rather than on the block itself. */
+    private static boolean isSymbolBlock(int cp) {
+        return (cp >= 0x2300 && cp <= 0x27BF) || (cp >= 0x2B00 && cp <= 0x2BFF);
+    }
+
     private static int charWidth(String text, int index) {
         int cp = text.codePointAt(index);
         if (zeroWidth(cp) || joinsPrevious(text, index, cp))
@@ -110,16 +115,12 @@ final class AnsiWidth {
             return 2;
         if (cp >= 0x1F000 && cp <= 0x1FAFF)
             return 2;
-        if (cp >= 0x2300 && cp <= 0x24FF)
-            return 2;
-        // Dingbat angle-bracket (❮❯…) and arrow (➜➤…) ornaments render width 1, unlike the emoji in the same block,
-        // so a ❯ caret doesn't shift the cursor. Carve them out before the block-wide rule below.
-        if ((cp >= 0x276C && cp <= 0x2771) || (cp >= 0x2794 && cp <= 0x27BF))
-            return 1;
-        if (cp >= 0x2580 && cp <= 0x27BF)
-            return 2;
-        if (cp >= 0x2B00 && cp <= 0x2BFF)
-            return 2;
+        // The symbol blocks hold both: genuine two-cell emoji (✅) and the ambiguous marks a terminal draws in one
+        // (● ○ ✖ ✓ ◆ ▸ ■ ⏸ ❯ ➜). Unicode already knows which is which, so ask it rather than drawing the boundary by
+        // hand -- the hand-drawn one called every glyph in pijota's own mark language two cells wide when the
+        // terminal drew them in one, so every tool line was measured a column wider than it rendered.
+        if (isSymbolBlock(cp))
+            return Character.isEmojiPresentation(cp) ? 2 : 1;
         return 1;
     }
 

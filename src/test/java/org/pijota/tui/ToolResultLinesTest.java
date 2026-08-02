@@ -351,4 +351,29 @@ class ToolResultLinesTest {
         assertTrue(AnsiStripper.strip(ToolResultLines.shellBlock("!!", "ls", "", 0, 0, AnsiTheme.dark(), 80).get(1))
                                         .startsWith("!! ls"));
     }
+
+    /**
+     * A tool with nothing to show is one logical line. When it wraps -- a long path under {@code path_display: full} is
+     * the everyday case -- railing the continuations invented a block that nothing ever closed: a {@code │} run with no
+     * {@code └}, which reads as output that stopped arriving.
+     */
+    @Test
+    void aQuietToolThatWrapsDoesNotInventABlockItCannotClose() {
+        String path = "/tmp/a-really-quite-long-project-path/nested/deeper/still/test_calc.py";
+        var msg = new Message.ToolResult("id", "write", "ok", false, Map.of("lines", 18, "path", path));
+        var lines = ToolResultLines.compose(msg, null, () -> "{\"path\": \"" + path + "\"}", AnsiTheme.dark(), "/cwd",
+                                        PathDisplay.FULL, 0, "●", 50);
+
+        var visible = lines.stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList();
+        assertTrue(visible.size() > 1, "the path really did need more than one row: " + visible);
+        assertTrue(visible.get(0).startsWith("● write"), visible.toString());
+        for (String line : visible) {
+            assertFalse(line.startsWith("│"), "a quiet line is not a block, so it has no rail: " + visible);
+            assertTrue(AnsiWidth.visibleWidth(line) <= 50, "row overflows: [" + line + "]");
+        }
+        assertFalse(visible.getLast().startsWith("└"), "and nothing to close: " + visible);
+        assertTrue(visible.get(1).startsWith("  "), "continuations indent under the text: " + visible);
+        assertEquals(2, visible.get(1).length() - visible.get(1).stripLeading().length(),
+                                        "indented to the opener's width, not past the edge");
+    }
 }
