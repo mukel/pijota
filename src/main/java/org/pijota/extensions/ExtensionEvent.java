@@ -36,7 +36,7 @@ public sealed interface ExtensionEvent {
             case ModelSelect ignored -> "model_select";
             case UserBash ignored -> "user_bash";
             case BashToolCall ignored -> "bash_tool_call";
-            case Input e -> e.handled() ? "input_handled" : "input";
+            case Input ignored -> "input";
             case Error ignored -> "error";
         };
     }
@@ -111,14 +111,10 @@ public sealed interface ExtensionEvent {
     record Error(String message, boolean retryable) implements ExtensionEvent {
     }
 
-    /** Raw user input before processing; {@code handled} short-circuits remaining handlers. */
-    record Input(String text, boolean handled) implements ExtensionEvent {
-        public Input(String text) {
-            this(text, false);
-        }
-
-        public Input markHandled() {
-            return new Input(text, true);
-        }
+    /**
+     * Raw user input before processing. A handler consumes it by returning an {@link ExtensionResult.InputResult} with
+     * {@code consumed} set, which is what stops the remaining handlers; the event itself carries only the text.
+     */
+    record Input(String text) implements ExtensionEvent {
     }
 }

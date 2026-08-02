@@ -44,16 +44,10 @@ class ExtensionEventTest {
     }
 
     @Test
-    void inputEventNameDependsOnHandled() {
-        assertEquals("input_handled", new ExtensionEvent.Input("text", true).name());
-        assertEquals("input", new ExtensionEvent.Input("text", false).name());
-    }
-
-    @Test
-    void inputStoresTextAndHandledFlag() {
-        var event = new ExtensionEvent.Input("hello", true);
+    void inputCarriesTheTextAndNothingElse() {
+        var event = new ExtensionEvent.Input("hello");
         assertEquals("hello", event.text());
-        assertTrue(event.handled());
+        assertEquals("input", event.name());
     }
 
     @Test
@@ -61,6 +55,6 @@ class ExtensionEventTest {
         assertTrue(new ExtensionEvent.SessionStart(Path.of("/tmp")) instanceof ExtensionEvent);
         assertTrue(new ExtensionEvent.TurnStart(1) instanceof ExtensionEvent);
         assertTrue(new ExtensionEvent.AgentStart() instanceof ExtensionEvent);
-        assertTrue(new ExtensionEvent.Input("x", false) instanceof ExtensionEvent);
+        assertTrue(new ExtensionEvent.Input("x") instanceof ExtensionEvent);
     }
 }

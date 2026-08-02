@@ -11,8 +11,4 @@ public record TmuxSession(String id, String tmuxName, String friendlyName, Strin
     public TmuxSession withAlive(boolean alive) {
         return new TmuxSession(id, tmuxName, friendlyName, command, workdir, paneId, createdAt, autoCleanup, alive);
     }
-
-    public TmuxSession withPaneId(String paneId) {
-        return new TmuxSession(id, tmuxName, friendlyName, command, workdir, paneId, createdAt, autoCleanup, alive);
-    }
 }

@@ -344,7 +344,7 @@ public interface Tool {
 
     /**
      * Rendered view of a tool result for TUI display.
-     * 
+     *
      * @param summary
      *            single-line summary shown after the tool name + args
      * @param body
