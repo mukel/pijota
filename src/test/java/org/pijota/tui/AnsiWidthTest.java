@@ -423,4 +423,52 @@ class AnsiWidthTest {
         assertEquals(AnsiWidth.visibleWidth("\u2705 works"), AnsiWidth.visibleWidth("\u26a0\ufe0f works"),
                                         "one emoji plus the same word must occupy the same columns");
     }
+
+    /**
+     * A joined emoji is one glyph however many emoji it is spelled with, so it claims one glyph's cells. Measured per
+     * codepoint it came out as the sum of its parts: {@code 👨‍💻} four cells, the four-person family eight.
+     *
+     * <p>
+     * Every expectation here was checked against the terminal rather than assumed, by printing the glyph into a tmux
+     * pane and reading the cursor column back.
+     */
+    @Test
+    void aJoinedEmojiIsOneGlyphAndClaimsOneGlyphsCells() {
+        assertEquals(2, AnsiWidth.visibleWidth("\ud83d\udc68\u200d\ud83d\udcbb"), "man technologist");
+        assertEquals(2, AnsiWidth.visibleWidth("\ud83d\udc69\ud83c\udffd\u200d\ud83d\udcbb"),
+                                        "woman technologist: skin tone and a join in the same cluster");
+        assertEquals(2, AnsiWidth.visibleWidth("\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66"),
+                                        "family: four emoji, three joins, still one glyph");
+        assertEquals(2, AnsiWidth.visibleWidth("\u2764\ufe0f\u200d\ud83d\udd25"),
+                                        "heart on fire: a selector and a join together");
+    }
+
+    /** A flag is a pair of regional indicators; each pair is one glyph, and the pairing restarts after other text. */
+    @Test
+    void flagsAreCountedInPairs() {
+        assertEquals(2, AnsiWidth.visibleWidth("\ud83c\udde9\ud83c\uddea"), "one flag");
+        assertEquals(4, AnsiWidth.visibleWidth("\ud83c\udde9\ud83c\uddea\ud83c\uddeb\ud83c\uddf7"), "two flags");
+        assertEquals(5, AnsiWidth.visibleWidth("\ud83c\udde9\ud83c\uddeax\ud83c\uddeb\ud83c\uddf7"),
+                                        "text between them restarts the pairing rather than shifting it");
+    }
+
+    /** A keycap is a digit, a selector and an enclosing mark: one glyph, two cells. */
+    @Test
+    void aKeycapIsOneGlyph() {
+        assertEquals(2, AnsiWidth.visibleWidth("1\ufe0f\u20e3"));
+    }
+
+    /**
+     * Wrapping must not slice a cluster: the tail codepoints measure zero, so once the base fits they all fit, and a
+     * row can never end with a dangling joiner whose emoji went to the next line.
+     */
+    @Test
+    void wrappingKeepsAJoinedEmojiWhole() {
+        String emoji = "\ud83d\udc68\u200d\ud83d\udcbb";
+        for (String row : AnsiWidth.wrapPreservingAnsi("aa " + emoji + " bb", 5))
+            assertFalse(row.endsWith("\u200d"), "row ends on a joiner, so its glyph was split: " + row);
+        assertEquals(emoji, AnsiWidth.truncateVisual(emoji, 2), "a cluster that fits is kept entire");
+        assertEquals(0, AnsiWidth.visibleWidth(AnsiWidth.truncateVisual(emoji, 1)),
+                                        "and one that does not is dropped entire, not cut in half");
+    }
 }

@@ -44,15 +44,56 @@ final class AnsiWidth {
                                         || type == Character.COMBINING_SPACING_MARK;
     }
 
+    private static boolean regionalIndicator(int cp) {
+        return cp >= 0x1F1E6 && cp <= 0x1F1FF;
+    }
+
+    /** How many regional indicators run backwards from {@code index}; its parity says which half of a flag this is. */
+    private static int precedingRegionalIndicators(String text, int index) {
+        int count = 0;
+        int i = index;
+        while (i > 0) {
+            int prev = text.codePointBefore(i);
+            if (!regionalIndicator(prev))
+                break;
+            count++;
+            i -= Character.charCount(prev);
+        }
+        return count;
+    }
+
+    /**
+     * Whether the codepoint at {@code index} is drawn inside cells its cluster has already claimed rather than taking
+     * its own: the tail of a joined emoji, or the second half of a flag.
+     *
+     * <p>
+     * The look-back mirrors the look-ahead for U+FE0F below. Between them a whole cluster is measured on its first
+     * codepoint and the rest come out zero, however many codepoints it is spelled with -- so {@code 👨‍💻} is two cells
+     * and not four, and {@code 👨‍👩‍👧‍👦} two and not eight, with no need to iterate by cluster.
+     *
+     * <p>
+     * Two cells is what a terminal with an emoji font draws for these. A terminal without one falls back to the
+     * component glyphs and draws more, but that is a font the frame cannot see and every measurer has the same problem.
+     */
+    private static boolean joinsPrevious(String text, int index, int cp) {
+        if (index <= 0)
+            return false;
+        if (text.codePointBefore(index) == 0x200D)
+            return true;
+        return regionalIndicator(cp) && precedingRegionalIndicators(text, index) % 2 == 1;
+    }
+
     private static int charWidth(String text, int index) {
         int cp = text.codePointAt(index);
-        if (zeroWidth(cp))
+        if (zeroWidth(cp) || joinsPrevious(text, index, cp))
             return 0;
         // U+FE0F asks for the emoji rendering of the character before it, which is always the two-cell one. Without
         // this, a narrow base (↔, ⌨, ▶) measures 1 while the terminal draws 2.
         int next = index + Character.charCount(cp);
         if (next < text.length() && text.codePointAt(next) == 0xFE0F)
             return 2;
+        if (regionalIndicator(cp))
+            return 2; // the first half of a flag carries the pair's whole width
         if (cp >= 0x1100 && cp <= 0x115F)
             return 2;
         if (cp >= 0x2E80 && cp <= 0xA4CF)
