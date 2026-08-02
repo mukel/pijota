@@ -2,18 +2,21 @@ package org.pijota.modes;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import org.pijota.agent.AgentLoop;
+import org.pijota.agent.PijotaSession;
+import org.pijota.agent.TestSession;
 import org.pijota.cli.Args;
+import org.pijota.messages.Message;
 import org.pijota.testkit.FauxLlm;
-import org.pijota.tools.ToolRegistry;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class PrintModeTest {
 
@@ -34,15 +37,19 @@ class PrintModeTest {
         System.setErr(originalErr);
     }
 
-    private AgentLoop loopReturning(String content) {
-        var llm = new FauxLlm().enqueue(FauxLlm.Response.content(content));
-        return AgentLoop.builder(llm, new ToolRegistry(), "/tmp").build();
+    @TempDir
+    Path tmp;
+
+    private PijotaSession sessionReturning(String content) {
+        var ts = TestSession.in(tmp).build();
+        ts.llm().enqueue(FauxLlm.Response.content(content));
+        return ts.session();
     }
 
     @Test
     void textModePrintsAssistantContent() {
-        var loop = loopReturning("hello world");
-        int code = PrintMode.run("hi", loop, Args.OutputMode.TEXT);
+        var session = sessionReturning("hello world");
+        int code = PrintMode.run("hi", session, Args.OutputMode.TEXT);
         assertEquals(0, code);
         // No newline is printed when usage is null.
         assertEquals("hello world", capturedOut.toString());
@@ -50,9 +57,9 @@ class PrintModeTest {
 
     @Test
     void textModeDeltasDoNotReprintCommonPrefix() {
-        var llm = new FauxLlm().enqueue(FauxLlm.Response.thinkingAndContent(List.of(), "Hello", " world"));
-        var loop = AgentLoop.builder(llm, new ToolRegistry(), "/tmp").build();
-        int code = PrintMode.run("hi", loop, Args.OutputMode.TEXT);
+        var ts = TestSession.in(tmp).build();
+        ts.llm().enqueue(FauxLlm.Response.thinkingAndContent(List.of(), "Hello", " world"));
+        int code = PrintMode.run("hi", ts.session(), Args.OutputMode.TEXT);
         assertEquals(0, code);
         assertEquals("Hello world", capturedOut.toString());
     }
@@ -67,8 +74,8 @@ class PrintModeTest {
 
     @Test
     void jsonModeReportsTheModelThatAnsweredAndWhatItUsed() {
-        var loop = loopReturning("hello world");
-        int code = PrintMode.run("hi", loop, Args.OutputMode.JSON);
+        var session = sessionReturning("hello world");
+        int code = PrintMode.run("hi", session, Args.OutputMode.JSON);
         assertEquals(0, code);
         var result = lines().getLast();
         assertEquals("result", result.path("type").asText(), "the last line is the run's outcome");
@@ -82,8 +89,8 @@ class PrintModeTest {
     @Test
     void jsonModeStreamsEventsAsTheyHappenNotOnlyAtTheEnd() {
         // The point of the mode: a wrapper UI or CI annotator follows the run live. One trailing blob cannot do that.
-        var loop = loopReturning("hello world");
-        assertEquals(0, PrintMode.run("hi", loop, Args.OutputMode.JSON));
+        var session = sessionReturning("hello world");
+        assertEquals(0, PrintMode.run("hi", session, Args.OutputMode.JSON));
         var types = lines().stream().map(n -> n.path("type").asText()).toList();
         assertTrue(types.size() > 1, "expected an event stream, got a single line: " + capturedOut);
         assertTrue(types.contains("turn_start"), "turn boundaries are reported: " + types);
@@ -95,8 +102,8 @@ class PrintModeTest {
     void everyLineIsValidJsonEvenWhenTheAnswerContainsQuotesAndNewlines() {
         // Hand-built JSON used to escape this by hand; a mapper makes malformed output impossible. Checked per line:
         // parsing the whole output stops at the first document and would miss a broken one later.
-        var loop = loopReturning("say \"hi\"\nand a \\ backslash\ttab");
-        assertEquals(0, PrintMode.run("hi", loop, Args.OutputMode.JSON));
+        var session = sessionReturning("say \"hi\"\nand a \\ backslash\ttab");
+        assertEquals(0, PrintMode.run("hi", session, Args.OutputMode.JSON));
         var result = lines().getLast();
         assertEquals("say \"hi\"\nand a \\ backslash\ttab", result.path("messages").get(0).path("content").asText(),
                                         "content survives the round trip intact");
@@ -104,17 +111,34 @@ class PrintModeTest {
 
     @Test
     void failureReturnsNonZeroAndPrintsError() {
-        var llm = new FauxLlm(); // no queued response => failed future
-        var loop = AgentLoop.builder(llm, new ToolRegistry(), "/tmp").build();
-        int code = PrintMode.run("hi", loop, Args.OutputMode.TEXT);
+        var ts = TestSession.in(tmp).build(); // no queued response => failed future
+        int code = PrintMode.run("hi", ts.session(), Args.OutputMode.TEXT);
         assertEquals(1, code);
         assertTrue(capturedErr.toString().contains("Error:"));
     }
 
+    /**
+     * Print mode used to prompt the AgentLoop directly, past the session -- the one place a user turn is written to
+     * disk. A {@code -p} session on disk then held the answer with no question, so {@code --continue}, {@code --fork}
+     * and {@code /load} resumed it with the model apparently talking to itself.
+     */
+    @Test
+    void thePromptIsPartOfTheSessionItStarted() {
+        var session = sessionReturning("Got it -- 41.");
+
+        assertEquals(0, PrintMode.run("remember the number 41", session, Args.OutputMode.TEXT));
+
+        var roles = session.messages().stream().map(m -> m.getClass().getSimpleName()).toList();
+        assertTrue(roles.contains("User"), "the question is in the conversation: " + roles);
+        assertEquals("remember the number 41", session.messages().stream().filter(m -> m instanceof Message.User)
+                                        .map(m -> ((Message.User) m).content()).findFirst().orElse(null));
+        assertTrue(roles.indexOf("User") < roles.indexOf("Assistant"), "and it comes before the answer: " + roles);
+    }
+
     @Test
     void blankPromptStillRuns() {
-        var loop = loopReturning("");
-        int code = PrintMode.run("", loop, Args.OutputMode.TEXT);
+        var session = sessionReturning("");
+        int code = PrintMode.run("", session, Args.OutputMode.TEXT);
         assertEquals(0, code);
     }
 }

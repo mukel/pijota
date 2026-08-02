@@ -2,6 +2,7 @@ package org.pijota.modes;
 
 import org.pijota.agent.AgentEvent;
 import org.pijota.agent.AgentLoop;
+import org.pijota.agent.PijotaSession;
 import org.pijota.cli.Args;
 import org.pijota.messages.Message;
 import org.pijota.messages.Usage;
@@ -20,9 +21,18 @@ import java.util.function.Consumer;
 
 public final class PrintMode {
 
-    public static int run(String prompt, AgentLoop agentLoop, Args.OutputMode outputMode) {
+    /**
+     * @param session
+     *            the run's session, not its {@link AgentLoop}. Print mode used to reach past it and prompt the loop
+     *            directly, which skipped the one place a user turn is written to disk: a {@code -p} session on disk
+     *            held the answer with no question, so {@code --continue}, {@code --fork} and {@code /load} resumed it
+     *            with the model talking to itself. It also skipped the input filter and the agent-start hooks every
+     *            other frontend fires.
+     */
+    public static int run(String prompt, PijotaSession session, Args.OutputMode outputMode) {
         try {
-            var result = streamAndWait(prompt, agentLoop, outputMode);
+            var result = streamAndWait(prompt, session, outputMode);
+            var agentLoop = session.agentLoop();
             if (outputMode == Args.OutputMode.JSON) {
                 printJson(result, agentLoop);
             }
@@ -37,8 +47,9 @@ public final class PrintMode {
         }
     }
 
-    private static List<Message> streamAndWait(String prompt, AgentLoop agentLoop, Args.OutputMode outputMode)
+    private static List<Message> streamAndWait(String prompt, PijotaSession session, Args.OutputMode outputMode)
                                     throws ExecutionException, InterruptedException {
+        AgentLoop agentLoop = session.agentLoop();
         var lastContent = new AtomicReference<>("");
         var done = new CompletableFuture<List<Message>>();
         var textStarted = new AtomicBoolean(false);
@@ -79,7 +90,7 @@ public final class PrintMode {
         agentLoop.addEventListener(listener);
 
         try {
-            var future = agentLoop.prompt(prompt);
+            var future = session.prompt(prompt); // the session persists the user turn; the loop alone does not
             future.whenComplete((result, error) -> {
                 if (error != null)
                     done.completeExceptionally(error);

@@ -206,6 +206,16 @@ public final class AppBootstrap {
                 restoreSessionModel(session, settings);
                 restoreSessionThinkingLevel(session);
                 loadedSession = true;
+            } else if (parsedArgs.forkPath() != null) {
+                // Load, then immediately branch into a copy, so the run continues from the named session's history
+                // with the named session itself left untouched -- which is the whole point of forking rather than
+                // resuming. The flag was parsed and stored and nothing read it, so --fork <id> silently started a
+                // fresh session instead.
+                session.load(parsedArgs.forkPath());
+                session.cloneCurrentBranch();
+                restoreSessionModel(session, settings);
+                restoreSessionThinkingLevel(session);
+                loadedSession = true;
             }
         } catch (IOException e) {
             logger.warn("Failed to load session ({}); starting fresh", e.getMessage());

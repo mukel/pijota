@@ -218,7 +218,7 @@ public final class ArgParser {
                                         MISC:
                                           --export <file>           Export session to Markdown
                                           --list-models [filter]    List available models
-                                          --verbose                 Verbose output
+                                          --verbose                 Debug logging to ~/.pijota/logs
                                           --help, -h                Show this help
                                           --version, -v             Show version
 

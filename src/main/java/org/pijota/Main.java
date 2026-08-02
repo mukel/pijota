@@ -61,6 +61,26 @@ public final class Main {
         System.exit(exitCode);
     }
 
+    /**
+     * {@code --verbose}: the same thing {@code PIJOTA_LOG_LEVEL=DEBUG} does, which is the only meaning "verbose" can
+     * carry here -- the log file is the sole sink by design (see logback.xml), so there is no second, chattier console
+     * to turn on. Set through logback's API rather than the property the config reads, because logback has already
+     * configured itself by the time argv is parsed: this class's own logger is a static field.
+     *
+     * <p>
+     * The flag was parsed and stored and nothing ever read it, so {@code --verbose} was advertised in {@code --help}
+     * and did nothing at all.
+     */
+    private static void enableDebugLogging() {
+        try {
+            var root = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+            if (root instanceof ch.qos.logback.classic.Logger logbackRoot)
+                logbackRoot.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        } catch (Throwable ignored) {
+            // Another SLF4J binding, or none: --verbose is a diagnostic aid, never a reason to fail to start.
+        }
+    }
+
     static int run(String[] args) {
         try {
             SelfRespawn.storeArgs(args);
@@ -75,6 +95,8 @@ public final class Main {
                 return AuthCommand.run(java.util.List.of(args).subList(1, args.length), new SettingsManager());
 
             var parsedArgs = ArgParser.parse(args);
+            if (parsedArgs.verbose())
+                enableDebugLogging();
             if (parsedArgs.help()) {
                 ArgParser.printHelp();
                 return 0;
@@ -131,7 +153,7 @@ public final class Main {
             String prompt = FileProcessor.processFileReferences(parsedArgs.fileArgs(), raw);
             if (prompt == null || prompt.isBlank())
                 return CliErrorReporter.fatal("No prompt provided");
-            return PrintMode.run(prompt, b.session().agentLoop(), parsedArgs.outputMode());
+            return PrintMode.run(prompt, b.session(), parsedArgs.outputMode());
         }
 
         if (parsedArgs.outputMode() == Args.OutputMode.RPC) {
