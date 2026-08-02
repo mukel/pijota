@@ -47,10 +47,16 @@ final class FzfFilePicker {
                                         + "; else " + filesAndDirs + "; fi";
     }
 
+    /** The script with fzf's default palette, for callers with no theme to hand (tests, tooling). */
+    static String script(Path out) {
+        return script(out, null);
+    }
+
     /**
      * The shell script: seed a static list → fzf (in-memory filter) → re-root only when the query ends in {@code /}.
+     * {@code theme} colours the picker to match the session; see {@link FzfTheme}.
      */
-    static String script(Path out) {
+    static String script(Path out, org.pijota.theme.AnsiTheme theme) {
         // fzf filters the static list in-memory → no per-keystroke reload → no flicker. Re-root ONLY when the query
         // completes a directory (ends with /), e.g. `../` or `src/`: this reaches the real filesystem dir (including
         // parents above / outside the repo that the static list can't see) and fires at most once per directory hop.
@@ -60,7 +66,12 @@ final class FzfFilePicker {
         // printing nothing, silently discarding everything typed since @ (mid-sentence file refs lost their tail);
         // with --print-query the query comes back and is inserted verbatim. Tab accepts like Enter (fzf's default
         // Tab is a multi-select toggle, a no-op here under --no-multi, which reads as "Tab does nothing").
-        return "fzf --read0 --print0 --print-query --reverse --prompt='@ ' --no-multi" + " --bind tab:accept --bind "
+        // --pointer/--marker: fzf's own default bar is a different mark from the one every pijota selector uses for
+        // the cursor, so the picker read as another program's list. › is the same cursor as /model, /theme and
+        // /sessions.
+        return "fzf --read0 --print0 --print-query --reverse --prompt='@ ' --no-multi --pointer='\u203a'"
+                                        + " --marker='\u25cf'" + " --color="
+                                        + Util.shellQuote(FzfTheme.colorSpec(theme)) + " --bind tab:accept --bind "
                                         + Util.shellQuote("start:reload:" + listCommand()) + " --bind "
                                         + Util.shellQuote("change:transform:" + reroot) + " > "
                                         + Util.shellQuote(out.toString());
