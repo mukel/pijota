@@ -103,16 +103,15 @@ final class ToolResultLines {
             if (lines.size() > beforeBody) // the ✖ opened the block in place of ┌, so it still needs closing
                 lines.add(theme.styled("commandMeta", "└"));
         } else if (rendered != null && !rendered.body().isEmpty()) {
-            // Tool with output: the framed block. Accent ┌ open, railed body, dim └ footer carrying the metadata.
-            lines.add("");
-            addHeader(lines, theme.styled("toolLabel", "┌ "), nameDetail.toString(), theme, width);
-            addBody(lines, rendered.body(), theme, width);
-            var foot = metaChips(summary, exit, elapsedStr, theme);
-            // The footer wraps too. Its summary is the tool's first output line, which is not length-capped, so a
-            // single long line of output produced a footer that escaped the block it was supposed to close.
-            lines.addAll(AnsiWidth.wrapPrefixed(foot.isEmpty() ? "" : String.join(dot, foot), width,
-                                            theme.styled("commandMeta", "└") + (foot.isEmpty() ? "" : " "),
-                                            row -> "  " + row));
+            // Tool with output: the tool's own glyph opens the block, the railed body follows, a dim └ closes it
+            // carrying the metadata. Not a ┌: the rail on the next row and the └ below already say a block starts
+            // here, and spending the opener on that suppressed the one thing it could have said. A read with output
+            // lost its ○ exactly where there was more to look at, and the same call read "$ ls -la" on the live tail
+            // and "┌ $ ls -la" one repaint later when it committed.
+            String open = glyphPrefix(glyph, msg.toolName());
+            lines.addAll(framed(open.isEmpty() ? "" : theme.styled("toolLabel", open), nameDetail.toString(),
+                                            rendered.body(), metaChips(summary, exit, elapsedStr, theme), theme,
+                                            width));
         } else {
             // Quiet tool: the header line is the whole block, metadata uniformly dim, stacked tight with siblings.
             var meta = metaChips(summary, exit, elapsedStr, theme);
@@ -129,11 +128,21 @@ final class ToolResultLines {
      * footer. A zero exit stays dim; a non-zero one is the single cue that survives red into the closing line.
      */
     private static List<String> metaChips(String summary, Integer exit, String elapsedStr, AnsiTheme theme) {
+        return metaChips(summary, exit == null ? null : "exit " + exit, exit != null && exit != 0, elapsedStr, theme);
+    }
+
+    /**
+     * The chips, given the status already worded. A shell command says "interrupted" where a tool says "exit 143", and
+     * routing both through here keeps the one rule that matters in one place: red lands on the status only when it
+     * failed, and a sub-second run is not timed at all.
+     */
+    private static List<String> metaChips(String summary, String status, boolean failed, String elapsedStr,
+                                    AnsiTheme theme) {
         var meta = new ArrayList<String>();
-        if (!summary.isBlank())
+        if (summary != null && !summary.isBlank())
             meta.add(theme.styled("commandMeta", summary));
-        if (exit != null)
-            meta.add(theme.styled(exit == 0 ? "commandMeta" : "toolError", "exit " + exit));
+        if (status != null)
+            meta.add(theme.styled(failed ? "toolError" : "commandMeta", status));
         if (elapsedStr != null)
             meta.add(theme.styled("commandMeta", elapsedStr));
         return meta;
@@ -149,10 +158,65 @@ final class ToolResultLines {
     }
 
     /**
-     * A block body: wrapped to the railed width and given the {@code │} rail, blank edges dropped. Shared with the
-     * user's own {@code !} commands, so a command's output looks the same whether the model ran it or you did.
+     * A framed block: one line of air, the header wrapped so a long one cannot escape to column zero, the railed body,
+     * then the {@code └} footer, wrapped for the same reason. The whole grammar in one place -- the user's {@code !}
+     * commands went through a hand-rolled copy of it and had already drifted three ways, wrapping neither the header
+     * nor the footer and counting rail rows where the tool path counts lines.
      */
-    static List<String> railedBody(List<String> rawBody, AnsiTheme theme, int width) {
+    private static List<String> framed(String openPrefix, String header, List<String> body, List<String> footChips,
+                                    AnsiTheme theme, int width) {
+        var lines = new ArrayList<String>();
+        lines.add(""); // framed blocks get one blank line of air (the coordinator collapses doubles)
+        addHeader(lines, openPrefix, header, theme, width);
+        addBody(lines, body, theme, width);
+        String foot = String.join(theme.styled("commandMeta", " · "), footChips);
+        lines.addAll(AnsiWidth.wrapPrefixed(foot, width,
+                                        theme.styled("commandMeta", "└") + (footChips.isEmpty() ? "" : " "),
+                                        row -> "  " + row));
+        return lines;
+    }
+
+    /**
+     * A user's own {@code !}/{@code !!} shell command, in the same grammar and through the same helpers as a tool
+     * result: no output is a single line carrying its own metadata, a clean exit puts the count and status in the
+     * footer, a failure keeps the status up in the header where it is read and closes bare.
+     *
+     * @param marker
+     *            {@code !} when the command joins the conversation, {@code !!} when it does not.
+     */
+    static List<String> shellBlock(String marker, String command, String stdout, int exitCode, long elapsedMs,
+                                    AnsiTheme theme, int width) {
+        boolean killed = exitCode == 143 || exitCode == 137;
+        boolean failed = exitCode != 0;
+        String status = killed ? "interrupted" : "exit " + exitCode;
+        String elapsedStr = elapsedMs >= 1000 ? Util.formatDuration(elapsedMs) : null;
+        // The marker is the block's opener, exactly as a tool's glyph is: it is what the header wraps around, so the
+        // continuation rows line up under the rail instead of two columns past it.
+        String open = theme.styled("toolLabel", marker + " ");
+        String dot = theme.styled("commandMeta", " · ");
+        String statusChip = dot + theme.styled(failed ? "toolError" : "commandMeta", status);
+        // Logical lines, counted before any wrapping: the footer says how much output there was, not how many rows it
+        // took to draw on this particular terminal.
+        var body = stdout == null ? List.<String>of() : trimBlankEdges(stdout.stripTrailing().lines().toList());
+
+        if (body.isEmpty()) {
+            var lines = new ArrayList<String>();
+            lines.add("");
+            addHeader(lines, open, theme.styled("text", command) + statusChip, theme, width);
+            return lines;
+        }
+        // A failure keeps its status up in the header, where it is read before the error text rather than below it.
+        return framed(open, theme.styled("text", command) + (failed ? statusChip : ""), body, failed
+                                        ? metaChips(null, null, false, elapsedStr, theme)
+                                        : metaChips(Util.count(body.size(), "line", "lines"), status, false, elapsedStr,
+                                                                        theme),
+                                        theme, width);
+    }
+
+    /**
+     * A block body: wrapped to the railed width and given the {@code │} rail, blank edges dropped.
+     */
+    private static List<String> railedBody(List<String> rawBody, AnsiTheme theme, int width) {
         // Blank edges become bare rail rows -- a │ with nothing on it, which reads as the block having lost its
         // content. Trimmed here rather than at each source, since it is the rail that makes them wrong.
         var body = trimBlankEdges(rawBody);

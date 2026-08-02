@@ -2,9 +2,7 @@ package org.pijota.tui;
 
 import org.pijota.util.Platform;
 import org.pijota.util.ProcessRunner;
-import org.pijota.util.Util;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -22,17 +20,19 @@ final class ShellCommandRunner {
             return Map.of();
         }
 
-        /** Rails and wraps a block body to the terminal's width; see {@link ToolResultLines#railedBody}. */
-        default List<String> railed(List<String> body) {
-            return body;
-        }
+        /**
+         * Renders a finished command in the shared block grammar; see {@link ToolResultLines#shellBlock}. Built by the
+         * TUI, which holds the theme and the terminal width, and routed through the same helpers a tool result uses so
+         * a command's output cannot look different depending on who ran it.
+         */
+        List<String> shellBlock(String marker, String command, String stdout, int exitCode, long elapsedMs);
 
         /**
          * Publishes the command currently running, so the live tail above the prompt names it, times it and says how to
          * stop it. {@code null} clears it. Without this a stuck command showed only "running shell" and a counter: you
          * could see that something was slow, not what, and nothing said Esc twice would end it.
          */
-        default void setRunningShellCommand(String command) {}
+        void setRunningShellCommand(String command);
     }
 
     private final Host host;
@@ -61,12 +61,11 @@ final class ShellCommandRunner {
                 var result = ProcessRunner.command(shell, Platform.shellCommandFlag(shell), command)
                                                 .redirectErrorStream(true).noTimeout().onStart(p -> activeProcess = p)
                                                 .environment(host.shellEnvironment()).run();
-                host.appendPlain(block(command, addToContext, result.stdout(), result.exitCode(),
+                host.appendPlain(host.shellBlock(marker(addToContext), command, result.stdout(), result.exitCode(),
                                                 System.currentTimeMillis() - startedAt));
             } catch (Exception e) {
-                host.appendPlain(List.of("", host.styled("toolLabel", marker(addToContext) + " " + command)
-                                                + host.styled("commandMeta", " · ")
-                                                + host.styled("toolError", "error: " + e.getMessage())));
+                // A failure to even start is reported through the same block, so the header grammar has one owner.
+                host.appendPlain(host.shellBlock(marker(addToContext), command, "error: " + e.getMessage(), 1, 0));
             } finally {
                 activeProcess = null;
                 commandThread = null;
@@ -80,40 +79,6 @@ final class ShellCommandRunner {
     /** {@code !} keeps the command in the conversation, {@code !!} does not; the mark says which happened. */
     private static String marker(boolean addToContext) {
         return addToContext ? "!" : "!!";
-    }
-
-    /**
-     * The finished command as a block, in the same three shapes a tool result takes: no output is a single line
-     * carrying its own metadata; output succeeds into a railed body with a {@code └} footer; a failure keeps the exit
-     * code up in the header, red on that token alone, and closes bare.
-     */
-    List<String> block(String command, boolean addToContext, String stdout, int exitCode, long elapsedMs) {
-        boolean killed = exitCode == 143 || exitCode == 137;
-        String status = killed ? "interrupted" : "exit " + exitCode;
-        String statusSlot = exitCode == 0 ? "commandMeta" : "toolError";
-        String dot = host.styled("commandMeta", " · ");
-        String head = host.styled("toolLabel", marker(addToContext) + " " + command);
-
-        var body = host.railed(stdout == null ? List.of() : List.of(stdout.stripTrailing().split("\\R", -1)));
-        var out = new ArrayList<String>();
-        out.add(""); // a block claims one blank line of air, like every other one
-        if (body.isEmpty()) {
-            out.add(head + dot + host.styled(statusSlot, status));
-            return out;
-        }
-        var foot = new ArrayList<String>();
-        if (exitCode == 0) { // a clean exit is footer metadata; a failure stays up in the header where it is read
-            out.add(head);
-            foot.add(host.styled("commandMeta", Util.count(body.size(), "line", "lines")));
-            foot.add(host.styled("commandMeta", status));
-        } else {
-            out.add(head + dot + host.styled(statusSlot, status));
-        }
-        if (elapsedMs >= 1000)
-            foot.add(host.styled("commandMeta", Util.formatDuration(elapsedMs)));
-        out.addAll(body);
-        out.add(host.styled("commandMeta", "└") + (foot.isEmpty() ? "" : " " + String.join(dot, foot)));
-        return out;
     }
 
     void interruptProcess() {

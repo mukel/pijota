@@ -3,10 +3,10 @@ package org.pijota.util;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.File;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -31,14 +31,13 @@ public final class ProcessRunner {
     private static final Logger log = LoggerFactory.getLogger(ProcessRunner.class);
     private static final Duration KILL_GRACE = Duration.ofMillis(300);
     private static final Duration GOBBLER_JOIN = Duration.ofMinutes(5);
+    /** The platform's bit bucket, for a captured child that has nothing to read. */
+    private static final File NULL_DEVICE = new File(Platform.isWindows() ? "NUL" : "/dev/null");
 
     private final List<String> command;
     private Path workDir;
     private Duration timeout = Duration.ofMinutes(5);
     private boolean noTimeout;
-    /** The platform's bit bucket, for a captured child that has nothing to read. */
-    private static final File NULL_DEVICE = new File(Platform.isWindows() ? "NUL" : "/dev/null");
-
     private Supplier<String> stdinFeeder;
     private Consumer<String> stdoutLineHandler;
     private Consumer<String> stdoutChunkHandler;

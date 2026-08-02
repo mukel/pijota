@@ -599,8 +599,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
 
         @Override
-        public List<String> railed(List<String> body) {
-            return ToolResultLines.railedBody(body, theme, terminal.getWidth());
+        public List<String> shellBlock(String marker, String command, String stdout, int exitCode, long elapsedMs) {
+            return ToolResultLines.shellBlock(marker, command, stdout, exitCode, elapsedMs, theme, blockWidth());
         }
 
         @Override
@@ -2348,7 +2348,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse(ToolGlyphs.AGENT);
                 appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
                                                 settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
-                                                elapsedMs, glyph, Math.max(20, terminal.getWidth())));
+                                                elapsedMs, glyph, blockWidth()));
                 streamRenderer.separateNextContent(); // the answer resumes with one blank line of air
                 pendingEdit.clear();
             }
@@ -2436,12 +2436,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     /**
-     * The live stream-tail line while a tool runs: its would-be header, dim, with the working spinner and elapsed.
-     * Committed results replace it in place, so the header appears to solidify. Null when no tool is in flight. Once
-     * the tool has run a few seconds and can be backgrounded, the line carries the ctrl+b hint; it appears exactly when
-     * the user starts wondering, never for quick commands.
+     * How long something must run before the tail offers a key to press. It appears exactly when the user starts
+     * wondering, never for a quick command. Not "background" specifically: it gates the interrupt hint too.
      */
-    private static final long BACKGROUND_HINT_AFTER_MS = 3000;
+    private static final long HINT_AFTER_MS = 3000;
+
+    /** Constant per process, so the OS-notation rewrite does not run on every repaint. */
+    private static final String BACKGROUND_HINT = Keys.label(" \u00b7 Ctrl+B twice to background");
+    private static final String INTERRUPT_HINT = Keys.label(" \u00b7 Esc twice to interrupt");
 
     /** The user's own {@code !} command while it runs; the live tail names it the way it names a tool call. */
     private record RunningShell(String command, long startedAtMs) {
@@ -2449,13 +2451,29 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private volatile RunningShell runningShell;
 
+    /**
+     * The width a block is laid out for. JLine reports 0 when it cannot size the terminal, and a block wrapped to 0
+     * draws one character per row, so every caller floors it -- in one place rather than four.
+     */
+    private int blockWidth() {
+        return Math.max(20, terminal.getWidth());
+    }
+
+    /**
+     * The live line above the prompt naming what is running: a tool call, or the user's own {@code !} command.
+     * Committed results replace it in place, so the header appears to solidify. Null when nothing is in flight.
+     *
+     * <p>
+     * Whichever started most recently wins, so a tool call fired while a {@code !} command is still running does not
+     * leave the tail describing the older of the two.
+     */
     private String runningToolTail() {
         RunningShell shell = runningShell;
-        if (shell != null)
-            return theme.styled("commandMeta", tailMeta(new StringBuilder("! ").append(shell.command()),
-                                            System.currentTimeMillis() - shell.startedAtMs(),
-                                            Keys.label(" · Esc twice to interrupt")));
         ToolInProgress current = newestToolInProgress();
+        if (shell != null && (current == null || shell.startedAtMs() >= current.startedAtMs())) {
+            long elapsed = System.currentTimeMillis() - shell.startedAtMs();
+            return tail("! " + shell.command(), elapsed, INTERRUPT_HINT);
+        }
         if (current == null)
             return null;
         // The tool's own mark, not a fixed one: this is the most-watched line in the interface during a turn, and a
@@ -2466,21 +2484,20 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (!current.detail().isBlank())
             line.append(' ').append(current.detail());
         long elapsed = System.currentTimeMillis() - current.startedAtMs();
-        String hint = detachableTool(current.name()) != null ? Keys.label(" · Ctrl+B twice to background") : "";
-        return theme.styled("commandMeta", tailMeta(line, elapsed, hint));
+        // The registry lookup stays behind the elapsed guard: session.tool() takes a lock, and this runs on every
+        // repaint of every call, ~8 times a second, discarding the answer for the first three seconds of each.
+        String hint = elapsed >= HINT_AFTER_MS && detachableTool(current.name()) != null ? BACKGROUND_HINT : "";
+        return tail(line.toString(), elapsed, hint);
     }
 
     /**
-     * The tail's trailing metadata: how long it has been running, and once it is slow enough to wonder about, what to
-     * press. No spinner -- the status bar one row down is already animating, and two of them running at different
+     * A live tail line: what is running, how long it has been going, and -- once it is slow enough to wonder about --
+     * what to press. No spinner: the status bar one row down is already animating, and two of them running at different
      * phases read as two separate things working.
      */
-    private static String tailMeta(StringBuilder line, long elapsedMs, String hint) {
-        if (elapsedMs >= 1000)
-            line.append("  ").append(elapsedMs / 1000).append('s');
-        if (elapsedMs >= BACKGROUND_HINT_AFTER_MS && !hint.isEmpty())
-            line.append(hint);
-        return line.toString();
+    private String tail(String what, long elapsedMs, String hint) {
+        String elapsed = elapsedMs >= 1000 ? "  " + Util.formatDuration(elapsedMs) : "";
+        return theme.styled("commandMeta", what + elapsed + (elapsedMs >= HINT_AFTER_MS ? hint : ""));
     }
 
     private ToolInProgress newestToolInProgress() {

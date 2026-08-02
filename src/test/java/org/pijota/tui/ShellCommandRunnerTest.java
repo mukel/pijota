@@ -75,83 +75,6 @@ class ShellCommandRunnerTest {
         assertEquals(1, host.busyCount);
     }
 
-    /**
-     * The output used to print bare at column zero: nothing separated a command's result from the prose above it, and
-     * nothing said where one command's output ended and the next began. It reads as a block now, the same grammar a
-     * bash tool call uses -- header, railed body, footer with what it cost.
-     */
-    @Test
-    void aFinishedCommandReadsAsABlock() {
-        var host = new FakeHost();
-        var runner = new ShellCommandRunner(host, "/bin/sh");
-
-        var out = runner.block("git push", true, "To github.com:mukel/pijota.git\n   e3e3945..e68f9e4  main\n", 0, 0);
-
-        assertEquals("", out.get(0), "a block claims one blank line of air");
-        assertEquals("! git push", out.get(1), "the header names the command, and ! says you ran it, not the model");
-        assertEquals("│ To github.com:mukel/pijota.git", out.get(2), "output is railed, so it cannot be read as prose");
-        assertEquals("│    e3e3945..e68f9e4  main", out.get(3));
-        assertEquals("└ 2 lines · exit 0", out.get(4), "and the footer closes it with what it cost");
-    }
-
-    /** {@code !!} keeps the command out of the conversation; the mark is the only place that difference is visible. */
-    @Test
-    void theMarkSaysWhetherTheCommandJoinedTheConversation() {
-        var runner = new ShellCommandRunner(new FakeHost(), "/bin/sh");
-        assertEquals("! ls · exit 0", runner.block("ls", true, "", 0, 0).get(1));
-        assertEquals("!! ls · exit 0", runner.block("ls", false, "", 0, 0).get(1));
-    }
-
-    /**
-     * Red on the failing token only, and the exit code stays up in the header where it is read rather than in a footer
-     * below the error text. The whole line used to go red -- the command you had just typed included.
-     */
-    @Test
-    void aFailureKeepsItsExitCodeInTheHeaderAndIsRedOnlyThere() {
-        var slots = new ArrayList<String>();
-        var host = new FakeHost() {
-            @Override
-            public String styled(String slot, String text) {
-                slots.add(slot + ":" + text);
-                return text;
-            }
-        };
-        var runner = new ShellCommandRunner(host, "/bin/sh");
-
-        var out = runner.block("ls /nope", true, "ls: cannot access '/nope'\n", 2, 0);
-
-        assertEquals("! ls /nope · exit 2", out.get(1));
-        assertEquals("│ ls: cannot access '/nope'", out.get(2));
-        assertEquals("└", out.get(3), "the block still closes, with nothing left to say");
-        assertTrue(slots.contains("toolLabel:! ls /nope"), "the command itself is never red: " + slots);
-        assertTrue(slots.contains("toolError:exit 2"), "only the exit code is: " + slots);
-    }
-
-    @Test
-    void aCommandWithNoOutputIsASingleLine() {
-        var runner = new ShellCommandRunner(new FakeHost(), "/bin/sh");
-        var out = runner.block("touch x", true, "", 0, 0);
-        assertEquals(2, out.size(), "air and one line, with no rail to open and close: " + out);
-        assertEquals("! touch x · exit 0", out.get(1));
-    }
-
-    /** A killed command says so rather than reporting the signal's exit code as a failure. */
-    @Test
-    void anInterruptedCommandSaysInterrupted() {
-        var runner = new ShellCommandRunner(new FakeHost(), "/bin/sh");
-        assertEquals("! sleep 9 · interrupted", runner.block("sleep 9", true, "", 143, 0).get(1));
-        assertEquals("! sleep 9 · interrupted", runner.block("sleep 9", true, "", 137, 0).get(1));
-    }
-
-    /** A command slow enough to wonder about reports how long it has been going. */
-    @Test
-    void aSlowCommandReportsItsDuration() {
-        var runner = new ShellCommandRunner(new FakeHost(), "/bin/sh");
-        assertTrue(runner.block("build", true, "done\n", 0, 12_000).getLast().contains("12s"));
-        assertFalse(runner.block("build", true, "done\n", 0, 200).getLast().contains("0s"),
-                                        "a command that returns at once is not timed");
-    }
-
     private static class FakeHost implements ShellCommandRunner.Host {
         final List<String> echoedCommands = new ArrayList<>();
         final List<String> allLines = new ArrayList<>();
@@ -177,8 +100,10 @@ class ShellCommandRunnerTest {
         }
 
         @Override
-        public List<String> railed(List<String> body) { // the real host rails through ToolResultLines
-            return body.stream().filter(l -> !l.isBlank()).map(l -> "│ " + l).toList();
+        public List<String> shellBlock(String marker, String command, String stdout, int exitCode, long elapsedMs) {
+            // The real host renders through ToolResultLines.shellBlock; ShellCommandRunnerTest covers the runner,
+            // ToolResultLinesTest covers the grammar.
+            return List.of(marker + " " + command);
         }
 
         @Override

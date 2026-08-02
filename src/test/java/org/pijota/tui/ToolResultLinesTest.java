@@ -40,12 +40,16 @@ class ToolResultLinesTest {
     void toolWithBodyIsFramedWithRailAndFooter() {
         var msg = new Message.ToolResult("id", "bash", "ignored", false, Map.of("exitCode", 0));
         var view = new Tool.ToolResultView("2 lines", List.of("line one", "line two"));
-        var lines = compose(msg, view, 12_000);
+        // bash's own glyph, as the TUI passes it: ToolGlyphs.RUN is the "$" the shell prompt already uses.
+        var lines = ToolResultLines.compose(msg, view, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 12_000, "$",
+                                        80);
 
         // blank air + ┌ header + two railed body lines + └ footer
         assertEquals(5, lines.size(), visible(lines));
         assertEquals("", lines.get(0), "a framed block claims one blank line of air above itself");
-        assertTrue(AnsiStripper.strip(lines.get(1)).startsWith("┌ $"), visible(lines)); // bash shows a "$" shell prompt
+        // The tool's own glyph opens the block -- for bash the "$" shell prompt, which is also its glyph, so it is
+        // printed once. A ┌ here would say only "a block starts", which the rail below already says.
+        assertEquals("$", AnsiStripper.strip(lines.get(1)), visible(lines));
         assertTrue(AnsiStripper.strip(lines.get(2)).startsWith("│ line one"), visible(lines));
         assertTrue(AnsiStripper.strip(lines.get(3)).startsWith("│ line two"), visible(lines));
         String foot = AnsiStripper.strip(lines.get(4));
@@ -224,8 +228,9 @@ class ToolResultLinesTest {
         var visible = lines.stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList();
         for (String line : visible) {
             assertTrue(AnsiWidth.visibleWidth(line) <= 52, "row overflows the terminal: [" + line + "]");
-            // Every row of the block is framed: the opener, the rail, or the footer. None dangles bare.
-            assertTrue(line.startsWith("┌") || line.startsWith("│") || line.startsWith("└"),
+            // Every row of the block is framed: the opener (the tool's own glyph), the rail, or the footer. None
+            // dangles bare at column zero.
+            assertTrue(line.startsWith("$") || line.startsWith("│") || line.startsWith("└"),
                                             "row escaped the frame: [" + line + "] in " + visible);
         }
         assertTrue(visible.size() > 3, "the command really did need more than one row: " + visible);
@@ -280,4 +285,70 @@ class ToolResultLinesTest {
         assertFalse(out.contains("from-details"), out);
     }
 
+    // ---- the user's own ! commands, in the same grammar -------------------------------------------------------
+
+    private static List<String> shell(String cmd, String out, int exit, long elapsedMs, int width) {
+        return ToolResultLines.shellBlock("!", cmd, out, exit, elapsedMs, AnsiTheme.dark(), width);
+    }
+
+    /**
+     * A user's command reads as a block, like a tool call's does. Its output used to print bare at column zero, with
+     * nothing separating it from the prose above and nothing saying where one command's output ended.
+     */
+    @Test
+    void aUserCommandReadsAsABlock() {
+        var out = shell("git push", "To github.com:x/y.git\n   aaa..bbb  main\n", 0, 0, 80);
+
+        assertEquals("", out.get(0), "a block claims one blank line of air");
+        assertEquals("! git push", AnsiStripper.strip(out.get(1)), "! says you ran it, not the model");
+        assertEquals("│ To github.com:x/y.git", AnsiStripper.strip(out.get(2)));
+        assertEquals("│    aaa..bbb  main", AnsiStripper.strip(out.get(3)));
+        assertEquals("└ 2 lines · exit 0", AnsiStripper.strip(out.get(4)));
+    }
+
+    /**
+     * The header goes through the same wrapper a tool header does. Hand-rolled, it was appended unwrapped, so a long
+     * command -- which is exactly what people type after {@code !} -- broke out to column zero and split the box open.
+     */
+    @Test
+    void aLongUserCommandStaysInsideItsBlock() {
+        String command = "echo " + "a".repeat(90) + " | head -c 200";
+        var out = shell(command, "done\n", 0, 0, 60);
+
+        for (String line : out.stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList()) {
+            assertTrue(AnsiWidth.visibleWidth(line) <= 60, "row overflows the terminal: [" + line + "]");
+            assertTrue(line.startsWith("!") || line.startsWith("│") || line.startsWith("└"),
+                                            "row escaped the frame: [" + line + "] in " + visible(out));
+        }
+    }
+
+    /** The count is of logical lines. Counting rendered rows made one long line of output report "3 lines". */
+    @Test
+    void theFooterCountsOutputLinesNotTheRowsTheyWrapTo() {
+        var out = shell("cat wide.txt", "x".repeat(200) + "\n", 0, 0, 60);
+        assertEquals("1 line", AnsiStripper.strip(out.getLast()).replaceAll("^└ | · exit 0$", ""),
+                                        visible(out) + " (200 chars at width 60 is one line, three rows)");
+    }
+
+    /** Same three shapes as a tool result, through the same helpers. */
+    @Test
+    void aUserCommandTakesTheSameThreeShapesAToolResultDoes() {
+        assertEquals("! touch x · exit 0", AnsiStripper.strip(shell("touch x", "", 0, 0, 80).get(1)),
+                                        "no output: one line carrying its own metadata");
+        assertEquals(2, shell("touch x", "", 0, 0, 80).size());
+
+        var failed = shell("ls /nope", "ls: cannot access '/nope'\n", 2, 0, 80);
+        assertEquals("! ls /nope · exit 2", AnsiStripper.strip(failed.get(1)), "a failure keeps its status up top");
+        assertEquals("└", AnsiStripper.strip(failed.getLast()), "and closes bare");
+
+        assertEquals("! sleep 9 · interrupted", AnsiStripper.strip(shell("sleep 9", "", 143, 0, 80).get(1)));
+        assertTrue(AnsiStripper.strip(shell("build", "done\n", 0, 12_000, 80).getLast()).contains("12s"));
+    }
+
+    /** !! keeps the command out of the conversation; the mark is the only place that difference shows. */
+    @Test
+    void theMarkSaysWhetherTheCommandJoinedTheConversation() {
+        assertTrue(AnsiStripper.strip(ToolResultLines.shellBlock("!!", "ls", "", 0, 0, AnsiTheme.dark(), 80).get(1))
+                                        .startsWith("!! ls"));
+    }
 }
