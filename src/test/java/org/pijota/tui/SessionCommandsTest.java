@@ -134,13 +134,19 @@ class SessionCommandsTest {
         assertTrue(line.contains("anthropic/claude-opus-4-5-20251101"), line);
     }
 
-    /** One rendering of a model name, everywhere. The provider is a prefix, not something to say twice. */
+    /**
+     * One rendering of a model name, everywhere, and it is the model's own id: /usage is where a name is most likely to
+     * be copied out of, into a --model flag or an alias target.
+     */
     @Test
-    void everyModelLabelInUsageIsTheCompactForm() {
-        assertEquals("deepseek/v4-flash", SessionCommands.breakdownLabel("deepseek/deepseek-v4-flash"));
-        assertTrue(SessionCommands.rateLine("deepseek", "deepseek-v4-flash", false).contains("deepseek/v4-flash"));
-        assertEquals("Tools/summaries", SessionCommands.breakdownLabel("Tools/summaries"),
-                                        "the compaction row is not a model and must survive untouched");
+    void everyModelNameInUsageIsTheIdYouCanPasteBack() {
+        assertTrue(SessionCommands.rateLine("deepseek", "deepseek-v4-flash", false)
+                                        .contains("deepseek/deepseek-v4-flash"),
+                                        SessionCommands.rateLine("deepseek", "deepseek-v4-flash", false));
+        var report = new Report((slot, text) -> text, "usage breakdown");
+        report.cells("deepseek/deepseek-v4-flash", "4K", "tokens");
+        assertTrue(String.join("\n", report.render()).contains("deepseek/deepseek-v4-flash"),
+                                        "the breakdown key is already provider/model and is shown as-is");
     }
 
     @Test

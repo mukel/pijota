@@ -79,7 +79,7 @@ final class PromptPresenter {
             cwd.append(theme.styled("commandMeta", "  " + sessionName));
 
         var stats = new StringBuilder(theme.styled("statusText", tokens));
-        stats.append(theme.styled("commandMeta", "  " + compactModelName(host.provider(), host.model())));
+        stats.append(theme.styled("commandMeta", "  " + modelLabel(host.provider(), host.model())));
         ThinkingLevel thinking = host.thinkingLevel();
         if (thinking != ThinkingLevel.OFF)
             stats.append(theme.styled("commandMeta", " · "))
@@ -106,16 +106,22 @@ final class PromptPresenter {
                                         .withStreamTail(host.liveStreamTail()).withWarning(status);
     }
 
-    static String compactModelName(String provider, String model) {
+    /**
+     * How a model is named everywhere in the interface: {@code provider/model}, with the model's id verbatim.
+     *
+     * <p>
+     * This used to strip a redundant-looking provider prefix from the id, rendering deepseek-v4-flash as
+     * {@code deepseek/v4-flash}. That is not a name the model has: passing it back to {@code --model} is answered with
+     * "the supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed v4-flash". A name shown
+     * in a coding agent gets copied into a flag, a settings file, an alias target or a {@code /model} search, so it has
+     * to be the identifier and not a prettier version of it.
+     */
+    static String modelLabel(String provider, String model) {
         if (provider == null || provider.isBlank())
             return model;
         if (model == null || model.isBlank())
             return provider;
-        String shortModel = model;
-        String prefix = provider + "-";
-        if (shortModel.startsWith(prefix))
-            shortModel = shortModel.substring(prefix.length());
-        return provider + "/" + shortModel;
+        return provider + "/" + model;
     }
 
     private PromptSnapshot.PromptState promptState(PromptSnapshot snapshot, String status) {

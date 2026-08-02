@@ -898,7 +898,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
         var lines = new ArrayList<String>();
         lines.add(theme.styled("bannerName", "pijota " + version) + theme.styled("bannerMeta",
-                                        "  " + PromptPresenter.compactModelName(provider, model)));
+                                        "  " + PromptPresenter.modelLabel(provider, model)));
         lines.add(theme.styled("dim", TuiCopy.START_HINT));
 
         // recent sessions

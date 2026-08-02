@@ -162,22 +162,11 @@ final class SessionCommands {
         if (!breakdown.isEmpty() || !summaryBreakdown.isEmpty()) {
             var report = new Report(host::styled, "usage breakdown");
             for (var item : breakdown)
-                report.cells(breakdownLabel(item.key()), fmtCount(item.tokens()),
-                                                "tokens  " + SessionUsage.formatCost(item.cost()));
+                report.cells(item.key(), fmtCount(item.tokens()), "tokens  " + SessionUsage.formatCost(item.cost()));
             for (var item : summaryBreakdown)
-                report.cells(breakdownLabel(item.key()), fmtCount(item.tokens()),
-                                                "tokens  " + SessionUsage.formatCost(item.cost()));
+                report.cells(item.key(), fmtCount(item.tokens()), "tokens  " + SessionUsage.formatCost(item.cost()));
             host.appendPlain(report.render());
         }
-    }
-
-    /**
-     * A usage-breakdown key is {@code provider/model}; render it the way every other model label is rendered, so
-     * {@code /usage} does not name the model differently from the banner and the status bar.
-     */
-    static String breakdownLabel(String key) {
-        int slash = key.indexOf('/');
-        return slash < 0 ? key : PromptPresenter.compactModelName(key.substring(0, slash), key.substring(slash + 1));
     }
 
     /** The {@code /usage} per-model rate line: the catalog's $/1M rates for the active model, or "unknown". */
@@ -188,7 +177,7 @@ final class SessionCommands {
         }
         // "per MTok" rather than "per 1M": the same unit the model picker prints, so the two rate readouts match.
         String line = String.format(Locale.ROOT, "$%.2f in / $%.2f out per MTok  (%s)", pricing.inputPerMTok(),
-                                        pricing.outputPerMTok(), PromptPresenter.compactModelName(provider, model));
+                                        pricing.outputPerMTok(), PromptPresenter.modelLabel(provider, model));
         return hasUnpriced ? line + "  · some usage on unpriced models" : line;
     }
 

@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.extensions.KeyChord;
+import org.pijota.llm.ModelRegistry;
 import org.pijota.messages.Message;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.EditTool;
@@ -69,17 +70,33 @@ class AppendOnlyTuiTest {
         assertFalse(meta.endsWith("·") || meta.startsWith("·"), "no dangling separator: " + meta);
     }
 
+    /**
+     * The label has to be the identifier. It used to strip a redundant-looking provider prefix from the model id, so
+     * deepseek-v4-flash was shown as {@code deepseek/v4-flash} -- and passing that back to {@code --model} is answered
+     * with "the supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed v4-flash". In a
+     * coding agent a model name gets copied into a flag, a settings file, an alias target or a /model search, so a
+     * prettier version of it is a trap. The old tests only asserted the result was non-blank, which is why the
+     * shortening went unquestioned.
+     */
     @Test
-    void compactModelNameShortProvider() {
-        var result = PromptPresenter.compactModelName("openai", "gpt-4o");
-        assertNotNull(result);
-        assertFalse(result.isBlank());
+    void aModelLabelIsSomethingYouCanPasteBackIntoTheModelFlag() {
+        assertEquals("deepseek/deepseek-v4-flash", PromptPresenter.modelLabel("deepseek", "deepseek-v4-flash"));
+        assertEquals("openai/gpt-4o", PromptPresenter.modelLabel("openai", "gpt-4o"));
+        assertEquals("anthropic/claude-sonnet-4-5-20250929",
+                                        PromptPresenter.modelLabel("anthropic", "claude-sonnet-4-5-20250929"));
+
+        // What the flag parser does with it must give back exactly what was displayed.
+        for (String[] pair : new String[][] {{"deepseek", "deepseek-v4-flash"}, {"openai", "gpt-4o"}}) {
+            var parsed = ModelRegistry.parseProviderModel(PromptPresenter.modelLabel(pair[0], pair[1]));
+            assertEquals(pair[0], parsed.provider(), "provider survives the round trip");
+            assertEquals(pair[1], parsed.model(), "and so does the model id, verbatim");
+        }
     }
 
     @Test
-    void compactModelNameLongProvider() {
-        var result = PromptPresenter.compactModelName("anthropic", "claude-sonnet-4-5-20250929");
-        assertNotNull(result);
+    void aModelLabelWithHalfTheInformationIsStillReadable() {
+        assertEquals("gpt-4o", PromptPresenter.modelLabel(null, "gpt-4o"));
+        assertEquals("openai", PromptPresenter.modelLabel("openai", " "));
     }
 
     @Test
