@@ -46,4 +46,34 @@ class BuiltinExtensionsTest {
             assertTrue(help.contains(shown + " ") || help.contains(shown + "\n"), "missing " + shown + " in:\n" + help);
         }
     }
+
+    /**
+     * {@code --help} is read in a terminal, and 80 columns is the one width every terminal has. Unwrapped, the longest
+     * of these entries ran to 127 columns, so the text folded back to column zero and the flag column stopped being a
+     * column at exactly the moment someone is scanning it for a flag name.
+     */
+    @Test
+    void everyHelpLineFitsAnEightyColumnTerminal() {
+        for (String line : BuiltinExtensions.helpSection().split("\n"))
+            assertTrue(line.length() <= 80, line.length() + " columns: " + line);
+    }
+
+    /** Wrapped descriptions hang under the description, not under the flag, or the flag column reads as ragged. */
+    @Test
+    void wrappedDescriptionsStayInTheDescriptionColumn() {
+        int column = -1;
+        for (String line : BuiltinExtensions.helpSection().split("\n")) {
+            if (line.startsWith("  --")) {
+                int at = line.indexOf(' ', 2);
+                while (at < line.length() && line.charAt(at) == ' ')
+                    at++;
+                if (column < 0)
+                    column = at;
+                assertEquals(column, at, "description column drifted: " + line);
+            } else if (column > 0 && !line.isBlank()) { // a continuation of the entry above
+                assertEquals(column, line.indexOf(line.strip()), "continuation hangs off the column: " + line);
+            }
+        }
+        assertTrue(column > 0, "no entries found; the help shape changed");
+    }
 }

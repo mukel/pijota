@@ -168,7 +168,7 @@ public final class ArgParser {
                                           tui                       Interactive terminal UI (default)
                                           web [host:port]           Local web UI
                                           telegram                  Telegram bot (needs TELEGRAM_BOT_TOKEN)
-                                          acp                       Agent Client Protocol over stdio (Zed, JetBrains, ...)
+                                          acp                       Agent Client Protocol over stdio (Zed, JetBrains)
 
                                         OPTIONS:
                                           --provider <name>         LLM provider (openai, anthropic, google, ...)
@@ -176,7 +176,7 @@ public final class ArgParser {
                                           --api-key <key>           API key
                                           --system-prompt <text>    Custom system prompt
                                           --append-system-prompt <text>  Append to system prompt (repeatable)
-                                          --thinking <level>        Thinking level (off, minimal, low, medium, high, xhigh, max)
+                                          --thinking <level>        off, minimal, low, medium, high, xhigh, max
                                           --max-turns <n>           Max tool-call turns per prompt (0 = unlimited)
                                           --mode <mode>             Output mode: text, json, rpc
                                           --print, -p [prompt]      Non-interactive single-shot mode
@@ -196,18 +196,17 @@ public final class ArgParser {
                                           --no-skills, -ns          Skip skill auto-discovery
                                           --extension, -e <path>    Load extension
                                           --skill <path>            Load skill
-                                          --theme <path|name>       Load/select theme (repeatable; "auto" = match terminal)
+                                          --theme <path|name>       Load/select theme (repeatable; "auto" = terminal)
                                           --no-themes               Skip theme discovery
-                                          --no-context-files, -nc    Skip AGENTS.md and CLAUDE.md discovery
+                                          --no-context-files, -nc   Skip AGENTS.md and CLAUDE.md discovery
                                           --no-prompt-templates, -np Skip prompt template auto-discovery
-                                          --prompt-template <path>   Load prompt template (repeatable)
+                                          --prompt-template <path>  Load prompt template (repeatable)
                                           --approve, -a             Trust project-local resources for this run
                                           --no-approve, -na         Ignore project-local resources for this run
-
                                         """);
         System.out.println("""
                                         COMMANDS (before any options):
-                                          login [provider] [model]  Sign in to a provider (OAuth where supported, else an API key)
+                                          login [provider] [model]  Sign in to a provider (OAuth, else an API key)
                                           logout [provider]         Forget a provider's stored credential
                                           auth <cmd> --provider <p> Print a credential for another tool (print-api-key,
                                                                     print-bearer-token); see `pijota auth --help`

@@ -401,4 +401,50 @@ class ArgParserTest {
         assertEquals(0, args.extensionFlags().size());
         assertEquals(3, args.promptArgs().size());
     }
+
+    private static String help() {
+        var buffer = new java.io.ByteArrayOutputStream();
+        var original = System.out;
+        try {
+            System.setOut(new java.io.PrintStream(buffer, true, java.nio.charset.StandardCharsets.UTF_8));
+            ArgParser.printHelp();
+        } finally {
+            System.setOut(original);
+        }
+        return buffer.toString(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /** {@code --help} is read in a terminal, and 80 columns is the one width every terminal has. */
+    @Test
+    void helpFitsAnEightyColumnTerminal() {
+        for (String line : help().split("\n"))
+            assertTrue(line.length() <= 80, line.length() + " columns: " + line);
+    }
+
+    /**
+     * The description column is hand-padded with literal spaces, which is exactly how it drifts: two of these rows sat
+     * one column right of the other twenty-seven, and nothing said so.
+     */
+    @Test
+    void theOptionColumnDoesNotDrift() {
+        var starts = new java.util.TreeMap<Integer, String>();
+        for (String line : help().split("\n")) {
+            if (!line.startsWith("  -") || line.isBlank())
+                continue;
+            var m = java.util.regex.Pattern.compile("^ {2}\\S.*?  +(\\S)").matcher(line);
+            if (m.find())
+                starts.putIfAbsent(m.start(1), line);
+        }
+        assertTrue(starts.size() >= 1, "no option rows found; the help shape changed");
+        // Rows whose flag is too long to fit the column legitimately push their description right; every other row
+        // must share one column, so at most two distinct starts (the column, and the overflow).
+        assertTrue(starts.size() <= 2, "the description column drifted across " + starts.size() + " positions: "
+                                        + starts.values());
+    }
+
+    /** Sections are separated by exactly one blank line; two read as the help having ended. */
+    @Test
+    void helpHasNoDoubleBlankLines() {
+        assertFalse(help().contains("\n\n\n"), help());
+    }
 }
