@@ -28,6 +28,25 @@ final class ToolResultLines {
 
     private ToolResultLines() {}
 
+    /**
+     * The name a tool goes by in the transcript. Bash shows a shell {@code $}: its command <em>is</em> the content, so
+     * the word "bash" in front of it is noise. Shared with the live tail and the interrupted line, which each said it
+     * their own way -- one call could appear as {@code $ sleep 60} while running and {@code bash sleep 60} once it was
+     * interrupted.
+     */
+    static String label(String toolName) {
+        return "bash".equals(toolName) ? "$" : toolName;
+    }
+
+    /**
+     * What a tool line opens with before its name: the tool's glyph, or nothing when the glyph and the name are already
+     * the same character. Bash's run mark and its shell prompt are both {@code $}, so printing both read as
+     * {@code $ $ sleep 40}.
+     */
+    static String glyphPrefix(String glyph, String toolName) {
+        return glyph.equals(label(toolName)) ? "" : glyph + " ";
+    }
+
     /** The result's own details, shaped like the request arguments so {@link ToolLabels} can read either. */
     private static Supplier<String> detailsAsArgs(Message.ToolResult msg) {
         return () -> {
@@ -47,7 +66,7 @@ final class ToolResultLines {
         // word "bash", and its command renders in the readable text tone, not the muted target tone, so emphasis
         // lands where you actually read.
         boolean shell = msg.toolName().equals("bash");
-        var nameDetail = new StringBuilder(theme.styled("toolLabel", shell ? "$" : msg.toolName()));
+        var nameDetail = new StringBuilder(theme.styled("toolLabel", label(msg.toolName())));
         String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay, ToolLabels.FULL_COMMAND);
         if (detail.isBlank())
             // An interrupt clears the in-flight call before its result lands, taking the request arguments with it,
@@ -97,7 +116,8 @@ final class ToolResultLines {
         } else {
             // Quiet tool: the header line is the whole block, metadata uniformly dim, stacked tight with siblings.
             var meta = metaChips(summary, exit, elapsedStr, theme);
-            addHeader(lines, theme.styled("toolLabel", glyph) + " ",
+            String open = glyphPrefix(glyph, msg.toolName());
+            addHeader(lines, open.isEmpty() ? "" : theme.styled("toolLabel", open),
                                             nameDetail + (meta.isEmpty() ? "" : dot + String.join(dot, meta)), theme,
                                             width);
         }

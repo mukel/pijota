@@ -2277,7 +2277,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                                     settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
                                                     ToolLabels.FULL_COMMAND), args, System.currentTimeMillis()));
                 pendingEdit.onToolStart(name, args);
-                activity.setPhase("tool " + name);
+                // No phase: the running-tool tail one row up already names the tool, with its arguments and its own
+                // elapsed. "tool bash" beside it was the same word twice with two timers of different scope between
+                // them, which reads as two things running.
+                activity.setPhase(null);
                 if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)
                                                 && pendingEdit.newText() != null
                                                 && !pendingEdit.oldText().equals(pendingEdit.newText())) {
@@ -2384,7 +2387,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         for (var entry : abandoned) {
             var tool = entry.getValue();
             var line = new StringBuilder(theme.styled("toolError", ToolGlyphs.FAILED)).append(' ')
-                                            .append(theme.styled("toolLabel", tool.name()));
+                                            .append(theme.styled("toolLabel", ToolResultLines.label(tool.name())));
             if (!tool.detail().isBlank())
                 line.append(' ').append(theme.styled("statusText", tool.detail()));
             line.append(dot).append(theme.styled("commandMeta", "interrupted"));
@@ -2411,15 +2414,17 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // The tool's own mark, not a fixed one: this is the most-watched line in the interface during a turn, and a
         // hardcoded ● said every running tool -- a read, a search, a shell command -- had written to disk.
         String mark = session.tool(current.name()).map(Tool::glyph).orElse(ToolGlyphs.AGENT);
-        var line = new StringBuilder(mark).append(' ').append(current.name());
+        var line = new StringBuilder(ToolResultLines.glyphPrefix(mark, current.name()))
+                                        .append(ToolResultLines.label(current.name()));
         if (!current.detail().isBlank())
             line.append(' ').append(current.detail());
-        line.append("  ").append(animation.frame());
+        // No spinner here: the status bar one row down is already animating, and two of them running at different
+        // phases read as two separate things working.
         long elapsed = System.currentTimeMillis() - current.startedAtMs();
         if (elapsed >= 1000)
-            line.append(' ').append(elapsed / 1000).append('s');
+            line.append("  ").append(elapsed / 1000).append('s');
         if (elapsed >= BACKGROUND_HINT_AFTER_MS && detachableTool(current.name()) != null)
-            line.append(" · ctrl+b ctrl+b to background");
+            line.append(Keys.label(" · Ctrl+B twice to background"));
         return theme.styled("commandMeta", line.toString());
     }
 

@@ -102,6 +102,22 @@ class ToolResultLinesTest {
         assertFalse(visible(compose(msg, null, 200)).contains("0s"));
     }
 
+    /**
+     * Bash's run glyph and the shell prompt it goes by are the same character, so a quiet bash call opened
+     * {@code $ $ touch x}. One tool, one mark.
+     */
+    @Test
+    void aGlyphIsNotRepeatedWhenItIsAlreadyTheToolsName() {
+        assertEquals("", ToolResultLines.glyphPrefix("$", "bash"));
+        assertEquals("○ ", ToolResultLines.glyphPrefix("○", "read"));
+
+        var quiet = new Message.ToolResult("id", "bash", "", false, Map.of("exitCode", 0));
+        String line = AnsiStripper.strip(ToolResultLines.compose(quiet, null, null, AnsiTheme.dark(), "/cwd",
+                                        PathDisplay.COMPACT, 0, "$", 80).get(0));
+        assertTrue(line.startsWith("$ "), line);
+        assertFalse(line.startsWith("$ $"), "one $, not two: " + line);
+    }
+
     @Test
     void headerUsesToolGlyphAndErrorMarker() {
         var ok = new Message.ToolResult("id", "bash", "done", false);

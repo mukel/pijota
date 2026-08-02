@@ -78,7 +78,7 @@ public final class JobsExtension implements Extension {
 
     @Override
     public String description() {
-        return "Background shell jobs (jobs_run / jobs_output / jobs_kill), user backgrounding (ctrl+b ctrl+b), and "
+        return "Background shell jobs (jobs_run / jobs_output / jobs_kill), user backgrounding (Ctrl+B twice), and "
                                         + "direct control via /jobs and /kill. Disable with --no-jobs.";
     }
 
