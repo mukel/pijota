@@ -80,10 +80,11 @@ final class PromptPresenter {
 
         var stats = new StringBuilder(theme.styled("statusText", tokens));
         stats.append(theme.styled("commandMeta", "  " + modelLabel(host.provider(), host.model())));
+        // Every level, including OFF. Hiding it made the chip vanish on the one press that turns thinking off, so a
+        // piece of the bar disappeared where a setting should have appeared -- and Shift+Tab has no other feedback.
+        // Themes give OFF a near-invisible tone for exactly this: present and readable, saying nothing loudly.
         ThinkingLevel thinking = host.thinkingLevel();
-        if (thinking != ThinkingLevel.OFF)
-            stats.append(theme.styled("commandMeta", " · "))
-                                            .append(theme.styled(thinking.themeSlot(), thinking.label()));
+        stats.append(theme.styled("commandMeta", " · ")).append(theme.styled(thinking.themeSlot(), thinking.label()));
         if (activity.isBusy()) {
             stats.append(theme.styled("statusText", "  " + animation.frame()));
             String phase = activity.phase();
