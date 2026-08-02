@@ -4,6 +4,7 @@ import org.pijota.agent.AgentEvent;
 import org.pijota.agent.AgentLoop;
 import org.pijota.cli.Args;
 import org.pijota.messages.Message;
+import org.pijota.messages.Usage;
 import org.pijota.util.CliErrorReporter;
 import org.pijota.util.ErrorUtil;
 
@@ -117,8 +118,7 @@ public final class PrintMode {
         payload.put("provider", agentLoop.llm().provider());
         payload.put("model", agentLoop.llm().model());
         payload.put("messages", messages);
-        payload.put("usage", Map.of("inputTokens", in, "outputTokens", out, "cacheReadTokens", cacheRead,
-                                        "cacheWriteTokens", cacheWrite, "reasoningTokens", reasoning));
+        payload.put("usage", new Usage(in, out, cacheRead, cacheWrite, reasoning));
         new JsonEventStream(System.out).write(payload);
     }
 }

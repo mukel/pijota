@@ -58,39 +58,19 @@ public final class JsonEventStream {
             case AgentEvent.MessageStreamDelta(var delta) -> of("delta", "text", delta);
             case AgentEvent.MessageStreamEnd(var type) -> of("stream_end", "messageType", type);
             case AgentEvent.AssistantMessage(var msg, var usage) -> assistant(msg, usage);
-            case AgentEvent.ToolStart(var name, var id, var arguments) -> {
-                var m = of("tool_start", "tool", name);
-                m.put("toolCallId", id);
-                // The supplier defers serializing arguments until something asks; asking is the point here.
-                m.put("arguments", arguments == null ? null : arguments.get());
-                yield m;
-            }
-            case AgentEvent.BashExecutionUpdate(var id, var delta) -> {
-                var m = of("tool_output", "toolCallId", id);
-                m.put("delta", delta);
-                yield m;
-            }
-            case AgentEvent.ToolResult(var msg) -> {
-                var m = of("tool_result", "tool", msg.toolName());
-                m.put("toolCallId", msg.toolCallId());
-                m.put("isError", msg.isError());
-                m.put("content", msg.content());
-                yield m;
-            }
-            case AgentEvent.Compaction(var ignored, int oldCount, int chars, int tokens, var summary, var reason) -> {
-                var m = of("compaction", "reason", reason);
-                m.put("oldMessageCount", oldCount);
-                m.put("estimatedChars", chars);
-                m.put("estimatedTokens", tokens);
-                m.put("summary", summary);
-                yield m;
-            }
+            // The supplier defers serializing arguments until something asks; asking is the point here.
+            case AgentEvent.ToolStart(var name, var id, var arguments) -> of("tool_start", "tool", name, "toolCallId",
+                                            id, "arguments", arguments == null ? null : arguments.get());
+            case AgentEvent.BashExecutionUpdate(var id, var delta) ->
+                of("tool_output", "toolCallId", id, "delta", delta);
+            case AgentEvent.ToolResult(var msg) -> of("tool_result", "tool", msg.toolName(), "toolCallId",
+                                            msg.toolCallId(), "isError", msg.isError(), "content", msg.content());
+            case AgentEvent.Compaction(var ignored, int oldCount, int chars, int tokens, var summary, var reason) ->
+                of("compaction", "reason", reason, "oldMessageCount", oldCount, "estimatedChars", chars,
+                                                "estimatedTokens", tokens, "summary", summary);
             case AgentEvent.HistoryChanged(var reason) -> of("history_changed", "reason", reason);
-            case AgentEvent.CustomMessage(var msg) -> {
-                var m = of("custom", "customType", msg.customType());
-                m.put("content", msg.content());
-                yield m;
-            }
+            case AgentEvent.CustomMessage(var msg) ->
+                of("custom", "customType", msg.customType(), "content", msg.content());
             case AgentEvent.Error(var t) -> of("error", "message", ErrorUtil.message(t));
             // Compaction streaming duplicates what `compaction` reports once it lands, and is noisy per token.
             case AgentEvent.CompactionStream ignored -> null;
@@ -108,21 +88,19 @@ public final class JsonEventStream {
         var m = of("assistant", "content", msg.content());
         if (msg.thinking() != null && !msg.thinking().isBlank())
             m.put("thinking", msg.thinking());
-        m.put("usage", usage(usage));
+        m.put("usage", usage); // the record serializes to its five components; no hand-built key list to drift
         return m;
     }
 
-    /** The usage record as a plain map, in the same shape the final {@code result} line uses. */
-    public static Map<String, Object> usage(Usage u) {
-        return Map.of("inputTokens", u.inputTokens(), "outputTokens", u.outputTokens(), "cacheReadTokens",
-                                        u.cacheReadTokens(), "cacheWriteTokens", u.cacheWriteTokens(),
-                                        "reasoningTokens", u.reasoningTokens());
-    }
-
-    private static Map<String, Object> of(String type, String key, Object value) {
+    /**
+     * A line: {@code type} first, then key/value pairs. A LinkedHashMap, not Map.of: order matters and values may be
+     * null.
+     */
+    private static Map<String, Object> of(String type, Object... keyValues) {
         var m = new LinkedHashMap<String, Object>();
         m.put("type", type);
-        m.put(key, value);
+        for (int i = 0; i + 1 < keyValues.length; i += 2)
+            m.put((String) keyValues[i], keyValues[i + 1]);
         return m;
     }
 }

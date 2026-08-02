@@ -109,21 +109,18 @@ final class DiffRenderer {
             case DELETE -> "diffDelete";
             case CONTEXT -> "diffContext";
         };
+        String bgSlot = switch (row.kind()) {
+            case ADD -> "diffAddLine";
+            case DELETE -> "diffDeleteLine";
+            case CONTEXT -> null; // context rows carry no highlight, so no background to extend
+        };
         String prefix = theme.styled("diffMeta", "  " + oldNo + " " + newNo + " ") + theme.styled(slot, mark) + " ";
-        int gutter = AnsiWidth.visibleWidth(prefix);
-        String continuation = " ".repeat(gutter);
-        var out = new ArrayList<String>();
-        var wrapped = AnsiWidth.wrapPreservingAnsi(body, Math.max(8, width - gutter));
-        for (int i = 0; i < wrapped.size(); i++) {
-            String line = (i == 0 ? prefix : continuation) + wrapped.get(i)
-                                            + (row.kind() == DiffAlgorithm.Kind.CONTEXT ? "" : " ");
-            out.add(switch (row.kind()) {
-                case ADD -> withBackground("diffAddLine", line);
-                case DELETE -> withBackground("diffDeleteLine", line);
-                case CONTEXT -> line;
-            });
-        }
-        return out;
+        String indent = " ".repeat(AnsiWidth.visibleWidth(prefix));
+        // The trailing space carries the row's background to the edge of the change; context rows have none.
+        String pad = bgSlot == null ? "" : " ";
+        return AnsiWidth.wrapPrefixed(body, width, prefix, r -> indent + r).stream()
+                                        .map(line -> bgSlot == null ? line + pad : withBackground(bgSlot, line + pad))
+                                        .toList();
     }
 
     private String withBackground(String slot, String line) {

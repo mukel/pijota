@@ -68,7 +68,11 @@ final class ToolResultLines {
             addHeader(lines, theme.styled("toolLabel", "┌ "), nameDetail.toString(), theme, width);
             addBody(lines, rendered.body(), theme, width);
             var foot = metaChips(summary, exit, elapsedStr, theme);
-            lines.add(theme.styled("commandMeta", "└") + (foot.isEmpty() ? "" : " " + String.join(dot, foot)));
+            // The footer wraps too. Its summary is the tool's first output line, which is not length-capped, so a
+            // single long line of output produced a footer that escaped the block it was supposed to close.
+            lines.addAll(AnsiWidth.wrapPrefixed(foot.isEmpty() ? "" : String.join(dot, foot), width,
+                                            theme.styled("commandMeta", "└") + (foot.isEmpty() ? "" : " "),
+                                            row -> "  " + row));
         } else {
             // Quiet tool: the header line is the whole block, metadata uniformly dim, stacked tight with siblings.
             var meta = metaChips(summary, exit, elapsedStr, theme);
@@ -111,10 +115,7 @@ final class ToolResultLines {
      * hardest to read. Continuations carry the same {@code │} rail as the body, so the whole block reads as one thing.
      */
     private static void addHeader(List<String> lines, String prefix, String text, AnsiTheme theme, int width) {
-        int lead = AnsiWidth.visibleWidth(prefix);
-        var rows = AnsiWidth.wrapPreservingAnsi(text, Math.max(8, width - lead));
-        for (int i = 0; i < rows.size(); i++)
-            lines.add(i == 0 ? prefix + rows.get(i) : renderToolBodyLine(rows.get(i), theme));
+        lines.addAll(AnsiWidth.wrapPrefixed(text, width, prefix, row -> renderToolBodyLine(row, theme)));
     }
 
     /**

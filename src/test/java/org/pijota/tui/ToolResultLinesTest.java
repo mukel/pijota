@@ -167,4 +167,25 @@ class ToolResultLinesTest {
         assertTrue(visible.size() > 3, "the command really did need more than one row: " + visible);
     }
 
+    @Test
+    void aLongSummaryDoesNotLetTheFooterEscapeTheBlockItCloses() {
+        // The footer's summary is the tool's first output line (Util.firstLine), which is not length-capped. It was
+        // the one line of the block still left for the terminal to wrap, so a single long line of output produced a
+        // closing row that dangled at column zero -- outside the box it exists to close.
+        String longFirstLine = "Successfully replaced 1 block(s) in a file with a very long descriptive path and a "
+                                        + "message that keeps going well past the width of any sensible terminal";
+        var msg = new Message.ToolResult("call-1", "edit", longFirstLine + "\nsecond line", false, Map.of());
+        var view = Tool.ToolResultView.of(longFirstLine, List.of("done"));
+
+        var lines = ToolResultLines.compose(msg, view, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0, "●", 60);
+
+        var visible = lines.stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList();
+        for (String line : visible)
+            assertTrue(AnsiWidth.visibleWidth(line) <= 60, "row overflows the terminal: [" + line + "]");
+        var footerRows = visible.stream().dropWhile(l -> !l.startsWith("└")).toList();
+        assertTrue(footerRows.size() > 1, "the summary really did need more than one row: " + visible);
+        for (String row : footerRows.subList(1, footerRows.size()))
+            assertTrue(row.startsWith("  "), "a footer continuation is indented, not at column zero: [" + row + "]");
+    }
+
 }

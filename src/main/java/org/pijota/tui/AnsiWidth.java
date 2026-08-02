@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import java.util.ArrayList;
+import java.util.function.UnaryOperator;
 import java.util.List;
 
 final class AnsiWidth {
@@ -131,6 +132,24 @@ final class AnsiWidth {
             i += Character.isHighSurrogate(ch) && i + 1 < text.length() ? 2 : 1;
         }
         return i;
+    }
+
+    /**
+     * Wraps {@code text} to the columns its prefix leaves, then re-applies a prefix to EVERY physical row: {@code
+     * firstPrefix} on the first, {@code rest} on the continuations. Left to the terminal, an overflowing line restarts
+     * at column zero, outside whatever gutter, rail or frame the block established -- so the continuation of a shell
+     * command escapes its box, and wrapped code lands under another row's line numbers.
+     *
+     * <p>
+     * {@code rest} is a function rather than a string because some callers key the continuation on the row's content (a
+     * tool body rail inspects the row) while others want a constant indent.
+     */
+    static List<String> wrapPrefixed(String text, int width, String firstPrefix, UnaryOperator<String> rest) {
+        var rows = wrapPreservingAnsi(text, Math.max(1, width - visibleWidth(firstPrefix)));
+        var out = new ArrayList<String>(rows.size());
+        for (int i = 0; i < rows.size(); i++)
+            out.add(i == 0 ? firstPrefix + rows.get(i) : rest.apply(rows.get(i)));
+        return out;
     }
 
     public static List<String> wrapPreservingAnsi(String text, int maxWidth) {

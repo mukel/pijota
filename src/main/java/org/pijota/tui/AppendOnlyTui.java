@@ -825,10 +825,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         Runtime.getRuntime().addShutdownHook(new Thread(this::close, "pijota-tui-shutdown"));
         try {
             originalAttributes = terminal.enterRawMode();
-            // Ask for unambiguous modifiers before anything reads a key. Terminals without the protocol are unchanged.
-            kittyKeyboard = KittyKeyboard.negotiate(terminal);
-            log.info("kitty keyboard protocol: {}", kittyKeyboard ? "enabled" : "not supported by this terminal");
-            terminal.writer().print("\033[?2004h");
+            // Ask for unambiguous modifiers before anything reads a key. Terminals without the protocol ignore it.
+            terminal.writer().print(KittyKeyboard.ENABLE + "\033[?2004h");
             terminal.writer().flush();
             appendStartupGreeting(version, cwd);
             if (showSessionPickerOnStart) {
@@ -877,13 +875,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 // Metadata in one column so ages and counts can be compared straight down the list; trailing each
                 // title, it landed somewhere different on every row. The column sits just past the longest title
                 // rather than against the right margin, which would leave a canyon of blank the eye has to cross.
-                int metaWidth = metas.stream().mapToInt(String::length).max().orElse(0);
-                int titleRoom = Math.max(8, width - metaWidth - 4); // 2 leading + 2 separating spaces
+                int metaWidth = metas.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
+                int titleRoom = Math.max(8, width - metaWidth - 5); // 2 leading + 3 separating spaces
                 var titles = items.stream().map(it -> Util.ellipsize(it.description(), titleRoom)).toList();
-                int titleColumn = titles.stream().mapToInt(String::length).max().orElse(0);
+                int titleColumn = titles.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
                 for (int i = 0; i < titles.size(); i++)
-                    lines.add(theme.styled("statusText", "  " + titles.get(i)) + "  ".repeat(1)
-                                                    + " ".repeat(titleColumn - titles.get(i).length() + 1)
+                    lines.add(theme.styled("statusText", "  " + padRight(titles.get(i), titleColumn)) + "   "
                                                     + theme.styled("commandMeta", metas.get(i)));
             }
         } catch (Exception ignored) {}
@@ -942,8 +939,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             // show cursor (?25h), reset colors (0m).
             // Pop the Kitty keyboard mode first: once it is off, a late key release cannot arrive as a CSI-u
             // sequence that the shell would print as literal text.
-            terminal.writer().print((kittyKeyboard ? KittyKeyboard.DISABLE : "")
-                                            + "\033[?2026l\033[?2004l\033[?7h\033[?25h\033[0m");
+            terminal.writer().print(KittyKeyboard.DISABLE + "\033[?2026l\033[?2004l\033[?7h\033[?25h\033[0m");
             terminal.writer().flush();
         } catch (Exception ignored) {}
         try {
@@ -1310,7 +1306,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     // Reentrant: nested suspend/resume pairs (e.g. transcendence brackets its whole flow, then suspends again around a
     // subprocess launch) only toggle the terminal on the outermost transition.
-    private boolean kittyKeyboard; // the terminal accepted the Kitty keyboard protocol; pop it back off on the way out
     private volatile int suspendDepth = 0;
 
     public void suspendTui() {
@@ -1331,7 +1326,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // Hand a clean terminal to the suspended program / shell-out: end sync (?2026l) + restore autowrap (?7h, which
         // the render loop turns off while drawing) + show cursor + reset colors. resumeTui re-enters raw mode and the
         // next frame re-manages these, so nothing here needs undoing on resume.
-        String kitty = kittyKeyboard ? KittyKeyboard.DISABLE : ""; // hand the shell-out a terminal it understands
+        String kitty = KittyKeyboard.DISABLE; // hand the shell-out a terminal it understands
         terminal.writer().print(freshLine
                                         ? kitty + "\033[?2026l\033[?7h\033[?25h\033[0m\r\n"
                                         : kitty + "\033[?2026l\033[?7h\033[?25h\033[0m");
@@ -1363,10 +1358,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         try {
             originalAttributes = terminal.enterRawMode();
-            if (kittyKeyboard) { // suspendTui popped it; the suspended program has given the terminal back
-                terminal.writer().print(KittyKeyboard.ENABLE);
-                terminal.writer().flush();
-            }
+            terminal.writer().print(KittyKeyboard.ENABLE); // suspendTui popped it; the shell-out has handed back
+            terminal.writer().flush();
         } catch (Exception ignored) {}
         redrawPrompt();
     }
@@ -2497,12 +2490,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // terminal wrap instead and the continuation rows dangle bare at column zero, breaking the block open so a
         // long prompt stops looking like one thing the user said.
         int width = Math.max(20, terminal.getWidth());
+        String rail = theme.styled("promptEcho", "│ ");
         boolean first = true;
         for (String logical : text.split("\\R", -1)) {
-            for (String row : AnsiWidth.wrapPreservingAnsi(logical, Math.max(1, width - 2))) {
-                out.add(theme.styled("promptEcho", first ? "▸ " : "│ ") + row);
-                first = false;
-            }
+            out.addAll(AnsiWidth.wrapPrefixed(logical, width, theme.styled("promptEcho", first ? "▸ " : "│ "),
+                                            row -> rail + row));
+            first = false;
         }
         return out;
     }

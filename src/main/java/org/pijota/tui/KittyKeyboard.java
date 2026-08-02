@@ -1,7 +1,5 @@
 package org.pijota.tui;
 
-import org.jline.terminal.Terminal;
-
 /**
  * The <a href="https://sw.kovidgoyal.net/kitty/keyboard-protocol/">Kitty keyboard protocol</a>, which makes modifiers
  * unambiguous. Without it a terminal cannot say "Shift+Enter" at all, and Esc is indistinguishable from the start of an
@@ -13,52 +11,18 @@ import org.jline.terminal.Terminal;
  * then have to filter to avoid acting on a keypress twice; nothing here needs them.
  *
  * <p>
- * Negotiation follows the sequence Kitty documents: push the flags we want, ask what is now set, then send a plain
- * Device Attributes request as a sentinel. A terminal that speaks the protocol answers the middle query first; one that
- * doesn't skips it and answers only DA, so support is settled by what comes back rather than by a startup timeout.
+ * Nothing is negotiated. Asking the terminal what it supports means blocking the startup path on a reply that may never
+ * come, which is the cost {@code graphemeCluster(false)} exists to avoid, and the answer would change nothing: these
+ * sequences are ignored by terminals that do not implement them, and {@link InputDecoder} reads the legacy and CSI-u
+ * encodings either way. The user-visible test is simpler than a log line -- press Shift+Enter and see whether it
+ * inserts a newline.
  */
 final class KittyKeyboard {
     private KittyKeyboard() {}
 
-    /** Push flag 1 onto the terminal's keyboard-mode stack. */
+    /** Push flag 1 onto the terminal's keyboard-mode stack. Ignored by terminals without the protocol. */
     static final String ENABLE = "\033[>1u";
 
     /** Pop our entry. Safe to send unconditionally: on a terminal that never pushed, it is ignored. */
     static final String DISABLE = "\033[<u";
-
-    private static final String QUERY = ENABLE + "\033[?u\033[c";
-
-    /** Total time to wait for the terminal to answer. A terminal that answers at all answers immediately. */
-    private static final int NEGOTIATION_BUDGET_MS = 150;
-
-    /**
-     * Asks the terminal to enable the protocol and reports whether it did. Consumes the replies so they never reach the
-     * key loop. Never throws and never blocks longer than {@link #NEGOTIATION_BUDGET_MS}: a pipe, a dumb terminal, or a
-     * terminal that ignores both queries simply yields {@code false}.
-     */
-    static boolean negotiate(Terminal terminal) {
-        try {
-            terminal.writer().print(QUERY);
-            terminal.writer().flush();
-            long deadline = System.currentTimeMillis() + NEGOTIATION_BUDGET_MS;
-            var seq = new StringBuilder();
-            while (System.currentTimeMillis() < deadline) {
-                int c = terminal.reader().read(Math.max(1, deadline - System.currentTimeMillis()));
-                if (c < 0)
-                    break;
-                seq.append((char) c);
-                // Both replies are CSI ? ... <final>: 'u' is the protocol's flags report, 'c' the DA sentinel that
-                // means we got all the way to the end without one.
-                if (c == 'u')
-                    return seq.toString().contains("\033[?");
-                if (c == 'c')
-                    return false;
-                if (seq.length() > 64) // not a reply we understand; stop accumulating
-                    break;
-            }
-        } catch (Exception | Error ignored) {
-            // A terminal that cannot be queried is simply one without the protocol.
-        }
-        return false;
-    }
 }

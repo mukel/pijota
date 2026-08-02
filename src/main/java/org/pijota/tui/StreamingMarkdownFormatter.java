@@ -21,8 +21,16 @@ final class StreamingMarkdownFormatter {
     private String pendingTableHeader;
     private boolean inFence;
     private SyntaxHighlighter fenceHighlighter;
-    private boolean previousNonBlank;
-    private boolean lastEmittedBlank; // only consecutive blanks collapse; see addBlank
+    /**
+     * What the last emitted line was. Three states, not two booleans: a leading blank must survive (it separates a
+     * message from the thinking block above it) while a leading heading must not gain one, so "nothing yet" is
+     * genuinely distinct from "a blank" -- and a pair of booleans could also reach a fourth, meaningless combination.
+     */
+    private enum Last {
+        NOTHING, BLANK, CONTENT
+    }
+
+    private Last last = Last.NOTHING;
 
     public StreamingMarkdownFormatter(AnsiTheme theme) {
         this(theme, "text", false, MarkdownStyle.PLAIN);
@@ -63,8 +71,7 @@ final class StreamingMarkdownFormatter {
             return toggleFence(stripped, marker);
         if (inFence) {
             var rendered = List.of(StyledLine.of(renderCodeLine(line)));
-            previousNonBlank = true;
-            lastEmittedBlank = false;
+            last = Last.CONTENT;
             return rendered;
         }
         return renderChunks(acceptMarkdownLine(line));
@@ -84,8 +91,7 @@ final class StreamingMarkdownFormatter {
         quote.clear();
         pendingTableHeader = null;
         leaveFence();
-        previousNonBlank = false;
-        lastEmittedBlank = false;
+        last = Last.NOTHING;
     }
 
     /**
@@ -105,9 +111,8 @@ final class StreamingMarkdownFormatter {
         addBlank(out); // never let a code block butt against the paragraph above it
         if (!language.isBlank()) {
             out.add(fenceLine(language));
-            lastEmittedBlank = false;
+            last = Last.CONTENT;
         }
-        previousNonBlank = true;
         return out;
     }
 
@@ -204,14 +209,14 @@ final class StreamingMarkdownFormatter {
                 addBlank(out);
                 continue;
             }
-            if (previousNonBlank && startsWithHeading(chunk)) {
+            if (last == Last.CONTENT && startsWithHeading(chunk)) {
                 out.add(StyledLine.of(""));
+                last = Last.BLANK;
             }
             var rendered = renderer.render(chunk, defaultTextSlot, defaultItalic);
             out.addAll(rendered);
-            previousNonBlank = rendered.stream().anyMatch(line -> !line.text().isEmpty());
-            if (previousNonBlank)
-                lastEmittedBlank = false;
+            if (rendered.stream().anyMatch(line -> !line.text().isEmpty()))
+                last = Last.CONTENT; // a chunk that rendered to nothing leaves the last emitted line unchanged
         }
         return out;
     }
@@ -242,20 +247,19 @@ final class StreamingMarkdownFormatter {
         };
     }
 
-    /** The language label above a code block; the "codeFence" slot, dim so it introduces without competing. */
     /**
      * One blank line is a paragraph break; a run of them is the same break with extra vertical noise, and models emit
      * runs freely. Only consecutive blanks collapse: a leading blank is kept, because it is what separates a message
      * from the thinking block or tool result above it. Blanks inside a fence never reach this path.
      */
     private void addBlank(List<StyledLine> out) {
-        if (!lastEmittedBlank) {
+        if (last != Last.BLANK) {
             out.add(StyledLine.of(""));
-            lastEmittedBlank = true;
+            last = Last.BLANK;
         }
-        previousNonBlank = false;
     }
 
+    /** The language label above a code block; the "codeFence" slot, dim so it introduces without competing. */
     private StyledLine fenceLine(String text) {
         return StyledLine.of(styled("codeFence", text));
     }

@@ -25,7 +25,8 @@ public final class InputDecoder {
      */
     private static final class Pushback implements Input {
         private final Input delegate;
-        private int pending = Integer.MIN_VALUE;
+        private static final int NONE = Integer.MIN_VALUE;
+        private int pending = NONE;
 
         Pushback(Input delegate) {
             this.delegate = delegate;
@@ -37,27 +38,19 @@ public final class InputDecoder {
 
         @Override
         public int read() throws IOException {
-            return take(() -> delegate.read());
+            return pending != NONE ? take() : delegate.read();
         }
 
         @Override
         public int read(int timeout) throws IOException {
-            return take(() -> delegate.read(timeout));
+            return pending != NONE ? take() : delegate.read(timeout);
         }
 
-        private int take(IoSupplier next) throws IOException {
-            if (pending != Integer.MIN_VALUE) {
-                int ch = pending;
-                pending = Integer.MIN_VALUE;
-                return ch;
-            }
-            return next.get();
+        private int take() {
+            int ch = pending;
+            pending = NONE;
+            return ch;
         }
-    }
-
-    @FunctionalInterface
-    private interface IoSupplier {
-        int get() throws IOException;
     }
 
     private static Input input(Terminal terminal) {

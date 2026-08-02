@@ -17,13 +17,12 @@ A traditional terminal sends keys as bytes, and that encoding has gaps:
 Pijota asks the terminal to use the
 [Kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/),
 which reports the key and its modifiers explicitly, so none of that guessing is
-needed. It is negotiated at startup: pijota requests it, asks what the terminal
-actually enabled, and adapts. Terminals that don't support it are unaffected,
+needed. Terminals that don't support it ignore the request and are unaffected,
 and pijota pops the mode back off on exit and whenever it hands the terminal to
 another program.
 
-To see whether your terminal accepted it, open `/logs` and look for
-`kitty keyboard protocol: enabled`.
+To see whether your terminal took it: press `Shift+Enter`. If it inserts a
+newline instead of submitting, the protocol is active.
 
 ## Terminals that support it
 
