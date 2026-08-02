@@ -123,6 +123,25 @@ class ThemeSlotNamesTest {
     }
 
     /**
+     * The thinking levels name their slots from the enum rather than as {@code styled("literal")}, so {@link #USE}
+     * cannot see them and the check above cannot cover them. It matters: every shipped theme defines the ramp, and
+     * {@code thinkingMax} was nonetheless absent from {@code addExtra}, so the loudest level of the ramp -- the one
+     * that says you are buying maximum reasoning -- was the one that rendered unstyled.
+     */
+    @Test
+    void everyThinkingLevelHasARegisteredSlotThatResolves() throws IOException {
+        Set<String> known = new LinkedHashSet<>(declaredFields());
+        known.addAll(registeredExtras());
+        AnsiTheme theme = AnsiTheme.loadResource("themes/dark.json");
+        for (var level : org.pijota.llm.ThinkingLevel.values()) {
+            assertTrue(known.contains(level.themeSlot()), level + " uses slot \"" + level.themeSlot()
+                                            + "\", which is not registered");
+            assertFalse(theme.style(level.themeSlot()).isEmpty(),
+                                            level + "'s slot resolves to no style, so the level renders unstyled");
+        }
+    }
+
+    /**
      * {@link AnsiTheme#dark()} is the fallback when the theme resource cannot be read -- a real possibility in a native
      * image, where a resource must be registered to be present. It populates no extra slots, so that fallback silently
      * drops link colours, list bullets and custom-message styling with no error anywhere. Pinned rather than fixed: the
