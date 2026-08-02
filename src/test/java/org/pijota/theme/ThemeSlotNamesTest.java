@@ -196,4 +196,50 @@ class ThemeSlotNamesTest {
                                         "AnsiTheme.dark() gained extras; fold this into the resource-loaded test");
     }
 
+    /** Every key name the loader will actually look up in a theme file. */
+    private static Set<String> readableKeys() throws IOException {
+        String src = Files.readString(THEME_SOURCE, StandardCharsets.UTF_8);
+        var names = new TreeSet<>(registeredExtras());
+        var m = Pattern.compile("(?:styled|bg)?[Cc]olor\\(c, vars, \"(\\w+)\"").matcher(src);
+        while (m.find())
+            names.add(m.group(1));
+        return names;
+    }
+
+    /**
+     * The inverse of the checks above: a key a theme file sets that the loader never reads is a colour the author
+     * believes they chose and that nothing renders. Three had accumulated in every file -- border, borderMuted and
+     * mdQuoteBorder -- inherited from another project's schema and quietly inert ever since.
+     */
+    @Test
+    void noShippedThemeSetsAKeyTheLoaderIgnores() throws IOException {
+        Set<String> readable = readableKeys();
+        for (String name : shippedThemes()) {
+            var colors = Util.MAPPER.readTree(Files.readString(Path.of("src/main/resources/themes", name + ".json"),
+                                            StandardCharsets.UTF_8)).path("colors");
+            var dead = new TreeSet<String>();
+            colors.fieldNames().forEachRemaining(k -> {
+                if (!readable.contains(k))
+                    dead.add(k);
+            });
+            assertTrue(dead.isEmpty(), name + ".json sets " + dead + ", which nothing reads: either wire them up in "
+                                            + "AnsiTheme or drop them, but do not ship a colour that renders nothing");
+        }
+    }
+
+    /** A var nothing points at is a colour in the palette that never reaches the screen. */
+    @Test
+    void noShippedThemeCarriesAnUnusedVar() throws IOException {
+        for (String name : shippedThemes()) {
+            var json = Util.MAPPER.readTree(Files.readString(Path.of("src/main/resources/themes", name + ".json"),
+                                            StandardCharsets.UTF_8));
+            String referenced = json.path("colors").toString() + json.path("export").toString();
+            var unused = new TreeSet<String>();
+            json.path("vars").fieldNames().forEachRemaining(v -> {
+                if (!referenced.contains("\"" + v + "\""))
+                    unused.add(v);
+            });
+            assertTrue(unused.isEmpty(), name + ".json defines " + unused + ", which nothing points at");
+        }
+    }
 }

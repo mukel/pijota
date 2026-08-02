@@ -1,7 +1,6 @@
 {
   "name": "dark",
   "vars": {
-    "blue": "#5f87ff",
     "green": "#b5bd68",
     "red": "#cc6666",
     "yellow": "#f0c674",
@@ -19,9 +18,7 @@
   },
   "colors": {
     "accent": "accent",
-    "border": "blue",
     "borderAccent": "accent",
-    "borderMuted": "darkGray",
     "success": "green",
     "error": "red",
     "warning": "yellow",
@@ -49,7 +46,6 @@
     "mdCodeBlock": "green",
     "mdCodeBlockBorder": "gray",
     "mdQuote": "gray",
-    "mdQuoteBorder": "gray",
     "mdHr": "gray",
     "mdListBullet": "accent",
 
@@ -64,8 +60,8 @@
     "syntaxString": "#CE9178",
     "syntaxNumber": "#B5CEA8",
     "syntaxType": "#4EC9B0",
-    "syntaxOperator": "#D4D4D4",
-    "syntaxPunctuation": "#D4D4D4",
+    "syntaxOperator": "text",
+    "syntaxPunctuation": "text",
 
     "thinkingOff": "darkGray",
     "thinkingMinimal": "#6e6e6e",

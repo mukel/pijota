@@ -1,7 +1,6 @@
 {
   "name": "gruvbox-dark",
   "vars": {
-    "bg0": "#282828",
     "bg1": "#3c3836",
     "bg2": "#504945",
     "bg3": "#665c54",
@@ -21,9 +20,7 @@
   },
   "colors": {
     "accent": "orange",
-    "border": "bg2",
     "borderAccent": "yellow",
-    "borderMuted": "bg1",
     "success": "green",
     "error": "red",
     "warning": "yellow",
@@ -49,7 +46,6 @@
     "mdCodeBlock": "fg",
     "mdCodeBlockBorder": "bg2",
     "mdQuote": "gray",
-    "mdQuoteBorder": "bg2",
     "mdHr": "gray",
     "mdListBullet": "orange",
     "toolDiffAdded": "green",

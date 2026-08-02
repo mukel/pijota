@@ -19,9 +19,7 @@
   },
   "colors": {
     "accent": "teal",
-    "border": "blue",
     "borderAccent": "teal",
-    "borderMuted": "lightGray",
     "success": "green",
     "error": "red",
     "warning": "yellow",
@@ -49,7 +47,6 @@
     "mdCodeBlock": "green",
     "mdCodeBlockBorder": "mediumGray",
     "mdQuote": "mediumGray",
-    "mdQuoteBorder": "mediumGray",
     "mdHr": "mediumGray",
     "mdListBullet": "green",
 
@@ -68,7 +65,7 @@
     "syntaxPunctuation": "#000000",
 
     "thinkingOff": "lightGray",
-    "thinkingMinimal": "#767676",
+    "thinkingMinimal": "dimGray",
     "thinkingLow": "blue",
     "thinkingMedium": "teal",
     "thinkingHigh": "#875f87",

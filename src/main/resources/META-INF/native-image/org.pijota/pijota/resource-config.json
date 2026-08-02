@@ -5,7 +5,7 @@
       { "pattern": "models\\.json" },
       { "pattern": "logback\\.xml" },
       { "pattern": "web/.*" },
-      { "pattern": "simplelogger\\.properties" },
+      { "pattern": "browser/.*\\.js" },
       { "pattern": "themes/.*\\.json" },
       { "pattern": "agents/.*\\.md" },
       { "pattern": "META-INF/services/.*" },

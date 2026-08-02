@@ -178,6 +178,17 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <!-- Developer notes about where the vendored browser scripts come from. They belong next to the scripts in the
+             tree, not inside the binary every user downloads: nothing loads them, and the one message that mentions
+             the file names it as a source path to go and read. -->
+        <excludes>
+          <exclude>browser/README.md</exclude>
+        </excludes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <!-- Reads the maven.compiler.release property automatically; no <configuration> needed. -->
