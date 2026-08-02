@@ -117,6 +117,10 @@ public interface ProviderFactory {
             if (thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF) {
                 builder.thinkingType("enabled");
                 builder.thinkingBudgetTokens(thinkingLevel.budgetTokens());
+                // returnThinking defaults to false, so without this the turn is billed for reasoning tokens and the
+                // thinking is discarded before it reaches the handler: no thinking block in the TUI, while /usage
+                // still counts the tokens. The OpenAI-compatible provider above already sets it.
+                builder.returnThinking(true);
             }
             return builder.build();
         }
