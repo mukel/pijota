@@ -16,7 +16,9 @@ class ThemeCommandHandlerTest {
 
         handler.showThemeSelector();
 
-        assertEquals(List.of("no themes found"), host.errors);
+        // An empty list is an answer, not a failure: it must not arrive on the error channel wearing red.
+        assertTrue(host.errors.isEmpty(), "nothing failed: " + host.errors);
+        assertEquals(List.of("no themes found"), host.statuses);
         assertTrue(host.shownThemes.isEmpty());
     }
 
@@ -84,6 +86,7 @@ class ThemeCommandHandlerTest {
         boolean deactivated;
         int redraws;
         final List<String> errors = new ArrayList<>();
+        final List<String> statuses = new ArrayList<>();
 
         @Override
         public List<ThemeItem> discoverThemes() {
@@ -118,6 +121,11 @@ class ThemeCommandHandlerTest {
         @Override
         public void appendError(String message) {
             errors.add(message);
+        }
+
+        @Override
+        public void appendStatus(String message) {
+            statuses.add(message);
         }
 
         @Override

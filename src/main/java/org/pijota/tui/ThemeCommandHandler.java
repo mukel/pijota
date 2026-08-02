@@ -38,7 +38,7 @@ final class ThemeCommandHandler {
     void showThemeSelector(String arg) {
         var items = host.discoverThemes();
         if (items.isEmpty()) {
-            host.appendError("no themes found");
+            host.appendStatus("no themes found"); // an empty list is an answer, not a failure
             return;
         }
         if (arg != null && !arg.isBlank()) {

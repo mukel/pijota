@@ -70,7 +70,22 @@ class TreeRendererTest {
     void renderEmptyTreeShowsNoTurns() {
         var renderer = new TreeRenderer(fakeTheme());
         var lines = renderer.render(List.of(), List.of(), null);
-        assertTrue(lines.stream().anyMatch(l -> l.contains("no user turns yet")));
+        assertTrue(lines.stream().anyMatch(l -> l.contains("no turns yet")), lines.toString());
+    }
+
+    /**
+     * One panel header, like every other panel. The tree used to open with a Title Case heading, a stats line and then
+     * a second "turns" heading -- three rows of chrome and a grammar of its own, where /context and /usage say the same
+     * kind of thing on one row.
+     */
+    @Test
+    void theTreeOpensLikeEveryOtherPanel() {
+        var lines = new TreeRenderer(fakeTheme()).render(List.of(), List.of(), null);
+        assertEquals("", lines.get(0), "a panel claims its line of air");
+        String header = org.pijota.testkit.AnsiStripper.strip(lines.get(1));
+        assertEquals("tree  0 turns · 0 entries · /fork N", header,
+                                        "lowercase title, then ·-joined chips, like every other panel");
+        assertFalse(String.join("\n", lines).contains("Conversation Tree"), "no Title Case heading survives");
     }
 
     @Test

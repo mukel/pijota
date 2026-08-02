@@ -29,7 +29,9 @@ final class DialogHandler {
     CompletableFuture<Boolean> confirm(String question) {
         var future = confirmReq.open();
         host.appendPlain(List.of(host.styled("toolLabel", "confirm"), question));
-        host.setStatus("confirm (y/n)");
+        // Not "confirm (y/n)": the transcript line one row up already says confirm, and a status line is for what to
+        // press. Worded like the prompt dialog's, which never repeated its own name.
+        host.setStatus("y to confirm, n to cancel");
         host.redrawPrompt();
         return future;
     }

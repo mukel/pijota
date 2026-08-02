@@ -234,7 +234,7 @@ final class SessionCommands {
     void copyLastResponse() {
         String last = host.session().lastAssistantContent();
         if (last == null || last.isBlank()) {
-            host.appendPlain(List.of(host.styled("toolError", "no assistant response to copy")));
+            host.appendPlain(List.of(host.styled("statusWarn", "no assistant response to copy")));
             return;
         }
         if (Clipboard.copy(last))
@@ -247,7 +247,7 @@ final class SessionCommands {
 
     void exportSession(String input) {
         if (host.session().sessionFile() == null) {
-            host.appendPlain(List.of(host.styled("toolError", "no active session")));
+            host.appendPlain(List.of(host.styled("statusWarn", "no active session")));
             return;
         }
         String arg = input.startsWith("/export") ? input.substring("/export".length()).trim() : input.trim();

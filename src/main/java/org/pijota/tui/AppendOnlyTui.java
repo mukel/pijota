@@ -359,6 +359,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, ignored -> handleResize());
         // Confirm callbacks point straight at the owning handlers; session/fork keep TUI-local restore logic.
         this.selectors = new TuiSelectors();
+        // One overlay at a time: a selector already owns the screen and filters on this very text, so the completions
+        // popup must not open on top of it.
+        this.promptEditor.setCompletionsAllowed(() -> !selectors.anyActive());
         selectors.bind(TuiSelectors.Slot.MODEL, modelCommands::confirmModelSelection);
         selectors.bind(TuiSelectors.Slot.SESSION, this::confirmSessionSelection);
         selectors.bind(TuiSelectors.Slot.TREE, this::confirmTreeSelection);
@@ -1724,7 +1727,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         var sessions = session.resumableSessions();
         if (sessions.isEmpty()) {
-            appendPlain(List.of(theme.styled("toolError", "no sessions found")));
+            appendStatus("no sessions found");
             return;
         }
         var items = SessionItem.fromPaths(sessions);
@@ -2001,7 +2004,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             restoreRuntimeStateFromSession();
             refreshSessionName();
             if (count == 0) {
-                appendPlain(List.of(theme.styled("toolError", "no messages found in session file")));
+                appendPlain(List.of(theme.styled("statusWarn", "no messages found in session file")));
                 return;
             }
             appendPlain(List.of(theme.styled("statusText",
@@ -2046,7 +2049,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     void showTree(String arg) {
         if (session.sessionFile() == null) {
-            appendPlain(List.of(theme.styled("toolError", "no active session")));
+            appendPlain(List.of(theme.styled("statusWarn", "no active session")));
             return;
         }
         if (arg != null && arg.strip().toLowerCase(Locale.ROOT).startsWith("summarize")) {
@@ -2193,7 +2196,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (refuseWhileBusy("/fork"))
             return;
         if (session.sessionFile() == null) {
-            appendPlain(List.of(theme.styled("toolError", "no active session")));
+            appendPlain(List.of(theme.styled("statusWarn", "no active session")));
             return;
         }
         String arg = input.length() > 5 ? input.substring(5).trim() : "";

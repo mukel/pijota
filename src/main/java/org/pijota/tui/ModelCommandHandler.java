@@ -45,7 +45,7 @@ final class ModelCommandHandler {
             return;
         }
         if (models.isEmpty()) {
-            host.appendPlain(List.of(host.styled("toolError", "no models found"), host.styled("statusText",
+            host.appendPlain(List.of(host.styled("statusText", "no models found"), host.styled("commandMeta",
                                             "run /login, set an API key, or /refresh models")));
             return;
         }

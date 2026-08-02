@@ -96,7 +96,7 @@ final class LoginCommandHandler {
                                         store.getAccessToken(p.id()) != null ? "logged in" : "not logged in", false))
                                         .toList();
         if (items.isEmpty()) {
-            host.appendError("no providers to log out");
+            host.appendStatus("no providers to log out");
             return;
         }
         mode = Mode.LOGOUT;

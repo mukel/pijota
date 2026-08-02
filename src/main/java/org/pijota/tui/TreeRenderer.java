@@ -25,17 +25,19 @@ final class TreeRenderer {
         var tree = buildTreeView(treeEntries);
         var activePath = entryIds(branchEntries);
 
-        var lines = new ArrayList<String>();
-        lines.add(theme.styled("toolLabel", "Conversation Tree"));
+        // One panel header, like every other panel: lowercase title, ·-joined chips. It used to open with a Title Case
+        // heading, a stats line and then a second "turns" heading -- three rows of chrome and a grammar of its own,
+        // where /context and /usage say the same kind of thing on one.
         long totalTokens = totalTokens(tree.entries());
-        lines.add(theme.styled("statusText", tree.userCount() + " turns · " + tree.entries().size() + " entries"
-                                        + (totalTokens > 0 ? " · ~" + SessionDescriptor.formatTokens(totalTokens) : "")
-                                        + " · /fork N"));
-        lines.add("");
-        lines.add(theme.styled("statusText", "turns"));
+        var report = new Report(theme::styled, "tree").chip(Util.count(tree.userCount(), "turn", "turns"))
+                                        .chip(Util.count(tree.entries().size(), "entry", "entries"));
+        if (totalTokens > 0)
+            report.chip("~" + SessionDescriptor.formatTokens(totalTokens));
+        report.chip("/fork N");
+        var lines = new ArrayList<>(report.render());
         var rootTurns = firstUserDescendants(tree.roots(), tree.children());
         if (rootTurns.isEmpty()) {
-            lines.add(theme.styled("statusText", "no user turns yet"));
+            lines.add(theme.styled("commandMeta", "  no turns yet"));
         } else {
             // a single start renders flat (no connector) until it forks; multiple starts are themselves a root fork
             boolean single = rootTurns.size() == 1;

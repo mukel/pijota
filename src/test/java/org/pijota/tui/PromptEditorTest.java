@@ -395,4 +395,38 @@ class PromptEditorTest {
         assertEquals("", editor.text(), "Ctrl+_ puts the empty prompt back");
     }
 
+    /**
+     * A selector filters on the prompt text, so typing reaches the editor while one is open -- and the editor used to
+     * open a second overlay on top of it. Both then drew their own "Enter select" footer, the status line described a
+     * third behaviour, and Enter did nothing at all: the only way out was Esc.
+     */
+    @Test
+    void noCompletionsOpenWhileSomethingElseOwnsTheScreen() {
+        var selectorOpen = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var editor = new PromptEditor(new SlashCommandRegistry());
+        editor.setCompletionsAllowed(() -> !selectorOpen.get());
+
+        editor.insertText("/sess");
+        assertFalse(editor.hasCompletions(), "a second overlay must not open over the first");
+
+        selectorOpen.set(false);
+        editor.setText("");
+        editor.insertText("/sess");
+        assertTrue(editor.hasCompletions(), "and they come back the moment the screen is free");
+    }
+
+    /** Whatever was already open closes rather than lingering behind the thing that took over. */
+    @Test
+    void completionsAlreadyOpenAreDroppedWhenTheScreenIsTakenOver() {
+        var selectorOpen = new java.util.concurrent.atomic.AtomicBoolean(false);
+        var editor = new PromptEditor(new SlashCommandRegistry());
+        editor.setCompletionsAllowed(() -> !selectorOpen.get());
+
+        editor.insertText("/sess");
+        assertTrue(editor.hasCompletions());
+
+        selectorOpen.set(true);
+        editor.insertText("i"); // the selector filters on this keystroke; the popup must not survive it
+        assertFalse(editor.hasCompletions());
+    }
 }

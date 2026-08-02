@@ -26,6 +26,7 @@ public final class PromptEditor {
     private final PromptCompletionPolicy completionPolicy;
     private final PromptTextBuffer buffer = new PromptTextBuffer();
     private final PromptCompletionState completions = new PromptCompletionState();
+    private java.util.function.BooleanSupplier completionsAllowed = () -> true;
     private final PromptHistory history = new PromptHistory();
     private final UndoStack undoStack = new UndoStack();
     private final KillRing killRing = new KillRing();
@@ -44,6 +45,19 @@ public final class PromptEditor {
 
     PromptEditor(SlashCommandRegistry commands, PromptFileCompletionProvider fileCompletionProvider) {
         this.completionPolicy = new PromptCompletionPolicy(commands, fileCompletionProvider);
+    }
+
+    /**
+     * When the completions popup may open. The editor cannot see the rest of the interface, and it must not: the TUI
+     * knows when something else already owns the screen and says so here.
+     *
+     * <p>
+     * A selector filters on the prompt text, so typing reaches the editor while one is open -- and the editor happily
+     * opened a second overlay on top. Both then drew their own "Enter select" footer, the status line described a third
+     * behaviour, and Enter did nothing at all, leaving Esc as the only way out.
+     */
+    synchronized void setCompletionsAllowed(java.util.function.BooleanSupplier allowed) {
+        this.completionsAllowed = allowed == null ? () -> true : allowed;
     }
 
     public synchronized Result apply(Key key) {
@@ -358,6 +372,11 @@ public final class PromptEditor {
     }
 
     private void refreshCompletions() {
+        if (!completionsAllowed.getAsBoolean()) {
+            completions.clear();
+            suggestion = "";
+            return;
+        }
         if (reverseHistoryActive()) {
             // Reverse-i-search: the buffer text is the live query, narrowing history to matches as the user types
             // (readline feel), instead of a static list. Pre-filter (the dropdown renders the passed list directly);
