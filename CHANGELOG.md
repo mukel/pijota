@@ -11,7 +11,9 @@ it is doing, and what it can do.
 - **Next-message suggestion** (`--suggest`, off by default). After a turn, the
   message you are most likely to type next appears as ghost text; Tab accepts it,
   Enter never does. It reuses the turn's cached prefix, so it costs a fraction of
-  a fresh request, and it is answered by the session's own model. In the TUI and
+  a fresh request, and it is answered by the session's own model -- though never
+  at the session's reasoning effort, since thinking is the entire delay before a
+  suggestion appears and none of it improves a five-word sentence. In the TUI and
   in the web UI, where a tap accepts it instead.
 - **`--mode json` streams events** as NDJSON while the run happens, instead of one
   blob at the end, so a wrapper can follow along.

@@ -266,9 +266,19 @@ public final class ArgParser {
             return args[++i];
         }
 
-        /** An optional value, consumed only if the next token isn't itself a flag (a leading {@code -}); else null. */
+        /**
+         * An optional value, consumed only if the next token isn't itself a flag (a leading {@code -}) and isn't a
+         * frontend subcommand; else null.
+         *
+         * <p>
+         * The subcommand guard is not a nicety. {@code pijota --suggest web 127.0.0.1:8080} used to hand "web" to
+         * {@code --suggest} as its guidance text, leaving no subcommand at all: the address fell through to the prompt
+         * and pijota quietly ran one headless turn asking the model about {@code 127.0.0.1:8080} instead of serving
+         * anything on it. Nothing in that is expressible on purpose -- the documented way to pass a value is
+         * {@code --flag=value} -- so the token that names a frontend always keeps its meaning.
+         */
         String optionalValue() {
-            if (i + 1 >= args.length || args[i + 1].startsWith("-"))
+            if (i + 1 >= args.length || args[i + 1].startsWith("-") || FRONTEND_SUBCOMMANDS.contains(args[i + 1]))
                 return null;
             return args[++i];
         }

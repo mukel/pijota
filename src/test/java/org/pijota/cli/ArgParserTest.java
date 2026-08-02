@@ -395,6 +395,28 @@ class ArgParserTest {
         assertEquals("true", args.extensionFlags().get("web"));
     }
 
+    /**
+     * Regression: a value-optional flag before the subcommand used to eat it.
+     * {@code pijota --suggest web 127.0.0.1:8080} gave "web" to --suggest as its guidance, left no frontend at all, and
+     * the address fell through to the prompt, so pijota ran one headless turn asking the model about an address instead
+     * of serving anything on it.
+     */
+    @Test
+    void aValueOptionalFlagDoesNotSwallowTheFrontendSubcommand() {
+        var args = ArgParser.parse(new String[] {"--suggest", "web", "127.0.0.1:8080"});
+
+        assertEquals("true", args.extensionFlags().get("suggest"), "the bare on-switch, not the word \"web\"");
+        assertEquals("127.0.0.1:8080", args.extensionFlags().get("web"), "the frontend still gets its address");
+        assertEquals(0, args.promptArgs().size(), "and nothing is left over to be mistaken for a prompt");
+    }
+
+    /** The documented way to pass a value still passes any value, including one that names a frontend. */
+    @Test
+    void anExplicitValueIsStillTakenVerbatim() {
+        var args = ArgParser.parse(new String[] {"--suggest=web"});
+        assertEquals("web", args.extensionFlags().get("suggest"));
+    }
+
     @Test
     void frontendSubcommandTuiIsDefaultNoOp() {
         var args = ArgParser.parse(new String[] {"tui"});
