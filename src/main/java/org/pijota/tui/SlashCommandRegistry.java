@@ -27,6 +27,9 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/context", "Show token usage breakdown"),
                                     new CompletionItem("/usage", "Show cumulative tokens and cost"),
                                     new CompletionItem("/dequeue", "Restore queued follow-up to editor"),
+                                    // Listed because the people who need it most are exactly the ones the advertised
+                                    // shortcut fails for: inside tmux, Ctrl+B is tmux's own prefix.
+                                    new CompletionItem("/bg", "Move the running tool to the background"),
                                     new CompletionItem("/undo", "Edit previous message"),
                                     new CompletionItem("/copy", "Copy last assistant response"),
                                     new CompletionItem("/new", "Start a new session"),
