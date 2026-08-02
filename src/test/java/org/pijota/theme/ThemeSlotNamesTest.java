@@ -8,11 +8,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
+import org.pijota.util.Util;
 
 import org.junit.jupiter.api.Test;
 
@@ -59,6 +62,23 @@ class ThemeSlotNamesTest {
         return names;
     }
 
+    /**
+     * Every theme the build ships, not a hardcoded pair. These checks named "dark" and "light" and so had nothing to
+     * say about the other two -- which is how both gruvbox themes came to define the whole thinking ramp except its
+     * loudest step, leaving max effort rendering unstyled in them while dark and light were fine.
+     */
+    private static List<String> shippedThemes() throws IOException {
+        try (var files = Files.list(Path.of("src/main/resources/themes"))) {
+            return files.map(p -> p.getFileName().toString()).filter(n -> n.endsWith(".json"))
+                                            .map(n -> n.substring(0, n.length() - ".json".length())).sorted().toList();
+        }
+    }
+
+    @Test
+    void thereAreThemesToCheck() throws IOException {
+        assertFalse(shippedThemes().isEmpty(), "no bundled themes found; these checks would all be vacuous");
+    }
+
     private static Stream<Path> mainSources() throws IOException {
         try (var walk = Files.walk(MAIN)) {
             return walk.filter(p -> p.toString().endsWith(".java")).toList().stream();
@@ -85,13 +105,13 @@ class ThemeSlotNamesTest {
     }
 
     /**
-     * An extra slot absent from a shipped theme silently renders unstyled, and the two built-ins are what the default
-     * look is. A theme file left out {@code mdListBullet} once; nothing failed, bullets just stopped being coloured.
+     * An extra slot absent from a shipped theme silently renders unstyled. A theme file left out {@code mdListBullet}
+     * once; nothing failed, bullets just stopped being coloured.
      */
     @Test
-    void theBuiltInThemesDefineEveryExtraSlot() throws IOException {
+    void everyShippedThemeDefinesEveryExtraSlot() throws IOException {
         Set<String> extras = registeredExtras();
-        for (String theme : new String[] {"dark", "light"}) {
+        for (String theme : shippedThemes()) {
             Path file = Path.of("src/main/resources/themes", theme + ".json");
             assertTrue(Files.exists(file), file + " is missing");
             String json = Files.readString(file, StandardCharsets.UTF_8);
@@ -112,9 +132,9 @@ class ThemeSlotNamesTest {
      * at all and exists only as the fallback for a theme resource that cannot be read.
      */
     @Test
-    void everyExtraSlotResolvesToARealStyleInTheBuiltInThemes() throws IOException {
+    void everyExtraSlotResolvesToARealStyleInEveryShippedTheme() throws IOException {
         Set<String> extras = registeredExtras();
-        for (String name : new String[] {"dark", "light"}) {
+        for (String name : shippedThemes()) {
             AnsiTheme theme = AnsiTheme.loadResource("themes/" + name + ".json");
             var unstyled = extras.stream().filter(slot -> theme.style(slot).isEmpty()).toList();
             assertTrue(unstyled.isEmpty(), () -> name + ".json: these resolve to no escape sequence, so an extension "
@@ -132,12 +152,34 @@ class ThemeSlotNamesTest {
     void everyThinkingLevelHasARegisteredSlotThatResolves() throws IOException {
         Set<String> known = new LinkedHashSet<>(declaredFields());
         known.addAll(registeredExtras());
-        AnsiTheme theme = AnsiTheme.loadResource("themes/dark.json");
-        for (var level : org.pijota.llm.ThinkingLevel.values()) {
-            assertTrue(known.contains(level.themeSlot()), level + " uses slot \"" + level.themeSlot()
-                                            + "\", which is not registered");
-            assertFalse(theme.style(level.themeSlot()).isEmpty(),
-                                            level + "'s slot resolves to no style, so the level renders unstyled");
+        for (String name : shippedThemes()) {
+            AnsiTheme theme = AnsiTheme.loadResource("themes/" + name + ".json");
+            for (var level : org.pijota.llm.ThinkingLevel.values()) {
+                assertTrue(known.contains(level.themeSlot()), level + " uses slot \"" + level.themeSlot()
+                                                + "\", which is not registered");
+                assertFalse(theme.style(level.themeSlot()).isEmpty(), name + ": " + level
+                                                + " resolves to no style, so that effort level renders unstyled");
+            }
+        }
+    }
+
+    /**
+     * The ramp must climb. Its whole job is to say at a glance how much reasoning is being bought, so a step that is
+     * quieter than the one below it is worse than no colour at all -- and appending a missing top step to a ramp that
+     * already ended on the loudest colour is exactly how that happens.
+     */
+    @Test
+    void theThinkingRampNeverGetsQuieterAsEffortRises() throws IOException {
+        for (String name : shippedThemes()) {
+            var json = Util.MAPPER.readTree(Files.readString(Path.of("src/main/resources/themes", name + ".json"),
+                                            StandardCharsets.UTF_8));
+            var seen = new java.util.LinkedHashSet<String>();
+            for (var level : org.pijota.llm.ThinkingLevel.values()) {
+                String raw = json.path("colors").path(level.themeSlot()).asText("");
+                String hex = raw.startsWith("#") ? raw : json.path("vars").path(raw).asText(raw);
+                assertTrue(seen.add(hex), name + ": " + level + " reuses " + hex + ", so two effort levels are "
+                                                + "indistinguishable");
+            }
         }
     }
 

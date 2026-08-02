@@ -113,6 +113,10 @@ public final class AppBootstrap {
             effectiveThinking = settings.config().thinkingLevel();
         }
         if (effectiveThinking != null && !effectiveThinking.isBlank()) {
+            // Settings were never checked, so the same typo that --thinking rejects out loud was coerced to medium in
+            // silence: the file said one thing, every turn did another, and nothing ever said so.
+            if (!ThinkingLevel.isKnown(effectiveThinking))
+                System.err.println(ThinkingLevel.unknownValueMessage("thinking_level", effectiveThinking));
             llm.setThinkingLevel(ThinkingLevel.fromString(effectiveThinking));
         }
 

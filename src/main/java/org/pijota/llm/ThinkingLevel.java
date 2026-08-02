@@ -46,6 +46,26 @@ public enum ThinkingLevel {
         };
     }
 
+    /** The spellings a user may write, in ramp order, for anything that has to say what it expected. */
+    public static java.util.List<String> names() {
+        return java.util.Arrays.stream(values()).map(ThinkingLevel::label).toList();
+    }
+
+    /**
+     * Whether {@code s} names a level. {@link #fromString} answers MEDIUM for a blank <em>and</em> for a typo, which is
+     * the right default but the wrong silence: a caller that has a user's own words in hand should be able to say it
+     * did not recognise them.
+     */
+    public static boolean isKnown(String s) {
+        return s != null && names().contains(s.trim().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** One wording for "that is not a level", so the flag and the settings file report a typo the same way. */
+    public static String unknownValueMessage(String source, String value) {
+        return "pijota: unknown " + source + " '" + value + "' (expected: " + String.join(", ", names()) + "), using "
+                                        + MEDIUM.label();
+    }
+
     public static ThinkingLevel fromString(String s) {
         if (s == null || s.isBlank())
             return MEDIUM;

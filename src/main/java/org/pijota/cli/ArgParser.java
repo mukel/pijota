@@ -3,6 +3,7 @@ package org.pijota.cli;
 import org.pijota.cli.Args.OutputMode;
 import org.pijota.extensions.BuiltinExtensions;
 import org.pijota.llm.ModelRegistry;
+import org.pijota.llm.ThinkingLevel;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -292,14 +293,10 @@ public final class ArgParser {
         };
     }
 
-    private static final List<String> THINKING_LEVELS = List.of("off", "minimal", "low", "medium", "high", "xhigh",
-                                    "max");
-
     /** Warns on an unrecognized --thinking value (still defaulted downstream) so typos don't pass silently. */
     private static String checkThinking(String level) {
-        if (!THINKING_LEVELS.contains(level.toLowerCase()))
-            System.err.println("pijota: unknown --thinking '" + level + "' (expected: "
-                                            + String.join(", ", THINKING_LEVELS) + "), using medium");
+        if (!ThinkingLevel.isKnown(level))
+            System.err.println(ThinkingLevel.unknownValueMessage("--thinking", level));
         return level;
     }
 

@@ -69,7 +69,8 @@
     "thinkingLow": "blue",
     "thinkingMedium": "aqua",
     "thinkingHigh": "purple",
-    "thinkingXhigh": "red",
+    "thinkingXhigh": "orange",
+    "thinkingMax": "red",
     "bashMode": "green"
   },
   "export": {
