@@ -51,7 +51,12 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             return "";
         int newline = suggestion.indexOf('\n');
         String firstLine = newline >= 0 ? suggestion.substring(0, newline) : suggestion;
-        return AnsiWidth.truncateVisual(firstLine, room);
+        if (AnsiWidth.visibleWidth(firstLine) <= room)
+            return firstLine;
+        // A clipped suggestion with no cue reads as a finished one -- "explain what divide does in one" looks like the
+        // whole thought rather than the first two thirds of it. The ellipsis says there is more, and Tab still accepts
+        // the full text: the clip is display only.
+        return room <= 1 ? "…" : AnsiWidth.truncateVisual(firstLine, room - 1) + "…";
     }
 
     /**

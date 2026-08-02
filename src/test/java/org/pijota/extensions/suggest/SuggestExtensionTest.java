@@ -17,7 +17,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class SuggestExtensionTest {
 
@@ -130,4 +134,63 @@ class SuggestExtensionTest {
                                         "the turn hook is registered when a draft exists");
         assertEquals(0, llm.calls.get(), "but nothing is spent until a turn actually ends");
     }
+    // ---- customising the prompt ---------------------------------------------------------------------------------
+
+    private static SuggestExtension withFlag(String value) {
+        var runtime = new FakeExtensionRuntime();
+        runtime.setFlag("suggest", value);
+        var ext = new SuggestExtension();
+        ext.init(new FakeExtensionAPI(runtime));
+        return ext;
+    }
+
+    @Test
+    void theBuiltInGuidanceIsUsedWhenNothingIsConfigured() {
+        String instruction = withFlag("true").instruction();
+        assertTrue(instruction.contains("most likely to type next"), instruction);
+        assertTrue(instruction.contains("2 to 12 words"), "the format rules are always present");
+    }
+
+    @Test
+    void aCustomPromptReplacesTheGuidance() {
+        String instruction = withFlag("Only ever suggest running tests.").instruction();
+        assertTrue(instruction.startsWith("Only ever suggest running tests."), instruction);
+        assertFalse(instruction.contains("most likely to type next"), "the built-in guidance is replaced");
+    }
+
+    /**
+     * The format rules survive a custom prompt on purpose: SuggestionText rejects a reply that breaks them, so a prompt
+     * without them would produce output that is silently discarded -- which reads as the setting not working.
+     */
+    @Test
+    void theFormatRulesSurviveACustomPrompt() {
+        String instruction = withFlag("Say whatever you like, at length.").instruction();
+        assertTrue(instruction.contains("2 to 12 words"), instruction);
+        assertTrue(instruction.contains("nothing at all"), "including the say-nothing escape");
+    }
+
+    @Test
+    void aValueNamingAFileIsReadFromIt(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("SUGGEST.md");
+        Files.writeString(file, "Suggest only git operations.");
+
+        String instruction = withFlag(file.toString()).instruction();
+
+        assertTrue(instruction.startsWith("Suggest only git operations."), "a long prompt can live in a file");
+        assertTrue(instruction.contains("2 to 12 words"));
+    }
+
+    @Test
+    void aValueThatIsNotAFileIsTakenLiterally() {
+        String instruction = withFlag("/definitely/not/a/real/path/anywhere").instruction();
+        assertTrue(instruction.startsWith("/definitely/not/a/real/path/anywhere"), "no crash, no empty prompt");
+    }
+
+    @Test
+    void theBareOnSwitchIsNotMistakenForAPrompt() {
+        for (String on : new String[] {"true", "TRUE", "  ", ""})
+            assertTrue(withFlag(on).instruction().contains("most likely to type next"),
+                                            "\"" + on + "\" is the on-switch, not guidance");
+    }
+
 }

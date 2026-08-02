@@ -7,9 +7,13 @@ import org.pijota.extensions.ExtensionRuntime;
 import org.pijota.extensions.UiContext;
 import org.pijota.messages.Message;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -30,14 +34,27 @@ public final class SuggestExtension implements Extension {
     /** Beyond this the user has moved on and a suggestion would arrive as an interruption. */
     private static final long TIMEOUT_SECONDS = 5;
 
-    private static final String INSTRUCTION = """
+    /** What to suggest. Replaceable by the user; see {@link #instruction}. */
+    static final String GUIDANCE = """
                                     Reply with the single message the user is most likely to type next, and nothing else.
 
-                                    Rules:
-                                    - 2 to 12 words, in the user's own style, as an instruction to you
-                                    - no questions, no explanations, no quotes, no trailing period
+                                    - in the user's own style, as an instruction to you
                                     - never answer as yourself ("I'll...", "Let me...", "Sure...")
                                     - never propose an idea the conversation does not already point to
+                                    - never repeat or rephrase something already asked; suggest the step after it
+                                    - prefer the step the user must take, not one you already took for them
+                                    """;
+
+    /**
+     * Always appended, including after a user's own guidance. These are not style preferences: {@link SuggestionText}
+     * rejects a reply that breaks them, so a custom prompt without them would produce output that is silently thrown
+     * away, which reads as the setting not working.
+     */
+    static final String FORMAT = """
+
+                                    Format, always:
+                                    - 2 to 12 words, one line, no quotes, no trailing period
+                                    - no questions, no explanations
                                     - reply with nothing at all if the next step is not obvious, or if it touches
                                       credentials, security, destructive actions, or private data
                                     """;
@@ -58,7 +75,9 @@ public final class SuggestExtension implements Extension {
 
     @Override
     public String description() {
-        return "After a turn, suggest the next message as ghost text; Tab accepts it. Enable with --suggest.";
+        return "After a turn, suggest the next message as ghost text; Tab accepts it. Enable with --suggest, and "
+                                        + "customise the instruction with --suggest=<text|file> or the \"suggest\" "
+                                        + "entry under \"extensions\" in settings.json.";
     }
 
     @Override
@@ -86,13 +105,41 @@ public final class SuggestExtension implements Extension {
         api.on(ExtensionEvent.AgentEnd.class, ignored -> suggest(ui));
     }
 
+    /**
+     * The instruction sent to the model. {@code --suggest=<text>} (or {@code "extensions": {"suggest": "<text>"}})
+     * replaces the guidance; a value naming a readable file is read from it, so a long prompt can live in a file rather
+     * than on a command line. The format rules are appended either way.
+     */
+    String instruction() {
+        return customGuidance().orElse(GUIDANCE).strip() + FORMAT;
+    }
+
+    private Optional<String> customGuidance() {
+        var flag = api == null ? Optional.<String>empty() : api.runtime().getFlag(name());
+        // "true"/"" is the plain on-switch, not a prompt.
+        return flag.map(String::strip).filter(v -> !v.isEmpty() && !v.equalsIgnoreCase("true"))
+                                        .map(SuggestExtension::textOrFileContents);
+    }
+
+    /** A value that names a readable file is its contents; anything else is the text itself. */
+    private static String textOrFileContents(String value) {
+        try {
+            Path path = Path.of(value.startsWith("~/") ? System.getProperty("user.home") + value.substring(1) : value);
+            if (Files.isRegularFile(path))
+                return Files.readString(path, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            // Not a usable path (too long, illegal characters, unreadable): treat it as the prompt text.
+        }
+        return value;
+    }
+
     private void suggest(UiContext ui) {
         CompletableFuture.supplyAsync(() -> {
             var llm = api.runtime().llm();
             var messages = new ArrayList<Message>(api.runtime().messages());
             if (messages.isEmpty())
                 return "";
-            messages.add(new Message.User(UUID.randomUUID(), Instant.now(), INSTRUCTION, List.of()));
+            messages.add(new Message.User(UUID.randomUUID(), Instant.now(), instruction(), List.of()));
             // No tools: the reply is a sentence, and a tool call here would be meaningless.
             String reply = llm.streamMessages(messages, List.of(), (a, b) -> {}).join().content();
             log.debug("suggest: model replied {}", reply == null ? "null" : "\"" + reply.strip() + "\"");

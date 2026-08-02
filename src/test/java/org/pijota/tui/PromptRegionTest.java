@@ -97,11 +97,41 @@ class PromptRegionTest {
     @Test
     void ghostTextClipsToFirstLineAndWidth() {
         assertEquals("llo world", PromptRegion.ghostText("llo world", 20)); // fits → unchanged
-        String clipped = PromptRegion.ghostText("llo world", 3); // clipped (truncateVisual appends an ANSI reset)
-        assertTrue(clipped.startsWith("llo"));
+        String clipped = PromptRegion.ghostText("llo world", 3);
+        assertTrue(clipped.startsWith("ll"), clipped);
+        assertTrue(clipped.endsWith("…"), "a clipped ghost says so, even when the room is tiny: " + clipped);
         assertTrue(AnsiWidth.visibleWidth(clipped) <= 3);
         assertEquals("abc", PromptRegion.ghostText("abc\ndef", 10)); // first line only, fits → unchanged
         assertEquals("", PromptRegion.ghostText("anything", 0)); // no room
         assertEquals("", PromptRegion.ghostText(null, 5));
     }
+
+    @Test
+    void aGhostThatFitsIsShownWhole() {
+        assertEquals("run the tests", PromptRegion.ghostText("run the tests", 20));
+        assertEquals("run the tests", PromptRegion.ghostText("run the tests", 13), "exactly fitting is not clipped");
+    }
+
+    /**
+     * Without a cue, a clipped suggestion reads as a finished one. Tab still accepts the full text -- the clip is
+     * display only -- so the ellipsis is what tells the user the rest exists.
+     */
+    @Test
+    void aClippedGhostSaysThereIsMore() {
+        String ghost = PromptRegion.ghostText("explain what divide does in one short sentence", 20);
+        assertEquals(20, AnsiWidth.visibleWidth(ghost), "never wider than the room it was given");
+        assertTrue(ghost.endsWith("…"), "the cue that there is more: " + ghost);
+    }
+
+    @Test
+    void aGhostWithNoRoomDegradesRatherThanOverflowing() {
+        assertEquals("", PromptRegion.ghostText("anything", 0));
+        assertEquals("…", PromptRegion.ghostText("anything", 1));
+    }
+
+    @Test
+    void onlyTheFirstLineOfAGhostIsEverDrawn() {
+        assertEquals("first", PromptRegion.ghostText("first\nsecond", 20), "a newline would break the frame");
+    }
+
 }
