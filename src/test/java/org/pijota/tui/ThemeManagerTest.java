@@ -53,9 +53,9 @@ class ThemeManagerTest {
         var host = new FakeHost(AnsiTheme.dark());
         var manager = new ThemeManager(host);
 
-        manager.switchTo("catppuccin-mocha");
+        manager.switchTo("gruvbox-dark");
 
-        assertEquals("catppuccin-mocha", host.theme.name);
+        assertEquals("gruvbox-dark", host.theme.name);
         assertTrue(host.statuses.stream().anyMatch(s -> s.contains("switched")),
                                         "expected status message about switching theme, got " + host.statuses);
     }
@@ -121,15 +121,15 @@ class ThemeManagerTest {
         String previousHome = System.getProperty("user.home");
         System.setProperty("user.home", tmp.toString());
         try {
-            var host = new FakeHost(AnsiTheme.loadResource("themes/catppuccin-mocha.json"));
+            var host = new FakeHost(AnsiTheme.loadResource("themes/gruvbox-dark.json"));
             var manager = new ThemeManager(host);
 
             var items = manager.discover();
 
             var names = items.stream().map(ThemeItem::name).toList();
-            assertTrue(names.contains("catppuccin-mocha"), "expected builtin 'catppuccin-mocha', got " + names);
+            assertTrue(names.contains("gruvbox-dark"), "expected builtin 'gruvbox-dark', got " + names);
             assertTrue(names.contains("mytheme"), "expected file theme 'mytheme', got " + names);
-            assertTrue(items.stream().anyMatch(i -> "catppuccin-mocha".equals(i.name()) && i.current()),
+            assertTrue(items.stream().anyMatch(i -> "gruvbox-dark".equals(i.name()) && i.current()),
                                             "expected current theme to be marked");
         } finally {
             System.setProperty("user.home", previousHome);
@@ -183,7 +183,7 @@ class ThemeManagerTest {
             var manager = new ThemeManager(host);
             var items = manager.discover();
             var names = items.stream().map(ThemeItem::name).toList();
-            assertTrue(names.contains("catppuccin-mocha"));
+            assertTrue(names.contains("light"));
             assertTrue(names.contains("gruvbox-dark"));
             assertFalse(names.contains("custom"));
         } finally {

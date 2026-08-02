@@ -93,8 +93,7 @@ final class ThemeManager {
      * filesystem view, and a jar/classpath scan silently returns nothing there, so only the code-fallback dark/light
      * would show. {@code ThemeManagerTest} cross-checks this list against the actual files to catch drift.
      */
-    static final List<String> BUILTIN_THEMES = List.of("catppuccin-frappe", "catppuccin-latte", "catppuccin-macchiato",
-                                    "catppuccin-mocha", "dark", "gruvbox-dark", "gruvbox-light", "light");
+    static final List<String> BUILTIN_THEMES = List.of("dark", "gruvbox-dark", "gruvbox-light", "light");
 
     private static List<String> builtinNames() {
         return BUILTIN_THEMES;
