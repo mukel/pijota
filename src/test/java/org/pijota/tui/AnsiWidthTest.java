@@ -55,11 +55,6 @@ class AnsiWidthTest {
     }
 
     @Test
-    void visibleWidthZwjSequence() {
-        assertEquals(1, AnsiWidth.visibleWidth("\u200D"));
-    }
-
-    @Test
     void truncateVisualEmptyWhenMaxZeroOrNegative() {
         assertEquals("", AnsiWidth.truncateVisual("hello", 0));
         assertEquals("", AnsiWidth.truncateVisual("hello", -1));
@@ -398,5 +393,34 @@ class AnsiWidthTest {
         for (String row : lines)
             assertTrue(AnsiWidth.visibleWidth(row) <= 10, "row exceeds width: " + row);
         assertEquals("alpha beta", stripAnsi(lines.get(0)));
+    }
+
+    /**
+     * A variation selector, a joiner, a skin-tone modifier and a combining accent all modify the character before them
+     * and take no cell of their own. U+FE0F was counted as one, which is what a user saw: in a rendered markdown table
+     * a cell holding {@code \u26a0\ufe0f} measured 3 where the terminal drew 2, so it was padded one space short and
+     * its column separator sat a column left of every other row's.
+     */
+    @Test
+    void codepointsThatModifyTheCharacterBeforeThemTakeNoCell() {
+        assertEquals(0, AnsiWidth.visibleWidth("\ufe0f"), "variation selector-16");
+        assertEquals(0, AnsiWidth.visibleWidth("\u200d"), "zero-width joiner");
+        assertEquals(2, AnsiWidth.visibleWidth("\u26a0\ufe0f"), "the warning sign the table row was misaligned by");
+        assertEquals(1, AnsiWidth.visibleWidth("e\u0301"), "e + combining acute is one cell, not two");
+        assertEquals(2, AnsiWidth.visibleWidth("\ud83d\udc4d\ud83c\udffd"), "thumbs up + skin tone is one glyph");
+    }
+
+    /** U+FE0F asks for the emoji rendering of the character before it, which is always the two-cell one. */
+    @Test
+    void anEmojiPresentationSelectorWidensANarrowBase() {
+        assertEquals(1, AnsiWidth.visibleWidth("\u2194"), "the arrow alone is text presentation, one cell");
+        assertEquals(2, AnsiWidth.visibleWidth("\u2194\ufe0f"), "with the selector the terminal draws the emoji");
+    }
+
+    /** The defect as it was reported: two table cells that must pad to the same column. */
+    @Test
+    void emojiCellsOfTheSameGlyphCountMeasureTheSame() {
+        assertEquals(AnsiWidth.visibleWidth("\u2705 works"), AnsiWidth.visibleWidth("\u26a0\ufe0f works"),
+                                        "one emoji plus the same word must occupy the same columns");
     }
 }

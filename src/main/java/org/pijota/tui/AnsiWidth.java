@@ -26,10 +26,33 @@ final class AnsiWidth {
         return width;
     }
 
+    /**
+     * Codepoints that take no cell of their own because they modify the one before them: the joiner and the zero-width
+     * marks, the variation selectors, the skin-tone modifiers, the flag tag characters, and every combining mark.
+     *
+     * <p>
+     * U+FE0F was the one that showed: counted as a cell, {@code ⚠️} measured 3 where the terminal drew 2, so a table
+     * cell holding it was padded one space short and its column separator sat a column left of every other row's.
+     */
+    private static boolean zeroWidth(int cp) {
+        if (cp == 0x200D || (cp >= 0x200B && cp <= 0x200F) || (cp >= 0xFE00 && cp <= 0xFE0F))
+            return true;
+        if ((cp >= 0x1F3FB && cp <= 0x1F3FF) || (cp >= 0xE0020 && cp <= 0xE007F))
+            return true;
+        int type = Character.getType(cp);
+        return type == Character.NON_SPACING_MARK || type == Character.ENCLOSING_MARK
+                                        || type == Character.COMBINING_SPACING_MARK;
+    }
+
     private static int charWidth(String text, int index) {
         int cp = text.codePointAt(index);
-        if (cp == 0x200D)
-            return 1;
+        if (zeroWidth(cp))
+            return 0;
+        // U+FE0F asks for the emoji rendering of the character before it, which is always the two-cell one. Without
+        // this, a narrow base (↔, ⌨, ▶) measures 1 while the terminal draws 2.
+        int next = index + Character.charCount(cp);
+        if (next < text.length() && text.codePointAt(next) == 0xFE0F)
+            return 2;
         if (cp >= 0x1100 && cp <= 0x115F)
             return 2;
         if (cp >= 0x2E80 && cp <= 0xA4CF)
