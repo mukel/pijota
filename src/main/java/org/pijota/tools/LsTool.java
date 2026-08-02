@@ -18,7 +18,7 @@ public final class LsTool implements Tool {
 
     @Override
     public String glyph() {
-        return "📂";
+        return ToolGlyphs.INSPECT;
     }
 
     @Override

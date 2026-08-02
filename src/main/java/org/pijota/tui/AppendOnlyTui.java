@@ -21,6 +21,7 @@ import org.pijota.modes.SlashCommand;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.SlashCommandTool;
 import org.pijota.tools.Tool;
+import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.ToolLabels;
 import org.pijota.tools.WhoamiTool;
 import org.pijota.util.ErrorUtil;
@@ -2282,7 +2283,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                                         pendingEdit.oldText(), pendingEdit.newText(),
                                                         terminal.getWidth()));
                 }
-                String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse("●");
+                String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse(ToolGlyphs.AGENT);
                 appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
                                                 settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
                                                 elapsedMs, glyph, Math.max(20, terminal.getWidth())));

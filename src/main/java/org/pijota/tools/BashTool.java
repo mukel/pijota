@@ -128,7 +128,7 @@ public final class BashTool implements Tool, Tool.Detachable {
 
     @Override
     public String glyph() {
-        return "$";
+        return ToolGlyphs.RUN;
     }
 
     @Override

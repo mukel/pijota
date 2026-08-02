@@ -28,8 +28,8 @@ class WebsearchToolTest {
     }
 
     @Test
-    void glyphIsGlobe() {
-        assertEquals("🌐", new WebsearchTool().glyph());
+    void glyphSaysTheCallLeftTheMachine() {
+        assertEquals(ToolGlyphs.NETWORK, new WebsearchTool().glyph());
     }
 
     @Test

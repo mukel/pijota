@@ -3,9 +3,12 @@ package org.pijota.tui;
 import org.pijota.extensions.KeyChord;
 import org.pijota.messages.Message;
 import org.pijota.theme.AnsiTheme;
+import org.pijota.tools.EditTool;
 import org.pijota.tools.GrepTool;
 import org.pijota.tools.ReadTool;
+import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.WhoamiTool;
+import org.pijota.tools.WriteTool;
 import java.util.List;
 import java.util.Map;
 
@@ -100,10 +103,15 @@ class AppendOnlyTuiTest {
     }
 
     @Test
-    void toolsProvideTheirOwnGlyph() {
-        assertEquals("📖", new ReadTool().glyph());
-        assertEquals("🔍", new GrepTool().glyph());
-        assertEquals("●", new WhoamiTool().glyph(), "tools without a custom glyph use the bullet");
+    void theGlyphSaysWhatTheCallDidNotWhichToolRan() {
+        // The tool's name is printed right after the mark, so the mark carries the effect instead: hollow looked,
+        // filled wrote. That is the distinction worth spotting when reviewing what an agent did to a checkout.
+        assertEquals(ToolGlyphs.INSPECT, new ReadTool().glyph());
+        assertEquals(ToolGlyphs.INSPECT, new GrepTool().glyph());
+        assertEquals(ToolGlyphs.MUTATE, new WriteTool().glyph());
+        assertEquals(ToolGlyphs.MUTATE, new EditTool().glyph());
+        assertNotEquals(ToolGlyphs.MUTATE, new WhoamiTool().glyph(),
+                                        "a tool that declares no glyph must not be shown as having written to disk");
     }
 
     @Test

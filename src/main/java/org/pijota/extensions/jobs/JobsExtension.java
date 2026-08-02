@@ -6,6 +6,7 @@ import org.pijota.extensions.ExtensionRuntime;
 import org.pijota.messages.Message;
 import org.pijota.modes.SlashCommand;
 import org.pijota.tools.Tool;
+import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.Tool.ToolDefinition;
 import org.pijota.tools.Tool.ToolResult;
 import org.pijota.util.Platform;
@@ -125,7 +126,7 @@ public final class JobsExtension implements Extension {
 
     private static ToolDefinition startTool(JobRegistry jobs, String shell) {
         String shellFlag = Platform.shellCommandFlag(shell);
-        return Tool.named("jobs_run").glyph("⏳").description(
+        return Tool.named("jobs_run").glyph(ToolGlyphs.RUN).description(
                                         "Start a shell command in the background and return immediately with a job id. Use it"
                                                                         + " for long-running work (builds, test suites, dev servers); read its output with"
                                                                         + " jobs_output and stop it with jobs_kill.")
@@ -175,7 +176,7 @@ public final class JobsExtension implements Extension {
     // -- jobs_output --
 
     private static ToolDefinition outputTool(JobRegistry jobs) {
-        return Tool.named("jobs_output").glyph("📡").description(
+        return Tool.named("jobs_output").glyph(ToolGlyphs.INSPECT).description(
                                         "Read a background job's output produced since your last read, plus whether it is still running"
                                                                         + " or its exit code. Optional: filter (regex, only matching lines), timeout (seconds to"
                                                                         + " wait for new output or exit), and wait_for_completion (block until the job exits).")
@@ -269,7 +270,7 @@ public final class JobsExtension implements Extension {
     // -- jobs_list / jobs_kill --
 
     private static ToolDefinition listTool(JobRegistry jobs) {
-        return Tool.named("jobs_list").glyph("📋").description(
+        return Tool.named("jobs_list").glyph(ToolGlyphs.AGENT).description(
                                         "List every background job (running and finished) with its id, status/exit code, output size,"
                                                                         + " and command, so you can find a job id to read with jobs_output or stop with jobs_kill.")
                                         .run((args, cwd) -> ToolResult.success(renderList(jobs.list())));
@@ -293,7 +294,7 @@ public final class JobsExtension implements Extension {
     }
 
     private static ToolDefinition killTool(JobRegistry jobs) {
-        return Tool.named("jobs_kill").glyph("⛔").description(
+        return Tool.named("jobs_kill").glyph(ToolGlyphs.RUN).description(
                                         "Stop a background job by signalling its whole process tree. Defaults to SIGKILL (force);"
                                                                         + " pass signal=SIGTERM to ask it to shut down gracefully first.")
                                         .stringParam("id", "The background job id to stop, e.g. \"bg_1\"", true)

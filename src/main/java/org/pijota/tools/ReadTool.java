@@ -25,7 +25,7 @@ public final class ReadTool implements Tool {
 
     @Override
     public String glyph() {
-        return "📖";
+        return ToolGlyphs.INSPECT;
     }
 
     @Override

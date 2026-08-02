@@ -56,7 +56,7 @@ public final class GrepTool implements Tool {
 
     @Override
     public String glyph() {
-        return "🔍";
+        return ToolGlyphs.INSPECT;
     }
 
     @Override

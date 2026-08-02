@@ -46,7 +46,7 @@ public class WebsearchTool implements Tool {
 
     @Override
     public String glyph() {
-        return "🌐";
+        return ToolGlyphs.NETWORK;
     }
 
     @Override

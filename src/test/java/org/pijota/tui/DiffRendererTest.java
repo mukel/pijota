@@ -7,13 +7,19 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DiffRendererTest {
+
+    /** The block opens with its line of air, so the header is the row after it. */
+    private static String header(java.util.List<String> lines) {
+        return AnsiStripper.strip(lines.get(1));
+    }
+
     @Test
     void rendersNonEmptyDiffForChangedContent() {
         var renderer = new DiffRenderer(AnsiTheme.dark());
         var lines = renderer.render("edit", "file.txt", "line1\nline2\nline3\n", "line1\nmodified\nline3\n", 80);
 
         assertFalse(lines.isEmpty(), "diff should produce output for changed content");
-        assertTrue(lines.getFirst().contains("file.txt"));
+        assertTrue(header(lines).contains("file.txt"));
     }
 
     @Test
@@ -29,7 +35,7 @@ class DiffRendererTest {
         var renderer = new DiffRenderer(AnsiTheme.dark());
         var lines = renderer.render("edit", "src/Main.java", "a\nb", "a\nc", 80);
 
-        var header = AnsiStripper.strip(lines.getFirst());
+        var header = header(lines);
         assertTrue(header.contains("edit"), "expected 'edit' in header: " + header);
         assertTrue(header.contains("Main.java"), "expected 'Main.java' in header: " + header);
         assertTrue(header.contains("+1"), "expected '+1' in header: " + header);
@@ -44,7 +50,7 @@ class DiffRendererTest {
                                         + "/scratchpad/uidemo/calc.py";
         var lines = new DiffRenderer(AnsiTheme.dark()).render("edit preview", path, "a\n", "a\nb\n", 96);
 
-        String header = AnsiStripper.strip(lines.get(0));
+        String header = header(lines);
         assertTrue(AnsiWidth.visibleWidth(header) <= 96, "header overflows: [" + header + "]");
         assertTrue(header.startsWith("edit preview "), header);
         assertTrue(header.contains("calc.py"), "the filename is the end that matters: " + header);

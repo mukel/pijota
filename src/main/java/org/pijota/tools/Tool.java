@@ -106,17 +106,17 @@ public interface Tool {
     record ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
                                     boolean defaultEnabled, ResultRenderer resultRenderer, String glyph) {
         public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute) {
-            this(name, description, schema, execute, true, null, "●");
+            this(name, description, schema, execute, true, null, ToolGlyphs.AGENT);
         }
 
         public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
                                         ResultRenderer resultRenderer) {
-            this(name, description, schema, execute, true, resultRenderer, "●");
+            this(name, description, schema, execute, true, resultRenderer, ToolGlyphs.AGENT);
         }
 
         public ToolDefinition(String name, String description, Map<String, Object> schema, Execute execute,
                                         boolean defaultEnabled) {
-            this(name, description, schema, execute, defaultEnabled, null, "●");
+            this(name, description, schema, execute, defaultEnabled, null, ToolGlyphs.AGENT);
         }
 
         /** Returns a copy with the given display glyph (the marker shown before the tool in the TUI). */
@@ -193,8 +193,10 @@ public interface Tool {
      * hand-build {@code Map.of("type","object",…)}:
      *
      * <pre>{@code
-     * Tool.named("hello").description("A simple greeting").glyph("👋").stringParam("name", "Name to greet", true).run((
-     *                                 args, cwd) -> Tool.ToolResult.success("Hello, " + args.getString("name") + "!"));
+     * Tool.named("hello").description("A simple greeting").glyph(ToolGlyphs.AGENT)
+     *                                 .stringParam("name", "Name to greet", true)
+     *                                 .run((args, cwd) -> Tool.ToolResult.success(
+     *                                                                 "Hello, " + args.getString("name") + "!"));
      * }</pre>
      */
     static Builder named(String name) {
@@ -266,7 +268,7 @@ public interface Tool {
     final class Builder {
         private final String name;
         private String description = "";
-        private String glyph = "●";
+        private String glyph = ToolGlyphs.AGENT; // an unknown tool must not claim to have written
         private boolean defaultEnabled = true;
         private ResultRenderer resultRenderer;
         private Map<String, Object> rawSchema; // when set, overrides the declared params
@@ -378,8 +380,11 @@ public interface Tool {
         return false;
     }
 
-    /** The display glyph (emoji or character) shown before this tool in the TUI. Default is a neutral bullet. */
+    /**
+     * The mark shown before this tool in the TUI. See {@link ToolGlyphs} for what each one means; the default is the
+     * agent mark, because a tool that has not declared its effect must not be shown as having written to disk.
+     */
     default String glyph() {
-        return "●";
+        return ToolGlyphs.AGENT;
     }
 }

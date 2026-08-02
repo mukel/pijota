@@ -25,7 +25,7 @@ public final class EditTool implements Tool {
 
     @Override
     public String glyph() {
-        return "📝";
+        return ToolGlyphs.MUTATE;
     }
 
     @Override

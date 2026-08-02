@@ -162,17 +162,12 @@ final class SessionCommands {
             summaryBreakdown = SessionUsage.compactionBreakdown(session.branchEntries());
         } catch (IOException ignored) {}
         if (!breakdown.isEmpty() || !summaryBreakdown.isEmpty()) {
-            var lines = new ArrayList<String>();
-            lines.add(host.styled("toolLabel", "usage breakdown"));
-            for (var item : breakdown) {
-                lines.add(host.styled("statusText", "  " + item.key() + "  " + fmtCount(item.tokens()) + " tokens  "
-                                                + SessionUsage.formatCost(item.cost())));
-            }
-            for (var item : summaryBreakdown) {
-                lines.add(host.styled("statusText", "  " + item.key() + "  " + fmtCount(item.tokens()) + " tokens  "
-                                                + SessionUsage.formatCost(item.cost())));
-            }
-            host.appendPlain(lines);
+            var report = new Report(host::styled, "usage breakdown");
+            for (var item : breakdown)
+                report.row(item.key(), fmtCount(item.tokens()) + " tokens  " + SessionUsage.formatCost(item.cost()));
+            for (var item : summaryBreakdown)
+                report.row(item.key(), fmtCount(item.tokens()) + " tokens  " + SessionUsage.formatCost(item.cost()));
+            host.appendPlain(report.render());
         }
     }
 
@@ -180,36 +175,47 @@ final class SessionCommands {
     static String rateLine(String provider, String model, boolean hasUnpriced) {
         var pricing = ModelRegistry.pricingFor(provider, model);
         if (pricing == null) {
-            return "  rate    unknown for " + (model != null ? model : "current model");
+            return "unknown for " + (model != null ? model : "current model");
         }
-        String line = String.format(Locale.ROOT, "  rate    $%.2f in / $%.2f out per 1M  (%s)", pricing.inputPerMTok(),
+        String line = String.format(Locale.ROOT, "$%.2f in / $%.2f out per 1M  (%s)", pricing.inputPerMTok(),
                                         pricing.outputPerMTok(), model);
         return hasUnpriced ? line + "  · some usage on unpriced models" : line;
     }
 
     /** Formats the cumulative session-usage block. Pure given the totals and a styler, so it is unit-testable. */
+    /**
+     * The session's spend, said the way a person would. It used to read {@code ~$0.0000 est} before a single token was
+     * spent: four decimals of zero, and two hedges ("~" and "est") for the same uncertainty.
+     */
+    static String formatSessionCost(double cost) {
+        if (cost <= 0)
+            return "none yet";
+        if (cost < 0.01)
+            return "under $0.01";
+        return String.format(Locale.ROOT, "~$%.2f", cost);
+    }
+
     static List<String> usageReport(long input, long output, long reasoning, long cacheRead, long cacheWrite,
                                     double cost, Double budget, String rateLine,
                                     BiFunction<String, String, String> styled) {
-        var lines = new ArrayList<String>();
-        lines.add(styled.apply("toolLabel", "usage  (this session)"));
-        lines.add(styled.apply("statusText", "  input   " + fmtCount(input) + " tokens"));
-        lines.add(styled.apply("statusText", "  output  " + fmtCount(output) + " tokens"
-                                        + (reasoning > 0 ? "  (" + fmtCount(reasoning) + " reasoning)" : "")));
-        lines.add(styled.apply("statusText", "  total   " + fmtCount(input + output) + " tokens"));
+        var report = new Report(styled, "usage").chip("this session");
+        report.row("input", fmtCount(input) + " tokens");
+        report.row("output", fmtCount(output) + " tokens"
+                                        + (reasoning > 0 ? "  (" + fmtCount(reasoning) + " reasoning)" : ""));
+        report.row("total", fmtCount(input + output) + " tokens");
         if (cacheRead > 0 || cacheWrite > 0) {
             long promptTokens = input + cacheRead + cacheWrite; // full prompt input incl. cache
             int hitPct = promptTokens > 0 ? (int) Math.round(100.0 * cacheRead / promptTokens) : 0;
-            lines.add(styled.apply("statusText", "  cache   " + fmtCount(cacheRead) + " read  " + fmtCount(cacheWrite)
-                                            + " write  (" + hitPct + "% hit)"));
+            report.row("cache", fmtCount(cacheRead) + " read  " + fmtCount(cacheWrite) + " write  (" + hitPct
+                                            + "% hit)");
         }
-        lines.add(styled.apply("commandMeta", String.format(Locale.ROOT, "  cost    ~$%.4f est", cost)));
-        lines.add(styled.apply("commandMeta", rateLine));
+        report.row("cost", formatSessionCost(cost), "commandMeta");
+        report.row("rate", rateLine, "commandMeta");
         if (budget != null && budget > 0) {
             int pct = (int) Math.round(100.0 * cost / budget);
-            lines.add(styled.apply("commandMeta", String.format(Locale.ROOT, "  budget  $%.2f / $%.2f (%d%%)", cost,
-                                            budget, pct)));
+            report.row("budget", String.format(Locale.ROOT, "$%.2f / $%.2f (%d%%)", cost, budget, pct), "commandMeta");
         }
+        var lines = report.render();
         return lines;
     }
 
@@ -348,34 +354,25 @@ final class SessionCommands {
         long messageTok = systemTok + userTok + assistantTok + toolTok + summaryTok;
         long overhead = Math.max(0, host.session().estimatedContextTokens() - messageTok);
 
-        var lines = new ArrayList<String>();
-        lines.add(host.styled("toolLabel", "context  " + plural(msgs.size(), "msg") + "  " + host.tokenStatus()));
-        lines.add(host.styled("statusText", "  auto-compact  "
-                                        + (host.settings() == null || host.settings().compactionEnabled()
-                                                                        ? "on"
-                                                                        : "off")));
+        var report = new Report(host::styled, "context").chip(plural(msgs.size(), "msg")).chip(host.tokenStatus());
+        report.row("auto-compact", host.settings() == null || host.settings().compactionEnabled() ? "on" : "off");
         if (overhead > 0)
-            lines.add(host.styled("statusText", "  overhead   system prompt + tools  " + fmtCount((int) overhead)
-                                            + " est tokens"));
+            report.row("overhead", fmtCount((int) overhead) + " est tokens  system prompt + tools");
         if (systems > 0)
-            lines.add(host.styled("statusText", "  system     " + plural(systems, "msg") + "  "
-                                            + fmtCount((int) systemTok) + " est tokens"));
-        lines.add(host.styled("statusText", "  user       " + plural(users, "msg") + "  " + fmtCount((int) userTok)
-                                        + " est tokens"));
-        lines.add(host.styled("statusText", "  assistant  " + plural(assistants, "msg") + "  "
-                                        + fmtCount((int) assistantTok) + " est tokens"));
-        lines.add(host.styled("statusText", "  tool       " + plural(tools, "msg") + "  " + fmtCount((int) toolTok)
-                                        + " est tokens"));
+            report.row("system", plural(systems, "msg") + "  " + fmtCount((int) systemTok) + " est tokens");
+        report.row("user", plural(users, "msg") + "  " + fmtCount((int) userTok) + " est tokens");
+        report.row("assistant", plural(assistants, "msg") + "  " + fmtCount((int) assistantTok) + " est tokens");
+        report.row("tool", plural(tools, "msg") + "  " + fmtCount((int) toolTok) + " est tokens");
+        if (compactions > 0)
+            report.row("summaries", plural(compactions, "msg") + "  " + fmtCount((int) summaryTok) + " est tokens");
+        var lines = report.render();
         if (compactions > 0) {
-            lines.add(host.styled("statusText", "  summaries  " + plural(compactions, "msg") + "  "
-                                            + fmtCount((int) summaryTok) + " est tokens"));
             for (var m : msgs) {
                 if (m instanceof Message.CompactionSummary cs) {
                     lines.add(host.styled("hr", "─".repeat(40)));
                     lines.add(host.styled("statusText", "  last summary:"));
-                    for (String line : cs.summary().lines().toList()) {
+                    for (String line : cs.summary().lines().toList())
                         lines.add(host.styled("statusText", "  " + line));
-                    }
                 }
             }
         }

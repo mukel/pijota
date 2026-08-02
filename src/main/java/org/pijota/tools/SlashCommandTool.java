@@ -33,7 +33,7 @@ public final class SlashCommandTool implements Tool {
 
     @Override
     public String glyph() {
-        return "❓";
+        return ToolGlyphs.AGENT;
     }
 
     @Override

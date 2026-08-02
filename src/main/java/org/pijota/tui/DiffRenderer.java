@@ -45,8 +45,10 @@ final class DiffRenderer {
         int terminalWidth = Math.max(40, width);
 
         var out = new ArrayList<String>();
-        out.add(header(action, path, added, deleted, terminalWidth));
+        // The block's line of air goes above its header, not between the header and the rows it labels. Every other
+        // block in the interface opens that way; the coordinator collapses the blank if something already added one.
         out.add("");
+        out.add(header(action, path, added, deleted, terminalWidth));
         int rendered = 0;
         boolean truncated = false;
 

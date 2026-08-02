@@ -4,6 +4,7 @@ import org.pijota.agent.SubAgentLauncher;
 import org.pijota.llm.LlmClient;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.tools.Tool;
+import org.pijota.tools.ToolGlyphs;
 import org.pijota.util.Env;
 import org.pijota.util.ProcessRunner;
 import org.pijota.util.Util;
@@ -82,7 +83,7 @@ public final class TaskTool implements Tool {
 
     @Override
     public String glyph() {
-        return "⚙";
+        return ToolGlyphs.AGENT;
     }
 
     @Override

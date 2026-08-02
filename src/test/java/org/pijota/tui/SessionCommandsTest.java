@@ -73,10 +73,29 @@ class SessionCommandsTest {
         String out = String.join("\n", lines);
         assertTrue(out.contains("input"), out);
         assertTrue(out.contains("total"), out);
-        assertTrue(out.contains("$0.0123"), out);
+        assertTrue(out.contains("~$0.01"), "cost is rounded to cents, not shown to four decimals: " + out);
         assertTrue(out.contains("budget") && out.contains("$5.00"), out);
         assertFalse(out.contains("cache"), "no cache line when no cache tokens"); // cacheRead/write are 0 here
         assertFalse(out.contains("reasoning"), "no reasoning annotation when reasoning is 0");
+    }
+
+    @Test
+    void costIsWrittenTheWayAPersonWouldSayIt() {
+        // It used to read "~$0.0000 est" before a single token was spent: four decimals of zero, and two hedges
+        // ("~" and "est") for one uncertainty.
+        assertEquals("none yet", SessionCommands.formatSessionCost(0));
+        assertEquals("none yet", SessionCommands.formatSessionCost(-1));
+        assertEquals("under $0.01", SessionCommands.formatSessionCost(0.004));
+        assertEquals("~$0.01", SessionCommands.formatSessionCost(0.0123));
+        assertEquals("~$1.50", SessionCommands.formatSessionCost(1.5));
+    }
+
+    @Test
+    void aFreshSessionReportsNoSpendRatherThanAStringOfZeroes() {
+        var lines = SessionCommands.usageReport(0, 0, 0, 0, 0, 0.0, null, "unknown", (slot, text) -> text);
+        String out = String.join("\n", lines);
+        assertTrue(out.contains("none yet"), out);
+        assertFalse(out.contains("0.0000"), "no four-decimal zero: " + out);
     }
 
     @Test

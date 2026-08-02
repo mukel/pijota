@@ -34,7 +34,7 @@ public final class TodoTool implements Tool {
 
     @Override
     public String glyph() {
-        return "📋";
+        return ToolGlyphs.AGENT;
     }
 
     @Override
