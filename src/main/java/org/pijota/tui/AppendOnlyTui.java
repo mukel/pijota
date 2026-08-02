@@ -159,6 +159,20 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     @Override
+    public boolean acceptsPromptDrafts() {
+        return true; // the prompt editor is the draft
+    }
+
+    @Override
+    public void offerSuggestion(String text) {
+        if (text == null || text.isBlank())
+            return;
+        promptEditor.offer(text);
+        setTransientStatus("Tab to use", 4000); // an affordance, not a warning: it says what the key does
+        redrawPrompt();
+    }
+
+    @Override
     public void submitUserMessage(String content) {
         handleSubmit(content);
     }
@@ -2220,6 +2234,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case AgentEvent.TurnStart ignored -> {
                 toolsInProgress.clear(); // evict any leftovers from a prior interrupted/aborted turn
                 interruptedCalls.clear();
+                promptEditor.clearOffer(); // a suggestion described the conversation as it stood before this turn
                 followUps.clearPending();
                 streamRenderer.reset();
                 streamingContent = false;

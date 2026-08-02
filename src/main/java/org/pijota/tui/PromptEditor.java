@@ -30,6 +30,10 @@ public final class PromptEditor {
     private final UndoStack undoStack = new UndoStack();
     private final KillRing killRing = new KillRing();
     private String suggestion = "";
+    // A suggestion an extension offered for the *next* message, shown only on an empty prompt. Distinct from the
+    // command ghost above, which completes what is already typed: the two can never collide, since one needs an
+    // empty buffer and the other needs a prefix.
+    private String offered = "";
     private boolean reverseSearch; // true while a Ctrl+R reverse-i-search is open; the buffer is the live filter query
     private UndoStack.Snapshot preYank; // buffer state captured before the current yank, for yank-pop replacement
     private boolean yankActive; // true right after a yank/yank-pop, enabling yank-pop to cycle the ring
@@ -90,7 +94,7 @@ public final class PromptEditor {
             case DOWN -> down();
             case HOME, CTRL_A -> home();
             case END, CTRL_E -> end();
-            case TAB -> complete();
+            case TAB -> acceptOfferOrComplete();
             case CTRL_K -> killToEnd();
             case CTRL_U -> killWholeBuffer();
             case CTRL_R -> reverseHistorySearch();
@@ -188,6 +192,9 @@ public final class PromptEditor {
         // Capture the pre-edit snapshot only when this edit starts a new undo step; a coalesced keystroke (the common
         // case while typing) would discard it, so we avoid the O(n) buffer copy entirely.
         var before = undoStack.beginsNewStep(kind) ? state() : null;
+        // Once the user edits, the offer is theirs to ignore: it must not reappear if they type and then delete back
+        // to empty, which would read as the suggestion arguing with them.
+        offered = "";
         PromptTextBuffer.Effect effect = op.get();
         if (effect != PromptTextBuffer.Effect.UNCHANGED)
             undoStack.record(before, kind);
@@ -386,9 +393,36 @@ public final class PromptEditor {
      * it knew least: one keystroke could fill the line with a whole stale sentence, which → and End then accepted, and
      * both are keys you press while editing. History is still reachable deliberately, with Up/Down and Ctrl+R.
      */
+    /**
+     * Tab, not Enter. Enter means send, and a reflex Enter must never put a machine's words in the user's mouth; Tab on
+     * an empty prompt has nothing to complete today, so nothing existing changes. Accepting only fills the buffer --
+     * the user still presses Enter themselves, on text they can see and edit.
+     */
+    private Result acceptOfferOrComplete() {
+        if (!offered.isEmpty() && text().isEmpty()) {
+            String text = offered;
+            offered = "";
+            return mutating(UndoStack.Kind.OTHER, () -> buffer.insertText(text));
+        }
+        return complete();
+    }
+
+    /** An extension offers a next message. Ignored unless the prompt is still empty; any keystroke discards it. */
+    public synchronized void offer(String text) {
+        offered = text == null || !text().isEmpty() ? "" : text.strip();
+        suggestion = computeSuggestion();
+    }
+
+    public synchronized void clearOffer() {
+        offered = "";
+        suggestion = computeSuggestion();
+    }
+
     private String computeSuggestion() {
         if (!buffer.cursorAtEndOfBuffer())
             return "";
+        if (text().isEmpty())
+            return offered;
         return completionPolicy.commandSuggestion(text());
     }
 

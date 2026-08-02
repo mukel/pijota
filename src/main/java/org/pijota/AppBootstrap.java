@@ -27,6 +27,7 @@ import org.pijota.extensions.jobs.JobRegistry;
 import org.pijota.extensions.jobs.JobsExtension;
 import org.pijota.extensions.mcp.McpExtension;
 import org.pijota.extensions.plan.PlanExtension;
+import org.pijota.extensions.suggest.SuggestExtension;
 import org.pijota.extensions.prompts.PromptTemplateExtension;
 import org.pijota.extensions.skills.SkillExtension;
 import org.pijota.extensions.task.TaskExtension;
@@ -137,6 +138,7 @@ public final class AppBootstrap {
         if (!parsedArgs.noExtensions() && !parsedArgs.noBuiltinExtensions()) {
             ext.register(new TaskExtension());
             ext.register(new PlanExtension());
+            ext.register(new SuggestExtension()); // opt-in --suggest
             ext.register(new TranscendenceExtension()); // opt-in --transcendence
             ext.register(new InlineBashExtension());
             ext.register(new FilterOutputExtension());

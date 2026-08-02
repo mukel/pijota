@@ -331,4 +331,68 @@ class PromptEditorTest {
         assertEquals(row, snapshot.cursorRow());
         assertEquals(col, snapshot.cursorCol());
     }
+    // ---- offered suggestions (an extension proposing the next message) -------------------------------------------
+
+    @Test
+    void tabAcceptsAnOfferedSuggestionOnAnEmptyPrompt() {
+        editor.offer("run the tests for calc.py");
+        assertEquals("run the tests for calc.py", editor.suggestion(), "shown as ghost text on the empty prompt");
+
+        editor.apply(Key.Special.TAB);
+
+        assertEquals("run the tests for calc.py", editor.text(), "Tab fills the buffer, ready to edit");
+        assertEquals("", editor.suggestion(), "and the ghost is consumed");
+    }
+
+    /**
+     * The safety rule. Enter means send; a reflex Enter must never put a machine's words in the user's mouth, not even
+     * into the buffer.
+     */
+    @Test
+    void enterNeverAcceptsAnOfferedSuggestion() {
+        editor.offer("delete the database");
+        editor.apply(Key.Special.ENTER);
+        assertEquals("", editor.text(), "Enter must not accept a suggestion");
+    }
+
+    @Test
+    void typingDiscardsTheOfferAndItDoesNotComeBack() {
+        editor.offer("run the tests");
+        editor.insertText("x");
+        editor.apply(Key.Special.BACKSPACE);
+
+        assertEquals("", editor.text());
+        assertEquals("", editor.suggestion(), "a suggestion that reappears after a backspace argues with the user");
+    }
+
+    @Test
+    void anOfferIsIgnoredWhenTheUserHasAlreadyTypedSomething() {
+        editor.insertText("my own words");
+        editor.offer("something else entirely");
+        assertEquals("", editor.suggestion(), "never render over what the user is writing");
+    }
+
+    @Test
+    void theCommandGhostStillWinsOnceSomethingIsTyped() {
+        editor.offer("run the tests");
+        editor.insertText("/se");
+        assertFalse(editor.suggestion().isEmpty(), "the command ghost takes over");
+        assertNotEquals("run the tests", editor.suggestion());
+    }
+
+    @Test
+    void tabStillCompletesNormallyWhenNothingIsOffered() {
+        editor.insertText("/hel");
+        editor.apply(Key.Special.TAB);
+        assertTrue(editor.text().startsWith("/help"), "Tab keeps its usual job: " + editor.text());
+    }
+
+    @Test
+    void anAcceptedSuggestionCanBeUndone() {
+        editor.offer("run the tests");
+        editor.apply(Key.Special.TAB);
+        editor.apply(Key.Special.CTRL_UNDERSCORE);
+        assertEquals("", editor.text(), "Ctrl+_ puts the empty prompt back");
+    }
+
 }

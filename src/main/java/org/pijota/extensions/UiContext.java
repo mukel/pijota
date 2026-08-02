@@ -104,6 +104,25 @@ public interface UiContext {
     default void appendOutput(List<String> lines) {}
 
     /** Hand the terminal over to a child process (raw → cooked); reentrant. No-op on non-terminal frontends. */
+    /**
+     * Whether this frontend has a draft the user edits before sending. False for chat frontends, which have nowhere to
+     * put one.
+     *
+     * <p>
+     * The query exists so speculative work can decline to start. A no-op {@link #offerSuggestion} would be enough to
+     * render nothing, but producing the argument may cost an inference call, and spending it to throw the result away
+     * is not something a frontend should have to opt out of after the fact.
+     */
+    default boolean acceptsPromptDrafts() {
+        return false;
+    }
+
+    /**
+     * Offers {@code text} as a suggestion for the user's next message. Advisory: the frontend shows it only if that
+     * still makes sense (an empty draft, nothing typed since), and the user accepts it explicitly. Never sends.
+     */
+    default void offerSuggestion(String text) {}
+
     default void suspend() {}
 
     /**
