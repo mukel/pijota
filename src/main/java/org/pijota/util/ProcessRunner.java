@@ -6,6 +6,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.File;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -35,6 +36,9 @@ public final class ProcessRunner {
     private Path workDir;
     private Duration timeout = Duration.ofMinutes(5);
     private boolean noTimeout;
+    /** The platform's bit bucket, for a captured child that has nothing to read. */
+    private static final File NULL_DEVICE = new File(Platform.isWindows() ? "NUL" : "/dev/null");
+
     private Supplier<String> stdinFeeder;
     private Consumer<String> stdoutLineHandler;
     private Consumer<String> stdoutChunkHandler;
@@ -388,6 +392,12 @@ public final class ProcessRunner {
             if (redirectErrorStream) {
                 builder.redirectErrorStream(true);
             }
+            // A captured child with nothing feeding it gets the null device, not a pipe. A pipe nobody writes to and
+            // nobody closes never reaches EOF, so anything that reads stdin blocks on it forever: `!zsh`, `!nvim` and
+            // a bash call that happens to read a line hung the whole frontend until it was interrupted by hand. With
+            // /dev/null the read returns EOF at once and the program exits saying so.
+            if (stdinFeeder == null)
+                builder.redirectInput(ProcessBuilder.Redirect.from(NULL_DEVICE));
         }
         return builder.start();
     }

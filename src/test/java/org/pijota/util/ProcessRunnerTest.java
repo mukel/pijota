@@ -369,4 +369,30 @@ class ProcessRunnerTest {
         assertFalse(result.detached());
         assertEquals("done\n", result.stdout());
     }
+
+    /**
+     * A captured child used to get a pipe for stdin that nobody wrote to and nobody closed, so it never reached EOF and
+     * anything reading stdin blocked on it forever: {@code !zsh} and {@code !!bash} hung the whole frontend until they
+     * were interrupted by hand. The null device gives the read an immediate EOF instead.
+     *
+     * <p>
+     * A program that opens {@code /dev/tty} itself rather than reading stdin (nvim, htop) still waits, since it never
+     * asked stdin anything -- pijota holds the terminal while it runs, and the live tail says Esc twice ends it.
+     */
+    @Test
+    void aCapturedChildWithNothingToReadGetsEofNotAnOpenPipe() throws Exception {
+        var result = assertTimeoutPreemptively(java.time.Duration.ofSeconds(10),
+                                        () -> ProcessRunner.command("/bin/sh", "-c", "read line; echo \"got:$line\"")
+                                                                        .redirectErrorStream(true).run(),
+                                        "reading stdin blocked, so the pipe never reached EOF");
+        assertTrue(result.stdout().contains("got:"), "the read returned rather than blocking: " + result.stdout());
+    }
+
+    /** Feeding stdin still works: the null device is only for a child with nothing to read. */
+    @Test
+    void feedingStdinStillReachesTheChild() throws Exception {
+        var result = ProcessRunner.command("/bin/sh", "-c", "read line; echo \"got:$line\"").feedStdin("hello\n")
+                                        .redirectErrorStream(true).run();
+        assertTrue(result.stdout().contains("got:hello"), result.stdout());
+    }
 }
