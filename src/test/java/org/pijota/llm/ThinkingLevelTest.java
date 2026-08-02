@@ -79,15 +79,4 @@ class ThinkingLevelTest {
         assertTrue(ThinkingLevel.isKnown("  max  "));
     }
 
-    /** One wording, so a typo reads the same whether it came from the flag or the config file. */
-    @Test
-    void aTypoIsReportedTheSameWayFromEitherSource() {
-        assertTrue(ThinkingLevel.unknownValueMessage("--thinking", "hgh").contains("unknown --thinking 'hgh'"));
-        assertTrue(ThinkingLevel.unknownValueMessage("thinking_level", "hgh").contains("unknown thinking_level 'hgh'"));
-        for (String message : new String[] {ThinkingLevel.unknownValueMessage("--thinking", "x"),
-                ThinkingLevel.unknownValueMessage("thinking_level", "x")}) {
-            assertTrue(message.contains("off, minimal, low, medium, high, xhigh, max"), message);
-            assertTrue(message.endsWith("using medium"), message);
-        }
-    }
 }

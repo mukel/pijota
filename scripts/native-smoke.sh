@@ -37,12 +37,6 @@ MODELS=$("$PJ" --list-models 2>/dev/null)
 # what it was told to keep.
 say "== embedded resources (no key needed) =="
 
-check() { # check <label> <expected-substring> <command...>
-    local label="$1" want="$2"; shift 2
-    local out; out=$("$@" 2>&1)
-    if grep -qF "$want" <<<"$out"; then say "ok: $label"; else fail "$label (no '$want' in output)"; fi
-}
-
 # LICENSE + NOTICE. --license exits non-zero when either is missing, so the status is the check.
 if LIC=$("$PJ" --license 2>&1); then
     MISSING=""
@@ -55,17 +49,17 @@ else
     fail "--license exited non-zero: $(tail -2 <<<"$LIC")"
 fi
 
-# models.json + providers.json: --list-models is empty without them.
-check "models.json / providers.json" "/" "$PJ" --list-models
+# models.json + providers.json: --list-models is empty without them. $MODELS already holds that output.
+grep -qF "/" <<<"$MODELS" && say "ok: models.json / providers.json" \
+                          || fail "models.json / providers.json (--list-models has no provider/model rows)"
 
 # themes/*.json: naming a bundled theme must not fall back with a complaint.
 THEME_OUT=$(cd "$WORKDIR" && "$PJ" --theme gruvbox-dark --no-session -p "" 2>&1 | head -5)
 grep -qiE "theme .*not found|could not load theme" <<<"$THEME_OUT" \
     && fail "themes/*.json missing from the binary: $THEME_OUT" || say "ok: themes/*.json"
 
-# META-INF/services: the SPI wiring dependencies register. A missing provider surfaces as a startup error
-# rather than a wrong answer, so any run reaching argument parsing proves it loaded.
-check "META-INF/services (SPI wiring)" "pijota" "$PJ" --version
+# META-INF/services: the SPI wiring dependencies register. A missing provider surfaces as a startup error rather
+# than a wrong answer, so the --version run in "basics" above already proved it loaded.
 
 say "== provider families =="
 run_family() {

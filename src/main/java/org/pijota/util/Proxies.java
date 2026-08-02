@@ -54,7 +54,9 @@ public final class Proxies {
      * look like a hang -- {@code /refresh} against an unreachable provider sat on "refreshing models…" with nothing to
      * cancel, and an OAuth poll did the same to a login.
      */
-    static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    static Duration connectTimeout() {
+        return Duration.ofSeconds(Env.seconds("pijota.connect-timeout", "PIJOTA_CONNECT_TIMEOUT", 10));
+    }
 
     /**
      * A fresh {@link HttpClient.Builder}, with the configured proxy applied when one is set and a bounded connect
@@ -62,7 +64,7 @@ public final class Proxies {
      * callers had, and the failure only shows on a network that does not answer.
      */
     public static HttpClient.Builder httpClientBuilder() {
-        var builder = HttpClient.newBuilder().connectTimeout(DEFAULT_CONNECT_TIMEOUT);
+        var builder = HttpClient.newBuilder().connectTimeout(connectTimeout());
         var s = selector();
         if (s != null)
             builder.proxy(s);

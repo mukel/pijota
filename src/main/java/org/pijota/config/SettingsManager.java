@@ -1,5 +1,6 @@
 package org.pijota.config;
 
+import org.pijota.llm.ThinkingLevel;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.PijotaHome;
 import org.pijota.util.Platform;
@@ -32,7 +33,14 @@ public final class SettingsManager {
         if (config.projectDir() == null || config.projectDir().isBlank()) {
             this.config = config.withProjectDir(SelfRespawn.findGitRoot(System.getProperty("user.dir")));
         }
-        validate(this.config).forEach(w -> logger.warn("settings warning: {}", w));
+        // Both channels on purpose. The log keeps the record; stderr is where the user is. These warnings say a
+        // value in their own settings.json is being ignored, and for as long as they went only to a file, the file
+        // said one thing and every session did another with nothing to connect the two -- which is the whole
+        // complaint they exist to answer. stderr, not stdout, so piping a --print run stays clean.
+        validate(this.config).forEach(w -> {
+            logger.warn("settings warning: {}", w);
+            System.err.println("pijota: " + w);
+        });
     }
 
     public static List<String> validate(AppConfig config) {
@@ -43,9 +51,13 @@ public final class SettingsManager {
         if (trust != null && !trust.isBlank() && !List.of("ask", "always", "never").contains(trust))
             warnings.add("default_project_trust should be ask, always, or never");
         String pathDisplay = config.pathDisplay();
-        if (pathDisplay != null && !pathDisplay.isBlank()
-                                        && !List.of("full", "relative", "compact", "name").contains(pathDisplay))
-            warnings.add("path_display should be full, relative, compact, or name");
+        if (pathDisplay != null && !pathDisplay.isBlank() && !PathDisplay.isKnown(pathDisplay))
+            warnings.add("path_display should be " + join(PathDisplay.names()));
+        // Validated here with its siblings, and only here: checking the merged flag-then-settings value instead meant
+        // a typo'd --thinking was reported twice, the second time blaming a settings.json key the user never touched.
+        String thinking = config.thinkingLevel();
+        if (thinking != null && !thinking.isBlank() && !ThinkingLevel.isKnown(thinking))
+            warnings.add("thinking_level should be " + join(ThinkingLevel.names()));
         String animation = config.workingAnimation();
         if (animation != null && !animation.isBlank()
                                         && !List.of("dots", "moon", "bar", "braille", "none").contains(animation))
@@ -54,6 +66,13 @@ public final class SettingsManager {
             warnings.add("max_turns below 0 is treated as unlimited; use 0 for that explicitly");
         warnings.addAll(ProviderCatalog.validateUserProviders(config.providers()));
         return List.copyOf(warnings);
+    }
+
+    /** "a, b, or c" -- the wording every warning above already used, said once. */
+    private static String join(List<String> values) {
+        if (values.size() < 2)
+            return String.join("", values);
+        return String.join(", ", values.subList(0, values.size() - 1)) + ", or " + values.getLast();
     }
 
     private static AppConfig loadConfig() {

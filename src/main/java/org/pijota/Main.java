@@ -103,7 +103,7 @@ public final class Main {
                 return 0;
             }
             if (parsedArgs.license())
-                return LicenseCommand.run(java.util.List.of(args));
+                return LicenseCommand.run();
             if (parsedArgs.version()) {
                 System.out.println("pijota v" + PijotaVersion.current());
                 return 0;

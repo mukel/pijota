@@ -29,6 +29,16 @@ public enum PathDisplay {
         return COMPACT;
     }
 
+    /** The settings strings a user may write, so a message about them cannot list a value that is not one. */
+    public static java.util.List<String> names() {
+        return java.util.Arrays.stream(ALL).map(PathDisplay::config).toList();
+    }
+
+    /** Whether {@code value} names a mode. {@link #fromConfig} falls back for a typo, which a validator must not. */
+    public static boolean isKnown(String value) {
+        return value != null && names().contains(value.trim().toLowerCase(Locale.ROOT));
+    }
+
     /** The settings string for this mode (lowercase enum name). */
     public String config() {
         return name().toLowerCase(Locale.ROOT);

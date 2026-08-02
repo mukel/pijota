@@ -18,6 +18,9 @@ it is doing, and what it can do.
 - **Kitty keyboard protocol**, so modifiers stop being guesswork, and Ctrl+Alt is
   a keyspace extensions can bind into.
 - **`/jobs`, `/kill`, `/bg`** and Ctrl+B backgrounding for long-running commands.
+- **`--license`** prints pijota's license and the attribution notices for everything embedded in the
+  binary (`/license` shows the same inside the TUI). The binary is what most people have, and the
+  repository is not part of it.
 
 ### Fixes worth naming
 

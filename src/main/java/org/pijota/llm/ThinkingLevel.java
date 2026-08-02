@@ -60,12 +60,6 @@ public enum ThinkingLevel {
         return s != null && names().contains(s.trim().toLowerCase(java.util.Locale.ROOT));
     }
 
-    /** One wording for "that is not a level", so the flag and the settings file report a typo the same way. */
-    public static String unknownValueMessage(String source, String value) {
-        return "pijota: unknown " + source + " '" + value + "' (expected: " + String.join(", ", names()) + "), using "
-                                        + MEDIUM.label();
-    }
-
     public static ThinkingLevel fromString(String s) {
         if (s == null || s.isBlank())
             return MEDIUM;

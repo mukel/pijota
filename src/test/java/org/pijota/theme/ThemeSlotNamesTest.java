@@ -74,6 +74,12 @@ class ThemeSlotNamesTest {
         }
     }
 
+    /** One theme file, parsed. The path and the read were written out at four separate call sites. */
+    private static com.fasterxml.jackson.databind.JsonNode themeJson(String name) throws IOException {
+        return Util.MAPPER.readTree(Files.readString(Path.of("src/main/resources/themes", name + ".json"),
+                                        StandardCharsets.UTF_8));
+    }
+
     @Test
     void thereAreThemesToCheck() throws IOException {
         assertFalse(shippedThemes().isEmpty(), "no bundled themes found; these checks would all be vacuous");

@@ -97,8 +97,9 @@ final class AnsiWidth {
         int next = index + Character.charCount(cp);
         if (next < text.length() && text.codePointAt(next) == 0xFE0F)
             return 2;
-        if (regionalIndicator(cp))
-            return 2; // the first half of a flag carries the pair's whole width
+        // CJK, Hangul and the fullwidth forms stay hand-drawn: their width comes from East Asian Width, and the JDK
+        // exposes no API for that property (only the Emoji_* family), so deriving them would mean ICU4J or a generated
+        // table. These blocks are stable and unambiguous, unlike the symbol blocks handled below.
         if (cp >= 0x1100 && cp <= 0x115F)
             return 2;
         if (cp >= 0x2E80 && cp <= 0xA4CF)
@@ -113,6 +114,9 @@ final class AnsiWidth {
             return 2;
         if (cp >= 0xFF01 && cp <= 0xFFE6)
             return 2;
+        // Deliberately not Emoji_Presentation: 1664 of these 2816 codepoints are not (mahjong tiles, playing cards,
+        // the extended-pictographic tail) and a terminal still draws them wide. The flag halves live here too -- the
+        // first carries the pair's width, the second returned 0 above.
         if (cp >= 0x1F000 && cp <= 0x1FAFF)
             return 2;
         // The symbol blocks hold both: genuine two-cell emoji (✅) and the ambiguous marks a terminal draws in one

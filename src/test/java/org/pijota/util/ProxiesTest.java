@@ -66,7 +66,7 @@ class ProxiesTest {
      */
     @Test
     void everyClientFromTheSharedBuilderBoundsItsConnectAttempt() {
-        assertEquals(java.util.Optional.of(Proxies.DEFAULT_CONNECT_TIMEOUT),
+        assertEquals(java.util.Optional.of(Proxies.connectTimeout()),
                                         Proxies.httpClientBuilder().build().connectTimeout());
     }
 

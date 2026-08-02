@@ -34,8 +34,8 @@ import org.junit.jupiter.api.Test;
  */
 class NativeImageResourcesTest {
 
-    private static final Path RESOURCES = Path.of("src/main/resources");
-    private static final Path CONFIG = RESOURCES
+    private static final Path CLASSES = Path.of("target/classes");
+    private static final Path CONFIG = Path.of("src/main/resources")
                                     .resolve("META-INF/native-image/org.pijota/pijota/resource-config.json");
 
     /** The include patterns the native image is given, as compiled regexes. */
@@ -49,29 +49,26 @@ class NativeImageResourcesTest {
     }
 
     /**
-     * What the build actually packages: everything under resources, minus the pom's excludes, plus the files it
-     * packages from the repository root (LICENSE and NOTICE, which live there so there is only one copy of each).
+     * What the build actually packages, read from the build output rather than from {@code src/main/resources}.
+     *
+     * <p>
+     * That distinction is the whole point. Six of these files exist only here: pdf.js and the web-UI libraries are
+     * downloaded into {@code target/classes} at generate-resources, and inter.woff2 with them, so a check against the
+     * source tree cannot see them at all -- they are covered by the {@code web/.*} and {@code browser/.*\.js} globs
+     * only by luck, and retargeting a download to a path those globs miss would ship a binary without it while this
+     * test stayed green. Reading the output directory also makes the pom's includes and excludes moot: Maven has
+     * already applied them.
      */
-    private static List<String> packaged() throws IOException {
-        String pom = Files.readString(Path.of("pom.xml"), StandardCharsets.UTF_8);
-        var out = new TreeSet<>(tags(pom, "include"));
-        var excluded = tags(pom, "exclude");
-        try (var walk = Files.walk(RESOURCES)) {
-            walk.filter(Files::isRegularFile).map(p -> RESOURCES.relativize(p).toString().replace('\\', '/'))
+    private static TreeSet<String> packaged() throws IOException {
+        try (var walk = Files.walk(CLASSES)) {
+            var out = walk.filter(Files::isRegularFile).map(p -> CLASSES.relativize(p).toString().replace('\\', '/'))
+                                            .filter(name -> !name.endsWith(".class"))
                                             // The native-image config describes the image; it is not itself loaded.
                                             .filter(name -> !name.startsWith("META-INF/native-image/"))
-                                            .filter(name -> !excluded.contains(name)).forEach(out::add);
+                                            .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
+            assertFalse(out.isEmpty(), "no packaged resources under " + CLASSES + "; run the build first");
+            return out;
         }
-        assertFalse(out.isEmpty(), "no packaged resources found; the pom's <resources> shape changed");
-        return List.copyOf(out);
-    }
-
-    private static TreeSet<String> tags(String pom, String tag) {
-        var out = new TreeSet<String>();
-        var m = Pattern.compile("<" + tag + ">([^<]+)</" + tag + ">").matcher(pom);
-        while (m.find())
-            out.add(m.group(1));
-        return out;
     }
 
     @Test
@@ -100,10 +97,9 @@ class NativeImageResourcesTest {
     @Test
     void noRegisteredPatternMatchesNothing() throws IOException {
         var packaged = packaged();
-        // Patterns for resources that come from dependencies or the build, not from this tree.
-        var fromElsewhere = List.of("META-INF/services/.*", "META-INF/jline/.*");
         for (var pattern : registered()) {
-            if (fromElsewhere.contains(pattern.pattern()))
+            // META-INF entries come from dependency jars, which land in the shaded artifact rather than here.
+            if (pattern.pattern().startsWith("META-INF/"))
                 continue;
             assertTrue(packaged.stream().anyMatch(name -> pattern.matcher(name).matches()),
                                             "pattern \"" + pattern.pattern() + "\" matches nothing this build "

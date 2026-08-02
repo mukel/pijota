@@ -8,6 +8,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ArgParserTest {
 
+    @org.junit.jupiter.api.extension.RegisterExtension
+    final org.pijota.testkit.StdioCapture stdio = new org.pijota.testkit.StdioCapture();
+
     @Test
     void parseProvider() {
         var args = ArgParser.parse(new String[] {"--provider", "openai"});
@@ -402,16 +405,9 @@ class ArgParserTest {
         assertEquals(3, args.promptArgs().size());
     }
 
-    private static String help() {
-        var buffer = new java.io.ByteArrayOutputStream();
-        var original = System.out;
-        try {
-            System.setOut(new java.io.PrintStream(buffer, true, java.nio.charset.StandardCharsets.UTF_8));
-            ArgParser.printHelp();
-        } finally {
-            System.setOut(original);
-        }
-        return buffer.toString(java.nio.charset.StandardCharsets.UTF_8);
+    private String help() {
+        ArgParser.printHelp();
+        return stdio.out();
     }
 
     /** {@code --help} is read in a terminal, and 80 columns is the one width every terminal has. */
@@ -456,18 +452,11 @@ class ArgParserTest {
      */
     @Test
     void theLicenseCommandPrintsTextsAndNotJustNames() {
-        var buffer = new java.io.ByteArrayOutputStream();
-        var original = System.out;
-        int code;
-        try {
-            System.setOut(new java.io.PrintStream(buffer, true, java.nio.charset.StandardCharsets.UTF_8));
-            code = org.pijota.cli.LicenseCommand.run(java.util.List.of());
-        } finally {
-            System.setOut(original);
-        }
-        String out = buffer.toString(java.nio.charset.StandardCharsets.UTF_8);
+        int code = org.pijota.cli.LicenseCommand.run();
+        String out = stdio.out();
 
         assertEquals(0, code);
+        assertTrue(stdio.err().isEmpty(), "nothing on stderr when the texts are present: " + stdio.err());
         assertTrue(out.contains("Apache License"), "pijota's own license text is printed");
         assertTrue(out.contains("Version 2.0, January 2004"), out.substring(0, Math.min(200, out.length())));
         for (String attribution : new String[] {"Arc90", "PDF.js", "marked", "DOMPurify", "highlight.js", "Inter"})

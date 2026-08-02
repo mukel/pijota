@@ -1,9 +1,10 @@
 package org.pijota.cli;
 
+import org.pijota.util.ErrorUtil;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 /**
  * {@code pijota --license}: prints pijota's own license and the attribution notices for everything embedded in the
@@ -32,11 +33,21 @@ public final class LicenseCommand {
      * matters here -- the texts reach the binary through a hand-maintained native-image resource list, and the same
      * list silently omitted the browser scripts until it was audited.
      */
-    public static int run(List<String> args) {
+    public static int run() {
+        String text = text();
+        System.out.println(text);
+        return text.isBlank() ? 1 : 0;
+    }
+
+    /**
+     * The license and the notices, as one document. The single owner of which files make up "the notices" and how they
+     * are joined, so {@code --license} and {@code /license} cannot show different things -- they already differed on
+     * spacing and on what a missing file says the moment there were two readers.
+     */
+    public static String text() {
         String license = read("/LICENSE");
         String notice = read("/NOTICE");
-        System.out.println((license + "\n\n" + notice).stripTrailing());
-        return license.isEmpty() || notice.isEmpty() ? 1 : 0;
+        return license.isEmpty() || notice.isEmpty() ? "" : (license + "\n\n" + notice).stripTrailing();
     }
 
     private static String read(String resource) {
@@ -49,7 +60,7 @@ public final class LicenseCommand {
             }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8).stripTrailing();
         } catch (IOException e) {
-            System.err.println("pijota: could not read " + resource.substring(1) + ": " + e.getMessage());
+            System.err.println("pijota: could not read " + resource.substring(1) + ": " + ErrorUtil.message(e));
             return "";
         }
     }

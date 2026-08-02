@@ -99,7 +99,7 @@ final class ToolResultLines {
                                             nameDetail + (meta.isEmpty() ? "" : dot + String.join(dot, meta)), theme,
                                             width);
             int beforeBody = lines.size();
-            addBody(lines, errorBody(msg, rendered), theme, width);
+            lines.addAll(railedBody(errorBody(msg, rendered), theme, width));
             if (lines.size() > beforeBody) // the ✖ opened the block in place of ┌, so it still needs closing
                 lines.add(theme.styled("commandMeta", "└"));
         } else if (rendered != null && !rendered.body().isEmpty()) {
@@ -149,15 +149,6 @@ final class ToolResultLines {
     }
 
     /**
-     * Rails a block body. Each logical line is wrapped to the railed width FIRST, so a line longer than the terminal
-     * gets the {@code │} on every physical row. Otherwise the terminal wraps it itself and the continuation rows dangle
-     * bare at column zero, visually breaking the block open.
-     */
-    private static void addBody(List<String> lines, List<String> rawBody, AnsiTheme theme, int width) {
-        lines.addAll(railedBody(rawBody, theme, width));
-    }
-
-    /**
      * A framed block: one line of air, the header wrapped so a long one cannot escape to column zero, the railed body,
      * then the {@code └} footer, wrapped for the same reason. The whole grammar in one place -- the user's {@code !}
      * commands went through a hand-rolled copy of it and had already drifted three ways, wrapping neither the header
@@ -168,7 +159,7 @@ final class ToolResultLines {
         var lines = new ArrayList<String>();
         lines.add(""); // framed blocks get one blank line of air (the coordinator collapses doubles)
         addHeader(lines, openPrefix, header, theme, width);
-        addBody(lines, body, theme, width);
+        lines.addAll(railedBody(body, theme, width));
         String foot = String.join(theme.styled("commandMeta", " · "), footChips);
         lines.addAll(AnsiWidth.wrapPrefixed(foot, width,
                                         theme.styled("commandMeta", "└") + (footChips.isEmpty() ? "" : " "),
@@ -214,7 +205,10 @@ final class ToolResultLines {
     }
 
     /**
-     * A block body: wrapped to the railed width and given the {@code │} rail, blank edges dropped.
+     * Rails a block body. Each logical line is wrapped to the railed width FIRST, so a line longer than the terminal
+     * gets the {@code │} on every physical row. Otherwise the terminal wraps it itself and the continuation rows dangle
+     * bare at column zero, visually breaking the block open. Blank edges are dropped: a rail with nothing on it reads
+     * as the block having lost its content.
      */
     private static List<String> railedBody(List<String> rawBody, AnsiTheme theme, int width) {
         // Blank edges become bare rail rows -- a │ with nothing on it, which reads as the block having lost its

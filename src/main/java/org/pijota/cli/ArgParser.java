@@ -299,7 +299,8 @@ public final class ArgParser {
     /** Warns on an unrecognized --thinking value (still defaulted downstream) so typos don't pass silently. */
     private static String checkThinking(String level) {
         if (!ThinkingLevel.isKnown(level))
-            System.err.println(ThinkingLevel.unknownValueMessage("--thinking", level));
+            System.err.println("pijota: unknown --thinking '" + level + "' (expected: "
+                                            + String.join(", ", ThinkingLevel.names()) + "), using medium");
         return level;
     }
 
