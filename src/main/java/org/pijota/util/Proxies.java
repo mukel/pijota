@@ -7,6 +7,7 @@ import java.net.ProxySelector;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -47,9 +48,21 @@ public final class Proxies {
         };
     }
 
-    /** A fresh {@link HttpClient.Builder}, with the configured proxy applied when one is set. */
+    /**
+     * How long to wait for a TCP connection before giving up, unless a caller sets its own. Java's default is no bound
+     * at all: the OS decides, which on Linux is minutes of SYN retries. That is long enough for a blackholed host to
+     * look like a hang -- {@code /refresh} against an unreachable provider sat on "refreshing models…" with nothing to
+     * cancel, and an OAuth poll did the same to a login.
+     */
+    static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(10);
+
+    /**
+     * A fresh {@link HttpClient.Builder}, with the configured proxy applied when one is set and a bounded connect
+     * timeout. The bound is here rather than at each call site because forgetting it is silent: three of the seven
+     * callers had, and the failure only shows on a network that does not answer.
+     */
     public static HttpClient.Builder httpClientBuilder() {
-        var builder = HttpClient.newBuilder();
+        var builder = HttpClient.newBuilder().connectTimeout(DEFAULT_CONNECT_TIMEOUT);
         var s = selector();
         if (s != null)
             builder.proxy(s);

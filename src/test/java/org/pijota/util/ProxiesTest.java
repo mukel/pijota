@@ -56,4 +56,25 @@ class ProxiesTest {
         assertFalse(Proxies.isBypassed("api.openai.com", bypass), "unrelated host is proxied");
         assertFalse(Proxies.isBypassed("notinternal.corp", bypass), "suffix must be on a dot boundary");
     }
+
+    /**
+     * Java bounds a connect attempt only if you ask: with no connectTimeout the OS decides, which on Linux is minutes
+     * of SYN retries. Three of the seven callers had forgotten to ask -- the model refresher and all three OAuth login
+     * clients -- so an unreachable provider left {@code /refresh} sitting on "refreshing models…" with nothing to
+     * cancel, and did the same to a login. The bound lives in the shared builder because forgetting it is silent and
+     * only shows on a network that does not answer.
+     */
+    @Test
+    void everyClientFromTheSharedBuilderBoundsItsConnectAttempt() {
+        assertEquals(java.util.Optional.of(Proxies.DEFAULT_CONNECT_TIMEOUT),
+                                        Proxies.httpClientBuilder().build().connectTimeout());
+    }
+
+    /** A caller with its own configured timeout still wins; the builder only supplies the floor. */
+    @Test
+    void aCallerCanStillChooseItsOwnTimeout() {
+        var own = java.time.Duration.ofSeconds(3);
+        assertEquals(java.util.Optional.of(own),
+                                        Proxies.httpClientBuilder().connectTimeout(own).build().connectTimeout());
+    }
 }
