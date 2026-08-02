@@ -27,6 +27,17 @@ final class ToolResultLines {
 
     private ToolResultLines() {}
 
+    /** The result's own details, shaped like the request arguments so {@link ToolLabels} can read either. */
+    private static Supplier<String> detailsAsArgs(Message.ToolResult msg) {
+        return () -> {
+            try {
+                return Util.MAPPER.writeValueAsString(msg.details() == null ? Map.of() : msg.details());
+            } catch (Exception e) {
+                return "";
+            }
+        };
+    }
+
     static List<String> compose(Message.ToolResult msg, Tool.ToolResultView rendered, Supplier<String> args,
                                     AnsiTheme theme, String rawCwd, PathDisplay pathDisplay, long elapsedMs,
                                     String glyph, int width) {
@@ -37,6 +48,12 @@ final class ToolResultLines {
         boolean shell = msg.toolName().equals("bash");
         var nameDetail = new StringBuilder(theme.styled("toolLabel", shell ? "$" : msg.toolName()));
         String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay, ToolLabels.FULL_COMMAND);
+        if (detail.isBlank())
+            // An interrupt clears the in-flight call before its result lands, taking the request arguments with it,
+            // and the line then said only "✖ $ · exit 143" -- a failure with no way to tell which command failed.
+            // The result carries its own details (bash records the command it ran), which name it just as well.
+            detail = ToolLabels.detail(msg.toolName(), detailsAsArgs(msg), rawCwd, pathDisplay,
+                                            ToolLabels.FULL_COMMAND);
         if (!detail.isBlank())
             nameDetail.append(' ').append(theme.styled(shell ? "text" : "statusText", detail));
 

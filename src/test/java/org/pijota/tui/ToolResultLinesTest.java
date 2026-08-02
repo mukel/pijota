@@ -188,4 +188,32 @@ class ToolResultLinesTest {
             assertTrue(row.startsWith("  "), "a footer continuation is indented, not at column zero: [" + row + "]");
     }
 
+    /**
+     * An interrupt clears the in-flight call before its result lands, so the request arguments are gone by the time the
+     * line is composed. It then read "✖ $ · exit 143": a failure with no way to tell which command failed. The result
+     * records the command it ran, which names it just as well.
+     */
+    @Test
+    void anInterruptedCommandStillSaysWhichCommandItWas() {
+        var msg = new Message.ToolResult("call-1", "bash", "", true, Map.of("command", "sleep 60", "exitCode", 143));
+
+        // null args: exactly what the composer gets once the in-flight entry has been evicted.
+        var lines = ToolResultLines.compose(msg, null, null, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0, "$", 80);
+
+        String out = visible(lines);
+        assertTrue(out.contains("sleep 60"), "the interrupted command must still be named: " + out);
+        assertTrue(out.contains("143"), "and its exit code kept: " + out);
+    }
+
+    @Test
+    void requestArgumentsStillWinWhenTheyArePresent() {
+        var msg = new Message.ToolResult("call-1", "bash", "", false, Map.of("command", "from-details"));
+        var lines = ToolResultLines.compose(msg, null, () -> "{\"command\": \"from-args\"}", AnsiTheme.dark(), "/cwd",
+                                        PathDisplay.COMPACT, 0, "$", 80);
+
+        String out = visible(lines);
+        assertTrue(out.contains("from-args"), "the fallback must not override what was actually requested: " + out);
+        assertFalse(out.contains("from-details"), out);
+    }
+
 }

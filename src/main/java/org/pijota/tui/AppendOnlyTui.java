@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -215,6 +216,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private final Map<String, ToolInProgress> toolsInProgress = new ConcurrentHashMap<>();
+    // Calls already reported as interrupted. Their results still arrive (a killed process reports exit 143), and
+    // rendering those would report one interrupted call twice: once as "interrupted", once as a failed block.
+    private final Set<String> interruptedCalls = ConcurrentHashMap.newKeySet();
     private final TuiSelectors selectors;
     private volatile boolean showSessionPickerOnStart;
     private final LogViewer logViewer = new LogViewer();
@@ -2215,6 +2219,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         switch (event) {
             case AgentEvent.TurnStart ignored -> {
                 toolsInProgress.clear(); // evict any leftovers from a prior interrupted/aborted turn
+                interruptedCalls.clear();
                 followUps.clearPending();
                 streamRenderer.reset();
                 streamingContent = false;
@@ -2270,6 +2275,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case AgentEvent.ToolResult(Message.ToolResult msg) -> {
                 streamRenderer.flush();
                 pendingEdit.onToolResult(isEditWrite(msg), msg.isError());
+                if (msg.toolCallId() != null && interruptedCalls.remove(msg.toolCallId()))
+                    break; // already reported as interrupted; its exit-143 result would say the same thing twice
                 ToolInProgress started = msg.toolCallId() != null ? toolsInProgress.remove(msg.toolCallId()) : null;
                 Supplier<String> args = started != null ? started.args() : null;
                 long elapsedMs = started != null ? System.currentTimeMillis() - started.startedAtMs() : 0;
@@ -2353,12 +2360,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void closeAbandonedTools() {
         if (toolsInProgress.isEmpty())
             return;
-        var abandoned = toolsInProgress.values().stream()
-                                        .sorted(java.util.Comparator.comparingLong(ToolInProgress::startedAtMs))
+        var abandoned = toolsInProgress.entrySet().stream()
+                                        .sorted(java.util.Comparator.comparingLong(e -> e.getValue().startedAtMs()))
                                         .toList();
+        abandoned.forEach(e -> interruptedCalls.add(e.getKey()));
         toolsInProgress.clear();
         String dot = theme.styled("commandMeta", " · ");
-        for (var tool : abandoned) {
+        for (var entry : abandoned) {
+            var tool = entry.getValue();
             var line = new StringBuilder(theme.styled("toolError", "✖")).append(' ')
                                             .append(theme.styled("toolLabel", tool.name()));
             if (!tool.detail().isBlank())
@@ -2384,7 +2393,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         ToolInProgress current = newestToolInProgress();
         if (current == null)
             return null;
-        var line = new StringBuilder("● ").append(current.name());
+        // The tool's own mark, not a fixed one: this is the most-watched line in the interface during a turn, and a
+        // hardcoded ● said every running tool -- a read, a search, a shell command -- had written to disk.
+        String mark = session.tool(current.name()).map(Tool::glyph).orElse(ToolGlyphs.AGENT);
+        var line = new StringBuilder(mark).append(' ').append(current.name());
         if (!current.detail().isBlank())
             line.append(' ').append(current.detail());
         line.append("  ").append(animation.frame());
