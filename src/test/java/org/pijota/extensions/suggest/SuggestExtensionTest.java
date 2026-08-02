@@ -28,6 +28,7 @@ class SuggestExtensionTest {
     /** Counts calls so "did not spend" can be asserted rather than assumed. */
     private static final class CountingLlm implements LlmClient {
         final AtomicInteger calls = new AtomicInteger();
+        volatile String modelUsed;
 
         @Override
         public String provider() {
@@ -43,6 +44,7 @@ class SuggestExtensionTest {
         public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
                                         BiConsumer<String, String> onPartial) {
             calls.incrementAndGet();
+            modelUsed = model(); // whatever this client is, that is the model the suggestion used
             var r = new StreamResult();
             r.setContent("run the tests");
             return CompletableFuture.completedFuture(r);
@@ -66,8 +68,11 @@ class SuggestExtensionTest {
         }
     }
 
+    private static FakeExtensionRuntime lastRuntime;
+
     private static FakeExtensionAPI apiWith(UiContext ui, CountingLlm llm) {
         var runtime = new FakeExtensionRuntime();
+        lastRuntime = runtime;
         runtime.setFlag("suggest", "true");
         runtime.setUi(ui);
         runtime.setLlm(llm);
@@ -191,6 +196,30 @@ class SuggestExtensionTest {
         for (String on : new String[] {"true", "TRUE", "  ", ""})
             assertTrue(withFlag(on).instruction().contains("most likely to type next"),
                                             "\"" + on + "\" is the on-switch, not guidance");
+    }
+
+    /**
+     * A suggestion must be answered by the same model that answered the user. Not by convention: the extension holds
+     * the session's own client, and {@code LlmClient.streamMessages} takes no model override, so there is no path by
+     * which a different model could be used. This pins that -- if an override is ever added, it must be a deliberate
+     * change here rather than a quiet one.
+     */
+    @Test
+    void aSuggestionIsAnsweredByTheSessionsOwnModel() throws Exception {
+        var llm = new CountingLlm();
+        var ui = new DraftUi();
+        var api = apiWith(ui, llm);
+        lastRuntime.seedMessage(new Message.User(java.util.UUID.randomUUID(), java.time.Instant.now(),
+                                        "add a zero guard", java.util.List.of()));
+        ready(api);
+
+        api.fire(new ExtensionEvent.AgentEnd());
+        for (int i = 0; i < 100 && ui.offered == null; i++)
+            Thread.sleep(20);
+
+        assertEquals(1, llm.calls.get(), "exactly one call per turn");
+        assertEquals("test-model", llm.modelUsed, "the session's model, never a substitute");
+        assertEquals("run the tests", ui.offered, "and its reply became the offer");
     }
 
 }
