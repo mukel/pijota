@@ -12,8 +12,17 @@ import org.junit.jupiter.api.Test;
 
 class PromptPresenterTest {
 
-    /** The status bar as it would be drawn, for a given effort level and nothing else going on. */
-    private static String statusBar(ThinkingLevel level) {
+    private final TurnActivity activity = new TurnActivity();
+    private final FollowUpQueue followUps = new FollowUpQueue();
+    private final StatusOverride statusOverride = new StatusOverride();
+    private ThinkingLevel level = ThinkingLevel.MEDIUM;
+    private long tokens = 1000;
+    private int messages = 3;
+    private String sessionName;
+    private List<String> extensionLines = List.of();
+
+    /** The presenter wired to this test's collaborators, so a test can put the bar into a real state and read it. */
+    private PromptPresenter presenter() {
         var theme = AnsiTheme.dark();
         var host = new PromptPresenter.Host() {
             @Override
@@ -28,7 +37,7 @@ class PromptPresenterTest {
 
             @Override
             public String sessionName() {
-                return null;
+                return sessionName;
             }
 
             @Override
@@ -53,7 +62,7 @@ class PromptPresenterTest {
 
             @Override
             public int messageCount() {
-                return 3;
+                return messages;
             }
 
             @Override
@@ -61,16 +70,29 @@ class PromptPresenterTest {
                 return null;
             }
         };
-        var presenter = new PromptPresenter(host, new TurnActivity(), new StatusOverride(),
-                                        new DialogHandler(new DialogHandler.Host() {
-                                            @Override
-                                            public void setStatus(String status) {}
+        return new PromptPresenter(host, activity, statusOverride, new DialogHandler(new DialogHandler.Host() {
+            @Override
+            public void setStatus(String status) {}
 
-                                            @Override
-                                            public void clearStatus() {}
-                                        }), new WorkingAnimation(), new FollowUpQueue(),
-                                        new ContextTokenMeter(() -> 3, () -> 1000, 1000), List::of);
-        return AnsiStripper.strip(presenter.decorate(new PromptSnapshot(List.of(""), 0, 0, List.of())).status());
+            @Override
+            public void clearStatus() {}
+        }), new WorkingAnimation(), followUps, new ContextTokenMeter(() -> messages, () -> tokens, 60_000),
+                                        () -> extensionLines);
+    }
+
+    private PromptSnapshot decorate(String... promptLines) {
+        var lines = promptLines.length == 0 ? List.of("") : List.of(promptLines);
+        return presenter().decorate(new PromptSnapshot(lines, 0, 0, List.of()));
+    }
+
+    /** The status line as drawn, stripped of styling. */
+    private String statusBar() {
+        return AnsiStripper.strip(decorate().status());
+    }
+
+    private String statusBar(ThinkingLevel forLevel) {
+        level = forLevel;
+        return statusBar();
     }
 
     /**
@@ -103,5 +125,142 @@ class PromptPresenterTest {
     void theStatusBarNamesTheModelTheWayEverythingElseDoes() {
         assertTrue(statusBar(ThinkingLevel.MEDIUM).contains("deepseek/deepseek-v4-flash"),
                                         statusBar(ThinkingLevel.MEDIUM));
+    }
+
+    // ---- the token meter -----------------------------------------------------------------------------------------
+
+    /** Before a turn there is no estimate; a made-up number would be worse than saying so. */
+    @Test
+    void anUnmeasuredContextSaysSoRatherThanClaimingZero() {
+        tokens = 0;
+        assertTrue(statusBar().startsWith("?/1.0M"), statusBar());
+        assertEquals(0, decorate().contextPct());
+    }
+
+    @Test
+    void theMeterShowsWhatIsUsedAgainstTheWindow() {
+        tokens = 250_000;
+        assertTrue(statusBar().startsWith("250K/1.0M (25%)"), statusBar());
+        assertEquals(25, decorate().contextPct());
+    }
+
+    /**
+     * The percentage escalates in colour as the window fills: quiet, then amber, then the failure red. It is the only
+     * warning before a compaction, so it has to change before it is urgent.
+     */
+    @Test
+    void theMeterGetsLouderAsTheWindowFills() {
+        var theme = AnsiTheme.dark();
+        record Case(long tokens, String slot, String why) {
+        }
+        for (var c : List.of(new Case(500_000, "statusText", "half full is unremarkable"),
+                                        new Case(750_000, "statusWarn", "three quarters is worth noticing"),
+                                        new Case(950_000, "toolError", "nearly full is the last warning"))) {
+            tokens = c.tokens();
+            assertTrue(decorate().status().contains(theme.style(c.slot())), c.why() + ": " + statusBar());
+        }
+    }
+
+    /** The bar never claims a full window: 99% is the ceiling, because 100% reads as "already too late". */
+    @Test
+    void theMeterNeverReadsAsCompletelyFull() {
+        tokens = 10_000_000;
+        assertTrue(statusBar().contains("(99%)"), statusBar());
+        assertEquals(99, decorate().contextPct());
+    }
+
+    // ---- what a running turn adds --------------------------------------------------------------------------------
+
+    @Test
+    void anIdleBarCarriesNoActivity() {
+        assertFalse(statusBar().contains("waiting"), statusBar());
+        assertEquals(PromptSnapshot.PromptState.IDLE, decorate().promptState());
+    }
+
+    @Test
+    void aRunningTurnNamesItsPhaseAndSaysTheBarIsBusy() {
+        activity.begin("waiting for model");
+        assertTrue(statusBar().contains("waiting for model"), statusBar());
+        assertEquals(PromptSnapshot.PromptState.BUSY, decorate().promptState());
+    }
+
+    /** A sub-second turn is not timed: a counter that flashes 0s and vanishes is noise, not progress. */
+    @Test
+    void onlyATurnWorthWaitingForIsTimed() {
+        activity.begin("waiting for model");
+        assertFalse(statusBar().matches(".*\\b0s\\b.*"), "an instant turn shows no counter: " + statusBar());
+    }
+
+    // ---- queued follow-ups and the start hint ---------------------------------------------------------------------
+
+    /** Typing while the model works queues the message; the bar has to say so, and how to get it back. */
+    @Test
+    void aQueuedFollowUpIsAnnouncedWithTheWayToRetrieveIt() {
+        followUps.add("and then run the tests");
+        assertTrue(statusBar().contains("queued 1"), statusBar());
+        assertTrue(statusBar().contains("/dequeue"), "and how to get it back: " + statusBar());
+    }
+
+    @Test
+    void theStartHintAppearsOnlyOnAnEmptyConversation() {
+        messages = 0;
+        assertTrue(statusBar().contains("/help"), "a fresh session says where to start: " + statusBar());
+        messages = 1;
+        assertFalse(statusBar().contains("/help"), "and stops once there is a conversation: " + statusBar());
+    }
+
+    /** A queued message outranks the hint: it is news, and the hint is for someone who has not started. */
+    @Test
+    void aQueuedMessageTakesTheHintsPlaceRatherThanCrowdingIt() {
+        messages = 0;
+        followUps.add("later");
+        assertTrue(statusBar().contains("queued 1"), statusBar());
+        assertFalse(statusBar().contains("/help"), "both at once would be two things competing: " + statusBar());
+    }
+
+    // ---- the workspace line and prompt state ----------------------------------------------------------------------
+
+    @Test
+    void theWorkspaceLineNamesTheDirectoryAndTheSessionWhenThereIsOne() {
+        assertEquals("/w", AnsiStripper.strip(decorate().cwd()));
+        sessionName = "refactor-tui";
+        assertTrue(AnsiStripper.strip(decorate().cwd()).contains("refactor-tui"), decorate().cwd());
+    }
+
+    /**
+     * An unclosed fence means Enter should add a line rather than send, so the caret says so. Without it, pasting a
+     * code block and pressing Enter sent half of it.
+     */
+    @Test
+    void anOpenCodeFenceMakesThePromptAContinuation() {
+        assertEquals(PromptSnapshot.PromptState.CONTINUATION, decorate("```java", "int x = 1;").promptState());
+        assertEquals(PromptSnapshot.PromptState.IDLE, decorate("```java", "int x = 1;", "```").promptState());
+    }
+
+    @Test
+    void anErrorOverrideTurnsThePromptRed() {
+        statusOverride.set("Error: boom");
+        assertEquals(PromptSnapshot.PromptState.ERROR, decorate().promptState());
+        statusOverride.set("Interrupted");
+        assertEquals(PromptSnapshot.PromptState.ERROR, decorate().promptState());
+        statusOverride.set("saved");
+        assertEquals(PromptSnapshot.PromptState.IDLE, decorate().promptState(), "an ordinary notice is not an error");
+    }
+
+    /** Busy wins over an error override: what the bar is doing now outranks what went wrong before. */
+    @Test
+    void aRunningTurnOutranksAStaleError() {
+        statusOverride.set("Error: boom");
+        activity.begin("waiting for model");
+        assertEquals(PromptSnapshot.PromptState.BUSY, decorate().promptState());
+    }
+
+    // ---- extension status lines ------------------------------------------------------------------------------------
+
+    @Test
+    void extensionLinesReachTheBarDedupedAndSingleRow() {
+        extensionLines = List.of("⏸ plan", "⏸ plan", "one\ntwo", "  ");
+        assertEquals(List.of("⏸ plan", "one two"), decorate().extensionLines(),
+                                        "duplicates collapse, a newline would break the frame's row count, blanks go");
     }
 }
