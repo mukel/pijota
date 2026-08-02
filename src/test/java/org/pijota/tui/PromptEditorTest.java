@@ -181,14 +181,26 @@ class PromptEditorTest {
         assertEquals("ions", editor.suggestion());
     }
 
+    /**
+     * Shell autosuggestion works because commands repeat verbatim; an agent prompt is fresh prose almost every time, so
+     * a prefix match on an earlier message is coincidence. It was also loudest when it knew least -- one keystroke
+     * could fill the line with a whole stale sentence -- and → / End accept a ghost, so a reflexive edit keystroke
+     * could send a message the user never wrote.
+     */
     @Test
-    void suggestsFromHistory() {
+    void doesNotGhostAPreviousMessage() {
         editor.insertText("hello world");
         editor.apply(Key.Special.ENTER);
         editor.insertText("he");
 
-        // Suffix only ("he" + "llo world"), so the dimmed ghost text completes the typed prefix.
-        assertEquals("llo world", editor.suggestion());
+        assertEquals("", editor.suggestion(), "prose from history must not be suggested inline");
+    }
+
+    /** Commands are a closed vocabulary, so completing them is a real prediction rather than a coincidence. */
+    @Test
+    void stillGhostsACommand() {
+        editor.insertText("/se");
+        assertFalse(editor.suggestion().isEmpty(), "a command prefix still completes");
     }
 
     @Test

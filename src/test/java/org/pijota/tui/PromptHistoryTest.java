@@ -40,8 +40,9 @@ class PromptHistoryTest {
         history.add("hello there");
 
         // Returns only the suffix past the typed prefix (rendered dimmed after it).
-        assertEquals("lo there", history.suggestionFor("HEL"));
-        assertEquals("", history.suggestionFor("missing"));
+        // History is reached deliberately (Up/Down, Ctrl+R), never suggested inline: an agent prompt is fresh prose
+        // almost every time, so a prefix match on an earlier message is coincidence, and → / End would accept it.
+        assertEquals(2, history.reverseSearchItems().size(), "history is still fully reachable");
     }
 
     @Test

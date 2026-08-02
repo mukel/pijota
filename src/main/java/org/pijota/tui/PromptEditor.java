@@ -379,14 +379,17 @@ public final class PromptEditor {
         suggestion = computeSuggestion();
     }
 
+    /**
+     * Only commands are ghosted, never a previous message. Shell autosuggestion works because commands repeat verbatim
+     * -- rerunning {@code git status} is the common case -- but an agent prompt is a fresh instruction in prose almost
+     * every time, so a prefix match on an earlier message is coincidence rather than intent. It was also loudest when
+     * it knew least: one keystroke could fill the line with a whole stale sentence, which → and End then accepted, and
+     * both are keys you press while editing. History is still reachable deliberately, with Up/Down and Ctrl+R.
+     */
     private String computeSuggestion() {
         if (!buffer.cursorAtEndOfBuffer())
             return "";
-        String text = text();
-        String commandSuggestion = completionPolicy.commandSuggestion(text);
-        if (!commandSuggestion.isEmpty())
-            return commandSuggestion;
-        return history.suggestionFor(text);
+        return completionPolicy.commandSuggestion(text());
     }
 
     private Result reverseHistorySearch() {
