@@ -1,10 +1,9 @@
 package org.pijota.extensions.tmux;
 
-import org.pijota.tools.Tool;
-
 import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
+import org.pijota.tools.Tool;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

@@ -1,8 +1,8 @@
 package org.pijota.extensions.suggest;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A suggestion is unsolicited, so a bad one costs more than showing nothing. These are the rules that keep it from

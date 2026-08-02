@@ -13,8 +13,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.function.Consumer;
-import java.util.zip.GZIPInputStream;
 import java.net.CookieManager;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -29,6 +27,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import java.util.zip.GZIPInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 

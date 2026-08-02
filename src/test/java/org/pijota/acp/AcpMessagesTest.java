@@ -4,7 +4,6 @@ import org.pijota.modes.SlashCommand;
 import org.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
-
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

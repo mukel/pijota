@@ -4,6 +4,8 @@ import org.pijota.util.PijotaHome;
 import org.pijota.util.Util;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,9 +16,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Loads MCP server definitions from {@code mcp.json}, merging the global file ({@code ~/.pijota/mcp.json}) with the

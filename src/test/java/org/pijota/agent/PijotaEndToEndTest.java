@@ -5,6 +5,7 @@ import org.pijota.messages.ToolCall;
 import org.pijota.messages.Usage;
 import org.pijota.testkit.FauxLlm;
 import org.pijota.tools.Tool;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -14,8 +15,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-import static org.pijota.testkit.FauxLlm.Response.contentWithUsage;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.FauxLlm.Response.contentWithUsage;
 
 class PijotaEndToEndTest {
 

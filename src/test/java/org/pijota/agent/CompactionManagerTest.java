@@ -3,6 +3,7 @@ package org.pijota.agent;
 import org.pijota.config.AppConfig;
 import org.pijota.messages.Message;
 import org.pijota.messages.ToolCall;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

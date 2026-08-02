@@ -2,10 +2,10 @@ package org.pijota.llm;
 
 import org.pijota.config.ProviderCatalog;
 
-import java.util.LinkedHashSet;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import java.util.LinkedHashSet;
 
 import static org.junit.jupiter.api.Assertions.*;
 

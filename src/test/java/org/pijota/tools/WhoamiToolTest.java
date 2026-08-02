@@ -3,13 +3,13 @@ package org.pijota.tools;
 import org.pijota.llm.ModelInfo;
 import org.pijota.llm.ModelRegistry;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
-
-import static org.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.ToolRunner.run;
 
 class WhoamiToolTest {
 

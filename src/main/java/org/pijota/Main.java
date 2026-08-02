@@ -23,8 +23,6 @@ import org.pijota.modes.RpcMode;
 import org.pijota.telegram.TelegramChat;
 import org.pijota.telegram.TelegramClient;
 import org.pijota.telegram.TelegramFrontend;
-import org.pijota.web.WebServer;
-import org.pijota.worktree.WorktreeCommand;
 import org.pijota.tui.AppendOnlyTui;
 import org.pijota.util.CliErrorReporter;
 import org.pijota.util.PijotaHome;
@@ -32,6 +30,8 @@ import org.pijota.util.Platform;
 import org.pijota.util.SelfRespawn;
 import org.pijota.util.StartupTimer;
 import org.pijota.util.Util;
+import org.pijota.web.WebServer;
+import org.pijota.worktree.WorktreeCommand;
 
 import ch.qos.logback.classic.Level;
 import org.slf4j.Logger;

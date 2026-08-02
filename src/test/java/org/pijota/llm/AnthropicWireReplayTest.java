@@ -1,20 +1,20 @@
 package org.pijota.llm;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.messages.Message;
 import org.pijota.testkit.WireFixture;
 import org.pijota.tools.Tool;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Replays recorded Anthropic-style responses. This family shares no wire shape with the OpenAI-compatible one: events

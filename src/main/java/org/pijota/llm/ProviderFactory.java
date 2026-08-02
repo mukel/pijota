@@ -1,9 +1,8 @@
 package org.pijota.llm;
 
-import java.util.ArrayList;
-
 import org.pijota.config.ProviderCatalog;
 import org.pijota.util.Proxies;
+
 import dev.langchain4j.http.client.HttpClientBuilder;
 import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
@@ -12,6 +11,7 @@ import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 
 import java.net.http.HttpClient;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;

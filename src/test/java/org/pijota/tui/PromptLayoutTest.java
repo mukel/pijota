@@ -1,15 +1,15 @@
 package org.pijota.tui;
 
+import org.pijota.testkit.AnsiStripper;
+import org.pijota.theme.AnsiTheme;
+
+import org.junit.jupiter.api.Test;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
-
-import org.pijota.testkit.AnsiStripper;
-import org.pijota.theme.AnsiTheme;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

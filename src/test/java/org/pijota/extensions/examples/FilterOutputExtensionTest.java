@@ -4,6 +4,7 @@ import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.messages.Message;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

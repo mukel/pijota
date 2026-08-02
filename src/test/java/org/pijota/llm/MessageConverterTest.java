@@ -2,6 +2,7 @@ package org.pijota.llm;
 
 import org.pijota.messages.Message;
 import org.pijota.messages.ToolCall;
+
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.AudioContent;
 import dev.langchain4j.data.message.ImageContent;
@@ -11,11 +12,10 @@ import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.message.VideoContent;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Set;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

@@ -1,9 +1,10 @@
 package org.pijota.browser;
 
+import org.pijota.util.Executables;
+
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.pijota.util.Executables;
 
 import java.net.ServerSocket;
 import java.util.List;

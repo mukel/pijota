@@ -1,15 +1,15 @@
 package org.pijota.tui;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 class PromptPresenterTest {
 

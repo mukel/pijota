@@ -2,6 +2,9 @@ package org.pijota.tools;
 
 import org.pijota.util.ProcessRunner;
 
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -11,11 +14,8 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
-import static org.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.ToolRunner.run;
 
 class BashToolTest {
 

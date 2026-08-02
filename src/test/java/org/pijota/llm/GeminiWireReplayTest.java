@@ -1,20 +1,20 @@
 package org.pijota.llm;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.config.ProviderCatalog;
 import org.pijota.messages.Message;
 import org.pijota.testkit.WireFixture;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The third wire family cannot be replayed, and this records why rather than leaving a silent hole in the coverage.

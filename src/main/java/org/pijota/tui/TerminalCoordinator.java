@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.theme.AnsiTheme;
+
 import org.jline.terminal.Terminal;
 
 import java.util.ArrayList;

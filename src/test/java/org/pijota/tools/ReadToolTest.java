@@ -8,8 +8,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static org.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.ToolRunner.run;
 
 class ReadToolTest {
     @TempDir

@@ -10,11 +10,12 @@ import org.pijota.tools.ReadTool;
 import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.WhoamiTool;
 import org.pijota.tools.WriteTool;
+
+import org.junit.jupiter.api.Test;
+
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

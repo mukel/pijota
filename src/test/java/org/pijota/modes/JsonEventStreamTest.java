@@ -1,11 +1,12 @@
 package org.pijota.modes;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.agent.AgentEvent;
 import org.pijota.messages.Message;
 import org.pijota.messages.Usage;
 import org.pijota.util.Util;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -18,9 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 class JsonEventStreamTest {
 

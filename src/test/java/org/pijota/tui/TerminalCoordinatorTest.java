@@ -1,12 +1,11 @@
 package org.pijota.tui;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
+import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PipedInputStream;
@@ -19,7 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The coordinator is the single point every scrollback line passes through, and it owns two things nothing else can:

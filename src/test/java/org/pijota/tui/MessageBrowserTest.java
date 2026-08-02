@@ -2,10 +2,10 @@ package org.pijota.tui;
 
 import org.pijota.messages.Message;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.function.Supplier;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

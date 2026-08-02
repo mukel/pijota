@@ -1,9 +1,9 @@
 package org.pijota.browser;
 
 import org.pijota.util.Executables;
+
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 

@@ -1,8 +1,8 @@
 package org.pijota;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.util.Util;
+
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -14,7 +14,7 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A resource the build packages but the native image was not told to keep is present in the jar and absent from the

@@ -1,19 +1,19 @@
 package org.pijota.tui;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.extensions.KeyChord;
 import org.pijota.extensions.plan.PlanExtension;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.extensions.transcend.TranscendenceExtension;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * An extension can declare any {@link KeyChord} it likes, but the TUI can only deliver one the input decoder actually

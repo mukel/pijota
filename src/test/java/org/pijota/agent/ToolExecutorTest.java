@@ -1,7 +1,7 @@
 package org.pijota.agent;
 
-import org.pijota.extensions.DeliverAs;
 import org.pijota.extensions.AgentContext;
+import org.pijota.extensions.DeliverAs;
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.ExtensionEvent;
@@ -14,6 +14,8 @@ import org.pijota.testkit.FauxLlm;
 import org.pijota.tools.Tool;
 import org.pijota.tools.ToolRegistry;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +23,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

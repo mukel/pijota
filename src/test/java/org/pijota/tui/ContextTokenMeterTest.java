@@ -1,9 +1,9 @@
 package org.pijota.tui;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

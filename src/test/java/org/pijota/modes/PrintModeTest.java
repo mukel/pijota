@@ -1,7 +1,5 @@
 package org.pijota.modes;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.agent.PijotaSession;
 import org.pijota.agent.TestSession;
 import org.pijota.cli.Args;
@@ -10,16 +8,17 @@ import org.pijota.testkit.FauxLlm;
 import org.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.List;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 class PrintModeTest {
 

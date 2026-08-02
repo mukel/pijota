@@ -1,6 +1,9 @@
 package org.pijota.extensions.mcp;
 
 import org.pijota.testkit.Await;
+
+import org.junit.jupiter.api.Test;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -8,8 +11,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

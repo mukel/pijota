@@ -365,6 +365,11 @@
               <version>4.34</version>
               <file>${project.basedir}/eclipse-formatter.xml</file>
             </eclipse>
+            <!-- The order the codebase already used by a large majority: ours, then everyone else's, then the JDK's,
+                 with static imports last. Enforced here so it stays that way without anyone having to notice. -->
+            <importOrder>
+              <order>org.pijota,,java,javax,\#</order>
+            </importOrder>
             <removeUnusedImports/>
           </java>
           <pom>

@@ -1,8 +1,8 @@
 package org.pijota.extensions;
 
 import org.pijota.extensions.skills.SkillLoader;
-import org.pijota.modes.SlashCommand;
 import org.pijota.messages.Message;
+import org.pijota.modes.SlashCommand;
 import org.pijota.tools.Tool;
 
 import java.util.List;

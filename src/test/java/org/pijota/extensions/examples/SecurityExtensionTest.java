@@ -5,6 +5,7 @@ import org.pijota.extensions.ExtensionResult;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.extensions.testkit.FakeUiContext;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

@@ -3,7 +3,6 @@ package org.pijota.acp;
 import org.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
-
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;

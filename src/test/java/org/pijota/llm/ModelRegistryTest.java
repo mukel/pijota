@@ -1,7 +1,6 @@
 package org.pijota.llm;
 
 import org.pijota.agent.ModelSelection;
-
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.util.Util;

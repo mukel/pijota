@@ -1,10 +1,11 @@
 package org.pijota.tui;
 
-import java.util.List;
-
 import org.pijota.extensions.ExtensionKeybinding;
 import org.pijota.extensions.KeyChord;
+
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 

@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static org.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.ToolRunner.run;
 
 class TruncatedToolExtensionTest {
 

@@ -1,7 +1,7 @@
 package org.pijota.tui;
 
-import org.pijota.theme.AnsiTheme;
 import org.pijota.modes.SyntaxHighlighter;
+import org.pijota.theme.AnsiTheme;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,14 +1,14 @@
 package org.pijota.llm;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.cli.ArgParser;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for the resolution rules extracted from AppBootstrap. The missing-key + typo-warning paths are

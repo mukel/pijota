@@ -1,16 +1,16 @@
 package org.pijota.cli;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.config.AppConfig;
-import org.pijota.testkit.StdioCapture;
 import org.pijota.config.SettingsManager;
+import org.pijota.testkit.StdioCapture;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
+import static org.junit.jupiter.api.Assertions.*;
 
 class AuthCommandTest {
 

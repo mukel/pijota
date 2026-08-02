@@ -2,9 +2,9 @@ package org.pijota.tui;
 
 import org.pijota.llm.ModelInfo;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 

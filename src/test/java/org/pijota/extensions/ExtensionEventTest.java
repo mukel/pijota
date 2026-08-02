@@ -1,8 +1,8 @@
 package org.pijota.extensions;
 
-import java.nio.file.Path;
-
 import org.junit.jupiter.api.Test;
+
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 

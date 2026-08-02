@@ -2,10 +2,10 @@ package org.pijota.tui;
 
 import org.pijota.config.PathDisplay;
 import org.pijota.messages.Message;
+import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.Tool;
 import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.ToolLabels;
-import org.pijota.theme.AnsiTheme;
 import org.pijota.util.Util;
 
 import java.util.ArrayList;

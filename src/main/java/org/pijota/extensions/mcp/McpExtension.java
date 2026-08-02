@@ -8,6 +8,9 @@ import org.pijota.modes.SlashCommand;
 import org.pijota.tools.ToolRegistry;
 import org.pijota.util.Util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -23,9 +26,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Bridges external MCP (Model Context Protocol) servers into pijota as tools. On {@link #onReady} it reads

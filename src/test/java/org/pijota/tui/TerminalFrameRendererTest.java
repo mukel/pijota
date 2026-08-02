@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

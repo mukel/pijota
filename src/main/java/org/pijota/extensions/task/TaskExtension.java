@@ -1,12 +1,12 @@
 package org.pijota.extensions.task;
 
-import org.pijota.tools.ToolGlyphs;
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.HeadlessToolContext;
 import org.pijota.extensions.UiContext;
 import org.pijota.messages.Message;
 import org.pijota.modes.SlashCommand;
+import org.pijota.tools.ToolGlyphs;
 import org.pijota.util.Util;
 
 import java.io.IOException;

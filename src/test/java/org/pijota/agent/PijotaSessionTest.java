@@ -5,6 +5,7 @@ import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
 import org.pijota.testkit.Await;
 import org.pijota.testkit.FauxLlm;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -12,8 +13,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
-import static org.pijota.testkit.FauxLlm.Response.contentWithUsage;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.FauxLlm.Response.contentWithUsage;
 
 class PijotaSessionTest {
 

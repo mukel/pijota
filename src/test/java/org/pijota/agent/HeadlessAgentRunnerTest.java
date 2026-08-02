@@ -5,6 +5,7 @@ import org.pijota.messages.ToolCall;
 import org.pijota.testkit.FauxLlm;
 import org.pijota.testkit.Ndjson;
 import org.pijota.testkit.StdioCapture;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,8 +16,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-import static org.pijota.testkit.FauxLlm.Response.contentWithUsage;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.FauxLlm.Response.contentWithUsage;
 
 class HeadlessAgentRunnerTest {
 

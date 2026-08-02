@@ -2,7 +2,6 @@ package org.pijota.agent;
 
 import org.pijota.config.AppConfig;
 import org.pijota.extensions.ExtensionRegistry;
-import org.pijota.util.Util;
 import org.pijota.extensions.task.SubAgent;
 import org.pijota.llm.LlmClient;
 import org.pijota.llm.ModelRegistry;
@@ -14,6 +13,7 @@ import org.pijota.tools.ToolManifest;
 import org.pijota.tools.ToolRegistry;
 import org.pijota.util.ProcessRunner;
 import org.pijota.util.SelfRespawn;
+import org.pijota.util.Util;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -2,6 +2,7 @@ package org.pijota.config;
 
 import org.pijota.testkit.FakeHttpClient;
 import org.pijota.util.Util;
+
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;

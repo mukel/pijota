@@ -10,9 +10,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.pijota.testkit.ToolRunner.run;
 
 class GrepToolTest {
     @TempDir

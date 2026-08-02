@@ -5,6 +5,9 @@ import org.pijota.messages.ToolCall;
 import org.pijota.messages.Usage;
 import org.pijota.util.Util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -24,9 +27,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class SessionManager {
     private static final Logger log = LoggerFactory.getLogger(SessionManager.class);

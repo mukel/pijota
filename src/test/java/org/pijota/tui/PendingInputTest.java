@@ -1,8 +1,8 @@
 package org.pijota.tui;
 
-import java.util.concurrent.CancellationException;
-
 import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.CancellationException;
 
 import static org.junit.jupiter.api.Assertions.*;
 

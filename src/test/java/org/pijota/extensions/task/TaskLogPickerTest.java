@@ -5,14 +5,14 @@ import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.extensions.testkit.FakeUiContext;
 import org.pijota.tools.ToolRegistry;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 

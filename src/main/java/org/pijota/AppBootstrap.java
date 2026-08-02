@@ -3,10 +3,9 @@ package org.pijota;
 import org.pijota.agent.PijotaSession;
 import org.pijota.agent.SessionManager;
 import org.pijota.agent.SystemPrompt;
-import org.pijota.util.Proxies;
 import org.pijota.cli.Args;
-import org.pijota.config.ProviderCatalog;
 import org.pijota.config.ProjectTrust;
+import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 import org.pijota.config.TrustStore;
 import org.pijota.extensions.ExtensionEvent;
@@ -27,9 +26,9 @@ import org.pijota.extensions.jobs.JobRegistry;
 import org.pijota.extensions.jobs.JobsExtension;
 import org.pijota.extensions.mcp.McpExtension;
 import org.pijota.extensions.plan.PlanExtension;
-import org.pijota.extensions.suggest.SuggestExtension;
 import org.pijota.extensions.prompts.PromptTemplateExtension;
 import org.pijota.extensions.skills.SkillExtension;
+import org.pijota.extensions.suggest.SuggestExtension;
 import org.pijota.extensions.task.TaskExtension;
 import org.pijota.extensions.tmux.TmuxExtension;
 import org.pijota.extensions.transcend.TranscendenceExtension;
@@ -42,7 +41,7 @@ import org.pijota.tools.ToolPolicy;
 import org.pijota.tools.ToolRegistry;
 import org.pijota.tools.WhoamiTool;
 import org.pijota.util.ProcessRunner;
-
+import org.pijota.util.Proxies;
 import org.pijota.util.SelfRespawn;
 import org.pijota.util.StartupTimer;
 
@@ -51,13 +50,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Console;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.nio.file.Path;
 
 public final class AppBootstrap {
     private static final Logger logger = LoggerFactory.getLogger(AppBootstrap.class);

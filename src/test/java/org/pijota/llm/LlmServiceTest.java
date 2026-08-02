@@ -1,7 +1,5 @@
 package org.pijota.llm;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.messages.Message;
 import org.pijota.messages.Usage;
 import org.pijota.tools.Tool;
@@ -9,16 +7,15 @@ import org.pijota.tools.Tool;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.model.anthropic.AnthropicTokenUsage;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.PartialResponse;
 import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
-import dev.langchain4j.model.anthropic.AnthropicTokenUsage;
 import dev.langchain4j.model.openai.OpenAiTokenUsage;
 import dev.langchain4j.model.output.TokenUsage;
-
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -28,6 +25,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 class LlmServiceTest {
 

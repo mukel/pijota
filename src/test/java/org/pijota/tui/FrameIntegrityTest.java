@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.theme.AnsiTheme;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

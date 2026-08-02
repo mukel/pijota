@@ -6,10 +6,10 @@ import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.Tool;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Map;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

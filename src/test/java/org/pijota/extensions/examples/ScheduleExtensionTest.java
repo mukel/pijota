@@ -1,9 +1,9 @@
 package org.pijota.extensions.examples;
 
-import org.pijota.tools.Tool;
-
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
+import org.pijota.tools.Tool;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

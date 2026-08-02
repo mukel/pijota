@@ -1,17 +1,17 @@
 package org.pijota.extensions;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.extensions.examples.ContextFilesExtension;
 import org.pijota.extensions.jobs.JobsExtension;
 import org.pijota.extensions.prompts.PromptTemplateExtension;
 import org.pijota.extensions.skills.SkillExtension;
 import org.pijota.extensions.tmux.TmuxExtension;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 class BuiltinExtensionsTest {
 

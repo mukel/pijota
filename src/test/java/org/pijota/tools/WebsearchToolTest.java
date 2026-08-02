@@ -1,16 +1,16 @@
 package org.pijota.tools;
 
-import static org.pijota.testkit.ToolRunner.run;
-import static org.junit.jupiter.api.Assertions.*;
-
-import java.util.List;
-import java.util.Map;
+import org.pijota.testkit.FakeHttpClient;
+import org.pijota.tools.WebsearchTool.SearchResult;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
-import org.pijota.testkit.FakeHttpClient;
-import org.pijota.tools.WebsearchTool.SearchResult;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.ToolRunner.run;
 
 class WebsearchToolTest {
 

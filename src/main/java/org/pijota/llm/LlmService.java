@@ -6,7 +6,9 @@ import org.pijota.messages.ToolCall;
 import org.pijota.messages.Usage;
 import org.pijota.tools.Tool;
 import org.pijota.tools.ToolManifest;
+
 import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.anthropic.AnthropicTokenUsage;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
@@ -15,10 +17,8 @@ import dev.langchain4j.model.chat.response.PartialResponseContext;
 import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.model.chat.response.PartialThinkingContext;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
-import dev.langchain4j.model.anthropic.AnthropicTokenUsage;
 import dev.langchain4j.model.openai.OpenAiTokenUsage;
 import dev.langchain4j.model.output.TokenUsage;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

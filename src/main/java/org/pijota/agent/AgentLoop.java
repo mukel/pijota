@@ -1,9 +1,9 @@
 package org.pijota.agent;
 
+import org.pijota.config.AppConfig;
 import org.pijota.extensions.AgentContext;
 import org.pijota.extensions.DeliverAs;
 import org.pijota.extensions.ExtensionRegistry;
-import org.pijota.config.AppConfig;
 import org.pijota.llm.LlmClient;
 import org.pijota.llm.StreamResult;
 import org.pijota.messages.Message;
@@ -12,6 +12,7 @@ import org.pijota.messages.Usage;
 import org.pijota.tools.ToolRegistry;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.Util;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -3,11 +3,11 @@ package org.pijota.tui;
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

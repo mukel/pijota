@@ -1,15 +1,14 @@
 package org.pijota.tools;
 
-import java.nio.charset.StandardCharsets;
+import org.pijota.testkit.FakeHttpClient;
 
 import org.junit.jupiter.api.Test;
 
-import org.pijota.testkit.FakeHttpClient;
-
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.ToolRunner.run;
 
 class WebfetchToolTest {
 

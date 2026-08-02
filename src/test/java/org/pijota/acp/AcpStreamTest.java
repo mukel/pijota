@@ -5,7 +5,6 @@ import org.pijota.messages.Message;
 import org.pijota.messages.Usage;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

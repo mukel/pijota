@@ -2,6 +2,7 @@ package org.pijota.llm;
 
 import org.pijota.messages.Message;
 import org.pijota.util.Util;
+
 import java.util.List;
 
 final class Summarizer {

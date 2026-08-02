@@ -2,10 +2,10 @@ package org.pijota.browser;
 
 import org.pijota.util.Util;
 
-import java.nio.file.Path;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
+
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 

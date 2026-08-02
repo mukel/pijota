@@ -2,10 +2,10 @@ package org.pijota.agent;
 
 import org.pijota.util.ErrorUtil;
 
-import java.util.function.Supplier;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.function.Supplier;
 
 /**
  * A single, non-invasive trace of the agent's behaviour: registered as an {@link AgentLoop} listener, it logs the whole

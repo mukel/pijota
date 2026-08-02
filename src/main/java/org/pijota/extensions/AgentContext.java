@@ -1,7 +1,7 @@
 package org.pijota.extensions;
 
-import org.pijota.messages.Message;
 import org.pijota.llm.LlmClient;
+import org.pijota.messages.Message;
 
 import java.util.List;
 

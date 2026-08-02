@@ -1,12 +1,12 @@
 package org.pijota.extensions.testkit;
 
 import org.pijota.extensions.DeliverAs;
+import org.pijota.extensions.ExceptionHandler;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.ExtensionKeybinding;
 import org.pijota.extensions.ExtensionResult;
 import org.pijota.extensions.ExtensionRuntime;
-import org.pijota.extensions.ExceptionHandler;
 import org.pijota.extensions.UiContext;
 import org.pijota.extensions.skills.SkillLoader;
 import org.pijota.messages.Message;

@@ -1,6 +1,7 @@
 package org.pijota.config;
 
 import org.pijota.util.Util;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.io.InputStream;

@@ -1,5 +1,8 @@
 package org.pijota.util;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
@@ -9,10 +12,6 @@ import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 
 public final class ErrorUtil {
     private ErrorUtil() {}

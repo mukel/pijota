@@ -1,7 +1,9 @@
 package org.pijota.tools;
 
-import static org.pijota.testkit.ToolRunner.run;
-import static org.junit.jupiter.api.Assertions.*;
+import org.pijota.util.ProcessRunner;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -9,10 +11,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
-import org.pijota.util.ProcessRunner;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.ToolRunner.run;
 
 class TranscendenceToolTest {
 

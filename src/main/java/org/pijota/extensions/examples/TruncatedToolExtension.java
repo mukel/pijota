@@ -1,7 +1,5 @@
 package org.pijota.extensions.examples;
 
-import java.util.ArrayList;
-
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.ExtensionRuntime.ExecResult;
@@ -10,6 +8,7 @@ import org.pijota.tools.Tool;
 import org.pijota.util.ProcessRunner;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 

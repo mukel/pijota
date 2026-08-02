@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import org.pijota.config.PathDisplay;
 import org.pijota.llm.ThinkingLevel;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

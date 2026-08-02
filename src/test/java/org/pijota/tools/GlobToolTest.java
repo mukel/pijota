@@ -1,16 +1,17 @@
 package org.pijota.tools;
 
+import org.pijota.util.Executables;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.pijota.util.Executables;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.pijota.testkit.ToolRunner.run;
 
 class GlobToolTest {
     @TempDir

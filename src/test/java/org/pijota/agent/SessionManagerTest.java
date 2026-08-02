@@ -2,6 +2,7 @@ package org.pijota.agent;
 
 import org.pijota.messages.Message;
 import org.pijota.messages.ToolCall;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

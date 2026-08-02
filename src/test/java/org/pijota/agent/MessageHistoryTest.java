@@ -2,9 +2,9 @@ package org.pijota.agent;
 
 import org.pijota.messages.Message;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 

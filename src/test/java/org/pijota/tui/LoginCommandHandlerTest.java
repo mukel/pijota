@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import org.pijota.config.OAuthLogin;
 import org.pijota.config.ProviderCatalog;
+
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;

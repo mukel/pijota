@@ -1,17 +1,17 @@
 package org.pijota.tui;
 
-import static org.junit.jupiter.api.Assertions.*;
-
-import java.time.Duration;
-import java.util.List;
+import org.pijota.testkit.AnsiStripper;
+import org.pijota.theme.AnsiTheme;
 
 import org.commonmark.ext.gfm.tables.TableCell;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-import org.pijota.testkit.AnsiStripper;
-import org.pijota.theme.AnsiTheme;
+import java.time.Duration;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 class MarkdownTableRendererTest {
 

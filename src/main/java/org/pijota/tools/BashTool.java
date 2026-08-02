@@ -1,7 +1,5 @@
 package org.pijota.tools;
 
-import java.util.ArrayList;
-
 import org.pijota.llm.ToolSchema;
 import org.pijota.util.Platform;
 import org.pijota.util.ProcessRunner;
@@ -13,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +20,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.time.Duration;
 
 public final class BashTool implements Tool, Tool.Detachable {
     private static final Logger log = LoggerFactory.getLogger(BashTool.class);

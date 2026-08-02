@@ -1,9 +1,8 @@
 package org.pijota.extensions.plan;
 
-import org.pijota.extensions.ExtensionEvent;
-
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
+import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.ExtensionKeybinding;
 import org.pijota.extensions.ExtensionResult;
 import org.pijota.extensions.KeyChord;

@@ -1,8 +1,9 @@
 package org.pijota.config;
 
+import org.pijota.util.Util;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.pijota.util.Util;
 
 import java.util.HashSet;
 import java.util.List;

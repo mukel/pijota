@@ -1,7 +1,5 @@
 package org.pijota.extensions.suggest;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.UiContext;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
@@ -13,6 +11,11 @@ import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
 import org.pijota.tools.Tool;
 
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -20,11 +23,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 class SuggestExtensionTest {
 

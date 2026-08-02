@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.extensions.skills.SkillLoader;
+
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;

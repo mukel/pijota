@@ -1,6 +1,10 @@
 package org.pijota.theme;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.pijota.llm.ThinkingLevel;
+import org.pijota.util.Util;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -17,12 +21,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.pijota.llm.ThinkingLevel;
-import org.pijota.util.Util;
-
-import com.fasterxml.jackson.databind.JsonNode;
-
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Guards the one failure mode {@link AnsiTheme#style} cannot report: an unknown slot name resolves to the empty string,

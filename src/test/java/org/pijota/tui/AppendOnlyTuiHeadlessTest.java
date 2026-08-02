@@ -1,11 +1,11 @@
 package org.pijota.tui;
 
 import org.pijota.agent.TestSession;
-import org.pijota.tools.SlashCommandTool;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.testkit.FauxLlm;
 import org.pijota.theme.AnsiTheme;
+import org.pijota.tools.SlashCommandTool;
 
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;

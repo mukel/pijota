@@ -3,11 +3,11 @@ package org.pijota.tui;
 import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 
-import java.util.List;
-import java.util.stream.IntStream;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 

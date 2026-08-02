@@ -3,6 +3,8 @@ package org.pijota.extensions.mcp;
 import org.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -17,9 +19,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A JSON-RPC 2.0 client for one MCP server over an {@link McpTransport}. Owns a single reader thread that demultiplexes

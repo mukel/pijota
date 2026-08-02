@@ -5,10 +5,10 @@ import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelInfo;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.List;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

@@ -1,13 +1,13 @@
 package org.pijota.tools;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.jupiter.api.Test;
-
-import static org.pijota.testkit.ToolRunner.run;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.pijota.testkit.ToolRunner.run;
 
 class TodoToolTest {
 

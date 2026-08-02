@@ -1,8 +1,8 @@
 package org.pijota.tui;
 
 import java.util.ArrayList;
-import java.util.function.UnaryOperator;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 final class AnsiWidth {
     private static final String RESET = "\033[0m";

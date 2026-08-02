@@ -1,16 +1,16 @@
 package org.pijota;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.agent.SessionManager;
-import org.pijota.cli.Args;
 import org.pijota.cli.ArgParser;
+import org.pijota.cli.Args;
 import org.pijota.config.AppConfig;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 import org.pijota.extensions.testkit.ExtensionJars;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
+
+import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 class AppBootstrapTest {
 

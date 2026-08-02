@@ -1,6 +1,7 @@
 package org.pijota.testkit;
 
 import org.pijota.util.Util;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.util.List;

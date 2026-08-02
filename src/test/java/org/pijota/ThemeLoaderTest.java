@@ -1,18 +1,18 @@
 package org.pijota;
 
-import static org.junit.jupiter.api.Assertions.*;
-
-import org.pijota.cli.Args;
 import org.pijota.cli.ArgParser;
+import org.pijota.cli.Args;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
+
+import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ThemeLoaderTest {
 

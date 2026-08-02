@@ -4,8 +4,8 @@ import org.pijota.agent.AgentEvent;
 import org.pijota.agent.PijotaSession;
 import org.pijota.config.PathDisplay;
 import org.pijota.llm.LlmClient;
-import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.Modality;
+import org.pijota.llm.ModelRegistry;
 import org.pijota.messages.Message;
 import org.pijota.messages.ToolCall;
 import org.pijota.modes.SlashCommand;
@@ -18,13 +18,13 @@ import org.pijota.util.Util;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.concurrent.ExecutorService;
-import java.util.zip.GZIPOutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -41,15 +41,14 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * A tiny web frontend for a {@link PijotaSession}: the chat <em>is</em> the conversation, served as a single page. The

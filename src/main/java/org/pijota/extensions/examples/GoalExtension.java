@@ -1,10 +1,9 @@
 package org.pijota.extensions.examples;
 
-import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.DeliverAs;
-
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
+import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.ExtensionRuntime;
 import org.pijota.messages.Message;
 import org.pijota.modes.SlashCommand;

@@ -1,9 +1,10 @@
 package org.pijota.agent;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.pijota.llm.Modality;
 import org.pijota.messages.Message;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,8 +12,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 class AttachmentNormalizerTest {
 

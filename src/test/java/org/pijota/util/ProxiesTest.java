@@ -1,6 +1,7 @@
 package org.pijota.util;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -8,8 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ProxiesTest {
 

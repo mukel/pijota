@@ -1,11 +1,13 @@
 package org.pijota.extensions.mcp;
 
-import org.pijota.testkit.Await;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.extensions.testkit.FakeUiContext;
+import org.pijota.testkit.Await;
 import org.pijota.tools.Tool;
 import org.pijota.tools.ToolRegistry;
+
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -16,8 +18,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 

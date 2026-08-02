@@ -1,9 +1,8 @@
 package org.pijota.extensions.examples;
 
-import org.pijota.extensions.ExtensionEvent;
-
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
+import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.ExtensionRuntime;
 
 /**
