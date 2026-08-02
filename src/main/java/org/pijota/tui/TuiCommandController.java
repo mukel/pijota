@@ -118,8 +118,9 @@ final class TuiCommandController {
             tui.appendError("ambiguous: " + cmd);
             tui.appendStatus("did you mean " + String.join(", ", matches) + "?");
         } else {
-            tui.appendError("unknown: " + input);
-            tui.appendStatus("type /help for commands");
+            // One line, chip-separated like every other line in the interface, rather than an error followed by a
+            // separate status line the eye has to associate with it.
+            tui.appendError("unknown command " + input + " · /help lists them");
         }
     }
 

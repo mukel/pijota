@@ -17,18 +17,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 /**
- * The third wire family cannot be replayed yet, and this pins exactly why rather than leaving the gap unrecorded.
+ * The third wire family cannot be replayed, and this records why rather than leaving a silent hole in the coverage.
  *
  * <p>
- * {@code ProviderFactory.GoogleProvider.create} accepts a {@code baseUrl} and never passes it to the builder, so every
- * Gemini request goes to Google no matter what is configured. That is not only a testing problem: a user pointing a
- * Gemini-compatible gateway or proxy at pijota is silently ignored, which is worse than an error because the traffic
- * still goes somewhere, just not where they asked.
+ * {@code ProviderFactory.GoogleProvider.create} accepts a {@code baseUrl} and never passes it on, so Gemini requests
+ * always go to Google. That is deliberate: Google does not license these models to be served anywhere else, so there is
+ * no endpoint to redirect to. A Gemini-compatible gateway that did exist would almost certainly speak the
+ * OpenAI-compatible dialect, which pijota reaches through a different provider family entirely.
  *
  * <p>
- * It is not a one-line fix. langchain4j defaults this family to {@code …/v1beta} while pijota's catalog records
- * {@code …googleapis.com} with no version, so passing the catalog value straight through would drop the version segment
- * and break Gemini for everyone. Closing it means deciding where the version segment lives.
+ * The consequence for testing is the part worth knowing: with no way to point this family at a fixture, its request
+ * building and response parsing are covered only by {@code make native-smoke}, which needs a real key. If that ever
+ * changes, langchain4j defaults the family to {@code …/v1beta} while pijota's catalog records {@code
+ * …googleapis.com} with no version segment, so the two would have to be reconciled before a base URL could be honoured.
  */
 @Timeout(value = 30, unit = TimeUnit.SECONDS)
 class GeminiWireReplayTest {
@@ -47,8 +48,8 @@ class GeminiWireReplayTest {
     }
 
     /**
-     * Documents the gap as a behaviour: a custom base URL is accepted and discarded. When this starts failing, the
-     * override works and the rest of this class can become real replay coverage.
+     * Pins the behaviour so it stays a decision rather than becoming an accident: the base URL is accepted and
+     * discarded. If this ever starts failing, someone has wired it up and this family can gain real replay coverage.
      */
     @Test
     void aCustomBaseUrlIsCurrentlyIgnoredForThisFamily() throws Exception {
@@ -63,12 +64,12 @@ class GeminiWireReplayTest {
         }
 
         assertTrue(wire.requests().isEmpty(), "the custom base URL now reaches the fixture: GoogleProvider honours "
-                                        + "baseUrl, so this test should be replaced with real replay coverage");
+                                        + "baseUrl, so this family can now be replayed like the other two");
     }
 
     /**
-     * The two halves of the fix, recorded so whoever closes it does not rediscover them: the builder does support a
-     * base URL, and the two defaults disagree about the version segment.
+     * The two facts anyone revisiting this would otherwise rediscover: the builder does support a base URL, and the two
+     * defaults disagree about the version segment.
      */
     @Test
     void theBuilderSupportsABaseUrlAndTheDefaultsDisagreeAboutTheVersionSegment() throws Exception {
