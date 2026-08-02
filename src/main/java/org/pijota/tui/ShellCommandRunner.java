@@ -42,11 +42,7 @@ final class ShellCommandRunner {
                                                 .redirectErrorStream(true).noTimeout().onStart(p -> activeProcess = p)
                                                 .environment(host.shellEnvironment()).run();
                 var out = new ArrayList<String>();
-                String slot = result.exitCode() == 0 ? "toolLabel" : "toolError";
-                String suffix = result.exitCode() == 143 || result.exitCode() == 137
-                                                ? "  interrupted"
-                                                : "  exit " + result.exitCode();
-                out.add(host.styled(slot, "! " + command + suffix));
+                out.add(header(command, result.exitCode()));
                 String output = result.stdout().stripTrailing();
                 if (!output.isBlank()) {
                     for (String line : output.split("\\R", -1))
@@ -54,7 +50,8 @@ final class ShellCommandRunner {
                 }
                 host.appendPlain(out);
             } catch (Exception e) {
-                host.appendPlain(List.of(host.styled("toolError", "! " + command + "  error: " + e.getMessage())));
+                host.appendPlain(List.of(host.styled("toolLabel", "! " + command) + host.styled("commandMeta", " · ")
+                                                + host.styled("toolError", "error: " + e.getMessage())));
             } finally {
                 activeProcess = null;
                 commandThread = null;
@@ -62,6 +59,19 @@ final class ShellCommandRunner {
                 host.redrawPrompt();
             }
         });
+    }
+
+    /**
+     * The one-line header for a finished {@code !} command. The output below it stays verbatim and unrailed -- you
+     * asked for a shell, you get a shell -- but the header follows the same rule as a tool line: metadata joined with
+     * {@code ·}, and red on the failing token only rather than on the whole line, which used to paint the command you
+     * just typed in error red as if the command itself were wrong.
+     */
+    String header(String command, int exitCode) {
+        boolean killed = exitCode == 143 || exitCode == 137;
+        String meta = killed ? "interrupted" : "exit " + exitCode;
+        return host.styled("toolLabel", "! " + command) + host.styled("commandMeta", " · ")
+                                        + host.styled(exitCode == 0 ? "commandMeta" : "toolError", meta);
     }
 
     void interruptProcess() {

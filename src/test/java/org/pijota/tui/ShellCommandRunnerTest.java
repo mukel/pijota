@@ -77,7 +77,36 @@ class ShellCommandRunnerTest {
         assertEquals("!echo hello", host.echoedCommands.get(0));
     }
 
-    private static final class FakeHost implements ShellCommandRunner.Host {
+    /**
+     * The header follows the same rule as a tool line: metadata joined with {@code ·}, red on the failing token only.
+     * It used to paint the whole line -- the command you had just typed included -- in error red, which read as the
+     * command being wrong rather than its exit code.
+     */
+    @Test
+    void theHeaderReadsLikeEveryOtherCommandLine() {
+        var slots = new ArrayList<String>();
+        var host = new FakeHost() {
+            @Override
+            public String styled(String slot, String text) {
+                slots.add(slot + ":" + text);
+                return text;
+            }
+        };
+        var runner = new ShellCommandRunner(host, "/bin/sh");
+
+        assertEquals("! ls · exit 0", runner.header("ls", 0));
+        assertTrue(slots.contains("commandMeta:exit 0"), "a clean exit stays dim: " + slots);
+
+        slots.clear();
+        assertEquals("! ls · exit 2", runner.header("ls", 2));
+        assertTrue(slots.contains("toolLabel:! ls"), "the command itself is never red: " + slots);
+        assertTrue(slots.contains("toolError:exit 2"), "only the exit code is: " + slots);
+
+        assertEquals("! sleep 9 · interrupted", runner.header("sleep 9", 143), "a killed command says so");
+        assertEquals("! sleep 9 · interrupted", runner.header("sleep 9", 137));
+    }
+
+    private static class FakeHost implements ShellCommandRunner.Host {
         final List<String> echoedCommands = new ArrayList<>();
         final List<String> allLines = new ArrayList<>();
         int busyCount;
