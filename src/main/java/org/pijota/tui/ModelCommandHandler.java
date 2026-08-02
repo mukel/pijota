@@ -40,8 +40,7 @@ final class ModelCommandHandler {
     }
 
     void showModelSelector(List<ModelInfo> models) {
-        if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError", "/model is unavailable while a turn is running")));
+        if (host.refuseWhileBusy("/model")) {
             host.redrawPrompt();
             return;
         }
@@ -69,8 +68,7 @@ final class ModelCommandHandler {
     }
 
     void refreshModels() {
-        if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError", "/refresh is unavailable while a turn is running")));
+        if (host.refuseWhileBusy("/refresh")) {
             host.redrawPrompt();
             return;
         }

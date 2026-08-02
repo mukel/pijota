@@ -19,7 +19,9 @@ class CommandPaletteHandlerTest {
 
         handler.showCommandPalette();
 
-        assertEquals(List.of("command palette is unavailable while a turn is running"), host.errors);
+        // Amber, not red: the palette declining to open mid-turn has failed at nothing.
+        assertEquals(List.of("command palette is unavailable while a turn is running"), host.lines);
+        assertTrue(host.errors.isEmpty(), "a refusal is not routed through the error channel");
         assertTrue(host.shownItems.isEmpty());
         assertEquals(1, host.redraws);
     }
@@ -124,6 +126,7 @@ class CommandPaletteHandlerTest {
         List<SessionItem> sessions = List.of();
         List<CompletionItem> shownItems = List.of();
         final List<String> errors = new ArrayList<>();
+        final List<String> lines = new ArrayList<>();
 
         @Override
         public boolean busy() {
@@ -183,6 +186,11 @@ class CommandPaletteHandlerTest {
         @Override
         public void appendError(String message) {
             errors.add(message);
+        }
+
+        @Override
+        public void appendPlain(List<String> appended) {
+            lines.addAll(appended);
         }
 
         @Override

@@ -95,7 +95,7 @@ final class SessionCommands {
         else if (spec.startsWith("/delete"))
             spec = spec.substring(7).trim();
         if (spec.isBlank()) {
-            host.appendPlain(List.of(host.styled("toolError", "usage: /delete <id|path>")));
+            host.appendPlain(List.of(host.styled("statusText", "usage: /delete <id|path>")));
             return;
         }
         String target = spec;
@@ -116,10 +116,8 @@ final class SessionCommands {
     }
 
     void startNewSession() {
-        if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError", "/new is unavailable while a turn is running")));
+        if (host.refuseWhileBusy("/new"))
             return;
-        }
         if (host.session().messages().isEmpty()) {
             createNewSession();
             return;
@@ -234,11 +232,8 @@ final class SessionCommands {
     }
 
     void branchSummary(String instructions) {
-        if (host.busy()) {
-            host.appendPlain(List.of(host.styled("toolError",
-                                            "/branch-summary is unavailable while a turn is running")));
+        if (host.refuseWhileBusy("/branch-summary"))
             return;
-        }
         try {
             String summary = host.session().summarizeCurrentBranch(instructions);
             host.appendPlain(List.of(host.styled("toolLabel", "branch summary"), host.styled("statusText", summary)));
@@ -297,7 +292,7 @@ final class SessionCommands {
     void importSession(String input) {
         String arg = input.startsWith("/import") ? input.substring("/import".length()).trim() : input.trim();
         if (arg.isBlank()) {
-            host.appendPlain(List.of(host.styled("toolError", "usage: /import <session.jsonl>")));
+            host.appendPlain(List.of(host.styled("statusText", "usage: /import <session.jsonl>")));
             return;
         }
         if (host.settings() == null) {

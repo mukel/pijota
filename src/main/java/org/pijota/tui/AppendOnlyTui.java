@@ -182,6 +182,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         appendPlain(List.of(theme.styled("statusText", msg)));
     }
 
+    /** See {@link TuiHost#refuseWhileBusy}: the same refusal, for the commands the TUI owns directly. */
+    private boolean refuseWhileBusy(String command) {
+        if (!activity.isBusy())
+            return false;
+        appendPlain(List.of(theme.styled("statusWarn", TuiHost.busyRefusal(command))));
+        return true;
+    }
+
     void appendError(String msg) {
         appendPlain(List.of(theme.styled("toolError", msg)));
     }
@@ -1685,10 +1693,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     void refreshModels() {
         // ModelRefresher.refresh() is a multi-provider network call; run it off the input thread so the UI never
         // freezes (the input loop stays free to type / Esc); feedback is printed immediately, the result when it lands.
-        if (activity.isBusy()) {
-            appendPlain(List.of(theme.styled("toolError", "/refresh is unavailable while a turn is running")));
+        if (refuseWhileBusy("/refresh"))
             return;
-        }
         appendPlain(List.of(theme.styled("statusText", "refreshing models…")));
         agentExecutor.submit(modelCommands::refreshModels);
     }
@@ -1704,10 +1710,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void showSessionPicker(String query) {
-        if (activity.isBusy()) {
-            appendPlain(List.of(theme.styled("toolError", "/sessions is unavailable while a turn is running")));
+        if (refuseWhileBusy("/sessions"))
             return;
-        }
         var sessions = session.resumableSessions();
         if (sessions.isEmpty()) {
             appendPlain(List.of(theme.styled("toolError", "no sessions found")));
@@ -1904,10 +1908,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void triggerCompaction(String instructions) {
-        if (activity.isBusy()) {
-            appendPlain(List.of(theme.styled("toolError", "/compact unavailable while model is responding")));
+        if (refuseWhileBusy("/compact"))
             return;
-        }
         appendPlain(List.of(theme.styled("toolLabel",
                                         "/compact" + (instructions.isBlank() ? "" : ": " + instructions))));
         long gen = beginBusy("compacting");
@@ -1974,10 +1976,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void loadSession(String input) {
-        if (activity.isBusy()) {
-            appendPlain(List.of(theme.styled("toolError", "/load is unavailable while a turn is running")));
+        if (refuseWhileBusy("/load"))
             return;
-        }
         String path = input.length() > 5 ? input.substring(5).trim() : "";
         if (path.isBlank()) {
             showSessionPicker("");
@@ -2180,10 +2180,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void forkSession(String input) {
-        if (activity.isBusy()) {
-            appendPlain(List.of(theme.styled("toolError", "/fork is unavailable while a turn is running")));
+        if (refuseWhileBusy("/fork"))
             return;
-        }
         if (session.sessionFile() == null) {
             appendPlain(List.of(theme.styled("toolError", "no active session")));
             return;
@@ -2245,10 +2243,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     void undoLastTurn() {
-        if (activity.isBusy()) {
-            appendPlain(List.of(theme.styled("toolError", "/undo is unavailable while a turn is running")));
+        if (refuseWhileBusy("/undo"))
             return;
-        }
         var previous = session.undoLastUserTurn();
         if (previous.isEmpty()) {
             appendPlain(List.of(theme.styled("statusText", "nothing to undo")));

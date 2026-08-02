@@ -228,6 +228,52 @@ class SessionCommandsTest {
         assertTrue(String.join(" ", host.lines).contains("no assistant response"), host.lines.toString());
     }
 
+    /**
+     * Red in this interface means something failed. A command declining to start while a turn is running has failed at
+     * nothing, and nine call sites spent the failure colour on it -- in two different phrasings of the same sentence.
+     */
+    @Test
+    void refusingACommandMidTurnIsNotAFailure() {
+        var said = new ArrayList<String>();
+        var slots = new ArrayList<String>();
+        class Busy implements TuiHost {
+            boolean busy = true;
+
+            @Override
+            public boolean busy() {
+                return busy;
+            }
+
+            @Override
+            public String styled(String slot, String text) {
+                slots.add(slot);
+                return text;
+            }
+
+            @Override
+            public void appendPlain(List<String> lines) {
+                said.addAll(lines);
+            }
+        }
+        var host = new Busy();
+
+        assertTrue(host.refuseWhileBusy("/model"), "it reports the refusal so callers can just return");
+        assertEquals(List.of("/model is unavailable while a turn is running"), said);
+        assertEquals(List.of("statusWarn"), slots, "amber, not the red that means something broke");
+
+        said.clear();
+        host.busy = false;
+        assertFalse(host.refuseWhileBusy("/model"), "idle: nothing is refused");
+        assertTrue(said.isEmpty(), "and nothing is said");
+    }
+
+    /** One sentence for one condition; "/compact unavailable while model is responding" was a second one. */
+    @Test
+    void everyBusyRefusalReadsTheSameWay() {
+        assertEquals("/compact is unavailable while a turn is running", TuiHost.busyRefusal("/compact"));
+        assertEquals("command palette is unavailable while a turn is running", TuiHost.busyRefusal("command palette"));
+    }
+
     private static final class FakeHost implements SessionCommands.Host {
         boolean busy;
         String sessionName = "test-session";

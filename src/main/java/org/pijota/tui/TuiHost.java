@@ -48,4 +48,25 @@ interface TuiHost {
     default List<String> promptEcho(String text) {
         return List.of();
     }
+
+    /** One sentence for one condition. Nine call sites had drifted into two phrasings of it. */
+    static String busyRefusal(String command) {
+        return command + " is unavailable while a turn is running";
+    }
+
+    /**
+     * Reports a command that is valid but cannot run right now, and says whether it was refused, so the call sites
+     * collapse to {@code if (refuseWhileBusy("/model")) return;}.
+     *
+     * <p>
+     * Amber, not red. Red in this interface means something failed -- a write that did not happen, a non-zero exit --
+     * and a command declining to start while a turn is running has failed at nothing. Spending the failure colour on it
+     * is how red stops meaning anything.
+     */
+    default boolean refuseWhileBusy(String command) {
+        if (!busy())
+            return false;
+        appendPlain(List.of(styled("statusWarn", busyRefusal(command))));
+        return true;
+    }
 }

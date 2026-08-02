@@ -41,8 +41,7 @@ final class CommandPaletteHandler {
     }
 
     void showCommandPalette() {
-        if (host.busy()) {
-            host.appendError("command palette is unavailable while a turn is running");
+        if (host.refuseWhileBusy("command palette")) {
             host.redrawPrompt();
             return;
         }
