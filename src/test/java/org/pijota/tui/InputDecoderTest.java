@@ -208,6 +208,27 @@ class InputDecoderTest {
         assertEquals(Key.Special.ALT_UNDERSCORE, InputDecoder.readKey(csiU("95;3")));
     }
 
+    /**
+     * Ctrl+Alt is the keyspace extensions bind into, so it has to arrive from both encodings. It arrived from neither:
+     * the Kitty branch fell through {@code ctrl && !alt} and {@code alt && !ctrl} into UNKNOWN, and the legacy form --
+     * ESC followed by the letter's control byte -- found nothing in the Alt table. Both shipped extension shortcuts
+     * were dead as a result.
+     */
+    @Test
+    void ctrlAltChordsArriveFromBothEncodings() throws IOException {
+        assertEquals(Key.Special.CTRL_ALT_P, InputDecoder.readKey(input(27, 16)), "legacy: ESC then Ctrl+P's byte");
+        assertEquals(Key.Special.CTRL_ALT_P, InputDecoder.readKey(csiU("112;8")), "kitty: ctrl(4)+alt(2)+1");
+        assertEquals(Key.Special.CTRL_ALT_G, InputDecoder.readKey(input(27, 7)));
+        assertEquals(Key.Special.CTRL_ALT_G, InputDecoder.readKey(csiU("103;8")));
+    }
+
+    /** A Ctrl+Alt letter nothing binds stays UNKNOWN rather than being swallowed as text or as a bare Ctrl chord. */
+    @Test
+    void anUnboundCtrlAltLetterIsNotMistakenForSomethingElse() throws IOException {
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(csiU("113;8")), "Ctrl+Alt+Q");
+        assertEquals(Key.Special.UNKNOWN, InputDecoder.readKey(input(27, 17)));
+    }
+
     @Test
     void altBackspaceDeletesTheWordBeforeTheCursorInBothEncodings() throws IOException {
         // readline/zsh behaviour, and the one Ghostty and Terminal.app users have to configure by hand elsewhere.

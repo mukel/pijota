@@ -135,6 +135,22 @@ public final class InputDecoder {
             case '_' -> Key.Special.ALT_UNDERSCORE;
             // Alt+Backspace deletes the previous word in readline/zsh; Ghostty and Terminal.app users expect it.
             case 127, 8 -> Key.Special.CTRL_W;
+            // Legacy Ctrl+Alt+<letter>: the terminal sends ESC then the letter's C0 control byte, so it arrives here
+            // as an Alt chord whose "letter" is 1..26.
+            default -> ch >= 1 && ch <= 26 ? ctrlAltKey(ch - 1 + 'a') : null;
+        };
+    }
+
+    /**
+     * The Ctrl+Alt chords, shared by the legacy {@code ESC <C0>} form and the Kitty {@code CSI <key>;8u} form. Only the
+     * letters something actually binds are here; the rest decode to UNKNOWN rather than being silently swallowed as
+     * text. This is the keyspace left for extensions -- every plain Ctrl+letter the decoder produces is already claimed
+     * by the editor or the global map.
+     */
+    static Key ctrlAltKey(int letter) {
+        return switch (Character.toLowerCase(letter)) {
+            case 'g' -> Key.Special.CTRL_ALT_G;
+            case 'p' -> Key.Special.CTRL_ALT_P;
             default -> null;
         };
     }
@@ -263,6 +279,8 @@ public final class InputDecoder {
             if (codepoint == 127 || codepoint == 8)
                 return Key.Special.CTRL_W; // Ctrl+Backspace deletes the previous word
         }
+        if (ctrl && alt && codepoint >= 'a' && codepoint <= 'z')
+            return orUnknown(ctrlAltKey(codepoint));
         if (alt && !ctrl)
             return orUnknown(altKey(codepoint));
         if (shift && !alt && !ctrl) {

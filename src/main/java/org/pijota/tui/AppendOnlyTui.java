@@ -42,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -386,10 +387,19 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
         }
         this.extensionKeybindings = new HashMap<>();
+        var deliverable = deliverableChords();
         for (var binding : extensionKeybindings) {
-            if (binding != null && binding.key() != null) {
-                this.extensionKeybindings.put(binding.key(), binding);
+            if (binding == null || binding.key() == null)
+                continue;
+            // A chord no key can produce would sit in /help as a shortcut that does nothing when pressed -- the same
+            // defect as a flag --help advertises and nothing reads. Dropped here so /help, which lists this map,
+            // cannot advertise it.
+            if (!deliverable.contains(binding.key())) {
+                log.warn("keybinding {} ({}) is not deliverable by this terminal frontend; ignoring",
+                                                binding.key().display(), binding.description());
+                continue;
             }
+            this.extensionKeybindings.put(binding.key(), binding);
         }
         this.commandController = new TuiCommandController(this, commands);
         this.remoteControl = new RemoteControl(session, settings, extensionLinesSupplier,
@@ -1192,6 +1202,24 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                         || key == Key.Special.PASTE_START;
     }
 
+    /**
+     * The chords an extension binding can actually fire: the image of {@link #toKeyChord} over the keys the decoder
+     * produces, minus the ones the TUI reserves for itself and never routes onward. A binding outside this set is
+     * unreachable, so it is refused at registration rather than listed in {@code /help} as a shortcut that does
+     * nothing.
+     */
+    static Set<KeyChord> deliverableChords() {
+        var out = new HashSet<KeyChord>();
+        for (var key : Key.Special.values()) {
+            if (isReservedKey(key))
+                continue;
+            KeyChord chord = toKeyChord(key);
+            if (chord != null)
+                out.add(chord);
+        }
+        return out;
+    }
+
     static KeyChord toKeyChord(Key key) {
         if (!(key instanceof Key.Special special))
             return null;
@@ -1222,6 +1250,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case CTRL_U -> new KeyChord(KeyChord.Key.U, KeyChord.Modifier.CTRL);
             case CTRL_W -> new KeyChord(KeyChord.Key.W, KeyChord.Modifier.CTRL);
             case CTRL_SHIFT_P -> new KeyChord(KeyChord.Key.P, KeyChord.Modifier.CTRL, KeyChord.Modifier.SHIFT);
+            case CTRL_ALT_G -> new KeyChord(KeyChord.Key.G, KeyChord.Modifier.CTRL, KeyChord.Modifier.ALT);
+            case CTRL_ALT_P -> new KeyChord(KeyChord.Key.P, KeyChord.Modifier.CTRL, KeyChord.Modifier.ALT);
             case CTRL_LEFT -> new KeyChord(KeyChord.Key.LEFT, KeyChord.Modifier.CTRL);
             case CTRL_RIGHT -> new KeyChord(KeyChord.Key.RIGHT, KeyChord.Modifier.CTRL);
             case SHIFT_TAB -> new KeyChord(KeyChord.Key.TAB, KeyChord.Modifier.SHIFT);
