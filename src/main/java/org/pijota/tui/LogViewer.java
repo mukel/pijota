@@ -331,8 +331,7 @@ final class LogViewer {
             return theme.styled("prompt", "/" + searchInput);
         int last = lines.isEmpty() ? 0 : Math.min(lines.size(), top + visibleRows());
         int first = lines.isEmpty() ? 0 : top + 1;
-        String position = "  " + first + "-" + last + "/" + lines.size() + (follow ? " · following" : "");
-        return theme.styled("statusText", position) + theme.styled("dim",
-                                        "  ↑↓ scroll · Space/b page · / search · n/N match · q quit");
+        String position = first + "-" + last + "/" + lines.size() + (follow ? " · following" : "");
+        return TuiCopy.footer(theme, position, "↑↓ scroll", "Space/b page", "/ search", "n/N match", "q quit");
     }
 }

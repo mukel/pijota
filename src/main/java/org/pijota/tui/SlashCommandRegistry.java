@@ -5,7 +5,6 @@ import org.pijota.modes.SlashCommand;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import static java.util.Arrays.stream;
 import java.util.Optional;
 import static java.util.stream.Collectors.toSet;
 
@@ -88,15 +87,12 @@ final class SlashCommandRegistry {
         return out;
     }
 
+    /** One group of commands, sharing the column rule every other block in the TUI uses. Plain text: see Report. */
     private void appendGroup(List<String> out, String title, String... names) {
-        out.add("");
-        out.add(title);
-        int maxLen = stream(names).map(this::command).filter(Optional::isPresent).map(Optional::get)
-                                        .map(CompletionItem::name).mapToInt(String::length).max().orElse(0);
-        for (String name : names) {
-            command(name).ifPresent(cmd -> out.add(String.format("  %-" + (maxLen + 2) + "s %s", cmd.name(),
-                                            cmd.description())));
-        }
+        var report = new Report((slot, text) -> text, title);
+        for (String name : names)
+            command(name).ifPresent(cmd -> report.row(cmd.name(), cmd.description()));
+        out.addAll(report.render());
     }
 
     private Optional<CompletionItem> command(String name) {

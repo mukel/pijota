@@ -58,27 +58,17 @@ final class HelpOverlay {
     }
 
     private static List<String> shortcutsBlock(Collection<ExtensionKeybinding> keybindings) {
-        var out = new ArrayList<String>();
-        out.add("keyboard shortcuts");
-        int keyWidth = 0;
+        // Report owns the column, so the key labels are measured by display width rather than string length: on macOS
+        // Keys.label emits ⌃ ⌥ ⇧, and counting those as one char each is how a column silently drifts. Plain text --
+        // an identity styler -- because this content is handed to the log viewer as-is.
+        var report = new Report((slot, text) -> text, "keyboard shortcuts");
         for (var k : SHORTCUTS)
-            keyWidth = Math.max(keyWidth, Keys.label(k[0]).length()); // pad the notation we actually print (⌃K is
-                                                                      // shorter than Ctrl+K)
-        for (var binding : keybindings)
-            keyWidth = Math.max(keyWidth, Keys.label(binding.key().display()).length());
-        keyWidth += 2;
-        for (var k : SHORTCUTS)
-            out.add("  " + padRight(Keys.label(k[0]), keyWidth) + Keys.label(k[1])); // k[1] carries shortcuts too (the
-                                                                                     // /sessions row)
-        for (var binding : keybindings) // display() → "Ctrl+Alt+P" (not the raw record toString), OS-mapped by
-                                        // Keys.label
-            out.add("  " + padRight(Keys.label(binding.key().display()), keyWidth) + binding.description());
+            report.row(Keys.label(k[0]), Keys.label(k[1])); // k[1] carries shortcuts too (the /sessions row)
+        for (var binding : keybindings) // display() → "Ctrl+Alt+P" (not the raw record toString), OS-mapped
+            report.row(Keys.label(binding.key().display()), binding.description());
         if (Platform.isMac())
-            out.add("  note: ⌥ shortcuts need \"Use Option as Meta key\" enabled in your terminal");
-        return out;
+            report.note("⌥ shortcuts need \"Use Option as Meta key\" enabled in your terminal");
+        return report.render();
     }
 
-    private static String padRight(String s, int width) {
-        return s + " ".repeat(Math.max(0, width - s.length()));
-    }
 }

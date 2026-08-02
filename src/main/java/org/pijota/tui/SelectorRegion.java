@@ -31,7 +31,7 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
         if (total == 0) {
             rows.add(theme.styled("statusText", selector.itemCount() == 0 ? "  nothing to show" : "  no matches"));
-            rows.add(theme.styled("dim", "  " + TuiCopy.SELECTOR_HINT));
+            rows.add(TuiCopy.footer(theme, "", TuiCopy.SELECTOR_HINT));
             return Body.of(rows);
         }
 
@@ -59,8 +59,7 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
         if (start + MAX_VISIBLE < total)
             rows.add(theme.styled("dim", "  ↓ " + (total - start - MAX_VISIBLE) + " more below"));
 
-        rows.add(theme.styled("statusText", "  " + (sel + 1) + "/" + total)
-                                        + theme.styled("dim", "  · " + TuiCopy.SELECTOR_HINT));
+        rows.add(TuiCopy.footer(theme, (sel + 1) + "/" + total, TuiCopy.SELECTOR_HINT));
         return Body.of(rows);
     }
 
