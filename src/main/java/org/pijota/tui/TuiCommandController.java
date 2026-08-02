@@ -22,7 +22,6 @@ final class TuiCommandController {
         String arg = SlashCommand.argsOf(input);
         switch (cmd) {
             case "/help", "/?" -> tui.showHelpOverlay();
-            case "/license" -> tui.showLicense();
             case "/quit", "/q", "/exit" -> tui.stop();
             case "/model", "/models" -> handleModel(arg);
             case "/settings" -> tui.showSettingsSelector();

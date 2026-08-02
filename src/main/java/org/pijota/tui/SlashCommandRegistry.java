@@ -34,7 +34,6 @@ final class SlashCommandRegistry {
                                     new CompletionItem("/copy", "Copy last assistant response"),
                                     new CompletionItem("/new", "Start a new session"),
                                     new CompletionItem("/hotkeys", "Show keyboard shortcuts"),
-                                    new CompletionItem("/license", "Show license and third-party notices"),
                                     new CompletionItem("/login", "Log in to a provider via OAuth"),
                                     new CompletionItem("/logout", "Remove stored credentials for a provider"),
                                     new CompletionItem("/refresh", "Refresh available models"),
@@ -80,7 +79,7 @@ final class SlashCommandRegistry {
         appendGroup(out, "session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete");
         appendGroup(out, "workspace", "/tree", "/fork", "/undo", "/copy", "/theme");
         appendGroup(out, "remote", "/remote-control");
-        appendGroup(out, "account", "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/license", "/quit");
+        appendGroup(out, "account", "/login", "/logout", "/refresh", "/reload", "/hotkeys", "/quit");
 
         var builtins = BUILTIN_COMMANDS.stream().map(c -> commandToken(c.name())).collect(toSet());
         var extensions = commands.stream().filter(c -> !builtins.contains(commandToken(c.name()))).toList();

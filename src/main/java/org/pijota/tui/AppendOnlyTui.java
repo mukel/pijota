@@ -1668,18 +1668,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
-    /**
-     * {@code /license}: the same document {@code --license} prints, in the pager. The flag is the one that matters -- a
-     * {@code -p} run never opens this -- but someone already inside pijota should not have to leave to read it.
-     */
-    void showLicense() {
-        String text = org.pijota.cli.LicenseCommand.text();
-        if (text.isBlank())
-            appendError("the license texts are missing from this build");
-        else
-            viewer("license", text.lines().toList());
-    }
-
     void showSkills() {
         skillCommands.showSkills();
     }

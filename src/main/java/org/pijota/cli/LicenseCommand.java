@@ -34,20 +34,12 @@ public final class LicenseCommand {
      * list silently omitted the browser scripts until it was audited.
      */
     public static int run() {
-        String text = text();
-        System.out.println(text);
-        return text.isBlank() ? 1 : 0;
-    }
-
-    /**
-     * The license and the notices, as one document. The single owner of which files make up "the notices" and how they
-     * are joined, so {@code --license} and {@code /license} cannot show different things -- they already differed on
-     * spacing and on what a missing file says the moment there were two readers.
-     */
-    public static String text() {
         String license = read("/LICENSE");
         String notice = read("/NOTICE");
-        return license.isEmpty() || notice.isEmpty() ? "" : (license + "\n\n" + notice).stripTrailing();
+        if (license.isEmpty() || notice.isEmpty())
+            return 1; // read() has already said which text is missing and why
+        System.out.println((license + "\n\n" + notice).stripTrailing());
+        return 0;
     }
 
     private static String read(String resource) {
