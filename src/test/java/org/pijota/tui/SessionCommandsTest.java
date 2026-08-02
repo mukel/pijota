@@ -130,8 +130,17 @@ class SessionCommandsTest {
     @Test
     void rateLineShowsCatalogRatesForKnownModel() {
         String line = SessionCommands.rateLine("anthropic", "claude-opus-4-5-20251101", false);
-        assertTrue(line.contains("$5.00 in / $25.00 out per 1M"), line);
-        assertTrue(line.contains("claude-opus-4-5-20251101"), line);
+        assertTrue(line.contains("$5.00 in / $25.00 out per MTok"), line); // the unit the model picker prints too
+        assertTrue(line.contains("anthropic/claude-opus-4-5-20251101"), line);
+    }
+
+    /** One rendering of a model name, everywhere. The provider is a prefix, not something to say twice. */
+    @Test
+    void everyModelLabelInUsageIsTheCompactForm() {
+        assertEquals("deepseek/v4-flash", SessionCommands.breakdownLabel("deepseek/deepseek-v4-flash"));
+        assertTrue(SessionCommands.rateLine("deepseek", "deepseek-v4-flash", false).contains("deepseek/v4-flash"));
+        assertEquals("Tools/summaries", SessionCommands.breakdownLabel("Tools/summaries"),
+                                        "the compaction row is not a model and must survive untouched");
     }
 
     @Test

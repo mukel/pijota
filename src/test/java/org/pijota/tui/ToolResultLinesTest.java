@@ -65,8 +65,23 @@ class ToolResultLinesTest {
         assertTrue(header.contains("exit 101"), header);
         assertFalse(header.contains("error[E0308]"), "the excerpt lives in the body, never the header: " + header);
         assertTrue(AnsiStripper.strip(lines.get(2)).startsWith("│ error[E0308]"), visible(lines));
-        String last = AnsiStripper.strip(lines.get(lines.size() - 1));
-        assertTrue(last.contains("⋯ 2 more lines"), "excerpt cut at 5 with an amber cue: " + last);
+        String cue = AnsiStripper.strip(lines.get(lines.size() - 2));
+        assertTrue(cue.contains("⋯ 2 more lines"), "excerpt cut at 5 with an amber cue: " + cue);
+        // The ✖ opened the block in place of ┌, so the block still closes. It used to trail off into a rail that
+        // never ended, which read as output still arriving.
+        assertEquals("└", AnsiStripper.strip(lines.get(lines.size() - 1)), visible(lines));
+    }
+
+    /** A blank first line of error content used to render as a bare │: a rail with nothing on it. */
+    @Test
+    void aFailureBodyDoesNotOpenOrCloseOnAnEmptyRail() {
+        var msg = new Message.ToolResult("id", "bash", "\n\n[Command exited with code 3]\n\n", true,
+                                        Map.of("exitCode", 3));
+        var lines = compose(msg, null, 0);
+
+        assertEquals("│ [Command exited with code 3]", AnsiStripper.strip(lines.get(2)), visible(lines));
+        assertEquals("└", AnsiStripper.strip(lines.get(3)), visible(lines));
+        assertEquals(4, lines.size(), "air, header, one body row, closer -- nothing blank: " + visible(lines));
     }
 
     @Test
@@ -124,15 +139,48 @@ class ToolResultLinesTest {
     void diffBodyLinesAreColoredByChangeMarker() {
         var theme = AnsiTheme.dark();
         // Keyed on content, not tool name, so any tool emitting a unified diff (apply_patch today) reads as a diff.
-        assertNotEquals(ToolResultLines.renderToolBodyLine("+added", theme),
-                                        ToolResultLines.renderToolBodyLine("-removed", theme),
+        assertNotEquals(ToolResultLines.renderToolBodyLine("+added", theme, true),
+                                        ToolResultLines.renderToolBodyLine("-removed", theme, true),
                                         "additions and deletions must not share a color");
-        assertTrue(ToolResultLines.renderToolBodyLine("+added", theme).contains(theme.style("diffAdd")));
-        assertTrue(ToolResultLines.renderToolBodyLine("-removed", theme).contains(theme.style("diffDelete")));
-        assertTrue(ToolResultLines.renderToolBodyLine("@@ -1 +1 @@", theme).contains(theme.style("diffHunk")));
+        assertTrue(ToolResultLines.renderToolBodyLine("+added", theme, true).contains(theme.style("diffAdd")));
+        assertTrue(ToolResultLines.renderToolBodyLine("-removed", theme, true).contains(theme.style("diffDelete")));
+        assertTrue(ToolResultLines.renderToolBodyLine("@@ -1 +1 @@", theme, true).contains(theme.style("diffHunk")));
         // The +++/--- file headers are hunk chrome, not content changes.
-        assertTrue(ToolResultLines.renderToolBodyLine("+++ b/x.txt", theme).contains(theme.style("diffHunk")));
-        assertTrue(ToolResultLines.renderToolBodyLine("--- a/x.txt", theme).contains(theme.style("diffHunk")));
+        assertTrue(ToolResultLines.renderToolBodyLine("+++ b/x.txt", theme, true).contains(theme.style("diffHunk")));
+        assertTrue(ToolResultLines.renderToolBodyLine("--- a/x.txt", theme, true).contains(theme.style("diffHunk")));
+    }
+
+    /**
+     * The reason diff colouring is decided per block and not per line: {@code -} and {@code +} start plenty of ordinary
+     * output. Per-line, every {@code -rw-r--r--} row of an {@code ls -l} came out in error red, which reads as half the
+     * listing having failed.
+     */
+    @Test
+    void ordinaryCommandOutputIsNeverColouredAsADiff() {
+        var msg = new Message.ToolResult("id", "bash", "ok", false, Map.of("exitCode", 0));
+        var rendered = new Tool.ToolResultView("4 lines", List.of("-rw-r--r-- 1 mukel mukel 133 calc.py",
+                                        "--- a listing, not a diff", "+++ nor is this", "+1 more"));
+        var lines = compose(msg, rendered, 0);
+
+        var theme = AnsiTheme.dark();
+        String listing = String.join("\n", lines);
+        assertFalse(listing.contains(theme.style("diffDelete")), "an ls -l row is not a deletion: " + visible(lines));
+        assertFalse(listing.contains(theme.style("diffAdd")), visible(lines));
+        assertFalse(listing.contains(theme.style("diffHunk")), "no hunk header, so nothing is diff chrome");
+    }
+
+    /** ... and a body that really is a diff still reads as one. */
+    @Test
+    void aBodyWithAHunkHeaderStillReadsAsADiff() {
+        var msg = new Message.ToolResult("id", "apply_patch", "ok", false);
+        var rendered = new Tool.ToolResultView("patched", List.of("@@ -1,2 +1,3 @@", "-old line", "+new line"));
+        var lines = compose(msg, rendered, 0);
+
+        var theme = AnsiTheme.dark();
+        String patch = String.join("\n", lines);
+        assertTrue(patch.contains(theme.style("diffHunk")), visible(lines));
+        assertTrue(patch.contains(theme.style("diffDelete")), visible(lines));
+        assertTrue(patch.contains(theme.style("diffAdd")), visible(lines));
     }
 
     @Test

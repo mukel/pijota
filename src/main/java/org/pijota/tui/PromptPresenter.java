@@ -79,10 +79,11 @@ final class PromptPresenter {
             cwd.append(theme.styled("commandMeta", "  " + sessionName));
 
         var stats = new StringBuilder(theme.styled("statusText", tokens));
-        stats.append(theme.styled("dim", "  " + host.provider()))
-                                        .append(theme.styled("commandMeta", " " + host.model()));
-        if (host.thinkingLevel() != ThinkingLevel.OFF)
-            stats.append(theme.styled("commandMeta", " · " + host.thinkingLevel().label()));
+        stats.append(theme.styled("commandMeta", "  " + compactModelName(host.provider(), host.model())));
+        ThinkingLevel thinking = host.thinkingLevel();
+        if (thinking != ThinkingLevel.OFF)
+            stats.append(theme.styled("commandMeta", " · "))
+                                            .append(theme.styled(thinking.themeSlot(), thinking.label()));
         if (activity.isBusy()) {
             stats.append(theme.styled("statusText", "  " + animation.frame()));
             String phase = activity.phase();

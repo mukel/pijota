@@ -136,7 +136,7 @@ public final class EditTool implements Tool {
 
         var details = Map.<String, Object>of("diff", displayDiff(content, result), "patch",
                                         unifiedPatch(path.toString(), content, result), "firstChangedLine",
-                                        firstChangedLine(content, result));
+                                        firstChangedLine(content, result), "blocks", matches.size());
         // No path here: the tool-call detail already shows the file, so repeating it duplicates the path in the TUI.
         return ToolResult.success("Successfully replaced " + matches.size() + " block(s).", details);
     }
@@ -309,7 +309,11 @@ public final class EditTool implements Tool {
     public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         if (result.isError())
             return ToolResultView.of(result.content());
-        String summary = result.content();
+        // The content is written for the model ("Successfully replaced 1 block(s)."). The transcript counts instead,
+        // like every other tool line there: "1 block" next to "5 lines" and "1 result", not a capitalised sentence.
+        String summary = result.details().get("blocks") instanceof Number n
+                                        ? Util.count(n.longValue(), "block", "blocks")
+                                        : result.content();
         Object diffObj = result.details().get("diff");
         if (!(diffObj instanceof String diff) || diff.isBlank())
             return ToolResultView.of(summary);

@@ -164,11 +164,22 @@ final class SessionCommands {
         if (!breakdown.isEmpty() || !summaryBreakdown.isEmpty()) {
             var report = new Report(host::styled, "usage breakdown");
             for (var item : breakdown)
-                report.row(item.key(), fmtCount(item.tokens()) + " tokens  " + SessionUsage.formatCost(item.cost()));
+                report.cells(breakdownLabel(item.key()), fmtCount(item.tokens()),
+                                                "tokens  " + SessionUsage.formatCost(item.cost()));
             for (var item : summaryBreakdown)
-                report.row(item.key(), fmtCount(item.tokens()) + " tokens  " + SessionUsage.formatCost(item.cost()));
+                report.cells(breakdownLabel(item.key()), fmtCount(item.tokens()),
+                                                "tokens  " + SessionUsage.formatCost(item.cost()));
             host.appendPlain(report.render());
         }
+    }
+
+    /**
+     * A usage-breakdown key is {@code provider/model}; render it the way every other model label is rendered, so
+     * {@code /usage} does not name the model differently from the banner and the status bar.
+     */
+    static String breakdownLabel(String key) {
+        int slash = key.indexOf('/');
+        return slash < 0 ? key : PromptPresenter.compactModelName(key.substring(0, slash), key.substring(slash + 1));
     }
 
     /** The {@code /usage} per-model rate line: the catalog's $/1M rates for the active model, or "unknown". */
@@ -177,8 +188,9 @@ final class SessionCommands {
         if (pricing == null) {
             return "unknown for " + (model != null ? model : "current model");
         }
-        String line = String.format(Locale.ROOT, "$%.2f in / $%.2f out per 1M  (%s)", pricing.inputPerMTok(),
-                                        pricing.outputPerMTok(), model);
+        // "per MTok" rather than "per 1M": the same unit the model picker prints, so the two rate readouts match.
+        String line = String.format(Locale.ROOT, "$%.2f in / $%.2f out per MTok  (%s)", pricing.inputPerMTok(),
+                                        pricing.outputPerMTok(), PromptPresenter.compactModelName(provider, model));
         return hasUnpriced ? line + "  · some usage on unpriced models" : line;
     }
 
@@ -199,15 +211,17 @@ final class SessionCommands {
                                     double cost, Double budget, String rateLine,
                                     BiFunction<String, String, String> styled) {
         var report = new Report(styled, "usage").chip("this session");
-        report.row("input", fmtCount(input) + " tokens");
-        report.row("output", fmtCount(output) + " tokens"
-                                        + (reasoning > 0 ? "  (" + fmtCount(reasoning) + " reasoning)" : ""));
-        report.row("total", fmtCount(input + output) + " tokens");
+        // Cells, not one string per row: input/output/total are there to be compared with each other, and a ragged
+        // left edge is exactly what stops the eye doing that.
+        report.cells("input", fmtCount(input), "tokens");
+        report.cells("output", fmtCount(output),
+                                        "tokens" + (reasoning > 0 ? "  (" + fmtCount(reasoning) + " reasoning)" : ""));
+        report.cells("total", fmtCount(input + output), "tokens");
         if (cacheRead > 0 || cacheWrite > 0) {
             long promptTokens = input + cacheRead + cacheWrite; // full prompt input incl. cache
             int hitPct = promptTokens > 0 ? (int) Math.round(100.0 * cacheRead / promptTokens) : 0;
-            report.row("cache", fmtCount(cacheRead) + " read  " + fmtCount(cacheWrite) + " write  (" + hitPct
-                                            + "% hit)");
+            report.cells("cache", fmtCount(cacheRead),
+                                            "read  " + fmtCount(cacheWrite) + " write  (" + hitPct + "% hit)");
         }
         report.row("cost", formatSessionCost(cost), "commandMeta");
         report.row("rate", rateLine, "commandMeta");
@@ -354,17 +368,20 @@ final class SessionCommands {
         long messageTok = systemTok + userTok + assistantTok + toolTok + summaryTok;
         long overhead = Math.max(0, host.session().estimatedContextTokens() - messageTok);
 
-        var report = new Report(host::styled, "context").chip(plural(msgs.size(), "msg")).chip(host.tokenStatus());
+        // "estimated" is said once in the header rather than on every row: the counts are what the eye is comparing,
+        // and repeating the qualifier five times pushed them out of any column they could have been compared in.
+        var report = new Report(host::styled, "context").chip(plural(msgs.size(), "msg")).chip(host.tokenStatus())
+                                        .chip("estimated");
         report.row("auto-compact", host.settings() == null || host.settings().compactionEnabled() ? "on" : "off");
-        if (overhead > 0)
-            report.row("overhead", fmtCount((int) overhead) + " est tokens  system prompt + tools");
         if (systems > 0)
-            report.row("system", plural(systems, "msg") + "  " + fmtCount((int) systemTok) + " est tokens");
-        report.row("user", plural(users, "msg") + "  " + fmtCount((int) userTok) + " est tokens");
-        report.row("assistant", plural(assistants, "msg") + "  " + fmtCount((int) assistantTok) + " est tokens");
-        report.row("tool", plural(tools, "msg") + "  " + fmtCount((int) toolTok) + " est tokens");
+            report.cells("system", plural(systems, "msg"), fmtCount((int) systemTok), "tokens");
+        report.cells("user", plural(users, "msg"), fmtCount((int) userTok), "tokens");
+        report.cells("assistant", plural(assistants, "msg"), fmtCount((int) assistantTok), "tokens");
+        report.cells("tool", plural(tools, "msg"), fmtCount((int) toolTok), "tokens");
         if (compactions > 0)
-            report.row("summaries", plural(compactions, "msg") + "  " + fmtCount((int) summaryTok) + " est tokens");
+            report.cells("summaries", plural(compactions, "msg"), fmtCount((int) summaryTok), "tokens");
+        if (overhead > 0)
+            report.cells("overhead", "", fmtCount((int) overhead), "tokens  system prompt + tools");
         var lines = report.render();
         if (compactions > 0) {
             for (var m : msgs) {

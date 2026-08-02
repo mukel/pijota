@@ -1605,9 +1605,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         thinkingLevel = thinkingLevel.next();
         session.setThinkingLevel(thinkingLevel);
         settings.setThinkingLevel(thinkingLevel.name());
-        // Prominent, immediate feedback in the status area (not a transcript line that piles up on each toggle); the
-        // redraw also refreshes the footer's effort indicator right away.
-        setTransientStatus("thinking: " + thinkingLevel.label(), 1800);
+        // No transient line: the footer's own effort chip is the feedback. It sits a row below where the eye already
+        // is, and it carries the level's colour, which says "you are at max" faster than a second row repeating the
+        // word does.
         redrawPrompt();
     }
 

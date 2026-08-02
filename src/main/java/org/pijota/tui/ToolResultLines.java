@@ -79,7 +79,10 @@ final class ToolResultLines {
             addHeader(lines, theme.styled("toolError", ToolGlyphs.FAILED) + " ",
                                             nameDetail + (meta.isEmpty() ? "" : dot + String.join(dot, meta)), theme,
                                             width);
+            int beforeBody = lines.size();
             addBody(lines, errorBody(msg, rendered), theme, width);
+            if (lines.size() > beforeBody) // the ✖ opened the block in place of ┌, so it still needs closing
+                lines.add(theme.styled("commandMeta", "└"));
         } else if (rendered != null && !rendered.body().isEmpty()) {
             // Tool with output: the framed block. Accent ┌ open, railed body, dim └ footer carrying the metadata.
             lines.add("");
@@ -121,10 +124,25 @@ final class ToolResultLines {
      * gets the {@code │} on every physical row. Otherwise the terminal wraps it itself and the continuation rows dangle
      * bare at column zero, visually breaking the block open.
      */
-    private static void addBody(List<String> lines, List<String> body, AnsiTheme theme, int width) {
+    private static void addBody(List<String> lines, List<String> rawBody, AnsiTheme theme, int width) {
+        // Blank edges become bare rail rows -- a │ with nothing on it, which reads as the block having lost its
+        // content. Trimmed here rather than at each source, since it is the rail that makes them wrong.
+        var body = trimBlankEdges(rawBody);
+        boolean diff = looksLikeUnifiedDiff(body);
         for (String line : body)
             for (String row : AnsiWidth.wrapPreservingAnsi(line, Math.max(1, width - 2)))
-                lines.add(renderToolBodyLine(row, theme));
+                lines.add(renderToolBodyLine(row, theme, diff));
+    }
+
+    /**
+     * Whether a body is a unified diff, decided once for the whole block rather than line by line. Per-line was the
+     * obvious rule and the wrong one: {@code -} and {@code +} start plenty of ordinary output, so every
+     * {@code -rw-r--r--} row of an {@code ls -l} came out in error red and every {@code +} row in success green. A diff
+     * always announces itself with a hunk header, and nothing else does. The {@code ---}/{@code +++} file headers are
+     * not enough on their own: those shapes do turn up in ordinary output, {@code @@ -a,b +c,d @@} does not.
+     */
+    private static boolean looksLikeUnifiedDiff(List<String> body) {
+        return body.stream().anyMatch(line -> line.startsWith("@@ "));
     }
 
     /**
@@ -133,7 +151,7 @@ final class ToolResultLines {
      * hardest to read. Continuations carry the same {@code │} rail as the body, so the whole block reads as one thing.
      */
     private static void addHeader(List<String> lines, String prefix, String text, AnsiTheme theme, int width) {
-        lines.addAll(AnsiWidth.wrapPrefixed(text, width, prefix, row -> renderToolBodyLine(row, theme)));
+        lines.addAll(AnsiWidth.wrapPrefixed(text, width, prefix, row -> renderToolBodyLine(row, theme, false)));
     }
 
     /**
@@ -146,12 +164,21 @@ final class ToolResultLines {
         String content = msg.content();
         if (content == null || content.isBlank())
             return List.of();
-        var all = content.lines().toList();
+        var all = trimBlankEdges(content.lines().toList());
         if (all.size() <= ERROR_EXCERPT_LINES)
             return all;
         var cut = new ArrayList<>(all.subList(0, ERROR_EXCERPT_LINES));
         cut.add("⋯ " + Util.count(all.size() - ERROR_EXCERPT_LINES, "more line", "more lines"));
         return cut;
+    }
+
+    private static List<String> trimBlankEdges(List<String> lines) {
+        int from = 0, to = lines.size();
+        while (from < to && lines.get(from).isBlank())
+            from++;
+        while (to > from && lines.get(to - 1).isBlank())
+            to--;
+        return lines.subList(from, to);
     }
 
     static String toolResultSummary(Message.ToolResult msg) {
@@ -188,7 +215,12 @@ final class ToolResultLines {
         return Util.ellipsize(content.replaceAll("\\s+", " "), 80);
     }
 
+    /** A body line that is not part of a diff; see {@link #renderToolBodyLine(String, AnsiTheme, boolean)}. */
     static String renderToolBodyLine(String line, AnsiTheme theme) {
+        return renderToolBodyLine(line, theme, false);
+    }
+
+    static String renderToolBodyLine(String line, AnsiTheme theme, boolean diff) {
         String rail = theme.styled("commandMeta", "│ ");
         // Checklist items (e.g. from the todo tool), coloured by state marker, keyed on content not tool name. They
         // carry their own rail already.
@@ -207,14 +239,16 @@ final class ToolResultLines {
             return theme.styled("statusText", line);
         if (line.startsWith("⋯")) // truncation cue, colored so the "N lines omitted" break stands out from the output
             return rail + theme.styled("statusWarn", line);
-        // Unified-diff body (apply_patch): color the change markers so a patch reads like a diff, not like prose.
-        // Keyed on content, so any tool that emits diff text gets it.
-        if (line.startsWith("+") && !line.startsWith("+++"))
-            return rail + theme.styled("diffAdd", line);
-        if (line.startsWith("-") && !line.startsWith("---"))
-            return rail + theme.styled("diffDelete", line);
-        if (line.startsWith("@@") || line.startsWith("+++") || line.startsWith("---"))
-            return rail + theme.styled("diffHunk", line);
+        // Unified-diff body (apply_patch): color the change markers so a patch reads like a diff, not like prose. Only
+        // inside a body the block already recognised as a diff -- see looksLikeUnifiedDiff.
+        if (diff) {
+            if (line.startsWith("@@") || line.startsWith("+++") || line.startsWith("---"))
+                return rail + theme.styled("diffHunk", line);
+            if (line.startsWith("+"))
+                return rail + theme.styled("diffAdd", line);
+            if (line.startsWith("-"))
+                return rail + theme.styled("diffDelete", line);
+        }
         return rail + theme.styled("statusText", line);
     }
 }

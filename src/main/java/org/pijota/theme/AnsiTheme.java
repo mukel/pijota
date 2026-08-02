@@ -330,7 +330,7 @@ public class AnsiTheme {
                                         "userMessageText", "customMessageBg", "customMessageText", "customMessageLabel",
                                         "toolPendingBg", "toolSuccessBg", "toolErrorBg", "thinkingOff",
                                         "thinkingMinimal", "thinkingLow", "thinkingMedium", "thinkingHigh",
-                                        "thinkingXhigh");
+                                        "thinkingXhigh", "thinkingMax");
         return t;
     }
 

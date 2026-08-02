@@ -70,7 +70,11 @@ public final class WriteTool implements Tool {
     public ToolResultView renderResult(Args args, ToolResult result, String cwd) {
         if (result.isError())
             return ToolResultView.of(result.content());
-        String summary = result.content();
+        // See EditTool: the content is the model's copy, the summary is the transcript's, counted like every other
+        // tool line ("5 lines"), not "Wrote 133 bytes (5 lines)".
+        String summary = result.details().get("lines") instanceof Number n
+                                        ? Util.count(n.longValue(), "line", "lines")
+                                        : result.content();
         String content = args.getString("content");
         if (content == null || content.isBlank())
             return ToolResultView.of(summary);
