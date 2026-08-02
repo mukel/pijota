@@ -366,4 +366,33 @@ class AppBootstrapTest {
 
         assertEquals(ThinkingLevel.HIGH, result.llm().thinkingLevel());
     }
+
+    /**
+     * {@code --api-key} was parsed, resolved, and then dropped: the resolved value went into a local nothing read, and
+     * the run looked the credential up in settings regardless. So the flag silently ran on the stored key, or, with
+     * nothing stored, failed as "apiKey cannot be null or blank" while holding the key it had just been handed.
+     */
+    @Test
+    void theApiKeyFlagIsTheKeyTheRunUses() {
+        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "stored"), ignored -> {});
+
+        var withFlag = AppBootstrap.apiKeyResolver("openai", "from-the-flag", settings);
+        assertEquals("from-the-flag", withFlag.apply("openai"));
+
+        var withoutFlag = AppBootstrap.apiKeyResolver("openai", null, settings);
+        assertEquals("stored", withoutFlag.apply("openai"), "with no flag, the store is still the source");
+        assertEquals("stored", AppBootstrap.apiKeyResolver("openai", "  ", settings).apply("openai"));
+    }
+
+    /** Scoped to the provider it was given with: switching model mid-session must not leak the key to another one. */
+    @Test
+    void theApiKeyFlagDoesNotFollowYouToAnotherProvider() {
+        var settings = new SettingsManager(new AppConfig().withApiKey("openai", "stored"), ignored -> {});
+
+        var resolver = AppBootstrap.apiKeyResolver("anthropic", "anthropic-only", settings);
+
+        assertEquals("anthropic-only", resolver.apply("anthropic"));
+        assertEquals("stored", resolver.apply("openai"), "openai must not be handed anthropic's key");
+        assertDoesNotThrow(() -> resolver.apply(null));
+    }
 }

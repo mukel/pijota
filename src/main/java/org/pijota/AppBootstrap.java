@@ -56,6 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.nio.file.Path;
 
 public final class AppBootstrap {
@@ -92,7 +93,7 @@ public final class AppBootstrap {
         String apiKey = resolved.apiKey();
         StartupTimer.mark("model resolved");
 
-        var llm = new LlmService(provider, model, settings::resolveApiKey);
+        var llm = new LlmService(provider, model, apiKeyResolver(provider, apiKey, settings));
         StartupTimer.mark("llm initialized");
 
         var sessions = new SessionManager(settings.sessionDir());
@@ -370,6 +371,23 @@ public final class AppBootstrap {
         } catch (Exception e) {
             logger.warn("Automatic merge failed", e);
         }
+    }
+
+    /**
+     * How the run looks up a provider's credential. Normally the settings store; when {@code --api-key} was given, that
+     * key for the provider it was given with, and the store for any other. The flag used to be parsed, resolved, and
+     * then dropped on the floor -- the resolved value was assigned to a local nothing read -- so it silently ran on the
+     * stored credential instead, or, with nothing stored, failed as "apiKey cannot be null or blank" while holding the
+     * key it had just been handed.
+     *
+     * <p>
+     * Scoped to the one provider on purpose: switching model mid-session must not hand a key meant for one provider to
+     * a different one.
+     */
+    static Function<String, String> apiKeyResolver(String provider, String flagKey, SettingsManager settings) {
+        if (flagKey == null || flagKey.isBlank())
+            return settings::resolveApiKey;
+        return p -> p != null && p.equals(provider) ? flagKey : settings.resolveApiKey(p);
     }
 
     private static void restoreSessionModel(PijotaSession session, SettingsManager settings) throws IOException {
