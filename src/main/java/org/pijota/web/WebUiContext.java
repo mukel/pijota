@@ -119,6 +119,27 @@ public final class WebUiContext implements UiContext {
         return future;
     }
 
+    @Override
+    public boolean acceptsPromptDrafts() {
+        return true; // the composer textarea is the draft, the same role the TUI's prompt editor plays
+    }
+
+    /**
+     * Offers a next message as ghost text over the composer. Advisory, so unlike a dialog it is fire-and-forget: not
+     * registered as pending and never replayed to a tab that connects later, since by then the conversation has moved
+     * on and a stale suggestion is worse than none.
+     *
+     * <p>
+     * Whether to show it is the browser's call, not this class's. The rule is per-draft ("only on an empty one, and any
+     * keystroke discards it") and each tab has its own draft, so only the tab can answer it.
+     */
+    @Override
+    public void offerSuggestion(String text) {
+        if (text == null || text.isBlank())
+            return;
+        emit.accept("suggestion", Map.of("text", text.strip()));
+    }
+
     /**
      * Completes the dialog with the given id; no-op if it already fired or never existed. Notifies other tabs to close.
      */

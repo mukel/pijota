@@ -302,6 +302,21 @@
     font-family: var(--sans); font-size: 16px; line-height: 23px; outline: none;
   }
   textarea#input::placeholder { color: var(--muted); }
+  /* the draft slot: the textarea, plus the suggestion ghosted exactly over it (same face, size and leading) */
+  .draft { position: relative; flex: 1; min-width: 0; display: flex; }
+  .ghost {
+    position: absolute; inset: 0; display: flex; align-items: center; gap: 8px; overflow: hidden;
+    border: none; background: none; padding: 0; margin: 0; text-align: left;
+    font-family: var(--sans); font-size: 16px; line-height: 23px; color: var(--muted); opacity: .75;
+    /* only the words are a target: clicking the empty space beside them focuses the draft, as it did before */
+    pointer-events: none;
+  }
+  .ghost[hidden] { display: none; }
+  .ghost > * { pointer-events: auto; cursor: pointer; }
+  .ghost .text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ghost .key { flex: none; font-family: var(--mono); font-size: 11px; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--border); background: var(--panel-2); }
+  .ghost:hover { opacity: 1; }
+  .draft.ghosting textarea#input::placeholder { color: transparent; } /* one prompt at a time */
   button.act {
     flex: none; border: none; border-radius: 50%; width: 34px; height: 34px; align-self: flex-end;
     display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1;
@@ -450,7 +465,11 @@
     <div class="slashmenu" id="slash"></div>
     <div class="attachments" id="attachments"></div>
     <div class="inner">
-      <textarea id="input" placeholder="Message pijota…" rows="1" aria-label="Message pijota"></textarea>
+      <div class="draft">
+        <textarea id="input" placeholder="Message pijota…" rows="1" aria-label="Message pijota"></textarea>
+        <!-- the --suggest extension's next-message offer, layered over the empty draft; Tab (or a tap) accepts it -->
+        <button type="button" class="ghost" id="ghost" tabindex="-1" hidden><span class="text"></span><span class="key"></span></button>
+      </div>
       <button class="attach" id="attach" title="Attach a file" aria-label="Attach a file"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
       <span class="sendwrap">
         <button class="act" id="send" title="Send" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 19V7M6 13l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -920,6 +939,7 @@ window.addEventListener("DOMContentLoaded", () => {
     es.addEventListener("status", e => { const d = JSON.parse(e.data); if (d.message) showToast(d.message, d.alert); });
     es.addEventListener("statuslines", e => renderStatusLines(JSON.parse(e.data).lines || []));
     es.addEventListener("stats", e => renderStats(JSON.parse(e.data)));
+    es.addEventListener("suggestion", e => offerSuggestion(JSON.parse(e.data).text));
     es.addEventListener("viewer", e => showViewer(JSON.parse(e.data)));
     es.addEventListener("dialog", e => showDialog(JSON.parse(e.data)));
     es.addEventListener("dialog_done", e => { const f = openDialogs.get(JSON.parse(e.data).id); if (f) f(); });
@@ -944,6 +964,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // ---- input / busy ----
   function setBusy(b) {
     busy = b;
+    if (b) clearOffer(); // a turn started (perhaps from another tab): the offer describes a conversation that moved on
     // turn ended without a final frame (error/interrupt): release the streaming bubble so AT still announces it
     if (!b && live) { live.msg.setAttribute("aria-busy", "false"); live = null; }
     if (!b) clearActivity();
@@ -971,7 +992,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const text = input.value.trim();
     if (!text && !pendingFiles.length) return;
     const files = pendingFiles.map(f => ({ mime: f.mime, data: f.data, filename: f.name }));
-    input.value = ""; pendingFiles = []; renderAttachments(); autoGrow(); hideMenu();
+    input.value = ""; pendingFiles = []; renderAttachments(); autoGrow(); hideMenu(); clearOffer();
     showActivity("thinking...");
     // Post immediately, even mid-stream: the server injects it into the running turn (session.followUp steers the
     // current task) and slash commands / interrupts take effect at once. Nothing is held client-side to lose on a
@@ -1061,6 +1082,31 @@ window.addEventListener("DOMContentLoaded", () => {
   const attachBtn = $("#attach");
   attachBtn.addEventListener("click", () => fileInput.click());
 
+  // ---- next-message suggestion (the --suggest extension) ----
+  // Ghost text over an empty draft. Accepting only fills the composer -- the user still presses Send, on words they
+  // can see and edit -- and any keystroke discards the offer, so it never argues with someone already typing.
+  const ghost = $("#ghost"), draftEl = ghost.parentElement;
+  ghost.querySelector(".key").textContent = isTouch ? "tap" : "Tab";
+  let offered = "";
+  function offerSuggestion(text) {
+    if (!text || input.value) return; // the draft is theirs the moment there is anything in it
+    offered = text;
+    ghost.querySelector(".text").textContent = text;
+    ghost.setAttribute("aria-label", "Use suggestion: " + text);
+    ghost.hidden = false; draftEl.classList.add("ghosting");
+  }
+  function clearOffer() {
+    if (!offered) return;
+    offered = "";
+    ghost.hidden = true; draftEl.classList.remove("ghosting");
+  }
+  function acceptOffer() {
+    input.value = offered;
+    clearOffer();
+    input.focus(); autoGrow(); updateComposer();
+  }
+  ghost.addEventListener("click", acceptOffer);
+
   // The send button stays in one fixed slot (↑), disabled when empty; Stop is the separate round button shown only
   // while streaming. Sending mid-stream posts right away, so there is no queued/pending state to render.
   function updateComposer() {
@@ -1136,7 +1182,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   sendBtn.addEventListener("click", send); // always send (never Stop); posts immediately, even mid-stream
   stopBtn.addEventListener("click", () => postJSON("/interrupt")); // Stop is its own control, above the composer
-  input.addEventListener("input", () => { autoGrow(); updateMenu(); updateComposer(); });
+  input.addEventListener("input", () => { clearOffer(); autoGrow(); updateMenu(); updateComposer(); });
   input.addEventListener("keydown", e => {
     if (slash.classList.contains("show")) {
       if (e.key === "ArrowDown") { e.preventDefault(); return moveSel(1); }
@@ -1145,6 +1191,9 @@ window.addEventListener("DOMContentLoaded", () => {
       if (e.key === "Enter" && menuSel >= 0) { e.preventDefault(); completeMenu(menuSel); send(); return; } // complete + run
       if (e.key === "Escape") { e.preventDefault(); return hideMenu(); }
     }
+    // Tab, not Enter: a reflex Enter must never put the machine's words in the user's mouth. Only reachable on an
+    // empty draft, where Tab has nothing to complete and the slash menu (which needs a "/") cannot be open.
+    if (e.key === "Tab" && offered && !input.value) { e.preventDefault(); return acceptOffer(); }
     // Desktop: Enter sends, Shift+Enter = newline. Touch: Enter = newline (no Shift on phones), the button sends.
     if (e.key === "Enter" && !e.shiftKey && !isTouch) { e.preventDefault(); send(); }
   });

@@ -148,6 +148,31 @@ class WebUiContextTest {
     }
 
     @Test
+    void aSuggestionIsPushedToTheBrowserAsGhostText() {
+        // The capability gate is the whole feature switch: SuggestExtension.onReady declines to register at all when
+        // acceptsPromptDrafts() is false, so a false here means --suggest silently does nothing on the web.
+        var bus = new Bus();
+        var ui = bus.ui();
+        assertTrue(ui.acceptsPromptDrafts(), "the composer is a draft; without this --suggest stays inert on the web");
+
+        ui.offerSuggestion("  run the tests  ");
+
+        assertEquals("suggestion", bus.event);
+        assertEquals("run the tests", bus.data.get("text"), "stripped, as the TUI does");
+        assertTrue(ui.pendingDialogs().isEmpty(), "advisory, not a dialog: nothing blocks on it and nothing replays");
+    }
+
+    @Test
+    void anEmptySuggestionIsNotPushedAtAll() {
+        // The model declines by replying with nothing; that must not surface as an empty ghost line on the composer.
+        var bus = new Bus();
+        var ui = bus.ui();
+        ui.offerSuggestion(null);
+        ui.offerSuggestion("   ");
+        assertNull(bus.event, "nothing to show, so nothing is emitted");
+    }
+
+    @Test
     void themeIsNeverNullSoStyledIsSafe() {
         // Regression: /transcend (and any extension) calls ui.theme().styled(...). Under remote control the UI owner is
         // the web/Telegram context; its theme() must not be null. A no-color theme returns the text unchanged.
