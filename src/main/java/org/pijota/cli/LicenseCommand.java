@@ -6,8 +6,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * {@code pijota license}: prints pijota's own license and the attribution notices for everything embedded in the
+ * {@code pijota --license}: prints pijota's own license and the attribution notices for everything embedded in the
  * binary.
+ *
+ * <p>
+ * A flag rather than a subcommand, so it sits beside {@code --version} and {@code --help} where people look for it, and
+ * rather than only a TUI command, because someone who runs {@code pijota -p "..."} never opens the TUI and the notices
+ * still have to reach them.
  *
  * <p>
  * A command rather than only the files in the repository, because the thing most people have is the binary, and the
@@ -19,30 +24,33 @@ import java.util.List;
  */
 public final class LicenseCommand {
 
-    public static final String NAME = "license";
-
     private LicenseCommand() {}
 
-    /** {@code license} prints both; {@code license --notice} prints only the third-party attributions. */
+    /**
+     * Prints the license and the notices. Non-zero when either text is missing from the build: this command exists to
+     * deliver them, so a build that cannot is a broken build and must not report success. That is the failure mode that
+     * matters here -- the texts reach the binary through a hand-maintained native-image resource list, and the same
+     * list silently omitted the browser scripts until it was audited.
+     */
     public static int run(List<String> args) {
-        boolean noticeOnly = args.contains("--notice") || args.contains("notice");
-        var out = new StringBuilder();
-        if (!noticeOnly)
-            out.append(read("/LICENSE")).append('\n');
-        out.append(read("/NOTICE"));
-        System.out.println(out.toString().stripTrailing());
-        return 0;
+        String license = read("/LICENSE");
+        String notice = read("/NOTICE");
+        System.out.println((license + "\n\n" + notice).stripTrailing());
+        return license.isEmpty() || notice.isEmpty() ? 1 : 0;
     }
 
     private static String read(String resource) {
         try (InputStream in = LicenseCommand.class.getResourceAsStream(resource)) {
-            if (in == null)
-                // Never silently: a missing license text is the one thing this command exists to deliver.
-                return "pijota: " + resource.substring(1) + " is missing from this build; see "
-                                                + "https://github.com/mukel/pijota";
+            if (in == null) {
+                System.err.println("pijota: " + resource.substring(1) + " is missing from this build (a resource the "
+                                                + "native image was not told to keep); see "
+                                                + "https://github.com/mukel/pijota");
+                return "";
+            }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8).stripTrailing();
         } catch (IOException e) {
-            return "pijota: could not read " + resource.substring(1) + ": " + e.getMessage();
+            System.err.println("pijota: could not read " + resource.substring(1) + ": " + e.getMessage());
+            return "";
         }
     }
 }

@@ -91,8 +91,6 @@ public final class Main {
                 return logout(args);
             if (args.length > 0 && "worktree".equals(args[0]))
                 return WorktreeCommand.run(args);
-            if (args.length > 0 && LicenseCommand.NAME.equals(args[0]))
-                return LicenseCommand.run(java.util.List.of(args).subList(1, args.length));
             // Before ArgParser: `auth` has its own grammar and must work without resolving a model or building an LLM.
             if (args.length > 0 && AuthCommand.NAME.equals(args[0]))
                 return AuthCommand.run(java.util.List.of(args).subList(1, args.length), new SettingsManager());
@@ -104,6 +102,8 @@ public final class Main {
                 ArgParser.printHelp();
                 return 0;
             }
+            if (parsedArgs.license())
+                return LicenseCommand.run(java.util.List.of(args));
             if (parsedArgs.version()) {
                 System.out.println("pijota v" + PijotaVersion.current());
                 return 0;

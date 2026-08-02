@@ -54,6 +54,7 @@ public final class ArgParser {
         var noApproveProject = false;
         var help = false;
         var version = false;
+        var license = false;
         var verbose = false;
         var agent = false;
         var worker = false;
@@ -117,6 +118,7 @@ public final class ArgParser {
                 case "--no-approve", "-na" -> noApproveProject = true;
                 case "--help", "-h" -> help = true;
                 case "--version", "-v" -> version = true;
+                case "--license", "--licence" -> license = true;
                 case "--agent" -> agent = true;
                 case "--worker" -> worker = true;
                 default -> {
@@ -155,7 +157,7 @@ public final class ArgParser {
                                         enabledTools, excludeTools, extensionPaths, skillPaths, themePaths,
                                         promptTemplatePaths, print, resume, continueSession, recoverSession, forkPath,
                                         exportPath, listModels, listModelsFilter, approveProject, noApproveProject,
-                                        help, version, verbose, agent, worker, fileArgs, promptArgs,
+                                        help, version, license, verbose, agent, worker, fileArgs, promptArgs,
                                         Map.copyOf(extensionFlags), maxTurns);
     }
 
@@ -212,7 +214,6 @@ public final class ArgParser {
                                           auth <cmd> --provider <p> Print a credential for another tool (print-api-key,
                                                                     print-bearer-token); see `pijota auth --help`
                                           worktree <cmd>            Manage git worktrees; see `pijota worktree --help`
-                                          license [--notice]        Print the license and third-party notices
                                         """);
         System.out.println(BuiltinExtensions.helpSection());
         System.out.println();
@@ -223,6 +224,7 @@ public final class ArgParser {
                                           --verbose                 Debug logging to ~/.pijota/logs
                                           --help, -h                Show this help
                                           --version, -v             Show version
+                                          --license                 Show license and third-party notices
 
                                         EXAMPLES:
                                           pijota                                   Start interactive mode

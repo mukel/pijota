@@ -475,19 +475,12 @@ class ArgParserTest {
         assertFalse(out.contains("is missing from this build"), "the texts are packaged, not just referenced: " + out);
     }
 
-    /** --notice narrows it to the third-party attributions, for anyone auditing what is bundled. */
+    /** It sits beside --version, where people look for it, rather than as a top-level noun. */
     @Test
-    void theNoticeFlagPrintsOnlyTheThirdPartyAttributions() {
-        var buffer = new java.io.ByteArrayOutputStream();
-        var original = System.out;
-        try {
-            System.setOut(new java.io.PrintStream(buffer, true, java.nio.charset.StandardCharsets.UTF_8));
-            org.pijota.cli.LicenseCommand.run(java.util.List.of("--notice"));
-        } finally {
-            System.setOut(original);
-        }
-        String out = buffer.toString(java.nio.charset.StandardCharsets.UTF_8);
-        assertTrue(out.contains("Arc90"), out);
-        assertFalse(out.contains("Version 2.0, January 2004"), "the full license body is not repeated here");
+    void theLicenseFlagIsParsedLikeItsSiblings() {
+        assertTrue(ArgParser.parse(new String[] {"--license"}).license());
+        assertTrue(ArgParser.parse(new String[] {"--licence"}).license(), "the other spelling too");
+        assertFalse(ArgParser.parse(new String[] {"--version"}).license());
+        assertFalse(ArgParser.parse(new String[] {}).license());
     }
 }

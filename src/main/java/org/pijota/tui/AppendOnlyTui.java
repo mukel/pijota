@@ -1668,6 +1668,28 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
+    /**
+     * {@code /license}: the same texts {@code --license} prints, in the pager. The flag is the one that matters -- a
+     * {@code -p} run never opens this -- but someone already inside pijota should not have to leave to read it.
+     */
+    void showLicense() {
+        var lines = new java.util.ArrayList<String>();
+        for (String resource : new String[] {"/LICENSE", "/NOTICE"}) {
+            try (var in = AppendOnlyTui.class.getResourceAsStream(resource)) {
+                if (in == null) {
+                    appendError(resource.substring(1) + " is missing from this build");
+                    continue;
+                }
+                new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines().forEach(lines::add);
+                lines.add("");
+            } catch (java.io.IOException e) {
+                appendError("could not read " + resource.substring(1) + ": " + ErrorUtil.message(e));
+            }
+        }
+        logViewer.show("license", lines);
+        redrawPrompt();
+    }
+
     void showSkills() {
         skillCommands.showSkills();
     }
