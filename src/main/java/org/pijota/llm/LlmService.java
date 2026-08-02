@@ -152,6 +152,12 @@ public final class LlmService implements LlmClient {
 
     public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
                                     BiConsumer<String, String> onPartial) {
+        return streamMessages(messages, tools, onPartial, thinkingLevel);
+    }
+
+    @Override
+    public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
+                                    BiConsumer<String, String> onPartial, ThinkingLevel thinking) {
         if (usage.overBudget()) {
             var r = new StreamResult();
             r.setContent("[Budget limit exceeded]");
@@ -163,12 +169,7 @@ public final class LlmService implements LlmClient {
                                         .name(t.name()).description(t.description())
                                         .parameters(ToolSchema.objectFromMap(ToolManifest.canonicalSchema(t.schema())))
                                         .build()).toList();
-        return streamLangChain4j(adapted, specs, onPartial);
-    }
-
-    private CompletableFuture<StreamResult> streamLangChain4j(List<Message> messages, List<ToolSpecification> tools,
-                                    BiConsumer<String, String> onPartial) {
-        return streamLangChain4j(lc4jModel(), messages, tools, onPartial, activeCancel);
+        return streamLangChain4j(lc4jModel(thinking), adapted, specs, onPartial, activeCancel);
     }
 
     private CompletableFuture<StreamResult> streamLangChain4j(StreamingChatModel model, List<Message> messages,
@@ -354,16 +355,24 @@ public final class LlmService implements LlmClient {
     }
 
     private StreamingChatModel lc4jModel() {
+        return lc4jModel(thinkingLevel);
+    }
+
+    /**
+     * The same model at a chosen reasoning effort. Already a cache dimension, so an off-thread handle costs nothing.
+     */
+    private StreamingChatModel lc4jModel(ThinkingLevel thinking) {
         var pm = ModelRegistry.resolveProviderModel(providerName, modelName, null);
-        var key = new ModelCacheKey(pm.provider(), pm.model(), lastResolvedKey, thinkingLevel);
-        return modelCache.computeIfAbsent(key, ck -> createModel(ck.provider(), ck.model(), ck.apiKey()));
+        var key = new ModelCacheKey(pm.provider(), pm.model(), lastResolvedKey, thinking);
+        return modelCache.computeIfAbsent(key,
+                                        ck -> createModel(ck.provider(), ck.model(), ck.apiKey(), ck.thinkingLevel()));
     }
 
     /** Builds a model handle from an already-resolved provider+model+key, the shared tail of both resolution paths. */
-    private StreamingChatModel createModel(String provider, String model, String key) {
+    private StreamingChatModel createModel(String provider, String model, String key, ThinkingLevel thinking) {
         var factory = ProviderFactory.resolve(provider, customProviders);
         String url = customBaseUrl != null ? customBaseUrl : ProviderCatalog.baseUrl(provider);
-        return factory.create(url, key, model, provider, thinkingLevel);
+        return factory.create(url, key, model, provider, thinking);
     }
 
     public void abort() {
@@ -424,7 +433,7 @@ public final class LlmService implements LlmClient {
             effectiveModel = modelName; // never hand a null/blank model to a provider (e.g. Codex 400s on "the 'null'
                                         // model")
         String key = apiKeyResolver.apply(effectiveProvider);
-        return createModel(effectiveProvider, effectiveModel, key != null ? key : "");
+        return createModel(effectiveProvider, effectiveModel, key != null ? key : "", thinkingLevel);
     }
 
     public String provider() {

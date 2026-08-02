@@ -5,6 +5,7 @@ import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.ExtensionRuntime;
 import org.pijota.extensions.UiContext;
+import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
 
 import java.nio.charset.StandardCharsets;
@@ -28,6 +29,13 @@ import java.util.concurrent.TimeUnit;
  * Measured against deepseek on a 1.5K-token conversation, the appended form read 1536 tokens from cache and paid for
  * 116, while the re-shaped form paid full price for all of them -- and the gap widens as the conversation grows, since
  * only the appended instruction is ever new.
+ *
+ * <p>
+ * Reasoning is off for this request whatever the session is set to, because reasoning is the entire delay. Measured on
+ * deepseek-v4-flash at MEDIUM, four suggestions spent 126, 206, 317 and 448 reasoning tokens to produce a five-word
+ * sentence, and arrived 2.1 to 5.4s after the turn ended; prefill is not the cost (the cached prefix hit every time). A
+ * provider that cannot express "do not think" ignores this and keeps thinking -- deepseek has no such parameter today,
+ * so the delay stays there until it does, or until the suggestion is asked of a smaller model.
  */
 public final class SuggestExtension implements Extension {
 
@@ -140,9 +148,12 @@ public final class SuggestExtension implements Extension {
             if (messages.isEmpty())
                 return "";
             messages.add(new Message.User(UUID.randomUUID(), Instant.now(), instruction(), List.of()));
-            // No tools: the reply is a sentence, and a tool call here would be meaningless.
-            String reply = llm.streamMessages(messages, List.of(), (a, b) -> {}).join().content();
-            log.debug("suggest: model replied {}", reply == null ? "null" : "\"" + reply.strip() + "\"");
+            // No tools: the reply is a sentence, and a tool call here would be meaningless. Reasoning off, because it
+            // is the whole delay -- see the class comment.
+            var result = llm.streamMessages(messages, List.of(), (a, b) -> {}, ThinkingLevel.OFF).join();
+            String reply = result.content();
+            log.debug("suggest: model replied {} · {}", reply == null ? "null" : "\"" + reply.strip() + "\"",
+                                            result.usage());
             return reply;
         }).orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).thenAccept(
                                         reply -> SuggestionText.validate(reply).ifPresent(ui::offerSuggestion))

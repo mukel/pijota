@@ -9,6 +9,7 @@ import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.extensions.testkit.FakeUiContext;
 import org.pijota.llm.LlmClient;
 import org.pijota.llm.StreamResult;
+import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
 import org.pijota.tools.Tool;
 
@@ -29,6 +30,19 @@ class SuggestExtensionTest {
     private static final class CountingLlm implements LlmClient {
         final AtomicInteger calls = new AtomicInteger();
         volatile String modelUsed;
+        volatile ThinkingLevel effortUsed;
+
+        @Override
+        public ThinkingLevel thinkingLevel() {
+            return ThinkingLevel.MAX; // the session's setting, which the suggestion must not inherit
+        }
+
+        @Override
+        public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
+                                        BiConsumer<String, String> onPartial, ThinkingLevel thinking) {
+            effortUsed = thinking;
+            return streamMessages(messages, tools, onPartial);
+        }
 
         @Override
         public String provider() {
@@ -203,6 +217,10 @@ class SuggestExtensionTest {
      * the session's own client, and {@code LlmClient.streamMessages} takes no model override, so there is no path by
      * which a different model could be used. This pins that -- if an override is ever added, it must be a deliberate
      * change here rather than a quiet one.
+     *
+     * <p>
+     * The same model, but never the same reasoning effort. That one <em>is</em> overridden deliberately: reasoning is
+     * the entire delay before a suggestion appears, and no amount of it improves a five-word sentence.
      */
     @Test
     void aSuggestionIsAnsweredByTheSessionsOwnModel() throws Exception {
@@ -219,6 +237,8 @@ class SuggestExtensionTest {
 
         assertEquals(1, llm.calls.get(), "exactly one call per turn");
         assertEquals("test-model", llm.modelUsed, "the session's model, never a substitute");
+        assertEquals(ThinkingLevel.OFF, llm.effortUsed,
+                                        "but never the session's effort (MAX here): thinking is the whole delay");
         assertEquals("run the tests", ui.offered, "and its reply became the offer");
     }
 

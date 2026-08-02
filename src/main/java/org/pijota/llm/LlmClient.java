@@ -84,6 +84,20 @@ public interface LlmClient extends AutoCloseable {
                                     BiConsumer<String, String> onPartial);
 
     /**
+     * The same request at a chosen reasoning effort, for work that is not the conversation. A side request that wants
+     * one short line pays for the session's effort setting otherwise, and reasoning is the whole latency: measured on
+     * deepseek-v4-flash at MEDIUM, a next-message suggestion spent 126 to 448 reasoning tokens to produce a five-word
+     * sentence, which is seconds of thinking nobody reads.
+     *
+     * <p>
+     * The default ignores the override, so a client that has no notion of effort answers exactly as before.
+     */
+    default CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
+                                    BiConsumer<String, String> onPartial, ThinkingLevel thinking) {
+        return streamMessages(messages, tools, onPartial);
+    }
+
+    /**
      * Summarizes messages for context compaction. The default has no summarizer and returns {@code null}, which the
      * compaction manager treats as "degraded" (a heuristic summary). Real providers override this.
      */
