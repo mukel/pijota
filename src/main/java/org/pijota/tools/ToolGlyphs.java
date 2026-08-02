@@ -14,8 +14,10 @@ package org.pijota.tools;
  * </pre>
  *
  * <p>
- * A failed call is opened by {@code ✖} instead, which completes the rule rather than breaking it: the effect mark
- * states what the call did, and a call that failed did not do it.
+ * A second, independent axis says how it went: {@link #FAILED} replaces the effect mark when a call failed, which
+ * completes the rule rather than breaking it (the effect mark states what the call did, and a call that failed did not
+ * do it), and {@link #DONE} marks work that finished on its own, such as a background job. Everything the interface
+ * marks comes from this file, so the vocabulary stays one decision.
  *
  * <p>
  * Hollow versus filled is the load-bearing distinction, and it is the one a reader can use at a glance. These are also
@@ -40,4 +42,10 @@ public final class ToolGlyphs {
 
     /** The agent's own bookkeeping: no file touched, nothing run, nothing fetched. */
     public static final String AGENT = "◆";
+
+    /** Status, not effect: the call or job failed, so it did not do the thing its effect mark would have claimed. */
+    public static final String FAILED = "✖";
+
+    /** Status, not effect: work that finished on its own, such as a background job reporting back. */
+    public static final String DONE = "✓";
 }

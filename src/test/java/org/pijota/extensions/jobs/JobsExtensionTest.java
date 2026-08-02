@@ -497,7 +497,9 @@ class JobsExtensionTest {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);
         run(api, "jobs_run", Map.of("command", "exit 2"));
-        assertTrue(awaitUserMessage(api, "FAILED · exit 2", 5000), api.sentUserMessages().toString());
+        // Lowercase: the ✖ carries the emphasis now, and every other line in the interface says "interrupted",
+        // "exit 0", "background" without shouting.
+        assertTrue(awaitUserMessage(api, "failed · exit 2", 5000), api.sentUserMessages().toString());
     }
 
     @Test

@@ -328,11 +328,12 @@ public final class JobsExtension implements Extension {
         String label = hasDistinctName(c.name(), c.command()) ? c.name() + " · " : "";
         String tail = " · read its output with jobs_output (id=\"" + c.id() + "\").";
         String msg = c.exitCode() == 0
-                                        ? "⏳ background job " + c.id() + " finished · exit 0 · " + label
+                                        ? ToolGlyphs.DONE + " background job " + c.id() + " finished · exit 0 · "
+                                                                        + label
                                                                         + Util.ellipsize(c.command(), CMD_PREVIEW)
                                                                         + tail
-                                        : "⚠️ background job " + c.id() + " FAILED · exit " + c.exitCode() + " · "
-                                                                        + label
+                                        : ToolGlyphs.FAILED + " background job " + c.id() + " failed · exit "
+                                                                        + c.exitCode() + " · " + label
                                                                         + Util.ellipsize(c.command(), CMD_PREVIEW)
                                                                         + tail;
         api.sendUserMessage(msg);
@@ -344,7 +345,7 @@ public final class JobsExtension implements Extension {
         if (running.isEmpty())
             return List.of();
         var lines = new ArrayList<String>();
-        lines.add("⏳ background · " + running.size() + " running");
+        lines.add(ToolGlyphs.RUN + " background · " + running.size() + " running");
         int shown = Math.min(running.size(), MAX_PANEL_ROWS);
         for (int i = 0; i < shown; i++) {
             var s = running.get(i);

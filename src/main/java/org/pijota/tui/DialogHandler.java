@@ -70,7 +70,7 @@ final class DialogHandler {
             }
         }
         host.appendPlain(lines);
-        host.setStatus("❓ type your answer (Esc to cancel)");
+        host.setStatus("? type your answer · Esc cancel");
         host.redrawPrompt();
         return future;
     }

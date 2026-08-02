@@ -18,7 +18,7 @@ public record PromptGlyphs(@JsonProperty("caret") String caret, @JsonProperty("e
     public PromptGlyphs {
         caret = caret == null ? "❯" : caret;
         error = error == null ? "✖" : error;
-        question = question == null ? "❓" : question;
+        question = question == null ? "?" : question; // the only emoji among ❯ ✖ ┃ │; it could not be themed
         continuation = continuation == null ? "┃" : continuation;
         bar = bar == null ? "│" : bar;
         topDivider = topDivider == null ? Boolean.TRUE : topDivider;

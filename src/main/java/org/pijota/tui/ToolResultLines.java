@@ -3,6 +3,7 @@ package org.pijota.tui;
 import org.pijota.config.PathDisplay;
 import org.pijota.messages.Message;
 import org.pijota.tools.Tool;
+import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.ToolLabels;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.util.Util;
@@ -75,7 +76,7 @@ final class ToolResultLines {
             if (elapsedStr != null)
                 meta.add(theme.styled("commandMeta", elapsedStr));
             lines.add(""); // framed blocks get one blank line of air (the coordinator collapses doubles)
-            addHeader(lines, theme.styled("toolError", "✖") + " ",
+            addHeader(lines, theme.styled("toolError", ToolGlyphs.FAILED) + " ",
                                             nameDetail + (meta.isEmpty() ? "" : dot + String.join(dot, meta)), theme,
                                             width);
             addBody(lines, errorBody(msg, rendered), theme, width);

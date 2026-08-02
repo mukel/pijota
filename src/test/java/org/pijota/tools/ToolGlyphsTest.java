@@ -20,8 +20,12 @@ import org.junit.jupiter.api.Test;
  */
 class ToolGlyphsTest {
 
+    /** The effect axis: what the call did to your machine. */
     private static final Set<String> LANGUAGE = Set.of(ToolGlyphs.INSPECT, ToolGlyphs.MUTATE, ToolGlyphs.RUN,
                                     ToolGlyphs.NETWORK, ToolGlyphs.AGENT);
+
+    /** The status axis: how it went. Independent of the effect, and never mixed with it. */
+    private static final Set<String> STATUS = Set.of(ToolGlyphs.FAILED, ToolGlyphs.DONE);
 
     @Test
     void theMarksAreDistinctSoTheyCanBeToldApartAtAGlance() {
@@ -34,8 +38,17 @@ class ToolGlyphsTest {
      * the only element in the interface that ignored the theme.
      */
     @Test
+    void theTwoAxesDoNotShareAMark() {
+        // ✖ replaces an effect mark when a call fails; if it were also an effect mark, a line could not say both.
+        for (String status : STATUS)
+            assertFalse(LANGUAGE.contains(status), status + " is on both axes, so a line could not say both");
+    }
+
+    @Test
     void everyMarkIsOneNonEmojiCodePoint() {
-        for (String glyph : LANGUAGE) {
+        var all = new java.util.TreeSet<>(LANGUAGE);
+        all.addAll(STATUS);
+        for (String glyph : all) {
             assertEquals(1, glyph.codePointCount(0, glyph.length()), "not a single code point: [" + glyph + "]");
             int cp = glyph.codePointAt(0);
             assertTrue(cp < 0x1F000, "emoji cannot be themed and are double-width: [" + glyph + "]");
@@ -84,7 +97,9 @@ class ToolGlyphsTest {
     @Test
     void noToolDefinesItsMarkOutsideTheLanguageFile() throws IOException {
         // Only tool marks: the Telegram welcome message is chat copy, not part of this vocabulary.
-        var literal = Pattern.compile("glyph\\(\"([^\"]+)\"|glyph\\(\\)[^{]*\\{\\s*return \"([^\"]+)\"");
+        // Only tool marks: the Telegram welcome message is chat copy, not part of this vocabulary.
+        var literal = Pattern.compile("glyph\\(\"([^\"]+)\"|glyph\\(\\)[^{]*\\{\\s*return \"([^\"]+)\""
+                                        + "|styled\\(\"toolError\", \"(✖)\"");
         var offenders = new TreeSet<String>();
         Path main = Path.of("src/main/java");
         try (var walk = Files.walk(main)) {

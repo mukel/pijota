@@ -2368,7 +2368,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         String dot = theme.styled("commandMeta", " · ");
         for (var entry : abandoned) {
             var tool = entry.getValue();
-            var line = new StringBuilder(theme.styled("toolError", "✖")).append(' ')
+            var line = new StringBuilder(theme.styled("toolError", ToolGlyphs.FAILED)).append(' ')
                                             .append(theme.styled("toolLabel", tool.name()));
             if (!tool.detail().isBlank())
                 line.append(' ').append(theme.styled("statusText", tool.detail()));

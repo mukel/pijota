@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import org.pijota.tools.ToolGlyphs;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -46,7 +48,7 @@ class TaskExtensionTest {
         ext.onActivity("beta", "Grep y");
 
         String all = String.join("\n", ext.statusLines());
-        assertTrue(all.contains("⚙ task: 0/2 done · 2 running"), all);
+        assertTrue(all.contains(ToolGlyphs.AGENT + " task: 0/2 done · 2 running"), all);
         assertTrue(all.contains("task:alpha") && all.contains("task:beta"), all);
         assertTrue(all.contains("running · "), "per-agent elapsed suffix present: " + all);
     }
@@ -59,9 +61,10 @@ class TaskExtensionTest {
         ext.finished("alpha", true, 1500);
 
         String all = String.join("\n", ext.statusLines());
-        assertTrue(all.contains("✓ task:alpha"), "a finished agent stays visible while a sibling runs: " + all);
+        assertTrue(all.contains(ToolGlyphs.DONE + " task:alpha"),
+                                        "a finished agent stays visible while a sibling runs: " + all);
         assertTrue(all.contains("1K tokens"), "the done line shows total tokens: " + all);
-        assertTrue(all.contains("⏳ task:beta"), all);
+        assertTrue(all.contains(ToolGlyphs.AGENT + " task:beta"), all);
         assertTrue(all.contains("1/2 done · 1 running"), all);
     }
 
@@ -82,7 +85,8 @@ class TaskExtensionTest {
         ext.finished("solo", false, 500);
 
         String all = String.join("\n", ext.statusLines());
-        assertTrue(all.contains("✗ task:solo"), "a failed agent uses the ✗ icon: " + all);
+        // ✗ here and ✖ on a failed tool call were two different failure marks for the same idea; there is one now.
+        assertTrue(all.contains(ToolGlyphs.FAILED + " task:solo"), "a failed agent carries the failure mark: " + all);
     }
 
     @Test

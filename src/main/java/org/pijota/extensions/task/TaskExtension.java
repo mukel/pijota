@@ -1,5 +1,6 @@
 package org.pijota.extensions.task;
 
+import org.pijota.tools.ToolGlyphs;
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.HeadlessToolContext;
@@ -94,17 +95,17 @@ public final class TaskExtension implements Extension {
             long running = agentStates.size() - done;
             long firstStart = agentStates.values().stream().mapToLong(AgentState::startedAt).filter(t -> t > 0).min()
                                             .orElse(now);
-            lines.add(String.format("⚙ task: %d/%d done · %d running · %s", done, agentStates.size(), running,
-                                            Util.formatDuration(now - firstStart)));
+            lines.add(String.format(ToolGlyphs.AGENT + " task: %d/%d done · %d running · %s", done, agentStates.size(),
+                                            running, Util.formatDuration(now - firstStart)));
         }
         for (var state : agentStates.values()) {
             if (state.running()) {
                 String activity = state.lastTool != null ? "  " + state.lastTool : "";
                 String progress = state.lines > 0 ? state.lines + " lines · " : "";
-                lines.add("⏳" + String.format(" task:%-15s%s  running · %s%s", state.name, activity, progress,
-                                                Util.formatDuration(now - state.startedAt)));
+                lines.add(ToolGlyphs.AGENT + String.format(" task:%-15s%s  running · %s%s", state.name, activity,
+                                                progress, Util.formatDuration(now - state.startedAt)));
             } else if (state.doneAt > 0) {
-                String icon = "done".equals(state.state) ? "✓" : "✗";
+                String icon = "done".equals(state.state) ? ToolGlyphs.DONE : ToolGlyphs.FAILED;
                 lines.add(icon + String.format(" task:%-15s · %d tools · %s tokens · %s", state.name, state.toolCount,
                                                 Util.fmtCount(state.tokens),
                                                 Util.formatDuration(state.doneAt - state.startedAt)));

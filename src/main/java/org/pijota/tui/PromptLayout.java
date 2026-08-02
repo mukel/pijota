@@ -67,6 +67,15 @@ public final class PromptLayout {
      * The cursor is parked on the caret row, not the frame's last row, so the way back to the frame top is exactly
      * {@code stamp.cursorRowFromTop()} rows, no more: over-moving would climb into committed scrollback and overwrite
      * it on every redraw.
+     *
+     * <p>
+     * This under-moves on a terminal that reflows. The frame's dividers span the full width, so narrowing the window
+     * re-wraps each already-drawn divider into two rows; walking up by the count recorded at the old width then lands
+     * one row inside the old frame and leaves its top row on screen -- a stray divider above the prompt, one per
+     * resize. Computing the reflowed height instead is possible (the drawn widths are known) but not safe: nothing
+     * tells the application whether the terminal reflowed at all, and guessing wrong in the other direction walks up
+     * into committed scrollback and destroys it. A visible artifact is the better failure, so the count stays as drawn.
+     * {@code FrameIntegrityTest.widthChangeReanchorsWithoutTouchingScrollback} pins that choice.
      */
     public void eraseCurrent(PrintWriter out) {
         if (stamp.cursorRowFromTop() > 0)
