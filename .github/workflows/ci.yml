@@ -20,14 +20,20 @@ concurrency:
 
 jobs:
   check:
-    name: format + tests
+    name: format + tests (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['21', '25']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          # Both ends of the supported range: 21 is the floor the bytecode targets and the README promises,
+          # 25 is what the native build and most developers actually run.
+          java-version: ${{ matrix.java }}
           cache: maven
       - name: make check (spotless + full suite)
         run: make check
@@ -45,7 +51,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: graalvm/setup-graalvm@v1
         with:
-          java-version: '21'
+          # The native image is the release artifact, so CI must build it with the toolchain releases are
+          # built with. Pinned to 21 this job verified a binary nobody ships.
+          java-version: '25'
           distribution: graalvm
           cache: maven
           github-token: ${{ secrets.GITHUB_TOKEN }}
