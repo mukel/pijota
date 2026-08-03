@@ -11,6 +11,28 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SessionExporterTest {
 
+    /**
+     * Every export opened at "Turn 2". The flush triggered by the first user message has an empty accumulator and
+     * writes nothing, but the call site passed {@code ++turnNumber} regardless, so number 1 was spent on nothing.
+     */
+    @Test
+    void turnsAreNumberedFromOne(@TempDir Path dir) throws Exception {
+        Path session = dir.resolve("s.jsonl");
+        Files.writeString(session, """
+                                        {"type":"session","id":"abc12345","timestamp":"2025-01-15T10:30:00Z"}
+                                        {"type":"message","role":"user","id":"u1","parentId":null,"content":"first"}
+                                        {"type":"message","role":"assistant","id":"a1","parentId":"u1","content":"one"}
+                                        {"type":"message","role":"user","id":"u2","parentId":"a1","content":"second"}
+                                        {"type":"message","role":"assistant","id":"a2","parentId":"u2","content":"two"}
+                                        """);
+
+        String md = SessionExporter.toMarkdown(session);
+
+        assertTrue(md.contains("## Turn 1"), md);
+        assertTrue(md.contains("## Turn 2"), md);
+        assertFalse(md.contains("## Turn 3"), "two turns were numbered up to three: " + md);
+    }
+
     @Test
     void exportMissingFileThrows() {
         assertThrows(IOException.class, () -> {

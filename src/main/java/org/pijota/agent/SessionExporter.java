@@ -88,19 +88,19 @@ public final class SessionExporter {
                 case "model_change" -> {} // rendered in front matter
                 case "session_info" -> {} // rendered in front matter
                 case "compaction" -> {
-                    flushTurn(md, turn, ++turnNumber);
+                    turnNumber = flushTurn(md, turn, turnNumber);
                     turn.reset();
                     appendCompaction(md, entry);
                 }
                 case "branch_summary" -> {
-                    flushTurn(md, turn, ++turnNumber);
+                    turnNumber = flushTurn(md, turn, turnNumber);
                     turn.reset();
                     appendBranchSummary(md, entry);
                 }
                 case "message" -> {
                     String role = (String) entry.getOrDefault("role", "");
                     if ("user".equals(role)) {
-                        flushTurn(md, turn, ++turnNumber);
+                        turnNumber = flushTurn(md, turn, turnNumber);
                         turn.reset();
                     }
                     turn.add(entry);
@@ -108,7 +108,7 @@ public final class SessionExporter {
                 default -> {} // skip unknown
             }
         }
-        flushTurn(md, turn, ++turnNumber);
+        turnNumber = flushTurn(md, turn, turnNumber);
 
         return md.toString();
     }
@@ -147,9 +147,18 @@ public final class SessionExporter {
         md.append(summary).append("\n\n---\n\n");
     }
 
-    private static void flushTurn(StringBuilder md, TurnAccumulator turn, int turnNumber) {
+    /**
+     * Writes the accumulated turn and returns the next number to use, or the same one when there was nothing to write.
+     *
+     * <p>
+     * It used to take {@code ++turnNumber} at every call site, including the flush triggered by the very first user
+     * message -- which has an empty accumulator and writes nothing, but spent number 1 all the same. Every exported
+     * session therefore opened at "Turn 2".
+     */
+    private static int flushTurn(StringBuilder md, TurnAccumulator turn, int turnNumber) {
         if (turn.isEmpty())
-            return;
+            return turnNumber;
+        turnNumber++;
 
         md.append("## Turn ").append(turnNumber).append("\n\n");
 
@@ -162,6 +171,7 @@ public final class SessionExporter {
             }
         }
         md.append("---\n\n");
+        return turnNumber;
     }
 
     private static void appendUserMessage(StringBuilder md, Map<String, Object> entry) {
