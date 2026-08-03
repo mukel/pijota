@@ -2391,6 +2391,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 streamRenderer.reset();
             }
             case AgentEvent.CustomMessage(Message.Custom custom) -> {
+                // (see customMessageLines)
                 streamRenderer.flush();
                 // Some custom entries are state snapshots persisted for reload (e.g. goal status), shown via a status
                 // line rather than the transcript; skip them so they don't print once per state change.
@@ -2401,12 +2402,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                             appendPlain(List.of(theme.styled("customMessageLabel", custom.customType())));
                             appendPlain(rendered.get());
                         } else {
-                            appendPlain(List.of(theme.styled("customMessageLabel", custom.customType() + ": ")
-                                                            + custom.content()));
+                            appendPlain(customMessageLines(custom));
                         }
                     } else {
-                        appendPlain(List.of(theme.styled("customMessageLabel", custom.customType() + ": ")
-                                                        + theme.styled("customMessageText", custom.content())));
+                        appendPlain(customMessageLines(custom));
                     }
                 }
                 redrawPrompt();
@@ -2576,6 +2575,28 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var adopted = jobRegistry.adopt(detached, current.detail().isBlank() ? current.name() : current.detail());
         detached.complete().accept(JobRegistry.backgroundedResult(adopted.id(), adopted.outputSoFar()));
         setTransientStatus("Moved to background as " + adopted.id(), 2500);
+    }
+
+    /**
+     * A custom message: {@code label: text} on one line, or the label on its own line above a multi-line body.
+     *
+     * <p>
+     * It was always one concatenated string, so a body of several rows got the label on the first row only and the rest
+     * arrived bare -- {@code /jobs} listing two jobs read as though the first were labelled and the second orphaned.
+     * Rows of one kind should look alike, and the extension-rendered branch beside this one already put the label on
+     * its own line.
+     */
+    private List<String> customMessageLines(Message.Custom custom) {
+        String content = custom.content() == null ? "" : custom.content();
+        var body = content.lines().toList();
+        if (body.size() <= 1)
+            return List.of(theme.styled("customMessageLabel", custom.customType() + ": ")
+                                            + theme.styled("customMessageText", content));
+        var lines = new ArrayList<String>();
+        lines.add(theme.styled("customMessageLabel", custom.customType()));
+        for (String line : body)
+            lines.add(theme.styled("customMessageText", line));
+        return lines;
     }
 
     private Tool.ToolResultView renderToolResultView(Message.ToolResult msg) {
