@@ -296,8 +296,28 @@ public final class AppBootstrap {
         Console console = System.console();
         if (console == null)
             return false;
-        String answer = console.readLine("Trust project resources in %s? [y/N] ", cwd);
+        console.printf("%s", trustPrompt(cwd));
+        String answer = console.readLine("Trust this folder? [y/N] ");
         return answer != null && (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("yes"));
+    }
+
+    /**
+     * The first thing a new user ever sees, so it introduces pijota and explains the choice.
+     *
+     * <p>
+     * It used to be the bare line {@code Trust project resources in <path>? [y/N]}, printed before the banner: a
+     * security question asked of someone with no basis to answer it, defaulting to no, and never saying what no costs.
+     * Declining is genuinely safe and mostly invisible, which is exactly why it has to be said out loud -- otherwise
+     * the folder's agents and skills are quietly absent and their absence reads as a missing feature.
+     */
+    static String trustPrompt(String cwd) {
+        return "\npijota " + PijotaVersion.current() + "\n\n"
+                                        + "This folder carries its own pijota resources -- .pijota/ (agents, skills,\n"
+                                        + "commands) and context files such as AGENTS.md. Trusting it means running\n"
+                                        + "code from this repository.\n\n"
+                                        + "  y   trust it; remembered for next time, change later with /trust\n"
+                                        + "  N   skip them; pijota works normally, these are simply ignored\n\n" + cwd
+                                        + "\n";
     }
 
     private static boolean interactiveTuiLaunch(Args args) {

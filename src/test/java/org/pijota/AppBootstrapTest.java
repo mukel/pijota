@@ -29,6 +29,24 @@ class AppBootstrapTest {
         return new SettingsManager(config, ignored -> {});
     }
 
+    /**
+     * The first thing a new user ever sees. It used to be the bare line "Trust project resources in <path>? [y/N]",
+     * printed before the banner: a security question asked of someone with no basis to answer it, defaulting to no, and
+     * never saying what no costs. Declining is safe and almost invisible, which is exactly why it must be said --
+     * otherwise the folder's agents and skills are quietly absent and read as a missing feature.
+     */
+    @Test
+    void theTrustPromptIntroducesPijotaAndSaysWhatDecliningCosts() {
+        String prompt = AppBootstrap.trustPrompt("/home/someone/project");
+
+        assertTrue(prompt.contains("pijota "), "it must say what is asking: " + prompt);
+        assertTrue(prompt.contains("/home/someone/project"), "it must name the folder: " + prompt);
+        assertTrue(prompt.contains(".pijota/"), "it must say what 'project resources' means: " + prompt);
+        assertTrue(prompt.contains("AGENTS.md"), prompt);
+        assertTrue(prompt.contains("/trust"), "it must say the answer is changeable: " + prompt);
+        assertTrue(prompt.contains("works normally"), "it must say declining is safe: " + prompt);
+    }
+
     @Test
     void noToolsActivatesNothing() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
