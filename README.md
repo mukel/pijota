@@ -150,7 +150,10 @@ Inside the TUI, start with `/help`.
 | `/reload` | Refresh model metadata. |
 | `/remote-control` | Control the live session from a phone/browser or Telegram. |
 
-Longer user guides live in [`docs/`](docs/). Start with [`docs/worktree.md`](docs/worktree.md) for isolated git worktrees.
+Full reference in [`docs/`](docs/): [command line](docs/cli.md), [settings](docs/settings.md),
+[providers](docs/providers.md), [models](docs/models.md), [extensions](docs/extensions.md),
+[keybindings](docs/keybindings.md), [themes](docs/themes.md), [sessions](docs/sessions.md),
+[project files](docs/project-files.md), [environment](docs/environment.md).
 
 ---
 
