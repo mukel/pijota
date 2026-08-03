@@ -1,5 +1,6 @@
 package org.pijota.extensions.jobs;
 
+import org.pijota.extensions.examples.CoreCommandsExtension;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.tools.Tool;
@@ -20,13 +21,32 @@ class JobsExtensionTest {
     @TempDir
     Path tempDir;
 
+    /**
+     * Both halves of the production wiring over one registry: the jobs extension contributes the four model-facing
+     * tools, the core extension the user-facing surface (/jobs, /kill, the panel, the completion notice). They are
+     * separate because --no-jobs removes only the first half.
+     */
     private FakeExtensionAPI initWithFlag(boolean on) {
         var runtime = new FakeExtensionRuntime();
         if (on)
             runtime.setFlag("jobs", "true");
         var api = new FakeExtensionAPI(runtime);
-        new JobsExtension().init(api);
+        var registry = new JobRegistry();
+        new JobsExtension(registry).init(api);
+        new CoreCommandsExtension(null, null, registry).init(api);
         return api;
+    }
+
+    /** What --no-jobs leaves behind: no tools for the model, every user control intact. */
+    @Test
+    void withoutTheJobsExtensionTheUserKeepsListKillAndThePanel() {
+        var api = new FakeExtensionAPI(new FakeExtensionRuntime());
+        new CoreCommandsExtension(null, null, new JobRegistry()).init(api);
+
+        assertTrue(api.tools().isEmpty(), "--no-jobs must take the model's tools");
+        assertNotNull(api.slashCommand("jobs"), "/jobs is a user control, not a model capability");
+        assertNotNull(api.slashCommand("kill"), "/kill is how you stop what Ctrl+B backgrounded");
+        assertFalse(api.statusLineSuppliers().isEmpty(), "the panel shows what is running regardless");
     }
 
     private Tool.ToolResult run(FakeExtensionAPI api, String tool, Map<String, Object> args) throws Exception {

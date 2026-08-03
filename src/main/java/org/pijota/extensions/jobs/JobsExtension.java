@@ -3,8 +3,6 @@ package org.pijota.extensions.jobs;
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.ExtensionRuntime;
-import org.pijota.messages.Message;
-import org.pijota.modes.SlashCommand;
 import org.pijota.tools.Tool;
 import org.pijota.tools.Tool.ToolDefinition;
 import org.pijota.tools.Tool.ToolResult;
@@ -78,41 +76,18 @@ public final class JobsExtension implements Extension {
 
     @Override
     public String description() {
-        return "Background shell jobs (jobs_run / jobs_output / jobs_kill), user backgrounding (Ctrl+B twice), and "
-                                        + "direct control via /jobs and /kill. Disable with --no-jobs.";
+        return "Lets the model run background shell jobs (jobs_run / jobs_output / jobs_list / jobs_kill). "
+                                        + "Disable with --no-jobs; /jobs, /kill and Ctrl+B are unaffected.";
     }
 
     @Override
     public void init(ExtensionAPI api) {
         this.api = api;
         jobs = shared;
-        jobs.onCompletion(completion -> notifyCompletion(api, completion));
         api.registerTool(startTool(jobs, shellPath));
         api.registerTool(outputTool(jobs));
         api.registerTool(listTool(jobs));
         api.registerTool(killTool(jobs));
-        api.registerStatusLines(() -> renderPanel(jobs.list()));
-        // Direct user control (no model round-trip): mechanical actions get commands, language stays for intent.
-        api.registerSlashCommand(new SlashCommand("jobs", "List background jobs (id, status, command)", List.of(),
-                                        a -> showJobs()));
-        api.registerSlashCommand(new SlashCommand("kill", "Stop a background job", "<id> [SIGTERM]", List.of(),
-                                        this::killCommand));
-    }
-
-    /** {@code /jobs}, the same listing the agent's jobs_list produces, shown to the user (not sent to the model). */
-    private void showJobs() {
-        api.sendMessage(new Message.Custom("jobs", renderList(jobs.list())));
-    }
-
-    /** {@code /kill <id> [signal]}: terminate a job directly; reuses the jobs_kill body. */
-    private void killCommand(String args) {
-        String[] parts = args == null ? new String[0] : args.strip().split("\\s+");
-        if (parts.length == 0 || parts[0].isBlank()) {
-            api.sendMessage(new Message.Custom("jobs", "Usage: /kill <id> [SIGTERM]"));
-            return;
-        }
-        String signal = parts.length > 1 ? parts[1] : "SIGKILL";
-        api.sendMessage(new Message.Custom("jobs", killJob(jobs, parts[0], signal).content()));
     }
 
     /** Reap any still-running background jobs on graceful shutdown (extension lifecycle, not a raw JVM hook). */
@@ -299,7 +274,7 @@ public final class JobsExtension implements Extension {
     private static final String CHIP = " \u00b7 ";
 
     /** One line per job: id, status (running / exit N), output size, optional label, optional truncated, command. */
-    static String renderList(List<JobRegistry.Status> all) {
+    public static String renderList(List<JobRegistry.Status> all) {
         if (all.isEmpty())
             return "(no background jobs)";
         var sb = new StringBuilder();
@@ -327,7 +302,7 @@ public final class JobsExtension implements Extension {
     }
 
     /** Stops a job by id with an optional signal, shared by the jobs_kill tool and the /kill slash command. */
-    static ToolResult killJob(JobRegistry jobs, String id, String signal) {
+    public static ToolResult killJob(JobRegistry jobs, String id, String signal) {
         if (isBlank(id))
             return ToolResult.error("No job id provided");
         String sig = (signal == null ? "SIGKILL" : signal).toUpperCase();
@@ -346,7 +321,7 @@ public final class JobsExtension implements Extension {
      * the agent is busy and wakes it if idle, so a completion (especially a failure) is never silently lost while the
      * agent sits awaiting input.
      */
-    private static void notifyCompletion(ExtensionAPI api, JobRegistry.Completion c) {
+    public static void notifyCompletion(ExtensionAPI api, JobRegistry.Completion c) {
         String label = hasDistinctName(c.name(), c.command()) ? c.name() + " · " : "";
         String tail = " · read its output with jobs_output (id=\"" + c.id() + "\").";
         String msg = c.exitCode() == 0
@@ -362,7 +337,7 @@ public final class JobsExtension implements Extension {
     }
 
     /** Live footer panel: only running jobs, capped for legibility. */
-    static List<String> renderPanel(List<JobRegistry.Status> all) {
+    public static List<String> renderPanel(List<JobRegistry.Status> all) {
         var running = all.stream().filter(JobRegistry.Status::running).toList();
         if (running.isEmpty())
             return List.of();

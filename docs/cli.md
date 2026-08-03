@@ -104,7 +104,7 @@ Lists apply to built-in, extension and MCP tools alike, and compose. [Tools](too
 | `--token-speed` | off |
 | `--transcendence` | off, JVM only |
 | `--whoami` | off |
-| `--no-jobs` | on |
+| `--no-jobs` | on -- takes the model's `jobs_*` tools; `/jobs`, `/kill` and Ctrl+B stay |
 | `--no-skills`, `--no-prompt-templates`, `--no-context-files` | on |
 
 [Extensions](extensions.md).

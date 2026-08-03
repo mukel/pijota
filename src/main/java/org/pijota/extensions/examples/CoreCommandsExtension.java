@@ -6,8 +6,11 @@ import org.pijota.config.SettingsManager;
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.UiContext;
+import org.pijota.extensions.jobs.JobRegistry;
+import org.pijota.extensions.jobs.JobsExtension;
 import org.pijota.llm.ModelInfo;
 import org.pijota.llm.ModelRegistry;
+import org.pijota.messages.Message;
 import org.pijota.modes.SlashCommand;
 
 import java.io.IOException;
@@ -30,11 +33,23 @@ public final class CoreCommandsExtension implements Extension {
 
     private final PijotaSession session;
     private final SettingsManager settings;
+    private final JobRegistry jobs;
     private ExtensionAPI api;
 
     public CoreCommandsExtension(PijotaSession session, SettingsManager settings) {
+        this(session, settings, null);
+    }
+
+    /**
+     * The running-process surface lives here, not in the jobs extension, because {@code --no-jobs} is a capability
+     * flag: its own help text names four tools, and taking the model's ability to launch background shell commands is
+     * no reason to stop showing the user what is running or to take away their way to stop it. Ctrl+B is a user gesture
+     * for the same reason.
+     */
+    public CoreCommandsExtension(PijotaSession session, SettingsManager settings, JobRegistry jobs) {
         this.session = session;
         this.settings = settings;
+        this.jobs = jobs;
     }
 
     @Override
@@ -50,6 +65,15 @@ public final class CoreCommandsExtension implements Extension {
     @Override
     public void init(ExtensionAPI api) {
         this.api = api;
+        if (jobs != null) {
+            jobs.onCompletion(completion -> JobsExtension.notifyCompletion(api, completion));
+            api.registerStatusLines(() -> JobsExtension.renderPanel(jobs.list()));
+            // Direct user control (no model round-trip): mechanical actions get commands, language stays for intent.
+            api.registerSlashCommand(new SlashCommand("jobs", "List background jobs (id, status, command)", List.of(),
+                                            a -> showJobs()));
+            api.registerSlashCommand(new SlashCommand("kill", "Stop a background job", "<id> [SIGTERM]", List.of(),
+                                            this::killCommand));
+        }
         api.registerSlashCommand(new SlashCommand("model", "Switch the active model (optionally: /model <query>)",
                                         List.of("models"), this::cmdModel));
         api.registerSlashCommand(new SlashCommand("new", "Start a new conversation", List.of("clear", "reset"),
@@ -100,6 +124,22 @@ public final class CoreCommandsExtension implements Extension {
             return;
         }
         ui.select("Resume session", sessions, SessionDescriptor::label, d -> resume(d.path()));
+    }
+
+    /** {@code /jobs}, the same listing jobs_list produces, shown to the user (not sent to the model). */
+    private void showJobs() {
+        api.sendMessage(new Message.Custom("jobs", JobsExtension.renderList(jobs.list())));
+    }
+
+    /** {@code /kill <id> [signal]}: terminate a job directly; reuses the jobs_kill body. */
+    private void killCommand(String args) {
+        String[] parts = args == null ? new String[0] : args.strip().split("\\s+");
+        if (parts.length == 0 || parts[0].isBlank()) {
+            api.sendMessage(new Message.Custom("jobs", "Usage: /kill <id> [SIGTERM]"));
+            return;
+        }
+        String signal = parts.length > 1 ? parts[1] : "SIGKILL";
+        api.sendMessage(new Message.Custom("jobs", JobsExtension.killJob(jobs, parts[0], signal).content()));
     }
 
     private void resume(Path file) {

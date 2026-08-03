@@ -135,7 +135,6 @@ public final class AppBootstrap {
         // discovered). Otherwise each is registered here and ExtensionRegistry.register() still gates it via
         // isEnabled()
         // on the declared default + settings + flags. (TranscendenceExtension is also JVM-only via its reason.)
-        boolean jobsEnabled = false; // gates user backgrounding: only offered when the jobs extension is active
         if (!parsedArgs.noExtensions() && !parsedArgs.noBuiltinExtensions()) {
             ext.register(new TaskExtension());
             ext.register(new PlanExtension());
@@ -153,9 +152,9 @@ public final class AppBootstrap {
             ext.register(new WebBrowseExtension()); // opt-in --browse[=engine]
             ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
             ext.register(new TmuxExtension()); // opt-in --tmux
-            var jobsExt = new JobsExtension(jobRegistry, settings.effectiveShellPath());
-            ext.register(jobsExt); // on by default; --no-jobs disables
-            jobsEnabled = ext.isEnabled(jobsExt.name(), jobsExt.enabledByDefault());
+            // --no-jobs removes the model's four jobs_* tools; /jobs, /kill and Ctrl+B come from the core
+            // extension and stay.
+            ext.register(new JobsExtension(jobRegistry, settings.effectiveShellPath()));
             ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
             ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths())); // --no-prompt-templates
                                                                                          // disables
@@ -182,7 +181,7 @@ public final class AppBootstrap {
         StartupTimer.mark("session initialized");
         ext.setSessionFile(session::sessionFile);
         // Generic built-in commands (e.g. /model) usable by every frontend, registered once the session exists.
-        ext.register(new CoreCommandsExtension(session, settings));
+        ext.register(new CoreCommandsExtension(session, settings, jobRegistry));
         boolean loadedSession = false;
         try {
             if (parsedArgs.sessionPath() != null) {
@@ -235,11 +234,11 @@ public final class AppBootstrap {
         logger.info("bootstrap ready · {}/{} · {} tool(s) · cwd={}", provider, model, tools.activeToolNames().size(),
                                         cwd);
 
-        // Hand the shared registry to the frontends only when the jobs extension is actually active, otherwise
-        // backgrounding a command (ctrl+b ctrl+b) would strand it with no jobs_* tools to observe or kill it, so the
-        // TUI (which self-disables on a null registry) simply won't offer the gesture.
-        return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd,
-                                        jobsEnabled ? jobRegistry : null);
+        // Always handed over. Backgrounding used to be withdrawn along with --no-jobs, on the grounds that a
+        // backgrounded command would be stranded with no jobs_* tools to observe or kill it -- but /jobs and /kill are
+        // registered by the core extension now, so the user can still see it and stop it. --no-jobs takes a capability
+        // from the model, which is what its own help text describes, and nothing from the user.
+        return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd, jobRegistry);
     }
 
     private static boolean resolveProjectTrust(String cwd, Args parsedArgs, SettingsManager settings) {

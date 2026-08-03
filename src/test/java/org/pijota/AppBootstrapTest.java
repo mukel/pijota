@@ -63,20 +63,23 @@ class AppBootstrapTest {
         assertFalse(active.contains("task"), "-ne drops shipped extensions too: " + active);
     }
 
+    /**
+     * {@code --no-jobs} is a capability flag: its own help text names four tools. It used to withdraw the registry too,
+     * which took Ctrl+B, /jobs and /kill away with it -- so the flag that stopped the model from backgrounding things
+     * also stopped the user from doing it, and from stopping what was already running.
+     */
     @Test
-    void backgroundingIsGatedOnTheJobsExtension() throws Exception {
-        // The shared job registry reaches the frontends (enabling ctrl+b ctrl+b) only when jobs is active, so a
-        // backgrounded command always has jobs_output/jobs_kill to observe and stop it.
+    void noJobsTakesTheModelsToolsAndLeavesTheUserTheirs() throws Exception {
         Path tmp = Files.createTempDirectory("bootstrap-test");
-        assertNotNull(AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--api-key", "sk-test"}),
-                                        settings(tmp, Map.of(), "gpt-5.5")).jobs(),
-                                        "jobs on by default → registry wired");
-        assertNull(AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-jobs", "--api-key", "sk-test"}),
-                                        settings(tmp, Map.of(), "gpt-5.5")).jobs(),
-                                        "--no-jobs → no registry, no gesture");
-        assertNull(AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-extensions", "--api-key", "sk-test"}),
-                                        settings(tmp, Map.of(), "gpt-5.5")).jobs(),
-                                        "--no-extensions → jobs never registered");
+        var on = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--api-key", "sk-test"}),
+                                        settings(tmp, Map.of(), "gpt-5.5"));
+        assertNotNull(on.jobs(), "jobs on by default → registry wired");
+        assertTrue(on.tools().activeToolNames().contains("jobs_run"), "the model can background commands");
+
+        var off = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-jobs", "--api-key", "sk-test"}),
+                                        settings(tmp, Map.of(), "gpt-5.5"));
+        assertFalse(off.tools().activeToolNames().contains("jobs_run"), "--no-jobs takes the model's tools");
+        assertNotNull(off.jobs(), "...and leaves the user Ctrl+B, /jobs and /kill");
     }
 
     @Test
