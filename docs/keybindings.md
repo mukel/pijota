@@ -1,6 +1,6 @@
 # Keybindings
 
-`/hotkeys` prints this table inside pijota. `/help` includes it after the commands.
+`/hotkeys` prints this inside pijota.
 
 ## Editing
 
@@ -42,13 +42,12 @@
 | `Ctrl+C` | clear the line; twice in quick succession exits |
 | `Ctrl+B` twice | send the running command to the background (needs the `jobs` extension) |
 
-Inside tmux, `Ctrl+B` is tmux's own prefix. `/bg` does the same thing.
-
+`/bg` does the same as Ctrl+B twice, for use inside tmux, where Ctrl+B is tmux's prefix.
 In the session picker, `Enter` loads and `Ctrl+D` deletes.
 
 ## Remapping
 
-`~/.pijota/keybindings.json` maps an action to a key, or to several.
+`~/.pijota/keybindings.json` maps an action to a key or a list. A malformed file is ignored.
 
 ```json
 {
@@ -57,13 +56,11 @@ In the session picker, `Enter` loads and `Ctrl+D` deletes.
 }
 ```
 
-A malformed file is ignored rather than fatal: pijota starts with the defaults.
-
-Recognised key names:
+Recognised names:
 
 `ctrl+g`, `ctrl+l`, `ctrl+o`, `ctrl+p`, `ctrl+t`, `ctrl+shift+p`, `shift+tab`, `alt+up`,
 `alt+enter`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`, `enter`, `tab`,
 `backspace`.
 
-Modifier notation is normalised for the platform when displayed, so a Mac shows `⌘`-style labels
-where they apply. Extensions can register their own bindings; `/help` lists them with the rest.
+Labels are shown in the platform's notation. Extensions register their own bindings; `/help`
+lists them.

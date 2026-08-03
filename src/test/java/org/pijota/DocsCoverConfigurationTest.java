@@ -48,10 +48,19 @@ class DocsCoverConfigurationTest {
         var undocumented = new TreeSet<String>();
         var keys = Pattern.compile("@JsonProperty\\(\"([a-z_]+)\"\\)").matcher(source);
         while (keys.find())
-            if (!docs.contains("`" + keys.group(1) + "`"))
+            if (!mentions(docs, keys.group(1)))
                 undocumented.add(keys.group(1));
 
         assertTrue(undocumented.isEmpty(), "settings.json keys with no mention in docs/settings.md: " + undocumented);
+    }
+
+    /**
+     * Whether the page names this key at all: on its own, qualified by its parent object
+     * ({@code `compaction.reserve_tokens`}), or as a JSON key in an example. Nesting is a formatting choice, so
+     * insisting on the bare name would force the docs into one shape to satisfy the test.
+     */
+    private static boolean mentions(String docs, String key) {
+        return docs.contains("`" + key + "`") || docs.contains("." + key + "`") || docs.contains("\"" + key + "\"");
     }
 
     /** A provider nobody documents is a provider nobody finds. */

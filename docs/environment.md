@@ -1,10 +1,6 @@
 # Environment
 
-Three groups: variables pijota reads, variables it sets for the commands it runs, and provider
-credentials.
-
-Every `PIJOTA_*` tuning variable has a system-property twin (`-Dpijota.foo=`), which wins when both
-are set.
+Every `PIJOTA_*` tuning variable has a system-property twin, which wins when both are set.
 
 ## Read by pijota
 
@@ -45,8 +41,8 @@ Frontends and tools:
 
 ## Set by pijota
 
-Every command the bash tool runs receives the current session state. Values are resolved per
-command, so switching model or thinking level affects the next one without a restart.
+Every bash command receives the session state, resolved per command: switching model or thinking
+level affects the next one without a restart.
 
 | Variable | Is |
 |---|---|
@@ -61,9 +57,9 @@ command, so switching model or thinking level affects the next one without a res
 printf '%s/%s (%s)\n' "$PIJOTA_PROVIDER" "$PIJOTA_MODEL" "$PIJOTA_REASONING_LEVEL"
 ```
 
-Ask the shell rather than the system prompt when you want to know which model is running.
+Ask the shell, not the system prompt, for the running model.
 
 ## Provider keys
 
-One variable per provider, listed in [Providers](providers.md#built-in). A key in the environment
-needs no `pj login`. Precedence is `--api-key`, then the environment, then `~/.pijota/auth.json`.
+One per provider, listed in [Providers](providers.md#built-in). A key in the environment needs no
+`pj login`. Precedence: `--api-key`, environment, `~/.pijota/auth.json`.

@@ -1,15 +1,13 @@
 # Sessions
 
-Every run writes an append-only JSONL file, one entry per line, unless you pass `--no-session`.
-
-## Where
+Every run writes an append-only JSONL file unless you pass `--no-session`.
 
 ```
 ~/.pijota/sessions/<flattened-cwd>/<uuid>.jsonl
 ```
 
-The directory name is the working directory with separators replaced, so sessions are grouped by
-project. `session_dir` in [settings](settings.md) moves the root.
+Grouped by project: the directory is the working directory with separators replaced.
+`session_dir` moves the root.
 
 ## Resuming
 
@@ -26,7 +24,8 @@ In the TUI: `/sessions` to pick (`Enter` loads, `Ctrl+D` deletes), `/load`, `/sa
 
 ## Branching
 
-The file is a tree, not a list, so a session can hold several branches.
+The file is a tree, so one session can hold several branches. Jumping to an earlier entry and
+continuing creates one; nothing is overwritten.
 
 | Command | Does |
 |---|---|
@@ -35,12 +34,10 @@ The file is a tree, not a list, so a session can hold several branches.
 | `/undo` | edit the previous message and continue from there |
 | `--fork <id>` | fork from the command line |
 
-Jumping to an earlier entry and continuing creates a branch; nothing is overwritten.
-
 ## Exporting
 
 ```bash
-pj --export out.md                  # from the command line
+pj --export out.md
 ```
 
 | Command | Writes |
@@ -52,7 +49,7 @@ pj --export out.md                  # from the command line
 
 ## Compaction
 
-When the context window fills, pijota summarises the older part of the conversation and continues.
+When the window fills, the older conversation is summarised and the run continues.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -60,14 +57,12 @@ When the context window fills, pijota summarises the older part of the conversat
 | `compaction.reserve_tokens` | `16384` | headroom kept free for the next turn |
 | `compaction.keep_recent_tokens` | `20000` | recent conversation left untouched |
 
-`/compact` runs it now. `/branch-summary` summarises the current branch into context without
-discarding it. `/context` shows the breakdown by category, `/usage` the tokens and cost so far.
+`/compact` runs it now; `/branch-summary` summarises the branch without discarding it;
+`/context` breaks the window down by category and `/usage` reports tokens and cost.
 
-The summary is written to the session as its own entry, so a resumed session sees the same context
-the live one did.
+The summary is its own session entry, so a resumed session sees the context the live one did.
 
 ## Crash safety
 
-Writes are append-only and a torn final line is repaired when the file is next opened, so a crash
-mid-turn costs at most the turn in flight. Ordinary appends are durable against a process crash;
-compaction additionally syncs to disk.
+A torn final line is repaired on the next open, so a crash costs at most the turn in flight.
+Appends are durable against a process crash; compaction also syncs to disk.

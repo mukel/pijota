@@ -1,7 +1,6 @@
 # Themes
 
-Four ship: `dark`, `light`, `gruvbox-dark`, `gruvbox-light`. `/theme` lists and switches them
-live, with no restart.
+Four ship: `dark`, `light`, `gruvbox-dark`, `gruvbox-light`. `/theme` switches live.
 
 ```bash
 pj --theme gruvbox-dark
@@ -14,8 +13,7 @@ pj --no-themes                  # skip discovery entirely
 { "theme": "gruvbox-dark", "themes": ["~/work/corporate.json"] }
 ```
 
-Unset means `auto`. Pijota reads `COLORFGBG` to tell a light terminal from a dark one, and honours
-`NO_COLOR` by dropping colour altogether.
+Unset means `auto`, which reads `COLORFGBG`. `NO_COLOR` drops colour entirely.
 
 ## Where they come from
 
@@ -53,10 +51,8 @@ HTML export.
 }
 ```
 
-A slot takes either a var name or a literal `#rrggbb`. Slots you leave out fall back to the
-built-in dark theme, so a partial theme is valid -- but a theme that omits `text` colours
-everything except the thing you are reading, which is why the vendored Catppuccin themes were
-dropped in v0.2.0.
+A slot takes a var name or a literal `#rrggbb`. Omitted slots fall back to `dark`, so a partial
+theme is valid; omitting `text` colours everything except what you are reading.
 
 ## Slots
 
@@ -70,12 +66,9 @@ dropped in v0.2.0.
 | syntax | `syntaxComment`, `syntaxKeyword`, `syntaxFunction`, `syntaxVariable`, `syntaxString`, `syntaxNumber`, `syntaxType`, `syntaxOperator`, `syntaxPunctuation` |
 | other | `bashMode` |
 
-The seven `thinking*` slots are a ramp: pijota expects them to get warmer or brighter as the level
-rises, since the caret colour is how the current level is read at a glance.
-
-`export` takes literal colours only: `pageBg`, `cardBg`, `infoBg`.
+The seven `thinking*` slots should ramp: the caret colour is how the current level is read.
+`export` takes literal colours only.
 
 ## Prompt glyphs
 
-Separate from colour, under `prompt` in [settings](settings.md#prompt): the caret, the error and
-question carets, the continuation bar, the rail, and whether the frame draws its rules.
+Not part of the theme: [`prompt` in settings](settings.md#prompt).

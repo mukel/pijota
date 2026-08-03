@@ -1,26 +1,29 @@
 # Models
 
-Pijota ships a catalog of 53 models across the built-in providers, with context window and price
-for each. A model outside the catalog still works: pass its id and pijota sends it verbatim.
+53 models in the catalog, with context window and price. Any other id is sent verbatim.
 
-## Choosing one
+## Choosing
 
 ```bash
-pj -m claude-sonnet-4-20250514          # id alone; the provider is inferred
+pj -m claude-sonnet-4-20250514           # provider inferred
 pj -m anthropic/claude-sonnet-4-20250514 # explicit
-pj --provider deepseek                   # provider only; uses its default model
-pj -m alias/fast                         # an alias from settings
+pj --provider deepseek                   # provider's default model
+pj -m alias/fast                         # alias from settings
+pj --list-models openai                  # what is available
 ```
 
-In the TUI, `/model` opens a searchable picker and `Ctrl+L` opens it directly. `Ctrl+Shift+P`
-cycles forward through the enabled models without opening anything.
+| In the TUI | Does |
+|---|---|
+| `/model` | searchable picker |
+| `Ctrl+L` | the same picker |
+| `Ctrl+Shift+P` | next enabled model, no picker |
+| `Shift+Tab` | cycle thinking level |
 
-Only models whose provider has a usable credential are offered. `--list-models [filter]` prints
-what is available and exits.
+Only providers with a usable credential are offered.
 
 ## Aliases
 
-Name a role, not a model. Useful in scripts and for sub-agents.
+Name a role, not a model.
 
 ```json
 {
@@ -36,25 +39,22 @@ Name a role, not a model. Useful in scripts and for sub-agents.
 pj -m alias/fast -p "summarise this diff"
 ```
 
-The `print` alias is special: `pj -p` uses it when no `--model` is given, so one-shot runs can be
-cheaper than interactive ones without changing your default.
-
-An alias target is used exactly as written, so it can name a model that is not in the catalog.
+Targets are used verbatim, so an off-catalog id works. `pj -p` with no `--model` uses an alias
+named `print`, if one exists.
 
 ## Narrowing the picker
-
-`enabled_models` is an allowlist. Empty means everything.
 
 ```json
 { "enabled_models": ["anthropic/claude-sonnet-4-20250514", "deepseek/deepseek-v4-flash"] }
 ```
 
+Empty means all.
+
 ## Thinking levels
 
-`--thinking <level>`, `thinking_level` in settings, or `Shift+Tab` in the TUI, which cycles
-through all seven.
+`--thinking <level>`, `thinking_level` in settings, or `Shift+Tab`.
 
-| Level | Budget (tokens) |
+| Level | Budget |
 |---|---|
 | `off` | 0 |
 | `minimal` | 1024 |
@@ -64,25 +64,20 @@ through all seven.
 | `xhigh` | 32768 |
 | `max` | 65536 |
 
-The budget is what pijota asks for. Providers apply it differently, and some ignore it: an
-OpenAI-compatible endpoint with no `thinkingFormat` is told nothing at all and reasons whenever it
-likes. See [Providers](providers.md#thinkingformat).
-
-`hide_thinking` hides the blocks without changing what is requested or billed.
+The budget is what pijota asks for; a provider with no
+[`thinkingFormat`](providers.md#thinkingformat) is told nothing and reasons when it likes.
+`hide_thinking` only hides the blocks, it does not change what is requested or billed.
 
 ## Custom models
-
-Nothing to register. Any id reaches the provider as written:
 
 ```bash
 pj --provider local -m my-finetune-v3
 ```
 
-Without a catalog entry pijota cannot show a context window or price, and `/usage` reports the
-spend as unpriced.
+Nothing to register. Without a catalog entry there is no context window or price, and `/usage`
+reports the spend as unpriced.
 
 ## Sub-agents
 
-The `task` tool spawns sub-agents in separate processes. They inherit the session's model unless
-`PIJOTA_SUBAGENT_MODEL` (or `-Dpijota.subagent.model=`) names another one, which accepts the same
+`task` sub-agents inherit the session model unless `PIJOTA_SUBAGENT_MODEL` names another; same
 `provider/model` and `alias/<name>` forms.

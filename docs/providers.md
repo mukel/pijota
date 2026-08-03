@@ -1,23 +1,20 @@
 # Providers
 
-A provider is an endpoint plus a wire format. Pijota ships 22; you can add your own.
+An endpoint plus a wire format. 22 built in; add your own.
 
-## Authenticating
+## Credentials
 
-Three ways, checked in this order for the provider actually in use:
+Checked in order, for the provider in use:
 
-1. `--api-key` on the command line (that run, that provider)
+1. `--api-key`
 2. the provider's environment variable
 3. `~/.pijota/auth.json`, written by `pj login`
 
 ```bash
-pj login                    # pick a provider interactively
-pj login anthropic          # OAuth if the provider supports it, else prompts for a key
-pj logout anthropic         # forget it
+pj login                    # pick a provider
+pj login anthropic          # OAuth if supported, else prompts for a key
+pj logout anthropic
 ```
-
-`pj auth print-api-key --provider anthropic` prints a stored credential for another tool to
-borrow; `print-bearer-token` prints an OAuth access token.
 
 ## Built in
 
@@ -25,7 +22,7 @@ borrow; `print-bearer-token` prints an OAuth access token.
 |---|---|---|---|
 | `anthropic` | Anthropic | anthropic | `ANTHROPIC_API_KEY` |
 | `openai` | OpenAI | openai | `OPENAI_API_KEY` |
-| `openai-codex` | OpenAI Codex | openai | OAuth (`pj login`) |
+| `openai-codex` | OpenAI Codex | openai | OAuth |
 | `google` | Google AI | google | `GEMINI_API_KEY`, `GOOGLE_API_KEY` |
 | `deepseek` | DeepSeek | openai | `DEEPSEEK_API_KEY` |
 | `groq` | Groq | openai | `GROQ_API_KEY` |
@@ -46,12 +43,11 @@ borrow; `print-bearer-token` prints an OAuth access token.
 | `xiaomi-token-plan-ams` | Xiaomi MiMo (Amsterdam) | openai | `XIAOMI_TOKEN_PLAN_AMS_API_KEY` |
 | `xiaomi-token-plan-sgp` | Xiaomi MiMo (Singapore) | openai | `XIAOMI_TOKEN_PLAN_SGP_API_KEY` |
 
-Three wire formats: `openai`, `anthropic`, `google`. Anything OpenAI-compatible needs no code.
+Anything OpenAI-compatible needs no code, only an entry.
 
 ## Custom providers
 
-Add entries under `providers` in [settings](settings.md). Local servers, gateways and
-self-hosted endpoints all fit here.
+Under `providers` in [settings](settings.md). Bad entries warn at startup.
 
 ```json
 {
@@ -72,37 +68,32 @@ self-hosted endpoints all fit here.
 
 | Field | Required | Meaning |
 |---|---|---|
-| `id` | yes | name used by `--provider` and `provider/model` |
-| `apiType` | yes | `openai`, `anthropic`, or `google` |
+| `id` | yes | name for `--provider` and `provider/model` |
+| `apiType` | yes | `openai`, `anthropic`, `google` |
 | `baseUrl` | yes | endpoint root |
 | `displayName` | no | label in pickers |
 | `defaultModel` | no | model when only the provider is given |
-| `env` | no | environment variables to read a key from |
+| `env` | no | variables to read a key from |
 | `headers` | no | extra request headers |
-| `thinkingFormat` | no | how to toggle reasoning; see below |
-| `oauth` | no | device-code OAuth: `deviceEndpoint`, `tokenEndpoint`, `oauthTokenEndpoint`, `clientId`, `scope` |
-
-Bad entries are reported as warnings at startup, not as a crash.
+| `thinkingFormat` | no | reasoning parameters, below |
+| `oauth` | no | device code: `deviceEndpoint`, `tokenEndpoint`, `oauthTokenEndpoint`, `clientId`, `scope` |
 
 ### thinkingFormat
 
-OpenAI-compatible runtimes disagree about how to switch reasoning on and off. This picks the
-request parameters pijota sends.
-
 | Value | Sends |
 |---|---|
-| unset | nothing; the model decides |
+| unset | nothing |
 | `qwen` | `enable_thinking` |
 | `qwen-chat-template` | `enable_thinking` plus `chat_template_kwargs.enable_thinking` |
 
-A provider that cannot express "do not think" will think when it feels like it, whatever
-`--thinking off` says.
+Unset means `--thinking off` cannot stop the model reasoning: nothing is sent and the model
+decides.
 
-## Timeouts and proxies
+## Timeouts and proxy
 
-| Variable | Property | Default |
+| Variable | Property | Is |
 |---|---|---|
-| `PIJOTA_LLM_CONNECT_TIMEOUT` | `pijota.llm.connect-timeout` | seconds to connect to a provider |
-| `PIJOTA_LLM_REQUEST_TIMEOUT` | `pijota.llm.request-timeout` | seconds for a whole request |
-| `PIJOTA_CONNECT_TIMEOUT` | `pijota.connect-timeout` | `10` seconds, everything else |
-| `PIJOTA_PROXY` | `pijota.proxy` | HTTP proxy for provider traffic |
+| `PIJOTA_LLM_CONNECT_TIMEOUT` | `pijota.llm.connect-timeout` | connect seconds, provider calls |
+| `PIJOTA_LLM_REQUEST_TIMEOUT` | `pijota.llm.request-timeout` | whole-request seconds |
+| `PIJOTA_CONNECT_TIMEOUT` | `pijota.connect-timeout` | connect seconds, everything else (10) |
+| `PIJOTA_PROXY` | `pijota.proxy` | HTTP proxy |
