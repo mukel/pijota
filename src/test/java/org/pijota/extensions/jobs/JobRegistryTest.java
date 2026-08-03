@@ -227,8 +227,8 @@ class JobRegistryTest {
     @Test
     void panelShowsOnlyRunningJobsAndIsEmptyOtherwise() {
         assertEquals(List.of(), JobsExtension.renderPanel(List.of()));
-        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false),
-                                        new JobRegistry.Status("bg_2", "old", "old", false, 0, 0, false));
+        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 0),
+                                        new JobRegistry.Status("bg_2", "old", "old", false, 0, 0, false, 0));
         var panel = JobsExtension.renderPanel(statuses);
         assertTrue(panel.get(0).contains("1 running"), panel.toString());
         assertTrue(panel.stream().anyMatch(l -> l.contains("bg_1") && l.contains("npm test")));
@@ -239,14 +239,46 @@ class JobRegistryTest {
     void panelCapsRowsAndShortensLongCommands() {
         var many = new ArrayList<JobRegistry.Status>();
         for (int i = 1; i <= 8; i++)
-            many.add(new JobRegistry.Status("bg_" + i, "cmd" + i, "cmd" + i, true, null, 0, false));
+            many.add(new JobRegistry.Status("bg_" + i, "cmd" + i, "cmd" + i, true, null, 0, false, 0));
         var panel = JobsExtension.renderPanel(many);
         assertTrue(panel.get(0).contains("8 running"), panel.toString());
         assertTrue(panel.stream().anyMatch(l -> l.contains("+2 more")), panel.toString()); // 8 jobs − 6 row cap
 
-        var longCmd = List.of(new JobRegistry.Status("bg_1", "x".repeat(120), "x".repeat(120), true, null, 0, false));
+        var longCmd = List.of(new JobRegistry.Status("bg_1", "x".repeat(120), "x".repeat(120), true, null, 0, false,
+                                        0));
         assertTrue(JobsExtension.renderPanel(longCmd).stream().anyMatch(l -> l.contains("…")),
                                         "a long command is elided");
+    }
+
+    /**
+     * Two spaces read as column alignment, and none of these rows line up. The completion notice already used " . ", so
+     * the same screen showed one job's facts joined two different ways; this keeps the whole extension on one.
+     */
+    @Test
+    void jobRowsSeparateFactsTheSameWayEverywhereElseDoes() {
+        var statuses = List.of(new JobRegistry.Status("bg_1", "npm run dev", "web-server", true, null, 12, false, 4200),
+                                        new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, true, 900));
+
+        var offenders = new ArrayList<String>();
+        for (String row : JobsExtension.renderList(statuses).split("\n"))
+            if (row.strip().contains("  "))
+                offenders.add("list: " + row);
+        for (String row : JobsExtension.renderPanel(statuses))
+            if (row.strip().contains("  "))
+                offenders.add("panel: " + row);
+
+        assertTrue(offenders.isEmpty(), "a two-space gap is column alignment, and nothing here aligns: " + offenders);
+    }
+
+    /**
+     * A running job and a running sub-agent are the same kind of thing, so both rows say how long it has been going.
+     */
+    @Test
+    void thePanelSaysHowLongAJobHasBeenRunning() {
+        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 65_000));
+        var row = JobsExtension.renderPanel(statuses).stream().filter(l -> l.contains("bg_1")).findFirst()
+                                        .orElseThrow();
+        assertTrue(row.matches(".*\\d+[ms].*"), "no elapsed time on a running job: " + row);
     }
 
     @Test
@@ -254,10 +286,10 @@ class JobRegistryTest {
         assertEquals("(no background jobs)", JobsExtension.renderList(List.of()));
         var rows = JobsExtension.renderList(List.of(
                                         new JobRegistry.Status("bg_1", "npm run dev", "npm run dev", true, null, 0,
-                                                                        false),
-                                        new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, false)));
-        assertTrue(rows.contains("bg_1  running  0B  npm run dev"), rows);
-        assertTrue(rows.contains("bg_2  exit 1  0B  mvn test"), rows);
+                                                                        false, 0),
+                                        new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, false, 0)));
+        assertTrue(rows.contains("bg_1 \u00b7 running \u00b7 0B \u00b7 npm run dev"), rows);
+        assertTrue(rows.contains("bg_2 \u00b7 exit 1 \u00b7 0B \u00b7 mvn test"), rows);
     }
 
     @Test
@@ -421,7 +453,7 @@ class JobRegistryTest {
     @Test
     void renderListShowsADistinctNameLabelAlongsideTheCommand() {
         var rows = JobsExtension.renderList(List.of(new JobRegistry.Status("bg_1", "npm run dev", "web-server", true,
-                                        null, 0, false)));
+                                        null, 0, false, 0)));
         assertTrue(rows.contains("web-server"), rows);
         assertTrue(rows.contains("npm run dev"), rows);
     }

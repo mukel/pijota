@@ -276,19 +276,26 @@ public final class JobsExtension implements Extension {
                                         .run((args, cwd) -> ToolResult.success(renderList(jobs.list())));
     }
 
-    /** One line per job: id, status (running / exit N), output size, optional label, optional [truncated], command. */
+    /**
+     * Joins facts of the same kind, the separator the rest of the UI uses. Two spaces read as column alignment, and
+     * these fields do not line up: ids, statuses and sizes all vary in width, so the gap was only ever a separator
+     * wearing the wrong clothes -- and the completion notice a few lines below already used this one.
+     */
+    private static final String CHIP = " \u00b7 ";
+
+    /** One line per job: id, status (running / exit N), output size, optional label, optional truncated, command. */
     static String renderList(List<JobRegistry.Status> all) {
         if (all.isEmpty())
             return "(no background jobs)";
         var sb = new StringBuilder();
         for (var s : all) {
             String status = s.running() ? "running" : "exit " + s.exitCode();
-            sb.append(s.id()).append("  ").append(status).append("  ").append(Util.formatSize(s.outputChars()));
+            sb.append(s.id()).append(CHIP).append(status).append(CHIP).append(Util.formatSize(s.outputChars()));
             if (hasDistinctName(s.name(), s.command()))
-                sb.append("  ").append(s.name());
+                sb.append(CHIP).append(s.name());
             if (s.truncated())
-                sb.append("  [truncated]");
-            sb.append("  ").append(s.command()).append('\n');
+                sb.append(CHIP).append("truncated");
+            sb.append(CHIP).append(s.command()).append('\n');
         }
         return sb.toString().stripTrailing();
     }
@@ -350,7 +357,8 @@ public final class JobsExtension implements Extension {
         for (int i = 0; i < shown; i++) {
             var s = running.get(i);
             String display = hasDistinctName(s.name(), s.command()) ? s.name() : s.command();
-            lines.add("  " + s.id() + "  " + Util.ellipsize(display, CMD_PREVIEW));
+            lines.add("  " + s.id() + CHIP + Util.ellipsize(display, CMD_PREVIEW) + CHIP
+                                            + Util.formatDuration(s.elapsedMs()));
         }
         if (running.size() > MAX_PANEL_ROWS)
             lines.add("   … +" + (running.size() - MAX_PANEL_ROWS) + " more");

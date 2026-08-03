@@ -267,7 +267,7 @@ public final class JobRegistry {
                 truncated = job.truncated;
             }
             statuses.add(new Status(job.id, job.command, job.name, alive, alive ? null : job.process.exitValue(),
-                                            outSize, truncated));
+                                            outSize, truncated, System.currentTimeMillis() - job.startedAtMs));
         }
         return statuses;
     }
@@ -282,7 +282,7 @@ public final class JobRegistry {
     }
 
     public record Status(String id, String command, String name, boolean running, Integer exitCode, int outputChars,
-                                    boolean truncated) {
+                                    boolean truncated, long elapsedMs) {
     }
 
     /** A job that finished on its own (not killed): its id, the command, the name, and the process exit code. */
