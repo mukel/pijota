@@ -58,6 +58,7 @@ MCP servers add theirs under their own names; see [MCP](project-files.md#mcp-ser
 | `/agents` | the same list on demand, including agents the status bar has already cleared |
 | `/agents stop <name\|all>` | stops it and its own children (its bash, its browser) |
 | `Esc` | stops every sub-agent in the turn, along with the turn |
+| `Ctrl+B` twice | hands it to the background as a job, and the turn resumes |
 | `/logs` | the full transcript, tailing while it runs |
 
 A stopped agent is reported to the model as your decision, not a crash, so it is not
@@ -65,6 +66,11 @@ started again on its own.
 
 Launching the same agent twice at once suffixes the second: `explore`, `explore#2`. Each
 gets its own row, log and stop.
+
+A backgrounded agent is an ordinary [job](#sub-agents): it gets a `bg_N` id, appears in
+`/jobs`, is stopped with `/kill`, and its output is delivered when it finishes -- no
+polling. Only a single agent can be backgrounded; a parallel batch declines, because
+resolving the call mid-batch would discard the other agents' results.
 
 ## Read-only
 
