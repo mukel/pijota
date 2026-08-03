@@ -188,7 +188,12 @@ class TerminalCoordinatorTest {
                 pool.shutdown();
                 assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS));
             }
-            settle(rig, "w3-24");
+            // Settle on a sentinel queued after every writer has finished, not on one writer's last line: the four
+            // run concurrently, so w3-24 can be on screen while another writer's line is still in the queue, and the
+            // assertions below would then read a half-drained transcript. This test failed that way about once in a
+            // full-suite run and never in isolation.
+            rig.coordinator().appendLines(lines("all-writers-done"));
+            settle(rig, "all-writers-done");
 
             String out = rig.rendered();
             for (int w = 0; w < writers; w++)
