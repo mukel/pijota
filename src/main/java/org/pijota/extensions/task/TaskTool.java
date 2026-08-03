@@ -20,10 +20,13 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -58,10 +61,33 @@ public final class TaskTool implements Tool {
 
     private AgentRunner agentRunner = this::spawnAgent;
 
+    /**
+     * Stops every sub-agent this tool has in flight. Called by {@link org.pijota.tools.ToolRegistry} when the session
+     * aborts, which is what Esc does.
+     */
+    @Override
+    public void abort() {
+        for (Process p : running) {
+            p.descendants().forEach(ProcessHandle::destroy); // the agent's own children first: its bash, its browser
+            p.destroy();
+        }
+        running.clear();
+    }
+
     /** Test seam: replace the real process-spawning runner with a fake one. */
     void setAgentRunner(AgentRunner runner) {
         this.agentRunner = runner;
     }
+
+    /**
+     * Sub-agent processes belonging to the turn in flight, so {@link #abort()} can reach them.
+     *
+     * <p>
+     * They are full processes spending tokens, and nothing used to stop them: interrupting a turn left every child
+     * running to its own five-minute cap, paying for output the parent had already stopped listening for. Tool.abort()
+     * has always been part of the SPI and ToolRegistry has always called it; TaskTool simply never overrode it.
+     */
+    private final Set<Process> running = ConcurrentHashMap.newKeySet();
 
     public TaskTool(List<SubAgent> agents, LlmClient llm, Supplier<List<String>> enabledToolNames,
                                     Supplier<String> systemPrompt, BiConsumer<String, String> activityHandler,
@@ -403,13 +429,25 @@ public final class TaskTool implements Tool {
             var resultHolder = new SubAgentResult[] {null};
             var toolCount = new AtomicInteger(0);
 
-            ProcessRunner.Result procResult = ProcessRunner.command(procArgs).workDir(Path.of(workDir))
-                                            .timeout(5, TimeUnit.MINUTES)
-                                            .feedStdin(Util.MAPPER.writeValueAsString(taskJson))
-                                            .consumeStdoutLines(line -> handleSubAgentEvent(line, sub.name(), logWriter,
-                                                                            logFile.toString(), resultHolder,
-                                                                            toolCount))
-                                            .captureStderr(true).run();
+            // Tracked only while it is alive: the set is what abort() reaches, so a finished agent must leave it or
+            // a long session accumulates dead handles.
+            var child = new AtomicReference<Process>();
+            ProcessRunner.Result procResult;
+            try {
+                procResult = ProcessRunner.command(procArgs).workDir(Path.of(workDir)).timeout(5, TimeUnit.MINUTES)
+                                                .feedStdin(Util.MAPPER.writeValueAsString(taskJson))
+                                                .consumeStdoutLines(line -> handleSubAgentEvent(line, sub.name(),
+                                                                                logWriter, logFile.toString(),
+                                                                                resultHolder, toolCount))
+                                                .onStart(proc -> {
+                                                    child.set(proc);
+                                                    running.add(proc);
+                                                }).captureStderr(true).run();
+            } finally {
+                Process started = child.get();
+                if (started != null)
+                    running.remove(started);
+            }
 
             logWriter.write("\n─── done ───\n");
             logWriter.close();
