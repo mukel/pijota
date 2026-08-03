@@ -290,7 +290,7 @@ public final class BashTool implements Tool, Tool.Detachable {
         String prefix = "";
         if (Boolean.TRUE.equals(details.get("timedOut")))
             prefix = "(timed out) ";
-        String output = result.content();
+        String output = stripExitMarker(result.content());
         if (output == null || output.isBlank() || "(no output)".equals(output)) {
             summary = prefix + "(no output)";
             return ToolResultView.of(summary);
@@ -313,6 +313,20 @@ public final class BashTool implements Tool, Tool.Detachable {
             body.addAll(lines.subList(lines.size() - PREVIEW_TAIL_LINES, lines.size()));
         }
         return ToolResultView.of(summary, body);
+    }
+
+    /**
+     * Drops the trailing {@code [Command exited with code N]} the model is given.
+     *
+     * <p>
+     * The card's header already says {@code exit 2}, so the transcript stated it twice in two formats, with a blank
+     * line between them. It also counted as output: a command that printed one line was summarised as three.
+     */
+    private static String stripExitMarker(String output) {
+        if (output == null)
+            return null;
+        int marker = output.lastIndexOf("\n[Command exited with code ");
+        return marker < 0 ? output : output.substring(0, marker).stripTrailing();
     }
 
     @Override

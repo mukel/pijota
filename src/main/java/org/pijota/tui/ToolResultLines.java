@@ -100,8 +100,15 @@ final class ToolResultLines {
                                             width);
             int beforeBody = lines.size();
             lines.addAll(railedBody(errorBody(msg, rendered), theme, width));
-            if (lines.size() > beforeBody) // the ✖ opened the block in place of ┌, so it still needs closing
-                lines.add(theme.styled("commandMeta", "└"));
+            if (lines.size() > beforeBody) {
+                // The ✖ opened the block in place of ┌, so it still needs closing -- carrying how much came back,
+                // the same as a successful card. A bare └ read as a truncated render next to its neighbour's
+                // "└ 1 line · exit 0", and "how much output" is no less useful when the command failed.
+                String size = rendered != null && rendered.summary() != null && !rendered.summary().isBlank()
+                                                ? " " + theme.styled("commandMeta", rendered.summary())
+                                                : "";
+                lines.add(theme.styled("commandMeta", "└") + size);
+            }
         } else if (rendered != null && !rendered.body().isEmpty()) {
             // Tool with output: the tool's own glyph opens the block, the railed body follows, a dim └ closes it
             // carrying the metadata. Not a ┌: the rail on the next row and the └ below already say a block starts
