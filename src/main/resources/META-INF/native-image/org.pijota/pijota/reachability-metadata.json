@@ -1821,6 +1821,9 @@
       "allDeclaredConstructors": true
     },
     {
+      "type": "org.pijota.extensions.tmux.TmuxSession[]"
+    },
+    {
       "type": "org.pijota.extensions.tmux.TmuxSession",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
@@ -1941,10 +1944,16 @@
       "allDeclaredConstructors": true
     },
     {
+      "type": "org.pijota.telegram.TelegramClient$Update[]"
+    },
+    {
       "type": "org.pijota.telegram.TelegramClient$Update",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
       "allDeclaredConstructors": true
+    },
+    {
+      "type": "org.pijota.worktree.WorktreePool$Entry[]"
     },
     {
       "type": "org.pijota.worktree.WorktreePool$Entry",

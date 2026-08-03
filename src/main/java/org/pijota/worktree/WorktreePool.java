@@ -116,9 +116,7 @@ public final class WorktreePool {
     public List<Status> list() throws IOException {
         return withLock(() -> {
             var reg = load();
-            boolean changed = reg.removeIf(e -> !Files.isDirectory(Path.of(e.path)));
-            if (changed)
-                save(reg);
+            forgetVanished(reg);
             var out = new ArrayList<Status>();
             for (var e : reg) {
                 Path wt = Path.of(e.path);
@@ -138,11 +136,32 @@ public final class WorktreePool {
 
     // ---- prune (manual only) ----
 
+    /**
+     * Drops entries whose directory is gone, from this pool's registry and from git's.
+     *
+     * <p>
+     * Only half of that used to happen: the pool forgot the worktree and git kept its registration and its
+     * {@code .git/worktrees/<name>} metadata forever, which is what {@code git worktree list} calls "prunable". They
+     * accumulated in the user's own repository -- eleven of them, on the machine this was found on -- and were
+     * invisible to {@code pijota worktree prune}, whose candidates come from this registry after the entries have
+     * already been dropped from it.
+     *
+     * <p>
+     * Safe to do unprompted, unlike removing a worktree: the directory is already gone, so there is no work to lose.
+     * That is why it happens here rather than behind {@code --yes}.
+     */
+    private void forgetVanished(List<Entry> reg) throws IOException {
+        if (!reg.removeIf(e -> !Files.isDirectory(Path.of(e.path))))
+            return;
+        save(reg);
+        git(repoRoot, "worktree", "prune");
+    }
+
     /** Removes stale worktrees (idle + clean + merged into origin's default). Dry-run unless {@code execute}. */
     public PruneResult prune(boolean execute) throws IOException {
         return withLock(() -> {
             var reg = load();
-            reg.removeIf(e -> !Files.isDirectory(Path.of(e.path)));
+            forgetVanished(reg);
             String originDefault = originDefaultRef();
             if (originDefault == null) // origin unreachable / no remote: never risk removing unmerged work
                 return new PruneResult(List.of(), false, "no reachable origin default branch; nothing pruned");

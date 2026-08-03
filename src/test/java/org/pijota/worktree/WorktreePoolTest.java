@@ -158,6 +158,37 @@ class WorktreePoolTest {
         assertTrue(Files.isDirectory(wt), "worktree survives");
     }
 
+    /**
+     * The pool forgot a vanished worktree from its own registry but never told git, so git kept the registration and
+     * its metadata forever -- "prunable" in git's own words. They piled up in the user's repository and were invisible
+     * to `pijota worktree prune`, whose candidates come from the registry after those entries are already gone.
+     */
+    @Test
+    void aVanishedWorktreeIsDroppedFromGitsRegistryToo() throws Exception {
+        var pool = pool();
+        Path wt = pool.acquire(false);
+        assertTrue(git(repo, "worktree", "list").contains(wt.toString()), "precondition: git knows the worktree");
+
+        deleteRecursively(wt); // behind git's back, the way a crash or a manual rm leaves it
+
+        pool.list(); // the self-heal
+
+        String listed = git(repo, "worktree", "list");
+        assertFalse(listed.contains(wt.toString()),
+                                        "git still holds a registration for a directory that is gone:\n" + listed);
+        assertFalse(listed.contains("prunable"), listed);
+    }
+
+    private static void deleteRecursively(Path dir) throws Exception {
+        try (var paths = Files.walk(dir)) {
+            paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (Exception ignored) {}
+            });
+        }
+    }
+
     private static String git(Path dir, String... args) throws Exception {
         var cmd = new ArrayList<String>(List.of("git"));
         cmd.addAll(List.of(args));
