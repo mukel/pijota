@@ -651,8 +651,10 @@ public final class TaskTool implements Tool, Tool.Detachable {
                                                     // the moment it starts, not only once it is backgrounded.
                                                     // name null: the command already reads "task:explore", and
                                                     // passing the label too printed it twice on the row
-                                                    if (jobs != null)
+                                                    if (jobs != null) {
                                                         jobId[0] = jobs.register(proc, "task:" + label, null);
+                                                        fireActivity(label, "job: " + jobId[0]);
+                                                    }
                                                     // Only a lone agent under a single-mode call can be handed off;
                                                     // for a batch inFlight is null and detach() declines.
                                                     if (inFlight != null && running.size() == 1)

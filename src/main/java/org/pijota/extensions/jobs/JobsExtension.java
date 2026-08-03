@@ -296,7 +296,11 @@ public final class JobsExtension implements Extension {
                 sb.append(CHIP).append(s.name());
             if (s.truncated())
                 sb.append(CHIP).append("truncated");
-            sb.append(CHIP).append(s.command()).append('\n');
+            sb.append(CHIP).append(s.command());
+            // Last: what it is comes first, what it is doing right now trails it, the way the status row reads.
+            if (s.detail() != null && !s.detail().isBlank())
+                sb.append(CHIP).append(s.detail());
+            sb.append('\n');
         }
         return sb.toString().stripTrailing();
     }

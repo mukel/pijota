@@ -227,8 +227,10 @@ class JobRegistryTest {
     @Test
     void panelShowsOnlyRunningJobsAndIsEmptyOtherwise() {
         assertEquals(List.of(), JobsExtension.renderPanel(List.of()));
-        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 0, false),
-                                        new JobRegistry.Status("bg_2", "old", "old", false, 0, 0, false, 0, false));
+        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 0, false,
+                                        null),
+                                        new JobRegistry.Status("bg_2", "old", "old", false, 0, 0, false, 0, false,
+                                                                        null));
         var panel = JobsExtension.renderPanel(statuses);
         assertTrue(panel.get(0).contains("1 running"), panel.toString());
         assertTrue(panel.stream().anyMatch(l -> l.contains("bg_1") && l.contains("npm test")));
@@ -241,9 +243,10 @@ class JobRegistryTest {
      */
     @Test
     void thePanelLeavesOutWhatIsAlreadyOnScreen() {
-        var statuses = List.of(new JobRegistry.Status("bg_1", "task:explore", "explore", true, null, 0, false, 5, true),
+        var statuses = List.of(new JobRegistry.Status("bg_1", "task:explore", "explore", true, null, 0, false, 5, true,
+                                        null),
                                         new JobRegistry.Status("bg_2", "npm test", "npm test", true, null, 0, false, 5,
-                                                                        false));
+                                                                        false, null));
         var panel = JobsExtension.renderPanel(statuses);
 
         assertTrue(panel.get(0).contains("1 running"), panel.toString());
@@ -274,11 +277,25 @@ class JobRegistryTest {
         live.destroy();
     }
 
+    /**
+     * The on-demand list is what you consult once the status bar has scrolled away, so it must not know less than the
+     * status bar did. It used to show only the command while the row beside it named the tool and the spend.
+     */
+    @Test
+    void theListCarriesWhateverTheOwningToolKnows() {
+        var rows = JobsExtension.renderList(List.of(new JobRegistry.Status("bg_1", "task:explore", "explore", true,
+                                        null, 0, false, 5, true, "\u2192 Read cli.md \u00b7 22K tokens")));
+        assertTrue(rows.contains("task:explore"), rows);
+        assertTrue(rows.indexOf("Read cli.md") > rows.indexOf("task:explore"),
+                                        "detail must trail the command: " + rows);
+        assertTrue(rows.contains("22K tokens"), rows);
+    }
+
     /** An in-turn process writes to its tool card, not this buffer, so a size here reads as "produced nothing". */
     @Test
     void anInTurnRowDoesNotClaimZeroOutput() {
         var rows = JobsExtension.renderList(List.of(new JobRegistry.Status("bg_1", "task:explore", "explore", true,
-                                        null, 0, false, 5, true)));
+                                        null, 0, false, 5, true, null)));
         assertFalse(rows.contains("0B"), rows);
         assertTrue(rows.contains("in turn"), rows);
     }
@@ -287,13 +304,13 @@ class JobRegistryTest {
     void panelCapsRowsAndShortensLongCommands() {
         var many = new ArrayList<JobRegistry.Status>();
         for (int i = 1; i <= 8; i++)
-            many.add(new JobRegistry.Status("bg_" + i, "cmd" + i, "cmd" + i, true, null, 0, false, 0, false));
+            many.add(new JobRegistry.Status("bg_" + i, "cmd" + i, "cmd" + i, true, null, 0, false, 0, false, null));
         var panel = JobsExtension.renderPanel(many);
         assertTrue(panel.get(0).contains("8 running"), panel.toString());
         assertTrue(panel.stream().anyMatch(l -> l.contains("+2 more")), panel.toString()); // 8 jobs − 6 row cap
 
         var longCmd = List.of(new JobRegistry.Status("bg_1", "x".repeat(120), "x".repeat(120), true, null, 0, false, 0,
-                                        false));
+                                        false, null));
         assertTrue(JobsExtension.renderPanel(longCmd).stream().anyMatch(l -> l.contains("…")),
                                         "a long command is elided");
     }
@@ -305,9 +322,9 @@ class JobRegistryTest {
     @Test
     void jobRowsSeparateFactsTheSameWayEverywhereElseDoes() {
         var statuses = List.of(new JobRegistry.Status("bg_1", "npm run dev", "web-server", true, null, 12, false, 4200,
-                                        false),
+                                        false, null),
                                         new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, true, 900,
-                                                                        false));
+                                                                        false, null));
 
         var offenders = new ArrayList<String>();
         for (String row : JobsExtension.renderList(statuses).split("\n"))
@@ -326,7 +343,7 @@ class JobRegistryTest {
     @Test
     void thePanelSaysHowLongAJobHasBeenRunning() {
         var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 65_000,
-                                        false));
+                                        false, null));
         var row = JobsExtension.renderPanel(statuses).stream().filter(l -> l.contains("bg_1")).findFirst()
                                         .orElseThrow();
         assertTrue(row.matches(".*\\d+[ms].*"), "no elapsed time on a running job: " + row);
@@ -394,9 +411,9 @@ class JobRegistryTest {
         assertEquals("(no background jobs)", JobsExtension.renderList(List.of()));
         var rows = JobsExtension.renderList(List.of(
                                         new JobRegistry.Status("bg_1", "npm run dev", "npm run dev", true, null, 0,
-                                                                        false, 0, false),
+                                                                        false, 0, false, null),
                                         new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, false, 0,
-                                                                        false)));
+                                                                        false, null)));
         assertTrue(rows.contains("bg_1 \u00b7 background \u00b7 0B \u00b7 npm run dev"), rows);
         assertTrue(rows.contains("bg_2 \u00b7 exit 1 \u00b7 0B \u00b7 mvn test"), rows);
     }
@@ -575,7 +592,7 @@ class JobRegistryTest {
     @Test
     void renderListShowsADistinctNameLabelAlongsideTheCommand() {
         var rows = JobsExtension.renderList(List.of(new JobRegistry.Status("bg_1", "npm run dev", "web-server", true,
-                                        null, 0, false, 0, false)));
+                                        null, 0, false, 0, false, null)));
         assertTrue(rows.contains("web-server"), rows);
         assertTrue(rows.contains("npm run dev"), rows);
     }

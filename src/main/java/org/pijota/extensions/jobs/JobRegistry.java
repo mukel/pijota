@@ -73,6 +73,10 @@ public final class JobRegistry {
         // A process the user has not backgrounded: a tool call is still waiting on it, and that call is what reports
         // it. Completion notices and jobs_output are for processes nobody is waiting on.
         volatile boolean inTurn;
+        // What its owner knows and this registry cannot: the tool it is on, the tokens it has spent. Without it the
+        // on-demand list said less than the status bar, which is backwards -- the list is what you consult once the
+        // status bar has scrolled away.
+        volatile String detail;
         // Whether every byte the process wrote has reached `out`. Process exit does NOT imply this: the pipe can
         // still hold output the drain thread hasn't copied yet. Adopted jobs have no drain thread, so they start
         // true and the tool's own pump keeps feeding.
@@ -305,6 +309,13 @@ public final class JobRegistry {
             jobs.remove(finished.get(i).id);
     }
 
+    /** Lets the tool that owns a process publish what it knows about it, for the list to show. */
+    public void setDetail(String id, String detail) {
+        var job = jobs.get(id);
+        if (job != null)
+            job.detail = detail;
+    }
+
     /** Check whether a job is still running without consuming any buffered output. */
     public boolean isRunning(String id) {
         Job job = jobs.get(id);
@@ -347,7 +358,7 @@ public final class JobRegistry {
             }
             statuses.add(new Status(job.id, job.command, job.name, alive, alive ? null : job.process.exitValue(),
                                             outSize, truncated, System.currentTimeMillis() - job.startedAtMs,
-                                            job.inTurn));
+                                            job.inTurn, job.detail));
         }
         return statuses;
     }
@@ -362,7 +373,7 @@ public final class JobRegistry {
     }
 
     public record Status(String id, String command, String name, boolean running, Integer exitCode, int outputChars,
-                                    boolean truncated, long elapsedMs, boolean inTurn) {
+                                    boolean truncated, long elapsedMs, boolean inTurn, String detail) {
     }
 
     /** A job that finished on its own (not killed): its id, the command, the name, and the process exit code. */

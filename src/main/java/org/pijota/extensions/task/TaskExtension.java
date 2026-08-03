@@ -27,27 +27,42 @@ public final class TaskExtension implements Extension {
     private static final long DONE_LINGER_MS = 5000;
 
     record AgentState(String name, int toolCount, int lines, long tokens, String state, String lastTool, long startedAt,
-                                    long doneAt, String logFile) {
+                                    long doneAt, String logFile, String jobId) {
         static AgentState start(String name) {
-            return new AgentState(name, 0, 0, 0, "running", null, System.currentTimeMillis(), 0, null);
+            return new AgentState(name, 0, 0, 0, "running", null, System.currentTimeMillis(), 0, null, null);
+        }
+
+        AgentState withJob(String id) {
+            return new AgentState(name, toolCount, lines, tokens, state, lastTool, startedAt, doneAt, logFile, id);
+        }
+
+        /** The one-glance detail the status row shows, for the on-demand list to show as well. */
+        String detail() {
+            var parts = new ArrayList<String>();
+            if (lastTool != null)
+                parts.add(lastTool);
+            if (tokens > 0)
+                parts.add(Util.fmtCount(tokens) + " tokens");
+            return String.join(" \u00b7 ", parts);
         }
 
         AgentState withTool(String tool) {
-            return new AgentState(name, toolCount + 1, lines, tokens, "running", tool, startedAt, 0, logFile);
+            return new AgentState(name, toolCount + 1, lines, tokens, "running", tool, startedAt, 0, logFile, jobId);
         }
 
         AgentState withLines(int added) {
-            return new AgentState(name, toolCount, lines + added, tokens, "running", lastTool, startedAt, 0, logFile);
+            return new AgentState(name, toolCount, lines + added, tokens, "running", lastTool, startedAt, 0, logFile,
+                                            jobId);
         }
 
         /** The child's running total, not a delta: a late event cannot double-count or go backwards. */
         AgentState withTokens(long total) {
             return new AgentState(name, toolCount, lines, Math.max(tokens, total), "running", lastTool, startedAt, 0,
-                                            logFile);
+                                            logFile, jobId);
         }
 
         AgentState withLog(String log) {
-            return new AgentState(name, toolCount, lines, tokens, "running", lastTool, startedAt, 0, log);
+            return new AgentState(name, toolCount, lines, tokens, "running", lastTool, startedAt, 0, log, jobId);
         }
 
         /**
@@ -56,7 +71,7 @@ public final class TaskExtension implements Extension {
          */
         AgentState done(boolean success, long tokens) {
             return new AgentState(name, toolCount, lines, Math.max(this.tokens, tokens), success ? "done" : "failed",
-                                            lastTool, startedAt, System.currentTimeMillis(), logFile);
+                                            lastTool, startedAt, System.currentTimeMillis(), logFile, jobId);
         }
 
         boolean running() {
@@ -88,6 +103,9 @@ public final class TaskExtension implements Extension {
             String logPath = line.substring(5).strip();
             activeLogs.add(Path.of(logPath));
             agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withLog(logPath));
+        } else if (line.startsWith("job: ")) {
+            String id = line.substring(5).strip();
+            agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withJob(id));
         } else if (line.equals("detached")) {
             // Backgrounded: it is a job now, and the jobs panel shows it. Leaving the row here too would report one
             // process twice, in two vocabularies.
@@ -105,11 +123,19 @@ public final class TaskExtension implements Extension {
         } else {
             agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withTool(line));
         }
+        publishDetail(agentStates.get(agent));
+    }
+
+    /** Keeps the registry row as informative as the status row: same facts, one source. */
+    private void publishDetail(AgentState state) {
+        if (jobRegistry != null && state != null && state.jobId != null)
+            jobRegistry.setDetail(state.jobId, state.detail());
     }
 
     void finished(String agent, boolean success, long tokens) {
         var state = agentStates.compute(agent,
                                         (k, v) -> (v == null ? AgentState.start(agent) : v).done(success, tokens));
+        publishDetail(state);
         if (state.logFile != null) // remember the final summary so /logs can show it after the live state is pruned
             finishedLogs.put(state.logFile, new LogSummary(agent, success, state.toolCount, tokens));
     }
