@@ -65,6 +65,12 @@ public class AnsiTheme {
     public String statusWarn = "dim;yellow";
     public String bannerName = "bold;#00758F";
     public String bannerMeta = "dim";
+    /**
+     * The {@code pi} half of the wordmark: the theme's muted colour at full strength, not dimmed. It shares the accent
+     * half's weight because both halves are the name; dimming it put the first half of the product's name below WCAG
+     * AA on the light themes (3.24:1 on gruvbox-light) and read as a prefix rather than as part of a word.
+     */
+    public String bannerRoot = "bold;#808080";
     public String cwdLine = "dim;bright_black";
     public String bashMode = "#00FF66";
     public String thinkingText = "dim;#7AA6B8";
@@ -313,6 +319,7 @@ public class AnsiTheme {
         t.statusBar = color(c, vars, "dim", t.statusBar);
         t.statusWarn = styledColor(c, vars, "warning", t.statusWarn);
         t.bannerName = styledColor(c, vars, "accent", t.bannerName);
+        t.bannerRoot = styledColor(c, vars, "muted", t.bannerRoot);
         t.bannerMeta = styledColor(c, vars, "muted", t.bannerMeta);
         t.cwdLine = color(c, vars, "dim", t.cwdLine);
         t.commandMeta = color(c, vars, "secondary", color(c, vars, "muted", t.commandMeta)); // status bar / tool meta

@@ -913,7 +913,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * string and tells the lineage without a sentence about it.
      */
     private String wordmark() {
-        return theme.styled("bannerMeta", "pi") + theme.styled("bannerName", "jota");
+        return theme.styled("bannerRoot", "pi") + theme.styled("bannerName", "jota");
     }
 
     private void appendStartupGreeting(String version, String cwd) {
