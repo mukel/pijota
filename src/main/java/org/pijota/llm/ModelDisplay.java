@@ -30,8 +30,14 @@ public final class ModelDisplay {
         return "$" + trimPrice(model.inputCostPerMTok()) + "/$" + trimPrice(model.outputCostPerMTok()) + "/MTok";
     }
 
+    /**
+     * The facts about a model, most decisive first. Order is not cosmetic: a narrow terminal drops trailing facts (see
+     * {@code SelectorRegion.fitDetail}), so whatever sits last is what a small window loses. Price and context are how
+     * anyone actually chooses between two models; the modality list is almost always "text" and is the fact worth
+     * losing first.
+     */
     public static String summary(ModelInfo model) {
-        return "context " + context(model) + " · input " + modalities(model) + " · price " + pricing(model);
+        return "context " + context(model) + " · price " + pricing(model) + " · input " + modalities(model);
     }
 
     private static String trimPrice(double value) {

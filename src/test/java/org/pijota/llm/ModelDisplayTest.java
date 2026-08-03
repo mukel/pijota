@@ -40,4 +40,17 @@ class ModelDisplayTest {
         assertTrue(summary.contains("input image,text"), summary);
         assertTrue(summary.contains("price $1/$2/MTok"), summary);
     }
+
+    /**
+     * Most decisive fact first, because a narrow selector row drops from the end (SelectorRegion.fitDetail). Price used
+     * to be last, so a 100-column window showed every model as "context 976K · input text" -- the two facts you choose
+     * a model by reduced to one, and the survivor was the one that is "text" for almost every model.
+     */
+    @Test
+    void theFactALittleWindowLosesIsTheLeastUsefulOne() {
+        var summary = ModelDisplay.summary(new ModelInfo("m", "p", "M", 128_000, 1.0, 2.0, List.of("image")));
+
+        assertTrue(summary.indexOf("price") < summary.indexOf("input"), summary);
+        assertTrue(summary.indexOf("context") < summary.indexOf("price"), summary);
+    }
 }

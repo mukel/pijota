@@ -126,15 +126,31 @@ class PromptEditorTest {
         editor.insertText("/");
         assertEquals("help", editor.suggestion(), "the first row is selected, so it is the one ghosted");
 
-        editor.apply(Key.Special.DOWN);
-        editor.apply(Key.Special.DOWN);
+        // handleCompletionKey, not apply: ↓ drives the popup only while it is open, and apply() would move the
+        // buffer caret instead -- which is what made an earlier version of this test pass without testing anything.
+        assertTrue(editor.handleCompletionKey(Key.Special.DOWN));
+        assertTrue(editor.handleCompletionKey(Key.Special.DOWN));
 
         var shown = editor.snapshot();
         String selected = shown.completions().get(shown.selectedCompletion()).name();
-        assertEquals(selected, "/" + editor.suggestion(), "the ghost is exactly the highlighted row");
+        assertNotEquals("/help", selected, "the highlight really moved");
+        assertEquals(selected, "/" + editor.suggestion(), "and the ghost moved with it");
 
         editor.apply(Key.Special.RIGHT); // accepting the ghost must produce that same command
         assertEquals(selected, editor.text());
+    }
+
+    /** ↑ and the page keys move the same highlight, so they owe the ghost the same update. */
+    @Test
+    void everyWayOfMovingTheHighlightUpdatesTheGhost() {
+        editor.insertText("/");
+        editor.handleCompletionKey(Key.Special.PG_DOWN);
+        var afterPage = editor.snapshot();
+        assertEquals(afterPage.completions().get(afterPage.selectedCompletion()).name(), "/" + editor.suggestion());
+
+        editor.handleCompletionKey(Key.Special.UP);
+        var afterUp = editor.snapshot();
+        assertEquals(afterUp.completions().get(afterUp.selectedCompletion()).name(), "/" + editor.suggestion());
     }
 
     @Test

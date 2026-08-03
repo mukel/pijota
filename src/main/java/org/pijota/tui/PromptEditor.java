@@ -447,7 +447,7 @@ public final class PromptEditor {
     private String computeSuggestion() {
         if (!buffer.cursorAtEndOfBuffer())
             return "";
-        if (completions.active() && !reverseSearch) {
+        if (hasCompletions() && !reverseSearch) {
             var item = completions.selectedItem();
             String name = item == null ? "" : PromptCompletionPolicy.commandToken(item.name());
             return name.startsWith(text()) ? name.substring(text().length()) : "";
@@ -497,22 +497,32 @@ public final class PromptEditor {
             return true;
         }
         if (key == Key.Special.PG_UP) {
-            completions.selectPageUp();
+            moveSelection(completions::selectPageUp);
             return true;
         }
         if (key == Key.Special.PG_DOWN) {
-            completions.selectPageDown();
+            moveSelection(completions::selectPageDown);
             return true;
         }
         return false;
     }
 
     public void selectNext() {
-        completions.selectNext();
+        moveSelection(completions::selectNext);
     }
 
     public void selectPrev() {
-        completions.selectPrev();
+        moveSelection(completions::selectPrev);
+    }
+
+    /**
+     * Every way the highlight moves goes through here, because the ghost is derived from it. Moving the selection used
+     * to leave the cached ghost behind: arrowing to {@code /model} kept {@code /help} on the prompt, so the line said
+     * Enter would run one command while the list said another.
+     */
+    private synchronized void moveSelection(Runnable move) {
+        move.run();
+        suggestion = computeSuggestion();
     }
 
     public boolean isEmpty() {
