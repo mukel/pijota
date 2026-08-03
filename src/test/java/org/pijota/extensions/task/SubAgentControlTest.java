@@ -156,6 +156,27 @@ class SubAgentControlTest {
         assertFalse(tool.stoppedNames().contains("explore"), "the refusal outlived its turn");
     }
 
+    /**
+     * A child killed by a signal exits 128+n. That is the OOM killer's signature, and the model answered it by
+     * launching a replacement -- which the same OOM would kill again, unbounded, spending tokens the whole way.
+     */
+    @Test
+    void anAgentKilledByTheSystemIsNotRelaunchedInTheSameTurn() throws Exception {
+        var sub = new SubAgent("explore", "explore things", "", List.<String>of(), null, null);
+        var tool = new TaskTool(List.of(sub), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
+
+        // what the spawn does on exit 137 (128 + SIGKILL)
+        tool.stopFor("explore", "this sub-agent was killed by the system (SIGKILL, often the OOM killer). It will"
+                                        + " not be started again in this turn");
+
+        var refused = tool.execute("id", new org.pijota.tools.Tool.Args(
+                                        java.util.Map.of("agent", "explore", "description", "go")), ".").get();
+
+        assertTrue(refused.isError(), refused.content());
+        assertTrue(refused.content().contains("killed by the system"), refused.content());
+        assertTrue(refused.content().contains("OOM"), refused.content());
+    }
+
     /** Backgrounded means the jobs panel owns it; a row in both panels reports one process twice. */
     @Test
     void aBackgroundedAgentLeavesTheAgentPanel() {

@@ -162,6 +162,10 @@ public final class TaskTool implements Tool, Tool.Detachable {
      */
     private final Set<String> detachedLabels = ConcurrentHashMap.newKeySet();
 
+    /** Signals worth naming when a child dies by one; 9 is what the OOM killer sends. */
+    private static final Map<Integer, String> SIGNAL_NAMES = Map.of(9, "SIGKILL, often the OOM killer", 11, "SIGSEGV",
+                                    15, "SIGTERM", 6, "SIGABRT");
+
     private volatile CompletableFuture<ToolResult> inFlight; // the pending single-agent call, null for a batch
     private volatile Handoff handoff;
 
@@ -699,11 +703,29 @@ public final class TaskTool implements Tool, Tool.Detachable {
             }
             if (procResult.timedOut()) {
                 finish(label, false, 0);
+                // A stuck agent that is retried is stuck twice: ten minutes for the same answer. The task has to
+                // change, not be repeated.
+                stopFor(sub.name(), "this sub-agent hit its five-minute cap. It will not be started again in this"
+                                                + " turn -- retrying the same task would simply hang again. Narrow the"
+                                                + " task, do it directly, or tell the user.");
                 return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "timed out after 5 minutes" + stderrDetail);
             }
             if (procResult.exitCode() != 0) {
                 finish(label, false, 0);
+                // Killed by a signal (128 + n): the OOM killer, an external kill, a segfault. Not a transient fault
+                // worth retrying -- whatever killed it will kill the replacement too, and the model did relaunch it,
+                // silently, into what an OOM makes an unbounded loop. Refused for the turn, like a stop.
+                if (procResult.exitCode() >= 128) {
+                    String signal = SIGNAL_NAMES.getOrDefault(procResult.exitCode() - 128,
+                                                    "signal " + (procResult.exitCode() - 128));
+                    stopFor(sub.name(), "this sub-agent was killed by the system (" + signal + "). It will not be"
+                                                    + " started again in this turn: whatever killed it would very"
+                                                    + " likely kill a replacement. Continue without it, or tell the"
+                                                    + " user it was killed.");
+                    return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
+                                                    "killed by the system (" + signal + ")" + stderrDetail);
+                }
                 return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "exit code " + procResult.exitCode() + stderrDetail);
             }
