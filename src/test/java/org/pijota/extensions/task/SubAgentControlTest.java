@@ -206,6 +206,22 @@ class SubAgentControlTest {
                                         java.time.Duration.ofHours(1)));
     }
 
+    /**
+     * A sub-agent never gets sub-agents of its own. The depth cap was 2, which permitted exactly that -- verified
+     * against the real child, which listed "ls, read, task" among its tools. Each level multiplies fan-out and every
+     * leaf spends tokens, so a two-level batch of four is sixteen agents from one call.
+     */
+    @Test
+    void aSubAgentGetsNoTaskToolOfItsOwn() throws Exception {
+        var registry = new org.pijota.tools.ToolRegistry();
+        var ctx = new org.pijota.extensions.HeadlessToolContext(java.util.List.of("task", "read"), 1, null, registry,
+                                        "", Path.of("."));
+
+        new TaskExtension().contributeHeadlessTools(ctx);
+
+        assertFalse(registry.activeToolNames().contains("task"), "a sub-agent was handed a task tool");
+    }
+
     /** Backgrounded means the jobs panel owns it; a row in both panels reports one process twice. */
     @Test
     void aBackgroundedAgentLeavesTheAgentPanel() {

@@ -36,6 +36,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public final class TaskTool implements Tool, Tool.Detachable {
+    private static final String NAME = "task";
     private static final int MAX_CONCURRENCY = 4;
     private static final int OUTPUT_PREVIEW_LINES = 12;
 
@@ -251,7 +252,7 @@ public final class TaskTool implements Tool, Tool.Detachable {
 
     @Override
     public String name() {
-        return "task";
+        return NAME;
     }
 
     @Override
@@ -583,6 +584,10 @@ public final class TaskTool implements Tool, Tool.Detachable {
             List<String> toolNames = new ArrayList<>();
             boolean allowAll = sub.tools() == null || sub.tools().isEmpty();
             for (var toolName : enabledToolNames.get()) {
+                // Never the task tool: a sub-agent does not get sub-agents. The child would refuse to register it
+                // anyway, but offering a tool it cannot have is a promise the interface should not make.
+                if (NAME.equals(toolName))
+                    continue;
                 if (allowAll || sub.tools().contains(toolName))
                     toolNames.add(toolName);
             }

@@ -23,7 +23,16 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class TaskExtension implements Extension {
-    private static final int MAX_SUBAGENT_DEPTH = 2;
+    /**
+     * How deep sub-agents may go: one level, so a sub-agent never gets a task tool of its own.
+     *
+     * <p>
+     * It was 2, which let a sub-agent spawn sub-agents -- verified, not theorised: a depth-1 child asked for its tools
+     * and answered "ls, read, task". Nesting works, and that is the problem. Each level multiplies the fan-out and
+     * every leaf spends tokens, so a two-level batch of four is sixteen agents from one tool call, with the cost
+     * invisible until the bill.
+     */
+    private static final int MAX_SUBAGENT_DEPTH = 1;
     private static final long DONE_LINGER_MS = 5000;
 
     record AgentState(String name, int toolCount, int lines, long tokens, String state, String lastTool, long startedAt,

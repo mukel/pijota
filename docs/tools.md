@@ -78,6 +78,9 @@ discard the other agents' results.
 A stopped agent stays stopped: it will not be started again for the rest of that turn,
 whatever the model decides.
 
+Sub-agents do not nest. A sub-agent gets no `task` tool, because each level multiplies
+fan-out and every leaf spends tokens: two levels of four is sixteen agents from one call.
+
 ## Read-only
 
 `--readonly` allows exactly:
