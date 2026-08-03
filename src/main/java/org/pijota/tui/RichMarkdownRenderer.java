@@ -105,8 +105,10 @@ final class RichMarkdownRenderer implements MarkdownRenderer {
                 for (StyledLine line : inner)
                     out.add(StyledLine.of(bar + line.text()));
         } else if (node instanceof ThematicBreak) {
-            // Same glyph, width, and colour as table divisions (the "hr" slot: soft grey, thin).
-            out.add(StyledLine.of(theme.styled("hr", "─".repeat(Math.max(3, width)))));
+            // Same glyph, width, and colour as table divisions (the "hr" slot: soft grey, thin), and one column short
+            // of the terminal for the same reason as PromptRegion.rule: a row that fills the last column is flagged
+            // wrapped, and this one lands in scrollback, where a later resize would split it permanently.
+            out.add(StyledLine.of(theme.styled("hr", "─".repeat(Math.max(3, width - 1)))));
         } else if (node instanceof TableBlock table) {
             out.addAll(MarkdownTableRenderer.renderTable(table, theme, width, true)); // table nested in a quote/list
         } else if (node instanceof FencedCodeBlock code) {

@@ -438,9 +438,20 @@ public final class PromptEditor {
         suggestion = computeSuggestion();
     }
 
+    /**
+     * The ghost after the caret. While the completion popup is open it must show the <em>selected</em> row and nothing
+     * else: the popup and the prompt are two views of one pending choice, and they were disagreeing. Typing {@code /}
+     * and pressing ↓ twice highlighted {@code /model} in the list while the prompt still read {@code /help}, so the
+     * line claimed Enter would run a command Enter would not run.
+     */
     private String computeSuggestion() {
         if (!buffer.cursorAtEndOfBuffer())
             return "";
+        if (completions.active() && !reverseSearch) {
+            var item = completions.selectedItem();
+            String name = item == null ? "" : PromptCompletionPolicy.commandToken(item.name());
+            return name.startsWith(text()) ? name.substring(text().length()) : "";
+        }
         if (text().isEmpty())
             return offered;
         return completionPolicy.commandSuggestion(text());

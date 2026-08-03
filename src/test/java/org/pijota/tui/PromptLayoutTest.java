@@ -37,28 +37,52 @@ class PromptLayoutTest {
                                         snapshot()));
     }
 
+    /**
+     * A rule stops one column short of the terminal, and that single column is load-bearing.
+     *
+     * <p>
+     * A row that fills the last column is flagged "wrapped" by the terminal, and a wrapped row is re-flowed when the
+     * window narrows: the rule comes back as a full row plus a stub, everything below it shifts, and the frame's
+     * re-anchor lands on the wrong line. Dragging a window edge by one column used to leave two rules stacked above the
+     * prompt and blank rows threaded through output already on screen -- scrollback damage the frame cannot repair,
+     * because it sits behind the anchor. Reproducible without pijota: print 100 ─ in a 100-column tmux pane and resize
+     * to 99; it returns as 99 + 1. Print 99 and it survives.
+     */
     @Test
-    void promptRulesSpanTheFullTerminalWidth() {
+    void promptRulesStopOneColumnShortSoAResizeCannotSplitThem() {
         var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
 
         String rendered = render(layout, 20, snapshot());
 
         var lines = rendered.lines().filter(line -> line.indexOf('─') >= 0).toList();
         assertEquals(2, lines.size(), rendered);
-        assertTrue(lines.stream().allMatch(line -> AnsiWidth.visibleWidth(line) == 20), rendered);
+        assertTrue(lines.stream().allMatch(line -> AnsiWidth.visibleWidth(line) == 19), rendered);
     }
 
     @Test
-    void promptRulesNeverExceedTheTerminalWidth() {
+    void promptRulesNeverReachTheLastColumnEvenWhenAbsurdlyNarrow() {
         var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
 
         String rendered = render(layout, 4, snapshot());
 
         // A rule wider than the terminal would auto-wrap onto an extra physical row the frame never composed, the
-        // classic source of a one-row drift on every redraw. Even absurdly narrow terminals get exact-width rules.
+        // classic source of a one-row drift on every redraw. The floor is one column, never zero.
         var lines = rendered.lines().filter(line -> line.indexOf('─') >= 0).toList();
         assertEquals(2, lines.size(), rendered);
-        assertTrue(lines.stream().allMatch(line -> AnsiWidth.visibleWidth(line) == 4), rendered);
+        assertTrue(lines.stream().allMatch(line -> AnsiWidth.visibleWidth(line) == 3), rendered);
+    }
+
+    /** The invariant the two tests above protect, stated once over the whole composed frame. */
+    @Test
+    void noComposedRowEverFillsTheLastColumn() {
+        var layout = new PromptLayout(List.of(new PromptRegion.Editor()));
+
+        for (int width : new int[] {4, 20, 80, 100, 213}) {
+            String rendered = render(layout, width, snapshot());
+            for (String line : rendered.lines().toList())
+                assertTrue(AnsiWidth.visibleWidth(line) < width,
+                                                "row fills the last column at width " + width + ": " + line);
+        }
     }
 
     @Test

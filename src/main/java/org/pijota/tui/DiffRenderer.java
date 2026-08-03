@@ -88,7 +88,9 @@ final class DiffRenderer {
         // three that mean "removed". The rule is drawn with ─, the same glyph as every other rule in the UI.
         String text = theme.styled("diffHeader", action + " " + name) + "  " + theme.styled("diffAdd", "+" + added)
                                         + " " + theme.styled("diffDelete", "-" + deleted) + " ";
-        int fill = Math.max(MIN_RULE, width - AnsiWidth.visibleWidth(text));
+        // width - 1: a header that fills the last column is flagged wrapped, and a later resize splits it in the
+        // scrollback it already landed in. See PromptRegion.rule.
+        int fill = Math.max(MIN_RULE, width - 1 - AnsiWidth.visibleWidth(text));
         return text + theme.styled("diffMeta", "─".repeat(fill));
     }
 

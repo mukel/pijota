@@ -38,8 +38,23 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
         return ctx.promptState() == PromptSnapshot.PromptState.ERROR ? "toolError" : "hr";
     }
 
+    /**
+     * A horizontal rule, deliberately one column short of the terminal.
+     *
+     * <p>
+     * A row that fills the last column is marked "wrapped" by the terminal, and a wrapped row is re-flowed when the
+     * window narrows: the rule splits into a full row plus a stub, every row below it shifts, and the frame's own
+     * re-anchor lands on the wrong line. What the user sees after dragging a window edge is two rules stacked above the
+     * prompt and blank rows threaded through output that was already on screen -- damage to scrollback the frame can
+     * never repair, because it is behind the anchor.
+     *
+     * <p>
+     * Reproducible without pijota: print 100 {@code ─} in a 100-column tmux pane, resize to 99, and the line comes back
+     * as 99 + 1. Print 99 in that same pane and it survives untouched. One column is the whole difference, and the gap
+     * it leaves at the right edge is invisible next to what it prevents.
+     */
     static String rule(int width) {
-        return "─".repeat(Math.max(1, width));
+        return "─".repeat(Math.max(1, width - 1));
     }
 
     /**

@@ -116,6 +116,27 @@ class PromptEditorTest {
         assertEquals("/model", editor.text());
     }
 
+    /**
+     * Regression: the popup and the ghost are two views of one pending choice and they disagreed. Typing {@code /} and
+     * arrowing down highlighted {@code /model} in the list while the prompt still ghosted {@code /help}, so the line
+     * claimed Enter would run a command Enter would not run.
+     */
+    @Test
+    void theGhostFollowsTheHighlightedCompletion() {
+        editor.insertText("/");
+        assertEquals("help", editor.suggestion(), "the first row is selected, so it is the one ghosted");
+
+        editor.apply(Key.Special.DOWN);
+        editor.apply(Key.Special.DOWN);
+
+        var shown = editor.snapshot();
+        String selected = shown.completions().get(shown.selectedCompletion()).name();
+        assertEquals(selected, "/" + editor.suggestion(), "the ghost is exactly the highlighted row");
+
+        editor.apply(Key.Special.RIGHT); // accepting the ghost must produce that same command
+        assertEquals(selected, editor.text());
+    }
+
     @Test
     void endKeyAtEndAlsoAcceptsTheGhostSuggestion() {
         editor.insertText("/mod");

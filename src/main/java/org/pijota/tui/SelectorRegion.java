@@ -47,7 +47,7 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
             // glyphs across models, themes and the tree), and the model one pushed that row's provider out of line.
             String marker = item.selected() ? theme.styled("prompt", "● ") : "  ";
             String tail = " ".repeat(Math.max(0, maxTitle - title.length() + 2)) + marker
-                                            + AnsiWidth.truncateVisual(item.detailText(), detailWidth);
+                                            + fitDetail(item.detailText(), detailWidth);
             if (i == sel) {
                 rows.add(theme.styled("prompt", "› ") + highlight(theme, title, "heading", match)
                                                 + theme.styled("statusText", tail));
@@ -61,6 +61,38 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
         rows.add(TuiCopy.footer(theme, (sel + 1) + "/" + total, TuiCopy.SELECTOR_HINT));
         return Body.of(rows);
+    }
+
+    /**
+     * A row's detail, narrowed to {@code room} by dropping whole facts rather than slicing through one.
+     *
+     * <p>
+     * Every selector writes its detail as {@code fact · fact · fact}, so the separator is where a cut belongs. A plain
+     * visual truncation cut wherever the column ran out, and at 100 columns the model list read
+     * {@code context 976K · input text · price $0.14/$} on every row -- a severed number, which does not look narrow,
+     * it looks broken. Dropping the last fact instead leaves a shorter row that is still entirely true.
+     *
+     * <p>
+     * The first fact is the one exception: if even it does not fit there is nothing to drop, so it is cut and marked
+     * with an ellipsis, which at least says so.
+     */
+    static String fitDetail(String detail, int room) {
+        if (detail == null || room <= 0)
+            return "";
+        if (AnsiWidth.visibleWidth(detail) <= room)
+            return detail;
+        String[] facts = detail.split(" · ", -1);
+        var kept = new StringBuilder(facts[0]);
+        for (int i = 1; i < facts.length; i++) {
+            String next = kept + " · " + facts[i];
+            if (AnsiWidth.visibleWidth(next) > room)
+                break;
+            kept.setLength(0);
+            kept.append(next);
+        }
+        return AnsiWidth.visibleWidth(kept.toString()) <= room
+                                        ? kept.toString()
+                                        : AnsiWidth.truncateVisual(facts[0], Math.max(1, room - 1)) + "…";
     }
 
     private int maxVisibleTitle() {
