@@ -18,7 +18,6 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -73,18 +72,14 @@ public final class TaskTool implements Tool, Tool.Detachable {
      */
     @Override
     public void abort() {
-        stopAll(running);
-    }
-
-    private void stopAll(Collection<Child> children) {
-        for (Child c : children) {
+        for (Child c : running) {
             stopFor(c.name(), "you stopped this sub-agent. It will not be started again in this turn;"
                                             + " continue without it or ask the user");
             // the agent's own children first: its bash, its browser
             c.process().descendants().forEach(ProcessHandle::destroy);
             c.process().destroy();
         }
-        running.removeAll(children instanceof Set<Child> s ? s : Set.copyOf(children));
+        running.clear();
     }
 
     /** Test seam: replace the real process-spawning runner with a fake one. */
@@ -103,7 +98,7 @@ public final class TaskTool implements Tool, Tool.Detachable {
     private final Set<Child> running = ConcurrentHashMap.newKeySet();
 
     /** A live sub-agent process together with the name it is shown under, so it can be stopped by that name. */
-    private record Child(String name, Process process) {
+    private record Child(String name, Process process, CompletableFuture<Void> detachSignal, Feed feed) {
     }
 
     /**
@@ -155,10 +150,6 @@ public final class TaskTool implements Tool, Tool.Detachable {
         }
     }
 
-    /** The single running child that can be handed off, published by spawnAgent for {@link #detach()}. */
-    private record Handoff(Process process, CompletableFuture<Void> signal, Feed feed, String label) {
-    }
-
     /**
      * Agents handed to the job registry: their events still flow, but they are no longer the agent panel's business.
      */
@@ -169,7 +160,6 @@ public final class TaskTool implements Tool, Tool.Detachable {
                                     15, "SIGTERM", 6, "SIGABRT");
 
     private volatile CompletableFuture<ToolResult> inFlight; // the pending single-agent call, null for a batch
-    private volatile Handoff handoff;
 
     /**
      * Hands a running sub-agent to the background, exactly as a running bash command is handed over: the pending call
@@ -186,25 +176,26 @@ public final class TaskTool implements Tool, Tool.Detachable {
      */
     @Override
     public Optional<Tool.DetachedProcess> detach() {
-        var live = handoff;
         var future = inFlight;
-        if (live == null || future == null || future.isDone() || !live.process().isAlive() || running.size() != 1)
+        // Exactly one: a batch has siblings whose results completing the call would discard, and inFlight is null for
+        // one anyway. Reading the child straight out of `running` keeps a single record of a running child.
+        var live = running.size() == 1 ? running.iterator().next() : null;
+        if (live == null || future == null || future.isDone() || !live.process().isAlive())
             return Optional.empty();
-        handoff = null;
         // abort() must no longer reach it: once adopted, Esc ends the turn, not the job the user just backgrounded
-        running.removeIf(c -> c.process() == live.process());
+        running.remove(live);
         // The child keeps streaming events through the same consumer, and every one of them used to revive the status
         // row -- so the same process showed as a running agent and a running job at once. The panel lets go here.
-        fireActivity(live.label(), "detached");
-        detachedLabels.add(live.label());
+        fireActivity(live.name(), "detached");
+        detachedLabels.add(live.name());
         // The model answered a hand-off by launching a fresh copy, doubling the spend the user had just chosen to
         // defer. Backgrounding it is not a reason to start another one.
-        stopFor(live.label(), "you moved this sub-agent to the background; it is still running and its result will"
+        stopFor(live.name(), "you moved this sub-agent to the background; it is still running and its result will"
                                         + " be delivered when it finishes. Do not start another one.");
-        return Optional.of(new Tool.DetachedProcess(live.process(), "task:" + live.label(), live.feed()::switchAndDrain,
+        return Optional.of(new Tool.DetachedProcess(live.process(), "task:" + live.name(), live.feed()::switchAndDrain,
                                         result -> {
                                             future.complete(result);
-                                            live.signal().complete(null); // lets ProcessRunner return without killing
+                                            live.detachSignal().complete(null); // ProcessRunner returns, no kill
                                         }));
     }
 
@@ -650,7 +641,7 @@ public final class TaskTool implements Tool, Tool.Detachable {
                                                                                 logFile.toString(), resultHolder,
                                                                                 toolCount))
                                                 .detachSignal(detachSignal).onStart(proc -> {
-                                                    var c = new Child(label, proc);
+                                                    var c = new Child(label, proc, detachSignal, feed);
                                                     child.set(c);
                                                     running.add(c);
                                                     // One list of running processes: a sub-agent is one of them from
@@ -661,10 +652,6 @@ public final class TaskTool implements Tool, Tool.Detachable {
                                                         jobId[0] = jobs.register(proc, "task:" + label, null);
                                                         fireActivity(label, "job: " + jobId[0]);
                                                     }
-                                                    // Only a lone agent under a single-mode call can be handed off;
-                                                    // for a batch inFlight is null and detach() declines.
-                                                    if (inFlight != null && running.size() == 1)
-                                                        handoff = new Handoff(proc, detachSignal, feed, label);
                                                 }).captureStderr(true).run();
             } finally {
                 Child started = child.get();
