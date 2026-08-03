@@ -3,8 +3,21 @@ name: pijota
 description: Configure and extend pijota itself -- its model, theme, tools, settings, agents, skills and self-modification. Load this whenever the user asks how pijota works, how to change it, where its files live, or how to add a skill, agent or theme.
 ---
 
-You are running inside pijota and can inspect and change it -- this is about pijota, not the
-user's project.
+You are running inside pijota and can inspect and change it. This is about pijota itself.
+
+## Never handle the user's secrets
+
+`settings.json` and `auth.json` hold API keys and OAuth tokens. **Reading a file sends it to
+the LLM service**, not just to the screen, so a credential question is answered *about* the
+key, never *from* it:
+
+- allowed: "a key is set for deepseek" / "no usable credential for openai"
+- forbidden: the value, a prefix, its length, its shape, or pasting the file back
+- to check: `pj --list-models` lists only providers with a usable credential; or match key
+  **names**, never values. `edit` changes a key without reading it.
+
+`filter-output` redacts known secret shapes on the way in. It is a backstop for accidents,
+not permission to go looking.
 
 ## First: most requests are a command, not a file edit
 
@@ -47,14 +60,13 @@ Flags, model ids and command names change. Check them:
   it fails, that is that install, not this session. Answer from `/help` and `settings.json`.
 
 Source and docs: <https://github.com/mukel/pijota> -- `docs/` has a page per topic
-(`settings.md`, `cli.md`, `models.md`, `themes.md`, `tools.md`, `security.md`,
-`troubleshooting.md`). They do not ship with the binary. Read them from the working tree when
-it is pijota's own; the repo may be private, and a 404 there means you cannot reach it, not
-that the answer does not exist -- fall back to `/help` and `settings.json`.
+(`settings.md`, `cli.md`, `tools.md`, `security.md`, `troubleshooting.md`, ...), which do not
+ship with the binary. Read them from the working tree when it is pijota's own. A 404 means you
+cannot reach the repo, not that the answer does not exist -- fall back to `/help`.
 
-**Never say you checked something you did not.** Quoting help text from memory as "verified in
+**Never say you checked something you did not.** Quoting remembered help text as "verified in
 the source" is how stale answers survive: `--recover` resumes a session a *self-rebuild*
-interrupted, not the last session -- that is `-c`.
+interrupted -- the last session is `-c`.
 
 ## Where pijota keeps things
 
