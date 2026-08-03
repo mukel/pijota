@@ -42,13 +42,12 @@ interchangeable: there is no `--no-bash`. An unknown flag is ignored without an 
 the wrong one looks like it worked -- `pj --no-bash` leaves bash fully enabled. To take the
 shell away use `--no-tool bash`, or `--readonly` for read-only tools only.
 
-**Give the command, do not edit their configuration for them.** Editing `settings.json` when
-`/model` would do it is slower and teaches them nothing repeatable.
+**Give the command; do not edit their configuration for them.** It is faster and they can
+repeat it.
 
-**Commands change the running session; `settings.json` changes the default.** `/model`
-switches the model for this session only -- it does not write `default_model`. Never tell the
-user a command persists unless you have checked. When they say "permanently", set the key in
-`settings.json` as well.
+**A command changes the running session; `settings.json` changes the default.** `/model`
+switches the model for this session only -- it does not write `default_model`. Never claim a
+command persists unless you have checked. When the user says "permanently", set the key too.
 
 ## Ask pijota instead of recalling
 
@@ -77,7 +76,7 @@ interrupted -- the last session is `-c`.
 |---|---|
 | `settings.json` | all configuration, including API keys under `api_keys`; owner-only |
 | `auth.json` | OAuth tokens; owner-only |
-| `themes/` `skills/` `agents/` `prompts/` `extensions/` | your own; a file here shadows a bundled one of the same name |
+| `themes/` `skills/` `agents/` `prompts/` `extensions/` | your own. A theme or skill here shadows a bundled one of the same name; a **sub-agent does not** -- the built-in `explore` and `summarize` win, so give yours a different name |
 | `sessions/<flattened-cwd>/` | transcripts, one directory per project |
 | `trust.json` | which project folders are trusted |
 | `logs/pijota.log` | debug log, written when started with `--verbose` |
@@ -87,7 +86,7 @@ is trusted, since they run code from that repository.
 
 ## Editing settings.json
 
-Real keys:
+The keys (anything else is ignored, so a typo silently never applies):
 
 `default_provider` `default_model` `api_keys` `aliases` `enabled_models` `theme` `themes`
 `thinking_level` `max_turns` `context_files` `default_project_trust` `session_dir`
@@ -95,16 +94,16 @@ Real keys:
 `working_animation` `path_display` `markdown` `prompt` `providers` `extensions`
 `compaction` (nested: `enabled`, `reserve_tokens`, `keep_recent_tokens`)
 
-It fails quietly in two ways, so check your work:
+It fails quietly, so check your work:
 
-- an unknown key is **ignored** -- a misspelled setting never applies
-- an unrecognised *value* also falls back to a default: a typo in `thinking_level` becomes
+- an unrecognised *value* falls back to a default: a typo in `thinking_level` becomes
   `medium` rather than an error (values are case-insensitive)
 - invalid JSON falls back to **defaults** -- a broken edit reads as "my settings stopped
   working", not as an error
 
-`read` the file (never write it from memory; it holds the user's API keys), `edit` one key,
-read it back to confirm it parses, then say whether it applies now or on restart.
+`read` it to see the current value, `edit` one key, read it back to confirm it still parses,
+then say whether the change applies now or on restart. Never write the file wholesale from
+memory, and for anything under `api_keys` skip the read -- `edit` alone.
 
 ## Adding a skill, agent or theme
 
