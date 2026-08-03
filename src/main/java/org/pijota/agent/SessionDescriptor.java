@@ -75,19 +75,28 @@ public record SessionDescriptor(Path path, String id, String description, boolea
                                         stats.estTokens());
     }
 
-    /** One-line label for a flat selector: description, message/token counts, and a relative age when known. */
+    /**
+     * One-line label for a flat selector: description, message/token counts, and a relative age when known.
+     *
+     * <p>
+     * Facts of one kind, joined the way the rest of the UI joins them. This is what every non-TUI frontend shows in its
+     * resume picker, so it has to read like the TUI's.
+     */
     public String label() {
         var sb = new StringBuilder(description);
-        // Skip counts for empty/unreadable sessions (0 msgs). They'd just read "(empty) · 0 msgs".
+        // Skip counts for empty/unreadable sessions (0 msgs). They'd just read "(empty) . 0 msgs".
         if (messageCount > 0) {
-            sb.append("  ·  ").append(Util.plural(messageCount, "msg"));
+            sb.append(CHIP).append(Util.plural(messageCount, "msg"));
             if (estTokens > 0)
-                sb.append("  ·  ~").append(formatTokens(estTokens));
+                sb.append(CHIP).append("~").append(formatTokens(estTokens));
         }
         if (mtime > 0)
-            sb.append("  ·  ").append(relativeAge());
+            sb.append(CHIP).append(relativeAge());
         return sb.toString();
     }
+
+    /** Joins facts of the same kind; two spaces would promise a column alignment these rows do not have. */
+    private static final String CHIP = " \u00b7 ";
 
     /** Rough token estimate from a character count (~4 chars per token), the project-wide heuristic. */
     public static long estimateTokens(long chars) {

@@ -4,9 +4,6 @@ import org.pijota.agent.SessionDescriptor;
 import org.pijota.util.Util;
 
 import java.nio.file.Path;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -15,9 +12,6 @@ import java.util.List;
  */
 public record SessionItem(Path path, String name, String description, long mtime, boolean named, int messageCount,
                                 long estTokens) implements SelectorItem {
-
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("MMM d HH:mm")
-                                    .withZone(ZoneId.systemDefault());
 
     public static List<SessionItem> fromPaths(List<Path> paths) {
         return of(SessionDescriptor.describeResumable(paths));
@@ -49,15 +43,22 @@ public record SessionItem(Path path, String name, String description, long mtime
     @Override
     public String detailText() {
         String age = SessionDescriptor.relativeAge(mtime); // single source for age formatting
-        String shortName = name.length() > 14 ? name.substring(0, 14) : name;
-        String date = mtime > 0 ? DATE.format(Instant.ofEpochMilli(mtime)) : "unknown";
+        // Marked, so a cut id cannot be mistaken for a whole one: a bare substring rendered "4e103344-6a49-", which
+        // looks exactly like a complete short id and is not one.
+        String shortName = Util.ellipsize(name, 14);
         // omit counts for empty/unreadable sessions (0 msgs)
         String counts = messageCount > 0
-                                        ? "  " + Util.plural(messageCount, "msg") + (estTokens > 0
-                                                                        ? "  ~" + SessionDescriptor.formatTokens(
-                                                                                                        estTokens)
+                                        ? TuiCopy.CHIP + Util.plural(messageCount, "msg") + (estTokens > 0
+                                                                        ? TuiCopy.CHIP + "~" + SessionDescriptor
+                                                                                                        .formatTokens(estTokens)
                                                                         : "")
                                         : "";
-        return age + "  " + date + counts + "  " + shortName;
+        // These are facts of one kind, not columns: ages and counts vary in width, so every row broke the alignment
+        // that two spaces promised. The launch banner's own session rows already read this way.
+        //
+        // No absolute date. It said the same thing as the relative age sitting next to it, and the width it cost was
+        // taken from the far end of the row -- where the session id lives, the one field here that is not repeated
+        // anywhere else and the one you need to pass to -s.
+        return age + counts + TuiCopy.CHIP + shortName;
     }
 }

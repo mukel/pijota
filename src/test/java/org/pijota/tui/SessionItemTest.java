@@ -89,6 +89,28 @@ class SessionItemTest {
         assertEquals("bar", item.titleText());
     }
 
+    /**
+     * The launch banner and the picker list the same sessions on the same screen. The banner joined its facts with " .
+     * " while the picker used two spaces, which reads as a column alignment the picker never had: ages and counts vary
+     * in width, so every row landed somewhere different.
+     */
+    @Test
+    void detailFieldsAreSeparatedNotFalselyAligned() {
+        long now = System.currentTimeMillis();
+        var rows = List.of(new SessionItem(Path.of("/tmp/a.jsonl"), "alpha", "d", now, false, 4, 99), new SessionItem(
+                                        Path.of("/tmp/b.jsonl"), "beta", "d", now - 2 * 60_000, false, 12, 3040));
+
+        for (var row : rows)
+            assertFalse(row.detailText().contains("  "), "a two-space gap promises columns these rows do not keep: "
+                                            + row.detailText());
+
+        // and the facts are all still there, joined the way the banner joins them
+        String detail = rows.get(0).detailText();
+        assertTrue(detail.contains("just now"), detail);
+        assertTrue(detail.contains("4 msgs"), detail);
+        assertTrue(detail.contains("alpha"), detail);
+    }
+
     @Test
     void detailTextAgesAndTruncatesName() {
         long now = System.currentTimeMillis();
@@ -108,8 +130,9 @@ class SessionItemTest {
         assertTrue(unknown.detailText().contains("unknown"));
 
         var longName = new SessionItem(Path.of("/tmp/a.jsonl"), "verylongsessionname", "d", now, false, 0, 0);
-        assertTrue(longName.detailText().contains("verylongsessio"));
         assertFalse(longName.detailText().contains("verylongsessionname"));
+        // marked, or a cut id reads as a whole one
+        assertTrue(longName.detailText().contains("\u2026"), longName.detailText());
     }
 
     @Test
