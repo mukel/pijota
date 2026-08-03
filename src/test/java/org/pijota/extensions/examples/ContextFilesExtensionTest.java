@@ -16,6 +16,26 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ContextFilesExtensionTest {
 
+    /**
+     * The hint used to name only AGENTS.md/CLAUDE.md and only appear when one existed, so a project whose resources are
+     * all under .pijota/ -- skills, agents, commands -- said nothing at all. They were skipped in silence, and silence
+     * reads as a missing feature rather than a decision the user made.
+     */
+    @Test
+    void theUntrustedHintNamesWhateverIsActuallyWithheld() {
+        assertTrue(ContextFilesExtension.untrustedHint(true, false).contains("AGENTS.md"));
+
+        String resourcesOnly = ContextFilesExtension.untrustedHint(false, true);
+        assertTrue(resourcesOnly.contains(".pijota/"), resourcesOnly);
+        assertTrue(resourcesOnly.contains("skills"), "it should say what is in there: " + resourcesOnly);
+
+        String both = ContextFilesExtension.untrustedHint(true, true);
+        assertTrue(both.contains(".pijota/") && both.contains("AGENTS.md"), both);
+
+        for (String hint : java.util.List.of(resourcesOnly, both, ContextFilesExtension.untrustedHint(true, false)))
+            assertTrue(hint.contains("/trust"), "every form must say how to fix it: " + hint);
+    }
+
     @Test
     void nameIsContextFiles() {
         var ext = new ContextFilesExtension("/cwd");

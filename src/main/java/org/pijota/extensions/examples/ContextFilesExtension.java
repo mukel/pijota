@@ -1,5 +1,6 @@
 package org.pijota.extensions.examples;
 
+import org.pijota.config.ProjectTrust;
 import org.pijota.config.TrustStore;
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
@@ -25,7 +26,22 @@ import java.util.List;
  */
 public final class ContextFilesExtension implements Extension {
 
-    private static final String UNTRUSTED_HINT = "🔒 untrusted project · /trust to load AGENTS.md/CLAUDE.md";
+    /**
+     * What an untrusted project is actually withholding.
+     *
+     * <p>
+     * The hint used to name only AGENTS.md/CLAUDE.md and only appear when one of those existed. A project whose
+     * resources are all under {@code .pijota/} -- skills, agents, commands -- therefore said nothing at all: they were
+     * skipped in silence, and their absence reads as a missing feature rather than a decision the user made.
+     */
+    static String untrustedHint(boolean hasContextFiles, boolean hasProjectResources) {
+        String what = hasContextFiles && hasProjectResources
+                                        ? ".pijota/ and AGENTS.md"
+                                        : hasProjectResources
+                                                                        ? ".pijota/ (skills, agents, commands)"
+                                                                        : "AGENTS.md/CLAUDE.md";
+        return "🔒 untrusted project · /trust to load " + what;
+    }
 
     private final String cwd;
     private final TrustStore trust;
@@ -68,8 +84,10 @@ public final class ContextFilesExtension implements Extension {
 
     @Override
     public void onReady(ExtensionRuntime runtime) {
-        if (!content.isBlank() && !trust.isTrusted(cwd))
-            runtime.setStatus("trust", UNTRUSTED_HINT);
+        boolean hasContextFiles = !content.isBlank();
+        boolean hasProjectResources = ProjectTrust.hasProtectedResources(cwd);
+        if ((hasContextFiles || hasProjectResources) && !trust.isTrusted(cwd))
+            runtime.setStatus("trust", untrustedHint(hasContextFiles, hasProjectResources));
     }
 
     private void handleTrust(String args) {
@@ -83,8 +101,9 @@ public final class ContextFilesExtension implements Extension {
                                                                             : " (context files present)"));
             case "revoke", "off" -> {
                 trust.revoke(cwd);
-                if (!content.isBlank())
-                    runtime.setStatus("trust", UNTRUSTED_HINT);
+                boolean resources = ProjectTrust.hasProtectedResources(cwd);
+                if (!content.isBlank() || resources)
+                    runtime.setStatus("trust", untrustedHint(!content.isBlank(), resources));
                 runtime.setStatus("Revoked trust for " + cwd);
             }
             default -> {
