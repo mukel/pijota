@@ -64,11 +64,12 @@ final class DialogHandler {
                                                     : " - " + opt.description();
                     lines.add(String.format("    %d) %s%s", j + 1, opt.label(), desc));
                 }
+                // No "(Esc cancel)": the footer says it live, in the interface's own chip grammar, so printing it
+                // here too put the same instruction on screen twice in two different styles. This line says what kind
+                // of answer is accepted, which the footer does not, and is what survives into the scrollback.
                 lines.add(host.styled("statusText", q.multiple()
-                                                ? "type numbers (comma-separated) or custom text (Esc cancel)"
-                                                : "type a number or custom text (Esc cancel)"));
-            } else {
-                lines.add(host.styled("statusText", "type your answer (Esc cancel)"));
+                                                ? "type numbers (comma-separated), or your own text"
+                                                : "type a number, or your own text"));
             }
         }
         host.appendPlain(lines);
