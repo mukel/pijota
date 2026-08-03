@@ -36,14 +36,15 @@
 
     <maven.compiler.release>21</maven.compiler.release>
 
-    <commonmark.version>0.28.0</commonmark.version>
-    <jackson.version>2.22.0</jackson.version>
-    <jline.version>4.2.1</jline.version>
-    <junit.version>6.1.0</junit.version>
-    <langchain4j.version>1.16.3</langchain4j.version>
+    <commonmark.version>0.29.0</commonmark.version>
+    <jackson.version>2.22.1</jackson.version>
+    <jline.version>4.3.1</jline.version>
+    <junit.version>6.1.2</junit.version>
+    <langchain4j.version>1.18.1</langchain4j.version>
     <slf4j.version>2.0.18</slf4j.version>
-    <!-- 2.1.0 is alpha-only; staying on the latest stable -->
-    <logback.version>1.5.34</logback.version>
+    <!-- logback 1.6.x still targets slf4j 2.0.18, so this pair stays consistent; slf4j 2.1.0 is
+         alpha-only, which is why slf4j.version does not move with it -->
+    <logback.version>1.6.1</logback.version>
 
     <!-- Collapse BrowserSession's settle/consent waits for the test suite (overridable: make test-live sets false so
          the real-browser @Tag("live") tests keep production timings). -->
@@ -444,7 +445,7 @@
           <plugin>
             <groupId>org.sonatype.central</groupId>
             <artifactId>central-publishing-maven-plugin</artifactId>
-            <version>0.9.0</version>
+            <version>0.11.0</version>
             <extensions>true</extensions>
             <configuration>
               <publishingServerId>central</publishingServerId>
@@ -523,6 +524,9 @@
           <plugin>
             <groupId>org.graalvm.buildtools</groupId>
             <artifactId>native-maven-plugin</artifactId>
+            <!-- Held at 1.1.2: 1.1.6 fails at native-image time on this Maven with
+                 NoClassDefFoundError org/apache/maven/shared/utils/logging/MessageUtils, so the release artifact
+                 cannot be built with it. Revisit when the plugin stops assuming maven-shared-utils is provided. -->
             <version>1.1.2</version>
             <extensions>true</extensions>
             <configuration>

@@ -18,6 +18,7 @@ A provider key in the environment works without `login`.
 ## Configuration
 
 - [Command line](./cli.md): flags, subcommands, standalone commands.
+- [Frontends](./frontends.md): terminal, web, Telegram, editor, pipes.
 - [Slash commands](./commands.md): everything you can type after `/`.
 - [Tools](./tools.md): what the model can do, and how to narrow it.
 - [Settings](./settings.md): `settings.json`, key by key.
