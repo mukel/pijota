@@ -18,7 +18,12 @@ user's project.
 | to know what is in context | `/context` |
 | to shrink the context | `/compact` |
 | fewer tools this run | `--readonly`, or `--tool <name>` / `--no-tool <name>` (repeatable) |
-| an extension off this run | `--no-<name>`, e.g. `--no-jobs` |
+| an extension off this run | `--no-<extension>`, e.g. `--no-jobs` |
+
+**`--no-tool <name>` turns off a tool; `--no-<name>` turns off an extension.** They are not
+interchangeable: there is no `--no-bash`. An unknown flag is ignored without an error, so
+the wrong one looks like it worked -- `pj --no-bash` leaves bash fully enabled. To take the
+shell away use `--no-tool bash`, or `--readonly` for read-only tools only.
 
 **Give the command, do not edit their configuration for them.** Editing `settings.json` when
 `/model` would do it is slower and teaches them nothing repeatable.
@@ -32,10 +37,14 @@ user a command persists unless you have checked. When they say "permanently", se
 
 Flags, model ids and command names change. Check them:
 
-- `pj --help` -- every flag
-- `pj --list-models` -- models you can actually reach (only providers with a usable credential)
 - `/help` -- every command
 - `/context` -- what is in context, including how many tool schemas are really being sent
+- `pj --help` -- every flag
+- `pj --list-models` -- models you can actually reach (only providers with a usable credential)
+
+Prefer the two in-process ones: they always work. `pj` may be absent from PATH or a stale
+wrapper from an older install, and if it fails, that is that install, not pijota -- you are
+running inside a working one. Say so, and answer from `/help` and `settings.json` instead.
 
 In pijota's own source tree, `docs/` has a page per topic (`settings.md`, `cli.md`,
 `models.md`, `themes.md`, `tools.md`, `security.md`, `troubleshooting.md`). They do not ship
@@ -70,6 +79,8 @@ Real keys:
 It fails quietly in two ways, so check your work:
 
 - an unknown key is **ignored** -- a misspelled setting never applies
+- an unrecognised *value* also falls back to a default: a typo in `thinking_level` becomes
+  `medium` rather than an error (values are case-insensitive)
 - invalid JSON falls back to **defaults** -- a broken edit reads as "my settings stopped
   working", not as an error
 
