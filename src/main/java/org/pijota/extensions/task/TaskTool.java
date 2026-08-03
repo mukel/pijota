@@ -15,6 +15,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -933,9 +934,56 @@ public final class TaskTool implements Tool, Tool.Detachable {
         return Files.isDirectory(Path.of(dir, ".git"));
     }
 
+    /**
+     * Age past which a sub-agent worktree cannot belong to a live batch: a batch is capped at six minutes, so an hour
+     * is far past anything still in use, including another pijota running alongside this one.
+     */
+    private static final Duration WORKTREE_STALE_AFTER = Duration.ofHours(1);
+
+    /**
+     * Removes sub-agent worktrees left behind by a pijota that died mid-batch.
+     *
+     * <p>
+     * Cleanup lives in a {@code finally}, which covers every ending except the one that matters here: kill the process
+     * and the worktrees survive it. They are not merely files -- each stays registered in {@code git worktree list}, so
+     * the debris shows up in the user's own repository. Nothing swept them, so they accumulated for as long as the
+     * feature had been used.
+     */
+    public static int sweepStaleWorktrees(String repoCwd) {
+        return sweepStaleWorktrees(worktreeRoot(), Path.of(repoCwd), WORKTREE_STALE_AFTER);
+    }
+
+    static int sweepStaleWorktrees(Path root, Path repoCwd, Duration staleAfter) {
+        if (!Files.isDirectory(root))
+            return 0;
+        int removed = 0;
+        try (var entries = Files.newDirectoryStream(root, "wt-*")) {
+            for (Path wt : entries) {
+                long age = System.currentTimeMillis() - Files.getLastModifiedTime(wt).toMillis();
+                if (age < staleAfter.toMillis())
+                    continue; // young enough that a live batch could still own it
+                try {
+                    ProcessRunner.command("git", "worktree", "remove", "--force", wt.toString()).workDir(repoCwd)
+                                                    .discardStderr().timeout(10, TimeUnit.SECONDS).run();
+                } catch (Exception ignored) {}
+                try {
+                    deleteRecursive(wt);
+                } catch (IOException ignored) {}
+                removed++;
+            }
+        } catch (IOException ignored) {}
+        // Deliberately no "git worktree prune": it is global, and it pruned eleven transcendence worktrees that had
+        // nothing to do with sub-agents. "worktree remove --force" above already unregisters each path this swept.
+        return removed;
+    }
+
+    private static Path worktreeRoot() {
+        return Path.of(System.getProperty("java.io.tmpdir"), "pijota-worktrees");
+    }
+
     private Path createWorktree(String agentName, int idx) {
         try {
-            Path tmp = Path.of(System.getProperty("java.io.tmpdir"), "pijota-worktrees");
+            Path tmp = worktreeRoot();
             Files.createDirectories(tmp);
             Path wt = Files.createTempDirectory(tmp, "wt-" + idx + "-" + sanitize(agentName) + "-");
             var result = ProcessRunner.command("git", "worktree", "add", "--detach", wt.toString()).workDir(cwd)
@@ -958,7 +1006,7 @@ public final class TaskTool implements Tool, Tool.Detachable {
         } catch (IOException ignored) {}
     }
 
-    private void deleteRecursive(Path dir) throws IOException {
+    private static void deleteRecursive(Path dir) throws IOException {
         if (!Files.isDirectory(dir))
             return;
         try (var files = Files.list(dir)) {

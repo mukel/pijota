@@ -30,6 +30,7 @@ import org.pijota.extensions.prompts.PromptTemplateExtension;
 import org.pijota.extensions.skills.SkillExtension;
 import org.pijota.extensions.suggest.SuggestExtension;
 import org.pijota.extensions.task.TaskExtension;
+import org.pijota.extensions.task.TaskTool;
 import org.pijota.extensions.tmux.TmuxExtension;
 import org.pijota.extensions.transcend.TranscendenceExtension;
 import org.pijota.llm.LlmService;
@@ -137,6 +138,10 @@ public final class AppBootstrap {
         // on the declared default + settings + flags. (TranscendenceExtension is also JVM-only via its reason.)
         if (!parsedArgs.noExtensions() && !parsedArgs.noBuiltinExtensions()) {
             ext.register(new TaskExtension(jobRegistry));
+            // A pijota killed mid-batch leaves sub-agent worktrees behind, still registered in the user's own
+            // repository, and nothing else ever removes them. Off the startup path; wired here rather than in the
+            // extension because tests construct extensions freely and must not touch a real repo.
+            java.util.concurrent.CompletableFuture.runAsync(() -> TaskTool.sweepStaleWorktrees(cwd));
             ext.register(new PlanExtension());
             ext.register(new SuggestExtension()); // opt-in --suggest
             ext.register(new TranscendenceExtension()); // opt-in --transcendence

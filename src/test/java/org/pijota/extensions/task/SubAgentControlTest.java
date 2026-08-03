@@ -177,6 +177,35 @@ class SubAgentControlTest {
         assertTrue(refused.content().contains("OOM"), refused.content());
     }
 
+    /**
+     * Worktree cleanup lives in a finally, which covers every ending except the one that matters: kill the process and
+     * the worktrees survive it, still registered in the user's own {@code git worktree list}. Nothing swept them, so
+     * they accumulated for as long as the feature had been used -- 12MB and two stale registrations, on this machine.
+     */
+    @Test
+    void staleWorktreesAreSweptButLiveOnesAreLeftAlone(@TempDir Path root) throws Exception {
+        var stale = java.nio.file.Files.createDirectory(root.resolve("wt-0-explore-123"));
+        java.nio.file.Files.writeString(stale.resolve("file.txt"), "debris");
+        java.nio.file.Files.setLastModifiedTime(stale, java.nio.file.attribute.FileTime.fromMillis(
+                                        System.currentTimeMillis() - java.time.Duration.ofHours(3).toMillis()));
+        var live = java.nio.file.Files.createDirectory(root.resolve("wt-1-explore-456"));
+        var unrelated = java.nio.file.Files.createDirectory(root.resolve("not-a-worktree"));
+
+        int removed = TaskTool.sweepStaleWorktrees(root, Path.of("."), java.time.Duration.ofHours(1));
+
+        assertEquals(1, removed, "swept the wrong number");
+        assertFalse(java.nio.file.Files.exists(stale), "the stale worktree survived");
+        assertTrue(java.nio.file.Files.exists(live), "a worktree a live batch could still own was removed");
+        assertTrue(java.nio.file.Files.exists(unrelated), "swept something that is not a sub-agent worktree");
+    }
+
+    /** Nothing to sweep must be free: no git calls, no error, on a machine that has never used the feature. */
+    @Test
+    void sweepingIsANoOpWhenThereIsNothingThere(@TempDir Path root) {
+        assertEquals(0, TaskTool.sweepStaleWorktrees(root.resolve("absent"), Path.of("."),
+                                        java.time.Duration.ofHours(1)));
+    }
+
     /** Backgrounded means the jobs panel owns it; a row in both panels reports one process twice. */
     @Test
     void aBackgroundedAgentLeavesTheAgentPanel() {
