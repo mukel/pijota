@@ -53,7 +53,7 @@
     "toolDiffContext": "gray",
     "syntaxComment": "gray",
     "syntaxKeyword": "red",
-    "syntaxFunction": "green",
+    "syntaxFunction": "aqua",
     "syntaxVariable": "blue",
     "syntaxString": "green",
     "syntaxNumber": "purple",

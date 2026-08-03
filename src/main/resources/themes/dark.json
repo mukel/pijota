@@ -28,7 +28,6 @@
     "rampBlue": "#5f87af",
     "rampAqua": "#5cc0ae",
     "rampGreen": "#b6cf5e",
-    "rampAmber": "#f0c674",
     "rampRed": "#ff6a5f"
   },
   "colors": {
@@ -78,7 +77,7 @@
     "thinkingLow": "rampBlue",
     "thinkingMedium": "rampAqua",
     "thinkingHigh": "rampGreen",
-    "thinkingXhigh": "rampAmber",
+    "thinkingXhigh": "yellow",
     "thinkingMax": "rampRed",
     "bashMode": "green"
   },

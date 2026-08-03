@@ -149,6 +149,26 @@ class ThemeLegibilityTest {
         }
     }
 
+    /**
+     * Token kinds have to be told apart, which is the whole point of colouring them. Both gruvbox themes painted
+     * {@code syntaxFunction} and {@code syntaxString} the same green, so a string literal and the function it was
+     * passed to were indistinguishable in the one thing this tool renders most.
+     */
+    @Test
+    void syntaxColoursDoNotCollide() throws IOException {
+        var kinds = List.of("syntaxComment", "syntaxKeyword", "syntaxFunction", "syntaxVariable", "syntaxString",
+                                        "syntaxNumber", "syntaxType");
+        for (Theme theme : shipped()) {
+            var byColour = new java.util.LinkedHashMap<String, List<String>>();
+            for (String kind : kinds)
+                byColour.computeIfAbsent(theme.resolve(kind), ignored -> new ArrayList<>()).add(kind);
+
+            var collisions = byColour.entrySet().stream().filter(e -> e.getValue().size() > 1)
+                                            .map(e -> e.getValue() + " are all " + e.getKey()).toList();
+            assertTrue(collisions.isEmpty(), theme.name() + " cannot tell two token kinds apart: " + collisions);
+        }
+    }
+
     /** Seven levels, seven colours: two levels that look the same are one level as far as anyone can see. */
     @Test
     void everyThinkingLevelLooksDifferent() throws IOException {
