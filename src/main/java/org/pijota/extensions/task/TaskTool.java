@@ -125,6 +125,27 @@ public final class TaskTool implements Tool {
      */
     private final Set<String> userStopped = ConcurrentHashMap.newKeySet();
 
+    /**
+     * Display names currently in flight.
+     *
+     * <p>
+     * A parallel batch may launch the same agent twice -- two explores over different subtrees is the point of parallel
+     * mode -- and everything downstream is keyed by name: the status row, the log, stopping one. Sharing a name meant
+     * sharing all three, so two agents interleaved into one nonsense row and the first to finish marked the other done.
+     * The second gets "explore#2", which costs a suffix and makes each one individually addressable.
+     */
+    final Set<String> inFlightLabels = ConcurrentHashMap.newKeySet();
+
+    String allocateLabel(String base) { // package-private: the label contract is unit-tested directly
+        if (inFlightLabels.add(base))
+            return base;
+        for (int n = 2;; n++) {
+            String candidate = base + "#" + n;
+            if (inFlightLabels.add(candidate))
+                return candidate;
+        }
+    }
+
     public TaskTool(List<SubAgent> agents, LlmClient llm, Supplier<List<String>> enabledToolNames,
                                     Supplier<String> systemPrompt, BiConsumer<String, String> activityHandler,
                                     FinishHandler finishedHandler, Path cwd, int depth) {
@@ -412,6 +433,15 @@ public final class TaskTool implements Tool {
     }
 
     private SubAgentResult spawnAgent(SubAgent sub, String task, String workDir) {
+        String label = allocateLabel(sub.name());
+        try {
+            return spawnAgent(sub, label, task, workDir);
+        } finally {
+            inFlightLabels.remove(label);
+        }
+    }
+
+    private SubAgentResult spawnAgent(SubAgent sub, String label, String task, String workDir) {
         Path logFile;
         BufferedWriter logWriter;
         try {
@@ -425,12 +455,12 @@ public final class TaskTool implements Tool {
             String subPrompt = systemPrompt.get() + "\n\n# SUB-AGENT: " + sub.name() + "\n" + sub.systemPrompt()
                                             + "\n\n# TASK\n" + task;
 
-            logFile = createLogFile(sub.name());
+            logFile = createLogFile(label);
             logWriter = Files.newBufferedWriter(logFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            logWriter.write("─── " + sub.name() + " ───\n");
+            logWriter.write("─── " + label + " ───\n");
             logWriter.write("task: " + task + "\n\n");
             logWriter.flush();
-            fireActivity(sub.name(), "log: " + logFile);
+            fireActivity(label, "log: " + logFile);
 
             var taskJson = new LinkedHashMap<String, Object>();
             taskJson.put("description", task);
@@ -472,11 +502,11 @@ public final class TaskTool implements Tool {
             try {
                 procResult = ProcessRunner.command(procArgs).workDir(Path.of(workDir)).timeout(5, TimeUnit.MINUTES)
                                                 .feedStdin(Util.MAPPER.writeValueAsString(taskJson))
-                                                .consumeStdoutLines(line -> handleSubAgentEvent(line, sub.name(),
-                                                                                logWriter, logFile.toString(),
-                                                                                resultHolder, toolCount))
+                                                .consumeStdoutLines(line -> handleSubAgentEvent(line, label, logWriter,
+                                                                                logFile.toString(), resultHolder,
+                                                                                toolCount))
                                                 .onStart(proc -> {
-                                                    var c = new Child(sub.name(), proc);
+                                                    var c = new Child(label, proc);
                                                     child.set(c);
                                                     running.add(c);
                                                 }).captureStderr(true).run();
@@ -500,32 +530,32 @@ public final class TaskTool implements Tool {
                     result = new SubAgentResult(result.agent, result.output, result.exitCode, result.turns,
                                                     result.toolCount, result.logFile, result.error + stderrDetail);
                 }
-                saveArtifacts(logFile, sub.name(), task, result);
+                saveArtifacts(logFile, label, task, result);
                 return result;
             }
 
-            if (userStopped.remove(sub.name())) {
-                finish(sub.name(), false, 0);
-                return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),
+            if (userStopped.remove(label)) {
+                finish(label, false, 0);
+                return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "stopped by the user. Do not start it again unless asked to");
             }
             if (procResult.timedOut()) {
-                finish(sub.name(), false, 0);
-                return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),
+                finish(label, false, 0);
+                return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "timed out after 5 minutes" + stderrDetail);
             }
             if (procResult.exitCode() != 0) {
-                finish(sub.name(), false, 0);
-                return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),
+                finish(label, false, 0);
+                return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "exit code " + procResult.exitCode() + stderrDetail);
             }
-            finish(sub.name(), false, 0);
-            return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),
+            finish(label, false, 0);
+            return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
                                             "no done event received" + stderrDetail);
 
         } catch (Exception e) {
-            finish(sub.name(), false, 0);
-            return new SubAgentResult(sub.name(), "", 1, 0, 0, null,
+            finish(label, false, 0);
+            return new SubAgentResult(label, "", 1, 0, 0, null,
                                             e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
         }
     }

@@ -63,6 +63,9 @@ MCP servers add theirs under their own names; see [MCP](project-files.md#mcp-ser
 A stopped agent is reported to the model as your decision, not a crash, so it is not
 started again on its own.
 
+Launching the same agent twice at once suffixes the second: `explore`, `explore#2`. Each
+gets its own row, log and stop.
+
 ## Read-only
 
 `--readonly` allows exactly:

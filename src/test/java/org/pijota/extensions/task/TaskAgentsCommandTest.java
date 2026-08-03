@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -99,6 +100,57 @@ class TaskAgentsCommandTest {
 
         String row = extension.statusLines().stream().filter(l -> l.contains("explore")).findFirst().orElseThrow();
         assertTrue(row.contains("20K tokens"), "accrued spend was erased: " + row);
+    }
+
+    /**
+     * Two explores over different subtrees is the point of parallel mode, and every downstream key is the agent's name.
+     * Without a distinct label per run they share a status row, a log and a stop.
+     */
+    @Test
+    void concurrentAgentsOfTheSameKindGetDistinctLabels() {
+        var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
+
+        assertEquals("explore", tool.allocateLabel("explore"));
+        assertEquals("explore#2", tool.allocateLabel("explore"));
+        assertEquals("explore#3", tool.allocateLabel("explore"));
+        assertEquals("review", tool.allocateLabel("review"), "a different agent is unaffected");
+    }
+
+    /** Labels are released when the agent finishes, so a long session does not count up forever. */
+    @Test
+    void aLabelIsReusedOnceItsAgentHasFinished() {
+        var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
+
+        assertEquals("explore", tool.allocateLabel("explore"));
+        tool.inFlightLabels.remove("explore");
+        assertEquals("explore", tool.allocateLabel("explore"), "a finished label must become available again");
+    }
+
+    @Test
+    void labelsStayDistinctUnderConcurrentLaunches() throws Exception {
+        var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
+        int n = 64;
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var labels = java.util.concurrent.ConcurrentHashMap.<String>newKeySet();
+        var threads = new java.util.ArrayList<Thread>();
+        for (int i = 0; i < n; i++) {
+            var t = new Thread(() -> {
+                try {
+                    start.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                labels.add(tool.allocateLabel("explore"));
+            });
+            t.start();
+            threads.add(t);
+        }
+        start.countDown();
+        for (var t : threads)
+            t.join(10_000);
+
+        assertEquals(n, labels.size(), "a label was handed out twice: " + labels.size() + " distinct of " + n);
     }
 
     @Test
