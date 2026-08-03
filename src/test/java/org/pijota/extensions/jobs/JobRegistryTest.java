@@ -209,7 +209,9 @@ class JobRegistryTest {
     private static Drained drainUntilDone(JobRegistry jobs, String id) throws InterruptedException {
         var out = new StringBuilder();
         boolean truncated = false;
-        long deadline = System.currentTimeMillis() + 8000;
+        // Generous on purpose: the loop exits the moment the job is done, so the only thing this bounds is a hang.
+        // At 8s it failed once in a full run (four forked JVMs, a native build alongside) and never in isolation.
+        long deadline = System.currentTimeMillis() + 30_000;
         while (System.currentTimeMillis() < deadline) {
             var r = jobs.read(id);
             out.append(r.output());
