@@ -194,7 +194,7 @@ public final class McpExtension implements Extension {
             boolean up = state.connected();
             sb.append(up ? "  ✓ " : "  ✗ ").append(state.name);
             if (up)
-                sb.append("  ").append(state.toolNames.size()).append(" tool(s)");
+                sb.append("  ").append(Util.plural(state.toolNames.size(), "tool"));
             else if (state.error != null)
                 sb.append("  offline: ").append(state.error); // failed to connect
             else if (state.config != null && !state.config.enabled())

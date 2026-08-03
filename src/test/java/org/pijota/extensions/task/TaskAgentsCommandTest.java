@@ -153,6 +153,36 @@ class TaskAgentsCommandTest {
         assertEquals(n, labels.size(), "a label was handed out twice: " + labels.size() + " distinct of " + n);
     }
 
+    /**
+     * A sub-agent is a process under a tool call, the same shape as a bash command, so the same hand-off applies. It
+     * was never implemented: a five-minute agent held the turn with no way out but stopping it.
+     */
+    @Test
+    void theTaskToolAdvertisesItselfAsDetachable() {
+        var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
+        assertInstanceOf(org.pijota.tools.Tool.Detachable.class, tool,
+                                        "the TUI finds backgroundable tools by this interface alone");
+    }
+
+    /** Nothing running, nothing to hand off -- and never a half-built DetachedProcess. */
+    @Test
+    void detachDeclinesWhenNoAgentIsRunning() {
+        var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
+        assertTrue(tool.detach().isEmpty());
+    }
+
+    /** Backgrounded means the jobs panel owns it; a row in both panels reports one process twice. */
+    @Test
+    void aBackgroundedAgentLeavesTheAgentPanel() {
+        extension.onActivity("explore", "Read pom.xml");
+        extension.onActivity("explore", "tokens: 2000");
+        assertFalse(extension.statusLines().isEmpty(), "precondition: it is on screen");
+
+        extension.onActivity("explore", "detached");
+
+        assertTrue(extension.statusLines().isEmpty(), "the agent row outlived its hand-off to the job list");
+    }
+
     @Test
     void saysSoWhenThereIsNothingToList() {
         run("");

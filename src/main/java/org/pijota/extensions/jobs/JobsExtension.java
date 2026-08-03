@@ -189,6 +189,7 @@ public final class JobsExtension implements Extension {
                                         .boolParam("wait_for_completion",
                                                                         "Block until the job exits (max 120s); overrides timeout",
                                                                         false)
+                                        .resultRenderer((args, result, cwd) -> outputView(result))
                                         .run((args, cwd) -> readOutput(jobs, args));
     }
 
@@ -244,6 +245,20 @@ public final class JobsExtension implements Extension {
             body.append('\n');
         body.append(statusLine(read));
         return ToolResult.success(body.toString(), statusDetails(read));
+    }
+
+    /**
+     * A poll renders as what it is: how much arrived and whether the job is still going. The raw content is a slice of
+     * someone else's stream, so a card built from it showed mid-word fragments (", web server, and extension") that
+     * read as corruption. The output itself is still what the model receives.
+     */
+    static Tool.ToolResultView outputView(ToolResult result) {
+        var details = result.details();
+        String id = details.get("id") instanceof String s ? s : "job";
+        boolean running = Boolean.TRUE.equals(details.get("running"));
+        long lines = result.content() == null ? 0 : result.content().lines().count();
+        String state = running ? "still running" : "exited " + details.getOrDefault("exitCode", "?");
+        return Tool.ToolResultView.of(id + " · " + Util.plural(Math.max(0, lines - 1), "new line") + " · " + state);
     }
 
     private static String statusLine(JobRegistry.Read read) {

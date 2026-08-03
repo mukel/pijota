@@ -9,8 +9,8 @@ import org.pijota.util.Env;
 import org.pijota.util.ProcessRunner;
 import org.pijota.util.Util;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -21,6 +21,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,9 +30,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public final class TaskTool implements Tool {
+public final class TaskTool implements Tool, Tool.Detachable {
     private static final int MAX_CONCURRENCY = 4;
     private static final int OUTPUT_PREVIEW_LINES = 12;
 
@@ -124,6 +126,100 @@ public final class TaskTool implements Tool {
      * not a stop at all.
      */
     private final Set<String> userStopped = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Where a running sub-agent's rendered output goes: its own log file, and -- once the user backgrounds it -- the
+     * job that adopted it. Doubles as the hand-off buffer, so the switch loses nothing and duplicates nothing.
+     */
+    private static final class Feed extends Writer {
+        private static final int TAIL_CHARS = 200_000;
+        private final Writer log;
+        private final StringBuilder captured = new StringBuilder(); // guarded by this
+        private volatile Consumer<String> sink;
+
+        Feed(Writer log) {
+            this.log = log;
+        }
+
+        @Override
+        public void write(char[] cbuf, int off, int len) throws IOException {
+            log.write(cbuf, off, len);
+            String text = new String(cbuf, off, len);
+            Consumer<String> d;
+            synchronized (this) {
+                captured.append(text);
+                if (captured.length() > TAIL_CHARS)
+                    captured.delete(0, captured.length() - TAIL_CHARS);
+                d = sink; // read under the same lock as the write, so switchAndDrain sees a consistent world
+            }
+            if (d != null) {
+                try {
+                    d.accept(text);
+                } catch (Exception ignored) {}
+            }
+        }
+
+        @Override
+        public void flush() throws IOException {
+            log.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            log.close();
+        }
+
+        /** Atomically re-points the feed and returns everything written before the switch. */
+        synchronized String switchAndDrain(Consumer<String> next) {
+            this.sink = next;
+            return captured.toString();
+        }
+    }
+
+    /** The single running child that can be handed off, published by spawnAgent for {@link #detach()}. */
+    private record Handoff(Process process, CompletableFuture<Void> signal, Feed feed, String label) {
+    }
+
+    /**
+     * Agents handed to the job registry: their events still flow, but they are no longer the agent panel's business.
+     */
+    private final Set<String> detachedLabels = ConcurrentHashMap.newKeySet();
+
+    private volatile CompletableFuture<ToolResult> inFlight; // the pending single-agent call, null for a batch
+    private volatile Handoff handoff;
+
+    /**
+     * Hands a running sub-agent to the background, exactly as a running bash command is handed over: the pending call
+     * completes with the adopter's synthetic result, the process lives on as a job, and the turn resumes.
+     *
+     * <p>
+     * A sub-agent is a process under a tool call, so this was always the mechanism for it -- it simply was not
+     * implemented, and a five-minute agent held the turn hostage with no way out but stopping it.
+     *
+     * <p>
+     * Only a single agent can be handed off: {@link Tool.DetachedProcess} carries one process, and completing the call
+     * mid-batch would discard the siblings' results. A parallel batch reports nothing to background rather than
+     * abandoning work.
+     */
+    @Override
+    public Optional<Tool.DetachedProcess> detach() {
+        var live = handoff;
+        var future = inFlight;
+        if (live == null || future == null || future.isDone() || !live.process().isAlive() || running.size() != 1)
+            return Optional.empty();
+        handoff = null;
+        // abort() must no longer reach it: once adopted, Esc ends the turn, not the job the user just backgrounded
+        running.removeIf(c -> c.process() == live.process());
+        // The child keeps streaming events through the same consumer, and every one of them used to revive the status
+        // row -- so the same process showed as a running agent and a running job at once. The panel lets go here.
+        fireActivity(live.label(), "detached");
+        detachedLabels.add(live.label());
+        return Optional.of(new Tool.DetachedProcess(live.process(), "task:" + live.label(), live.feed()::switchAndDrain,
+                                        result -> {
+                                            future.complete(result);
+                                            live.signal().complete(null); // lets ProcessRunner return without killing
+                                        }));
+    }
 
     /**
      * Display names currently in flight.
@@ -255,20 +351,27 @@ public final class TaskTool implements Tool {
                                             .error("Sub-agent not found: " + name + ". Available: " + agentList()));
         }
 
-        SubAgentResult result = runAgent(agent.get(), description);
-        if (result.error != null) {
-            return CompletableFuture.completedFuture(new ToolResult(result.formattedOutput(), true,
-                                            detailsForResults("single", List.of(result))));
-        }
-
-        return CompletableFuture.completedFuture(ToolResult.success(result.formattedOutput(),
-                                        detailsForResults("single", List.of(result))));
+        // Pending, not pre-completed: the call is resolved by whichever comes first -- the agent finishing, or the
+        // user backgrounding it, whose synthetic result completes the same future. complete() makes the race safe.
+        var future = new CompletableFuture<ToolResult>();
+        inFlight = future;
+        CompletableFuture.runAsync(() -> {
+            SubAgentResult result = runAgent(agent.get(), description);
+            future.complete(result.error != null
+                                            ? new ToolResult(result.formattedOutput(), true,
+                                                                            detailsForResults("single", List.of(
+                                                                                                            result)))
+                                            : ToolResult.success(result.formattedOutput(), detailsForResults("single",
+                                                                            List.of(result))));
+        });
+        return future;
     }
 
     // --- parallel mode ---
 
     @SuppressWarnings("unchecked")
     private CompletableFuture<ToolResult> executeParallel(Map<String, Object> args) {
+        inFlight = null; // a batch cannot be handed off: one process per hand-off, and siblings would be abandoned
         List<Map<String, Object>> tasks = (List<Map<String, Object>>) args.get("tasks");
         if (tasks == null || tasks.isEmpty()) {
             return CompletableFuture.completedFuture(ToolResult.error("No tasks provided for parallel mode"));
@@ -341,8 +444,10 @@ public final class TaskTool implements Tool {
         sb.append("\n\n");
         for (var r : results) {
             String icon = r.exitCode == 0 ? "(ok)" : "(failed)";
-            sb.append("  ").append(r.agent).append(" ").append(icon).append("  ").append(r.turns).append(" turn(s)")
-                                            .append(", ").append(r.toolCount).append(" tool(s)\n");
+            // Turns and tools are facts of one kind, so they read like every other pair in the interface. They were
+            // comma-joined and spelled "turn(s)", two conventions this codebase uses nowhere else.
+            sb.append("  ").append(r.agent).append(" ").append(icon).append("  ").append(Util.plural(r.turns, "turn"))
+                                            .append(" \u00b7 ").append(Util.plural(r.toolCount, "tool")).append('\n');
         }
         sb.append("\n");
         for (var r : results) {
@@ -359,6 +464,7 @@ public final class TaskTool implements Tool {
 
     @SuppressWarnings("unchecked")
     private CompletableFuture<ToolResult> executeChain(Map<String, Object> args) {
+        inFlight = null; // a batch cannot be handed off: one process per hand-off, and siblings would be abandoned
         List<Map<String, Object>> chain = (List<Map<String, Object>>) args.get("chain");
         if (chain == null || chain.isEmpty()) {
             return CompletableFuture.completedFuture(ToolResult.error("No chain steps provided"));
@@ -443,7 +549,7 @@ public final class TaskTool implements Tool {
 
     private SubAgentResult spawnAgent(SubAgent sub, String label, String task, String workDir) {
         Path logFile;
-        BufferedWriter logWriter;
+        Feed logWriter;
         try {
             List<String> toolNames = new ArrayList<>();
             boolean allowAll = sub.tools() == null || sub.tools().isEmpty();
@@ -456,7 +562,8 @@ public final class TaskTool implements Tool {
                                             + "\n\n# TASK\n" + task;
 
             logFile = createLogFile(label);
-            logWriter = Files.newBufferedWriter(logFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            logWriter = new Feed(Files.newBufferedWriter(logFile, StandardOpenOption.CREATE,
+                                            StandardOpenOption.APPEND));
             logWriter.write("─── " + label + " ───\n");
             logWriter.write("task: " + task + "\n\n");
             logWriter.flush();
@@ -498,6 +605,8 @@ public final class TaskTool implements Tool {
             // Tracked only while it is alive: the set is what abort() reaches, so a finished agent must leave it or
             // a long session accumulates dead handles.
             var child = new AtomicReference<Child>();
+            var detachSignal = new CompletableFuture<Void>();
+            final Feed feed = logWriter;
             ProcessRunner.Result procResult;
             try {
                 procResult = ProcessRunner.command(procArgs).workDir(Path.of(workDir)).timeout(5, TimeUnit.MINUTES)
@@ -505,15 +614,26 @@ public final class TaskTool implements Tool {
                                                 .consumeStdoutLines(line -> handleSubAgentEvent(line, label, logWriter,
                                                                                 logFile.toString(), resultHolder,
                                                                                 toolCount))
-                                                .onStart(proc -> {
+                                                .detachSignal(detachSignal).onStart(proc -> {
                                                     var c = new Child(label, proc);
                                                     child.set(c);
                                                     running.add(c);
+                                                    // Only a lone agent under a single-mode call can be handed off;
+                                                    // for a batch inFlight is null and detach() declines.
+                                                    if (inFlight != null && running.size() == 1)
+                                                        handoff = new Handoff(proc, detachSignal, feed, label);
                                                 }).captureStderr(true).run();
             } finally {
                 Child started = child.get();
                 if (started != null)
                     running.remove(started);
+            }
+
+            if (detachSignal.isDone()) {
+                // The user backgrounded it. The adopter already resolved the call and keeps reading this same feed,
+                // so the log stays open and the row is already gone; nothing left to report.
+                detachedLabels.remove(label);
+                return new SubAgentResult(label, "", 0, 0, toolCount.get(), logFile.toString(), null);
             }
 
             logWriter.write("\n─── done ───\n");
@@ -561,7 +681,7 @@ public final class TaskTool implements Tool {
     }
 
     // package-private: the NDJSON event parsing is unit-tested directly (the surrounding spawn is integration-only)
-    void handleSubAgentEvent(String line, String agentName, BufferedWriter logWriter, String logFilePath,
+    void handleSubAgentEvent(String line, String agentName, Writer logWriter, String logFilePath,
                                     SubAgentResult[] resultHolder, AtomicInteger toolCount) {
         try {
             @SuppressWarnings("unchecked")
@@ -651,7 +771,7 @@ public final class TaskTool implements Tool {
     }
 
     private void fireActivity(String agent, String line) {
-        if (activityHandler != null)
+        if (activityHandler != null && !detachedLabels.contains(agent))
             activityHandler.accept(agent, line);
     }
 

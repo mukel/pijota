@@ -77,6 +77,10 @@ public final class TaskExtension implements Extension {
             String logPath = line.substring(5).strip();
             activeLogs.add(Path.of(logPath));
             agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withLog(logPath));
+        } else if (line.equals("detached")) {
+            // Backgrounded: it is a job now, and the jobs panel shows it. Leaving the row here too would report one
+            // process twice, in two vocabularies.
+            agentStates.remove(agent);
         } else if (line.startsWith("tokens: ")) {
             try {
                 long total = Long.parseLong(line.substring(8).strip());

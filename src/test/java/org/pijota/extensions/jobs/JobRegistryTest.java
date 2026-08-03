@@ -404,7 +404,20 @@ class JobRegistryTest {
         assertEquals(true, result.details().get("backgrounded"));
         assertTrue(result.content().contains("jobs_output(id=\"bg_7\")"));
         assertTrue(result.content().contains("line2"));
-        assertTrue(result.content().contains("Do not re-run"));
+        assertTrue(result.content().contains("Do not start it again"), result.content());
+    }
+
+    /**
+     * The old text said "poll new output with jobs_output", and the model did exactly that -- a read loop, one card per
+     * read, each a mid-sentence fragment. Backgrounding exists so nobody has to watch the thing, and a completion
+     * notice already arrives on its own.
+     */
+    @Test
+    void backgroundedResultDoesNotAskTheModelToPoll() {
+        String content = JobRegistry.backgroundedResult("bg_7", "line1\n").content().toLowerCase();
+        assertFalse(content.contains("poll new output"), content);
+        assertTrue(content.contains("do not call jobs_output"), content);
+        assertTrue(content.contains("delivered to you automatically"), content);
     }
 
     @Test

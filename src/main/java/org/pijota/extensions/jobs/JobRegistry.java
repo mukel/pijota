@@ -191,11 +191,17 @@ public final class JobRegistry {
 
     /** The synthetic result that resolves a backgrounded tool call, what the model sees instead of the output. */
     public static Tool.ToolResult backgroundedResult(String jobId, String outputSoFar) {
-        var content = new StringBuilder("Command moved to background by the user as job \"").append(jobId)
-                                        .append("\". It is still running. Poll new output with jobs_output(id=\"")
-                                        .append(jobId).append("\"); it blocks up to its timeout. Stop it with ")
-                                        .append("jobs_kill. Do not re-run the command.");
-        String tail = lastLines(outputSoFar, 30);
+        // No invitation to poll. This used to say "poll new output with jobs_output", and the model obeyed: it
+        // looped on jobs_output, printing a card per read, each one a mid-sentence fragment. Backgrounding exists so
+        // nobody has to watch the thing -- and a completion notice already arrives on its own, so the honest
+        // instruction is to carry on.
+        var content = new StringBuilder("Moved to the background by the user as job \"").append(jobId)
+                                        .append("\". It is still running, and its output will be delivered to you")
+                                        .append(" automatically when it finishes. Do not call jobs_output(id=\"")
+                                        .append(jobId).append("\") now -- it blocks, which is the very wait the user")
+                                        .append(" just chose to end. Do not start it again. Carry on with the rest of")
+                                        .append(" the work, or reply to the user. jobs_kill stops it.");
+        String tail = lastLines(outputSoFar, 10);
         if (!tail.isBlank())
             content.append("\nOutput so far:\n").append(tail);
         return Tool.ToolResult.success(content.toString(), Map.of("jobId", jobId, "backgrounded", true));
