@@ -3,7 +3,7 @@ name: pijota
 description: Configure and extend pijota itself -- its model, theme, tools, settings, agents, skills and self-modification. Load this whenever the user asks how pijota works, how to change it, where its files live, or how to add a skill, agent or theme.
 ---
 
-You are running inside pijota and can inspect and change it. This is about pijota, not the
+You are running inside pijota and can inspect and change it -- this is about pijota, not the
 user's project.
 
 ## First: most requests are a command, not a file edit
@@ -37,18 +37,16 @@ user a command persists unless you have checked. When they say "permanently", se
 
 Flags, model ids and command names change. Check them:
 
-- `/help` -- every command
-- `/context` -- what is in context, including how many tool schemas are really being sent
-- `pj --help` -- every flag
-- `pj --list-models` -- models you can actually reach (only providers with a usable credential)
+- `/help` -- every command; `/context` -- what is in context, and how many tool schemas are
+  really being sent. Both are in-process and always work.
+- `pj --help` -- every flag; `pj --list-models` -- models you can actually reach (only
+  providers with a usable credential). `pj` may be missing from PATH or be a stale wrapper; if
+  it fails, that is that install, not this session. Answer from `/help` and `settings.json`.
 
-Prefer the two in-process ones: they always work. `pj` may be absent from PATH or a stale
-wrapper from an older install, and if it fails, that is that install, not pijota -- you are
-running inside a working one. Say so, and answer from `/help` and `settings.json` instead.
-
-In pijota's own source tree, `docs/` has a page per topic (`settings.md`, `cli.md`,
-`models.md`, `themes.md`, `tools.md`, `security.md`, `troubleshooting.md`). They do not ship
-with the binary, so confirm the file exists before relying on it.
+Source and docs: <https://github.com/mukel/pijota>. `docs/` has a page per topic
+(`settings.md`, `cli.md`, `models.md`, `themes.md`, `tools.md`, `security.md`,
+`troubleshooting.md`). They do not ship with the binary: read them from the repo when the
+working directory is pijota's own tree, or `webfetch` the raw file from GitHub.
 
 ## Where pijota keeps things
 
