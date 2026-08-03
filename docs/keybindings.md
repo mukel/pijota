@@ -47,20 +47,37 @@ In the session picker, `Enter` loads and `Ctrl+D` deletes.
 
 ## Remapping
 
-`~/.pijota/keybindings.json` maps an action to a key or a list. A malformed file is ignored.
+`~/.pijota/keybindings.json` maps an action to a key or a list of keys. A malformed file is
+ignored.
 
 ```json
 {
-  "palette": "ctrl+t",
-  "model": ["ctrl+l", "ctrl+m"]
+  "app.command.palette": "ctrl+t",
+  "app.model.select": ["ctrl+l", "ctrl+n"]
 }
 ```
 
-Recognised names:
+| Action | Default |
+|---|---|
+| `app.command.palette` | `ctrl+p` |
+| `app.model.select` | `ctrl+l` |
+| `app.model.cycleBackward` | `ctrl+shift+p` |
+| `app.thinking.cycle` | `shift+tab` |
+| `app.editor.external` | `ctrl+g` |
+| `app.file.pick` | `ctrl+t` |
+| `app.tools.expand` | `ctrl+o` |
 
-`ctrl+g`, `ctrl+l`, `ctrl+o`, `ctrl+p`, `ctrl+t`, `ctrl+shift+p`, `shift+tab`, `alt+up`,
-`alt+enter`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`, `enter`, `tab`,
-`backspace`.
+Editor and selector actions remap the same way: `tui.input.submit`, `tui.input.newLine`,
+`tui.input.tab`, `tui.editor.cursorUp` / `cursorDown` / `cursorLeft` / `cursorRight` /
+`cursorWordLeft` / `cursorWordRight` / `cursorLineStart` / `cursorLineEnd`,
+`tui.editor.deleteCharBackward` / `deleteCharForward` / `deleteWordBackward` /
+`deleteWordForward` / `deleteToLineStart` / `deleteToLineEnd`, `tui.editor.undo`,
+`tui.editor.yank`, `tui.editor.yankPop`, `tui.select.up` / `down` / `pageUp` / `pageDown` /
+`confirm` / `cancel`.
+
+Key names: `ctrl+g`, `ctrl+l`, `ctrl+o`, `ctrl+p`, `ctrl+t`, `ctrl+shift+p`, `shift+tab`,
+`alt+up`, `alt+enter`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`,
+`enter`, `tab`, `backspace`.
 
 Labels are shown in the platform's notation. Extensions register their own bindings; `/help`
 lists them.

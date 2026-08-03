@@ -336,4 +336,37 @@ class CompactionManagerTest {
         assertEquals(8, CompactionManager.estimateChars(assistant));
         assertEquals(0, CompactionManager.estimateChars(custom));
     }
+
+    /**
+     * The two compaction budgets had no test: only {@code enabled} did. Both decide when a conversation is rewritten,
+     * so a settings file that changes them and is ignored means a user asked for less compaction and did not get it.
+     * Same conversation, two budgets, opposite outcomes.
+     */
+    @Test
+    void reserveTokensDecidesWhenTheWindowCountsAsFull() {
+        var summarizer = (CompactionManager.SummaryGenerator) (m, i, p, o) -> "summary";
+        var messages = List.<Message>of(new Message.System("sys"), new Message.User("a".repeat(4000)));
+
+        var roomy = new CompactionManager(4000, new AppConfig.CompactionConfig(true, 1, 200), summarizer);
+        var greedy = new CompactionManager(4000, new AppConfig.CompactionConfig(true, 3800, 200), summarizer);
+
+        assertFalse(roomy.checkAndCompact(new ArrayList<>(messages), 0, msgs -> {}).compacted(),
+                                        "reserving one token leaves the window nearly all usable");
+        assertTrue(greedy.checkAndCompact(new ArrayList<>(messages), 0, msgs -> {}).compacted(),
+                                        "reserving almost the whole window makes the same conversation too big");
+    }
+
+    /** A zero or negative budget means "use the default", not "reserve nothing" -- which would compact forever. */
+    @Test
+    void nonPositiveBudgetsFallBackToTheDefaults() {
+        var summarizer = (CompactionManager.SummaryGenerator) (m, i, p, o) -> "summary";
+        var messages = List.<Message>of(new Message.System("sys"), new Message.User("hi"));
+
+        for (var config : List.of(new AppConfig.CompactionConfig(true, 0, 0),
+                                        new AppConfig.CompactionConfig(true, -1, -1)))
+            assertFalse(new CompactionManager(128_000, config, summarizer)
+                                            .checkAndCompact(new ArrayList<>(messages), 0, msgs -> {}).compacted(),
+                                            "a tiny conversation must not compact: " + config);
+    }
+
 }

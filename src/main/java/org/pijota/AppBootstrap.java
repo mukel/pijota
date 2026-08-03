@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public final class AppBootstrap {
     private static final Logger logger = LoggerFactory.getLogger(AppBootstrap.class);
@@ -242,6 +243,21 @@ public final class AppBootstrap {
     }
 
     private static boolean resolveProjectTrust(String cwd, Args parsedArgs, SettingsManager settings) {
+        return resolveProjectTrust(cwd, parsedArgs, settings, AppBootstrap::askOnConsole);
+    }
+
+    /**
+     * Whether this folder's own settings, extensions and skills may load, which is to say whether its code may run.
+     *
+     * <p>
+     * Package-private, with the question itself passed in: {@code never} and {@code ask} both refuse without a console,
+     * so with {@code System.console()} hardwired the two are indistinguishable anywhere a test can reach, and deleting
+     * the {@code never} branch changed nothing observable. The seam exists so that branch can be held to its meaning.
+     *
+     * @param ask
+     *            poses the trust question and answers it; only consulted for {@code ask} in an interactive TUI launch.
+     */
+    static boolean resolveProjectTrust(String cwd, Args parsedArgs, SettingsManager settings, Predicate<String> ask) {
         if (parsedArgs.noApproveProject())
             return false;
         var trust = new TrustStore();
@@ -262,15 +278,18 @@ public final class AppBootstrap {
         }
         if ("never".equals(fallback) || !interactiveTuiLaunch(parsedArgs))
             return false;
+        if (!ask.test(cwd))
+            return false;
+        trust.trust(cwd);
+        return true;
+    }
+
+    private static boolean askOnConsole(String cwd) {
         Console console = System.console();
         if (console == null)
             return false;
         String answer = console.readLine("Trust project resources in %s? [y/N] ", cwd);
-        if (answer != null && (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("yes"))) {
-            trust.trust(cwd);
-            return true;
-        }
-        return false;
+        return answer != null && (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("yes"));
     }
 
     private static boolean interactiveTuiLaunch(Args args) {

@@ -50,6 +50,42 @@ class BashToolTest {
         assertEquals("output", result.content());
     }
 
+    /**
+     * The two shell settings, asserted on the argv rather than on the output. The test above constructs a tool with
+     * both and only checks what came back, so it passes just as well when neither reaches the command; these are the
+     * settings that decide which interpreter runs and what runs before the model's line.
+     */
+    @Test
+    void shellPathAndCommandPrefixReachTheCommand() {
+        var seen = new AtomicReference<List<String>>();
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput,
+                                        detachSignal) -> {
+            seen.set(cmd);
+            return new ProcessRunner.Result(0, "ok", "", false, false);
+        };
+
+        run(new BashTool("/usr/bin/zsh", "source .env", executor), Map.of("command", "echo hi"), "/tmp");
+
+        assertEquals("/usr/bin/zsh", seen.get().getFirst(), "shell_path picks the interpreter");
+        assertEquals("source .env\necho hi", seen.get().getLast(),
+                                        "shell_command_prefix goes on its own line, so a trailing comment cannot "
+                                                                        + "swallow the command");
+    }
+
+    @Test
+    void noShellPrefixLeavesTheCommandAlone() {
+        var seen = new AtomicReference<List<String>>();
+        var executor = (BashTool.CommandExecutor) (cmd, dir, timeout, maxBytes, redirectError, env, onStart, onOutput,
+                                        detachSignal) -> {
+            seen.set(cmd);
+            return new ProcessRunner.Result(0, "ok", "", false, false);
+        };
+
+        run(new BashTool("/bin/bash", null, executor), Map.of("command", "echo hi"), "/tmp");
+
+        assertEquals("echo hi", seen.get().getLast());
+    }
+
     @Test
     void passesPijotaEnvironmentToExecutor() {
         var seen = new AtomicReference<Map<String, String>>();
