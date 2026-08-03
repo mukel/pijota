@@ -86,7 +86,7 @@ class JobsExtensionTest {
 
         String id = (String) run(api, "jobs_run", Map.of("command", "sleep 30")).details().get("jobId");
         var listed = run(api, "jobs_list", Map.of()).content();
-        assertTrue(listed.contains(id) && listed.contains("running") && listed.contains("sleep 30"), listed);
+        assertTrue(listed.contains(id) && listed.contains("background") && listed.contains("sleep 30"), listed);
         run(api, "jobs_kill", Map.of("id", id));
     }
 
@@ -102,7 +102,7 @@ class JobsExtensionTest {
         // /jobs shows the user the same listing jobs_list gives the agent, via a custom message, not a model turn
         api.slashCommand("jobs").handler().accept("");
         String listing = lastCustom(api);
-        assertTrue(listing.contains(id) && listing.contains("running") && listing.contains("sleep 30"), listing);
+        assertTrue(listing.contains(id) && listing.contains("background") && listing.contains("sleep 30"), listing);
 
         // /kill <id> terminates it directly, no model round-trip
         api.slashCommand("kill").handler().accept(id);

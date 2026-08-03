@@ -227,8 +227,8 @@ class JobRegistryTest {
     @Test
     void panelShowsOnlyRunningJobsAndIsEmptyOtherwise() {
         assertEquals(List.of(), JobsExtension.renderPanel(List.of()));
-        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 0),
-                                        new JobRegistry.Status("bg_2", "old", "old", false, 0, 0, false, 0));
+        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 0, false),
+                                        new JobRegistry.Status("bg_2", "old", "old", false, 0, 0, false, 0, false));
         var panel = JobsExtension.renderPanel(statuses);
         assertTrue(panel.get(0).contains("1 running"), panel.toString());
         assertTrue(panel.stream().anyMatch(l -> l.contains("bg_1") && l.contains("npm test")));
@@ -239,13 +239,13 @@ class JobRegistryTest {
     void panelCapsRowsAndShortensLongCommands() {
         var many = new ArrayList<JobRegistry.Status>();
         for (int i = 1; i <= 8; i++)
-            many.add(new JobRegistry.Status("bg_" + i, "cmd" + i, "cmd" + i, true, null, 0, false, 0));
+            many.add(new JobRegistry.Status("bg_" + i, "cmd" + i, "cmd" + i, true, null, 0, false, 0, false));
         var panel = JobsExtension.renderPanel(many);
         assertTrue(panel.get(0).contains("8 running"), panel.toString());
         assertTrue(panel.stream().anyMatch(l -> l.contains("+2 more")), panel.toString()); // 8 jobs − 6 row cap
 
-        var longCmd = List.of(new JobRegistry.Status("bg_1", "x".repeat(120), "x".repeat(120), true, null, 0, false,
-                                        0));
+        var longCmd = List.of(new JobRegistry.Status("bg_1", "x".repeat(120), "x".repeat(120), true, null, 0, false, 0,
+                                        false));
         assertTrue(JobsExtension.renderPanel(longCmd).stream().anyMatch(l -> l.contains("…")),
                                         "a long command is elided");
     }
@@ -256,8 +256,10 @@ class JobRegistryTest {
      */
     @Test
     void jobRowsSeparateFactsTheSameWayEverywhereElseDoes() {
-        var statuses = List.of(new JobRegistry.Status("bg_1", "npm run dev", "web-server", true, null, 12, false, 4200),
-                                        new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, true, 900));
+        var statuses = List.of(new JobRegistry.Status("bg_1", "npm run dev", "web-server", true, null, 12, false, 4200,
+                                        false),
+                                        new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, true, 900,
+                                                                        false));
 
         var offenders = new ArrayList<String>();
         for (String row : JobsExtension.renderList(statuses).split("\n"))
@@ -275,10 +277,68 @@ class JobRegistryTest {
      */
     @Test
     void thePanelSaysHowLongAJobHasBeenRunning() {
-        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 65_000));
+        var statuses = List.of(new JobRegistry.Status("bg_1", "npm test", "npm test", true, null, 0, false, 65_000,
+                                        false));
         var row = JobsExtension.renderPanel(statuses).stream().filter(l -> l.contains("bg_1")).findFirst()
                                         .orElseThrow();
         assertTrue(row.matches(".*\\d+[ms].*"), "no elapsed time on a running job: " + row);
+    }
+
+    /**
+     * Backgrounding is a change of state, not a rebirth. Minting a fresh id at the hand-off renamed the process at the
+     * exact moment the user looked away from it, so the id they had been watching was not the one to type.
+     */
+    @Test
+    void backgroundingKeepsTheIdTheProcessAlreadyHad() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var jobs = new JobRegistry();
+        var proc = new ProcessBuilder("sh", "-c", "sleep 20").start();
+        String id = jobs.register(proc, "sleep 20", "sleeper");
+
+        var adopted = jobs.adopt(new Tool.DetachedProcess(proc, "sleep 20", sink -> "seeded output\n", r -> {}),
+                                        "sleeper");
+
+        assertEquals(id, adopted.id(), "the hand-off renamed the process");
+        assertEquals(1, jobs.list().size(), "the hand-off duplicated the process");
+        assertTrue(adopted.outputSoFar().contains("seeded output"), "the output before the switch was lost");
+        // and the read offset starts past it, so jobs_output reports only what is new -- the synthetic result
+        // already carried everything up to the hand-off
+        assertFalse(jobs.read(id).output().contains("seeded output"), "the seed was reported twice");
+        proc.destroy();
+    }
+
+    /** In turn, a tool call is the report; backgrounded, nobody is waiting, so the notice is. Never both. */
+    @Test
+    void anInTurnProcessExitsWithoutACompletionNotice() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var completions = new ArrayBlockingQueue<JobRegistry.Completion>(2);
+        var jobs = new JobRegistry(completions::add);
+        var proc = new ProcessBuilder("sh", "-c", "exit 0").start();
+        jobs.register(proc, "exit 0", "quick");
+
+        proc.onExit().get(10, TimeUnit.SECONDS);
+
+        assertNull(completions.poll(1, TimeUnit.SECONDS), "the tool call reports it; a notice would double-report");
+    }
+
+    /** Reading blocks, and the turn is already blocked on this call: it would be waiting on itself. */
+    @Test
+    void jobsOutputRefusesAProcessTheTurnIsWaitingOn() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var jobs = new JobRegistry();
+        var proc = new ProcessBuilder("sh", "-c", "sleep 20").start();
+        String id = jobs.register(proc, "sleep 20", "sleeper");
+
+        var api = new org.pijota.extensions.testkit.FakeExtensionAPI(
+                                        new org.pijota.extensions.testkit.FakeExtensionRuntime());
+        new JobsExtension(jobs).init(api);
+        var result = api.tool("jobs_output").execute()
+                                        .execute("id", new Tool.Args(java.util.Map.of("id", id)), tempDir.toString())
+                                        .get();
+
+        assertTrue(result.isError(), result.content());
+        assertTrue(result.content().contains("current turn"), result.content());
+        proc.destroy();
     }
 
     @Test
@@ -286,9 +346,10 @@ class JobRegistryTest {
         assertEquals("(no background jobs)", JobsExtension.renderList(List.of()));
         var rows = JobsExtension.renderList(List.of(
                                         new JobRegistry.Status("bg_1", "npm run dev", "npm run dev", true, null, 0,
-                                                                        false, 0),
-                                        new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, false, 0)));
-        assertTrue(rows.contains("bg_1 \u00b7 running \u00b7 0B \u00b7 npm run dev"), rows);
+                                                                        false, 0, false),
+                                        new JobRegistry.Status("bg_2", "mvn test", "mvn test", false, 1, 0, false, 0,
+                                                                        false)));
+        assertTrue(rows.contains("bg_1 \u00b7 background \u00b7 0B \u00b7 npm run dev"), rows);
         assertTrue(rows.contains("bg_2 \u00b7 exit 1 \u00b7 0B \u00b7 mvn test"), rows);
     }
 
@@ -466,7 +527,7 @@ class JobRegistryTest {
     @Test
     void renderListShowsADistinctNameLabelAlongsideTheCommand() {
         var rows = JobsExtension.renderList(List.of(new JobRegistry.Status("bg_1", "npm run dev", "web-server", true,
-                                        null, 0, false, 0)));
+                                        null, 0, false, 0, false)));
         assertTrue(rows.contains("web-server"), rows);
         assertTrue(rows.contains("npm run dev"), rows);
     }

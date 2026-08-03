@@ -4,6 +4,7 @@ import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.HeadlessToolContext;
 import org.pijota.extensions.UiContext;
+import org.pijota.extensions.jobs.JobRegistry;
 import org.pijota.messages.Message;
 import org.pijota.modes.SlashCommand;
 import org.pijota.tools.ToolGlyphs;
@@ -64,6 +65,16 @@ public final class TaskExtension implements Extension {
 
     /** Final per-log summary, kept for {@code /logs} after the live status state is pruned. */
     private record LogSummary(String agent, boolean success, int toolCount, long tokens) {
+    }
+
+    private final JobRegistry jobRegistry;
+
+    public TaskExtension() {
+        this(null);
+    }
+
+    public TaskExtension(JobRegistry jobRegistry) {
+        this.jobRegistry = jobRegistry;
     }
 
     private final ConcurrentHashMap<String, AgentState> agentStates = new ConcurrentHashMap<>();
@@ -167,6 +178,7 @@ public final class TaskExtension implements Extension {
 
         this.tool = new TaskTool(agents, runtime.llm(), runtime.tools()::activeToolNames, runtime::systemPrompt,
                                         this::onActivity, this::finished, runtime.cwd(), 0);
+        tool.setJobRegistry(jobRegistry);
         api.registerTool(tool);
 
         api.registerStatusLines(this::statusLines);

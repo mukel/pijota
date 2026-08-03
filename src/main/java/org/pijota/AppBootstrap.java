@@ -136,7 +136,7 @@ public final class AppBootstrap {
         // isEnabled()
         // on the declared default + settings + flags. (TranscendenceExtension is also JVM-only via its reason.)
         if (!parsedArgs.noExtensions() && !parsedArgs.noBuiltinExtensions()) {
-            ext.register(new TaskExtension());
+            ext.register(new TaskExtension(jobRegistry));
             ext.register(new PlanExtension());
             ext.register(new SuggestExtension()); // opt-in --suggest
             ext.register(new TranscendenceExtension()); // opt-in --transcendence

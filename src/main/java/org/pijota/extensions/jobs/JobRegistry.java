@@ -66,6 +66,9 @@ public final class JobRegistry {
         int readOffset; // guarded by this
         boolean truncated; // guarded by this
         volatile boolean killed; // set before an intentional kill so its exit isn't reported as completion
+        // A process the user has not backgrounded: a tool call is still waiting on it, and that call is what reports
+        // it. Completion notices and jobs_output are for processes nobody is waiting on.
+        volatile boolean inTurn;
         // Whether every byte the process wrote has reached `out`. Process exit does NOT imply this: the pipe can
         // still hold output the drain thread hasn't copied yet. Adopted jobs have no drain thread, so they start
         // true and the tool's own pump keeps feeding.
@@ -87,6 +90,27 @@ public final class JobRegistry {
                     truncated = true;
             }
         }
+    }
+
+    /**
+     * Registers a process that is running under a tool call, so it appears in the one running-process list and can be
+     * stopped by id like anything else. It keeps this id if the user later backgrounds it: backgrounding becomes a
+     * change of state rather than a rebirth, and the id on screen while it ran is the id you type afterwards.
+     *
+     * <p>
+     * No drain thread and no completion notice: the tool owns the output and its result is the report.
+     */
+    public String register(Process process, String command, String name) {
+        String id = "bg_" + seq.incrementAndGet();
+        var job = new Job(id, command, (name != null && !name.isBlank()) ? name : command, process);
+        job.inTurn = true;
+        jobs.put(id, job);
+        process.onExit().thenAccept(p -> {
+            if (!job.killed && !job.inTurn) // backgrounded before it finished: nobody is waiting, so say so
+                fireCompletion(new Completion(job.id, job.command, job.name, p.exitValue(),
+                                                System.currentTimeMillis() - job.startedAtMs));
+        });
+        return id;
     }
 
     /** Launches {@code command} detached and returns its job id; output drains in the background until it exits. */
@@ -157,6 +181,25 @@ public final class JobRegistry {
      * feeding, and {@code onExit} delivers the completion.
      */
     public Adopted adopt(Tool.DetachedProcess detached, String name) {
+        // Already registered (it was running in the turn): keep its id and just change state. A new id here would
+        // rename the thing at the exact moment the user looked away from it.
+        var existing = jobs.values().stream().filter(j -> j.process == detached.process()).findFirst().orElse(null);
+        if (existing != null) {
+            String seeded;
+            synchronized (existing) {
+                seeded = detached.redirectOutput().apply(chunk -> {
+                    char[] chars = chunk.toCharArray();
+                    existing.append(chars, chars.length);
+                });
+                String seed = seeded.length() > MAX_BUFFER ? seeded.substring(seeded.length() - MAX_BUFFER) : seeded;
+                if (seeded.length() > MAX_BUFFER)
+                    existing.truncated = true;
+                existing.out.append(seed);
+                existing.readOffset = existing.out.length();
+            }
+            existing.inTurn = false; // its exit is now worth a notice: no tool call is waiting for it
+            return new Adopted(existing.id, seeded);
+        }
         String id = "bg_" + seq.incrementAndGet();
         String label = (name != null && !name.isBlank()) ? name : detached.command();
         var job = new Job(id, detached.command(), label, detached.process());
@@ -230,7 +273,7 @@ public final class JobRegistry {
         }
         boolean running = job.process.isAlive();
         Integer exitCode = running ? null : job.process.exitValue();
-        return new Read(id, chunk, running, job.drained, exitCode, truncated, outSize);
+        return new Read(id, chunk, running, job.drained, exitCode, truncated, outSize, job.inTurn);
     }
 
     /** Check whether a job is still running without consuming any buffered output. */
@@ -273,7 +316,8 @@ public final class JobRegistry {
                 truncated = job.truncated;
             }
             statuses.add(new Status(job.id, job.command, job.name, alive, alive ? null : job.process.exitValue(),
-                                            outSize, truncated, System.currentTimeMillis() - job.startedAtMs));
+                                            outSize, truncated, System.currentTimeMillis() - job.startedAtMs,
+                                            job.inTurn));
         }
         return statuses;
     }
@@ -284,11 +328,11 @@ public final class JobRegistry {
     }
 
     public record Read(String id, String output, boolean running, boolean drained, Integer exitCode, boolean truncated,
-                                    int outputChars) {
+                                    int outputChars, boolean inTurn) {
     }
 
     public record Status(String id, String command, String name, boolean running, Integer exitCode, int outputChars,
-                                    boolean truncated, long elapsedMs) {
+                                    boolean truncated, long elapsedMs, boolean inTurn) {
     }
 
     /** A job that finished on its own (not killed): its id, the command, the name, and the process exit code. */

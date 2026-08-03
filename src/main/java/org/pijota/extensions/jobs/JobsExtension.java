@@ -193,6 +193,11 @@ public final class JobsExtension implements Extension {
         JobRegistry.Read read = jobs.read(id);
         if (read == null)
             return ToolResult.error("No background job " + id);
+        // Reading blocks, and this call is what the turn is already blocked on: polling it would be waiting for a
+        // result that cannot arrive until this returns.
+        if (read.inTurn())
+            return ToolResult.error(id + " is running in the current turn; its result arrives when it completes."
+                                            + " Only backgrounded jobs can be read with jobs_output.");
         while (true) {
             acc.append(read.output());
             boolean ready = !waitCompletion && !filtered(acc.toString(), filter).isEmpty();
@@ -279,7 +284,9 @@ public final class JobsExtension implements Extension {
             return "(no background jobs)";
         var sb = new StringBuilder();
         for (var s : all) {
-            String status = s.running() ? "running" : "exit " + s.exitCode();
+            // "in turn" vs "background" is the distinction that matters here: whether a tool call is still waiting
+            // on it, which decides who reports it and whether jobs_output may read it.
+            String status = s.running() ? (s.inTurn() ? "in turn" : "background") : "exit " + s.exitCode();
             sb.append(s.id()).append(CHIP).append(status).append(CHIP).append(Util.formatSize(s.outputChars()));
             if (hasDistinctName(s.name(), s.command()))
                 sb.append(CHIP).append(s.name());

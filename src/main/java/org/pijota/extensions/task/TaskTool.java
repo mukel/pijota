@@ -1,6 +1,7 @@
 package org.pijota.extensions.task;
 
 import org.pijota.agent.SubAgentLauncher;
+import org.pijota.extensions.jobs.JobRegistry;
 import org.pijota.llm.LlmClient;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.tools.Tool;
@@ -255,6 +256,13 @@ public final class TaskTool implements Tool, Tool.Detachable {
         this.depth = depth;
         this.chainConfigs = loadChainConfigs();
     }
+
+    /** Set by the extension so every sub-agent joins the one running-process list. Null in tests and headless runs. */
+    public void setJobRegistry(JobRegistry jobs) {
+        this.jobs = jobs;
+    }
+
+    private volatile JobRegistry jobs;
 
     @Override
     public String name() {
@@ -543,7 +551,10 @@ public final class TaskTool implements Tool, Tool.Detachable {
         try {
             return spawnAgent(sub, label, task, workDir);
         } finally {
-            inFlightLabels.remove(label);
+            // A backgrounded agent keeps its name reserved while its process lives, so a later agent cannot take the
+            // name and inherit the silence that belongs to the one that left.
+            if (!detachedLabels.contains(label))
+                inFlightLabels.remove(label);
         }
     }
 
@@ -618,6 +629,12 @@ public final class TaskTool implements Tool, Tool.Detachable {
                                                     var c = new Child(label, proc);
                                                     child.set(c);
                                                     running.add(c);
+                                                    // One list of running processes: a sub-agent is one of them from
+                                                    // the moment it starts, not only once it is backgrounded.
+                                                    // name null: the command already reads "task:explore", and
+                                                    // passing the label too printed it twice on the row
+                                                    if (jobs != null)
+                                                        jobs.register(proc, "task:" + label, null);
                                                     // Only a lone agent under a single-mode call can be handed off;
                                                     // for a batch inFlight is null and detach() declines.
                                                     if (inFlight != null && running.size() == 1)
@@ -632,7 +649,10 @@ public final class TaskTool implements Tool, Tool.Detachable {
             if (detachSignal.isDone()) {
                 // The user backgrounded it. The adopter already resolved the call and keeps reading this same feed,
                 // so the log stays open and the row is already gone; nothing left to report.
-                detachedLabels.remove(label);
+                //
+                // The label stays gated for good. Ungating it here let the child's next event rebuild the row it had
+                // just left -- with a fresh start time and the accumulated token count, so a backgrounded agent
+                // reappeared claiming 18K tokens in one second.
                 return new SubAgentResult(label, "", 0, 0, toolCount.get(), logFile.toString(), null);
             }
 
