@@ -10,6 +10,22 @@ final class TuiCopy {
     // Ordered by what a narrow terminal must keep: footer() drops chips from the end, and the first casualty should
     // be the hint you would have discovered by accident anyway, not the one that says how to get out. At 60 columns
     // this used to lose "Esc cancel".
+    /**
+     * The two separators the interface is allowed to use, and the rule for choosing between them.
+     *
+     * <p>
+     * {@link #CHIP} joins facts of the same kind -- {@code medium · 4 files · 2s}. {@link #GROUP} opens a different
+     * kind -- token count, then what is answering, then what it is doing. Read together, a line says "here are three
+     * things, and this one has three parts".
+     *
+     * <p>
+     * The rule was half-applied and nowhere written down, so the widths drifted to one, two and three spaces on
+     * neighbouring lines and the two separators looked arbitrary rather than meaningful. Anything wider than
+     * {@code GROUP} is column alignment, not a separator, and belongs only where rows line up.
+     */
+    static final String CHIP = " · ";
+    static final String GROUP = "  ";
+
     static final String SELECTOR_HINT = "↑/↓ navigate · Enter select · Esc cancel · type to search";
 
     private TuiCopy() {}
@@ -25,18 +41,18 @@ final class TuiCopy {
      */
     static String footer(AnsiTheme theme, int width, String position, String... hints) {
         String chips = Arrays.stream(hints).filter(h -> h != null && !h.isBlank()).map(String::strip)
-                                        .collect(Collectors.joining(" · "));
+                                        .collect(Collectors.joining(CHIP));
         String where = position == null ? "" : position.strip();
         if (chips.isEmpty())
-            return theme.styled("statusText", "  " + where);
+            return theme.styled("statusText", GROUP + where);
         // With nothing to count (the empty selector) the hints take the indent themselves, rather than sitting two
         // columns further right than every other footer.
-        String left = where.isEmpty() ? "" : theme.styled("statusText", "  " + where);
+        String left = where.isEmpty() ? "" : theme.styled("statusText", GROUP + where);
         // Drop whole hints the terminal has no room for, rather than letting the row be clipped mid-word. At 60
         // columns "type to search · ↑/↓ navigate · Enter select · Esc cancel" is 63 wide and lost "cancel", which is
         // the one word that tells you how to get out.
-        int room = width - AnsiWidth.visibleWidth(where.isEmpty() ? "" : "  " + where) - 2;
-        return left + theme.styled("dim", "  " + fit(Keys.label(chips), room));
+        int room = width - AnsiWidth.visibleWidth(where.isEmpty() ? "" : GROUP + where) - GROUP.length();
+        return left + theme.styled("dim", GROUP + fit(Keys.label(chips), room));
     }
 
     /**
@@ -58,10 +74,10 @@ final class TuiCopy {
             return "";
         if (AnsiWidth.visibleWidth(text) <= room)
             return text;
-        String[] chips = text.split(" · ", -1);
+        String[] chips = text.split(CHIP, -1);
         var kept = new StringBuilder(chips[0]);
         for (int i = 1; i < chips.length; i++) {
-            String next = kept + " · " + chips[i];
+            String next = kept + CHIP + chips[i];
             if (AnsiWidth.visibleWidth(next) > room)
                 break;
             kept.setLength(0);

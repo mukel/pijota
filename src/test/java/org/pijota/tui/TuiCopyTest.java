@@ -5,6 +5,13 @@ import org.pijota.theme.AnsiTheme;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.TreeSet;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class TuiCopyTest {
@@ -85,6 +92,45 @@ class TuiCopyTest {
         assertTrue(TuiCopy.fit("averylongsinglechip", 8).endsWith("…"), "nothing left to drop: cut and say so");
         assertEquals("", TuiCopy.fit(null, 10));
         assertEquals("", TuiCopy.fit("x", 0));
+    }
+
+    /**
+     * Only two separators, and only where they mean what they say. The rule was half-applied and nowhere written down,
+     * so the chrome drifted to one, two and three spaces on neighbouring lines: the startup banner separated a title
+     * from its metadata with three spaces while the status bar used two, and the spinner was joined to its phase with
+     * one. Read together they looked arbitrary rather than meaningful.
+     *
+     * <p>
+     * Two- and three-space joins and a bare {@code ·} are caught; a single space is not. Extending it there flagged
+     * {@code fmtCount(...) + " " + pctStr}, where the space sits <em>inside</em> one fact rather than between two, and
+     * a check that cries wolf gets deleted rather than obeyed.
+     */
+    @Test
+    void theChromeUsesOnlyTheTwoSanctionedSeparators() throws IOException {
+        var offenders = new TreeSet<String>();
+        for (String file : List.of("PromptPresenter.java", "TuiCopy.java")) {
+            Path path = Path.of("src/main/java/org/pijota/tui", file);
+            int line = 0;
+            for (String text : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+                line++;
+                if (text.stripLeading().startsWith("*") || text.stripLeading().startsWith("//")
+                                                || text.contains("static final String CHIP")
+                                                || text.contains("static final String GROUP"))
+                    continue; // the definitions themselves, and the comments explaining them
+                if (text.contains("\"  \"") || text.contains("\"   \"") || text.contains("\" · \""))
+                    offenders.add(file + ":" + line);
+            }
+        }
+
+        assertTrue(offenders.isEmpty(), "chrome joins written as literals instead of TuiCopy.CHIP / GROUP: "
+                                        + offenders);
+    }
+
+    @Test
+    void theSeparatorsAreWhatTheyClaimToBe() {
+        assertEquals(" · ", TuiCopy.CHIP, "peers");
+        assertEquals("  ", TuiCopy.GROUP, "a different kind of thing");
+        assertTrue(TuiCopy.GROUP.isBlank() && TuiCopy.GROUP.length() == 2, "nothing wider: that is column alignment");
     }
 
 }

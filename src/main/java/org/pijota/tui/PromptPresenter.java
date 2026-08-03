@@ -70,35 +70,37 @@ final class PromptPresenter {
             status = status != null ? status + "\n" + promptLine : promptLine;
         }
         AnsiTheme theme = host.theme();
-        // Two-line bar. Line 1 (cwd slot): the workspace: cwd · branch [· session]. Line 2 (status slot): token info,
-        // then "provider model · reasoning" right after it, then the activity (spinner · phase · elapsed) during a
-        // turn. Both lines wrap (not truncate) so a narrow terminal spills to the next row instead of losing the tail.
+        // Two-line bar, built on TuiCopy's two separators: CHIP joins facts of one kind, GROUP opens another.
+        // Line 1 (cwd slot): the workspace, then the session name as its own group.
+        // Line 2 (status slot): the token count, then "provider/model · reasoning", then the activity during a turn.
+        // Both lines wrap (not truncate) so a narrow terminal spills to the next row instead of losing the tail.
         var cwd = new StringBuilder(theme.styled("commandMeta", host.cwd()));
         String sessionName = host.sessionName();
         if (sessionName != null && !sessionName.isBlank())
-            cwd.append(theme.styled("commandMeta", "  " + sessionName));
+            cwd.append(theme.styled("commandMeta", TuiCopy.GROUP + sessionName));
 
         var stats = new StringBuilder(theme.styled("statusText", tokens));
-        stats.append(theme.styled("commandMeta", "  " + modelLabel(host.provider(), host.model())));
+        stats.append(theme.styled("commandMeta", TuiCopy.GROUP + modelLabel(host.provider(), host.model())));
         // Every level, including OFF. Hiding it made the chip vanish on the one press that turns thinking off, so a
         // piece of the bar disappeared where a setting should have appeared -- and Shift+Tab has no other feedback.
         // Themes give OFF a near-invisible tone for exactly this: present and readable, saying nothing loudly.
         ThinkingLevel thinking = host.thinkingLevel();
-        stats.append(theme.styled("commandMeta", " · ")).append(theme.styled(thinking.themeSlot(), thinking.label()));
+        stats.append(theme.styled("commandMeta", TuiCopy.CHIP))
+                                        .append(theme.styled(thinking.themeSlot(), thinking.label()));
         if (activity.isBusy()) {
-            stats.append(theme.styled("statusText", "  " + animation.frame()));
+            stats.append(theme.styled("statusText", TuiCopy.GROUP + animation.frame()));
             String phase = activity.phase();
             if (phase != null && !phase.isBlank())
-                stats.append(theme.styled("statusText", " " + phase));
+                stats.append(theme.styled("statusText", TuiCopy.CHIP + phase));
             long elapsed = activity.elapsedMillis();
             if (elapsed >= 1000) // a running seconds counter so long turns visibly progress (not stuck)
-                stats.append(theme.styled("statusText", "  " + (elapsed / 1000) + "s"));
+                stats.append(theme.styled("statusText", TuiCopy.CHIP + (elapsed / 1000) + "s"));
         }
         int queued = followUps.queuedCount();
         if (queued > 0)
-            stats.append(theme.styled("statusText", "  queued " + queued + " · /dequeue"));
+            stats.append(theme.styled("statusText", TuiCopy.GROUP + "queued " + queued + TuiCopy.CHIP + "/dequeue"));
         else if (!activity.isBusy() && host.messageCount() == 0)
-            stats.append(theme.styled("dim", "  " + TuiCopy.START_HINT));
+            stats.append(theme.styled("dim", TuiCopy.GROUP + TuiCopy.START_HINT));
 
         return snapshot.withCwd(cwd.toString()).withStatus(stats.toString()).withContextPct(tokenPct())
                                         .withPendingMessages(followUps.pending())

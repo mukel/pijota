@@ -922,8 +922,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         var lines = new ArrayList<String>();
-        lines.add(wordmark() + theme.styled("bannerMeta", " " + version + "  ")
-                                        + theme.styled("bannerMeta", PromptPresenter.modelLabel(provider, model)));
+        lines.add(wordmark() + theme.styled("bannerMeta",
+                                        " " + version + TuiCopy.GROUP + PromptPresenter.modelLabel(provider, model)));
         lines.add(theme.styled("dim", TuiCopy.START_HINT));
 
         // recent sessions
@@ -938,12 +938,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 // title, it landed somewhere different on every row. The column sits just past the longest title
                 // rather than against the right margin, which would leave a canyon of blank the eye has to cross.
                 int metaWidth = metas.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
-                int titleRoom = Math.max(8, width - metaWidth - 5); // 2 leading + 3 separating spaces
+                int titleRoom = Math.max(8, width - metaWidth - 4); // 2 leading + one GROUP gap
                 var titles = items.stream().map(it -> Util.ellipsize(it.description(), titleRoom)).toList();
                 int titleColumn = titles.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
                 for (int i = 0; i < titles.size(); i++)
-                    lines.add(theme.styled("statusText", "  " + padRight(titles.get(i), titleColumn)) + "   "
-                                                    + theme.styled("commandMeta", metas.get(i)));
+                    lines.add(theme.styled("statusText", TuiCopy.GROUP + padRight(titles.get(i), titleColumn))
+                                                    + TuiCopy.GROUP + theme.styled("commandMeta", metas.get(i)));
             }
         } catch (Exception ignored) {}
         appendPlain(lines);
