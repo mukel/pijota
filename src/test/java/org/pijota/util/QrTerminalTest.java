@@ -20,4 +20,15 @@ class QrTerminalTest {
     void differentTextProducesDifferentCode() {
         assertNotEquals(QrTerminal.render("alpha"), QrTerminal.render("a completely different, longer payload"));
     }
+
+    @Test
+    void rendersBrandedPjCode() {
+        var plain = QrTerminal.render("https://pijota.org");
+        var branded = QrTerminal.renderPj("https://pijota.org");
+
+        assertFalse(branded.isEmpty());
+        assertNotEquals(plain, branded, "the centered pj mark changes the terminal rendering");
+        int width = branded.getFirst().length();
+        assertTrue(branded.stream().allMatch(l -> l.length() == width), "all rows are the same width");
+    }
 }
