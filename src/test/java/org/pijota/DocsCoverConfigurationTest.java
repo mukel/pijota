@@ -3,6 +3,7 @@ package org.pijota;
 import org.pijota.cli.ArgParser;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.testkit.StdioCapture;
+import org.pijota.util.Util;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -95,6 +96,35 @@ class DocsCoverConfigurationTest {
         }
 
         assertTrue(undocumented.isEmpty(), "flags in --help with no mention in the docs: " + undocumented);
+    }
+
+    /**
+     * A {@code provider/model} written in the docs has to be a model that exists. An invented id still "works" --
+     * pijota sends any id verbatim -- so nothing fails, and the reader copies a name no provider has heard of. This
+     * caught {@code anthropic/claude-sonnet-4-20250514}, which I had written from memory into three pages.
+     */
+    @Test
+    void everyModelIdInTheDocsIsInTheCatalogue() throws IOException {
+        var known = new TreeSet<String>();
+        var catalogue = Util.MAPPER.readTree(Files.readString(Path.of("src/main/resources/models.json"),
+                                        StandardCharsets.UTF_8));
+        catalogue.path("models").forEach(m -> known.add(m.path("id").asText()));
+        assertFalse(known.isEmpty(), "no models parsed; the catalogue shape changed");
+
+        var invented = new TreeSet<String>();
+        var cited = Pattern.compile("\\b(?:anthropic|openai|deepseek|google|groq|mistral)/([a-z0-9.\\-]+)");
+        try (var pages = Files.list(Path.of("docs"))) {
+            var files = new ArrayList<>(pages.filter(p -> p.toString().endsWith(".md")).toList());
+            files.add(Path.of("README.md"));
+            for (Path page : files) {
+                var m = cited.matcher(Files.readString(page, StandardCharsets.UTF_8));
+                while (m.find())
+                    if (!known.contains(m.group(1)))
+                        invented.add(page.getFileName() + ": " + m.group(1));
+            }
+        }
+
+        assertTrue(invented.isEmpty(), "model ids cited in the docs that no provider offers: " + invented);
     }
 
     /** The index is the way in; a page it does not link is a page nobody opens. */

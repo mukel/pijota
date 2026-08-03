@@ -1,5 +1,7 @@
 package org.pijota.tui;
 
+import org.pijota.theme.AnsiTheme;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,10 +30,8 @@ class MarkdownStyleTest {
     /** The two renderers differ where it is visible: a fence language is introduced, or it is not. */
     @Test
     void theChoiceReachesTheFormatter() {
-        var rich = new StreamingMarkdownFormatter(org.pijota.theme.AnsiTheme.plain(), "text", false,
-                                        MarkdownStyle.RICH);
-        var plain = new StreamingMarkdownFormatter(org.pijota.theme.AnsiTheme.plain(), "text", false,
-                                        MarkdownStyle.PLAIN);
+        var rich = new StreamingMarkdownFormatter(AnsiTheme.plain(), "text", false, MarkdownStyle.RICH);
+        var plain = new StreamingMarkdownFormatter(AnsiTheme.plain(), "text", false, MarkdownStyle.PLAIN);
 
         assertNotEquals(render(rich, "# heading"), render(plain, "# heading"),
                                         "rich renders a heading, plain keeps the markers");

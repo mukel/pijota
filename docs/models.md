@@ -5,8 +5,8 @@
 ## Choosing
 
 ```bash
-pj -m claude-sonnet-4-20250514           # provider inferred
-pj -m anthropic/claude-sonnet-4-20250514 # explicit
+pj -m claude-sonnet-4-5-20250929           # provider inferred
+pj -m anthropic/claude-sonnet-4-5-20250929 # explicit
 pj --provider deepseek                   # provider's default model
 pj -m alias/fast                         # alias from settings
 pj --list-models openai                  # what is available
@@ -28,7 +28,7 @@ Name a role, not a model.
 ```json
 {
   "aliases": {
-    "fast": "anthropic/claude-haiku-4-5",
+    "fast": "anthropic/claude-haiku-4-5-20251001",
     "deep": "openai/gpt-5.5",
     "print": "deepseek/deepseek-v4-flash"
   }
@@ -45,7 +45,7 @@ named `print`, if one exists.
 ## Narrowing the picker
 
 ```json
-{ "enabled_models": ["anthropic/claude-sonnet-4-20250514", "deepseek/deepseek-v4-flash"] }
+{ "enabled_models": ["anthropic/claude-sonnet-4-5-20250929", "deepseek/deepseek-v4-flash"] }
 ```
 
 Empty means all.

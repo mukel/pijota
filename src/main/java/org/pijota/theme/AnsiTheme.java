@@ -67,8 +67,8 @@ public class AnsiTheme {
     public String bannerMeta = "dim";
     /**
      * The {@code pi} half of the wordmark: the theme's muted colour at full strength, not dimmed. It shares the accent
-     * half's weight because both halves are the name; dimming it put the first half of the product's name below WCAG
-     * AA on the light themes (3.24:1 on gruvbox-light) and read as a prefix rather than as part of a word.
+     * half's weight because both halves are the name; dimming it put the first half of the product's name below WCAG AA
+     * on the light themes (3.24:1 on gruvbox-light) and read as a prefix rather than as part of a word.
      */
     public String bannerRoot = "bold;#808080";
     public String cwdLine = "dim;bright_black";

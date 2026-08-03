@@ -18,8 +18,8 @@ final class ThemeLoader {
     private static final Logger logger = LoggerFactory.getLogger(ThemeLoader.class);
 
     /**
-     * Default theme when none is configured, and the dark side of {@code --theme auto}. Gruvbox rather than the
-     * generic editor palette every terminal tool defaults to: pijota should not open looking like something else.
+     * Default theme when none is configured, and the dark side of {@code --theme auto}. Gruvbox rather than the generic
+     * editor palette every terminal tool defaults to: pijota should not open looking like something else.
      */
     private static final String DEFAULT_THEME = "gruvbox-dark";
     /** The light side of {@code --theme auto}; the same family, so the pair reads as one choice. */

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,7 +35,7 @@ class ProjectTrustFallbackTest {
     private String savedHome;
 
     @BeforeEach
-    void redirectHome() throws java.io.IOException {
+    void redirectHome() throws IOException {
         savedHome = System.setProperty("pijota.home", home.toString());
         // A folder is only a trust question when it carries something executable; settings.json is on that list.
         Files.createDirectories(project.resolve(".pijota"));
@@ -111,7 +112,7 @@ class ProjectTrustFallbackTest {
     }
 
     @Test
-    void alwaysTrustsAndRemembers() throws java.io.IOException {
+    void alwaysTrustsAndRemembers() throws IOException {
         assertTrue(resolve("always", "-p", "hi"));
 
         Path trustFile = home.resolve("trust.json");

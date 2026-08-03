@@ -61,26 +61,8 @@ pj -p "explain this repo"
 
 Maven coordinates: `org.pijota:pijota`.
 
-To test quickly with an API key, start with one of the open-model or coding-friendly providers:
-
-| Provider | Environment Variable |
-|---|---|
-| Kimi For Coding | `KIMI_API_KEY` |
-| Moonshot AI / Kimi | `MOONSHOT_API_KEY` |
-| DeepSeek | `DEEPSEEK_API_KEY` |
-| Fireworks AI | `FIREWORKS_API_KEY` |
-| Together AI | `TOGETHER_API_KEY` |
-| OpenRouter | `OPENROUTER_API_KEY` |
-| Hugging Face | `HF_TOKEN` |
-| NVIDIA NIM | `NVIDIA_API_KEY` |
-| Groq | `GROQ_API_KEY` |
-| Mistral | `MISTRAL_API_KEY` |
-| Cerebras | `CEREBRAS_API_KEY` |
-| Z.AI | `ZAI_API_KEY` |
-| MiniMax | `MINIMAX_API_KEY` |
-| Anthropic | `ANTHROPIC_API_KEY` |
-| OpenAI | `OPENAI_API_KEY` |
-| Google AI / Gemini | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
+To test quickly, set the key for any provider and go. `pj login` handles OAuth where a provider
+offers it, and [`docs/providers.md`](docs/providers.md) lists all 22 with their environment variables.
 
 ```bash
 export KIMI_API_KEY="..."
@@ -116,7 +98,7 @@ pj --thinking high
 
 pj -c                                     # continue last session
 pj -r                                     # session picker
-pj -s <session-id-or-path>                 # load by id/path
+pj -s <session-id-or-path>                # load by id/path
 pj --export transcript.md                 # export the current session
 
 pj --readonly                             # read-only tools only
@@ -129,31 +111,13 @@ pj acp                                    # editor integration over stdio
 pj worktree                               # temporary pooled git worktree
 ```
 
-Inside the TUI, start with `/help`.
+Inside the TUI, start with `/help`, or `Ctrl+P` for a palette over every command.
 
-| Command | Purpose |
-|---|---|
-| `/login` | Configure provider credentials. |
-| `/model` | Switch models. |
-| `/settings` | Adjust runtime settings. |
-| `/context` | Show the token-usage breakdown for the current context. |
-| `/name` | Name the current session. |
-| `/new` | Start a new conversation. |
-| `/undo` | Edit the previous message. |
-| `/compact` | Summarize older context. |
-| `/usage` | Show tokens, cost, and context. |
-| `/dequeue` | Restore a queued follow-up to the editor. |
-| `/sessions` | Resume a session. |
-| `/tree` | View branches. |
-| `/branch-summary` | Summarize the current branch into context. |
-| `/theme` | Switch themes. |
-| `/reload` | Refresh model metadata. |
-| `/remote-control` | Control the live session from a phone/browser or Telegram. |
-
-Full reference in [`docs/`](docs/): [command line](docs/cli.md), [settings](docs/settings.md),
-[providers](docs/providers.md), [models](docs/models.md), [extensions](docs/extensions.md),
-[keybindings](docs/keybindings.md), [themes](docs/themes.md), [sessions](docs/sessions.md),
-[project files](docs/project-files.md), [environment](docs/environment.md).
+Full reference in [`docs/`](docs/): [command line](docs/cli.md), [slash commands](docs/commands.md),
+[tools](docs/tools.md), [settings](docs/settings.md), [providers](docs/providers.md),
+[models](docs/models.md), [extensions](docs/extensions.md), [keybindings](docs/keybindings.md),
+[themes](docs/themes.md), [sessions](docs/sessions.md), [project files](docs/project-files.md),
+[environment](docs/environment.md), [JSON events](docs/json-mode.md), [RPC](docs/rpc-mode.md).
 
 ---
 

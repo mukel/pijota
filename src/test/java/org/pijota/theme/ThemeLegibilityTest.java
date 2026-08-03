@@ -10,7 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,8 +30,7 @@ class ThemeLegibilityTest {
     /** Slots that carry meaning and must be legible. Decorative ones (dim, the ramp's off step) are exempt. */
     private static final List<String> MUST_READ = List.of("text", "accent", "success", "error", "warning", "muted");
 
-    private record Theme(String name, java.util.Map<String, String> vars, java.util.Map<String, String> colors,
-                                    String background) {
+    private record Theme(String name, Map<String, String> vars, Map<String, String> colors, String background) {
         String resolve(String slot) {
             String value = colors.get(slot);
             return value == null ? null : vars.getOrDefault(value, value);
@@ -41,9 +42,9 @@ class ThemeLegibilityTest {
         try (var files = Files.list(Path.of("src/main/resources/themes"))) {
             for (Path file : files.filter(p -> p.toString().endsWith(".json")).sorted().toList()) {
                 var json = Util.MAPPER.readTree(Files.readString(file, StandardCharsets.UTF_8));
-                var vars = new java.util.LinkedHashMap<String, String>();
+                var vars = new LinkedHashMap<String, String>();
                 json.path("vars").fields().forEachRemaining(e -> vars.put(e.getKey(), e.getValue().asText()));
-                var colors = new java.util.LinkedHashMap<String, String>();
+                var colors = new LinkedHashMap<String, String>();
                 json.path("colors").fields().forEachRemaining(e -> colors.put(e.getKey(), e.getValue().asText()));
                 out.add(new Theme(json.path("name").asText(), vars, colors,
                                                 json.path("export").path("pageBg").asText()));
@@ -159,7 +160,7 @@ class ThemeLegibilityTest {
         var kinds = List.of("syntaxComment", "syntaxKeyword", "syntaxFunction", "syntaxVariable", "syntaxString",
                                         "syntaxNumber", "syntaxType");
         for (Theme theme : shipped()) {
-            var byColour = new java.util.LinkedHashMap<String, List<String>>();
+            var byColour = new LinkedHashMap<String, List<String>>();
             for (String kind : kinds)
                 byColour.computeIfAbsent(theme.resolve(kind), ignored -> new ArrayList<>()).add(kind);
 
@@ -191,7 +192,7 @@ class ThemeLegibilityTest {
     void everySlotIsANamedColourRatherThanAnInlineHex() throws IOException {
         for (Theme theme : shipped()) {
             var inline = theme.colors().entrySet().stream().filter(e -> HEX.matcher(e.getValue()).matches())
-                                            .map(java.util.Map.Entry::getKey).sorted().toList();
+                                            .map(Map.Entry::getKey).sorted().toList();
 
             assertTrue(inline.isEmpty(), theme.name() + " writes a raw hex where a var belongs: " + inline);
         }
