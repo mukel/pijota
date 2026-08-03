@@ -10,6 +10,7 @@
       { "pattern": "browser/.*\\.js" },
       { "pattern": "themes/.*\\.json" },
       { "pattern": "agents/.*\\.md" },
+      { "pattern": "skills/.*\\.md" },
       { "pattern": "META-INF/services/.*" },
       { "pattern": "META-INF/jline/.*" }
     ]

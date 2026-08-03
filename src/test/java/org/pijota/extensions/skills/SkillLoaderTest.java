@@ -1,12 +1,46 @@
 package org.pijota.extensions.skills;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class SkillLoaderTest {
+
+    /**
+     * The meta skill ships so a fresh install can answer "how do I configure pijota" from inside pijota. Skills are
+     * discovered from directories, and a classpath directory cannot be enumerated in a native image, so a built-in that
+     * is not in BUILTIN_SKILLS (or not in resource-config.json) simply is not there in the shipped binary.
+     */
+    @Test
+    void theBuiltInPijotaSkillIsAlwaysAvailable(@TempDir Path cwd) {
+        var skills = SkillLoader.load(cwd.toString(), List.of());
+
+        var pijota = skills.stream().filter(s -> s.name().equals("pijota")).findFirst();
+        assertTrue(pijota.isPresent(), "the shipped meta skill is missing: "
+                                        + skills.stream().map(SkillLoader.Skill::name).toList());
+        assertTrue(pijota.get().description().toLowerCase().contains("configure"),
+                                        "its description is what routes it: " + pijota.get().description());
+        assertFalse(pijota.get().content().isBlank(), "a skill with no body teaches nothing");
+    }
+
+    /** A user's own skill of the same name must win; a shipped default that cannot be replaced is a trap. */
+    @Test
+    void aUserSkillShadowsTheBuiltInOfTheSameName(@TempDir Path cwd) throws Exception {
+        Path dir = cwd.resolve(".pijota/skills");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("pijota.md"), "---\nname: pijota\ndescription: mine\n---\nmy own body\n");
+
+        var skills = SkillLoader.load(cwd.toString(), List.of());
+
+        var pijota = skills.stream().filter(s -> s.name().equals("pijota")).findFirst().orElseThrow();
+        assertEquals("mine", pijota.description(), "the built-in shadowed the user's own skill");
+        assertEquals(1, skills.stream().filter(s -> s.name().equals("pijota")).count(), "listed twice");
+    }
 
     @Test
     void parseFrontmatterWithValidYaml() {

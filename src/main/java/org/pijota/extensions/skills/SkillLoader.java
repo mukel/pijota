@@ -3,6 +3,7 @@ package org.pijota.extensions.skills;
 import org.pijota.util.PijotaHome;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -19,6 +20,13 @@ public final class SkillLoader {
     public record Skill(String name, String description, String content, Path source) {
     }
 
+    /**
+     * The skills shipped in resources ({@code src/main/resources/skills}), loaded by name. The classpath directory
+     * cannot be enumerated in a native image, so this list is the authority -- the same reason {@code SubAgent} keeps
+     * one for its built-in agents.
+     */
+    private static final List<String> BUILTIN_SKILLS = List.of("pijota");
+
     public static List<Skill> load(String cwd, List<String> explicitPaths) {
         var skills = new LinkedHashMap<String, Skill>();
         discoverIn(skills, PijotaHome.resolve("skills"));
@@ -29,7 +37,27 @@ public final class SkillLoader {
                 p = Path.of(cwd).resolve(p);
             loadSkill(p).ifPresent(s -> skills.putIfAbsent(s.name(), s));
         }
+        // Last, because putIfAbsent means first wins: a user's own skill of the same name must shadow the shipped one.
+        loadBuiltins(skills);
         return new ArrayList<>(skills.values());
+    }
+
+    private static void loadBuiltins(Map<String, Skill> skills) {
+        for (String name : BUILTIN_SKILLS) {
+            if (skills.containsKey(name))
+                continue;
+            try (var in = SkillLoader.class.getResourceAsStream("/skills/" + name + ".md")) {
+                if (in == null)
+                    continue;
+                String raw = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                var parsed = parseFrontmatter(raw);
+                String description = String.valueOf(parsed.frontmatter().getOrDefault("description", ""));
+                if (!description.isBlank())
+                    skills.put(name, new Skill(name, description, parsed.body(), Path.of("(built-in)", name + ".md")));
+            } catch (IOException ignored) {
+                // a missing or unreadable built-in must not stop the user's own skills from loading
+            }
+        }
     }
 
     public static String buildPrompt(List<Skill> skills) {
