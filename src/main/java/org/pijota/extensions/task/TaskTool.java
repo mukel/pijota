@@ -76,7 +76,8 @@ public final class TaskTool implements Tool, Tool.Detachable {
 
     private void stopAll(Collection<Child> children) {
         for (Child c : children) {
-            stoppedThisTurn.add(c.name());
+            stopFor(c.name(), "you stopped this sub-agent. It will not be started again in this turn;"
+                                            + " continue without it or ask the user");
             // the agent's own children first: its bash, its browser
             c.process().descendants().forEach(ProcessHandle::destroy);
             c.process().destroy();
@@ -190,6 +191,10 @@ public final class TaskTool implements Tool, Tool.Detachable {
         // row -- so the same process showed as a running agent and a running job at once. The panel lets go here.
         fireActivity(live.label(), "detached");
         detachedLabels.add(live.label());
+        // The model answered a hand-off by launching a fresh copy, doubling the spend the user had just chosen to
+        // defer. Backgrounding it is not a reason to start another one.
+        stopFor(live.label(), "you moved this sub-agent to the background; it is still running and its result will"
+                                        + " be delivered when it finishes. Do not start another one.");
         return Optional.of(new Tool.DetachedProcess(live.process(), "task:" + live.label(), live.feed()::switchAndDrain,
                                         result -> {
                                             future.complete(result);
@@ -529,28 +534,32 @@ public final class TaskTool implements Tool, Tool.Detachable {
      * launched the same agent again seconds later, spending the tokens the user had just decided to stop spending. A
      * stop the interface can actually keep has to be enforced here, not asked for in prose.
      */
-    private final Set<String> stoppedThisTurn = ConcurrentHashMap.newKeySet();
+    private final Map<String, String> stoppedThisTurn = new ConcurrentHashMap<>();
 
     /** Cleared by the extension when a new turn begins: the refusal covers the turn the user stopped it in. */
     public void clearStopped() {
         stoppedThisTurn.clear();
     }
 
-    /** Marks an agent stopped for this turn; package-private so the refusal can be tested without a real process. */
-    void stopFor(String agentName) {
-        stoppedThisTurn.add(agentName);
+    /** Marks an agent unlaunchable for this turn; package-private so the refusal can be tested without a process. */
+    void stopFor(String agentName, String reason) {
+        stoppedThisTurn.put(baseName(agentName), reason);
     }
 
     Set<String> stoppedNames() {
-        return Set.copyOf(stoppedThisTurn);
+        return Set.copyOf(stoppedThisTurn.keySet());
+    }
+
+    /** "explore#2" is the same agent as "explore" for this purpose: the user acted on the agent, not on the suffix. */
+    private static String baseName(String label) {
+        int hash = label.indexOf('#');
+        return hash < 0 ? label : label.substring(0, hash);
     }
 
     private SubAgentResult spawnAgent(SubAgent sub, String task, String workDir) {
-        if (stoppedThisTurn.contains(sub.name())) {
-            return new SubAgentResult(sub.name(), "", 1, 0, 0, null,
-                                            "you stopped this sub-agent. It will not be started again in this turn;"
-                                                                            + " continue without it or ask the user");
-        }
+        String refusal = stoppedThisTurn.get(baseName(sub.name()));
+        if (refusal != null)
+            return new SubAgentResult(sub.name(), "", 1, 0, 0, null, refusal);
         String label = allocateLabel(sub.name());
         try {
             return spawnAgent(sub, label, task, workDir);
@@ -682,7 +691,8 @@ public final class TaskTool implements Tool, Tool.Detachable {
             // A killed child exits 143, which reads to a model as a crash worth retrying -- and it did retry,
             // relaunching the agent seconds after the user stopped it. The registry knows the kill was deliberate.
             if (jobs != null && jobId[0] != null && jobs.wasKilled(jobId[0])) {
-                stoppedThisTurn.add(sub.name());
+                stopFor(sub.name(), "you stopped this sub-agent. It will not be started again in this turn;"
+                                                + " continue without it or ask the user");
                 finish(label, false, 0);
                 return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "stopped by the user. Do not start it again unless asked to");

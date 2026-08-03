@@ -9,6 +9,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +25,9 @@ import java.util.function.Consumer;
  * and native-image safe.
  */
 public final class JobRegistry {
+    /** How many finished jobs stay listable. Enough to look back over a session, bounded so it cannot grow forever. */
+    private static final int MAX_FINISHED = 20;
+
     private static final int MAX_BUFFER = 200_000; // cap retained output per job (characters, not bytes) to bound
                                                    // memory
 
@@ -286,6 +290,21 @@ public final class JobRegistry {
         return job != null && job.killed;
     }
 
+    /**
+     * Forgets the oldest finished jobs beyond {@link #MAX_FINISHED}.
+     *
+     * <p>
+     * The map only ever grew, so a long session's {@code /jobs} filled with exited entries -- and jobs_list is a tool,
+     * so the model paid for that wall in tokens on every call. Running jobs are never dropped, and the retained window
+     * is far larger than the handful a tool consults right after its process exits.
+     */
+    private void pruneFinished() {
+        var finished = jobs.values().stream().filter(j -> !j.process.isAlive())
+                                        .sorted(Comparator.comparingLong(j -> j.startedAtMs)).toList();
+        for (int i = 0; i < finished.size() - MAX_FINISHED; i++)
+            jobs.remove(finished.get(i).id);
+    }
+
     /** Check whether a job is still running without consuming any buffered output. */
     public boolean isRunning(String id) {
         Job job = jobs.get(id);
@@ -316,6 +335,7 @@ public final class JobRegistry {
     }
 
     public List<Status> list() {
+        pruneFinished();
         var statuses = new ArrayList<Status>();
         for (Job job : jobs.values()) {
             boolean alive = job.process.isAlive();

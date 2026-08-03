@@ -141,12 +141,16 @@ class SubAgentControlTest {
         // abort() with nothing running must not arm the refusal
         assertTrue(tool.detach().isEmpty());
 
-        tool.stopFor("explore");
+        tool.stopFor("explore", "you stopped this sub-agent. It will not be started again in this turn");
         var refused = tool.execute("id", new org.pijota.tools.Tool.Args(
                                         java.util.Map.of("agent", "explore", "description", "go")), ".").get();
 
         assertTrue(refused.isError(), refused.content());
         assertTrue(refused.content().contains("will not be started again in this turn"), refused.content());
+
+        // the suffix a parallel batch adds is not a different agent for this purpose
+        tool.stopFor("review#3", "stopped");
+        assertTrue(tool.stoppedNames().contains("review"), tool.stoppedNames().toString());
 
         tool.clearStopped(); // a new turn
         assertFalse(tool.stoppedNames().contains("explore"), "the refusal outlived its turn");

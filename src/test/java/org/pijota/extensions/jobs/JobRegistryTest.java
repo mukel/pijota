@@ -251,6 +251,38 @@ class JobRegistryTest {
         assertTrue(panel.stream().anyMatch(l -> l.contains("bg_2")), panel.toString());
     }
 
+    /**
+     * The map only ever grew, so a long session's /jobs filled with exited entries -- and jobs_list is a tool, so the
+     * model paid for that wall in tokens on every call.
+     */
+    @Test
+    void finishedJobsDoNotAccumulateForever() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var jobs = new JobRegistry();
+        var live = new ProcessBuilder("sh", "-c", "sleep 30").start();
+        String liveId = jobs.register(live, "sleep 30", null);
+
+        for (int i = 0; i < 25; i++) {
+            var p = new ProcessBuilder("sh", "-c", "exit 0").start();
+            jobs.register(p, "exit 0 #" + i, null);
+            p.onExit().get(10, TimeUnit.SECONDS);
+        }
+
+        var listed = jobs.list();
+        assertTrue(listed.size() <= 21, "finished jobs accumulated: " + listed.size());
+        assertTrue(listed.stream().anyMatch(s -> s.id().equals(liveId)), "a running job was pruned");
+        live.destroy();
+    }
+
+    /** An in-turn process writes to its tool card, not this buffer, so a size here reads as "produced nothing". */
+    @Test
+    void anInTurnRowDoesNotClaimZeroOutput() {
+        var rows = JobsExtension.renderList(List.of(new JobRegistry.Status("bg_1", "task:explore", "explore", true,
+                                        null, 0, false, 5, true)));
+        assertFalse(rows.contains("0B"), rows);
+        assertTrue(rows.contains("in turn"), rows);
+    }
+
     @Test
     void panelCapsRowsAndShortensLongCommands() {
         var many = new ArrayList<JobRegistry.Status>();

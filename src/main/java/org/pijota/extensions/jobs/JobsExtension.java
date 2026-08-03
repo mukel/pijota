@@ -287,7 +287,11 @@ public final class JobsExtension implements Extension {
             // "in turn" vs "background" is the distinction that matters here: whether a tool call is still waiting
             // on it, which decides who reports it and whether jobs_output may read it.
             String status = s.running() ? (s.inTurn() ? "in turn" : "background") : "exit " + s.exitCode();
-            sb.append(s.id()).append(CHIP).append(status).append(CHIP).append(Util.formatSize(s.outputChars()));
+            sb.append(s.id()).append(CHIP).append(status);
+            // No size for an in-turn process: its output goes to its tool card or its log, not this buffer, so "0B"
+            // said it had produced nothing while it was busily producing plenty.
+            if (!s.inTurn())
+                sb.append(CHIP).append(Util.formatSize(s.outputChars()));
             if (hasDistinctName(s.name(), s.command()))
                 sb.append(CHIP).append(s.name());
             if (s.truncated())
