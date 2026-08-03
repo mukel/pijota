@@ -880,8 +880,25 @@ window.addEventListener("DOMContentLoaded", () => {
     });
     return box;
   }
+  // Live stdout from a running bash command, appended to its card as it arrives. The server has always broadcast
+  // these; nothing listened, so expanding a running command showed an empty card until it finished.
+  function bashDelta(id, delta) {
+    const card = toolCards.get(id);
+    if (!card || !delta) return;
+    withAutoScroll(() => {
+      if (!card.live) {
+        const sec = document.createElement("div"); sec.className = "section";
+        card.live = document.createElement("pre");
+        sec.appendChild(card.live); card.details.appendChild(sec);
+      }
+      card.live.textContent += delta;
+    });
+  }
+
   function toolResult(id, name, content, isError) {
     const card = toolCard(id, name, "", "");
+    // The result carries the whole output, so the live tail would be a duplicate of it.
+    if (card.live) { card.live.closest(".section").remove(); card.live = null; }
     card.details.classList.toggle("err", !!isError);
     card.badge.classList.remove("running"); // stop the pulse once the tool settles
     card.badge.textContent = isError ? "error" : "done";
@@ -927,6 +944,7 @@ window.addEventListener("DOMContentLoaded", () => {
       if (d.final) { stampMsg(live.msg, d.ts); live = null; }
     });
     es.addEventListener("tool", e => { const d = JSON.parse(e.data); clearActivity(); toolCard(d.id, d.name, d.args, d.detail); live = null; showActivity("running tools..."); });
+    es.addEventListener("bash_execution_update", e => { const d = JSON.parse(e.data); bashDelta(d.id, d.delta); });
     es.addEventListener("tool_result", e => { const d = JSON.parse(e.data); toolResult(d.id, d.name, d.content, d.isError); });
     es.addEventListener("custom", e => {
       const d = JSON.parse(e.data); const el = addMsg("custom");

@@ -56,20 +56,23 @@ final class ThemeLoader {
         if ("auto".equalsIgnoreCase(selected)) // pick a light/dark theme from the terminal background
             selected = TerminalBackground.detect() == TerminalBackground.Mode.LIGHT ? AUTO_LIGHT_THEME : DEFAULT_THEME;
 
-        AnsiTheme builtin = loadBuiltin(selected);
-        if (builtin != null)
-            return builtin;
-
+        // A file the user wrote wins over a name pijota ships. The bundled lookup ran first, so a
+        // ~/.pijota/themes/dark.json could never be selected by name: `--theme dark` and `/theme dark` both loaded the
+        // built-in, while the picker listed the user's file on its own row -- a row that did nothing when chosen.
+        // Every other resource in pijota resolves the same way round: more specific wins.
         Path selectedPath = resolveThemePath(Path.of(cwd), selected);
         if (selectedPath != null && Files.isRegularFile(selectedPath))
             return AnsiTheme.load(selectedPath);
 
         Path byName = candidates.get(selected);
-        if (byName == null && selected.endsWith(".json")) {
+        if (byName == null && selected.endsWith(".json"))
             byName = candidates.get(selected.substring(0, selected.length() - 5));
-        }
         if (byName != null)
             return AnsiTheme.load(byName);
+
+        AnsiTheme builtin = loadBuiltin(selected);
+        if (builtin != null)
+            return builtin;
 
         Path legacy = PijotaHome.resolve("theme.json");
         if (Files.isRegularFile(legacy))

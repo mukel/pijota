@@ -6,7 +6,12 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 
 final class TuiCopy {
-    static final String START_HINT = Keys.label("/help · /model · @ files · Ctrl+P · Shift+Tab");
+    /**
+     * The first line a new user reads after the name. Three of these say what they do by being read; two were bare keys
+     * that could only be learned by pressing them, which is not a hint, it is a rebus. Words are added only where they
+     * buy meaning -- "/help commands" tells nobody anything "/help" did not.
+     */
+    static final String START_HINT = Keys.label("/help · /model · @ files · Ctrl+P palette · Shift+Tab effort");
     // Ordered by what a narrow terminal must keep: footer() drops chips from the end, and the first casualty should
     // be the hint you would have discovered by accident anyway, not the one that says how to get out. At 60 columns
     // this used to lose "Esc cancel".

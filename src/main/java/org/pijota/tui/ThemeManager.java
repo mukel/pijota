@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 final class ThemeManager {
@@ -22,29 +23,33 @@ final class ThemeManager {
         this.host = host;
     }
 
+    /**
+     * One row per name. A user file that shares a bundled name replaces it rather than appearing beside it: the list
+     * used to show "dark" twice, both marked current, and choosing either loaded the bundled one.
+     */
     List<ThemeItem> discover() {
-        var items = new ArrayList<ThemeItem>();
-        for (String name : builtinNames()) {
-            items.add(new ThemeItem(name, "", host.theme().name.equals(name)));
-        }
+        var byName = new LinkedHashMap<String, ThemeItem>();
+        for (String name : builtinNames())
+            byName.put(name, new ThemeItem(name, "", host.theme().name.equals(name)));
         for (Path p : fileThemes()) {
             String name = themeName(p);
-            items.add(new ThemeItem(name, p.toString(), host.theme().name.equals(name)));
+            byName.put(name, new ThemeItem(name, p.toString(), host.theme().name.equals(name)));
         }
-        return items;
+        return List.copyOf(byName.values());
     }
 
+    /** A file the user wrote wins over a name pijota ships; see the note in {@code ThemeLoader.resolve}. */
     void switchTo(String name) {
+        try {
+            Path path = resolveExternal(name);
+            if (path != null && Files.isRegularFile(path)) {
+                apply(AnsiTheme.load(path), themeName(path));
+                return;
+            }
+        } catch (Exception ignored) {}
         try {
             apply(AnsiTheme.loadResource("themes/" + name.toLowerCase() + ".json"), name);
         } catch (IOException e) {
-            try {
-                Path path = resolveExternal(name);
-                if (path != null && Files.isRegularFile(path)) {
-                    apply(AnsiTheme.load(path), path.getFileName().toString());
-                    return;
-                }
-            } catch (Exception ignored) {}
             host.appendError("theme not found: " + name);
         }
     }

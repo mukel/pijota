@@ -20,14 +20,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -655,4 +658,29 @@ class WebServerTest {
             return socket.getLocalPort();
         }
     }
+
+    /**
+     * An event the server pushes that no client listens for is a feature that silently does nothing. That is exactly
+     * what {@code bash_execution_update} was: broadcast on every delta, covered by a server-side test, and never
+     * rendered, so expanding a running command in the browser showed an empty card until it finished.
+     */
+    @Test
+    void everyBroadcastEventHasAListenerInThePage() throws IOException {
+        String server = Files.readString(Path.of("src/main/java/org/pijota/web/WebServer.java"),
+                                        StandardCharsets.UTF_8);
+        String ui = Files.readString(Path.of("src/main/java/org/pijota/web/WebUiContext.java"), StandardCharsets.UTF_8);
+        String page = Files.readString(Path.of("src/main/resources/web/index.html"), StandardCharsets.UTF_8);
+
+        var unhandled = new TreeSet<String>();
+        var emitted = Pattern.compile("(?:broadcast|emit\\.accept)\\(\"([a-z_]+)\"");
+        for (String source : List.of(server, ui)) {
+            var m = emitted.matcher(source);
+            while (m.find())
+                if (!page.contains("addEventListener(\"" + m.group(1) + "\""))
+                    unhandled.add(m.group(1));
+        }
+
+        assertTrue(unhandled.isEmpty(), "SSE events the browser never listens for: " + unhandled);
+    }
+
 }

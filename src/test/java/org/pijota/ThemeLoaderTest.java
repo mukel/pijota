@@ -114,4 +114,34 @@ class ThemeLoaderTest {
         var theme = ThemeLoader.load(settings, ArgParser.parse(new String[] {"--no-themes"}), "/tmp");
         assertEquals("gruvbox-dark", theme.name); // built-in default still loads; only user-dir discovery is skipped
     }
+
+    /**
+     * A file the user wrote wins over a name pijota ships. The bundled lookup used to run first, so a
+     * {@code ~/.pijota/themes/dark.json} could never be selected by name -- verified at the time with an all-magenta
+     * dark.json that the binary ignored entirely -- while the picker listed it on its own row, which did nothing.
+     */
+    @Test
+    void aUserThemeOverridesABundledNameOfTheSameName() throws Exception {
+        Path dir = Files.createTempDirectory("theme-override");
+        Files.writeString(dir.resolve("dark.json"),
+                                        "{\"name\":\"dark\",\"vars\":{\"x\":\"#ff00ff\"},\"colors\":{\"text\":\"x\"}}");
+
+        var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, "dark",
+                                        List.of(dir.toString()), null, true, false, false, null, null,
+                                        new AppConfig.CompactionConfig(), null, null, List.of(), Map.of(), null),
+                                        ignored -> {});
+        var theme = ThemeLoader.load(settings, emptyArgs(), "/tmp");
+
+        assertEquals("dark", theme.name);
+        assertTrue(theme.text.contains("ff00ff"), "the user's file, not the bundled dark: " + theme.text);
+    }
+
+    /** A bundled name with no user file of that name still resolves, which is the ordinary case. */
+    @Test
+    void aBundledNameStillLoadsWhenNothingShadowsIt() {
+        var theme = ThemeLoader.load(settingsWithTheme("gruvbox-light"), emptyArgs(), "/tmp");
+
+        assertEquals("gruvbox-light", theme.name);
+    }
+
 }
