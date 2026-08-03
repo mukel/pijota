@@ -40,6 +40,19 @@ class RpcModeTest {
         System.setIn(new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8)));
     }
 
+    /**
+     * A client whose serialiser has a bug used to get silence and wait forever for a response. JSON-RPC has a code for
+     * an unparseable request, and the loop must keep serving the requests that follow it.
+     */
+    @Test
+    void anUnparseableLineIsAnsweredWithParseErrorAndTheLoopContinues() {
+        feedStdin("not json at all\n{\"method\":\"ping\",\"id\":\"5\"}\n{\"method\":\"shutdown\",\"id\":\"6\"}\n");
+        RpcMode.run(ignored -> CompletableFuture.completedFuture(List.of()));
+        String out = captured.toString(StandardCharsets.UTF_8);
+        assertTrue(out.contains("-32700"), out);
+        assertTrue(out.contains("pong"), "the loop stopped serving after a bad line: " + out);
+    }
+
     @Test
     void parseRequestWithAllFields() {
         var req = RpcMode.parseRpcRequest("{\"method\":\"prompt\",\"id\":\"1\",\"params\":{\"prompt\":\"hello\"}}");
@@ -135,12 +148,18 @@ class RpcModeTest {
         assertTrue(out.contains("\"id\":5"));
     }
 
+    /**
+     * Was "invalid JSON is ignored". Silence is the one answer a caller cannot act on: a client whose serialiser has a
+     * bug waits forever for a reply that is never coming. JSON-RPC 2.0 requires a parse error carrying a null id, and a
+     * well-behaved client has no pending request to match it against, so it costs a correct client nothing.
+     */
     @Test
-    void runInvalidJsonIsIgnored() {
+    void runInvalidJsonIsAnsweredWithAParseError() {
         feedStdin("not json\n{\"method\":\"shutdown\",\"id\":\"6\"}\n");
         RpcMode.run(ignored -> CompletableFuture.completedFuture(List.of()));
         String out = captured.toString(StandardCharsets.UTF_8);
-        assertTrue(out.contains("\"id\":6"));
-        assertFalse(out.contains("\"id\":null"));
+        assertTrue(out.contains("-32700"), out);
+        assertTrue(out.contains("\"id\":null"), out);
+        assertTrue(out.contains("\"id\":6"), "the loop must keep serving after a bad line: " + out);
     }
 }

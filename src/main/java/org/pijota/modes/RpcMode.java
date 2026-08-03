@@ -26,8 +26,13 @@ public final class RpcMode {
                     continue;
 
                 var request = parseRpcRequest(line);
-                if (request == null)
+                if (request == null) {
+                    // -32700, not silence. A client whose serialiser has a bug got no answer at all and sat waiting
+                    // for a response that was never coming; the protocol has a code for exactly this.
+                    writeError(writer, null, -32700, "Parse error: not a JSON-RPC request");
+                    writer.flush();
                     continue;
+                }
 
                 String method = request.method();
                 String id = request.id();
