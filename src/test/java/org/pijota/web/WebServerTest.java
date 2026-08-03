@@ -303,6 +303,36 @@ class WebServerTest {
         });
     }
 
+    /**
+     * A body carrying neither text nor attachments is a client that got the shape wrong -- {"prompt": ...} instead of
+     * {"text": ...}, say. It used to answer 204 and do nothing, which reads as success and leaves the caller waiting
+     * for a reply that is never coming.
+     */
+    @Test
+    void aBodyWithoutATextFieldIsRejectedRatherThanSilentlyAccepted() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .header("Content-Type", "application/json")
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"prompt\":\"hello\"}"))
+                                            .build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(400, resp.statusCode(), "a wrong-shaped body was accepted as success");
+            assertTrue(resp.body().contains("text"), "the reply must name the field it wanted: " + resp.body());
+            assertTrue(ts.session().userMessages().isEmpty(), "nothing should have been sent to the model");
+        });
+    }
+
+    /** The send button pressed on an empty box: nothing to do, and doing nothing is right. */
+    @Test
+    void anEmptyTextStillAcceptsQuietly() throws Exception {
+        withServer((ts, client, base) -> {
+            var resp = client.send(HttpRequest.newBuilder(URI.create(base + "/prompt"))
+                                            .header("Content-Type", "application/json")
+                                            .POST(HttpRequest.BodyPublishers.ofString("{\"text\":\"\"}")).build(),
+                                            HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, resp.statusCode());
+        });
+    }
+
     @Test
     void promptPostRunsAnAgentTurnAndAcceptsWith204() throws Exception {
         withServer((ts, client, base) -> {

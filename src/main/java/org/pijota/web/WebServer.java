@@ -381,6 +381,14 @@ public final class WebServer implements AutoCloseable {
         }
         String text = strField(body, "text");
         var attachments = parseAttachments(body); // pasted / dropped / picked files, base64 in the JSON body
+        // A body carrying neither is a client that got the shape wrong -- {"prompt": ...} instead of {"text": ...},
+        // say. That used to answer 204 and do nothing, which reads as success and leaves the caller waiting for a
+        // reply that is never coming. A present-but-empty text still answers 204: that is the send button pressed on
+        // an empty box, and doing nothing is the right thing to do.
+        if (text == null && attachments.isEmpty()) {
+            send(ex, 400, "text/plain", "expected a JSON body with a \"text\" field".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
         String t = text == null ? "" : text;
         if (!t.isBlank() || !attachments.isEmpty()) {
             if (t.stripLeading().startsWith("/"))
