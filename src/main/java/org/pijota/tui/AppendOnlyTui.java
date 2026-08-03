@@ -939,7 +939,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 // rather than against the right margin, which would leave a canyon of blank the eye has to cross.
                 int metaWidth = metas.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
                 int titleRoom = Math.max(8, width - metaWidth - 4); // 2 leading + one GROUP gap
-                var titles = items.stream().map(it -> Util.ellipsize(it.description(), titleRoom)).toList();
+                // Columns, not characters: a CJK title cut to N characters is 2N columns wide, and the row wrapped.
+                var titles = items.stream().map(it -> AnsiWidth.ellipsize(it.description(), titleRoom)).toList();
                 int titleColumn = titles.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
                 for (int i = 0; i < titles.size(); i++)
                     lines.add(theme.styled("statusText", TuiCopy.GROUP + padRight(titles.get(i), titleColumn))

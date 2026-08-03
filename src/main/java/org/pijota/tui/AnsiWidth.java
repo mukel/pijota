@@ -9,6 +9,35 @@ final class AnsiWidth {
 
     private AnsiWidth() {}
 
+    /**
+     * Truncates to {@code maxColumns} of display width, appending an ellipsis when it cuts.
+     *
+     * <p>
+     * {@code Util.ellipsize} counts characters, which is the same thing only for the Latin alphabet. A CJK title is two
+     * columns per character, so a row cut to 40 "characters" was 80 columns wide and the launch banner's session rows
+     * wrapped onto a second line, splitting their metadata from their title.
+     */
+    public static String ellipsize(String text, int maxColumns) {
+        if (text == null || text.isBlank() || maxColumns <= 0)
+            return "";
+        if (visibleWidth(text) <= maxColumns)
+            return text;
+        int budget = maxColumns - 1; // the ellipsis itself occupies one column
+        var out = new StringBuilder();
+        int used = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            int w = Character.isISOControl(ch) ? 0 : charWidth(text, i);
+            if (used + w > budget)
+                break;
+            out.append(ch);
+            if (Character.isHighSurrogate(ch) && i + 1 < text.length())
+                out.append(text.charAt(++i));
+            used += w;
+        }
+        return out + "\u2026";
+    }
+
     public static int visibleWidth(String text) {
         int width = 0;
         for (int i = 0; i < text.length(); i++) {

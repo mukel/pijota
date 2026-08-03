@@ -8,6 +8,26 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AnsiWidthTest {
 
+    /**
+     * Util.ellipsize counts characters, which equals columns only for the Latin alphabet. A CJK title cut to 40
+     * "characters" is 80 columns, and the launch banner's session rows wrapped onto a second line, splitting their
+     * metadata away from their title.
+     */
+    @Test
+    void ellipsizeCutsByColumnsNotCharacters() {
+        String cjk = "\u65e5\u672c\u8a9e\u306e\u30c6\u30ad\u30b9\u30c8"; // 8 chars, 16 columns
+
+        assertEquals(cjk, AnsiWidth.ellipsize(cjk, 16), "it fits exactly and must not be cut");
+        assertTrue(AnsiWidth.visibleWidth(AnsiWidth.ellipsize(cjk, 10)) <= 10, "cut result still overflowed");
+        assertTrue(AnsiWidth.ellipsize(cjk, 10).endsWith("\u2026"), "a cut must be marked");
+
+        // never splits a character in half
+        assertEquals(AnsiWidth.visibleWidth(AnsiWidth.ellipsize(cjk, 7)) % 2, 1, "odd budget leaves the ellipsis");
+
+        assertEquals("abcd\u2026", AnsiWidth.ellipsize("abcdefgh", 5), "plain ASCII behaves as before");
+        assertEquals("", AnsiWidth.ellipsize(null, 5));
+    }
+
     @Test
     void visibleWidthPlainAscii() {
         assertEquals(5, AnsiWidth.visibleWidth("hello"));
