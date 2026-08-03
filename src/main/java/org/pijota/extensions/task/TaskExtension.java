@@ -2,6 +2,7 @@ package org.pijota.extensions.task;
 
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
+import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.HeadlessToolContext;
 import org.pijota.extensions.UiContext;
 import org.pijota.extensions.jobs.JobRegistry;
@@ -81,7 +82,6 @@ public final class TaskExtension implements Extension {
     private final ConcurrentHashMap<String, LogSummary> finishedLogs = new ConcurrentHashMap<>(); // by log path
     private final Set<Path> activeLogs = ConcurrentHashMap.newKeySet();
     private ExtensionAPI api;
-    private TaskTool tool;
 
     void onActivity(String agent, String line) {
         if (line.startsWith("log: ")) {
@@ -176,16 +176,20 @@ public final class TaskExtension implements Extension {
         var runtime = api.runtime();
         var agents = SubAgent.loadAll(runtime.cwd());
 
-        this.tool = new TaskTool(agents, runtime.llm(), runtime.tools()::activeToolNames, runtime::systemPrompt,
+        var tool = new TaskTool(agents, runtime.llm(), runtime.tools()::activeToolNames, runtime::systemPrompt,
                                         this::onActivity, this::finished, runtime.cwd(), 0);
         tool.setJobRegistry(jobRegistry);
         api.registerTool(tool);
+        // No /agents command. A sub-agent is a process like any other: /jobs lists it with an id from the moment it
+        // starts, and /kill <id> stops it. A second vocabulary for one of the kinds was the duplication itself.
 
+        // AgentStart, not TurnStart: TurnStart fires once per loop iteration, so clearing there wiped the refusal
+        // between the failed tool result and the model's very next call -- which is exactly the retry it must refuse.
+        // The boundary that matters is the user's next prompt.
+        api.on(ExtensionEvent.AgentStart.class, _ev -> tool.clearStopped());
         api.registerStatusLines(this::statusLines);
         api.registerSlashCommand(new SlashCommand("logs", "Open the latest sub-agent log", List.of("log", "tail"),
                                         this::openLog));
-        api.registerSlashCommand(new SlashCommand("agents", "List sub-agents, or stop one", List.of("agent", "tasks"),
-                                        this::agentsCommand));
     }
 
     @Override
@@ -197,70 +201,6 @@ public final class TaskExtension implements Extension {
             ctx.registry().register(new TaskTool(agents, ctx.llm(), ctx.registry()::activeToolNames, ctx::systemPrompt,
                                             this::onActivity, this::finished, ctx.cwd(), ctx.depth()));
         }
-    }
-
-    /**
-     * {@code /agents} lists what is in flight; {@code /agents stop <name>} (or {@code all}) ends it.
-     *
-     * <p>
-     * A sub-agent is a process spending tokens, so it has to be as inspectable and as interruptible as any other job.
-     * The status bar shows them while they run and then clears, which is right for a status bar and useless for "what
-     * did I just launch, and how do I stop the one that is stuck": both questions need an answer on demand.
-     */
-    private void agentsCommand(String input) {
-        var words = (input == null ? "" : input.trim()).split("\\s+", 2);
-        String verb = words[0];
-        if (verb.equalsIgnoreCase("stop") || verb.equalsIgnoreCase("kill")) {
-            stopAgents(words.length > 1 ? words[1].trim() : "all");
-            return;
-        }
-        if (!verb.isBlank()) {
-            api.runtime().setStatus("  /agents · /agents stop <name|all>");
-            return;
-        }
-        listAgents();
-    }
-
-    private void stopAgents(String target) {
-        if (tool == null)
-            return;
-        var names = "all".equalsIgnoreCase(target) ? tool.runningNames() : List.of(target);
-        int stopped = 0;
-        for (String name : names)
-            stopped += tool.stop(name);
-
-        if (stopped == 0) {
-            var live = tool.runningNames();
-            api.runtime().setStatus(live.isEmpty()
-                                            ? "  no sub-agents running"
-                                            : "  no sub-agent named '" + target + "' · running: "
-                                                                            + String.join(", ", live));
-            return;
-        }
-        api.runtime().setStatus("  stopped " + stopped + " sub-agent" + (stopped == 1 ? "" : "s"));
-    }
-
-    private void listAgents() {
-        var lines = new ArrayList<>(statusLines());
-        if (lines.isEmpty()) {
-            // Everything has finished and the status bar has cleared: the log summaries are what survives.
-            for (var log : collectLogs()) {
-                LogSummary done = finishedLogs.get(log.toString());
-                if (done != null)
-                    lines.add(String.format("%s task:%-15s · %d tools · %s tokens",
-                                                    done.success ? ToolGlyphs.DONE : ToolGlyphs.FAILED, done.agent,
-                                                    done.toolCount, Util.fmtCount(done.tokens)));
-            }
-        }
-        if (lines.isEmpty()) {
-            api.runtime().setStatus("  no sub-agents yet");
-            return;
-        }
-        var sb = new StringBuilder("sub-agents\n").append("\u2500".repeat(40)).append('\n');
-        for (String line : lines)
-            sb.append("  ").append(line).append('\n');
-        sb.append("\n  /agents stop <name|all> \u00b7 /logs to read output\n");
-        api.sendMessage(new Message.Custom("agents", sb.toString()));
     }
 
     private void openLog(String input) {

@@ -43,6 +43,8 @@ Prompt templates become commands too, one per `.md` file: see
 | `/undo` | edit the previous message |
 | `/copy` | copy the last response |
 | `/theme` | list or switch themes |
+| `/jobs` | every running process with an id, `in turn` or `background` |
+| `/kill <id>` | stop one, whatever kind it is |
 | `/trust` | trust this folder's project files |
 | `/plan` | toggle read-only plan mode |
 | `/bg` | background the running tool |
@@ -72,8 +74,6 @@ Present only when the extension is on ([Extensions](extensions.md)).
 |---|---|
 | `/btw`, `/btw:tangent`, `/btw:inject` | `btw`: a read-only side question, off the main thread |
 | `/goal <objective>`, `/loop <objective>` | `goal`: track or auto-continue a goal |
-| `/jobs`, `/kill` | `jobs` |
-| `/agents`, `/agents stop <name\|all>` | `task`: list sub-agents, or stop one |
 | `/logs` | `task`: the latest sub-agent log |
 | `/mcp` | `mcp`: list, connect, disconnect, reconnect, reload |
 | `/schedule-prompt` | `schedule-prompt` |

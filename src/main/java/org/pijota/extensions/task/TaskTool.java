@@ -74,24 +74,9 @@ public final class TaskTool implements Tool, Tool.Detachable {
         stopAll(running);
     }
 
-    /**
-     * Stops the sub-agents running under {@code name}, and reports how many. Plural because the status bar collapses
-     * same-named agents into one row: what the user can point at is the name, so that is what stopping acts on.
-     */
-    public int stop(String name) {
-        var matching = running.stream().filter(c -> c.name().equals(name)).toList();
-        stopAll(matching);
-        return matching.size();
-    }
-
-    /** Names of the sub-agents in flight, for a caller that wants to offer them as choices. */
-    public List<String> runningNames() {
-        return running.stream().map(Child::name).distinct().sorted().toList();
-    }
-
     private void stopAll(Collection<Child> children) {
         for (Child c : children) {
-            userStopped.add(c.name());
+            stoppedThisTurn.add(c.name());
             // the agent's own children first: its bash, its browser
             c.process().descendants().forEach(ProcessHandle::destroy);
             c.process().destroy();
@@ -117,16 +102,6 @@ public final class TaskTool implements Tool, Tool.Detachable {
     /** A live sub-agent process together with the name it is shown under, so it can be stopped by that name. */
     private record Child(String name, Process process) {
     }
-
-    /**
-     * Agents the user stopped, awaiting their result.
-     *
-     * <p>
-     * A killed child exits 143, which reads to the model as a crash worth retrying -- and it did retry, relaunching the
-     * agent seconds after the user stopped it. The stop has to be reported as a decision rather than a fault, or it is
-     * not a stop at all.
-     */
-    private final Set<String> userStopped = ConcurrentHashMap.newKeySet();
 
     /**
      * Where a running sub-agent's rendered output goes: its own log file, and -- once the user backgrounds it -- the
@@ -546,7 +521,36 @@ public final class TaskTool implements Tool, Tool.Detachable {
         return declared;
     }
 
+    /**
+     * Sub-agents the user stopped during this turn.
+     *
+     * <p>
+     * Telling the model not to restart a stopped agent is a request, and it was refused: after a /kill the model
+     * launched the same agent again seconds later, spending the tokens the user had just decided to stop spending. A
+     * stop the interface can actually keep has to be enforced here, not asked for in prose.
+     */
+    private final Set<String> stoppedThisTurn = ConcurrentHashMap.newKeySet();
+
+    /** Cleared by the extension when a new turn begins: the refusal covers the turn the user stopped it in. */
+    public void clearStopped() {
+        stoppedThisTurn.clear();
+    }
+
+    /** Marks an agent stopped for this turn; package-private so the refusal can be tested without a real process. */
+    void stopFor(String agentName) {
+        stoppedThisTurn.add(agentName);
+    }
+
+    Set<String> stoppedNames() {
+        return Set.copyOf(stoppedThisTurn);
+    }
+
     private SubAgentResult spawnAgent(SubAgent sub, String task, String workDir) {
+        if (stoppedThisTurn.contains(sub.name())) {
+            return new SubAgentResult(sub.name(), "", 1, 0, 0, null,
+                                            "you stopped this sub-agent. It will not be started again in this turn;"
+                                                                            + " continue without it or ask the user");
+        }
         String label = allocateLabel(sub.name());
         try {
             return spawnAgent(sub, label, task, workDir);
@@ -616,6 +620,7 @@ public final class TaskTool implements Tool, Tool.Detachable {
             // Tracked only while it is alive: the set is what abort() reaches, so a finished agent must leave it or
             // a long session accumulates dead handles.
             var child = new AtomicReference<Child>();
+            var jobId = new String[1]; // the id the whole interface stops this agent by
             var detachSignal = new CompletableFuture<Void>();
             final Feed feed = logWriter;
             ProcessRunner.Result procResult;
@@ -634,7 +639,7 @@ public final class TaskTool implements Tool, Tool.Detachable {
                                                     // name null: the command already reads "task:explore", and
                                                     // passing the label too printed it twice on the row
                                                     if (jobs != null)
-                                                        jobs.register(proc, "task:" + label, null);
+                                                        jobId[0] = jobs.register(proc, "task:" + label, null);
                                                     // Only a lone agent under a single-mode call can be handed off;
                                                     // for a batch inFlight is null and detach() declines.
                                                     if (inFlight != null && running.size() == 1)
@@ -674,7 +679,10 @@ public final class TaskTool implements Tool, Tool.Detachable {
                 return result;
             }
 
-            if (userStopped.remove(label)) {
+            // A killed child exits 143, which reads to a model as a crash worth retrying -- and it did retry,
+            // relaunching the agent seconds after the user stopped it. The registry knows the kill was deliberate.
+            if (jobs != null && jobId[0] != null && jobs.wasKilled(jobId[0])) {
+                stoppedThisTurn.add(sub.name());
                 finish(label, false, 0);
                 return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
                                                 "stopped by the user. Do not start it again unless asked to");

@@ -235,6 +235,22 @@ class JobRegistryTest {
         assertFalse(panel.stream().anyMatch(l -> l.contains("bg_2")), "finished jobs are not shown");
     }
 
+    /**
+     * An in-turn process already has a tool card or a sub-agent row on screen. Listing it in the footer as well showed
+     * one process twice, a few lines apart, in two vocabularies.
+     */
+    @Test
+    void thePanelLeavesOutWhatIsAlreadyOnScreen() {
+        var statuses = List.of(new JobRegistry.Status("bg_1", "task:explore", "explore", true, null, 0, false, 5, true),
+                                        new JobRegistry.Status("bg_2", "npm test", "npm test", true, null, 0, false, 5,
+                                                                        false));
+        var panel = JobsExtension.renderPanel(statuses);
+
+        assertTrue(panel.get(0).contains("1 running"), panel.toString());
+        assertFalse(panel.stream().anyMatch(l -> l.contains("bg_1")), "the in-turn process was listed twice: " + panel);
+        assertTrue(panel.stream().anyMatch(l -> l.contains("bg_2")), panel.toString());
+    }
+
     @Test
     void panelCapsRowsAndShortensLongCommands() {
         var many = new ArrayList<JobRegistry.Status>();

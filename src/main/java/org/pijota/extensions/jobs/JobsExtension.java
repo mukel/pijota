@@ -343,9 +343,16 @@ public final class JobsExtension implements Extension {
         api.sendUserMessage(msg);
     }
 
-    /** Live footer panel: only running jobs, capped for legibility. */
+    /**
+     * Live footer panel: only backgrounded jobs, capped for legibility.
+     *
+     * <p>
+     * In-turn processes are left out on purpose. They already have a tool card or a sub-agent row on screen, and
+     * listing them here as well showed one process twice, a few lines apart, in two vocabularies. The footer is for
+     * what you would otherwise forget about; {@code /jobs} is the complete list.
+     */
     public static List<String> renderPanel(List<JobRegistry.Status> all) {
-        var running = all.stream().filter(JobRegistry.Status::running).toList();
+        var running = all.stream().filter(s -> s.running() && !s.inTurn()).toList();
         if (running.isEmpty())
             return List.of();
         var lines = new ArrayList<String>();

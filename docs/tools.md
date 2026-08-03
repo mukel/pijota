@@ -52,13 +52,16 @@ MCP servers add theirs under their own names; see [MCP](project-files.md#mcp-ser
 
 `task` spawns a separate process, so each one is visible and interruptible:
 
+A sub-agent is a process like any other, so it is listed and stopped like any other -- there is
+no separate agent vocabulary:
+
 | | |
 |---|---|
 | status bar | one line per agent while it runs: last tool, tokens so far, lines, elapsed |
-| `/agents` | the same list on demand, including agents the status bar has already cleared |
-| `/agents stop <name\|all>` | stops it and its own children (its bash, its browser) |
+| [`/jobs`](#sub-agents) | every running process with an id, marked `in turn` or `background` |
+| `/kill <id>` | stops it and its own children (its bash, its browser) |
 | `Esc` | stops every sub-agent in the turn, along with the turn |
-| `Ctrl+B` twice | hands it to the background as a job, and the turn resumes |
+| `Ctrl+B` twice | hands it to the background, and the turn resumes |
 | `/logs` | the full transcript, tailing while it runs |
 
 A stopped agent is reported to the model as your decision, not a crash, so it is not
@@ -67,10 +70,13 @@ started again on its own.
 Launching the same agent twice at once suffixes the second: `explore`, `explore#2`. Each
 gets its own row, log and stop.
 
-A backgrounded agent is an ordinary [job](#sub-agents): it gets a `bg_N` id, appears in
-`/jobs`, is stopped with `/kill`, and its output is delivered when it finishes -- no
-polling. Only a single agent can be backgrounded; a parallel batch declines, because
-resolving the call mid-batch would discard the other agents' results.
+The id is issued when the agent starts and does not change when you background it. Its
+output is delivered when it finishes -- no polling. Only a single agent can be
+backgrounded; a parallel batch declines, because resolving the call mid-batch would
+discard the other agents' results.
+
+A stopped agent stays stopped: it will not be started again for the rest of that turn,
+whatever the model decides.
 
 ## Read-only
 

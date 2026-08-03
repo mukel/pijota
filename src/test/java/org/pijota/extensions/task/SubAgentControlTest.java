@@ -15,11 +15,15 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Sub-agents are processes spending tokens, so "what is running" and "stop that one" have to be answerable at any time.
- * The status bar answers the first only while they run and then clears itself, which is correct for a status bar and
- * useless the moment you want to look something up: {@code /agents} is the on-demand form.
+ * A sub-agent is a process like any other, so it is listed and stopped like any other: {@code /jobs} shows it with an
+ * id from the moment it starts and {@code /kill <id>} stops it. There is deliberately no {@code /agents} command -- a
+ * second vocabulary for one kind of process was the duplication, not the cure.
+ *
+ * <p>
+ * What is genuinely particular to sub-agents is here: the labels that keep concurrent ones apart, the spend they
+ * report, and the hand-off to the background.
  */
-class TaskAgentsCommandTest {
+class SubAgentControlTest {
 
     @TempDir
     Path logDir;
@@ -43,55 +47,7 @@ class TaskAgentsCommandTest {
         System.clearProperty("pijota.log.dir");
     }
 
-    private void run(String args) {
-        api.slashCommand("agents").handler().accept(args);
-    }
-
-    @Test
-    void isRegisteredWithTheAliasesAUserWouldReachFor() {
-        var cmd = api.slashCommand("agents");
-        assertNotNull(cmd, "/agents is not registered");
-        assertTrue(cmd.aliases().contains("agent"), "aliases: " + cmd.aliases());
-        assertTrue(cmd.aliases().contains("tasks"), "aliases: " + cmd.aliases());
-    }
-
-    @Test
-    void listsEveryRunningAgentOnItsOwnLine() {
-        extension.onActivity("explore", "Read pom.xml");
-        extension.onActivity("explore", "tokens: 2400");
-        extension.onActivity("review", "Grep TODO");
-
-        run("");
-
-        String out = api.lastSentMessage();
-        assertNotNull(out, "nothing was reported");
-        assertTrue(out.contains("task:explore"), out);
-        assertTrue(out.contains("task:review"), out);
-        assertTrue(out.contains("2K tokens"), "live spend must show, got: " + out);
-        assertTrue(out.contains("/agents stop"), "the list must say how to stop one: " + out);
-    }
-
     /** The whole point of an on-demand list: the status bar has already pruned these, the answer must survive. */
-    @Test
-    void listsFinishedAgentsAfterTheStatusBarHasClearedThem() throws Exception {
-        Path log = logDir.resolve("sub-explore-done.log");
-        java.nio.file.Files.writeString(log, "body\n");
-        extension.onActivity("explore", "log: " + log);
-        extension.onActivity("explore", "Read pom.xml");
-        extension.finished("explore", true, 15000);
-
-        assertFalse(extension.statusLines().isEmpty(), "precondition: still lingering");
-        Thread.sleep(5100); // outlive DONE_LINGER_MS, so the status bar drops it
-        assertTrue(extension.statusLines().isEmpty(), "precondition: the status bar has pruned it");
-
-        run("");
-
-        String out = api.lastSentMessage();
-        assertNotNull(out, "a finished agent vanished entirely");
-        assertTrue(out.contains("task:explore"), out);
-        assertTrue(out.contains("15K tokens"), out);
-    }
-
     /** Spend that really happened must not be erased by a stop that reports no tokens of its own. */
     @Test
     void aStoppedAgentKeepsTheTokensItAlreadySpent() {
@@ -171,6 +127,31 @@ class TaskAgentsCommandTest {
         assertTrue(tool.detach().isEmpty());
     }
 
+    /**
+     * Telling the model not to restart a stopped agent is a request, and it was refused: after a /kill the same agent
+     * came back seconds later, spending the tokens the user had just decided to stop spending. The refusal has to be
+     * enforced, not asked for.
+     */
+    @Test
+    void aStoppedAgentCannotBeRelaunchedInTheSameTurn() throws Exception {
+        var sub = new SubAgent("explore", "explore things", "", List.<String>of(), null, null);
+        var tool = new TaskTool(List.of(sub), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
+        tool.abort(); // what Esc does: stops everything, and binds the refusal for this turn
+
+        // abort() with nothing running must not arm the refusal
+        assertTrue(tool.detach().isEmpty());
+
+        tool.stopFor("explore");
+        var refused = tool.execute("id", new org.pijota.tools.Tool.Args(
+                                        java.util.Map.of("agent", "explore", "description", "go")), ".").get();
+
+        assertTrue(refused.isError(), refused.content());
+        assertTrue(refused.content().contains("will not be started again in this turn"), refused.content());
+
+        tool.clearStopped(); // a new turn
+        assertFalse(tool.stoppedNames().contains("explore"), "the refusal outlived its turn");
+    }
+
     /** Backgrounded means the jobs panel owns it; a row in both panels reports one process twice. */
     @Test
     void aBackgroundedAgentLeavesTheAgentPanel() {
@@ -181,32 +162,5 @@ class TaskAgentsCommandTest {
         extension.onActivity("explore", "detached");
 
         assertTrue(extension.statusLines().isEmpty(), "the agent row outlived its hand-off to the job list");
-    }
-
-    @Test
-    void saysSoWhenThereIsNothingToList() {
-        run("");
-        assertTrue(api.sentMessages().isEmpty(), "an empty list should not post a message");
-        assertTrue(runtime.lastStatus().contains("no sub-agents"), runtime.lastStatus());
-    }
-
-    @Test
-    void stoppingAnUnknownNameNamesWhatIsActuallyRunning() {
-        run("stop nonesuch");
-        assertTrue(runtime.lastStatus().contains("no sub-agents running"), runtime.lastStatus());
-    }
-
-    @Test
-    void anUnrecognisedArgumentShowsTheUsageRatherThanGuessing() {
-        run("wat");
-        String status = runtime.lastStatus();
-        assertTrue(status.contains("/agents stop"), status);
-        assertTrue(api.sentMessages().isEmpty(), "a typo must not be treated as a list request");
-    }
-
-    @Test
-    void killIsAcceptedAsWellAsStop() {
-        run("kill all");
-        assertTrue(runtime.lastStatus().contains("no sub-agents running"), runtime.lastStatus());
     }
 }

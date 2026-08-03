@@ -276,6 +276,16 @@ public final class JobRegistry {
         return new Read(id, chunk, running, job.drained, exitCode, truncated, outSize, job.inTurn);
     }
 
+    /**
+     * Whether this job was stopped deliberately rather than dying on its own. A killed process exits 143, which reads
+     * to a model as a crash worth retrying -- and it did retry. The owning tool asks this so its result can report a
+     * decision instead of a fault.
+     */
+    public boolean wasKilled(String id) {
+        var job = jobs.get(id);
+        return job != null && job.killed;
+    }
+
     /** Check whether a job is still running without consuming any buffered output. */
     public boolean isRunning(String id) {
         Job job = jobs.get(id);
