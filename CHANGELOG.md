@@ -26,6 +26,21 @@ it is doing, and what it can do.
 
 ### Fixes worth naming
 
+- **A resize damaged the transcript.** Any row that filled the last column was
+  flagged wrapped by the terminal, so narrowing the window by a single column
+  split the prompt rules, shifted everything below them, and left a doubled rule
+  and blank rows threaded through output already on screen -- permanently, since
+  new output appends below. Rules now stop one column short. (Print 100 `─` in a
+  100-column tmux pane and resize to 99: it comes back as 99 + 1. Print 99 and it
+  survives.)
+- **The prompt lied about what Enter would do.** With the completion popup open,
+  arrowing to `/model` left the ghost reading `/help`: the popup and the prompt
+  are two views of one pending choice and nothing kept them in step.
+- **Narrow terminals collapsed the pickers.** At 60 columns `/model` sized its
+  title column to the longest id and rendered every row as `[deepseek]  …`, and
+  the selector footer was clipped mid-word, losing "Esc cancel" -- the one hint
+  that says how to get out. Everything that has to shrink now gives way in
+  priority order and never cuts through a value.
 - **`--api-key` did nothing.** It was parsed, resolved, and dropped; runs used the
   stored credential instead, or failed as "apiKey cannot be null or blank" while
   holding the key they had been handed. `--fork` and `--verbose` were dead the
