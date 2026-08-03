@@ -48,6 +48,21 @@ Present only when the extension is on ([Extensions](extensions.md)).
 
 MCP servers add theirs under their own names; see [MCP](project-files.md#mcp-servers).
 
+## Sub-agents
+
+`task` spawns a separate process, so each one is visible and interruptible:
+
+| | |
+|---|---|
+| status bar | one line per agent while it runs: last tool, tokens so far, lines, elapsed |
+| `/agents` | the same list on demand, including agents the status bar has already cleared |
+| `/agents stop <name\|all>` | stops it and its own children (its bash, its browser) |
+| `Esc` | stops every sub-agent in the turn, along with the turn |
+| `/logs` | the full transcript, tailing while it runs |
+
+A stopped agent is reported to the model as your decision, not a crash, so it is not
+started again on its own.
+
 ## Read-only
 
 `--readonly` allows exactly:

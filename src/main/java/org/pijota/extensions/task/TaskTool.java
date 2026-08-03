@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,11 +68,32 @@ public final class TaskTool implements Tool {
      */
     @Override
     public void abort() {
-        for (Process p : running) {
-            p.descendants().forEach(ProcessHandle::destroy); // the agent's own children first: its bash, its browser
-            p.destroy();
+        stopAll(running);
+    }
+
+    /**
+     * Stops the sub-agents running under {@code name}, and reports how many. Plural because the status bar collapses
+     * same-named agents into one row: what the user can point at is the name, so that is what stopping acts on.
+     */
+    public int stop(String name) {
+        var matching = running.stream().filter(c -> c.name().equals(name)).toList();
+        stopAll(matching);
+        return matching.size();
+    }
+
+    /** Names of the sub-agents in flight, for a caller that wants to offer them as choices. */
+    public List<String> runningNames() {
+        return running.stream().map(Child::name).distinct().sorted().toList();
+    }
+
+    private void stopAll(Collection<Child> children) {
+        for (Child c : children) {
+            userStopped.add(c.name());
+            // the agent's own children first: its bash, its browser
+            c.process().descendants().forEach(ProcessHandle::destroy);
+            c.process().destroy();
         }
-        running.clear();
+        running.removeAll(children instanceof Set<Child> s ? s : Set.copyOf(children));
     }
 
     /** Test seam: replace the real process-spawning runner with a fake one. */
@@ -87,7 +109,21 @@ public final class TaskTool implements Tool {
      * running to its own five-minute cap, paying for output the parent had already stopped listening for. Tool.abort()
      * has always been part of the SPI and ToolRegistry has always called it; TaskTool simply never overrode it.
      */
-    private final Set<Process> running = ConcurrentHashMap.newKeySet();
+    private final Set<Child> running = ConcurrentHashMap.newKeySet();
+
+    /** A live sub-agent process together with the name it is shown under, so it can be stopped by that name. */
+    private record Child(String name, Process process) {
+    }
+
+    /**
+     * Agents the user stopped, awaiting their result.
+     *
+     * <p>
+     * A killed child exits 143, which reads to the model as a crash worth retrying -- and it did retry, relaunching the
+     * agent seconds after the user stopped it. The stop has to be reported as a decision rather than a fault, or it is
+     * not a stop at all.
+     */
+    private final Set<String> userStopped = ConcurrentHashMap.newKeySet();
 
     public TaskTool(List<SubAgent> agents, LlmClient llm, Supplier<List<String>> enabledToolNames,
                                     Supplier<String> systemPrompt, BiConsumer<String, String> activityHandler,
@@ -431,7 +467,7 @@ public final class TaskTool implements Tool {
 
             // Tracked only while it is alive: the set is what abort() reaches, so a finished agent must leave it or
             // a long session accumulates dead handles.
-            var child = new AtomicReference<Process>();
+            var child = new AtomicReference<Child>();
             ProcessRunner.Result procResult;
             try {
                 procResult = ProcessRunner.command(procArgs).workDir(Path.of(workDir)).timeout(5, TimeUnit.MINUTES)
@@ -440,11 +476,12 @@ public final class TaskTool implements Tool {
                                                                                 logWriter, logFile.toString(),
                                                                                 resultHolder, toolCount))
                                                 .onStart(proc -> {
-                                                    child.set(proc);
-                                                    running.add(proc);
+                                                    var c = new Child(sub.name(), proc);
+                                                    child.set(c);
+                                                    running.add(c);
                                                 }).captureStderr(true).run();
             } finally {
-                Process started = child.get();
+                Child started = child.get();
                 if (started != null)
                     running.remove(started);
             }
@@ -467,6 +504,11 @@ public final class TaskTool implements Tool {
                 return result;
             }
 
+            if (userStopped.remove(sub.name())) {
+                finish(sub.name(), false, 0);
+                return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),
+                                                "stopped by the user. Do not start it again unless asked to");
+            }
             if (procResult.timedOut()) {
                 finish(sub.name(), false, 0);
                 return new SubAgentResult(sub.name(), "", 1, 0, toolCount.get(), logFile.toString(),

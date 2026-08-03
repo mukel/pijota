@@ -73,6 +73,7 @@ Present only when the extension is on ([Extensions](extensions.md)).
 | `/btw`, `/btw:tangent`, `/btw:inject` | `btw`: a read-only side question, off the main thread |
 | `/goal <objective>`, `/loop <objective>` | `goal`: track or auto-continue a goal |
 | `/jobs`, `/kill` | `jobs` |
+| `/agents`, `/agents stop <name\|all>` | `task`: list sub-agents, or stop one |
 | `/logs` | `task`: the latest sub-agent log |
 | `/mcp` | `mcp`: list, connect, disconnect, reconnect, reload |
 | `/schedule-prompt` | `schedule-prompt` |
