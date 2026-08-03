@@ -28,6 +28,44 @@ class SkillLoaderTest {
         assertFalse(pijota.get().content().isBlank(), "a skill with no body teaches nothing");
     }
 
+    /**
+     * A skill that names a command or flag pijota does not have is worse than no skill: the model repeats it with
+     * confidence and the user is sent somewhere that does not exist. This session produced several such inventions (a
+     * web port, model ids, keybinding names), which is exactly why the shipped skill is checked against reality.
+     */
+    @Test
+    void theBuiltInSkillOnlyNamesCommandsAndFlagsThatExist(@TempDir Path cwd) throws Exception {
+        String body = SkillLoader.load(cwd.toString(), List.of()).stream().filter(s -> s.name().equals("pijota"))
+                                        .findFirst().orElseThrow().content();
+        // The whole tree, not one registry: /trust comes from an extension and --no-jobs / --transcendence are
+        // extension flags, so a narrower search reports things that plainly do exist.
+        String source = sourceTree();
+
+        var missing = new java.util.ArrayList<String>();
+        var named = java.util.regex.Pattern.compile("`(/[a-z-]+|--[a-z-]+)[`< |]").matcher(body);
+        while (named.find()) {
+            String token = named.group(1);
+            // --no-<extension> is built at runtime as "no-" + the extension's own name, so the literal never appears
+            // in the source; what has to exist is the extension.
+            String bare = token.startsWith("--no-")
+                                            ? token.substring(5)
+                                            : token.startsWith("--") ? token.substring(2) : token.substring(1);
+            if (!source.contains('"' + token + '"') && !source.contains('"' + bare + '"'))
+                missing.add(token);
+        }
+
+        assertTrue(missing.isEmpty(), "the shipped skill names things pijota does not have: " + missing);
+    }
+
+    private static String sourceTree() throws java.io.IOException {
+        try (var files = Files.walk(Path.of("src/main/java"))) {
+            var sb = new StringBuilder();
+            for (Path f : files.filter(f -> f.toString().endsWith(".java")).toList())
+                sb.append(Files.readString(f));
+            return sb.toString();
+        }
+    }
+
     /** A user's own skill of the same name must win; a shipped default that cannot be replaced is a trap. */
     @Test
     void aUserSkillShadowsTheBuiltInOfTheSameName(@TempDir Path cwd) throws Exception {
