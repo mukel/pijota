@@ -152,7 +152,8 @@ public final class ProviderCatalog {
         try (InputStream in = ProviderCatalog.class.getResourceAsStream("/providers.json")) {
             if (in == null)
                 return new Catalog(List.of());
-            return Util.MAPPER.readValue(in, Catalog.class);
+            var loaded = Util.MAPPER.readValue(in, Catalog.class); // "null" parses to null, it does not throw
+            return loaded != null ? loaded : new Catalog(List.of());
         } catch (Exception e) {
             return new Catalog(List.of());
         }

@@ -2,6 +2,7 @@ package org.pijota.config;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
@@ -14,6 +15,21 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AppConfigTest {
+
+    /**
+     * A settings file holding literal {@code null} parses to a null object rather than throwing, so it slipped past the
+     * caller's IOException fallback and NPE'd startup with "Pijota failed" and no way back. Every other malformation --
+     * truncated, wrong types, an array where an object belongs -- already degraded to defaults.
+     */
+    @Test
+    void aNullSettingsFileLoadsAsDefaultsRatherThanCrashing(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("settings.json");
+        Files.writeString(file, "null");
+
+        var config = AppConfig.load(file);
+
+        assertNotNull(config, "a null settings file bricked startup");
+    }
 
     @Test
     void defaultConstructorSetsDefaults() {

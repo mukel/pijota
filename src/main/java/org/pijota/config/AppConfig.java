@@ -66,7 +66,11 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
 
     public static AppConfig load(Path path) throws IOException {
         if (Files.exists(path)) {
-            return Util.MAPPER.readValue(path.toFile(), AppConfig.class);
+            // A file holding literal "null" parses to a null object rather than throwing, so it slipped past the
+            // caller's IOException fallback and NPE'd the startup with "Pijota failed" and no way back. Every other
+            // malformation -- truncated, wrong types, an array -- already degraded to defaults; this one did not.
+            var loaded = Util.MAPPER.readValue(path.toFile(), AppConfig.class);
+            return loaded != null ? loaded : new AppConfig();
         }
         return new AppConfig();
     }
