@@ -32,6 +32,22 @@ class MainTest {
         }
     }
 
+    /**
+     * The help promised "the last interrupted session", which is what a user reaches for after a crash. It only ever
+     * recovered a session a self-rebuild interrupted, and said so to the log alone -- so after a crash it looked like
+     * it had worked, and the loss surfaced later when the model had no memory of the conversation.
+     */
+    @Test
+    void recoverDescribesWhatItActuallyRecovers() {
+        Main.run(new String[] {"--help"});
+        String help = stdio.out();
+
+        assertTrue(help.contains("--recover"), help);
+        assertFalse(help.contains("Recover the last interrupted session"),
+                                        "the help still promises to recover any interrupted session");
+        assertTrue(help.contains("self-rebuild"), "the help must name what it recovers: " + help);
+    }
+
     @Test
     void helpFlagPrintsUsageAndReturnsZero() {
         int code = Main.run(new String[] {"--help"});

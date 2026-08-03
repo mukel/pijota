@@ -185,7 +185,7 @@ public final class ArgParser {
                                           --print, -p [prompt]      Non-interactive single-shot mode
                                           --session, -s <id>        Session file path or partial UUID
                                           --continue, -c            Continue last session
-                                          --recover                 Recover the last interrupted session
+                                          --recover                 Resume a session a self-rebuild interrupted
                                           --resume, -r              Interactive session picker
                                           --fork <id>               Fork a session
                                           --no-session              Don't save session

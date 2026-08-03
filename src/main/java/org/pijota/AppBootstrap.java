@@ -203,7 +203,11 @@ public final class AppBootstrap {
                     loadedSession = true;
                     SelfRespawn.clearRecoveryFile();
                 } else {
-                    logger.warn("No recovery session found · starting fresh");
+                    // Only the log knew, so --recover after a crash looked like it had worked: a normal startup, and
+                    // the loss discovered later when the model has no memory of the conversation. Say it on screen,
+                    // and name the flags that do resume an ordinary session.
+                    System.err.println("pijota: no interrupted self-rebuild to recover; starting fresh."
+                                                    + " For an ordinary session use -c (continue last) or -r (pick).");
                 }
             } else if (parsedArgs.continueSession()) {
                 session.continueLastSession();

@@ -53,7 +53,7 @@ Give a flag a value with `--flag=value`.
 | `--session, -s <id>` | session path or partial UUID |
 | `--continue, -c` | continue the most recent session |
 | `--resume, -r` | session picker |
-| `--recover` | recover the last interrupted session |
+| `--recover` | resume a session a self-rebuild interrupted ([transcendence](cli.md)); for an ordinary session use `-c` or `-r` |
 | `--fork <id>` | fork into a new session |
 | `--no-session` | do not write a session file |
 | `--export <file>` | export to Markdown and exit |
