@@ -117,7 +117,8 @@ Full reference in [`docs/`](docs/): [command line](docs/cli.md), [slash commands
 [tools](docs/tools.md), [settings](docs/settings.md), [providers](docs/providers.md),
 [models](docs/models.md), [extensions](docs/extensions.md), [keybindings](docs/keybindings.md),
 [themes](docs/themes.md), [sessions](docs/sessions.md), [project files](docs/project-files.md),
-[environment](docs/environment.md), [JSON events](docs/json-mode.md), [RPC](docs/rpc-mode.md).
+[environment](docs/environment.md), [frontends](docs/frontends.md), [security](docs/security.md),
+[troubleshooting](docs/troubleshooting.md), [JSON events](docs/json-mode.md), [RPC](docs/rpc-mode.md).
 
 ---
 

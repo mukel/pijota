@@ -30,6 +30,8 @@ A provider key in the environment works without `login`.
 - [Sessions](./sessions.md): storage, resume, branching, export, compaction.
 - [Project files](./project-files.md): trust, context files, skills, prompt templates, MCP.
 - [Environment](./environment.md): variables read and set.
+- [Security](./security.md): what is guarded, what is not.
+- [Troubleshooting](./troubleshooting.md): the errors pijota actually prints.
 
 ## Guides
 
