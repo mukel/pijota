@@ -17,6 +17,21 @@ class MainTest {
     @RegisterExtension
     StdioCapture stdio = new StdioCapture();
 
+    /**
+     * {@code --help} is universal and every other subcommand honours it. {@code login} took it as a provider name and
+     * opened an interactive API-key prompt for a provider called "--help", synthesising {@code __HELP_API_KEY} -- in a
+     * script that is a hang, and at a terminal it is a prompt for a credential nobody asked to enter.
+     */
+    @Test
+    void loginAndLogoutHonourHelpInsteadOfTreatingItAsAProvider() {
+        for (String[] argv : new String[][] {{"login", "--help"}, {"login", "-h"}, {"logout", "--help"}}) {
+            assertEquals(0, Main.run(argv), String.join(" ", argv));
+            String out = stdio.out();
+            assertTrue(out.contains("USAGE: pijota login"), String.join(" ", argv) + " printed: " + out);
+            assertFalse(out.contains("API key for --help"), "still treated --help as a provider: " + out);
+        }
+    }
+
     @Test
     void helpFlagPrintsUsageAndReturnsZero() {
         int code = Main.run(new String[] {"--help"});

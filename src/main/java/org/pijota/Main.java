@@ -345,7 +345,28 @@ public final class Main {
         return 0;
     }
 
+    /**
+     * {@code --help} is universal, and every other subcommand honours it -- {@code login} took it as a provider name
+     * and opened an interactive API-key prompt for a provider called "--help", synthesising {@code __HELP_API_KEY}.
+     */
+    private static boolean wantsHelp(String[] args) {
+        return args.length > 1 && (args[1].equals("--help") || args[1].equals("-h"));
+    }
+
+    private static void printAuthUsage() {
+        System.out.println("USAGE: pijota login [provider] [model]");
+        System.out.println("       pijota logout [provider]");
+        System.out.println();
+        System.out.println("With no provider, both act on \"kimi-coding\".");
+        System.out.println("A provider with OAuth starts a device login; otherwise you are asked for an API key.");
+        System.out.println("`pijota --list-models` shows the providers with a usable credential.");
+    }
+
     private static int login(String[] args) throws Exception {
+        if (wantsHelp(args)) {
+            printAuthUsage();
+            return 0;
+        }
         String provider = args.length > 1 ? args[1] : "kimi-coding";
         String model = args.length > 2 ? args[2] : ModelRegistry.defaultModelForProvider(provider);
         var settings = new SettingsManager();
@@ -383,10 +404,19 @@ public final class Main {
     }
 
     private static int logout(String[] args) throws Exception {
+        if (wantsHelp(args)) {
+            printAuthUsage();
+            return 0;
+        }
         String provider = args.length > 1 ? args[1] : "kimi-coding";
         var settings = new SettingsManager();
+        // It reported a removal either way, so `pijota logout typo` cheerfully confirmed deleting a credential that
+        // never existed -- and left the real one in place under its correct name.
+        boolean had = settings.config().apiKeys() != null && settings.config().apiKeys().containsKey(provider);
         settings.removeApiKey(provider);
-        System.out.println("Removed stored API key for " + provider + ".");
+        System.out.println(had
+                                        ? "Removed stored API key for " + provider + "."
+                                        : "No stored API key for " + provider + "; nothing to remove.");
         return 0;
     }
 
