@@ -15,9 +15,13 @@ Every `PIJOTA_*` tuning variable has a system-property twin, which wins when bot
 | `PIJOTA_BROWSER` | `pijota.browse.engine` | `chrome`, `firefox`, `safari` |
 | `PIJOTA_BROWSER_BIN` | `pijota.browse.bin` | path to the browser binary |
 | `PIJOTA_BROWSER_IDLE_SECONDS` | `pijota.browser.idleSeconds` | how long a page must be quiet before it is read |
+| `PIJOTA_BROWSER_FAST_SETTLE` | `pijota.browser.fastSettle` | collapse the settle/consent waits; the test suite sets it |
+| `PIJOTA_GECKODRIVER` | - | path to geckodriver, for `--browse=firefox` |
+| `PIJOTA_SAFARIDRIVER` | - | path to safaridriver, for `--browse=safari` |
 | `PIJOTA_WEB_TIMEOUT` | `pijota.web.timeout` | `webfetch` request timeout |
 | `PIJOTA_WEB_CONNECT_TIMEOUT` | `pijota.web.connect-timeout` | `webfetch` connect timeout |
 | `PIJOTA_TELEGRAM_TIMEOUT` | `pijota.telegram.timeout` | Telegram long-poll timeout |
+| `PIJOTA_TELEGRAM_CONNECT_TIMEOUT` | `pijota.telegram.connect-timeout` | Telegram connect timeout |
 | `PIJOTA_LOG_LEVEL` | - | `DEBUG` or `TRACE`; `--verbose` sets `DEBUG` |
 | `PIJOTA_STARTUP_TIMING` | - | print startup phase timings |
 | `PIJOTA_ACP_WIRELOG` | - | log the ACP wire protocol |

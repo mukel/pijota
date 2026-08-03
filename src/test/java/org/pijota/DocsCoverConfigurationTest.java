@@ -127,6 +127,30 @@ class DocsCoverConfigurationTest {
         assertTrue(invented.isEmpty(), "model ids cited in the docs that no provider offers: " + invented);
     }
 
+    /**
+     * Every {@code PIJOTA_*} variable the code reads is a knob someone can turn, and one nobody wrote down is one
+     * nobody finds. This caught four: the two browser driver paths, the browser fast-settle switch, and Telegram's
+     * connect timeout.
+     */
+    @Test
+    void everyEnvironmentVariableTheCodeReadsIsDocumented() throws IOException {
+        var documented = doc("environment.md");
+        var undocumented = new TreeSet<String>();
+        var reads = Pattern.compile("\"(PIJOTA_[A-Z_]+)\"");
+
+        try (var sources = Files.walk(Path.of("src/main/java"))) {
+            for (Path file : sources.filter(p -> p.toString().endsWith(".java")).toList()) {
+                var m = reads.matcher(Files.readString(file, StandardCharsets.UTF_8));
+                while (m.find())
+                    if (!documented.contains("`" + m.group(1) + "`"))
+                        undocumented.add(m.group(1));
+            }
+        }
+
+        assertTrue(undocumented.isEmpty(), "PIJOTA_* variables read by the code but absent from "
+                                        + "docs/environment.md: " + undocumented);
+    }
+
     /** The index is the way in; a page it does not link is a page nobody opens. */
     @Test
     void theIndexLinksEveryPage() throws IOException {
