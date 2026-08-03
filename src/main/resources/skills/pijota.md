@@ -15,6 +15,9 @@ user's project.
 | more or less reasoning | `Shift+Tab`, or start with `--thinking off\|minimal\|low\|medium\|high\|xhigh\|max` |
 | a different theme | `/theme` -- lists the available ones and switches |
 | to load this project's `AGENTS.md` and `.pijota/` | `/trust` |
+| to stop the running turn | `Esc` (twice forces). `Ctrl+C` clears the line -- twice **exits** |
+| to set the turn aside, still running | `Ctrl+B` twice -- it becomes a job; `/jobs`, `/kill <id>` |
+| to resume a session | `-c` last, `-r` pick, `-s <id\|path>` |
 | to know what is in context | `/context` |
 | to shrink the context | `/compact` |
 | fewer tools this run | `--readonly`, or `--tool <name>` / `--no-tool <name>` (repeatable) |
@@ -43,10 +46,15 @@ Flags, model ids and command names change. Check them:
   providers with a usable credential). `pj` may be missing from PATH or be a stale wrapper; if
   it fails, that is that install, not this session. Answer from `/help` and `settings.json`.
 
-Source and docs: <https://github.com/mukel/pijota>. `docs/` has a page per topic
+Source and docs: <https://github.com/mukel/pijota> -- `docs/` has a page per topic
 (`settings.md`, `cli.md`, `models.md`, `themes.md`, `tools.md`, `security.md`,
-`troubleshooting.md`). They do not ship with the binary: read them from the repo when the
-working directory is pijota's own tree, or `webfetch` the raw file from GitHub.
+`troubleshooting.md`). They do not ship with the binary. Read them from the working tree when
+it is pijota's own; the repo may be private, and a 404 there means you cannot reach it, not
+that the answer does not exist -- fall back to `/help` and `settings.json`.
+
+**Never say you checked something you did not.** Quoting help text from memory as "verified in
+the source" is how stale answers survive: `--recover` resumes a session a *self-rebuild*
+interrupted, not the last session -- that is `-c`.
 
 ## Where pijota keeps things
 
