@@ -41,6 +41,10 @@ it is doing, and what it can do.
   the selector footer was clipped mid-word, losing "Esc cancel" -- the one hint
   that says how to get out. Everything that has to shrink now gives way in
   priority order and never cuts through a value.
+- **`--mode rpc` was unreachable.** JSON-RPC arrives on stdin by definition, and
+  the branch that claims redirected stdin ran first, so the request lines were
+  concatenated into a prompt and answered by the model in prose. The mode was
+  reachable only from a terminal, where nothing can speak to it.
 - **`--api-key` did nothing.** It was parsed, resolved, and dropped; runs used the
   stored credential instead, or failed as "apiKey cannot be null or blank" while
   holding the key they had been handed. `--fork` and `--verbose` were dead the

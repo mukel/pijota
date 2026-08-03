@@ -1,0 +1,69 @@
+# Tools
+
+What the model can do. Names here are the ones `--tool` and `--no-tool` take.
+
+```bash
+pj -t read,grep,glob        # allowlist
+pj -xt bash                 # denylist
+pj --readonly               # the read-only set, below
+pj -nt                      # none
+pj -nbt                     # no built-ins, keep extension tools
+```
+
+One filter covers built-in, extension and MCP tools alike. `/context` shows what the tool schemas
+cost in the window.
+
+## Built in
+
+| Tool | Does |
+|---|---|
+| `read` | read a file; 2000 lines and 50KB by default |
+| `write` | write a file, creating or overwriting |
+| `edit` | exact-text replacement; each `oldText` must match once |
+| `apply_patch` | apply a unified diff across one or more files |
+| `ls` | list one directory, not recursively |
+| `glob` | find files by glob pattern |
+| `grep` | search file contents, with paths and line numbers |
+| `bash` | run a shell command; see [shell settings](settings.md#shell) |
+| `webfetch` | fetch a URL as markdown, text or html |
+| `websearch` | search the web; needs `EXA_API_KEY` or `PARALLEL_API_KEY` |
+| `question` | ask the user and wait for the answer |
+
+## From extensions
+
+Present only when the extension is on ([Extensions](extensions.md)).
+
+| Tool | Extension |
+|---|---|
+| `task` | `task`: a sub-agent in its own process |
+| `skill` | `skills`: load a skill's instructions on demand |
+| `jobs_run`, `jobs_output`, `jobs_list`, `jobs_kill` | `jobs` |
+| `goal_set`, `goal_complete` | `goal` |
+| `schedule_prompt` | `schedule-prompt` |
+| `todo` | `--todo` |
+| `whoami` | `--whoami` |
+| `web_visit_page`, `web_google_search`, `web_pdf_to_markdown` | `--browse` |
+| `tmux_bash`, `tmux_send`, `tmux_capture`, `tmux_list`, `tmux_name`, `tmux_kill` | `--tmux` |
+| `transcendence` | `--transcendence` |
+
+MCP servers add theirs under their own names; see [MCP](project-files.md#mcp-servers).
+
+## Read-only
+
+`--readonly` allows exactly:
+
+`read`, `ls`, `grep`, `glob`, `webfetch`, `websearch`, `question`, `whoami`
+
+Nothing that writes a file, runs a command, or spawns a process. `--tool` still narrows further.
+
+## Guard rails
+
+Independent of the filters, and on by default:
+
+| Extension | Refuses |
+|---|---|
+| `security` | `sudo`, `rm -rf`, `dd`, pipe-to-shell |
+| `filter-output` | sends secrets and tokens to the model |
+
+Neither is a sandbox. Pijota runs with your user's permissions; use a container, VM or
+[worktree](worktree.md) when you need a real boundary.

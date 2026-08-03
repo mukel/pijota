@@ -132,6 +132,36 @@ public final class Main {
         }
     }
 
+    /** Which frontend a set of args selects, in the order {@link #runFrontend} decides it. */
+    enum Frontend {
+        AGENT, TELEGRAM, WEB, ACP, RPC, PRINT, TUI
+    }
+
+    /**
+     * The routing decision on its own, so the order can be asserted without a bootstrap.
+     *
+     * <p>
+     * The order is the whole content of this method, and it was wrong: {@code RPC} sat below {@code PRINT}, which
+     * claims any redirected stdin. Since JSON-RPC arrives on stdin by definition, {@code --mode rpc} was unreachable in
+     * the only way it can be driven -- the request lines were concatenated into a prompt and answered in prose -- and
+     * reachable only from a terminal, where nothing can speak to it.
+     */
+    static Frontend frontendFor(Args args, boolean stdinRedirected) {
+        if (args.agent())
+            return Frontend.AGENT;
+        if (args.extensionFlags().containsKey("telegram"))
+            return Frontend.TELEGRAM;
+        if (args.extensionFlags().containsKey("web"))
+            return Frontend.WEB;
+        if (args.extensionFlags().containsKey("acp"))
+            return Frontend.ACP;
+        if (args.outputMode() == Args.OutputMode.RPC)
+            return Frontend.RPC;
+        if (args.print() || !args.promptArgs().isEmpty() || stdinRedirected)
+            return Frontend.PRINT;
+        return Frontend.TUI;
+    }
+
     private static int runFrontend(Args parsedArgs) throws Exception {
         Warmup.start(); // overlap tool class-loading with the Jackson cold-start during bootstrap
         StartupTimer.mark("warmup started");
@@ -150,6 +180,16 @@ public final class Main {
         if (parsedArgs.extensionFlags().containsKey("acp"))
             return runAcp(b);
 
+        // Before the print branch, not after it. RPC speaks JSON-RPC on stdin, so stdin is always a pipe when the
+        // mode is used at all -- and the print branch claims any redirected stdin. That ordering made `--mode rpc`
+        // unreachable in the only way it can be driven: the request lines were concatenated into a prompt and sent to
+        // the model, which answered them in prose. The mode was only reachable from a terminal, where nothing can
+        // speak to it.
+        if (parsedArgs.outputMode() == Args.OutputMode.RPC) {
+            RpcMode.run(b.session()::prompt);
+            return 0;
+        }
+
         if (parsedArgs.print() || !parsedArgs.promptArgs().isEmpty() || stdinRedirected()) {
             // Piped stdin and a prompt argument compose: the pipe carries the data, the argument the instruction
             // (`cat error.log | pj -p "what broke?"`). Reading stdin only when no prompt argument was given would
@@ -161,11 +201,6 @@ public final class Main {
             if (prompt == null || prompt.isBlank())
                 return CliErrorReporter.fatal("No prompt provided");
             return PrintMode.run(prompt, b.session(), parsedArgs.outputMode());
-        }
-
-        if (parsedArgs.outputMode() == Args.OutputMode.RPC) {
-            RpcMode.run(b.session()::prompt);
-            return 0;
         }
 
         return runTui(parsedArgs, b);

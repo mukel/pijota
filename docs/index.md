@@ -18,6 +18,8 @@ A provider key in the environment works without `login`.
 ## Configuration
 
 - [Command line](./cli.md): flags, subcommands, standalone commands.
+- [Slash commands](./commands.md): everything you can type after `/`.
+- [Tools](./tools.md): what the model can do, and how to narrow it.
 - [Settings](./settings.md): `settings.json`, key by key.
 - [Providers](./providers.md): built-ins, credentials, custom endpoints.
 - [Models](./models.md): selection, aliases, allowlists, thinking levels.
@@ -30,7 +32,8 @@ A provider key in the environment works without `login`.
 
 ## Guides
 
-- [JSON event stream](./json-mode.md): drive pijota from another program.
+- [JSON event stream](./json-mode.md): follow a run event by event.
+- [RPC mode](./rpc-mode.md): JSON-RPC over stdin/stdout.
 - [Terminal setup](./terminal-setup.md): make every modifier key work.
 - [Worktrees](./worktree.md): isolate risky changes.
 - [Release checklist](./release.md): publish to Maven Central.

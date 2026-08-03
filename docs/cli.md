@@ -41,7 +41,7 @@ Give a flag a value with `--flag=value`.
 | Flag | Effect |
 |---|---|
 | `--print, -p [prompt]` | single shot; reads stdin if no prompt |
-| `--mode <mode>` | `text` (default), `json` ([events](json-mode.md)), `rpc` (JSON-RPC over stdio) |
+| `--mode <mode>` | `text` (default), `json` ([events](json-mode.md)), `rpc` ([JSON-RPC](rpc-mode.md)) |
 | `--system-prompt <text>` | replace the system prompt |
 | `--append-system-prompt <text>` | append to it; repeatable |
 | `--max-turns <n>` | tool-call turns per prompt; `0` is unlimited |
@@ -70,7 +70,7 @@ Give a flag a value with `--flag=value`.
 | `--readonly`, `--read-only` | read-only exploration tools |
 | `--no-builtin-tools, -nbt` | drop built-ins, keep extension tools |
 
-Lists apply to built-in, extension and MCP tools alike, and compose.
+Lists apply to built-in, extension and MCP tools alike, and compose. [Tools](tools.md) names them.
 
 ## Resources
 

@@ -73,7 +73,7 @@ need. `enabledByDefault()` is a default; settings and flags still decide.
 
 ## Tools
 
-Built-in, extension and MCP tools share one filter.
+Built-in, extension and MCP tools share one filter; [Tools](tools.md) lists the names.
 
 ```bash
 pj -t read,grep,glob        # allowlist
