@@ -79,6 +79,11 @@ public final class HeadlessAgentRunner {
                     case AgentEvent.ToolResult(Message.ToolResult msg) -> {
                         emit(new ToolResultEvent(msg.toolName(), msg.isError(), msg.details()));
                         emit(new ToolEndEvent(msg.toolName()));
+                        // Spend, while it is still being spent. Reported only in the final done event, a sub-agent's
+                        // cost was invisible until it had already been paid -- the wrong moment to learn a parallel
+                        // batch is expensive. Emitted here rather than on MessageStreamEnd, which this listener never
+                        // observes, and a tool result is the boundary where an agent's tokens actually jump.
+                        emit(new UsageEvent(llm.totalInputTokens() + llm.totalOutputTokens()));
                     }
                     case AgentEvent.MessageStreamDelta d -> {
                         String delta = d.delta();
@@ -89,7 +94,7 @@ public final class HeadlessAgentRunner {
                             emit(new StreamLinesEvent(added));
                     }
                     case AgentEvent.MessageStreamEnd ignored -> {
-                        // emitted after each LLM response completes
+                        // Never observed here in practice; usage rides on ToolResult above.
                     }
                     default -> {}
                 }
@@ -176,7 +181,12 @@ public final class HeadlessAgentRunner {
     private static void emit(Object event) {
         try {
             System.out.println(Util.MAPPER.writeValueAsString(event));
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // Swallowing this hid a dropped event completely: in the native image an unregistered record cannot be
+            // serialised, so the parent simply never saw it while everything looked healthy. stderr is not the
+            // protocol stream, so saying so costs nothing and turns a silent hole into an obvious one.
+            System.err.println("pijota: could not emit " + event.getClass().getSimpleName() + ": " + e);
+        }
     }
 
     // --- JSON event records ---
@@ -214,6 +224,13 @@ public final class HeadlessAgentRunner {
     record StreamLinesEvent(String type, int count) {
         StreamLinesEvent(int count) {
             this("stream_lines", count);
+        }
+    }
+
+    /** Running token total, emitted after every LLM response so the parent can show spend as it accrues. */
+    record UsageEvent(String type, long tokens) {
+        UsageEvent(long tokens) {
+            this("usage", tokens);
         }
     }
 

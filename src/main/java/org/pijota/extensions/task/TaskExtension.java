@@ -38,6 +38,12 @@ public final class TaskExtension implements Extension {
             return new AgentState(name, toolCount, lines + added, tokens, "running", lastTool, startedAt, 0, logFile);
         }
 
+        /** The child's running total, not a delta: a late event cannot double-count or go backwards. */
+        AgentState withTokens(long total) {
+            return new AgentState(name, toolCount, lines, Math.max(tokens, total), "running", lastTool, startedAt, 0,
+                                            logFile);
+        }
+
         AgentState withLog(String log) {
             return new AgentState(name, toolCount, lines, tokens, "running", lastTool, startedAt, 0, log);
         }
@@ -66,6 +72,11 @@ public final class TaskExtension implements Extension {
             String logPath = line.substring(5).strip();
             activeLogs.add(Path.of(logPath));
             agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withLog(logPath));
+        } else if (line.startsWith("tokens: ")) {
+            try {
+                long total = Long.parseLong(line.substring(8).strip());
+                agentStates.compute(agent, (k, v) -> (v == null ? AgentState.start(agent) : v).withTokens(total));
+            } catch (NumberFormatException ignored) {}
         } else if (line.startsWith("+")) {
             try {
                 int added = Integer.parseInt(line.substring(1));
@@ -102,8 +113,9 @@ public final class TaskExtension implements Extension {
             if (state.running()) {
                 String activity = state.lastTool != null ? "  " + state.lastTool : "";
                 String progress = state.lines > 0 ? state.lines + " lines · " : "";
-                lines.add(ToolGlyphs.AGENT + String.format(" task:%-15s%s  running · %s%s", state.name, activity,
-                                                progress, Util.formatDuration(now - state.startedAt)));
+                String spend = state.tokens > 0 ? Util.fmtCount(state.tokens) + " tokens · " : "";
+                lines.add(ToolGlyphs.AGENT + String.format(" task:%-15s%s  running · %s%s%s", state.name, activity,
+                                                spend, progress, Util.formatDuration(now - state.startedAt)));
             } else if (state.doneAt > 0) {
                 String icon = "done".equals(state.state) ? ToolGlyphs.DONE : ToolGlyphs.FAILED;
                 lines.add(icon + String.format(" task:%-15s · %d tools · %s tokens · %s", state.name, state.toolCount,

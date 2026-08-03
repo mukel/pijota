@@ -512,6 +512,10 @@ public final class TaskTool implements Tool {
                     logWriter.flush();
                     fireActivity(agentName, tc);
                 }
+                case "usage" -> {
+                    if (event.get("tokens") instanceof Number n)
+                        fireActivity(agentName, "tokens: " + n.longValue());
+                }
                 case "stream" -> {
                     String delta = (String) event.get("delta");
                     if (delta != null) {

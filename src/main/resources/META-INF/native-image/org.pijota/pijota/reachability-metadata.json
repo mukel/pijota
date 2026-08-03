@@ -644,6 +644,12 @@
       "allDeclaredConstructors": true
     },
     {
+      "type": "org.pijota.agent.HeadlessAgentRunner$UsageEvent",
+      "allDeclaredFields": true,
+      "allDeclaredMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
       "type": "org.pijota.agent.HeadlessAgentRunner$ToolResultEvent",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
