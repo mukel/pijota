@@ -313,7 +313,7 @@ final class LogViewer {
         }
         if (lines.isEmpty())
             out.add(theme.styled("dim", "(empty log)"));
-        out.add(footer(theme));
+        out.add(footer(theme, width));
         return out;
     }
 
@@ -327,12 +327,12 @@ final class LogViewer {
         return sb.toString();
     }
 
-    private String footer(AnsiTheme theme) {
+    private String footer(AnsiTheme theme, int width) {
         if (searching)
             return theme.styled("prompt", "/" + searchInput);
         int last = lines.isEmpty() ? 0 : Math.min(lines.size(), top + visibleRows());
         int first = lines.isEmpty() ? 0 : top + 1;
         String position = first + "-" + last + "/" + lines.size() + (follow ? " · following" : "");
-        return TuiCopy.footer(theme, position, "↑↓ scroll", "Space/b page", "/ search", "n/N match", "q quit");
+        return TuiCopy.footer(theme, width, position, "↑↓ scroll", "Space/b page", "/ search", "n/N match", "q quit");
     }
 }

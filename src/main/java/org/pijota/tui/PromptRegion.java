@@ -276,8 +276,8 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 rows.add(AnsiWidth.truncateVisual(row, width));
             }
 
-            rows.add(AnsiWidth.truncateVisual(TuiCopy.footer(theme, (sel + 1) + "/" + total, "Enter select",
-                                            "↑/↓ navigate", "Esc cancel"), width));
+            rows.add(TuiCopy.footer(theme, width, (sel + 1) + "/" + total, "Enter select", "↑/↓ navigate",
+                                            "Esc cancel"));
             return Body.of(rows);
         }
 

@@ -11,8 +11,9 @@ class TuiCopyTest {
 
     private static final AnsiTheme THEME = AnsiTheme.dark();
 
+    /** A terminal wide enough that nothing is dropped; the narrow cases get their own test. */
     private static String footer(String position, String... hints) {
-        return AnsiStripper.strip(TuiCopy.footer(THEME, position, hints));
+        return AnsiStripper.strip(TuiCopy.footer(THEME, 200, position, hints));
     }
 
     @Test
@@ -59,4 +60,31 @@ class TuiCopyTest {
     void shortcutNotationGoesThroughTheOsMapping() {
         assertEquals(Keys.label("Ctrl+O expand"), footer("", "Ctrl+O expand").strip());
     }
+
+    /**
+     * A footer narrower than its hints drops whole hints instead of being clipped mid-word. At 60 columns the
+     * selector's "type to search · ↑/↓ navigate · Enter select · Esc cancel" is 63 wide, and what the clip removed was
+     * "cancel" -- the one word that says how to get out.
+     */
+    @Test
+    void aFooterTooNarrowDropsWholeHints() {
+        String narrow = AnsiStripper.strip(TuiCopy.footer(THEME, 40, "1/2", "type to search", "↑/↓ navigate",
+                                        "Enter select", "Esc cancel"));
+
+        assertTrue(AnsiWidth.visibleWidth(narrow) <= 40, "width " + AnsiWidth.visibleWidth(narrow) + ": " + narrow);
+        assertFalse(narrow.contains("Enter selec\n"), narrow);
+        for (String chip : narrow.substring(narrow.indexOf("1/2") + 3).split(" · "))
+            assertFalse(chip.strip().endsWith("…"), "a whole hint was kept or dropped, never sliced: " + narrow);
+    }
+
+    @Test
+    void fitKeepsEveryChipThatFitsAndDropsFromTheEnd() {
+        assertEquals("a · b · c", TuiCopy.fit("a · b · c", 20));
+        assertEquals("a · b", TuiCopy.fit("a · b · c", 8));
+        assertEquals("a", TuiCopy.fit("a · b · c", 4));
+        assertTrue(TuiCopy.fit("averylongsinglechip", 8).endsWith("…"), "nothing left to drop: cut and say so");
+        assertEquals("", TuiCopy.fit(null, 10));
+        assertEquals("", TuiCopy.fit("x", 0));
+    }
+
 }

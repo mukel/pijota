@@ -14,9 +14,14 @@ record ModelItem(ModelInfo info, boolean current) implements SelectorItem {
         return info.id();
     }
 
+    /**
+     * The provider is its own chip, not glued to the summary with spaces. A narrow row drops whole chips, and while
+     * {@code "[deepseek]  context 976K"} was one chip it could only be ellipsised as a unit -- at 60 columns every row
+     * read {@code [deepseek]  cont…}. Separately, the provider survives alone.
+     */
     @Override
     public String detailText() {
-        return "[" + info.provider() + "]  " + ModelDisplay.summary(info);
+        return "[" + info.provider() + "] · " + ModelDisplay.summary(info);
     }
 
     @Override

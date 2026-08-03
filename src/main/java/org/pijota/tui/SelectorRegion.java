@@ -22,7 +22,7 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
         int start = selector.visibleStart();
         int end = start + selector.visibleCount();
 
-        int maxTitle = maxVisibleTitle();
+        int maxTitle = Math.min(maxVisibleTitle(), titleBudget(width));
         int detailStart = 2 + maxTitle + 4;
         int detailWidth = Math.max(8, width - detailStart);
 
@@ -31,7 +31,7 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
         if (total == 0) {
             rows.add(theme.styled("statusText", selector.itemCount() == 0 ? "  nothing to show" : "  no matches"));
-            rows.add(TuiCopy.footer(theme, "", TuiCopy.SELECTOR_HINT));
+            rows.add(TuiCopy.footer(theme, width, "", TuiCopy.SELECTOR_HINT));
             return Body.of(rows);
         }
 
@@ -40,14 +40,16 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
         for (int i = start; i < end; i++) {
             var item = selector.visibleItem(i - start);
-            String title = item.titleText();
+            // Truncated before the match positions are computed, so the highlight lands on the characters actually
+            // drawn rather than on the ones a full-length title would have had.
+            String title = AnsiWidth.truncateMiddle(item.titleText(), maxTitle);
             int[] match = SlashCommandRegistry.matchPositions(selector.query(), title);
             // The "this is the active one" marker gets its own fixed column, so a marked row's detail still starts
             // where every other row's does. Each selector used to bake its own marker into its text (three different
             // glyphs across models, themes and the tree), and the model one pushed that row's provider out of line.
             String marker = item.selected() ? theme.styled("prompt", "● ") : "  ";
             String tail = " ".repeat(Math.max(0, maxTitle - title.length() + 2)) + marker
-                                            + fitDetail(item.detailText(), detailWidth);
+                                            + TuiCopy.fit(item.detailText(), detailWidth);
             if (i == sel) {
                 rows.add(theme.styled("prompt", "› ") + highlight(theme, title, "heading", match)
                                                 + theme.styled("statusText", tail));
@@ -59,40 +61,21 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
         if (start + MAX_VISIBLE < total)
             rows.add(theme.styled("dim", "  ↓ " + (total - start - MAX_VISIBLE) + " more below"));
 
-        rows.add(TuiCopy.footer(theme, (sel + 1) + "/" + total, TuiCopy.SELECTOR_HINT));
+        rows.add(TuiCopy.footer(theme, width, (sel + 1) + "/" + total, TuiCopy.SELECTOR_HINT));
         return Body.of(rows);
     }
 
     /**
-     * A row's detail, narrowed to {@code room} by dropping whole facts rather than slicing through one.
+     * The most columns the title column may claim, whatever the longest title wants.
      *
      * <p>
-     * Every selector writes its detail as {@code fact · fact · fact}, so the separator is where a cut belongs. A plain
-     * visual truncation cut wherever the column ran out, and at 100 columns the model list read
-     * {@code context 976K · input text · price $0.14/$} on every row -- a severed number, which does not look narrow,
-     * it looks broken. Dropping the last fact instead leaves a shorter row that is still entirely true.
-     *
-     * <p>
-     * The first fact is the one exception: if even it does not fit there is nothing to drop, so it is cut and marked
-     * with an ellipsis, which at least says so.
+     * The column used to be sized purely by the widest visible title, so one long id set the layout for every row. At
+     * 60 columns {@code accounts/fireworks/models/deepseek-v4-pro} took 41 of them and every model in the list read
+     * {@code [deepseek]  …} -- a picker showing nothing to pick by. Past this budget the titles give way instead,
+     * truncated in the middle, which keeps both the provider prefix and the model name that distinguishes them.
      */
-    static String fitDetail(String detail, int room) {
-        if (detail == null || room <= 0)
-            return "";
-        if (AnsiWidth.visibleWidth(detail) <= room)
-            return detail;
-        String[] facts = detail.split(" · ", -1);
-        var kept = new StringBuilder(facts[0]);
-        for (int i = 1; i < facts.length; i++) {
-            String next = kept + " · " + facts[i];
-            if (AnsiWidth.visibleWidth(next) > room)
-                break;
-            kept.setLength(0);
-            kept.append(next);
-        }
-        return AnsiWidth.visibleWidth(kept.toString()) <= room
-                                        ? kept.toString()
-                                        : AnsiWidth.truncateVisual(facts[0], Math.max(1, room - 1)) + "…";
+    private static int titleBudget(int width) {
+        return Math.max(12, width * 55 / 100);
     }
 
     private int maxVisibleTitle() {
