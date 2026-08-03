@@ -31,6 +31,7 @@ not permission to go looking.
 | to stop the running turn | `Esc` (twice forces). `Ctrl+C` clears the line -- twice **exits** |
 | to set the turn aside, still running | `Ctrl+B` twice -- it becomes a job; `/jobs`, `/kill <id>` |
 | to resume a session | `-c` last, `-r` pick, `-s <id\|path>` |
+| sub-agents on a cheaper model | `PIJOTA_SUBAGENT_MODEL=<provider/model>`; a `model:` in the agent's own front-matter wins |
 | to know what is in context | `/context` |
 | to shrink the context | `/compact` |
 | fewer tools this run | `--readonly`, or `--tool <name>` / `--no-tool <name>` (repeatable) |
