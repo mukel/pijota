@@ -22,6 +22,7 @@ final class Report {
     private final String title;
     private final List<String> chips = new ArrayList<>();
     private final List<Row> rows = new ArrayList<>();
+    private int minLabelColumn;
 
     private record Row(String label, List<String> cells, String slot) {
         Row(String label, String value, String slot) {
@@ -72,6 +73,19 @@ final class Report {
         return this;
     }
 
+    /**
+     * A floor for the label column, so several panels stacked on one page can share one column.
+     *
+     * <p>
+     * Each group of {@code /help} is its own panel, and each sized its column to its own widest command: the
+     * descriptions started at column 20 under "chat", 29 under "session" and 12 under "account". Scrolling the page
+     * made the left edge of the descriptions jump around. One page, one column.
+     */
+    Report labelColumn(int min) {
+        this.minLabelColumn = Math.max(0, min);
+        return this;
+    }
+
     /** A row of plain text with no label, for a note under the rows. */
     Report note(String text) {
         rows.add(new Row("", text == null ? "" : text, "commandMeta"));
@@ -86,8 +100,8 @@ final class Report {
             header.append(styled.apply("commandMeta", "  " + String.join(" · ", chips)));
         out.add(header.toString());
 
-        int column = rows.stream().filter(r -> !r.label().isEmpty()).mapToInt(r -> AnsiWidth.visibleWidth(r.label()))
-                                        .max().orElse(0);
+        int column = Math.max(minLabelColumn, rows.stream().filter(r -> !r.label().isEmpty())
+                                        .mapToInt(r -> AnsiWidth.visibleWidth(r.label())).max().orElse(0));
         var cellWidths = cellWidths();
         for (Row row : rows) {
             if (row.label().isEmpty()) {

@@ -140,4 +140,24 @@ class SlashCommandRegistryTest {
         assertEquals(0, SlashCommandRegistry.matchPositions("", "model").length, "blank query → no highlight");
         assertEquals(0, SlashCommandRegistry.matchPositions("mo", null).length, "null target → no positions");
     }
+
+    /**
+     * One page, one column. Each group of /help is its own panel and each used to size its label column to its own
+     * widest command, so the descriptions began at column 20 under "chat", 29 under "session" and 12 under "account",
+     * and the left edge jumped around while scrolling.
+     */
+    @Test
+    void everyCommandDescriptionStartsInTheSameColumn() {
+        var columns = new TreeSet<Integer>();
+        for (String line : new SlashCommandRegistry().helpLines()) {
+            if (!line.startsWith("  /"))
+                continue;
+            var m = Pattern.compile("^ {2}\\S.*?  +(\\S)").matcher(line);
+            if (m.find())
+                columns.add(m.start(1));
+        }
+
+        assertEquals(1, columns.size(), "descriptions start in " + columns.size() + " different columns: " + columns);
+    }
+
 }

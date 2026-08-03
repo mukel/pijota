@@ -93,10 +93,19 @@ final class SlashCommandRegistry {
 
     /** One group of commands, sharing the column rule every other block in the TUI uses. Plain text: see Report. */
     private void appendGroup(List<String> out, String title, String... names) {
-        var report = new Report((slot, text) -> text, title);
+        var report = new Report((slot, text) -> text, title).labelColumn(widestCommand());
         for (String name : names)
             command(name).ifPresent(cmd -> report.row(cmd.name(), cmd.description()));
         out.addAll(report.render());
+    }
+
+    /**
+     * The widest command name on the page, so every group's descriptions line up in one column. Sized per group, the
+     * column landed in a different place under each heading and the left edge of the descriptions jumped while
+     * scrolling.
+     */
+    private int widestCommand() {
+        return commands.stream().mapToInt(c -> c.name().length()).max().orElse(0);
     }
 
     private Optional<CompletionItem> command(String name) {
