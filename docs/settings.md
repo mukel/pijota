@@ -32,7 +32,7 @@
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `theme` | string | - | name or path; unset follows the terminal |
+| `theme` | string | `"gruvbox-dark"` | name or path; `auto` follows the terminal |
 | `themes` | string[] | `[]` | extra theme files to load |
 | `markdown` | string | `"rich"` | `rich`, or `plain` |
 | `path_display` | string | `"compact"` | `full`, `relative`, `compact`, `name` |

@@ -33,7 +33,7 @@ class ThemeLoaderTest {
     @Test
     void loadsDefaultBuiltinWhenUnset() {
         var theme = ThemeLoader.load(emptySettings(), emptyArgs(), "/tmp");
-        assertEquals("dark", theme.name);
+        assertEquals("gruvbox-dark", theme.name);
     }
 
     @Test
@@ -112,6 +112,6 @@ class ThemeLoaderTest {
                                         ignored -> {});
 
         var theme = ThemeLoader.load(settings, ArgParser.parse(new String[] {"--no-themes"}), "/tmp");
-        assertEquals("dark", theme.name); // built-in default still loads; only user-dir discovery is skipped
+        assertEquals("gruvbox-dark", theme.name); // built-in default still loads; only user-dir discovery is skipped
     }
 }

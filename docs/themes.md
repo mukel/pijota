@@ -1,6 +1,6 @@
 # Themes
 
-Four ship: `dark`, `light`, `gruvbox-dark`, `gruvbox-light`. `/theme` switches live.
+Four ship: `gruvbox-dark` (the default), `gruvbox-light`, `dark`, `light`. `/theme` switches live.
 
 ```bash
 pj --theme gruvbox-dark
@@ -13,13 +13,14 @@ pj --no-themes                  # skip discovery entirely
 { "theme": "gruvbox-dark", "themes": ["~/work/corporate.json"] }
 ```
 
-Unset means `auto`, which reads `COLORFGBG`. `NO_COLOR` drops colour entirely.
+Unset means `gruvbox-dark`; `auto` reads `COLORFGBG` and picks the gruvbox pair to match.
+`NO_COLOR` drops colour entirely.
 
 ## Where they come from
 
 | Location | Scope |
 |---|---|
-| built in | `dark`, `light`, `gruvbox-dark`, `gruvbox-light` |
+| built in | `gruvbox-dark`, `gruvbox-light`, `dark`, `light` |
 | `~/.pijota/themes/*.json` | every project |
 | `--theme <path>` | that run |
 
@@ -51,7 +52,7 @@ HTML export.
 }
 ```
 
-A slot takes a var name or a literal `#rrggbb`. Omitted slots fall back to `dark`, so a partial
+A slot takes a var name or a literal `#rrggbb`. Omitted slots fall back to the built-in dark palette, so a partial
 theme is valid; omitting `text` colours everything except what you are reading.
 
 ## Slots

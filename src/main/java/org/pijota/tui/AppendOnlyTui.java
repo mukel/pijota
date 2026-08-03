@@ -907,14 +907,23 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
+    /**
+     * The wordmark, split the way the web UI splits it: {@code pi} plain, {@code jota} in the accent. The shared root
+     * stays quiet and the part that is pijota's carries the colour, which reads as a name rather than as a version
+     * string and tells the lineage without a sentence about it.
+     */
+    private String wordmark() {
+        return theme.styled("bannerMeta", "pi") + theme.styled("bannerName", "jota");
+    }
+
     private void appendStartupGreeting(String version, String cwd) {
         if (settings != null && settings.config().quietStartup()) {
-            appendPlain(List.of(theme.styled("bannerMeta", "pijota " + version)));
+            appendPlain(List.of(wordmark() + theme.styled("bannerMeta", " " + version)));
             return;
         }
         var lines = new ArrayList<String>();
-        lines.add(theme.styled("bannerName", "pijota " + version) + theme.styled("bannerMeta",
-                                        "  " + PromptPresenter.modelLabel(provider, model)));
+        lines.add(wordmark() + theme.styled("bannerMeta", " " + version + "  ")
+                                        + theme.styled("bannerMeta", PromptPresenter.modelLabel(provider, model)));
         lines.add(theme.styled("dim", TuiCopy.START_HINT));
 
         // recent sessions
