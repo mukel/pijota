@@ -7,9 +7,9 @@
 
     <!-- Rolling file appender: the primary log sink for Pijota -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${user.home}/.pijota/logs/pijota.log</file>
+        <file>${pijota.logDir:-${user.home}/.pijota/logs}/pijota.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${user.home}/.pijota/logs/pijota.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <fileNamePattern>${pijota.logDir:-${user.home}/.pijota/logs}/pijota.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>3</maxHistory>
         </rollingPolicy>
         <encoder>

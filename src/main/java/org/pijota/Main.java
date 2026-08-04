@@ -52,6 +52,12 @@ public final class Main {
         // and then dumps its whole status trail to stdout. This installs a no-op listener first, so nothing prints.
         if (System.getProperty("logback.statusListenerClass") == null)
             System.setProperty("logback.statusListenerClass", "ch.qos.logback.core.status.NopStatusListener");
+
+        // Same window, same reason: logback substitutes ${...} when it parses the config, which is the first time a
+        // logger is used. It only knows ${user.home}, so --verbose wrote to the real ~/.pijota/logs even when
+        // PIJOTA_HOME pointed somewhere else, and the help text that named the log's location was wrong there.
+        if (System.getProperty("pijota.logDir") == null)
+            System.setProperty("pijota.logDir", PijotaHome.resolve("logs").toString());
     }
 
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
