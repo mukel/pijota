@@ -16,6 +16,17 @@ public sealed interface AgentEvent {
     record AssistantMessage(Message.Assistant message, Usage usage) implements AgentEvent {
     }
 
+    /**
+     * A tool call still being emitted by the model, with how many characters of arguments have arrived.
+     *
+     * <p>
+     * Text and thinking stream to the screen, so a long answer visibly grows. A long tool call did not, and a write big
+     * enough to take minutes was indistinguishable from a hang: the spinner turned and the seconds counted, which says
+     * the process is alive, not that the model is still producing.
+     */
+    record ToolCallProgress(String toolName, int argumentChars) implements AgentEvent {
+    }
+
     record ToolStart(String toolName, String toolCallId, Supplier<String> argumentsSupplier) implements AgentEvent {
     }
     record BashExecutionUpdate(String toolCallId, String delta) implements AgentEvent {

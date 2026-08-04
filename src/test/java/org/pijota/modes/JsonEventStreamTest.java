@@ -129,4 +129,18 @@ class JsonEventStreamTest {
         for (String line : lines)
             assertDoesNotThrow(() -> Util.MAPPER.readTree(line), "interleaved write: " + line);
     }
+
+    /**
+     * Text and thinking stream to the screen, so a long answer visibly grows. A long tool call did not: its arguments
+     * were delivered by the provider and dropped, and a write big enough to take minutes was indistinguishable from a
+     * hang. A wrapper needs the same signal the status line got.
+     */
+    @Test
+    void aStreamingToolCallReportsItsProgress() {
+        var json = JsonEventStream.describe(new AgentEvent.ToolCallProgress("write", 12_480));
+
+        assertEquals("tool_call_progress", json.get("type"));
+        assertEquals("write", json.get("tool"));
+        assertEquals(12_480, json.get("chars"));
+    }
 }

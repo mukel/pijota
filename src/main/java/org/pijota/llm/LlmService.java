@@ -16,6 +16,7 @@ import dev.langchain4j.model.chat.response.PartialResponse;
 import dev.langchain4j.model.chat.response.PartialResponseContext;
 import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.model.chat.response.PartialThinkingContext;
+import dev.langchain4j.model.chat.response.PartialToolCall;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.openai.OpenAiTokenUsage;
 import dev.langchain4j.model.output.TokenUsage;
@@ -158,6 +159,13 @@ public final class LlmService implements LlmClient {
     @Override
     public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
                                     BiConsumer<String, String> onPartial, ThinkingLevel thinking) {
+        return streamMessages(messages, tools, onPartial, thinking, (name, chars) -> {});
+    }
+
+    @Override
+    public CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
+                                    BiConsumer<String, String> onPartial, ThinkingLevel thinking,
+                                    BiConsumer<String, Integer> onToolCallProgress) {
         if (usage.overBudget()) {
             var r = new StreamResult();
             r.setContent("[Budget limit exceeded]");
@@ -169,12 +177,13 @@ public final class LlmService implements LlmClient {
                                         .name(t.name()).description(t.description())
                                         .parameters(ToolSchema.objectFromMap(ToolManifest.canonicalSchema(t.schema())))
                                         .build()).toList();
-        return streamLangChain4j(lc4jModel(thinking), adapted, specs, onPartial, activeCancel);
+        return streamLangChain4j(lc4jModel(thinking), adapted, specs, onPartial, activeCancel, onToolCallProgress);
     }
 
     private CompletableFuture<StreamResult> streamLangChain4j(StreamingChatModel model, List<Message> messages,
                                     List<ToolSpecification> tools, BiConsumer<String, String> onPartial,
-                                    AtomicReference<Runnable> cancelRef) {
+                                    AtomicReference<Runnable> cancelRef,
+                                    BiConsumer<String, Integer> onToolCallProgress) {
         // The custom Codex model runs its own virtual-thread SSE loop that langchain4j's StreamingHandle never reaches,
         // so register its abort() up front; langchain4j models register their handle's cancel once streaming starts.
         // (cancelRef is null for internal, non-cancellable calls like summarization.)
@@ -189,6 +198,8 @@ public final class LlmService implements LlmClient {
         // the stream settles (nothing lingers); the hook then aborts the now-leaked stream.
         long streamTimeoutSeconds = LlmTimeouts.request().toSeconds();
         var settled = new AtomicBoolean(false);
+        // Per tool call in this stream: arguments stream as deltas, and only the running total is worth showing.
+        var toolCallChars = new java.util.concurrent.ConcurrentHashMap<Integer, Integer>();
         future.orTimeout(streamTimeoutSeconds, TimeUnit.SECONDS).exceptionally(ex -> {
             // Only orTimeout completes the future with a TimeoutException; providers report timeouts as IOExceptions.
             if (ex instanceof TimeoutException && settled.compareAndSet(false, true)) {
@@ -235,6 +246,20 @@ public final class LlmService implements LlmClient {
                     applyPartialContent(result, t);
                     onPartial.accept(result.content(), thinkingBuf.toString());
                 }
+            }
+
+            /**
+             * Tool-call arguments arrive in deltas like everything else, and were the one kind that reached nobody. A
+             * `write` big enough to take minutes left the status line reading "waiting for model" the whole time.
+             */
+            @Override
+            public void onPartialToolCall(PartialToolCall ptc) {
+                markFirstToken();
+                if (ptc == null)
+                    return;
+                String delta = ptc.partialArguments();
+                int soFar = toolCallChars.merge(ptc.index(), delta == null ? 0 : delta.length(), Integer::sum);
+                onToolCallProgress.accept(ptc.name(), soFar);
             }
 
             @Override
@@ -405,7 +430,8 @@ public final class LlmService implements LlmClient {
             var userMsg = new Message.User(prompt);
             var messages = List.<Message>of(sysMsg, userMsg);
             var result = streamLangChain4j(model, messages, List.of(),
-                                            onPartial != null ? onPartial : (ignoredKind, ignoredDelta) -> {}, null)
+                                            onPartial != null ? onPartial : (ignoredKind, ignoredDelta) -> {}, null,
+                                            (ignoredTool, ignoredChars) -> {}) // a summary has no tool calls to report
                                             .get(120, TimeUnit.SECONDS);
             return result.content() != null ? new SummaryResult(result.content().strip(), result.usage()) : null;
         } catch (TimeoutException e) {

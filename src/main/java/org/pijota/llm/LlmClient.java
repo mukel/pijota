@@ -98,6 +98,24 @@ public interface LlmClient extends AutoCloseable {
     }
 
     /**
+     * The same request, reporting tool-call arguments as they arrive.
+     *
+     * <p>
+     * Text and thinking already stream to the screen, so a long answer visibly grows. A long <em>tool call</em> did
+     * not: its arguments were delivered and dropped, the status line said "waiting for model" throughout, and a write
+     * large enough to take minutes was indistinguishable from a hang. The callback takes the tool's name and how many
+     * characters of arguments have arrived so far.
+     *
+     * <p>
+     * The default ignores it, so a client with nothing to report answers exactly as before.
+     */
+    default CompletableFuture<StreamResult> streamMessages(List<Message> messages, List<Tool> tools,
+                                    BiConsumer<String, String> onPartial, ThinkingLevel thinking,
+                                    BiConsumer<String, Integer> onToolCallProgress) {
+        return streamMessages(messages, tools, onPartial, thinking);
+    }
+
+    /**
      * Summarizes messages for context compaction. The default has no summarizer and returns {@code null}, which the
      * compaction manager treats as "degraded" (a heuristic summary). Real providers override this.
      */

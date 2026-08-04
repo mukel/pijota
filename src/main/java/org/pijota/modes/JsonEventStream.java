@@ -50,13 +50,18 @@ public final class JsonEventStream {
         }
     }
 
-    private static Map<String, Object> describe(AgentEvent event) {
+    // package-private so the event shapes can be asserted without driving a whole run
+    static Map<String, Object> describe(AgentEvent event) {
         return switch (event) {
             case AgentEvent.TurnStart(int turn) -> of("turn_start", "turn", turn);
             case AgentEvent.TurnEnd(int turn) -> of("turn_end", "turn", turn);
             case AgentEvent.MessageStreamStart(var type) -> of("stream_start", "messageType", type);
             case AgentEvent.MessageStreamDelta(var delta) -> of("delta", "text", delta);
             case AgentEvent.MessageStreamEnd(var type) -> of("stream_end", "messageType", type);
+            // A machine-readable twin of the status line's progress: a wrapper can show a long tool call advancing
+            // rather than a silent gap between stream_start and the tool result.
+            case AgentEvent.ToolCallProgress(var toolName, int chars) ->
+                of("tool_call_progress", "tool", toolName, "chars", chars);
             case AgentEvent.AssistantMessage(var msg, var usage) -> assistant(msg, usage);
             // The supplier defers serializing arguments until something asks; asking is the point here.
             case AgentEvent.ToolStart(var name, var id, var arguments) -> of("tool_start", "tool", name, "toolCallId",

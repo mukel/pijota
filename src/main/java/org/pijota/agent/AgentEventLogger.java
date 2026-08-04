@@ -29,6 +29,9 @@ final class AgentEventLogger {
         switch (event) {
             case AgentEvent.TurnStart e -> log.info("turn {} ▶ start", e.turn());
             case AgentEvent.TurnEnd e -> log.info("turn {} ■ end", e.turn());
+            // One per delta, so TRACE only: at INFO a single large write would bury the turn it belongs to.
+            case AgentEvent.ToolCallProgress e ->
+                log.trace("tool call {} streaming · {} chars", e.toolName(), e.argumentChars());
             case AgentEvent.AssistantMessage e -> {
                 // Only the final completion carries token usage; the pre-stream placeholder and the per-chunk streaming
                 // updates have null usage and would flood INFO, so they drop to TRACE; the MessageStreamDelta firehose

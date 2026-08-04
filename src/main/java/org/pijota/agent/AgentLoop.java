@@ -434,6 +434,9 @@ public final class AgentLoop implements AgentContext {
                                                 fireEvent(new AgentEvent.AssistantMessage(updated, null));
                                                 history.set(history.size() - 1, updated.withSource(requestProvider,
                                                                                 requestModel));
+                                            }, llm.thinkingLevel(), (toolName, chars) -> {
+                                                if (isActive(result))
+                                                    fireEvent(new AgentEvent.ToolCallProgress(toolName, chars));
                                             });
             activeStream.set(stream);
             return stream;

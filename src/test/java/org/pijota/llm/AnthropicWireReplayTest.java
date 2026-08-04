@@ -271,4 +271,42 @@ class AnthropicWireReplayTest {
                                         : failure.getMessage());
         assertFalse(text.isBlank(), "the failure must carry something a user can act on");
     }
+
+    /**
+     * The same fragmented tool input, watched as it arrives. Text and thinking already streamed to the screen; these
+     * deltas were delivered by the provider and dropped, so a write big enough to take minutes showed nothing moving
+     * and read as a hang. Replayed from the recorded wire rather than a hand-made callback, so it fails if langchain4j
+     * stops delivering them.
+     */
+    @Test
+    void streamingToolArgumentsAreReportedAsTheyArrive() throws Exception {
+        wire.replaySse(WireFixture.sseNamed("message_start",
+                                        "{\"type\":\"message_start\",\"message\":{\"id\":\"m\",\"role\":\"assistant\",\"content\":[],"
+                                                                        + "\"usage\":{\"input_tokens\":20,\"output_tokens\":0}}}",
+                                        "content_block_start",
+                                        "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":"
+                                                                        + "{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"write\",\"input\":{}}}",
+                                        "content_block_delta",
+                                        "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":"
+                                                                        + "{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"path\\\":\"}}",
+                                        "content_block_delta",
+                                        "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":"
+                                                                        + "{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"a.py\\\"}\"}}",
+                                        "content_block_stop", "{\"type\":\"content_block_stop\",\"index\":0}",
+                                        "message_delta",
+                                        "{\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"},"
+                                                                        + "\"usage\":{\"output_tokens\":9}}",
+                                        "message_stop", "{\"type\":\"message_stop\"}"));
+
+        var reports = new java.util.ArrayList<String>();
+        service().streamMessages(List.of(user("hello")), List.of(), (a, b) -> {}, ThinkingLevel.OFF,
+                                        (tool, chars) -> reports.add(tool + ":" + chars)).get(20, TimeUnit.SECONDS);
+
+        assertFalse(reports.isEmpty(), "the deltas arrived but nothing was reported");
+        assertTrue(reports.stream().allMatch(r -> r.startsWith("write:")), reports.toString());
+        // Monotonic: the point of the cue is that the number keeps moving while the model is still producing.
+        var counts = reports.stream().map(r -> Integer.parseInt(r.substring(r.indexOf(':') + 1))).toList();
+        for (int i = 1; i < counts.size(); i++)
+            assertTrue(counts.get(i) > counts.get(i - 1), "progress must grow: " + counts);
+    }
 }
