@@ -4,6 +4,7 @@ import org.pijota.cli.Args.OutputMode;
 import org.pijota.extensions.BuiltinExtensions;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.ThinkingLevel;
+import org.pijota.util.Cli;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -14,7 +15,8 @@ import java.util.Set;
 public final class ArgParser {
 
     /** Frontend subcommands: `pijota web|telegram|acp`, the positional twins of the {@code --web}/… flags. */
-    private static final Set<String> FRONTEND_SUBCOMMANDS = Set.of("web", "telegram", "acp", "tui");
+    /** Also the set that {@link org.pijota.extensions.ExtensionRegistry} must not report as unknown flags. */
+    public static final Set<String> FRONTEND_SUBCOMMANDS = Set.of("web", "telegram", "acp", "tui");
 
     public static Args parse(String[] rawArgs) {
         var provider = (String) null;
@@ -163,9 +165,9 @@ public final class ArgParser {
 
     public static void printHelp() {
         System.out.println("""
-                                        pijota - minimalist Java coding agent
+                                        %1$s - minimalist Java coding agent
 
-                                        USAGE: pijota [SUBCOMMAND] [OPTIONS] [PROMPT...]
+                                        USAGE: %1$s [SUBCOMMAND] [OPTIONS] [PROMPT...]
 
                                         SUBCOMMANDS (frontends; default is the TUI):
                                           tui                       Interactive terminal UI (default)
@@ -206,15 +208,15 @@ public final class ArgParser {
                                           --prompt-template <path>  Load prompt template (repeatable)
                                           --approve, -a             Trust project-local resources for this run
                                           --no-approve, -na         Ignore project-local resources for this run
-                                        """);
+                                        """.formatted(Cli.name()));
         System.out.println("""
                                         COMMANDS (before any options):
                                           login [provider] [model]  Sign in to a provider (OAuth, else an API key)
                                           logout [provider]         Forget a provider's stored credential
                                           auth <cmd> --provider <p> Print a credential for another tool (print-api-key,
-                                                                    print-bearer-token); see `pijota auth --help`
-                                          worktree <cmd>            Manage git worktrees; see `pijota worktree --help`
-                                        """);
+                                                                    print-bearer-token); see `%1$s auth --help`
+                                          worktree <cmd>            Manage git worktrees; see `%1$s worktree --help`
+                                        """.formatted(Cli.name()));
         System.out.println(BuiltinExtensions.helpSection());
         System.out.println();
         System.out.println("""
@@ -227,14 +229,14 @@ public final class ArgParser {
                                           --license                 Show license and third-party notices
 
                                         EXAMPLES:
-                                          pijota                                   Start interactive mode
-                                          pijota -m anthropic/claude-sonnet-4-20250514
-                                          pijota -p "explain this code"            Single-shot query
-                                          echo "explain this code" | pijota        Single-shot query from stdin
-                                          pijota -c                                Continue last session
-                                          pijota -r                                Pick session interactively
-                                          pijota --list-models openai              List OpenAI models
-                                        """);
+                                          %1$s                                   Start interactive mode
+                                          %1$s -m anthropic/claude-sonnet-4-20250514
+                                          %1$s -p "explain this code"            Single-shot query
+                                          echo "explain this code" | %1$s        Single-shot query from stdin
+                                          %1$s -c                                Continue last session
+                                          %1$s -r                                Pick session interactively
+                                          %1$s --list-models openai              List OpenAI models
+                                        """.formatted(Cli.name()));
     }
 
     /**

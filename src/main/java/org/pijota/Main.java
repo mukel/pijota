@@ -24,6 +24,7 @@ import org.pijota.telegram.TelegramChat;
 import org.pijota.telegram.TelegramClient;
 import org.pijota.telegram.TelegramFrontend;
 import org.pijota.tui.AppendOnlyTui;
+import org.pijota.util.Cli;
 import org.pijota.util.CliErrorReporter;
 import org.pijota.util.PijotaHome;
 import org.pijota.util.Platform;
@@ -360,12 +361,12 @@ public final class Main {
     }
 
     private static void printAuthUsage() {
-        System.out.println("USAGE: pijota login [provider] [model]");
-        System.out.println("       pijota logout [provider]");
+        System.out.println("USAGE: " + Cli.name() + " login [provider] [model]");
+        System.out.println("       " + Cli.name() + " logout [provider]");
         System.out.println();
         System.out.println("With no provider, both act on \"kimi-coding\".");
         System.out.println("A provider with OAuth starts a device login; otherwise you are asked for an API key.");
-        System.out.println("`pijota --list-models` shows the providers with a usable credential.");
+        System.out.println("`" + Cli.name() + " --list-models` shows the providers with a usable credential.");
     }
 
     private static int login(String[] args) throws Exception {
@@ -448,7 +449,7 @@ public final class Main {
             System.out.println("No usable models"
                                             + (filter == null || filter.isBlank() ? "" : " matching \"" + filter + "\"")
                                             + ". Set a provider API key (env or " + PijotaHome.resolve("settings.json")
-                                            + ") or run" + " `pijota login`.");
+                                            + ") or run" + " `" + Cli.name() + " login`.");
             return;
         }
         System.out.println("Available models:");

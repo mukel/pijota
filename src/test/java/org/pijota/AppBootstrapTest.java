@@ -9,6 +9,7 @@ import org.pijota.config.SettingsManager;
 import org.pijota.extensions.testkit.ExtensionJars;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
+import org.pijota.util.Cli;
 
 import org.junit.jupiter.api.Test;
 
@@ -260,7 +261,7 @@ class AppBootstrapTest {
         assertTrue(ex.getMessage().contains("PIJOTA_MISSING_TEST_API_KEY"));
         assertTrue(ex.getMessage().contains("--list-models missing-test"));
         assertTrue(ex.getMessage().contains("local/OpenAI-compatible server"));
-        assertFalse(ex.getMessage().contains("pijota login missing-test"),
+        assertFalse(ex.getMessage().contains(Cli.name() + " login missing-test"),
                                         "non-OAuth providers should not suggest login");
     }
 
@@ -280,7 +281,7 @@ class AppBootstrapTest {
                                         ArgParser.parse(new String[] {"--provider", "oauth-test"}), settings));
 
         assertTrue(ex.getMessage().contains("oauth-test/oauth-model"));
-        assertTrue(ex.getMessage().contains("pijota login oauth-test"));
+        assertTrue(ex.getMessage().contains(Cli.name() + " login oauth-test"));
         assertTrue(ex.getMessage().contains("--list-models oauth-test"));
     }
 

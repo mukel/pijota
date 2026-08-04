@@ -2,6 +2,7 @@ package org.pijota.extensions.transcend;
 
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.ExtensionRuntime;
+import org.pijota.util.Cli;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.ProcessRunner;
 import org.pijota.util.SelfRespawn;
@@ -357,8 +358,8 @@ final class TranscendenceOrchestrator {
                                                 + "2. transcendence action=\"build\" worktree=\"" + finalWorktree
                                                 + "\"\n" + "3. transcendence action=\"test\" worktree=\""
                                                 + finalWorktree + "\"\n"
-                                                + "4. Verify only with the worktree jar, never with a bare `pijota` command. "
-                                                + "Use `java -jar " + finalWorktree
+                                                + "4. Verify only with the worktree jar, never with a bare `"
+                                                + Cli.name() + "` command. " + "Use `java -jar " + finalWorktree
                                                 + "/target/<built-jar> ...` for smoke checks. "
                                                 + "If the feature is TUI-only and cannot be automated, inspect the command dispatch code and continue.\n"
                                                 + "5. Respawn is mandatory after build/test pass. Do not end the turn before calling: "

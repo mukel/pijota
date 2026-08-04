@@ -3,6 +3,7 @@ package org.pijota.llm;
 import org.pijota.cli.Args;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
+import org.pijota.util.Cli;
 import org.pijota.util.CliErrorReporter;
 import org.pijota.util.PijotaHome;
 
@@ -39,6 +40,15 @@ public final class ModelResolver {
         if (ModelRegistry.ALIAS_PROVIDER.equalsIgnoreCase(resolved.provider()))
             throw new IllegalStateException("Unknown model alias '" + args.model()
                                             + "'. Define it under \"aliases\" in settings.json (name -> provider/model).");
+        // Same reasoning one step out: a provider nobody has heard of used to reach the LLM client anyway, where the
+        // missing base URL defaulted to OpenAI's. `-m nonexistent/model` with a DeepSeek key then failed with an
+        // OpenAI error pointing at platform.openai.com, naming a provider the user never mentioned. User providers
+        // from settings.json are already in the catalog by now, so an id still missing here is a typo or an invention.
+        if (args.provider() != null && !args.provider().isBlank()
+                                        && ProviderCatalog.find(resolved.provider()).isEmpty())
+            throw new IllegalStateException("Unknown provider '" + resolved.provider() + "'. Run `" + Cli.name()
+                                            + " --list-models` for the ones you can reach, or define it under "
+                                            + "\"providers\" in " + PijotaHome.resolve("settings.json") + ".");
         String provider = resolved.provider();
         String model = resolved.model();
 
@@ -95,8 +105,9 @@ public final class ModelResolver {
         if (hint != null && !hint.isBlank())
             sb.append(" Set ").append(hint).append('.');
         if (ProviderCatalog.oauth(provider).isPresent())
-            sb.append(" Or run `pijota login ").append(provider).append("`.");
-        sb.append(" Use `pijota --list-models ").append(provider).append("` to see available models.");
+            sb.append(" Or run `").append(Cli.name()).append(" login ").append(provider).append("`.");
+        sb.append(" Use `").append(Cli.name()).append(" --list-models ").append(provider)
+                                        .append("` to see available models.");
         sb.append(" For a local/OpenAI-compatible server, add a keyless provider in ")
                                         .append(PijotaHome.resolve("settings.json")).append(".");
         return sb.toString();
@@ -130,13 +141,14 @@ public final class ModelResolver {
             }
             sb.append("\n");
         }
-        sb.append("\nStart pijota again once it is set. `pijota --list-models` shows what you can run.\n");
+        sb.append("\nStart pijota again once it is set. `").append(Cli.name())
+                                        .append(" --list-models` shows what you can run.\n");
         sb.append("\nRunning a local model? Add a keyless provider in ").append(PijotaHome.resolve("settings.json"))
                                         .append(".");
         ProviderCatalog.providers().stream().filter(p -> p.oauth() != null).map(ProviderCatalog.Provider::id)
                                         .findFirst()
-                                        .ifPresent(p -> sb.append("\nHave a ChatGPT subscription? `pijota login ")
-                                                                        .append(p)
+                                        .ifPresent(p -> sb.append("\nHave a ChatGPT subscription? `").append(Cli.name())
+                                                                        .append(" login ").append(p)
                                                                         .append("` signs in through the browser instead."));
         return sb.toString();
     }

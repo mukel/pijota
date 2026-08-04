@@ -1,6 +1,7 @@
 package org.pijota;
 
 import org.pijota.testkit.StdioCapture;
+import org.pijota.util.Cli;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -27,7 +28,7 @@ class MainTest {
         for (String[] argv : new String[][] {{"login", "--help"}, {"login", "-h"}, {"logout", "--help"}}) {
             assertEquals(0, Main.run(argv), String.join(" ", argv));
             String out = stdio.out();
-            assertTrue(out.contains("USAGE: pijota login"), String.join(" ", argv) + " printed: " + out);
+            assertTrue(out.contains("USAGE: " + Cli.name() + " login"), String.join(" ", argv) + " printed: " + out);
             assertFalse(out.contains("API key for --help"), "still treated --help as a provider: " + out);
         }
     }

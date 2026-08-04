@@ -3,6 +3,7 @@ package org.pijota;
 import org.pijota.agent.PijotaSession;
 import org.pijota.agent.SessionManager;
 import org.pijota.agent.SystemPrompt;
+import org.pijota.cli.ArgParser;
 import org.pijota.cli.Args;
 import org.pijota.config.ProjectTrust;
 import org.pijota.config.ProviderCatalog;
@@ -172,6 +173,9 @@ public final class AppBootstrap {
             ext.register(new ContextFilesExtension(cwd)); // --no-context-files / context_files setting disables
         }
         StartupTimer.mark("extensions registered");
+        // Only now: every extension has had its chance to register, so a name still unaccounted for is a typo. The
+        // frontend subcommands reach the same map without being extensions.
+        ext.warnAboutUnknownFlags(ArgParser.FRONTEND_SUBCOMMANDS);
 
         tools.applyPolicy(toolPolicy(parsedArgs));
 

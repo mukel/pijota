@@ -3,6 +3,7 @@ package org.pijota.llm;
 import org.pijota.cli.ArgParser;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
+import org.pijota.util.Cli;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,7 +35,7 @@ class ModelResolverTest {
         String msg = ModelResolver.firstRunMessage();
 
         int export = msg.indexOf("export ");
-        int login = msg.indexOf("pijota login");
+        int login = msg.indexOf(Cli.name() + " login");
         assertTrue(export >= 0, "no API-key route offered:\n" + msg);
         assertTrue(login < 0 || export < login, "the subscription route is offered first:\n" + msg);
         assertTrue(login < 0 || msg.contains("subscription"), "the sign-in must say what it needs:\n" + msg);
@@ -107,6 +108,32 @@ class ModelResolverTest {
         assertTrue(ex.getMessage().toLowerCase().contains("alias"), ex.getMessage());
     }
 
+    /**
+     * An unknown provider used to reach the LLM client anyway, where the missing base URL defaulted to OpenAI's, so `-m
+     * nonexistent/model` with a DeepSeek key failed with an OpenAI error pointing at platform.openai.com. The message
+     * named a provider the user had never mentioned.
+     */
+    @Test
+    void anUnknownProviderFailsInsteadOfBecomingOpenAi() {
+        var ex = assertThrows(IllegalStateException.class, () -> ModelResolver.resolve(
+                                        ArgParser.parse(new String[] {"--model", "nonexistent/some-model"}),
+                                        settings(Map.of(), "gpt-5.5")));
+        assertTrue(ex.getMessage().contains("nonexistent"), "it must name what was not found: " + ex.getMessage());
+        assertFalse(ex.getMessage().toLowerCase().contains("openai.com"),
+                                        "and must not send them to a provider they never asked for: "
+                                                                        + ex.getMessage());
+        assertTrue(ex.getMessage().contains("--list-models"), "with a way to see the real ones: " + ex.getMessage());
+    }
+
+    /** A real provider with an off-catalog model still passes through: local fine-tunes and new ids must reach it. */
+    @Test
+    void aKnownProviderWithAnUnknownModelIsStillHonoured() {
+        var r = ModelResolver.resolve(ArgParser.parse(new String[] {"--model", "openai/some-brand-new-id"}),
+                                        settings(Map.of(), "gpt-5.5"));
+        assertEquals("openai", r.provider());
+        assertEquals("some-brand-new-id", r.model());
+    }
+
     @Test
     void aConfiguredUserGetsTheSpecificMissingKeyDiagnostic() {
         // Some provider works, another was asked for: name the key that is missing, for that provider.
@@ -122,7 +149,7 @@ class ModelResolverTest {
         // ambient environment (provider env vars), which this class deliberately does not exercise.
         String msg = ModelResolver.firstRunMessage();
         assertTrue(msg.contains("No provider configured yet"), msg);
-        assertTrue(msg.contains("pijota login"), "the sign-in path is offered: " + msg);
+        assertTrue(msg.contains(Cli.name() + " login"), "the sign-in path is offered: " + msg);
         assertTrue(msg.contains("API_KEY"), "the key path is offered too: " + msg);
         assertFalse(msg.contains("gpt-5.5"), "no diagnosis of a default the user never chose: " + msg);
         assertFalse(msg.startsWith("No API key for"), "not phrased as a failure: " + msg);

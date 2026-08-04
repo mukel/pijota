@@ -1,5 +1,6 @@
 package org.pijota.worktree;
 
+import org.pijota.util.Cli;
 import org.pijota.util.Platform;
 
 import java.io.IOException;
@@ -82,7 +83,7 @@ public final class WorktreeCommand {
             return 0;
         }
         if (p.error() != null) {
-            System.err.println("pijota worktree: " + p.error());
+            System.err.println(Cli.name() + " worktree: " + p.error());
             printUsage(System.err);
             return 2;
         }
@@ -97,7 +98,7 @@ public final class WorktreeCommand {
                 case DESTROY -> destroy(pool, p);
             };
         } catch (IOException e) {
-            System.err.println("pijota worktree: " + e.getMessage());
+            System.err.println(Cli.name() + " worktree: " + e.getMessage());
             return 1;
         }
     }
@@ -122,7 +123,7 @@ public final class WorktreeCommand {
     private static int get(WorktreePool pool) throws IOException {
         Path wt = pool.acquire(true); // reserved until `pijota worktree return`
         System.out.println(wt); // path only on stdout, so it's scriptable: cd "$(pijota worktree get)"
-        System.err.println("reserved · release with: pijota worktree return " + wt);
+        System.err.println("reserved · release with: " + Cli.name() + " worktree return " + wt);
         return 0;
     }
 
@@ -168,12 +169,12 @@ public final class WorktreeCommand {
 
     private static int destroy(WorktreePool pool, Parsed p) throws IOException {
         if (p.path() == null) {
-            System.err.println("pijota worktree: destroy needs a worktree path");
+            System.err.println(Cli.name() + " worktree: destroy needs a worktree path");
             return 2;
         }
         var result = pool.destroy(Path.of(p.path()), p.includeDirty(), p.includeInUse(), p.yes());
         if (result.error() != null) {
-            System.err.println("pijota worktree: " + result.error());
+            System.err.println(Cli.name() + " worktree: " + result.error());
             return 1;
         }
         System.out.println((result.removed() ? "destroyed " : "would destroy ") + Path.of(p.path()));

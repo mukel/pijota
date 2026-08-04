@@ -8,6 +8,7 @@ import org.pijota.modes.SlashCommand;
 import org.pijota.tools.SlashCommandTool;
 import org.pijota.tools.Tool;
 import org.pijota.tools.ToolRegistry;
+import org.pijota.util.Cli;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.ProcessRunner;
 
@@ -179,6 +180,60 @@ public final class ExtensionRegistry {
         this.extensionsConfig = config != null ? Map.copyOf(config) : Map.of();
     }
 
+    /**
+     * Reports {@code --flags} that name no extension, after everything has had its chance to register.
+     *
+     * <p>
+     * Any {@code --name} is accepted as an extension toggle, which is what makes extensions pluggable and what made a
+     * typo indistinguishable from a feature. {@code --readonyl} was silently filed as an extension flag and the session
+     * ran with full write and shell access; {@code --no-bash}, which has never been a flag, read as though it had
+     * worked. The parser already refuses to let an unknown {@code --mode} or {@code --thinking} value pass quietly;
+     * this is the same rule applied to the flag's name.
+     *
+     * @param alsoKnown
+     *            names that are legitimately flags without being extensions, i.e. the frontend subcommands
+     */
+    public void warnAboutUnknownFlags(Set<String> alsoKnown) {
+        for (String flag : extensionFlags.keySet()) {
+            String name = flag.startsWith("no-") ? flag.substring(3) : flag;
+            if (offeredNames.contains(name) || alsoKnown.contains(name))
+                continue;
+            System.err.println(Cli.name() + ": unknown option '--" + flag + "' (no such extension); it does nothing"
+                                            + suggestion(name));
+        }
+    }
+
+    /** The closest known name, when there is an obvious one, since these are nearly always typos. */
+    private String suggestion(String name) {
+        return offeredNames.stream().filter(known -> withinOneEdit(known, name)).findFirst()
+                                        .map(known -> ". Did you mean '--" + known + "'?").orElse("");
+    }
+
+    /** Deliberately crude: one substitution, or one insertion/deletion. It only has to catch a slip of the fingers. */
+    private static boolean withinOneEdit(String a, String b) {
+        if (Math.abs(a.length() - b.length()) > 1)
+            return false;
+        int i = 0, j = 0, edits = 0;
+        while (i < a.length() && j < b.length()) {
+            if (a.charAt(i) == b.charAt(j)) {
+                i++;
+                j++;
+                continue;
+            }
+            if (++edits > 1)
+                return false;
+            if (a.length() > b.length())
+                i++;
+            else if (a.length() < b.length())
+                j++;
+            else {
+                i++;
+                j++;
+            }
+        }
+        return edits + (a.length() - i) + (b.length() - j) <= 1;
+    }
+
     /** Resolves whether an extension is on: declared default → settings.json → CLI --name/--no-name. */
     public boolean isEnabled(String name, boolean defaultEnabled) {
         boolean enabled = defaultEnabled;
@@ -208,7 +263,17 @@ public final class ExtensionRegistry {
         return api;
     }
 
+    /**
+     * Every extension name offered this run, whether or not it ended up enabled.
+     *
+     * <p>
+     * Not {@link #extensions}, which holds only the enabled ones: {@code --no-todo} disables todo, and validating
+     * against the enabled list would then report the very flag that did it as unknown.
+     */
+    private final Set<String> offeredNames = ConcurrentHashMap.newKeySet();
+
     public void register(Extension ext) {
+        offeredNames.add(ext.name());
         var reason = ext.unavailableReason();
         if (reason.isPresent()) {
             log.info("Extension {} not loaded: {}", ext.name(), reason.get());
