@@ -2,6 +2,7 @@ package org.pijota.tui;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
@@ -482,6 +483,51 @@ class AnsiWidthTest {
     void rightToLeftLettersAreMeasuredLikeAnyOtherLetters() {
         assertEquals(4, AnsiWidth.visibleWidth("שלום"), "four Hebrew letters, four cells");
         assertEquals(5, AnsiWidth.visibleWidth("مرحبا"), "five Arabic letters, five cells");
+    }
+
+    /**
+     * The halfwidth forms sat inside the fullwidth range and were measured double. Halfwidth katakana is ordinary
+     * Japanese text, not an exotic corner, so a line of it wrapped at half the terminal it was rendered for.
+     *
+     * <p>
+     * The boundaries either side are asserted with it, because the fix is a range split and getting a split wrong in
+     * the other direction is exactly as easy.
+     */
+    @ParameterizedTest
+    @CsvSource({"0xFF01, 2", "0xFF60, 2", // fullwidth forms, before the halfwidth block
+            "0xFF61, 1", "0xFF76, 1", "0xFF9F, 1", "0xFFA1, 1", "0xFFDC, 1", // the halfwidth block itself
+            "0xFFE0, 2", "0xFFE6, 2", // fullwidth signs, after it
+            "0x30AB, 2" // and the fullwidth katakana the halfwidth one is a form of
+    })
+    void theHalfwidthFormsTakeOneCellAndTheFullwidthOnesTwo(int cp, int expected) {
+        assertEquals(expected, AnsiWidth.visibleWidth(new String(Character.toChars(cp))),
+                                        () -> "U+" + Integer.toHexString(cp).toUpperCase());
+    }
+
+    /**
+     * An ideograph is two cells wherever it lives. Only the BMP ranges were listed, so Tangut, Nushu, the Kana
+     * supplements and every CJK extension measured as one -- around 79000 codepoints, all of them wide.
+     */
+    @ParameterizedTest
+    @CsvSource({"0x16FE0, 2", "0x17000, 2", "0x1B2FB, 2", "0x1D300, 2", "0x20000, 2", "0x323AF, 2"})
+    void ideographsAboveTheBasicPlaneAreStillTwoCells(int cp, int expected) {
+        assertEquals(expected, AnsiWidth.visibleWidth(new String(Character.toChars(cp))),
+                                        () -> "U+" + Integer.toHexString(cp).toUpperCase());
+    }
+
+    /**
+     * A Hangul medial vowel or final consonant composes onto the syllable before it, exactly as a combining mark does.
+     * They are letters by category, which is the only reason they were not already treated as such.
+     */
+    @Test
+    void conjoiningHangulJamoComposeOntoTheSyllableBeforeThem() {
+        assertEquals(0, AnsiWidth.visibleWidth("ᅠ"), "jungseong filler");
+        assertEquals(0, AnsiWidth.visibleWidth("ᇿ"), "jongseong ssangnieun");
+        assertEquals(0, AnsiWidth.visibleWidth("ힰ"), "jungseong o-yeo, the extended block");
+        assertEquals(0, AnsiWidth.visibleWidth("ﾠ"), "halfwidth hangul filler");
+        assertEquals(2, AnsiWidth.visibleWidth("ᄀ"), "a leading consonant does take its own cells");
+        assertEquals(2, AnsiWidth.visibleWidth("가"), "as does a composed syllable");
+        assertEquals(2, AnsiWidth.visibleWidth("ᄀᅠᇿ"), "a syllable spelled in jamo is one syllable");
     }
 
     /** U+FE0F asks for the emoji rendering of the character before it, which is always the two-cell one. */

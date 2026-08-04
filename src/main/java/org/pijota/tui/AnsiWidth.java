@@ -79,6 +79,12 @@ final class AnsiWidth {
         if (cp == 0x061C || (cp >= 0x202A && cp <= 0x202E) || (cp >= 0x2060 && cp <= 0x2064)
                                         || (cp >= 0x2066 && cp <= 0x206F) || cp == 0xFEFF)
             return true;
+        // The conjoining Hangul jamo, and the fillers that stand in for a missing one. A medial vowel or final
+        // consonant composes onto the syllable before it rather than taking a cell, exactly as a combining mark does;
+        // they are letters by category, which is the only reason they were not already caught here. The leading
+        // consonants at U+1100..U+115F do take their own cells and are measured wide below.
+        if ((cp >= 0x1160 && cp <= 0x11FF) || (cp >= 0xD7B0 && cp <= 0xD7FB) || cp == 0xFFA0)
+            return true;
         int type = Character.getType(cp);
         return type == Character.NON_SPACING_MARK || type == Character.ENCLOSING_MARK
                                         || type == Character.COMBINING_SPACING_MARK;
@@ -152,12 +158,24 @@ final class AnsiWidth {
             return 2;
         if (cp >= 0xFE10 && cp <= 0xFE6F)
             return 2;
-        if (cp >= 0xFF01 && cp <= 0xFFE6)
+        // The fullwidth forms, in two pieces: the halfwidth block between them (U+FF61..U+FFDC, the katakana and jamo
+        // a terminal draws in one cell) was swallowed by a single range and measured double, so a line of halfwidth
+        // katakana wrapped at half the terminal.
+        if (cp >= 0xFF01 && cp <= 0xFF60)
+            return 2;
+        if (cp >= 0xFFE0 && cp <= 0xFFE6)
             return 2;
         // Deliberately not Emoji_Presentation: 1664 of these 2816 codepoints are not (mahjong tiles, playing cards,
         // the extended-pictographic tail) and a terminal still draws them wide. The flag halves live here too -- the
         // first carries the pair's width, the second returned 0 above.
         if (cp >= 0x1F000 && cp <= 0x1FAFF)
+            return 2;
+        // The wide blocks above the BMP: Tangut and its iteration marks, Khitan, Nushu, the Kana supplements, the Tai
+        // Xuan Jing monograms, and the CJK extensions. An ideograph is two cells wherever it lives, but only the BMP
+        // ranges were listed, so every one of these measured as one. The CJK span runs to the end of the supplementary
+        // ideographic planes rather than to the last assigned codepoint, so a future extension is right on arrival.
+        if ((cp >= 0x16FE0 && cp <= 0x16FE3) || (cp >= 0x17000 && cp <= 0x1B2FB) || (cp >= 0x1D300 && cp <= 0x1D376)
+                                        || (cp >= 0x20000 && cp <= 0x3FFFD))
             return 2;
         // The symbol blocks hold both: genuine two-cell emoji (✅) and the ambiguous marks a terminal draws in one
         // (● ○ ✖ ✓ ◆ ▸ ■ ⏸ ❯ ➜). Unicode already knows which is which, so ask it rather than drawing the boundary by
