@@ -10,6 +10,7 @@ import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +40,10 @@ import javax.net.ssl.SSLSession;
  * }</pre>
  */
 public final class FakeHttpClient extends HttpClient {
-    private record Resp(int status, Object body) {
+    private record Resp(int status, Object body, Map<String, List<String>> headers) {
+        Resp(int status, Object body) {
+            this(status, body, Map.of());
+        }
     } // body: String (ofString) or byte[] (ofByteArray)
 
     private final List<Resp> responses; // returned in order; the last one repeats for further calls
@@ -83,6 +87,17 @@ public final class FakeHttpClient extends HttpClient {
         return new FakeHttpClient(list);
     }
 
+    /**
+     * A 3xx carrying {@code Location}, then the given body: enough to drive a redirect chain without a network. Nothing
+     * here could express a response header before, so a redirect could not be tested at all.
+     */
+    public static FakeHttpClient redirectThenOk(int status, String location, String body) {
+        return new FakeHttpClient(List.of(
+                                        new Resp(status, "".getBytes(StandardCharsets.UTF_8),
+                                                                        Map.of("location", List.of(location))),
+                                        new Resp(200, body.getBytes(StandardCharsets.UTF_8), Map.of())));
+    }
+
     /** The most recent request handed to {@code send}/{@code sendAsync}, for asserting the URL/headers built. */
     public HttpRequest lastRequest() {
         return lastRequest;
@@ -93,7 +108,7 @@ public final class FakeHttpClient extends HttpClient {
     public synchronized <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
         lastRequest = request;
         Resp r = responses.get(Math.min(callIndex++, responses.size() - 1));
-        return new FakeResponse<>(request, r.status(), (T) r.body());
+        return new FakeResponse<>(request, r.status(), (T) r.body(), r.headers());
     }
 
     @Override
@@ -159,7 +174,8 @@ public final class FakeHttpClient extends HttpClient {
     }
 
     /** Minimal {@link HttpResponse} carrying the canned status + body. */
-    private record FakeResponse<T>(HttpRequest request, int statusCode, T body) implements HttpResponse<T> {
+    private record FakeResponse<T>(HttpRequest request, int statusCode, T body,
+                                    Map<String, List<String>> responseHeaders) implements HttpResponse<T> {
         @Override
         public Optional<HttpResponse<T>> previousResponse() {
             return Optional.empty();
@@ -167,7 +183,7 @@ public final class FakeHttpClient extends HttpClient {
 
         @Override
         public HttpHeaders headers() {
-            return HttpHeaders.of(Map.of(), (a, b) -> true);
+            return HttpHeaders.of(responseHeaders, (a, b) -> true);
         }
 
         @Override

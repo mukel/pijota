@@ -29,10 +29,16 @@ public final class WebfetchTool implements Tool {
     // pijota.web.timeout / PIJOTA_WEB_TIMEOUT.
     private static final long DEFAULT_TIMEOUT_SECONDS = Env.seconds("pijota.web.timeout", "PIJOTA_WEB_TIMEOUT", 30);
     private static final long MAX_TIMEOUT_SECONDS = 120;
+    /** Redirect hops followed by hand, each one re-checked by the SSRF guard. */
+    private static final int MAX_REDIRECTS = 5;
+
+    private static boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
     private final HttpClient http;
 
     public WebfetchTool() {
-        this(WebTools.defaultClient());
+        this(WebTools.noRedirectClient());
     }
 
     WebfetchTool(HttpClient http) { // injectable for tests (a canned client, no network)
@@ -103,6 +109,34 @@ public final class WebfetchTool implements Tool {
                                                 .timeout(Duration.ofSeconds(timeoutSecs)).GET().build();
 
                 HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+                // Follow redirects by hand so every hop faces the SSRF guard. Letting the client follow them meant a
+                // public URL could bounce to 169.254.169.254 or to loopback: the check had already passed on the
+                // original host and the hops after it were never looked at.
+                int hops = 0;
+                while (isRedirect(response.statusCode()) && hops++ < MAX_REDIRECTS) {
+                    String location = response.headers().firstValue("location").orElse(null);
+                    if (location == null || location.isBlank())
+                        break;
+                    URI next;
+                    try {
+                        next = uri.resolve(location);
+                    } catch (Exception e) {
+                        return ToolResult.error("Invalid redirect target: " + location);
+                    }
+                    if (next.getHost() == null || isInternalAddress(next.getHost()))
+                        return ToolResult.error("Refusing to follow a redirect to an internal address ("
+                                                        + next.getHost() + "): loopback/link-local/private hosts "
+                                                        + "(incl. cloud metadata) are blocked to prevent SSRF.");
+                    uri = next;
+                    request = HttpRequest.newBuilder(uri).header("User-Agent", WebTools.BROWSER_UA)
+                                                    .header("Accept", acceptHeader(format))
+                                                    .header("Accept-Language", "en-US,en;q=0.9")
+                                                    .timeout(Duration.ofSeconds(timeoutSecs)).GET().build();
+                    response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                }
+                if (isRedirect(response.statusCode()))
+                    return ToolResult.error("Too many redirects (" + MAX_REDIRECTS + ")");
 
                 byte[] body = response.body();
                 if (body.length > MAX_RESPONSE_SIZE) {

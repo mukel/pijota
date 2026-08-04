@@ -29,6 +29,19 @@ final class WebTools {
                                         .build();
     }
 
+    /**
+     * A client that does not follow redirects, for callers that must check where they are being sent.
+     *
+     * <p>
+     * The SSRF guard runs once, on the URL it is given. With the client following 3xx itself, a public URL that
+     * redirects to {@code 169.254.169.254} or to loopback reached it anyway: the check had already passed and the hops
+     * after it were invisible. Refusing to follow puts each hop back in front of the guard.
+     */
+    static HttpClient noRedirectClient() {
+        return Proxies.httpClientBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(CONNECT_TIMEOUT)
+                                        .build();
+    }
+
     /** Decodes the common HTML entities, one canonical set for both tools ({@code &amp;} first, as before). */
     static String decodeEntities(String text) {
         if (text == null)

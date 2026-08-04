@@ -12,6 +12,34 @@ import static org.pijota.testkit.ToolRunner.run;
 
 class WebfetchToolTest {
 
+    /**
+     * The SSRF guard ran once, on the URL it was handed, while the client followed 3xx itself. A public URL that
+     * redirected to 169.254.169.254 or to loopback therefore reached them: the check had already passed on the original
+     * host, and the hops after it were never looked at.
+     */
+    @Test
+    void aRedirectToAnInternalAddressIsRefused() throws Exception {
+        var tool = new WebfetchTool(FakeHttpClient.redirectThenOk(302, "http://169.254.169.254/latest/meta-data/",
+                                        "metadata"));
+
+        var result = tool.execute("id", new Tool.Args(java.util.Map.of("url", "https://example.com/start")), ".").get();
+
+        assertTrue(result.isError(), result.content());
+        assertTrue(result.content().contains("169.254.169.254"), result.content());
+        assertTrue(result.content().toLowerCase().contains("redirect"), result.content());
+    }
+
+    /** A redirect to an ordinary host is still followed, or the guard would have broken the tool. */
+    @Test
+    void aRedirectToAPublicAddressIsFollowed() throws Exception {
+        var tool = new WebfetchTool(FakeHttpClient.redirectThenOk(302, "https://example.org/moved", "landed"));
+
+        var result = tool.execute("id", new Tool.Args(java.util.Map.of("url", "https://example.com/start")), ".").get();
+
+        assertFalse(result.isError(), result.content());
+        assertTrue(result.content().contains("landed"), result.content());
+    }
+
     @Test
     void nameIsWebfetch() {
         var tool = new WebfetchTool();
