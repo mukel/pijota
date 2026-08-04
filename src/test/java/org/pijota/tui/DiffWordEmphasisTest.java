@@ -309,4 +309,23 @@ class DiffWordEmphasisTest {
         assertEquals("    ", emphasised(markedRow(lines, '+'), THEME.style("diffAddWord")),
                                         "and the tab, expanded to spaces, is the whole of what replaced it");
     }
+
+    /**
+     * The trailing pad is appended after wrapping, so the wrap has to leave room for it. Without that a row which fills
+     * the terminal exactly comes out one column too wide, the terminal wraps the overflow, and a blank line appears in
+     * the middle of a wrapped row. Found by measuring rendered rows against the width they were asked for.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = {40, 50, 60, 80, 100, 132})
+    void noRenderedRowIsEverWiderThanTheTerminal(int width) {
+        var lines = render("var x = compute(alpha, beta, gamma, delta, epsilon, zeta, eta, oldTail);\n",
+                                        "var x = compute(alpha, beta, gamma, delta, epsilon, zeta, eta, newTail);\n",
+                                        width);
+
+        for (String line : lines) {
+            int rendered = AnsiWidth.visibleWidth(line);
+            assertTrue(rendered <= width, "a row " + rendered + " columns wide at width " + width
+                                            + " will be split by the terminal: " + plain(line));
+        }
+    }
 }

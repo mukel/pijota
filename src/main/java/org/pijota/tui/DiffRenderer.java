@@ -170,7 +170,10 @@ final class DiffRenderer {
         // along instead.
         String painted = withBackground(body, 0,
                                         offset -> wordBg.isBlank() || !WordDiff.covers(spans, offset) ? rowBg : wordBg);
-        var fragments = AnsiWidth.wrapPrefixed(painted, width, prefix, r -> indent + r);
+        // width - 1 leaves room for the pad, which is appended after wrapping. Without it a row that fills the
+        // terminal exactly comes out one column too wide, the terminal wraps it, and a blank line appears in the
+        // middle of a wrapped row. The header guards its own rule the same way, for the same reason.
+        var fragments = AnsiWidth.wrapPrefixed(painted, width - 1, prefix, r -> indent + r);
         // rowBg twice: once so the gutter carries it, and again for the pad, because the painted body ends with a
         // reset. Without the second the row background stopped at the last character instead of one column past it,
         // which is what marks where the changed text ends.
