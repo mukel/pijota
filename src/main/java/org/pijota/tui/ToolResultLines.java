@@ -224,7 +224,12 @@ final class ToolResultLines {
         boolean diff = looksLikeUnifiedDiff(body);
         var out = new ArrayList<String>();
         for (String line : body)
-            for (String row : AnsiWidth.wrapPreservingAnsi(line, Math.max(1, width - 2)))
+            // Escaped before wrapping, so the width the wrap measures is the width the terminal will draw. This is
+            // the funnel every tool body arrives through -- command output, fetched pages, file names, patch text,
+            // error text -- and none of it is pijota's own, so none of it may command the terminal. Colour survives:
+            // see TerminalText.
+            for (String row : AnsiWidth.wrapPreservingAnsi(TerminalText.printableKeepingColour(line),
+                                            Math.max(1, width - 2)))
                 out.add(renderToolBodyLine(row, theme, diff));
         return out;
     }

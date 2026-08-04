@@ -43,24 +43,8 @@ final class DiffRenderer {
             return new String[0];
         var out = text.split("\\R", -1);
         for (int i = 0; i < out.length; i++)
-            out[i] = printable(out[i]);
+            out[i] = TerminalText.printable(out[i]);
         return out;
-    }
-
-    private static String printable(String line) {
-        StringBuilder escaped = null; // the overwhelmingly common case is a line with nothing to escape
-        for (int i = 0; i < line.length(); i++) {
-            char ch = line.charAt(i);
-            if (ch >= ' ' && ch != '\177' || ch == '\t') {
-                if (escaped != null)
-                    escaped.append(ch);
-                continue;
-            }
-            if (escaped == null)
-                escaped = new StringBuilder(line.length() + 8).append(line, 0, i);
-            escaped.append('^').append((char) (ch ^ 0x40)); // 0 -> @, ESC -> [, DEL -> ?
-        }
-        return escaped == null ? line : escaped.toString();
     }
 
     /** Whether the text these lines came from ended at a line boundary. An absent or empty file does, vacuously. */
