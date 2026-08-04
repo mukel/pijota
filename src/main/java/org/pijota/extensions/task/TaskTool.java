@@ -689,50 +689,57 @@ public final class TaskTool implements Tool, Tool.Detachable {
 
             // A killed child exits 143, which reads to a model as a crash worth retrying -- and it did retry,
             // relaunching the agent seconds after the user stopped it. The registry knows the kill was deliberate.
-            if (jobs != null && jobId[0] != null && jobs.wasKilled(jobId[0])) {
-                stopFor(sub.name(), "you stopped this sub-agent. It will not be started again in this turn;"
-                                                + " continue without it or ask the user");
-                finish(label, false, 0);
-                return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
-                                                "stopped by the user. Do not start it again unless asked to");
-            }
-            if (procResult.timedOut()) {
-                finish(label, false, 0);
-                // A stuck agent that is retried is stuck twice: ten minutes for the same answer. The task has to
-                // change, not be repeated.
-                stopFor(sub.name(), "this sub-agent hit its five-minute cap. It will not be started again in this"
-                                                + " turn -- retrying the same task would simply hang again. Narrow the"
-                                                + " task, do it directly, or tell the user.");
-                return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
-                                                "timed out after 5 minutes" + stderrDetail);
-            }
+            if (jobs != null && jobId[0] != null && jobs.wasKilled(jobId[0]))
+                return failed(label, sub.name(), toolCount, logFile,
+                                                "stopped by the user. Do not start it again unless asked to",
+                                                "you stopped this sub-agent. It will not be started again in this"
+                                                                                + " turn; continue without it or ask the user");
+            // A stuck agent that is retried is stuck twice: ten minutes for the same answer. The task has to change,
+            // not be repeated.
+            if (procResult.timedOut())
+                return failed(label, sub.name(), toolCount, logFile, "timed out after 5 minutes" + stderrDetail,
+                                                "this sub-agent hit its five-minute cap. It will not be started again"
+                                                                                + " in this turn -- retrying the same task would simply hang"
+                                                                                + " again. Narrow the task, do it directly, or tell the user.");
             if (procResult.exitCode() != 0) {
-                finish(label, false, 0);
                 // Killed by a signal (128 + n): the OOM killer, an external kill, a segfault. Not a transient fault
                 // worth retrying -- whatever killed it will kill the replacement too, and the model did relaunch it,
                 // silently, into what an OOM makes an unbounded loop. Refused for the turn, like a stop.
-                if (procResult.exitCode() >= 128) {
-                    String signal = SIGNAL_NAMES.getOrDefault(procResult.exitCode() - 128,
-                                                    "signal " + (procResult.exitCode() - 128));
-                    stopFor(sub.name(), "this sub-agent was killed by the system (" + signal + "). It will not be"
-                                                    + " started again in this turn: whatever killed it would very"
-                                                    + " likely kill a replacement. Continue without it, or tell the"
-                                                    + " user it was killed.");
-                    return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
-                                                    "killed by the system (" + signal + ")" + stderrDetail);
-                }
-                return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
-                                                "exit code " + procResult.exitCode() + stderrDetail);
+                if (procResult.exitCode() < 128)
+                    return failed(label, sub.name(), toolCount, logFile,
+                                                    "exit code " + procResult.exitCode() + stderrDetail, null);
+                String signal = SIGNAL_NAMES.getOrDefault(procResult.exitCode() - 128,
+                                                "signal " + (procResult.exitCode() - 128));
+                return failed(label, sub.name(), toolCount, logFile,
+                                                "killed by the system (" + signal + ")" + stderrDetail,
+                                                "this sub-agent was killed by the system (" + signal + "). It will not"
+                                                                                + " be started again in this turn: whatever killed it would"
+                                                                                + " very likely kill a replacement. Continue without it, or"
+                                                                                + " tell the user it was killed.");
             }
-            finish(label, false, 0);
-            return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(),
-                                            "no done event received" + stderrDetail);
+            return failed(label, sub.name(), toolCount, logFile, "no done event received" + stderrDetail, null);
 
         } catch (Exception e) {
             finish(label, false, 0);
             return new SubAgentResult(label, "", 1, 0, 0, null,
                                             e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
         }
+    }
+
+    /**
+     * A run that produced no result: mark the row failed and report why.
+     *
+     * <p>
+     * A {@code refusal} also bars the agent for the rest of the turn. Every reason to fail here is a reason a retry
+     * would simply repeat -- the user stopped it, it hung to its cap, the system killed it -- and the model did retry
+     * each of them until it was refused in code.
+     */
+    private SubAgentResult failed(String label, String agent, AtomicInteger toolCount, Path logFile, String error,
+                                    String refusal) {
+        if (refusal != null)
+            stopFor(agent, refusal);
+        finish(label, false, 0);
+        return new SubAgentResult(label, "", 1, 0, toolCount.get(), logFile.toString(), error);
     }
 
     // package-private: the NDJSON event parsing is unit-tested directly (the surrounding spawn is integration-only)
