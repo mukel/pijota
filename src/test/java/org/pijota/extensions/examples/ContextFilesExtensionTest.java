@@ -168,6 +168,42 @@ class ContextFilesExtensionTest {
     }
 
     /**
+     * Symlinking CLAUDE.md to AGENTS.md is the usual way to keep one set of conventions for every agent, and pijota
+     * reads both names. Without dedup that bought a second, identical copy of them in the system prompt of every turn.
+     */
+    @Test
+    void aClaudeMdSymlinkedToAgentsMdIsLoadedOnce() throws Exception {
+        Path dir = Files.createTempDirectory("pijota-ctx");
+        Files.writeString(dir.resolve("AGENTS.md"), "PROJECT RULES");
+        Files.createSymbolicLink(dir.resolve("CLAUDE.md"), Path.of("AGENTS.md"));
+        var trust = newTrust();
+        grantTrust(trust, dir);
+        var ext = new ContextFilesExtension(dir.toString(), trust);
+        var api = new FakeExtensionAPI();
+        ext.init(api);
+
+        String injected = injected(api);
+        assertTrue(injected.contains("PROJECT RULES"), injected);
+        assertEquals(1, injected.split("PROJECT RULES", -1).length - 1, "the same file must not be read twice");
+    }
+
+    /** Two genuinely different files still both load; dedup is by real path, not by name. */
+    @Test
+    void distinctAgentsAndClaudeFilesBothLoad() throws Exception {
+        Path dir = Files.createTempDirectory("pijota-ctx");
+        Files.writeString(dir.resolve("AGENTS.md"), "SHARED RULES");
+        Files.writeString(dir.resolve("CLAUDE.md"), "CLAUDE ONLY");
+        var trust = newTrust();
+        grantTrust(trust, dir);
+        var ext = new ContextFilesExtension(dir.toString(), trust);
+        var api = new FakeExtensionAPI();
+        ext.init(api);
+
+        String injected = injected(api);
+        assertTrue(injected.contains("SHARED RULES") && injected.contains("CLAUDE ONLY"), injected);
+    }
+
+    /**
      * The pair {@code /trust} performs: the store remembers the decision for next time, and {@link ProjectTrust}
      * carries it for this run. Tests grant trust the way production does, because granting it only in the store is
      * exactly the state {@code -na} produces and must not load anything.

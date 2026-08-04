@@ -12,7 +12,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Discovers project context files ({@code AGENTS.md}, {@code CLAUDE.md}, {@code .pijota/CONTEXT.md}) and injects their
@@ -135,25 +137,32 @@ public final class ContextFilesExtension implements Extension {
             dirs.add(current);
             current = current.getParent();
         }
+        // Keyed on the real file, so the same one is not read twice. Symlinking CLAUDE.md to AGENTS.md is the usual
+        // way to keep one set of conventions for every agent, and it used to buy a second, identical copy of them in
+        // the system prompt of every turn.
+        var seen = new HashSet<Path>();
         for (int i = dirs.size() - 1; i >= 0; i--) {
-            loadFile(sb, dirs.get(i), "AGENTS.md");
-            loadFile(sb, dirs.get(i), "CLAUDE.md");
+            loadFile(sb, dirs.get(i), "AGENTS.md", seen);
+            loadFile(sb, dirs.get(i), "CLAUDE.md", seen);
         }
-        loadFile(sb, Path.of(cwd), ".pijota/CONTEXT.md");
+        loadFile(sb, Path.of(cwd), ".pijota/CONTEXT.md", seen);
         return sb.toString();
     }
 
-    private static void loadFile(StringBuilder sb, Path dir, String filename) {
+    private static void loadFile(StringBuilder sb, Path dir, String filename, Set<Path> seen) {
         try {
             Path path = dir.resolve(filename);
-            if (Files.exists(path)) {
-                String content = Files.readString(path);
-                if (content.length() > 8000) {
-                    content = content.substring(0, 8000) + "... (truncated)";
-                }
-                sb.append("--- ").append(filename).append(" (from ").append(path.getParent().getFileName()).append(")")
-                                                .append(" ---\n").append(content).append('\n');
+            if (!Files.exists(path))
+                return;
+            // toRealPath follows the link and resolves the target; a plain normalize would still see two paths.
+            if (!seen.add(path.toRealPath()))
+                return;
+            String content = Files.readString(path);
+            if (content.length() > 8000) {
+                content = content.substring(0, 8000) + "... (truncated)";
             }
+            sb.append("--- ").append(filename).append(" (from ").append(path.getParent().getFileName()).append(")")
+                                            .append(" ---\n").append(content).append('\n');
         } catch (IOException ignored) {}
     }
 }
