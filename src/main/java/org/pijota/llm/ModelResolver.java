@@ -106,25 +106,27 @@ public final class ModelResolver {
      * chose.
      */
     static String firstRunMessage() {
-        // The columns are computed, not spaced by hand: the login line ends with a provider id, so hardcoded padding
-        // lines up only for the id that happened to be first when it was written.
-        String oauthProvider = ProviderCatalog.providers().stream().filter(p -> p.oauth() != null)
-                                        .map(ProviderCatalog.Provider::id).findFirst().orElse(null);
-        String loginCmd = oauthProvider == null ? null : "  pijota login " + oauthProvider;
-        String envCmd = "  export DEEPSEEK_API_KEY=…";
-        int column = Math.max(loginCmd == null ? 0 : loginCmd.length(), envCmd.length()) + 3;
+        // An API key leads, because it is the path that works for everyone. The browser sign-in is one provider and
+        // needs a ChatGPT subscription that most first-time users will not have; offering it first asks them to
+        // discover that for themselves. The variable names come from the catalog rather than a hardcoded five, which
+        // listed a quarter of them and could drift.
+        var envNames = ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).distinct().toList();
+        String first = envNames.isEmpty() ? "ANTHROPIC_API_KEY" : envNames.get(0);
+        var also = envNames.stream().filter(e -> !e.equals(first)).limit(4).toList();
+        int rest = Math.max(0, envNames.size() - 1 - also.size());
 
-        var sb = new StringBuilder("No provider configured yet. ").append(
-                                        loginCmd == null ? "To get started:\n\n" : "Two ways to get started:\n\n");
-        if (loginCmd != null)
-            sb.append(pad(loginCmd, column)).append("sign in, no API key needed\n");
-        sb.append(pad(envCmd, column)).append("or ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, KIMI_API_KEY\n");
-        sb.append("\n`pijota --list-models` shows what you can run once a key is set.");
+        var sb = new StringBuilder("No provider configured yet. Set an API key for any provider:\n\n");
+        sb.append("  export ").append(first).append("=…\n");
+        if (!also.isEmpty())
+            sb.append("  also ").append(String.join(", ", also)).append(rest > 0 ? ", and " + rest + " more" : "")
+                                            .append("\n");
+        sb.append("\nStart pijota again once it is set. `pijota --list-models` shows what you can run.\n");
         sb.append("\nRunning a local model? Add a keyless provider in ~/.pijota/settings.json.");
+        ProviderCatalog.providers().stream().filter(p -> p.oauth() != null).map(ProviderCatalog.Provider::id)
+                                        .findFirst()
+                                        .ifPresent(p -> sb.append("\nHave a ChatGPT subscription? `pijota login ")
+                                                                        .append(p)
+                                                                        .append("` signs in through the browser instead."));
         return sb.toString();
-    }
-
-    private static String pad(String text, int column) {
-        return text + " ".repeat(Math.max(1, column - text.length()));
     }
 }

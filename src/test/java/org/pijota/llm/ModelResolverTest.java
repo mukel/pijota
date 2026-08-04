@@ -23,21 +23,29 @@ class ModelResolverTest {
     }
 
     /**
-     * The first thing a user with no credentials ever sees. Its two lines were spaced by hand, so they lined up only
-     * for the provider id that happened to be first when it was written -- a longer one skews the column.
+     * The first thing a user with no credentials ever sees. It used to lead with `pijota login openai-codex`, which
+     * needs a ChatGPT subscription -- presenting the narrow path first and leaving most people to discover that for
+     * themselves. An API key works for every provider, so it leads.
      */
     @Test
-    void theFirstRunMessageLinesUpItsTwoColumns() {
+    void theFirstRunMessageLeadsWithAnApiKeyNotASubscription() {
         String msg = ModelResolver.firstRunMessage();
 
-        var starts = new java.util.ArrayList<Integer>();
-        for (String line : msg.lines().toList()) {
-            var m = java.util.regex.Pattern.compile("\\S {2,}(\\S)").matcher(line);
-            if (line.startsWith("  ") && m.find())
-                starts.add(m.start(1));
-        }
-        assertEquals(2, starts.size(), "expected two command lines in:\n" + msg);
-        assertEquals(starts.get(0), starts.get(1), "the descriptions start in different columns:\n" + msg);
+        int export = msg.indexOf("export ");
+        int login = msg.indexOf("pijota login");
+        assertTrue(export >= 0, "no API-key route offered:\n" + msg);
+        assertTrue(login < 0 || export < login, "the subscription route is offered first:\n" + msg);
+        assertTrue(login < 0 || msg.contains("subscription"), "the sign-in must say what it needs:\n" + msg);
+    }
+
+    /** The variable names are read from the catalog; a hardcoded handful listed a quarter of them and could drift. */
+    @Test
+    void theFirstRunMessageNamesRealEnvironmentVariables() {
+        String msg = ModelResolver.firstRunMessage();
+
+        var known = org.pijota.config.ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).toList();
+        assertFalse(known.isEmpty(), "no provider declares an env var; the fixture is wrong");
+        assertTrue(known.stream().anyMatch(msg::contains), "names none of the real variables:\n" + msg);
     }
 
     @Test
