@@ -47,7 +47,7 @@ It is heavily inspired by [Pi](https://pi.dev), **unashamedly so**: small sharp 
 
 ## Quick Start
 
-Requires **JDK 21**. The simplest install path is [JBang](https://www.jbang.dev/), which installs the published Maven artifact as `pj`.
+Requires **JDK 21**. The simplest install path is [JBang](https://www.jbang.dev/), which resolves the Maven artifact and installs it as `pj`.
 
 Linux and macOS are first-class targets. On Windows, use WSL for the best experience; native Windows is best-effort and
 expects Git Bash or a configured `shell_path` for shell tools.
@@ -177,7 +177,9 @@ The same agent core powers the TUI, print mode, JSON-RPC, ACP editor clients, we
 
 ### Browser, MCP, And Skills
 
-Enable browser automation with `--browse`. Connect MCP servers for extra tools. Add reusable workflows as skills, prompt templates, and project context files unless disabled.
+Enable browser automation with `--browse`. Connect MCP servers for extra tools. Package reusable
+workflows as skills, prompt templates, and project context files; a project's own load once you
+trust the folder.
 
 ### Extensions
 
@@ -229,8 +231,15 @@ Useful paths:
 | `~/.pijota/skills/` | User skills. |
 | `~/.pijota/keybindings.json` | TUI keybindings. |
 | `~/.pijota/tool-output/` | Saved full tool outputs. |
-| `.pijota/extensions/` | Trusted project extensions. |
+| `~/.pijota/agents/` | User sub-agents. |
+| `.pijota/extensions/` | Project extensions. |
 | `.pijota/skills/` | Project skills. |
+| `.pijota/agents/` | Project sub-agents. |
+| `.pijota/mcp.json` | Project MCP servers. |
+
+Everything under a project's `.pijota/` loads only once the folder is trusted. The config
+directory holds transcripts and credentials, so it is created owner-only on Linux and macOS;
+see [security](docs/security.md#credentials) for what that means on Windows.
 
 ---
 
@@ -261,7 +270,9 @@ make run ARGS="--help"
 
 Pijota is not a sandbox. It can edit files and run commands in the environment where you launch it.
 
-Safety features include tool scoping, ACP permission prompts, project-local extension trust, SSRF checks, opt-in browser launch confirmation, owner-only settings files, and opt-in self-modification. They reduce risk; they do not replace process isolation.
+Safety features include tool scoping, ACP permission prompts, SSRF checks, opt-in browser launch confirmation, an owner-only config directory on POSIX systems, and opt-in self-modification. They reduce risk; they do not replace process isolation.
+
+Project trust covers everything a repository can carry: its extensions, skills, sub-agents, prompt templates, MCP servers, and `AGENTS.md`/`CLAUDE.md`. None of it loads until you trust the folder, because each one either runs code or steers the model. `-a` trusts the current run, `-na` refuses it, and `/trust` decides for the session.
 
 If you need hard isolation, run Pijota inside a container, VM, locked-down user account, or disposable worktree.
 

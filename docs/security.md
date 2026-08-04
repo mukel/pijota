@@ -9,7 +9,7 @@ determined one. For hard isolation use a container, a VM, a locked-down user, or
 
 | Guard | Stops | Off with |
 |---|---|---|
-| project trust | a folder's own extensions, skills and prompts running unasked | `--approve` |
+| project trust | a folder's own extensions, skills, sub-agents, prompts and MCP servers running unasked | `--approve` |
 | `security` extension | `sudo`/`su`/`doas`, recursive `rm`, `dd`, pipe-to-shell | `/security`, `--no-security` |
 | `filter-output` extension | secrets and tokens reaching the model | `/filter-output` |
 | SSRF check | `webfetch` reaching localhost and private ranges | not disableable |
@@ -34,10 +34,20 @@ An untrusted folder still works: only its `.pijota/` resources and context files
 
 | File | Holds | Mode |
 |---|---|---|
+| `~/.pijota/` | the whole config directory | owner-only |
 | `~/.pijota/settings.json` | API keys under `api_keys` | owner-only |
 | `~/.pijota/auth.json` | OAuth access and refresh tokens | owner-only |
 
-Both are chmod'ed to the owner on write. A key in the environment is never written to disk.
+The two credential files are chmod'ed to the owner on write, and the directory itself is
+created owner-only at startup, which is what covers everything else under it: `sessions/`
+holds whole transcripts, `history` every prompt you have typed, and `logs/` the debug log.
+A key in the environment is never written to disk.
+
+All of that is POSIX, so it applies on Linux and macOS and is a **no-op on Windows**, where
+the JDK cannot set POSIX modes and pijota sets no ACL of its own. A config directory in the
+default profile still inherits that profile's user-only ACLs, but Windows is providing that,
+not pijota, and it does not follow a `PIJOTA_HOME` pointed outside the profile. On Windows,
+prefer WSL, or keep the home inside your user profile and check the ACLs yourself.
 `pj auth print-api-key` exists so other tools can borrow a credential without you pasting it
 around; it prints to stdout, so mind your shell history.
 
