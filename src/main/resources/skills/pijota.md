@@ -15,6 +15,8 @@ key, never *from* it:
 - forbidden: the value, a prefix, its length, its shape, or pasting the file back
 - to check: `pj --list-models` lists only providers with a usable credential; or match key
   **names**, never values. `edit` changes a key without reading it.
+- to add one: `pj login [provider]`, which never puts the key in front of you or the model.
+  Hand-editing `api_keys` is the fallback, not the advice.
 
 `filter-output` redacts known secret shapes on the way in. It is a backstop for accidents,
 not permission to go looking.
@@ -24,7 +26,8 @@ not permission to go looking.
 | The user wants | Answer |
 |---|---|
 | a settings menu | `/settings` |
-| a different model | `/model`, or `/model <query>` |
+| a different model | `/model`, or `/model <query>`; `-m <id>` at startup. Any id is sent to the provider verbatim -- the catalog only feeds the picker |
+| to add a provider credential | `pj login [provider]` -- OAuth where the provider offers it, otherwise it asks for the key and stores it. `pj logout <provider>` forgets it |
 | more or less reasoning | `Shift+Tab`, or start with `--thinking off\|minimal\|low\|medium\|high\|xhigh\|max` |
 | a different theme | `/theme` -- lists the available ones and switches |
 | to load this project's `AGENTS.md` and `.pijota/` | `/trust` |
