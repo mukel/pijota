@@ -29,11 +29,16 @@ not permission to go looking.
 | a different theme | `/theme` -- lists the available ones and switches |
 | to load this project's `AGENTS.md` and `.pijota/` | `/trust` |
 | to stop the running turn | `Esc` (twice forces). `Ctrl+C` clears the line -- twice **exits** |
-| to set the turn aside, still running | `Ctrl+B` twice -- it becomes a job; `/jobs`, `/kill <id>` |
+| to set the turn aside, still running | `Ctrl+B` twice, or `/bg` -- inside tmux the chord is the tmux prefix, so use the command; it becomes a job (`/jobs`, `/kill <id>`) |
+| to take back the last turn | `/undo` -- drops it and puts the text back in the prompt to edit and resend |
+| to go further back | `/tree` -- pick any earlier entry and jump there; an undone turn is still in the tree, so this reaches it |
 | to resume a session | `-c` last, `-r` pick, `-s <id\|path>` |
 | sub-agents on a cheaper model | `PIJOTA_SUBAGENT_MODEL=<provider/model>`; a `model:` in the agent's own front-matter wins |
-| to know what is in context | `/context` |
+| to know what is in context | `/context`; `/usage` for tokens and cost |
 | to shrink the context | `/compact` |
+| to share a conversation | `/export` (Markdown), `/export html`, or `--export <file>` |
+| to start fresh | `/new` |
+| to see the loaded skills | `/skills` |
 | fewer tools this run | `--readonly`, or `--tool <name>` / `--no-tool <name>` (repeatable) |
 | an extension off this run | `--no-<extension>`, e.g. `--no-jobs` |
 
