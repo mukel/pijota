@@ -3,18 +3,18 @@ package org.pijota.tui;
 import org.pijota.modes.SyntaxHighlighter;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.util.DiffAlgorithm;
+import org.pijota.util.Util;
 import org.pijota.util.WordDiff;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 final class DiffRenderer {
     private static final int CONTEXT_LINES = 3;
     private static final int MAX_RENDERED_ROWS = 300;
     private static final int MIN_RULE = 5; // the header always ends in at least a stub of rule
-    private static final Pattern ANSI_RESET = Pattern.compile("\033\\[0m");
+    private static final String RESET = "\033[0m";
 
     private final AnsiTheme theme;
 
@@ -69,7 +69,9 @@ final class DiffRenderer {
     }
 
     private static String[] withoutTrailingBlank(String[] lines) {
-        return endsAtLineBoundary(lines) && lines.length > 0 ? java.util.Arrays.copyOf(lines, lines.length - 1) : lines;
+        return lines.length > 0 && lines[lines.length - 1].isEmpty()
+                                        ? java.util.Arrays.copyOf(lines, lines.length - 1)
+                                        : lines;
     }
 
     public List<String> render(String action, String path, String oldText, String newText, int width) {
@@ -119,8 +121,12 @@ final class DiffRenderer {
             // it look contiguous until the reader checks them. Naming the count is the whole job of the separator.
             if (h > 0)
                 out.add(separator(hunks.get(h - 1).rows(), hunk.rows()));
-            // Which deleted row each added row replaced, so a pair can be compared word by word.
+            // Which deleted row each added row replaced, so a pair can be compared word by word. The comparison is
+            // the same one from either end, so it is kept: the removed row reaches it first and the added row, which
+            // asks for the other half of the same answer, finds it done. Filled as rows are drawn rather than up
+            // front, so a pair past the cap still costs nothing.
             var pairs = DiffAlgorithm.pairs(hunk.rows());
+            var compared = new java.util.HashMap<Integer, WordDiff.Result>();
             for (int r = 0; r < hunk.rows().size(); r++) {
                 if (rendered >= MAX_RENDERED_ROWS) {
                     truncated = true;
@@ -129,7 +135,7 @@ final class DiffRenderer {
                 var row = hunk.rows().get(r);
                 // Computed here rather than up front: rows past the cap are never drawn, and this runs on the redraw.
                 out.addAll(format(row, oldWidth, newWidth, highlighter.highlightLine(row.text()), terminalWidth,
-                                                wordSpans(hunk.rows(), pairs, r)));
+                                                wordSpans(hunk.rows(), pairs, compared, r)));
                 rendered++;
                 if (row.kind() != DiffAlgorithm.Kind.CONTEXT)
                     shownChanged++;
@@ -142,8 +148,7 @@ final class DiffRenderer {
             // Counted, not assumed: the cap is on rows drawn, and context rows are drawn too, so a diff cut at 300
             // rows has shown fewer than 300 changed ones. Saying what is missing is also the more useful half.
             int missing = added + deleted - shownChanged;
-            out.add(theme.styled("diffMeta", "… diff truncated: " + missing
-                                            + (missing == 1 ? " more changed row" : " more changed rows")
+            out.add(theme.styled("diffMeta", "… diff truncated: " + Util.plural(missing, "more changed row")
                                             + " not shown"));
         }
         return out;
@@ -162,7 +167,7 @@ final class DiffRenderer {
         int skipped = first - last - 1;
         if (skipped <= 0)
             return ""; // nothing countable to say; the blank line still separates the hunks
-        return theme.styled("diffMeta", "  ⋮ " + skipped + (skipped == 1 ? " unchanged line" : " unchanged lines"));
+        return theme.styled("diffMeta", "  ⋮ " + Util.plural(skipped, "unchanged line"));
     }
 
     /** Added rows carry no old-file number, so the ends of a hunk are found by skipping them. */
@@ -182,16 +187,16 @@ final class DiffRenderer {
 
     /** The ranges of row {@code index} that differ from the row it replaced, or none when it replaced nothing. */
     private static List<WordDiff.Span> wordSpans(List<DiffAlgorithm.Row> rows, java.util.Map<Integer, Integer> pairs,
-                                    int index) {
+                                    java.util.Map<Integer, WordDiff.Result> compared, int index) {
         Integer other = pairs.get(index);
         if (other == null)
             return List.of();
-        var row = rows.get(index);
-        var counterpart = rows.get(other);
-        boolean isNew = row.kind() == DiffAlgorithm.Kind.ADD;
-        var result = isNew
-                                        ? WordDiff.spans(counterpart.text(), row.text())
-                                        : WordDiff.spans(row.text(), counterpart.text());
+        boolean isNew = rows.get(index).kind() == DiffAlgorithm.Kind.ADD;
+        int removed = isNew ? other : index;
+        int added = isNew ? index : other;
+        // Keyed on the pair rather than the row, since both rows want the same comparison.
+        var result = compared.computeIfAbsent(removed,
+                                        at -> WordDiff.spans(rows.get(at).text(), rows.get(added).text()));
         return isNew ? result.newSpans() : result.oldSpans();
     }
 
@@ -218,12 +223,7 @@ final class DiffRenderer {
      * to the terminal, which would restart the overflow at column zero: the code would then sit outside the line-number
      * gutter and under a different row's numbers. Continuations are indented to the gutter width, so wrapped code stays
      * under the code column and the numbers still read straight down.
-     */
-    private List<String> format(DiffAlgorithm.Row row, int oldWidth, int newWidth, String body, int width) {
-        return format(row, oldWidth, newWidth, body, width, List.of());
-    }
-
-    /**
+     *
      * @param spans
      *            the ranges of this row's text that differ from the line it replaced, in the row's own coordinates;
      *            empty when the pair was too dissimilar for word detail to help, or when the row is not part of a pair
@@ -249,25 +249,22 @@ final class DiffRenderer {
         };
         String prefix = theme.styled("diffMeta", "  " + oldNo + " " + newNo + " ") + theme.styled(slot, mark) + " ";
         String indent = " ".repeat(AnsiWidth.visibleWidth(prefix));
-        // The trailing space carries the row's background to the edge of the change; context rows have none.
-        String pad = bgSlot == null ? "" : " ";
-        String wordSlot = switch (row.kind()) {
-            case ADD -> "diffAddWord";
-            case DELETE -> "diffDeleteWord";
-            case CONTEXT -> null;
-        };
         if (bgSlot == null)
-            return AnsiWidth.wrapPrefixed(body, width, prefix, r -> indent + r).stream().map(line -> line + pad)
-                                            .toList();
+            return AnsiWidth.wrapPrefixed(body, width, prefix, r -> indent + r);
 
+        // Past the guard the row is an addition or a removal, so both slots exist.
         String rowBg = theme.style(bgSlot);
-        String wordBg = spans.isEmpty() || wordSlot == null ? "" : theme.style(wordSlot);
+        String wordBg = spans.isEmpty()
+                                        ? ""
+                                        : theme.style(row.kind() == DiffAlgorithm.Kind.ADD
+                                                                        ? "diffAddWord"
+                                                                        : "diffDeleteWord");
+        boolean emphasises = !wordBg.isBlank();
         // Painted before wrapping, where the spans and the text still share coordinates. Wrapping consumes the space
         // it breaks at, so fragments do not reassemble into the body and any offset carried across them drifts by one
         // character per wrap. wrapPreservingAnsi re-opens the SGR state on each continuation, so the backgrounds ride
         // along instead.
-        String painted = withBackground(body, 0,
-                                        offset -> wordBg.isBlank() || !WordDiff.covers(spans, offset) ? rowBg : wordBg);
+        String painted = withBackground(body, offset -> emphasises && WordDiff.covers(spans, offset) ? wordBg : rowBg);
         // width - 1 leaves room for the pad, which is appended after wrapping. Without it a row that fills the
         // terminal exactly comes out one column too wide, the terminal wraps it, and a blank line appears in the
         // middle of a wrapped row. The header guards its own rule the same way, for the same reason.
@@ -275,16 +272,12 @@ final class DiffRenderer {
         // row background down with it. That left the marker and the space after it as the only cells of a changed row
         // without one: a two column notch bitten out of the highlight, right where the eye goes to read the sign.
         // Painting it re-opens the background after each reset, exactly as the body is painted below.
-        var fragments = AnsiWidth.wrapPrefixed(painted, width - 1, withBackground(prefix, 0, offset -> rowBg),
+        var fragments = AnsiWidth.wrapPrefixed(painted, width - 1, withBackground(prefix, offset -> rowBg),
                                         r -> indent + r);
-        // rowBg twice: once so the gutter carries it, and again for the pad, because the painted body ends with a
-        // reset. Without the second the row background stopped at the last character instead of one column past it,
-        // which is what marks where the changed text ends.
-        return fragments.stream().map(fragment -> rowBg + fragment + rowBg + pad + theme.reset()).toList();
-    }
-
-    private String withBackground(String slot, String line) {
-        return withBackground(line, 0, ignored -> theme.style(slot));
+        // rowBg twice, and a trailing space: once so the gutter carries it, and again to carry it one column past the
+        // last character, because the painted body ends with a reset and that column is what marks where the changed
+        // text ends.
+        return fragments.stream().map(fragment -> rowBg + fragment + rowBg + " " + theme.reset()).toList();
     }
 
     /**
@@ -296,26 +289,27 @@ final class DiffRenderer {
      * {@code ESC[0m}. So the only thing that can clear the background is a full reset, and re-emitting after one
      * restores it without disturbing the foreground that reset belonged to.
      *
-     * @param rawStart
-     *            the offset, in the logical line's own coordinates, that this fragment begins at. Wrapping splits a row
-     *            into fragments after the spans were computed, so each fragment resumes where the last left off.
+     * <p>
+     * Always painted before wrapping, so an offset here is an offset into the whole row: {@code wrapPreservingAnsi}
+     * consumes the space it breaks at, which means a fragment cannot say where it began.
+     *
      * @param backgroundAt
-     *            the background in force at a raw offset, blank for none
+     *            the background in force at an offset into {@code line}, blank for none
      */
-    private String withBackground(String line, int rawStart, java.util.function.IntFunction<String> backgroundAt) {
+    private String withBackground(String line, java.util.function.IntFunction<String> backgroundAt) {
         var sb = new StringBuilder();
         String current = "";
-        int raw = rawStart;
+        int raw = 0;
         for (int i = 0; i < line.length(); i++) {
             char ch = line.charAt(i);
             if (ch == 0x1b) {
-                int end = line.indexOf('m', i);
-                if (end < 0)
-                    end = line.length() - 1;
-                String esc = line.substring(i, end + 1);
-                sb.append(esc);
+                // The shared scanner, so a non-SGR sequence is measured the same way everywhere: looking for the next
+                // 'm' would run past an ESC[2K or an OSC hyperlink and swallow the text up to an unrelated one.
+                int end = AnsiWidth.skipEscape(line, i);
                 // A full reset drops the background with the colour it was closing, so put it back.
-                if (ANSI_RESET.matcher(esc).matches() && !current.isBlank())
+                boolean reset = line.startsWith(RESET, i);
+                sb.append(line, i, end + 1);
+                if (reset && !current.isBlank())
                     sb.append(current);
                 i = end;
                 continue;

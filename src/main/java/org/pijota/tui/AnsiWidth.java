@@ -76,8 +76,7 @@ final class AnsiWidth {
             return true;
         // The bidi controls, the invisible operators and the byte order mark: direction and joining instructions that
         // draw nothing. The zero-width marks above are the same family; these are the rest of it.
-        if (cp == 0x061C || (cp >= 0x202A && cp <= 0x202E) || (cp >= 0x2060 && cp <= 0x2064)
-                                        || (cp >= 0x2066 && cp <= 0x206F) || cp == 0xFEFF)
+        if (cp == 0x061C || (cp >= 0x202A && cp <= 0x202E) || (cp >= 0x2060 && cp <= 0x206F) || cp == 0xFEFF)
             return true;
         // The conjoining Hangul jamo, and the fillers that stand in for a missing one. A medial vowel or final
         // consonant composes onto the syllable before it rather than taking a cell, exactly as a combining mark does;
@@ -161,9 +160,7 @@ final class AnsiWidth {
         // The fullwidth forms, in two pieces: the halfwidth block between them (U+FF61..U+FFDC, the katakana and jamo
         // a terminal draws in one cell) was swallowed by a single range and measured double, so a line of halfwidth
         // katakana wrapped at half the terminal.
-        if (cp >= 0xFF01 && cp <= 0xFF60)
-            return 2;
-        if (cp >= 0xFFE0 && cp <= 0xFFE6)
+        if ((cp >= 0xFF01 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6))
             return 2;
         // Deliberately not Emoji_Presentation: 1664 of these 2816 codepoints are not (mahjong tiles, playing cards,
         // the extended-pictographic tail) and a terminal still draws them wide. The flag halves live here too -- the
@@ -382,7 +379,8 @@ final class AnsiWidth {
         return active ? chunk + RESET : chunk.toString();
     }
 
-    private static int skipEscape(String text, int escIndex) {
+    /** The index of the final character of the escape sequence starting at {@code escIndex}. */
+    static int skipEscape(String text, int escIndex) {
         int i = escIndex + 1;
         if (i >= text.length())
             return escIndex;

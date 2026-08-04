@@ -76,11 +76,11 @@ public final class WordDiff {
             int start = i;
             int cp = line.codePointAt(i);
             if (Character.isWhitespace(cp)) {
-                while (i < line.length() && Character.isWhitespace(line.codePointAt(i)))
-                    i += Character.charCount(line.codePointAt(i));
+                while (i < line.length() && Character.isWhitespace(cp = line.codePointAt(i)))
+                    i += Character.charCount(cp);
             } else if (isWordChar(cp)) {
-                while (i < line.length() && isWordChar(line.codePointAt(i)))
-                    i += Character.charCount(line.codePointAt(i));
+                while (i < line.length() && isWordChar(cp = line.codePointAt(i)))
+                    i += Character.charCount(cp);
             } else {
                 i += Character.charCount(cp); // punctuation stands alone: `a.b` is three tokens, not one
             }
@@ -109,13 +109,14 @@ public final class WordDiff {
             if (row.kind() == DiffAlgorithm.Kind.CONTEXT)
                 unchanged++;
         // Against the longer side: a short line rewritten into a long one shares little of what the reader now sees.
+        // At least one token exists, since two equal lines returned above, so the ratio cannot divide by zero.
         int longest = Math.max(oldTokens.size(), newTokens.size());
         // The gate exists so a rewrite is not painted end to end. A change only in blank characters is the opposite
         // problem: without emphasis the two rows are indistinguishable, so the diff shows a change and no way to see
         // it. Retabbing, a stray trailing space and a smuggled non-breaking space all land here, and all of them are
-        // short enough that the ratio would otherwise refuse them.
-        boolean whitespaceOnly = sameIgnoringWhitespace(oldTokens, newTokens);
-        if (!whitespaceOnly && (longest == 0 || (double) unchanged / longest < MIN_UNCHANGED_RATIO))
+        // short enough that the ratio would otherwise refuse them. Asked second, so the common line that passes the
+        // ratio never pays for the comparison.
+        if ((double) unchanged / longest < MIN_UNCHANGED_RATIO && !sameIgnoringWhitespace(oldTokens, newTokens))
             return Result.none();
 
         var oldSpans = new ArrayList<Span>();
