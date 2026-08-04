@@ -59,6 +59,7 @@ final class Supervisor {
     private static List<String> initialWorkerCommand(String[] originalArgs) {
         var command = new ArrayList<String>();
         command.add(SelfRespawn.resolveJava());
+        command.addAll(SelfRespawn.jvmOptions());
 
         Path jar = SelfRespawn.findCurrentJar();
         if (jar != null) {

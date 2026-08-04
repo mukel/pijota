@@ -420,6 +420,28 @@ class SelfRespawnTest {
         }
     }
 
+    /**
+     * Child commands are rebuilt from scratch, and every {@code -D} used to be dropped on the way. The launcher
+     * honoured {@code -Dpijota.home}, the worker that did the actual work read {@code ~/.pijota}, and a trust decision
+     * made in a redirected home landed in the real one. Surefire runs with system properties set, so this asserts
+     * against the JVM actually running the test rather than a fixture.
+     */
+    @Test
+    void jvmOptionsCarriesSystemPropertiesAndNothingElse() {
+        var options = SelfRespawn.jvmOptions();
+        assertTrue(options.stream().allMatch(o -> o.startsWith("-D")),
+                                        "heap sizing and agent flags belong to the launcher's JVM: " + options);
+
+        String key = "pijota.test.respawn.propagation";
+        System.setProperty(key, "x");
+        try {
+            assertTrue(SelfRespawn.jvmOptions().stream().noneMatch(o -> o.contains(key)),
+                                            "only what was passed on the command line, not everything set since");
+        } finally {
+            System.clearProperty(key);
+        }
+    }
+
     private static void deleteRecursive(Path path) throws IOException {
         if (!Files.exists(path))
             return;

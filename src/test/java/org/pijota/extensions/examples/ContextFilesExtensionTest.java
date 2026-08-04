@@ -1,5 +1,6 @@
 package org.pijota.extensions.examples;
 
+import org.pijota.config.ProjectTrust;
 import org.pijota.config.TrustStore;
 import org.pijota.extensions.ExtensionEvent;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
@@ -64,10 +65,34 @@ class ContextFilesExtensionTest {
         assertFalse(untrusted.toString().contains("PROJECT RULES"));
 
         // once trusted, it loads from the next turn
-        trust.trust(dir.toString());
+        grantTrust(trust, dir);
         var trusted = new StringBuilder("BASE");
         api.fire(new ExtensionEvent.BeforeAgentStart(List.of(), trusted, List.of()));
         assertTrue(trusted.toString().contains("PROJECT RULES"));
+    }
+
+    /**
+     * {@code -na} refuses a folder for this run whatever the store remembers. Reading the store directly meant the flag
+     * stopped extensions, skills and MCP servers while AGENTS.md was injected anyway, which is the surface the flag
+     * exists for.
+     */
+    @Test
+    void aRunThatRefusesTrustIsHonouredOverTheRememberedDecision() throws Exception {
+        Path dir = Files.createTempDirectory("pijota-ctx");
+        Files.writeString(dir.resolve("AGENTS.md"), "PROJECT RULES");
+        var trust = newTrust();
+        trust.trust(dir.toString()); // remembered from an earlier session
+        var ext = new ContextFilesExtension(dir.toString(), trust);
+        var api = new FakeExtensionAPI();
+        ext.init(api);
+
+        ProjectTrust.resolve(dir.toString(), false); // this run said no
+        assertFalse(injected(api).contains("PROJECT RULES"), "-na must outrank the store");
+
+        var rt = new FakeExtensionRuntime();
+        ext.onReady(rt);
+        assertTrue(rt.keyedStatuses().getOrDefault("trust", "").contains("untrusted"),
+                                        "and the status line must say so, not claim the folder is trusted");
     }
 
     @Test
@@ -135,11 +160,21 @@ class ContextFilesExtensionTest {
         Files.createDirectories(dir.resolve(".pijota"));
         Files.writeString(dir.resolve(".pijota/CONTEXT.md"), "DOTPIJOTA CONTEXT");
         var trust = newTrust();
-        trust.trust(dir.toString());
+        grantTrust(trust, dir);
         var ext = new ContextFilesExtension(dir.toString(), trust);
         var api = new FakeExtensionAPI();
         ext.init(api);
         assertTrue(injected(api).contains("DOTPIJOTA CONTEXT"));
+    }
+
+    /**
+     * The pair {@code /trust} performs: the store remembers the decision for next time, and {@link ProjectTrust}
+     * carries it for this run. Tests grant trust the way production does, because granting it only in the store is
+     * exactly the state {@code -na} produces and must not load anything.
+     */
+    private static void grantTrust(TrustStore trust, Path dir) {
+        trust.trust(dir.toString());
+        ProjectTrust.resolve(dir.toString(), true);
     }
 
     private static TrustStore newTrust() throws Exception {

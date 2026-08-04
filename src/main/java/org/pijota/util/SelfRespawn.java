@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -414,6 +415,7 @@ public final class SelfRespawn {
                                     Path mergeWorktree) {
         List<String> cmd = new ArrayList<>();
         cmd.add(resolveJava());
+        cmd.addAll(jvmOptions());
         cmd.add("-jar");
         cmd.add(jar.toAbsolutePath().toString());
         cmd.add("--worker");
@@ -439,6 +441,33 @@ public final class SelfRespawn {
 
         cmd.addAll(preservedArgs());
         return cmd;
+    }
+
+    /**
+     * The {@code -D} options this JVM was started with, so a child inherits them.
+     *
+     * <p>
+     * Child commands are rebuilt from scratch rather than forwarded, which silently dropped every system property:
+     * {@code -Dpijota.home=/somewhere} put the banner, the settings and the model where it was told, and the worker
+     * that did the actual work read {@code ~/.pijota} instead. Trust decisions in particular were written to the real
+     * home from a session the user had pointed elsewhere. Environment variables survived, so {@code PIJOTA_HOME} worked
+     * and the documented property did not, which is the worse of the two to debug.
+     *
+     * <p>
+     * Only {@code -D} is carried: heap sizing and agent flags belong to the launcher's JVM, and a native image reports
+     * no input arguments at all.
+     */
+    public static List<String> jvmOptions() {
+        // A native image has no JVM options to inherit, and asking for them there can fail as an Error rather than an
+        // Exception, which would take startup down with it.
+        if (Platform.isNativeImage())
+            return List.of();
+        try {
+            return ManagementFactory.getRuntimeMXBean().getInputArguments().stream().filter(a -> a.startsWith("-D"))
+                                            .toList();
+        } catch (Throwable t) {
+            return List.of();
+        }
     }
 
     public static String resolveJava() {

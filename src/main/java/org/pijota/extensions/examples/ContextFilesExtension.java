@@ -23,6 +23,12 @@ import java.util.List;
  * Injection is also gated by <b>project trust</b>: a folder must be trusted (via {@code /trust}, remembered in
  * {@link TrustStore}) before its context files load; otherwise a cloned, untrusted repo could inject instructions into
  * the agent through its {@code AGENTS.md}/{@code CLAUDE.md}. Trusting takes effect from the next turn.
+ *
+ * <p>
+ * The question is asked of {@link ProjectTrust}, never of the store directly. The store records what was decided in
+ * some earlier session; {@code -a} and {@code -na} override it for this one, and reading the file behind them meant
+ * {@code -na} refused a folder for extensions, skills and MCP servers while this extension loaded its AGENTS.md anyway.
+ * The store stays here to persist a {@code /trust}, which is a different job.
  */
 public final class ContextFilesExtension implements Extension {
 
@@ -74,7 +80,7 @@ public final class ContextFilesExtension implements Extension {
         // Inject per-turn (not once at startup) so a trust decision takes effect immediately, and only when the
         // current folder is trusted.
         api.on(ExtensionEvent.BeforeAgentStart.class, e -> {
-            if (!content.isBlank() && trust.isTrusted(cwd))
+            if (!content.isBlank() && ProjectTrust.isTrusted(cwd))
                 e.systemPrompt().append('\n').append(content);
         });
         api.registerSlashCommand(new SlashCommand("trust",
@@ -86,7 +92,7 @@ public final class ContextFilesExtension implements Extension {
     public void onReady(ExtensionRuntime runtime) {
         boolean hasContextFiles = !content.isBlank();
         boolean hasProjectResources = ProjectTrust.hasProtectedResources(cwd);
-        if ((hasContextFiles || hasProjectResources) && !trust.isTrusted(cwd))
+        if ((hasContextFiles || hasProjectResources) && !ProjectTrust.isTrusted(cwd))
             runtime.setStatus("trust", untrustedHint(hasContextFiles, hasProjectResources));
     }
 
@@ -94,7 +100,7 @@ public final class ContextFilesExtension implements Extension {
         var runtime = api.runtime();
         String cmd = args == null ? "" : args.strip().toLowerCase();
         switch (cmd) {
-            case "status" -> runtime.setStatus(trust.isTrusted(cwd)
+            case "status" -> runtime.setStatus(ProjectTrust.isTrusted(cwd)
                                             ? "Project trusted: " + cwd
                                             : "Project NOT trusted: " + cwd + (content.isBlank()
                                                                             ? ""
