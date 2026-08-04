@@ -184,6 +184,22 @@ class TerminalTextTest {
         assertFalse(joined.contains("^"), "and nothing was escaped that should not have been: " + joined);
     }
 
+    /**
+     * A block's header carries the call's own arguments -- the command, the path -- and a header has no body's rail to
+     * hide behind. The payload does not need to be in what a command printed; being in what it was asked to run is
+     * enough.
+     */
+    @Test
+    void aBlockHeaderCannotCommandTheTerminalEither() {
+        var lines = ToolResultLines.shellBlock("!", "echo " + ESC + "[1;1H" + ESC + "[2JPWNED", "ok", 0, 5,
+                                        AnsiTheme.dark(), 70);
+        String joined = String.join("\n", lines);
+
+        assertFalse(withoutColour(joined).contains(ESC), () -> "a command's own text reached the terminal: "
+                                        + joined.replace(ESC, "<ESC>"));
+        assertTrue(joined.contains("^[[1;1H"), "and the reader can see what was asked for");
+    }
+
     /** The other half of the trade: a command block that colours its output still colours it. */
     @Test
     void aToolBodyKeepsItsColour() {

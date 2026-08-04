@@ -67,13 +67,17 @@ final class ToolResultLines {
         // lands where you actually read.
         boolean shell = msg.toolName().equals("bash");
         var nameDetail = new StringBuilder(theme.styled("toolLabel", label(msg.toolName())));
-        String detail = ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay, ToolLabels.FULL_COMMAND);
+        // Escaped here rather than inside ToolLabels: the detail is built from the call's own arguments, which is a
+        // path or a command the model chose, and a header is drawn without a body's guard. The web and Telegram
+        // frontends call the same helper and need their own escaping, not this one.
+        String detail = TerminalText.printable(ToolLabels.detail(msg.toolName(), args, rawCwd, pathDisplay,
+                                        ToolLabels.FULL_COMMAND));
         if (detail.isBlank())
             // An interrupt clears the in-flight call before its result lands, taking the request arguments with it,
             // and the line then said only "✖ $ · exit 143" -- a failure with no way to tell which command failed.
             // The result carries its own details (bash records the command it ran), which name it just as well.
-            detail = ToolLabels.detail(msg.toolName(), detailsAsArgs(msg), rawCwd, pathDisplay,
-                                            ToolLabels.FULL_COMMAND);
+            detail = TerminalText.printable(ToolLabels.detail(msg.toolName(), detailsAsArgs(msg), rawCwd, pathDisplay,
+                                            ToolLabels.FULL_COMMAND));
         if (!detail.isBlank())
             nameDetail.append(' ').append(theme.styled(shell ? "text" : "statusText", detail));
 
@@ -196,15 +200,17 @@ final class ToolResultLines {
         // Logical lines, counted before any wrapping: the footer says how much output there was, not how many rows it
         // took to draw on this particular terminal.
         var body = stdout == null ? List.<String>of() : trimBlankEdges(stdout.stripTrailing().lines().toList());
+        // The command is drawn in the header, which has no body's guard, and it is whatever the model asked to run.
+        String shown = TerminalText.printable(command);
 
         if (body.isEmpty()) {
             var lines = new ArrayList<String>();
             lines.add("");
-            addHeader(lines, open, theme.styled("text", command) + statusChip, theme, width);
+            addHeader(lines, open, theme.styled("text", shown) + statusChip, theme, width);
             return lines;
         }
         // A failure keeps its status up in the header, where it is read before the error text rather than below it.
-        return framed(open, theme.styled("text", command) + (failed ? statusChip : ""), body, failed
+        return framed(open, theme.styled("text", shown) + (failed ? statusChip : ""), body, failed
                                         ? metaChips(null, null, false, elapsedStr, theme)
                                         : metaChips(Util.count(body.size(), "line", "lines"), status, false, elapsedStr,
                                                                         theme),

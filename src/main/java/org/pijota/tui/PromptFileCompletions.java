@@ -45,7 +45,10 @@ final class PromptFileCompletions {
                     return !name.startsWith(".") && name.toLowerCase().contains(fPrefix);
                 }).sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase())).limit(15).map(p -> {
                     String name = p.getFileName().toString();
-                    String display = at + (lastSep >= 0 ? prefix.substring(0, lastSep + 1) + name : name);
+                    // A file name is somebody else's bytes too, and on Linux it may hold an ESC. The agent creates
+                    // files from archives, downloads and generated output, so the listing is not a trusted source.
+                    String display = TerminalText.printable(at
+                                                    + (lastSep >= 0 ? prefix.substring(0, lastSep + 1) + name : name));
                     if (Files.isDirectory(p))
                         display += "/";
                     return new CompletionItem(display, Files.isDirectory(p) ? "dir" : "");

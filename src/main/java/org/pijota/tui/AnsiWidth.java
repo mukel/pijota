@@ -57,7 +57,8 @@ final class AnsiWidth {
 
     /**
      * Codepoints that take no cell of their own because they modify the one before them: the joiner and the zero-width
-     * marks, the variation selectors, the skin-tone modifiers, the flag tag characters, and every combining mark.
+     * marks, the variation selectors, the skin-tone modifiers, the flag tag characters, and the marks that do not
+     * space.
      *
      * <p>
      * U+FE0F was the one that showed: counted as a cell, {@code ⚠️} measured 3 where the terminal drew 2, so a table
@@ -84,9 +85,12 @@ final class AnsiWidth {
         // consonants at U+1100..U+115F do take their own cells and are measured wide below.
         if ((cp >= 0x1160 && cp <= 0x11FF) || (cp >= 0xD7B0 && cp <= 0xD7FB) || cp == 0xFFA0)
             return true;
+        // Non-spacing and enclosing marks only. A *spacing* combining mark advances the cursor, which is what its
+        // name says and what a terminal does: क (one cell) with an aa-matra is two, where the same consonant with a
+        // virama, which is non-spacing, stays one. Bengali and Tamil measure the same way, and so does wcwidth.
+        // Counting them as zero made a line of Devanagari measure about half of what it drew.
         int type = Character.getType(cp);
-        return type == Character.NON_SPACING_MARK || type == Character.ENCLOSING_MARK
-                                        || type == Character.COMBINING_SPACING_MARK;
+        return type == Character.NON_SPACING_MARK || type == Character.ENCLOSING_MARK;
     }
 
     private static boolean regionalIndicator(int cp) {

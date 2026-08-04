@@ -2341,9 +2341,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 streamRenderer.closeThinking();
                 streamRenderer.flush();
                 if (toolCallId != null)
-                    toolsInProgress.put(toolCallId, new ToolInProgress(name, ToolLabels.detail(name, args, rawCwd,
+                    // The running-tool tail draws this detail, and it is built from arguments the model chose.
+                    toolsInProgress.put(toolCallId, new ToolInProgress(name, TerminalText.printable(ToolLabels.detail(
+                                                    name, args, rawCwd,
                                                     settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
-                                                    ToolLabels.FULL_COMMAND), args, System.currentTimeMillis()));
+                                                    ToolLabels.FULL_COMMAND)), args, System.currentTimeMillis()));
                 pendingEdit.onToolStart(name, args);
                 // No phase: the running-tool tail one row up already names the tool, with its arguments and its own
                 // elapsed. "tool bash" beside it was the same word twice with two timers of different scope between

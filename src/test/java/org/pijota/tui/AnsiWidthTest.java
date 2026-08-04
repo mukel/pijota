@@ -530,6 +530,26 @@ class AnsiWidthTest {
         assertEquals(2, AnsiWidth.visibleWidth("ᄀᅠᇿ"), "a syllable spelled in jamo is one syllable");
     }
 
+    /**
+     * A spacing combining mark advances the cursor, which is what its name says. Counted as zero along with the
+     * non-spacing marks, a line of Devanagari measured about half of what it drew, so it wrapped late and overflowed.
+     *
+     * <p>
+     * The pairs below are the distinction itself: the same consonant with a vowel sign that spaces, and with one that
+     * does not. Measured in a terminal by cursor position, and Bengali and Tamil agree with Devanagari.
+     */
+    @Test
+    void aSpacingCombiningMarkTakesACellAndANonSpacingOneDoesNot() {
+        assertEquals(1, AnsiWidth.visibleWidth("क"), "the bare consonant");
+        assertEquals(2, AnsiWidth.visibleWidth("का"), "with the aa-matra, which spaces (Mc)");
+        assertEquals(2, AnsiWidth.visibleWidth("कि"), "with the i-matra, which spaces (Mc)");
+        assertEquals(1, AnsiWidth.visibleWidth("क्"), "with the virama, which does not (Mn)");
+        assertEquals(1, AnsiWidth.visibleWidth("ः"), "the visarga alone still occupies its own cell");
+        assertEquals(2, AnsiWidth.visibleWidth("কা"), "Bengali measures the same way");
+        assertEquals(2, AnsiWidth.visibleWidth("கா"), "and so does Tamil");
+        assertEquals(1, AnsiWidth.visibleWidth("é"), "a combining acute is still non-spacing");
+    }
+
     /** U+FE0F asks for the emoji rendering of the character before it, which is always the two-cell one. */
     @Test
     void anEmojiPresentationSelectorWidensANarrowBase() {

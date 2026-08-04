@@ -75,7 +75,9 @@ final class LogViewer {
     private List<String> strip(List<String> rawLines) {
         var stripped = new ArrayList<String>(rawLines.size());
         for (String l : rawLines)
-            stripped.add(ANSI.matcher(l == null ? "" : l).replaceAll(""));
+            // The regex takes CSI; TerminalText takes what it leaves -- OSC, a bare ESC, and every bare control
+            // character. A log holds whatever was logged, which includes the model's text and a tool's output.
+            stripped.add(TerminalText.printable(ANSI.matcher(l == null ? "" : l).replaceAll("")));
         return stripped;
     }
 
