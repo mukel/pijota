@@ -156,6 +156,25 @@ public final class Util {
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * Whether a tool call's arguments can be read at all.
+     *
+     * <p>
+     * {@link #parseJsonArgs} answers an empty map both for {@code "{}"}, a real call that takes no arguments, and for a
+     * string that does not parse, which is what a reply truncated mid-call leaves behind. The two need different
+     * handling, and emptiness cannot tell them apart. Absent arguments count as usable: plenty of tools take none.
+     */
+    public static boolean isUsableJsonArgs(String jsonArgs) {
+        if (jsonArgs == null || jsonArgs.isBlank())
+            return true;
+        try {
+            MAPPER.readTree(jsonArgs);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static Map<String, Object> parseJsonArgs(String jsonArgs) {
         try {
             return MAPPER.readValue(jsonArgs, Map.class);

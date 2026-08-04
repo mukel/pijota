@@ -102,12 +102,32 @@ public interface ProviderFactory {
         }
     }
 
+    /**
+     * The output ceiling for an Anthropic-shaped request, which the wire format requires and does not default.
+     *
+     * <p>
+     * It was pinned at 4096, low enough that writing a page of HTML ran out of room mid-tool-call. That truncation is
+     * not a graceful stop: the arguments arrive as unterminated JSON, the tool reports its fields missing, and the
+     * malformed call then sits in the history poisoning every later request. Providers on this wire format include
+     * {@code kimi-coding}, which is the default, so the default configuration was the one that hit it.
+     *
+     * <p>
+     * The ceiling has to clear the thinking budget too, or the request is rejected outright: reasoning is drawn from
+     * the same allowance, and at {@code --thinking max} that budget alone is 65536.
+     */
+    static int maxOutputTokens(ThinkingLevel thinkingLevel) {
+        int thinking = thinkingLevel == null ? 0 : thinkingLevel.budgetTokens();
+        // Enough for a real file in one call, and every model on this wire format in the catalogue accepts it.
+        return Math.max(32_768, thinking + 8192);
+    }
+
     record AnthropicProvider() implements ProviderFactory {
         @Override
         public StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName,
                                         ThinkingLevel thinkingLevel) {
             var builder = AnthropicStreamingChatModel.builder().baseUrl(baseUrl).apiKey(apiKey).modelName(modelName)
-                                            .version("2023-06-01").maxTokens(4096).timeout(LlmTimeouts.request())
+                                            .version("2023-06-01").maxTokens(maxOutputTokens(thinkingLevel))
+                                            .timeout(LlmTimeouts.request())
                                             .customHeaders(ProviderCatalog.headers(providerName))
                                             // cache the large static prefix (system prompt + tool schemas) re-sent
                                             // every

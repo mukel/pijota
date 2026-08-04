@@ -125,4 +125,29 @@ class ProviderFactoryTest {
         var factory = new ProviderFactory.AnthropicProvider();
         assertFalse(factory.supports("google"));
     }
+
+    /**
+     * The Anthropic wire format requires an output ceiling and does not default one. It was pinned at 4096, low enough
+     * that writing a page of HTML ran out of room mid-tool-call, and that truncation left unterminated JSON that
+     * poisoned every later request. kimi-coding is on this wire format and is the default provider.
+     */
+    @Test
+    void theOutputCeilingLeavesRoomToWriteARealFile() {
+        assertTrue(ProviderFactory.maxOutputTokens(null) >= 32_768,
+                                        "4096 truncates a page of HTML partway through the tool call");
+        assertTrue(ProviderFactory.maxOutputTokens(ThinkingLevel.OFF) >= 32_768);
+    }
+
+    /**
+     * Reasoning is drawn from the same allowance, so a ceiling at or below the thinking budget is rejected outright. At
+     * --thinking max the budget alone is 65536, well past any fixed 32K.
+     */
+    @Test
+    void theCeilingAlwaysClearsTheThinkingBudget() {
+        for (var level : ThinkingLevel.values())
+            assertTrue(ProviderFactory.maxOutputTokens(level) > level.budgetTokens(),
+                                            level + ": ceiling " + ProviderFactory.maxOutputTokens(level)
+                                                                            + " must exceed its own thinking budget "
+                                                                            + level.budgetTokens());
+    }
 }

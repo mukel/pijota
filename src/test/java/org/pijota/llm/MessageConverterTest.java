@@ -2,6 +2,7 @@ package org.pijota.llm;
 
 import org.pijota.messages.Message;
 import org.pijota.messages.ToolCall;
+import org.pijota.util.Util;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.AudioContent;
@@ -250,5 +251,46 @@ class MessageConverterTest {
         var result = MessageConverter.toLangChain4j(msgs);
         var aiMsg = (AiMessage) result.get(0);
         assertEquals("", aiMsg.text());
+    }
+
+    /**
+     * A model that runs out of output tokens mid-tool-call leaves unterminated JSON. Sending it back is what turned one
+     * bad turn into a dead session: the assistant message stays in the history, every later request carries it, and an
+     * Anthropic-shaped API answered "Invalid request Error" to all of them.
+     *
+     * <p>
+     * The shape is taken from a real one: a `write` of an HTML page that stopped at the 4096-token ceiling, 9306
+     * characters in, in the middle of a CSS rule.
+     */
+    @Test
+    void truncatedToolArgumentsAreNotSentBackToTheProvider() {
+        String cutOff = "{\"path\": \"/tmp/index.html\", \"content\": \"<!DOCTYPE html>\\n.answer { font";
+        var calls = List.of(new ToolCall("call-1", "write", cutOff));
+        var msgs = List.<Message>of(new Message.Assistant("designing the page", calls, ""),
+                                        new Message.ToolResult("call-1", "write", "were cut off partway", true));
+
+        var result = MessageConverter.toLangChain4j(msgs);
+
+        var sent = ((AiMessage) result.get(0)).toolExecutionRequests().get(0).arguments();
+        assertEquals("{}", sent, "unparseable arguments must not reach the provider");
+        assertDoesNotThrow(() -> Util.MAPPER.readTree(sent), "and whatever replaces them has to be valid JSON");
+    }
+
+    @Test
+    void wellFormedToolArgumentsPassThroughUntouched() {
+        String args = "{\"file\":\"x.txt\",\"nested\":{\"deep\":[1,2,3]}}";
+        var calls = List.of(new ToolCall("call-1", "read", args));
+        var msgs = List.<Message>of(new Message.Assistant("", calls, ""),
+                                        new Message.ToolResult("call-1", "read", "contents", false));
+
+        assertEquals(args, ((AiMessage) MessageConverter.toLangChain4j(msgs).get(0)).toolExecutionRequests().get(0)
+                                        .arguments());
+    }
+
+    /** Absent arguments are as unsendable as broken ones: the wire format wants an object either way. */
+    @Test
+    void missingArgumentsBecomeAnEmptyObject() {
+        assertEquals("{}", MessageConverter.sendableArguments(null));
+        assertEquals("{}", MessageConverter.sendableArguments("   "));
     }
 }

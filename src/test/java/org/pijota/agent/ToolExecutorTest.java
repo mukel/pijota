@@ -318,6 +318,34 @@ class ToolExecutorTest {
         assertEquals(1, endCount.get());
     }
 
+    /**
+     * Arguments that were sent but do not parse mean the reply was cut off partway through the call. Reporting the
+     * schema's missing fields instead sent the model to re-read the schema and retry the same oversized call; naming
+     * the real cause lets it split the work. A real one arrived as 9306 characters of unterminated JSON from a `write`
+     * that hit the output ceiling.
+     */
+    @Test
+    void truncatedArgumentsAreReportedAsTruncationNotAsAMissingField() throws Exception {
+        var tools = new ToolRegistry();
+        tools.register(new Tool.ToolDefinition("needsPath", "Needs path",
+                                        Map.of("type", "object", "properties", Map.of("path", Map.of("type", "string")),
+                                                                        "required", List.of("path")),
+                                        (id, args, cwd) -> CompletableFuture
+                                                                        .completedFuture(Tool.ToolResult.success("ok")))
+                                        .toTool());
+        var history = new MessageHistory();
+        var executor = new ToolExecutor(tools, null, "/cwd", history, e -> {}, new AtomicBoolean(false));
+
+        executor.execute(List.of(new ToolCall("c1", "needsPath", "{\"path\": \"/tmp/x.html\", \"body\": \"<htm")))
+                                        .get();
+
+        var msg = (Message.ToolResult) history.snapshot().get(0);
+        assertTrue(msg.isError());
+        assertTrue(msg.content().contains("cut off"), msg.content());
+        assertFalse(msg.content().contains("is required"), "that diagnosis is wrong here: " + msg.content());
+    }
+
+    /** A call that parses but really is missing a field still gets the schema diagnosis, which is right for it. */
     @Test
     void invalidArgumentsProduceValidationError() throws Exception {
         var tools = new ToolRegistry();
@@ -330,7 +358,7 @@ class ToolExecutorTest {
         var history = new MessageHistory();
         var executor = new ToolExecutor(tools, null, "/cwd", history, e -> {}, new AtomicBoolean(false));
 
-        executor.execute(List.of(new ToolCall("c1", "needsPath", "{bad json"))).get();
+        executor.execute(List.of(new ToolCall("c1", "needsPath", "{\"unrelated\": 1}"))).get();
 
         assertEquals(1, history.snapshot().size());
         var msg = (Message.ToolResult) history.snapshot().get(0);

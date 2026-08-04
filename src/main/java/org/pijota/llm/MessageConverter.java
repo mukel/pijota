@@ -61,7 +61,8 @@ final class MessageConverter {
                     if (a.toolCalls() != null && !a.toolCalls().isEmpty()) {
                         if (hasCompleteImmediateToolResults(messages, i)) {
                             var tcList = a.toolCalls().stream().map(tc -> ToolExecutionRequest.builder().id(tc.id())
-                                                            .name(tc.name()).arguments(tc.arguments()).build())
+                                                            .name(tc.name())
+                                                            .arguments(sendableArguments(tc.arguments())).build())
                                                             .toList();
                             String text = a.content() != null && !a.content().isBlank() ? a.content() : null;
                             chatMessages.add(AiMessage.builder().text(text).thinking(nonBlank(a.thinking()))
@@ -154,6 +155,21 @@ final class MessageConverter {
 
     private static AiMessage assistantMessage(String text, String thinking) {
         return AiMessage.builder().text(text).thinking(nonBlank(thinking)).build();
+    }
+
+    /**
+     * A tool call's arguments in a form the provider will accept, which means valid JSON or nothing.
+     *
+     * <p>
+     * A model that runs out of output tokens mid-tool-call leaves a truncated JSON string. Sending it back is what
+     * turns one bad turn into a dead session: the assistant message stays in the history, every later request carries
+     * it, and an Anthropic-shaped API answers "Invalid request Error" to all of them, forever. The tool result already
+     * on record says the call failed, so an empty object loses nothing and keeps the conversation usable.
+     */
+    static String sendableArguments(String arguments) {
+        if (arguments == null || arguments.isBlank())
+            return "{}";
+        return Util.isUsableJsonArgs(arguments) ? arguments : "{}";
     }
 
     private static String nonBlank(String value) {

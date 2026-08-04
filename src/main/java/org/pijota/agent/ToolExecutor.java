@@ -90,6 +90,18 @@ final class ToolExecutor {
             }
             @SuppressWarnings("unchecked")
             Map<String, Object> args = Util.parseJsonArgs(request.arguments());
+            // Arguments that were sent but do not parse mean the reply was cut off partway through the call, not that
+            // the model got the schema wrong. Reporting "path is required" for a truncated write sends it to re-read
+            // the schema and try the same oversized call again; naming the real cause lets it split the work instead.
+            if (!Util.isUsableJsonArgs(request.arguments())) {
+                String reason = "The arguments to " + request.name() + " were cut off partway through ("
+                                                + request.arguments().length()
+                                                + " characters of unterminated JSON), so the call could not be made. "
+                                                + "This is an output-length limit, not a schema mistake: send the same "
+                                                + "call with a smaller payload, or split the work across several calls.";
+                emitResult(new Message.ToolResult(request.id(), request.name(), reason, true));
+                return CompletableFuture.completedFuture(null);
+            }
             if (extensions != null)
                 extensions.fireToolExecutionStart(request.id(), request.name(), request.arguments());
             Consumer<String> onProgress = "bash".equals(request.name())
