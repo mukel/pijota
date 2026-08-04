@@ -12,9 +12,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * {@code jacoco:prepare-agent} works by setting the {@code argLine} property, which is the same property surefire's
- * {@code <argLine>} sets. Giving surefire a literal value discards the agent, and the only symptom is
- * "Skipping JaCoCo execution due to missing execution data file" in the middle of a passing build, followed by an
- * empty report. Coverage silently read as nothing for as long as that went unnoticed.
+ * {@code <argLine>} sets. Giving surefire a literal value discards the agent, and the only symptom is "Skipping JaCoCo
+ * execution due to missing execution data file" in the middle of a passing build, followed by an empty report. Coverage
+ * silently read as nothing for as long as that went unnoticed.
  *
  * <p>
  * Nothing compiles the POM, so the rule is a string: interpolate the existing value with {@code @{argLine}} late
@@ -40,10 +40,14 @@ class CoverageAgentSurvivesSurefireTest {
                                                                         + surefireArgLine);
     }
 
-    /** {@code @{argLine}} needs something to resolve to when the coverage profile is off, or surefire fails to start. */
+    /**
+     * {@code @{argLine}} needs something to resolve to when the coverage profile is off, or surefire fails to start.
+     */
     @Test
     void thePropertyHasAnEmptyDefaultForBuildsWithoutCoverage() throws IOException {
-        assertTrue(Files.readString(POM).contains("<argLine></argLine>"),
+        String pom = Files.readString(POM);
+        // The formatter collapses an empty element, so both spellings have to count.
+        assertTrue(pom.contains("<argLine/>") || pom.contains("<argLine></argLine>"),
                                         "without an empty default, @{argLine} is unresolved in the normal build");
     }
 }

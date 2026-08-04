@@ -21,6 +21,21 @@ pj --list-models openai                  # what is available
 
 Only providers with a usable credential are offered.
 
+## Discovery
+
+The bundled catalog covers the hosted providers. It cannot cover a local endpoint or a company
+gateway, so pijota asks each configured provider what it serves and remembers the answer in
+`~/.pijota/models-cache.json`.
+
+| When | What happens |
+|---|---|
+| `pj login` / `pj logout`, `/login` / `/logout` | asks now: the reachable set just changed |
+| every later start | reads the remembered answer, no network |
+| `/refresh` | asks again, whenever you want |
+
+A provider needing no key never triggers a login, so run `/refresh` once after adding one. It
+sticks from then on. `PIJOTA_OFFLINE` stops the automatic asking; `/refresh` still works.
+
 ## Aliases
 
 Name a role, not a model.

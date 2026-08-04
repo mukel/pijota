@@ -3,11 +3,14 @@ package org.pijota.llm;
 import org.pijota.config.OAuthTokenStore;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
+import org.pijota.util.Env;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.Proxies;
 import org.pijota.util.Util;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -20,6 +23,8 @@ import java.util.Comparator;
 import java.util.List;
 
 public final class ModelRefresher {
+
+    private static final Logger log = LoggerFactory.getLogger(ModelRefresher.class);
     private static final long DEFAULT_CONTEXT_WINDOW = 128_000L;
     private static final String CHATGPT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
     private static final String CLIENT_VERSION = "0.1.0";
@@ -54,8 +59,31 @@ public final class ModelRefresher {
         }
 
         models.sort(Comparator.comparing(ModelInfo::provider).thenComparing(ModelInfo::id));
-        ModelRegistry.replaceDiscovered(models);
+        ModelRegistry.saveDiscovered(models);
         return new Result(providersChecked, models.size(), List.copyOf(errors));
+    }
+
+    /**
+     * Refreshes because the set of reachable providers just changed, which is the only event that changes the answer.
+     *
+     * <p>
+     * Asking every provider what it serves is how a local or niche endpoint gets into the list at all: nothing else
+     * knows about an Ollama on localhost or a company's internal gateway, so a central model archive cannot help there.
+     * That is worth one request per configured provider at the moment a credential is added or removed, and nothing at
+     * any other time.
+     *
+     * <p>
+     * Best effort by design: a login must not fail because a model list could not be fetched. {@code PIJOTA_OFFLINE}
+     * skips it, for machines that should never reach out on their own.
+     */
+    public static void afterCredentialChange(SettingsManager settings) {
+        if (Env.get("pijota.offline", "PIJOTA_OFFLINE") != null)
+            return;
+        try {
+            refresh(settings);
+        } catch (Exception e) {
+            log.info("Could not refresh models after the credential change: {}", oneLineReason(e));
+        }
     }
 
     /**

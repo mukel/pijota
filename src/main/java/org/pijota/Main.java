@@ -16,6 +16,7 @@ import org.pijota.config.OAuthTokenStore;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelDisplay;
+import org.pijota.llm.ModelRefresher;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.SetupRequiredException;
 import org.pijota.modes.PrintMode;
@@ -398,6 +399,7 @@ public final class Main {
                                             tokenUrl, o.clientId());
             settings.setDefaultModelForProvider(provider, model);
             System.out.println("Logged in to " + provider + " using default model " + model + ".");
+            reportDiscoveredModels(settings);
             return 0;
         }
 
@@ -407,6 +409,7 @@ public final class Main {
 
         settings.saveApiKey(provider, key.strip(), model);
         System.out.println("Logged in to " + provider + " using default model " + model + ".");
+        reportDiscoveredModels(settings);
         return 0;
     }
 
@@ -424,7 +427,23 @@ public final class Main {
         System.out.println(had
                                         ? "Removed stored API key for " + provider + "."
                                         : "No stored API key for " + provider + "; nothing to remove.");
+        if (had)
+            ModelRefresher.afterCredentialChange(settings);
         return 0;
+    }
+
+    /**
+     * Asks the newly-reachable providers what they serve, and says what came back.
+     *
+     * <p>
+     * Logging in is the moment the answer changes, so it is the moment to ask; the discovered list is remembered, so no
+     * later session has to ask again. Saying nothing here would leave the user to guess whether their new provider
+     * brought anything with it.
+     */
+    private static void reportDiscoveredModels(SettingsManager settings) {
+        ModelRefresher.afterCredentialChange(settings);
+        System.out.println("`" + Cli.name() + " --list-models` now shows "
+                                        + ModelRegistry.availableModels(settings).size() + " models you can reach.");
     }
 
     private static String readSecret(String prompt) {
@@ -444,7 +463,9 @@ public final class Main {
     private static void listModels(String filter) {
         // Only models you can actually run: their provider has a key/OAuth token (or is keyless), matching every
         // frontend's /model picker. The catalog is far larger; the footer notes how many more need a key.
-        var models = ModelRegistry.search(ModelRegistry.availableModels(new SettingsManager()), filter);
+        var settings = new SettingsManager();
+        AppBootstrap.prepareModelCatalog(settings);
+        var models = ModelRegistry.search(ModelRegistry.availableModels(settings), filter);
         if (models.isEmpty()) {
             System.out.println("No usable models"
                                             + (filter == null || filter.isBlank() ? "" : " matching \"" + filter + "\"")

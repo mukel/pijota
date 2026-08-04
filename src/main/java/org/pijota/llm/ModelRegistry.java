@@ -3,11 +3,17 @@ package org.pijota.llm;
 import org.pijota.agent.ModelSelection;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
+import org.pijota.util.PijotaHome;
 import org.pijota.util.Util;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,11 +24,18 @@ import java.util.regex.Pattern;
 
 public final class ModelRegistry {
 
+    private static final Logger log = LoggerFactory.getLogger(ModelRegistry.class);
+
     private static final long DEFAULT_CONTEXT_WINDOW = 128_000L;
 
     private static final List<ModelInfo> BUILTIN_MODELS = load();
 
     public static volatile List<ModelInfo> KNOWN_MODELS = BUILTIN_MODELS.stream().toList();
+
+    /** Where a refresh is remembered, so it outlives the process that ran it. */
+    static Path cacheFile() {
+        return PijotaHome.resolve("models-cache.json");
+    }
 
     public static synchronized void replaceDiscovered(List<ModelInfo> discovered) {
         var byKey = new LinkedHashMap<String, ModelInfo>();
@@ -33,6 +46,51 @@ public final class ModelRegistry {
             byKey.put(key(model), model);
         }
         KNOWN_MODELS = List.copyOf(byKey.values());
+    }
+
+    /**
+     * Records a refresh so the next launch starts from it.
+     *
+     * <p>
+     * The discovered list used to live only in this class's static field, so a refresh died with the process: a user
+     * who ran {@code /refresh} to find their provider's newer models had to run it again in every session, forever.
+     * Only the discovered models are written; the built-ins are already in the binary and would just go stale on disk.
+     */
+    public static synchronized void saveDiscovered(List<ModelInfo> discovered) {
+        replaceDiscovered(discovered);
+        try {
+            Path file = cacheFile();
+            Files.createDirectories(file.getParent());
+            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+            Files.writeString(tmp, Util.MAPPER.writerWithDefaultPrettyPrinter()
+                                            .writeValueAsString(new ModelCatalog(discovered)));
+            Util.replaceFile(tmp, file);
+        } catch (Exception e) {
+            log.warn("Could not save the model cache to {}: {}", cacheFile(), e.getMessage());
+        }
+    }
+
+    /**
+     * Applies a previous run's refresh. Called once at startup, before anything reads the catalog.
+     *
+     * <p>
+     * A cache that cannot be read is deleted rather than reported: it is a convenience copy of something the network
+     * can supply again, and the alternative is an error at every launch about a file the user never created.
+     */
+    public static void loadDiscoveredCache() {
+        Path file = cacheFile();
+        if (!Files.isRegularFile(file))
+            return;
+        try {
+            var catalog = Util.MAPPER.readValue(file.toFile(), ModelCatalog.class);
+            if (!catalog.models().isEmpty())
+                replaceDiscovered(catalog.models());
+        } catch (Exception e) {
+            log.info("Discarding an unreadable model cache at {}: {}", file, e.getMessage());
+            try {
+                Files.deleteIfExists(file);
+            } catch (IOException ignored) {}
+        }
     }
 
     public static List<ModelInfo> filter(String search) {

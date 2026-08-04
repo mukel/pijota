@@ -89,7 +89,7 @@ public final class AppBootstrap {
 
         // Overlay any user-defined providers (settings.json "providers") onto the catalog before resolving the model,
         // so a custom/local provider's base URL, api type, and default model are visible to every lookup below.
-        ProviderCatalog.registerUserProviders(settings.config().providers());
+        prepareModelCatalog(settings);
         StartupTimer.mark("settings/providers loaded");
 
         var resolved = ModelResolver.resolve(parsedArgs, settings);
@@ -258,6 +258,20 @@ public final class AppBootstrap {
         // registered by the core extension now, so the user can still see it and stop it. --no-jobs takes a capability
         // from the model, which is what its own help text describes, and nothing from the user.
         return new Result(llm, tools, ext, session, sessions, settings, parsedArgs, cwd, jobRegistry);
+    }
+
+    /**
+     * Everything the model catalog needs before anyone reads it, from local files only.
+     *
+     * <p>
+     * Shared with {@code --list-models}, which reached the catalog without either step: it never registered the user's
+     * own providers, so a local or company endpoint was missing from the list that exists to tell you what you can run,
+     * and it never applied a previous refresh. Both are cheap and neither touches the network; discovery itself happens
+     * when credentials change.
+     */
+    static void prepareModelCatalog(SettingsManager settings) {
+        ProviderCatalog.registerUserProviders(settings.config().providers());
+        ModelRegistry.loadDiscoveredCache();
     }
 
     private static boolean resolveProjectTrust(String cwd, Args parsedArgs, SettingsManager settings) {

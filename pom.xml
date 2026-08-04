@@ -37,7 +37,7 @@
     <!-- Empty by default; the coverage profile's jacoco:prepare-agent replaces it with the agent's -javaagent. The
          surefire <argLine> below must interpolate it with @{...} late binding, or setting argLine there discards the
          agent and every coverage report comes out empty. -->
-    <argLine></argLine>
+    <argLine/>
 
     <maven.compiler.release>21</maven.compiler.release>
 

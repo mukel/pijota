@@ -3,6 +3,8 @@ package org.pijota.tui;
 import org.pijota.config.OAuthLogin;
 import org.pijota.config.OAuthTokenStore;
 import org.pijota.config.ProviderCatalog;
+import org.pijota.config.SettingsManager;
+import org.pijota.llm.ModelRefresher;
 import org.pijota.llm.ModelRegistry;
 
 import java.io.IOException;
@@ -23,6 +25,8 @@ final class LoginCommandHandler {
         void setDefaultModelForProvider(String provider, String model) throws IOException;
 
         void removeApiKey(String provider) throws IOException;
+
+        SettingsManager settings();
     }
 
     interface ProviderSource {
@@ -141,6 +145,9 @@ final class LoginCommandHandler {
             if (defaultModel != null) {
                 host.setDefaultModelForProvider(chosen.id(), defaultModel);
             }
+            // Logging in is the moment the reachable set changes, so it is the moment to ask what the provider
+            // serves. The result is remembered, so no later session has to.
+            ModelRefresher.afterCredentialChange(host.settings());
             host.appendStatus(System.lineSeparator() + "Logged in to " + chosen.titleText() + "  model: "
                                             + (defaultModel != null ? defaultModel : ""));
             host.redrawPrompt();
@@ -166,6 +173,7 @@ final class LoginCommandHandler {
         try {
             host.removeApiKey(chosen.id());
         } catch (IOException ignored) {}
+        ModelRefresher.afterCredentialChange(host.settings());
         host.appendStatus("Logged out of " + chosen.titleText());
     }
 

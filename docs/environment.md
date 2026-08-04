@@ -8,6 +8,7 @@ Every `PIJOTA_*` tuning variable has a system-property twin, which wins when bot
 |---|---|---|
 | `PIJOTA_HOME` | `pijota.home` | move `~/.pijota` |
 | `PIJOTA_PROXY` | `pijota.proxy` | HTTP proxy for outbound requests |
+| `PIJOTA_OFFLINE` | `pijota.offline` | never discover models on its own; `/refresh` still works |
 | `PIJOTA_CONNECT_TIMEOUT` | `pijota.connect-timeout` | connect timeout in seconds (default 10) |
 | `PIJOTA_LLM_CONNECT_TIMEOUT` | `pijota.llm.connect-timeout` | connect timeout for provider calls |
 | `PIJOTA_LLM_REQUEST_TIMEOUT` | `pijota.llm.request-timeout` | whole-request timeout for provider calls |

@@ -1,7 +1,9 @@
 package org.pijota.tui;
 
+import org.pijota.config.AppConfig;
 import org.pijota.config.OAuthLogin;
 import org.pijota.config.ProviderCatalog;
+import org.pijota.config.SettingsManager;
 
 import org.junit.jupiter.api.Test;
 
@@ -204,6 +206,12 @@ class LoginCommandHandlerTest {
     }
 
     private static final class FakeHost implements LoginCommandHandler.Host {
+        /** A refresh after a credential change reads this; the fake has no keys, so nothing is probed. */
+        @Override
+        public SettingsManager settings() {
+            return new SettingsManager(new AppConfig(), ignored -> {});
+        }
+
         List<LoginProviderItem> shownProviders = List.of();
         LoginProviderItem selected;
         boolean deactivated;
