@@ -92,13 +92,13 @@ interrupted -- the last session is `-c`.
 |---|---|
 | `settings.json` | all configuration, including API keys under `api_keys`; owner-only |
 | `auth.json` | OAuth tokens; owner-only |
-| `themes/` `skills/` `agents/` `prompts/` `extensions/` | your own. A theme or skill here shadows a bundled one of the same name; a **sub-agent does not** -- the built-in `explore` and `summarize` win, so give yours a different name |
+| `themes/` `skills/` `agents/` `prompts/` `extensions/` | your own. A file here shadows a bundled one of the same name, so `agents/explore.md` replaces the built-in `explore` |
 | `sessions/<flattened-cwd>/` | transcripts, one directory per project |
 | `trust.json` | which project folders are trusted |
 | `logs/pijota.log` | debug log, written when started with `--verbose` |
 
-A project may carry the same kinds under `<project>/.pijota/`. They load only once the folder
-is trusted, since they run code from that repository.
+A project may carry the same kinds under `<project>/.pijota/`, plus `mcp.json`. None of them
+load until the folder is trusted, since they run code, or instructions, from that repository.
 
 ## Editing settings.json
 

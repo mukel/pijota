@@ -1,5 +1,6 @@
 package org.pijota.extensions.skills;
 
+import org.pijota.config.ProjectTrust;
 import org.pijota.util.PijotaHome;
 
 import java.io.IOException;
@@ -27,10 +28,16 @@ public final class SkillLoader {
      */
     private static final List<String> BUILTIN_SKILLS = List.of("pijota");
 
+    /**
+     * Project skills load only once the folder is trusted: a skill's description sits in the system prompt of every
+     * turn and its body is instructions the model follows, so an untrusted repository could otherwise steer the session
+     * before the user had agreed to anything.
+     */
     public static List<Skill> load(String cwd, List<String> explicitPaths) {
         var skills = new LinkedHashMap<String, Skill>();
         discoverIn(skills, PijotaHome.resolve("skills"));
-        discoverIn(skills, Path.of(cwd, ".pijota", "skills"));
+        if (ProjectTrust.isTrusted(cwd))
+            discoverIn(skills, Path.of(cwd, ".pijota", "skills"));
         for (String pathStr : explicitPaths) {
             Path p = Path.of(pathStr);
             if (!p.isAbsolute())

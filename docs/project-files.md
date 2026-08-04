@@ -7,12 +7,13 @@
 | `AGENTS.md`, `CLAUDE.md` | instructions injected into context |
 | `.pijota/CONTEXT.md` | the same, pijota-specific |
 | `.pijota/skills/<name>/SKILL.md` | project skills |
+| `.pijota/agents/*.md` | project sub-agents |
 | `.pijota/prompts/*.md` | project prompt templates |
 | `.pijota/extensions/` | project extensions |
 | `.pijota/mcp.json` | project MCP servers |
 
-Project-local resources load only for a trusted folder. Settings are not among them: one
-`settings.json`, no project override. `.pi/extensions/` is read too.
+Project-local resources load only for a trusted folder, every one of them. Settings are not
+among them: one `settings.json`, no project override.
 
 ## Trust
 

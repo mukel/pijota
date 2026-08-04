@@ -53,7 +53,6 @@ public final class TaskTool implements Tool, Tool.Detachable {
         void finished(String agent, boolean success, long tokens);
     }
     private final int depth;
-    private final Map<String, List<Map<String, Object>>> chainConfigs;
     private final AtomicInteger logCounter = new AtomicInteger();
 
     /**
@@ -231,7 +230,6 @@ public final class TaskTool implements Tool, Tool.Detachable {
         this.finishedHandler = finishedHandler;
         this.cwd = cwd;
         this.depth = depth;
-        this.chainConfigs = loadChainConfigs();
     }
 
     /** Set by the extension so every sub-agent joins the one running-process list. Null in tests and headless runs. */
@@ -454,14 +452,6 @@ public final class TaskTool implements Tool, Tool.Detachable {
         if (chain == null || chain.isEmpty()) {
             return CompletableFuture.completedFuture(ToolResult.error("No chain steps provided"));
         }
-
-        // Resolve chain preset name: if first element is a string, look up config
-        var resolved = resolveChain(chain);
-        if (resolved == null) {
-            return CompletableFuture.completedFuture(ToolResult.error("Chain not found: " + chain.getFirst()
-                                            + ". Available: " + chainConfigs.keySet()));
-        }
-        chain = resolved;
 
         var results = new ArrayList<SubAgentResult>();
         String previousOutput = "";
@@ -1017,51 +1007,6 @@ public final class TaskTool implements Tool, Tool.Detachable {
             }
         }
         Files.delete(dir);
-    }
-
-    // --- chain config loading ---
-
-    @SuppressWarnings("unchecked")
-    private Map<String, List<Map<String, Object>>> loadChainConfigs() {
-        var configs = new LinkedHashMap<String, List<Map<String, Object>>>();
-        // User chains
-        loadChainDir(Path.of(System.getProperty("user.home"), ".pi", "chains"), configs);
-        // Project chains
-        loadChainDir(cwd.resolve(".pi/chains"), configs);
-        return configs;
-    }
-
-    private List<Map<String, Object>> resolveChain(List<Map<String, Object>> chain) {
-        // If first element is a string, treat as chain preset name
-        if (!chain.isEmpty() && chain.getFirst().containsKey("agent"))
-            return chain; // already expanded
-        // Check if first element contains a name key pointing to a chain config
-        String name = (String) chain.getFirst().getOrDefault("name", "");
-        if (name.isBlank())
-            return chain; // no name, use as-is
-        return chainConfigs.get(name);
-    }
-
-    private void loadChainDir(Path dir, Map<String, List<Map<String, Object>>> configs) {
-        try {
-            if (!Files.isDirectory(dir))
-                return;
-            try (var stream = Files.walk(dir, 2)) {
-                stream.filter(p -> p.getFileName().toString().endsWith(".chain.json"))
-                                                .forEach(p -> loadChainJson(p, configs));
-            }
-        } catch (IOException ignored) {}
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void loadChainJson(Path file, Map<String, List<Map<String, Object>>> configs) {
-        try {
-            Map<String, Object> cfg = Util.MAPPER.readValue(file.toFile(), Map.class);
-            String name = (String) cfg.getOrDefault("name", file.getFileName().toString().replace(".chain.json", ""));
-            List<Map<String, Object>> chain = (List<Map<String, Object>>) cfg.get("chain");
-            if (chain != null && !chain.isEmpty())
-                configs.put(name, chain);
-        } catch (IOException ignored) {}
     }
 
     // --- result types ---

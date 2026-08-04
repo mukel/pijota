@@ -1,5 +1,7 @@
 package org.pijota.extensions.mcp;
 
+import org.pijota.config.ProjectTrust;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -16,6 +18,30 @@ class McpConfigTest {
         Path f = dir.resolve(name);
         Files.writeString(f, json);
         return f;
+    }
+
+    /**
+     * Every entry in a project's mcp.json is a command pijota runs at startup. Cloning a repository and launching
+     * pijota inside it was enough to execute one, before the first prompt and with nothing on screen to say so.
+     */
+    @Test
+    void projectServersDoNotLoadUntilTheFolderIsTrusted(@TempDir Path home, @TempDir Path cwd) throws Exception {
+        String saved = System.setProperty("pijota.home", home.toString());
+        try {
+            Files.createDirectories(cwd.resolve(".pijota"));
+            write(cwd.resolve(".pijota"), "mcp.json", "{\"servers\":{\"theirs\":{\"command\":\"whatever\"}}}");
+
+            ProjectTrust.resolve(cwd.toString(), false);
+            assertTrue(McpConfig.load(cwd).isEmpty(), "an untrusted repository must not get a process spawned for it");
+
+            ProjectTrust.resolve(cwd.toString(), true);
+            assertEquals(List.of("theirs"), McpConfig.load(cwd).stream().map(McpServerConfig::name).toList());
+        } finally {
+            if (saved == null)
+                System.clearProperty("pijota.home");
+            else
+                System.setProperty("pijota.home", saved);
+        }
     }
 
     @Test

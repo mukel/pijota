@@ -101,6 +101,9 @@ public final class ContextFilesExtension implements Extension {
                                                                             : " (context files present)"));
             case "revoke", "off" -> {
                 trust.revoke(cwd);
+                // Skills, sub-agents and MCP servers read the run's resolved answer, not the store, so a trust change
+                // that only wrote the file would leave them loaded until the next launch.
+                ProjectTrust.resolve(cwd, false);
                 boolean resources = ProjectTrust.hasProtectedResources(cwd);
                 if (!content.isBlank() || resources)
                     runtime.setStatus("trust", untrustedHint(!content.isBlank(), resources));
@@ -108,6 +111,7 @@ public final class ContextFilesExtension implements Extension {
             }
             default -> {
                 trust.trust(cwd);
+                ProjectTrust.resolve(cwd, true);
                 runtime.clearStatus("trust");
                 runtime.setStatus(content.isBlank()
                                                 ? "Trusted " + cwd

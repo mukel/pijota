@@ -1,5 +1,7 @@
 package org.pijota.extensions.skills;
 
+import org.pijota.config.ProjectTrust;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -10,6 +12,25 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SkillLoaderTest {
+
+    /**
+     * A skill's description sits in the system prompt of every turn and its body is instructions the model follows, so
+     * a freshly cloned repository could otherwise steer the session before the user had agreed to anything.
+     */
+    @Test
+    void projectSkillsDoNotLoadUntilTheFolderIsTrusted(@TempDir Path cwd) throws Exception {
+        Files.createDirectories(cwd.resolve(".pijota/skills"));
+        Files.writeString(cwd.resolve(".pijota/skills/theirs.md"),
+                                        "---\nname: theirs\ndescription: from the repo\n---\nbody");
+
+        ProjectTrust.resolve(cwd.toString(), false);
+        assertTrue(SkillLoader.load(cwd.toString(), List.of()).stream().noneMatch(s -> s.name().equals("theirs")),
+                                        "untrusted");
+
+        ProjectTrust.resolve(cwd.toString(), true);
+        assertTrue(SkillLoader.load(cwd.toString(), List.of()).stream().anyMatch(s -> s.name().equals("theirs")),
+                                        "trusted");
+    }
 
     /**
      * The meta skill ships so a fresh install can answer "how do I configure pijota" from inside pijota. Skills are
@@ -69,6 +90,7 @@ class SkillLoaderTest {
     /** A user's own skill of the same name must win; a shipped default that cannot be replaced is a trap. */
     @Test
     void aUserSkillShadowsTheBuiltInOfTheSameName(@TempDir Path cwd) throws Exception {
+        ProjectTrust.resolve(cwd.toString(), true); // precedence is the subject here, not the gate
         Path dir = cwd.resolve(".pijota/skills");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("pijota.md"), "---\nname: pijota\ndescription: mine\n---\nmy own body\n");

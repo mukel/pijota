@@ -1,5 +1,6 @@
 package org.pijota.extensions.task;
 
+import org.pijota.config.ProjectTrust;
 import org.pijota.util.PijotaHome;
 import org.pijota.util.Util;
 
@@ -11,12 +12,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * Sub-agent configuration matching Pi's agents.md format; loaded from markdown/JSON across user and project paths by
- * {@link #loadAll}.
+ * A sub-agent definition: markdown with YAML front-matter, or JSON. Loaded from the user's and the project's
+ * {@code agents} directory by {@link #loadAll}.
  */
 public record SubAgent(String name, String description, String systemPrompt, List<String> tools, String model,
                                 String source) {
@@ -102,35 +105,29 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
         return v instanceof String s && !s.isBlank() ? s : defaultVal;
     }
 
+    /**
+     * Built-in, then user, then project; later definitions replace earlier ones by name, so a user's {@code explore.md}
+     * shadows the built-in of that name, the way skills and themes already resolve.
+     *
+     * <p>
+     * Project agents load only once the folder is trusted. Their descriptions reach the model in the task tool's schema
+     * and their prompts drive a sub-process with full tools, so a freshly cloned repository must not be able to put
+     * words in the model's mouth before the user has said yes.
+     */
     public static List<SubAgent> loadAll(Path cwd) {
-        var agents = new ArrayList<SubAgent>();
+        var agents = new LinkedHashMap<String, SubAgent>();
+        for (SubAgent agent : loadBuiltinAgents())
+            agents.put(agent.name(), agent);
+        for (SubAgent agent : loadDir(PijotaHome.resolve("agents"), "user"))
+            agents.put(agent.name(), agent);
+        if (ProjectTrust.isTrusted(cwd.toString()))
+            for (SubAgent agent : loadDir(cwd.resolve(".pijota/agents"), "project"))
+                agents.put(agent.name(), agent);
 
-        agents.addAll(loadBuiltinAgents());
-        Path userDir = Path.of(System.getProperty("user.home"), ".pi", "agent", "agents");
-        agents.addAll(loadMarkdownDir(userDir, "user"));
-
-        Path projectDir = cwd.resolve(".pi/agents");
-        agents.addAll(loadMarkdownDir(projectDir, "project"));
-
-        // Pi legacy paths
-        Path userAgents = Path.of(System.getProperty("user.home"), ".agents");
-        agents.addAll(loadMarkdownDir(userAgents, "user"));
-
-        Path projectAgents = cwd.resolve(".agents");
-        agents.addAll(loadMarkdownDir(projectAgents, "project"));
-
-        // Legacy Pijota paths
-        Path pijotaUser = PijotaHome.resolve("agents");
-        agents.addAll(loadJsonDir(pijotaUser, "user"));
-
-        Path pijotaProject = cwd.resolve(".pijota/agents");
-        agents.addAll(loadJsonDir(pijotaProject, "project"));
-
-        // Apply overrides from config files (later paths win)
-        applyOverrides(agents, PijotaHome.resolve("subagents.json"));
-        applyOverrides(agents, cwd.resolve(".pijota/subagents.json"));
-
-        return agents;
+        var list = new ArrayList<>(agents.values());
+        applyOverrides(list, PijotaHome.resolve("subagents.json"));
+        applyOverrides(list, cwd.resolve(".pijota/subagents.json"));
+        return list;
     }
 
     @SuppressWarnings("unchecked")
@@ -140,18 +137,22 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
                 return;
             Map<String, Object> config = Util.MAPPER.readValue(configFile.toFile(), Map.class);
             Map<String, Object> overrides = (Map<String, Object>) config.get("agentOverrides");
-            if (overrides == null)
-                return;
             boolean disableBuiltins = Boolean.TRUE.equals(config.get("disableBuiltins"));
+            // Either key alone is a complete instruction. Returning on a missing agentOverrides made disableBuiltins
+            // work only when accompanied by a key it has nothing to do with.
+            if (overrides == null && !disableBuiltins)
+                return;
 
             for (int i = agents.size() - 1; i >= 0; i--) {
                 var agent = agents.get(i);
-                var override = (Map<String, Object>) overrides.get(agent.name());
+                var override = overrides == null ? null : (Map<String, Object>) overrides.get(agent.name());
                 if (override != null && Boolean.TRUE.equals(override.get("disabled"))) {
                     agents.remove(i);
                     continue;
                 }
-                if (disableBuiltins && "user".equals(agent.source())) {
+                // "builtin", not "user": the flag is named for what it disables, and testing the wrong source made it
+                // delete the user's own agents while leaving every built-in in place.
+                if (disableBuiltins && "builtin".equals(agent.source())) {
                     agents.remove(i);
                     continue;
                 }
@@ -171,25 +172,24 @@ public record SubAgent(String name, String description, String systemPrompt, Lis
         return new SubAgent(name, description, sp, t, m, source);
     }
 
-    private static List<SubAgent> loadMarkdownDir(Path dir, String source) {
+    /**
+     * Both shapes from one directory. Markdown is what an agent is written as and what the docs describe; JSON is read
+     * because this directory took only JSON for a long time, and silently dropping those users' agents on upgrade would
+     * look exactly like the bug this replaced.
+     */
+    private static List<SubAgent> loadDir(Path dir, String source) {
         if (!Files.isDirectory(dir))
             return List.of();
         try (var stream = Files.walk(dir, 3)) {
-            return stream.filter(p -> p.getFileName().toString().endsWith(".md")).map(p -> loadMarkdown(p, source))
-                                            .toList();
-        } catch (Exception ignored) {}
-        return List.of();
-    }
-
-    private static List<SubAgent> loadJsonDir(Path dir, String source) {
-        if (!Files.isDirectory(dir))
-            return List.of();
-        try (var stream = Files.newDirectoryStream(dir, "*.json")) {
-            var list = new ArrayList<SubAgent>();
-            for (Path p : stream)
-                list.add(loadJson(p, source));
-            return list;
-        } catch (Exception ignored) {}
+            return stream.filter(Files::isRegularFile).map(p -> {
+                String file = p.getFileName().toString();
+                return file.endsWith(".md")
+                                                ? loadMarkdown(p, source)
+                                                : file.endsWith(".json") ? loadJson(p, source) : null;
+            }).filter(Objects::nonNull).toList();
+        } catch (Exception e) {
+            logger.warn("Failed to read sub-agents from {}: {}", dir, e.getMessage());
+        }
         return List.of();
     }
 

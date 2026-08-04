@@ -41,6 +41,7 @@ import org.pijota.tools.BashTool;
 import org.pijota.tools.ToolPolicy;
 import org.pijota.tools.ToolRegistry;
 import org.pijota.tools.WhoamiTool;
+import org.pijota.util.PijotaHome;
 import org.pijota.util.ProcessRunner;
 import org.pijota.util.Proxies;
 import org.pijota.util.SelfRespawn;
@@ -126,6 +127,9 @@ public final class AppBootstrap {
         ext.setLlm(llm);
         configureExtensionEnablement(ext, parsedArgs, settings);
         boolean projectTrusted = resolveProjectTrust(cwd, parsedArgs, settings);
+        // Published before anything that gates on it: skills, sub-agents and MCP servers all load later, and each
+        // re-deriving the answer is how -a and -na came to mean different things to different loaders.
+        ProjectTrust.resolve(cwd, projectTrusted);
         loadDiscoveredExtensions(ext, parsedArgs, cwd, projectTrusted);
 
         // Niche tool, opt-in (--whoami), gated through the same resolution as extensions.
@@ -374,8 +378,9 @@ public final class AppBootstrap {
         if (args.noExtensions())
             return;
         ext.loadServiceLoaderExtensions();
-        ext.loadFromDirectory(Path.of(System.getProperty("user.home"), ".pijota", "extensions"));
-        loadProjectExtensions(ext, cwd, projectTrusted, ".pi");
+        // PijotaHome, not user.home: extensions are code, and an alternate home that still loads the real home's
+        // extensions is not the isolated home it claims to be.
+        ext.loadFromDirectory(PijotaHome.resolve("extensions"));
         loadProjectExtensions(ext, cwd, projectTrusted, ".pijota");
         for (String path : args.extensionPaths())
             ext.loadFromPath(Path.of(path));

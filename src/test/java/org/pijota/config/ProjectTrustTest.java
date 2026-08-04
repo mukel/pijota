@@ -17,9 +17,14 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ProjectTrustTest {
 
-    /** Everything that can run code or rewrite the system prompt. Each must independently trip the gate. */
+    /**
+     * Everything that can run code or rewrite the system prompt. Each must independently trip the gate. {@code
+     * mcp.json} is here because it is the sharpest of them: every entry is a command pijota spawns at startup, and it
+     * was missing from the list while being loaded unconditionally, so a repository carrying only that file got no
+     * prompt at all.
+     */
     private static final List<String> EXECUTABLE = List.of("settings.json", "extensions", "skills", "prompts", "themes",
-                                    "SYSTEM.md", "APPEND_SYSTEM.md");
+                                    "agents", "mcp.json", "SYSTEM.md", "APPEND_SYSTEM.md");
 
     private static void touch(Path dir, String name) throws IOException {
         Files.createDirectories(dir);
@@ -47,16 +52,15 @@ class ProjectTrustTest {
     }
 
     /**
-     * Pijota reads pi's project directory too, so {@code .pi/} is the same attack surface and must gate identically. A
-     * check that covered only {@code .pijota/} would load a pi project's extensions without asking.
+     * Pijota no longer reads pi's directories, and the gate must not claim otherwise: warning about a folder nothing
+     * loads is the same failure as staying silent about one that does, pointed the other way.
      */
     @Test
-    void piProjectDirectoriesGateTheSameWay(@TempDir Path root) throws IOException {
+    void piProjectDirectoriesAreNoLongerRead(@TempDir Path root) throws IOException {
         for (String name : EXECUTABLE) {
             Path cwd = Files.createDirectories(root.resolve("pi-" + name.replace('.', '-')));
             touch(cwd.resolve(".pi"), name);
-            assertTrue(ProjectTrust.hasProtectedResources(cwd.toString()),
-                                            ".pi/" + name + " must require trust before it is loaded");
+            assertFalse(ProjectTrust.hasProtectedResources(cwd.toString()), ".pi/" + name + " is not loaded");
         }
     }
 

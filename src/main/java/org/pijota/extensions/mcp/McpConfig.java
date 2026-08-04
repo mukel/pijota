@@ -1,5 +1,6 @@
 package org.pijota.extensions.mcp;
 
+import org.pijota.config.ProjectTrust;
 import org.pijota.util.PijotaHome;
 import org.pijota.util.Util;
 
@@ -33,10 +34,22 @@ final class McpConfig {
 
     private McpConfig() {}
 
-    /** Loads and merges the global and per-{@code cwd} project configs. */
+    /**
+     * Loads and merges the global and per-{@code cwd} project configs.
+     *
+     * <p>
+     * The project file is read only once the folder is trusted. Every entry in it is a command pijota will run at
+     * startup, so an untrusted one is arbitrary code from a repository the user has not vouched for: cloning and
+     * launching pijota inside it was enough to execute it, before the first prompt and with no notice.
+     */
     static List<McpServerConfig> load(Path cwd) {
         Path global = PijotaHome.resolve("mcp.json");
         Path project = cwd == null ? null : cwd.resolve(".pijota").resolve("mcp.json");
+        if (project != null && !ProjectTrust.isTrusted(cwd.toString())) {
+            if (Files.exists(project))
+                log.info("Skipped untrusted project MCP servers in {} · run /trust to enable them.", project);
+            project = null;
+        }
         return load(global, project, System::getenv);
     }
 
