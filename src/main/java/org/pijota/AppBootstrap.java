@@ -73,6 +73,8 @@ public final class AppBootstrap {
     }
 
     static Result bootstrap(Args parsedArgs) throws Exception {
+        // Before the SettingsManager, which reads and may write inside it.
+        PijotaHome.ensurePrivate();
         return bootstrap(parsedArgs, new SettingsManager());
     }
 
