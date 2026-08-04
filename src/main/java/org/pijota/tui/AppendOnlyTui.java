@@ -922,8 +922,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         var lines = new ArrayList<String>();
-        lines.add(wordmark() + theme.styled("bannerMeta",
-                                        " " + version + TuiCopy.GROUP + PromptPresenter.modelLabel(provider, model)));
+        // Three levels, loudest last-but-one: the name carries the accent, the model is the fact worth reading
+        // every launch, and the version is trivia. They shared one slot, so the eye had nothing to land on.
+        lines.add(wordmark() + theme.styled("bannerMeta", " " + version) + TuiCopy.GROUP
+                                        + theme.styled("commandMeta", PromptPresenter.modelLabel(provider, model)));
         lines.add(theme.styled("dim", TuiCopy.START_HINT));
 
         // recent sessions
@@ -942,9 +944,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 // Columns, not characters: a CJK title cut to N characters is 2N columns wide, and the row wrapped.
                 var titles = items.stream().map(it -> AnsiWidth.ellipsize(it.description(), titleRoom)).toList();
                 int titleColumn = titles.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
+                // The title carries the emphasis and the age gives way, which was the wrong way round: statusText is
+                // dimmed and commandMeta is not, so the eye landed on "1h ago" rather than on which session it was.
                 for (int i = 0; i < titles.size(); i++)
-                    lines.add(theme.styled("statusText", TuiCopy.GROUP + padRight(titles.get(i), titleColumn))
-                                                    + TuiCopy.GROUP + theme.styled("commandMeta", metas.get(i)));
+                    lines.add(theme.styled("commandMeta", TuiCopy.GROUP + padRight(titles.get(i), titleColumn))
+                                                    + TuiCopy.GROUP + theme.styled("statusText", metas.get(i)));
             }
         } catch (Exception ignored) {}
         appendPlain(lines);
