@@ -5,7 +5,9 @@ import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,6 +38,32 @@ class ModelResolverTest {
         assertTrue(export >= 0, "no API-key route offered:\n" + msg);
         assertTrue(login < 0 || export < login, "the subscription route is offered first:\n" + msg);
         assertTrue(login < 0 || msg.contains("subscription"), "the sign-in must say what it needs:\n" + msg);
+    }
+
+    /**
+     * The reader is scanning for the provider they actually have, so every variable is listed. "and 16 more" is the one
+     * thing that cannot help here. And the path must be the home in force -- PIJOTA_HOME and -Dpijota.home both move
+     * it, and a message naming ~/.pijota then points at a directory pijota is not using.
+     */
+    @Test
+    void theFirstRunMessageListsEveryVariableAndTheHomeInForce(@TempDir Path home) {
+        String previous = System.getProperty("pijota.home");
+        System.setProperty("pijota.home", home.toString());
+        try {
+            String msg = ModelResolver.firstRunMessage();
+            var known = org.pijota.config.ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).distinct()
+                                            .toList();
+
+            var absent = known.stream().filter(e -> !msg.contains(e)).toList();
+            assertTrue(absent.isEmpty(), "variables the reader could be looking for are missing: " + absent);
+            assertTrue(msg.contains(home.toString()), "names a home pijota is not using:\n" + msg);
+            assertFalse(msg.contains("~/.pijota"), "hardcoded home survives an override:\n" + msg);
+        } finally {
+            if (previous == null)
+                System.clearProperty("pijota.home");
+            else
+                System.setProperty("pijota.home", previous);
+        }
     }
 
     /** The variable names are read from the catalog; a hardcoded handful listed a quarter of them and could drift. */

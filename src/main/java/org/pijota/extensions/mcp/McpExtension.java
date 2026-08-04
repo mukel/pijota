@@ -6,6 +6,7 @@ import org.pijota.extensions.ExtensionRuntime;
 import org.pijota.messages.Message;
 import org.pijota.modes.SlashCommand;
 import org.pijota.tools.ToolRegistry;
+import org.pijota.util.PijotaHome;
 import org.pijota.util.Util;
 
 import org.slf4j.Logger;
@@ -186,7 +187,7 @@ public final class McpExtension implements Extension {
 
     private void list() {
         if (servers.isEmpty()) {
-            runtime.setStatus("No MCP servers configured (~/.pijota/mcp.json)");
+            runtime.setStatus("No MCP servers configured (" + PijotaHome.resolve("mcp.json") + ")");
             return;
         }
         var sb = new StringBuilder("MCP servers\n");

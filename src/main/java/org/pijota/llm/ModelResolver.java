@@ -4,6 +4,7 @@ import org.pijota.cli.Args;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 import org.pijota.util.CliErrorReporter;
+import org.pijota.util.PijotaHome;
 
 /**
  * Resolves the effective {@code (provider, model, apiKey)} a run should use, from CLI args + settings, the one gnarly
@@ -96,7 +97,8 @@ public final class ModelResolver {
         if (ProviderCatalog.oauth(provider).isPresent())
             sb.append(" Or run `pijota login ").append(provider).append("`.");
         sb.append(" Use `pijota --list-models ").append(provider).append("` to see available models.");
-        sb.append(" For a local/OpenAI-compatible server, add a keyless provider in ~/.pijota/settings.json.");
+        sb.append(" For a local/OpenAI-compatible server, add a keyless provider in ")
+                                        .append(PijotaHome.resolve("settings.json")).append(".");
         return sb.toString();
     }
 
@@ -108,20 +110,29 @@ public final class ModelResolver {
     static String firstRunMessage() {
         // An API key leads, because it is the path that works for everyone. The browser sign-in is one provider and
         // needs a ChatGPT subscription that most first-time users will not have; offering it first asks them to
-        // discover that for themselves. The variable names come from the catalog rather than a hardcoded five, which
-        // listed a quarter of them and could drift.
-        var envNames = ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).distinct().toList();
-        String first = envNames.isEmpty() ? "ANTHROPIC_API_KEY" : envNames.get(0);
-        var also = envNames.stream().filter(e -> !e.equals(first)).limit(4).toList();
-        int rest = Math.max(0, envNames.size() - 1 - also.size());
+        // discover that for themselves. Every variable is listed, from the catalog rather than a hardcoded few: this
+        // is the one screen where "and 16 more" is the opposite of helpful, since the reader is looking for theirs.
+        var envNames = ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).distinct().sorted().toList();
 
         var sb = new StringBuilder("No provider configured yet. Set an API key for any provider:\n\n");
-        sb.append("  export ").append(first).append("=…\n");
-        if (!also.isEmpty())
-            sb.append("  also ").append(String.join(", ", also)).append(rest > 0 ? ", and " + rest + " more" : "")
-                                            .append("\n");
+        sb.append("  export ").append(envNames.isEmpty() ? "ANTHROPIC_API_KEY" : envNames.get(0)).append("=…\n\n");
+        if (envNames.size() > 1) {
+            sb.append("  any of: ");
+            int column = "  any of: ".length();
+            for (int i = 0; i < envNames.size(); i++) {
+                String name = envNames.get(i);
+                if (column + name.length() + 2 > 96) { // wrap rather than run off a narrow terminal
+                    sb.append("\n").append(" ".repeat("  any of: ".length()));
+                    column = "  any of: ".length();
+                }
+                sb.append(name).append(i < envNames.size() - 1 ? ", " : "");
+                column += name.length() + 2;
+            }
+            sb.append("\n");
+        }
         sb.append("\nStart pijota again once it is set. `pijota --list-models` shows what you can run.\n");
-        sb.append("\nRunning a local model? Add a keyless provider in ~/.pijota/settings.json.");
+        sb.append("\nRunning a local model? Add a keyless provider in ").append(PijotaHome.resolve("settings.json"))
+                                        .append(".");
         ProviderCatalog.providers().stream().filter(p -> p.oauth() != null).map(ProviderCatalog.Provider::id)
                                         .findFirst()
                                         .ifPresent(p -> sb.append("\nHave a ChatGPT subscription? `pijota login ")

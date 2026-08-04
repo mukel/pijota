@@ -441,8 +441,8 @@ public final class Main {
         if (models.isEmpty()) {
             System.out.println("No usable models"
                                             + (filter == null || filter.isBlank() ? "" : " matching \"" + filter + "\"")
-                                            + ". Set a provider API key (env or ~/.pijota/settings.json) or run"
-                                            + " `pijota login`.");
+                                            + ". Set a provider API key (env or " + PijotaHome.resolve("settings.json")
+                                            + ") or run" + " `pijota login`.");
             return;
         }
         System.out.println("Available models:");
