@@ -460,6 +460,65 @@ public final class Main {
         }
     }
 
+    /**
+     * The width to lay {@code --list-models} out for.
+     *
+     * <p>
+     * {@code COLUMNS} when the shell exports it, else 80, which is the one width every terminal has and the number
+     * {@code --help} already commits to. Asking the terminal itself would mean building a JLine terminal for a command
+     * that prints and exits: it reports {@code dumb} whenever the output is piped, which is much of this command's use,
+     * and on a recent JDK it writes native-access warnings to stderr that a script does not want.
+     */
+    private static int terminalWidth() {
+        try {
+            int columns = Integer.parseInt(System.getenv("COLUMNS"));
+            if (columns >= 40)
+                return columns;
+        } catch (Exception ignored) {
+            // unset or not a number: the default below is the safe answer, not an error worth reporting
+        }
+        return 80;
+    }
+
+    /**
+     * One row per model, stacked onto a second line when a single line would not fit.
+     *
+     * <p>
+     * The facts were laid out in fixed columns, so a row ran to 113 characters and wrapped mid-word on any normal
+     * terminal, taking the alignment of everything below it with it. Ids are never truncated: the id is the thing you
+     * have to type back. A gateway's ids ({@code fireworks/accounts/fireworks/models/...}) reach 51 characters on their
+     * own, so on a narrow terminal the name gets its line and the facts get the next.
+     */
+    static List<String> modelRows(List<org.pijota.llm.ModelInfo> models, int width) {
+        var names = models.stream().map(m -> m.provider() + "/" + m.id()).toList();
+        int factsColumn = models.stream().mapToInt(m -> ModelDisplay.summary(m).length()).max().orElse(0);
+        int room = width - 2 - 2 - factsColumn; // indent, gap, and the facts the row has to end with
+
+        // The column is the longest name that still leaves room, not the longest name there is: one gateway id at 51
+        // characters would otherwise stack all fifteen rows, and the table is what makes them comparable.
+        int nameColumn = names.stream().mapToInt(String::length).filter(len -> len <= room).max().orElse(0);
+
+        var rows = new java.util.ArrayList<String>(models.size());
+        for (int i = 0; i < models.size(); i++) {
+            boolean sideBySide = names.get(i).length() <= nameColumn;
+            // Even on its own line the facts can outrun a very narrow terminal, so they shed from the end at the
+            // separator: summary() is ordered so the modality goes first and the price last, and a shorter row that
+            // is entirely true beats a full one cut through the middle of a number.
+            int factsRoom = width - (sideBySide ? 2 + nameColumn + 2 : 6);
+            rows.add(sideBySide
+                                            ? "  " + padRight(names.get(i), nameColumn) + "  "
+                                                                            + ModelDisplay.summary(models.get(i),
+                                                                                                            factsRoom)
+                                            : "  " + names.get(i) + System.lineSeparator() + "      " + ModelDisplay
+                                                                            .summary(models.get(i), factsRoom));
+        }
+        return rows;
+    }
+
+    private static String padRight(String s, int width) {
+        return s.length() >= width ? s : s + " ".repeat(width - s.length());
+    }
+
     private static void listModels(String filter) {
         // Only models you can actually run: their provider has a key/OAuth token (or is keyless), matching every
         // frontend's /model picker. The catalog is far larger; the footer notes how many more need a key.
@@ -480,14 +539,9 @@ public final class Main {
                                                                             + ") or run `" + Cli.name() + " login`.");
             return;
         }
-        // Sized to the longest name present: a fixed column silently misaligned every row after an id longer than it,
-        // and provider-prefixed ids from a gateway are routinely longer.
-        int width = models.stream().mapToInt(m -> (m.provider() + "/" + m.id()).length()).max().orElse(40);
         System.out.println("Available models:");
-        for (var m : models)
-            System.out.printf("  %-" + width + "s  context %-5s  input %-12s  price %s%n", m.provider() + "/" + m.id(),
-                                            ModelDisplay.context(m), ModelDisplay.modalities(m),
-                                            ModelDisplay.pricing(m));
+        for (String row : modelRows(models, terminalWidth()))
+            System.out.println(row);
 
         int known = ModelRegistry.search(ModelRegistry.KNOWN_MODELS, filter).size();
         int needKey = known - models.size();

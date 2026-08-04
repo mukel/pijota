@@ -85,7 +85,11 @@ class MainTest {
                                             stdio.out());
             return;
         }
-        assertTrue(rows.stream().allMatch(l -> l.contains("input ") && l.contains("price ")), stdio.out());
+        // A row is one line when it fits and two when the id is too long for the terminal, so the facts are asserted
+        // on the lines that carry them rather than on every indented line.
+        var factLines = rows.stream().filter(l -> l.contains("context ")).toList();
+        assertFalse(factLines.isEmpty(), stdio.out());
+        assertTrue(factLines.stream().allMatch(l -> l.contains("input ") && l.contains("price ")), stdio.out());
         assertTrue(rows.stream().noneMatch(l -> l.contains("[")), "the provider is already in the id: " + stdio.out());
     }
 
