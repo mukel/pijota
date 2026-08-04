@@ -34,6 +34,11 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+    <!-- Empty by default; the coverage profile's jacoco:prepare-agent replaces it with the agent's -javaagent. The
+         surefire <argLine> below must interpolate it with @{...} late binding, or setting argLine there discards the
+         agent and every coverage report comes out empty. -->
+    <argLine></argLine>
+
     <maven.compiler.release>21</maven.compiler.release>
 
     <commonmark.version>0.29.0</commonmark.version>
@@ -238,8 +243,10 @@
           <!-- A real -D on the forked JVM's command line, so the tests that assert pijota propagates system
                properties to its worker and sub-agent processes have something to observe. Surefire's
                systemPropertyVariables below do not appear in getInputArguments(), so without this those tests assert
-               against an empty list and pass no matter what the code does. -->
-          <argLine>-Dpijota.test.propagationMarker=observed</argLine>
+               against an empty list and pass no matter what the code does.
+               @{argLine} keeps whatever jacoco:prepare-agent put there; replacing it outright silently turns
+               coverage off. -->
+          <argLine>@{argLine} -Dpijota.test.propagationMarker=observed</argLine>
           <!-- Collapse BrowserSession's settle/consent waits (no protocol event to react to) against the instantly-
                ready FakeChrome; the load wait itself is event-driven. Cuts ~30s off the suite. Test-only: the
                packaged/native build skips tests, so this never reaches a production artifact. -->
