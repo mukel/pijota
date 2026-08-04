@@ -129,6 +129,61 @@ class TerminalTextTest {
         assertTrue(joined.contains("^[[2J"), "and the reader can see what it was");
     }
 
+    /**
+     * The model's text is not pijota's either. A model quoting a poisoned file or a fetched page back to the reader
+     * carries whatever was in it, and a prompt can ask for the bytes directly -- so the assistant's own output is a
+     * likelier carrier than a diff, not a rarer one.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"[2J", "[1;1H", "]0;renamed\007", "c"})
+    void assistantTextCannotCommandTheTerminal(String payload) {
+        String out = new RichMarkdownRenderer(AnsiTheme.dark())
+                                        .render("Here is my answer.\n\n" + ESC + payload + "PWNED\n", "text", false)
+                                        .stream().map(StyledLine::text).reduce("", String::concat);
+
+        assertFalse(withoutColour(out).contains(ESC),
+                                        () -> "the model's text reached the terminal with a command in it: "
+                                                                        + out.replace(ESC, "<ESC>"));
+        assertTrue(out.contains("Here is my answer."), "and the text around it still rendered");
+    }
+
+    /** The plain renderer is the same boundary and gets the same guard. */
+    @Test
+    void thePlainRendererIsGuardedToo() {
+        String out = new TerminalMarkdownRenderer(AnsiTheme.dark())
+                                        .render("answer\n" + ESC + "[2JPWNED\n", "text", false).stream()
+                                        .map(StyledLine::text).reduce("", String::concat);
+
+        assertFalse(withoutColour(out).contains(ESC), () -> "unguarded: " + out.replace(ESC, "<ESC>"));
+    }
+
+    /** Line terminators are structure, not commands: escaping them would turn a document into one long line. */
+    @Test
+    void aDocumentKeepsItsLineTerminatorsAndTabs() {
+        assertEquals("a\nb\r\nc\td", TerminalText.printableMarkdown("a\nb\r\nc\td"));
+        assertEquals("a^[[2Jb", TerminalText.printableMarkdown("a" + ESC + "[2Jb"));
+        assertNull(TerminalText.printableMarkdown(null));
+    }
+
+    /**
+     * The guard runs before the parser, so it must not disturb what the parser reads. Markdown is punctuation and
+     * whitespace; nothing it uses is a control character.
+     */
+    @Test
+    void theGuardDoesNotDisturbMarkdownItself() {
+        var out = new RichMarkdownRenderer(AnsiTheme.dark()).render(
+                                        "# Heading\n\n**bold** and `code`\n\n- one\n- two\n\n```java\nint x = 1;\n```\n",
+                                        "text", false).stream().map(StyledLine::text).toList();
+        // Stripped: a fenced block is syntax highlighted, so its text is not contiguous in the styled output.
+        String joined = withoutColour(String.join("\n", out));
+
+        assertTrue(joined.contains("Heading"), joined);
+        assertTrue(joined.contains("bold") && joined.contains("code"), joined);
+        assertTrue(joined.contains("one") && joined.contains("two"), joined);
+        assertTrue(joined.contains("int x = 1;"), "the fenced block still renders: " + joined);
+        assertFalse(joined.contains("^"), "and nothing was escaped that should not have been: " + joined);
+    }
+
     /** The other half of the trade: a command block that colours its output still colours it. */
     @Test
     void aToolBodyKeepsItsColour() {

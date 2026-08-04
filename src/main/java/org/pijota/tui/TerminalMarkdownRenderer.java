@@ -29,6 +29,10 @@ final class TerminalMarkdownRenderer implements MarkdownRenderer {
     public List<StyledLine> render(String markdown, String defaultTextSlot, boolean defaultItalic) {
         if (markdown == null || markdown.isEmpty())
             return List.of();
+        // The model's text is not pijota's either: an ESC in it commands the terminal exactly as one from a
+        // file does, and a model quoting a poisoned file or page back to the reader carries whatever was in
+        // it. Escaped once here, at the boundary where untrusted markdown becomes terminal bytes.
+        markdown = TerminalText.printableMarkdown(markdown);
         var table = MarkdownTableRenderer.renderIfTable(markdown, theme, width);
         if (table.isPresent())
             return table.get();

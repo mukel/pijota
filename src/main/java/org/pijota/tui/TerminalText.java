@@ -35,6 +35,32 @@ final class TerminalText {
         return escape(line, true);
     }
 
+    /**
+     * The strict form over a whole document rather than one line, so line terminators survive as the structure they
+     * are. CommonMark treats CR, LF and CRLF alike and consumes all three, so neither reaches a rendered row.
+     *
+     * <p>
+     * This is the model's own output, which is not pijota's either: a model quoting a file or a fetched page back to
+     * the reader carries whatever was in it, and a prompt can ask for the bytes directly.
+     */
+    static String printableMarkdown(String text) {
+        if (text == null)
+            return null;
+        StringBuilder out = null;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch >= ' ' && ch != DEL || ch == '\t' || ch == '\n' || ch == '\r') {
+                if (out != null)
+                    out.append(ch);
+                continue;
+            }
+            if (out == null)
+                out = new StringBuilder(text.length() + 8).append(text, 0, i);
+            out.append('^').append((char) (ch ^ 0x40));
+        }
+        return out == null ? text : out.toString();
+    }
+
     private static String escape(String line, boolean keepColour) {
         StringBuilder out = null; // stays null while the line needs nothing done to it, which is the common case
         for (int i = 0; i < line.length(); i++) {
