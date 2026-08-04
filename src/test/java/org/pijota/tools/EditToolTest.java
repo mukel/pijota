@@ -18,6 +18,26 @@ class EditToolTest {
     @TempDir
     Path tempDir;
 
+    /**
+     * The patch handed to the model is a unified diff, and a unified diff has a spelling. The empty string after a
+     * file's final newline was counted as a line, so a three line file produced {@code @@ -1,4 +1,4 @@} and a blank
+     * context row after the change -- a hunk git would not have written, describing one more line than the file has,
+     * given to a model that is expected to produce the same format back.
+     */
+    @Test
+    void thePatchGivenToTheModelCountsLinesAsGitDoes() throws Exception {
+        var path = tempDir.resolve("f.txt");
+        Files.writeString(path, "one\ntwo\nthree\n");
+
+        var result = run(new EditTool(), Map.of("path", path.toString(), "edits",
+                                        List.of(Map.of("oldText", "two", "newText", "TWO"))), tempDir);
+
+        String patch = (String) result.details().get("patch");
+        assertTrue(patch.contains("@@ -1,3 +1,3 @@"),
+                                        () -> "three lines, not four, and no trailing blank row:\n" + patch);
+        assertFalse(patch.endsWith("\n \n"), () -> "a blank context row trails the hunk:\n" + patch);
+    }
+
     @Test
     void appliesExactSingleEdit() throws Exception {
         var path = tempDir.resolve("f.txt");

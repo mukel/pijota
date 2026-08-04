@@ -33,7 +33,38 @@ public final class DiffAlgorithm {
     public static List<Row> diff(String oldText, String newText) {
         String[] a = oldText != null && !oldText.isEmpty() ? oldText.split("\\R", -1) : new String[0];
         String[] b = newText != null && !newText.isEmpty() ? newText.split("\\R", -1) : new String[0];
+        return diffLines(a, b);
+    }
+
+    /**
+     * The line diff of two files whose lines are already in hand.
+     *
+     * <p>
+     * Splitting keeps the empty string that follows a final terminator, and that is not a line. Counted, it made a
+     * three line file three lines everywhere except here, where the hunk header read {@code @@ -1,4 +1,4 @@} and a
+     * blank context row trailed the change -- a patch the model was given and git would not have written.
+     *
+     * <p>
+     * Dropped only when both sides agree about having one, because when they disagree it is the only thing carrying the
+     * change, and whether a file ends with a newline is a real property of the file.
+     */
+    public static List<Row> diffLines(String[] oldLines, String[] newLines) {
+        String[] a = oldLines == null ? new String[0] : oldLines;
+        String[] b = newLines == null ? new String[0] : newLines;
+        if (endsAtLineBoundary(a) == endsAtLineBoundary(b)) {
+            a = withoutTrailingBlank(a);
+            b = withoutTrailingBlank(b);
+        }
         return rowsFrom(a, b);
+    }
+
+    /** Whether the text these lines came from ended at a line boundary. An absent or empty file does, vacuously. */
+    private static boolean endsAtLineBoundary(String[] lines) {
+        return lines.length == 0 || lines[lines.length - 1].isEmpty();
+    }
+
+    private static String[] withoutTrailingBlank(String[] lines) {
+        return lines.length > 0 && lines[lines.length - 1].isEmpty() ? Arrays.copyOf(lines, lines.length - 1) : lines;
     }
 
     private static List<Row> rowsFrom(String[] a, String[] b) {

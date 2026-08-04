@@ -47,45 +47,27 @@ final class DiffRenderer {
         return out;
     }
 
-    /** Whether the text these lines came from ended at a line boundary. An absent or empty file does, vacuously. */
-    private static boolean endsAtLineBoundary(String[] lines) {
-        return lines.length == 0 || lines[lines.length - 1].isEmpty();
-    }
-
-    private static String[] withoutTrailingBlank(String[] lines) {
-        return lines.length > 0 && lines[lines.length - 1].isEmpty()
-                                        ? java.util.Arrays.copyOf(lines, lines.length - 1)
-                                        : lines;
-    }
-
     public List<String> render(String action, String path, String oldText, String newText, int width) {
-        String[] oldLines = printableLines(oldText);
-        String[] newLines = printableLines(newText);
-        // Splitting keeps the empty string that follows a final terminator, and that is not a line: it put a row one
-        // past the end of the file at the foot of every diff, and counted a five line file as six additions where git
-        // counts five. Dropped only when both sides agree about having one, because when they disagree it is the only
-        // thing that says a file gained or lost its final newline, which is a real change and worth showing.
-        if (endsAtLineBoundary(oldLines) == endsAtLineBoundary(newLines)) {
-            oldLines = withoutTrailingBlank(oldLines);
-            newLines = withoutTrailingBlank(newLines);
-        }
-        // Diff the printable form, not the raw one, so line numbers, word offsets and what is drawn all agree.
-        var rows = DiffAlgorithm.diff(oldLines, newLines);
+        // The printable form, not the raw one, so line numbers, word offsets and what is drawn all agree.
+        var rows = DiffAlgorithm.diffLines(printableLines(oldText), printableLines(newText));
         int added = 0;
         int deleted = 0;
+        int maxOld = 1;
+        int maxNew = 1;
         for (var row : rows) {
             if (row.kind() == DiffAlgorithm.Kind.ADD)
                 added++;
             if (row.kind() == DiffAlgorithm.Kind.DELETE)
                 deleted++;
+            // The gutter is sized by the largest number it will print, which is what has to fit in it.
+            maxOld = Math.max(maxOld, row.oldLine());
+            maxNew = Math.max(maxNew, row.newLine());
         }
         if (added == 0 && deleted == 0)
             return List.of();
 
         var highlighter = new SyntaxHighlighter(SyntaxHighlighter.languageForFilename(path), theme);
         var hunks = DiffAlgorithm.hunks(rows, CONTEXT_LINES);
-        int maxOld = Math.max(1, oldLines.length);
-        int maxNew = Math.max(1, newLines.length);
         int oldWidth = digits(maxOld);
         int newWidth = digits(maxNew);
         int terminalWidth = Math.max(40, width);

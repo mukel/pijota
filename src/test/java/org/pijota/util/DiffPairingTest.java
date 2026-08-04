@@ -37,7 +37,7 @@ class DiffPairingTest {
         var rows = rows("a\nOLD\nc\n", "a\nNEW\nc\n");
         var pairs = DiffAlgorithm.pairs(rows);
 
-        assertEquals("=-+==", shape(rows), "fixture: one removal followed by one addition");
+        assertEquals("=-+=", shape(rows), "fixture: one removal followed by one addition");
         assertEquals(2, pairs.get(1), "the removal at 1 became the addition at 2");
         assertEquals(1, pairs.get(2), "and the mapping reads from either side");
     }
@@ -48,7 +48,7 @@ class DiffPairingTest {
         var rows = rows("x\nA1\nA2\nA3\ny\n", "x\nB1\nB2\nB3\ny\n");
         var pairs = DiffAlgorithm.pairs(rows);
 
-        assertEquals("=---+++==", shape(rows));
+        assertEquals("=---+++=", shape(rows));
         assertEquals(4, pairs.get(1), "first removed pairs with first added");
         assertEquals(5, pairs.get(2));
         assertEquals(6, pairs.get(3), "last removed pairs with last added");
@@ -87,7 +87,7 @@ class DiffPairingTest {
         var rows = rows("keep\nGONE\n", "NEW\nkeep\n");
         var pairs = DiffAlgorithm.pairs(rows);
 
-        assertEquals("+=-=", shape(rows), "fixture: the addition first, then context, then the removal");
+        assertEquals("+=-", shape(rows), "fixture: the addition first, then context, then the removal");
         assertTrue(pairs.isEmpty(), () -> "an add that precedes a delete is not a replacement, got " + pairs);
     }
 
@@ -97,7 +97,7 @@ class DiffPairingTest {
         var rows = rows("A\nx\nB\n", "A2\nx\nB2\n");
         var pairs = DiffAlgorithm.pairs(rows);
 
-        assertEquals("-+=-+=", shape(rows));
+        assertEquals("-+=-+", shape(rows));
         assertEquals(1, pairs.get(0), "first replacement");
         assertEquals(4, pairs.get(3), "second replacement, paired within its own run");
     }
@@ -141,8 +141,7 @@ class DiffPairingTest {
     void repeatedIdenticalLinesAreAllAccountedFor() {
         var rows = rows("a\na\na\n", "a\na\na\na\n");
 
-        // Four, not three: splitting keeps the empty string after the final newline, and it is common to both.
-        assertEquals(4, rows.stream().filter(r -> r.kind() == DiffAlgorithm.Kind.CONTEXT).count());
+        assertEquals(3, rows.stream().filter(r -> r.kind() == DiffAlgorithm.Kind.CONTEXT).count());
         assertEquals(1, rows.stream().filter(r -> r.kind() == DiffAlgorithm.Kind.ADD).count());
         assertEquals(0, rows.stream().filter(r -> r.kind() == DiffAlgorithm.Kind.DELETE).count());
     }
@@ -151,7 +150,7 @@ class DiffPairingTest {
     @Test
     void lineNumbersCountEachSideSeparately() {
         var rows = rows("keep\nGONE\ntail\n", "keep\nNEW1\nNEW2\ntail\n");
-        var tail = rows.get(rows.size() - 2); // the last row is the empty string after the final newline
+        var tail = rows.get(rows.size() - 1);
 
         assertEquals("tail", tail.text(), "fixture: the last row is the trailing context line");
         assertEquals(3, tail.oldLine(), "third line of the old file");
