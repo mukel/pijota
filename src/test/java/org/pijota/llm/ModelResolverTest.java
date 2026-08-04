@@ -22,6 +22,24 @@ class ModelResolverTest {
         return new SettingsManager(config, ignored -> {});
     }
 
+    /**
+     * The first thing a user with no credentials ever sees. Its two lines were spaced by hand, so they lined up only
+     * for the provider id that happened to be first when it was written -- a longer one skews the column.
+     */
+    @Test
+    void theFirstRunMessageLinesUpItsTwoColumns() {
+        String msg = ModelResolver.firstRunMessage();
+
+        var starts = new java.util.ArrayList<Integer>();
+        for (String line : msg.lines().toList()) {
+            var m = java.util.regex.Pattern.compile("\\S {2,}(\\S)").matcher(line);
+            if (line.startsWith("  ") && m.find())
+                starts.add(m.start(1));
+        }
+        assertEquals(2, starts.size(), "expected two command lines in:\n" + msg);
+        assertEquals(starts.get(0), starts.get(1), "the descriptions start in different columns:\n" + msg);
+    }
+
     @Test
     void resolvesExplicitProviderModelWithKey() {
         var r = ModelResolver.resolve(ArgParser.parse(new String[] {"--model", "openai/gpt-5.5"}),

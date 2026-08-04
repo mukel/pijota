@@ -106,13 +106,25 @@ public final class ModelResolver {
      * chose.
      */
     static String firstRunMessage() {
-        var sb = new StringBuilder("No provider configured yet. Two ways to get started:\n\n");
-        ProviderCatalog.providers().stream().filter(p -> p.oauth() != null).map(ProviderCatalog.Provider::id)
-                                        .findFirst().ifPresent(p -> sb.append("  pijota login ").append(p)
-                                                                        .append("      sign in, no API key needed\n"));
-        sb.append("  export DEEPSEEK_API_KEY=…   or ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, KIMI_API_KEY\n");
+        // The columns are computed, not spaced by hand: the login line ends with a provider id, so hardcoded padding
+        // lines up only for the id that happened to be first when it was written.
+        String oauthProvider = ProviderCatalog.providers().stream().filter(p -> p.oauth() != null)
+                                        .map(ProviderCatalog.Provider::id).findFirst().orElse(null);
+        String loginCmd = oauthProvider == null ? null : "  pijota login " + oauthProvider;
+        String envCmd = "  export DEEPSEEK_API_KEY=…";
+        int column = Math.max(loginCmd == null ? 0 : loginCmd.length(), envCmd.length()) + 3;
+
+        var sb = new StringBuilder("No provider configured yet. ").append(
+                                        loginCmd == null ? "To get started:\n\n" : "Two ways to get started:\n\n");
+        if (loginCmd != null)
+            sb.append(pad(loginCmd, column)).append("sign in, no API key needed\n");
+        sb.append(pad(envCmd, column)).append("or ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, KIMI_API_KEY\n");
         sb.append("\n`pijota --list-models` shows what you can run once a key is set.");
         sb.append("\nRunning a local model? Add a keyless provider in ~/.pijota/settings.json.");
         return sb.toString();
+    }
+
+    private static String pad(String text, int column) {
+        return text + " ".repeat(Math.max(1, column - text.length()));
     }
 }
