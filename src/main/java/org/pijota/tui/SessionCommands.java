@@ -66,8 +66,12 @@ final class SessionCommands {
             path = "pijota-session-" + ts + ".jsonl";
         }
         try {
-            host.session().saveMessages(Path.of(path));
-            host.appendPlain(List.of(host.styled("statusText", "session saved to " + path)));
+            Path file = Path.of(path);
+            host.session().saveMessages(file);
+            // Absolute, like /export reports. A bare "pijota-session-....jsonl" does not say which directory it
+            // landed in, and the answer is wherever pijota was launched -- not necessarily where the user is looking.
+            host.appendPlain(List.of(host.styled("statusText",
+                                            "session saved to " + file.toAbsolutePath().normalize())));
         } catch (Exception e) {
             host.appendPlain(List.of(host.styled("toolError", "save failed: " + e.getMessage())));
         }
