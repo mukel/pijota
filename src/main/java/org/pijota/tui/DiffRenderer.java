@@ -63,9 +63,26 @@ final class DiffRenderer {
         return escaped == null ? line : escaped.toString();
     }
 
+    /** Whether the text these lines came from ended at a line boundary. An absent or empty file does, vacuously. */
+    private static boolean endsAtLineBoundary(String[] lines) {
+        return lines.length == 0 || lines[lines.length - 1].isEmpty();
+    }
+
+    private static String[] withoutTrailingBlank(String[] lines) {
+        return endsAtLineBoundary(lines) && lines.length > 0 ? java.util.Arrays.copyOf(lines, lines.length - 1) : lines;
+    }
+
     public List<String> render(String action, String path, String oldText, String newText, int width) {
         String[] oldLines = printableLines(oldText);
         String[] newLines = printableLines(newText);
+        // Splitting keeps the empty string that follows a final terminator, and that is not a line: it put a row one
+        // past the end of the file at the foot of every diff, and counted a five line file as six additions where git
+        // counts five. Dropped only when both sides agree about having one, because when they disagree it is the only
+        // thing that says a file gained or lost its final newline, which is a real change and worth showing.
+        if (endsAtLineBoundary(oldLines) == endsAtLineBoundary(newLines)) {
+            oldLines = withoutTrailingBlank(oldLines);
+            newLines = withoutTrailingBlank(newLines);
+        }
         // Diff the printable form, not the raw one, so line numbers, word offsets and what is drawn all agree.
         var rows = DiffAlgorithm.diff(oldLines, newLines);
         int added = 0;
@@ -93,12 +110,15 @@ final class DiffRenderer {
         out.add("");
         out.add(header(action, path, added, deleted, terminalWidth));
         int rendered = 0;
+        int shownChanged = 0;
         boolean truncated = false;
 
         for (int h = 0; h < hunks.size(); h++) {
-            if (h > 0)
-                out.add("");
             var hunk = hunks.get(h);
+            // A blank line between hunks says a gap without saying it skipped anything, so the numbers either side of
+            // it look contiguous until the reader checks them. Naming the count is the whole job of the separator.
+            if (h > 0)
+                out.add(separator(hunks.get(h - 1).rows(), hunk.rows()));
             // Which deleted row each added row replaced, so a pair can be compared word by word.
             var pairs = DiffAlgorithm.pairs(hunk.rows());
             for (int r = 0; r < hunk.rows().size(); r++) {
@@ -111,17 +131,53 @@ final class DiffRenderer {
                 out.addAll(format(row, oldWidth, newWidth, highlighter.highlightLine(row.text()), terminalWidth,
                                                 wordSpans(hunk.rows(), pairs, r)));
                 rendered++;
+                if (row.kind() != DiffAlgorithm.Kind.CONTEXT)
+                    shownChanged++;
             }
             if (truncated)
                 break;
         }
 
         if (truncated) {
-            int changed = added + deleted;
-            out.add(theme.styled("diffMeta", "… diff truncated: showing " + MAX_RENDERED_ROWS + " of " + changed
-                                            + " changed rows"));
+            // Counted, not assumed: the cap is on rows drawn, and context rows are drawn too, so a diff cut at 300
+            // rows has shown fewer than 300 changed ones. Saying what is missing is also the more useful half.
+            int missing = added + deleted - shownChanged;
+            out.add(theme.styled("diffMeta", "… diff truncated: " + missing
+                                            + (missing == 1 ? " more changed row" : " more changed rows")
+                                            + " not shown"));
         }
         return out;
+    }
+
+    /**
+     * The line between two hunks, naming how many unchanged lines it stands for.
+     *
+     * <p>
+     * The count comes from the old-file numbering, which both sides share across a gap: the run between two hunks is
+     * unchanged by definition, so it is the same length on either side.
+     */
+    private String separator(List<DiffAlgorithm.Row> before, List<DiffAlgorithm.Row> after) {
+        int last = lastOldLine(before);
+        int first = firstOldLine(after);
+        int skipped = first - last - 1;
+        if (skipped <= 0)
+            return ""; // nothing countable to say; the blank line still separates the hunks
+        return theme.styled("diffMeta", "  ⋮ " + skipped + (skipped == 1 ? " unchanged line" : " unchanged lines"));
+    }
+
+    /** Added rows carry no old-file number, so the ends of a hunk are found by skipping them. */
+    private static int lastOldLine(List<DiffAlgorithm.Row> rows) {
+        for (int i = rows.size() - 1; i >= 0; i--)
+            if (rows.get(i).oldLine() > 0)
+                return rows.get(i).oldLine();
+        return 0;
+    }
+
+    private static int firstOldLine(List<DiffAlgorithm.Row> rows) {
+        for (var row : rows)
+            if (row.oldLine() > 0)
+                return row.oldLine();
+        return 0;
     }
 
     /** The ranges of row {@code index} that differ from the row it replaced, or none when it replaced nothing. */
