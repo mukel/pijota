@@ -4,6 +4,7 @@ import org.pijota.agent.PijotaSession;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelInfo;
+import org.pijota.llm.ModelRefresher;
 
 import org.junit.jupiter.api.Test;
 
@@ -304,5 +305,22 @@ class ModelCommandHandlerTest {
                 return null;
             }
         };
+    }
+
+    /**
+     * "refreshed 0 models from 0 provider(s)" was the answer whenever nothing was configured: two numbers and no cause.
+     * It also never said the result is kept, so the command read as something to run again every session, which is
+     * exactly what it used to be before the cache.
+     */
+    @Test
+    void theRefreshSummarySaysWhatHappenedAndThatItSticks() {
+        assertEquals("no provider to ask: none has a credential yet",
+                                        ModelCommandHandler.refreshSummary(new ModelRefresher.Result(0, 0, List.of())));
+
+        assertEquals("asked 2 providers; none offered a model list",
+                                        ModelCommandHandler.refreshSummary(new ModelRefresher.Result(2, 0, List.of())));
+
+        String found = ModelCommandHandler.refreshSummary(new ModelRefresher.Result(1, 7, List.of()));
+        assertEquals("found 7 models from 1 provider, remembered for next time", found);
     }
 }

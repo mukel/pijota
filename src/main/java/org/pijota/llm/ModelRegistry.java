@@ -83,8 +83,12 @@ public final class ModelRegistry {
             return;
         try {
             var catalog = Util.MAPPER.readValue(file.toFile(), ModelCatalog.class);
-            if (!catalog.models().isEmpty())
-                replaceDiscovered(catalog.models());
+            // Only providers that still exist. Nothing else ever removes an entry, so a provider deleted from
+            // settings.json kept offering its models from the cache for good, and picking one failed at the request.
+            // The catalog already carries the user's own providers by the time this runs.
+            var live = catalog.models().stream().filter(m -> ProviderCatalog.find(m.provider()).isPresent()).toList();
+            if (!live.isEmpty())
+                replaceDiscovered(live);
         } catch (Exception e) {
             log.info("Discarding an unreadable model cache at {}: {}", file, e.getMessage());
             try {

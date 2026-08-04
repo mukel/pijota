@@ -38,7 +38,7 @@ class ModelItemTest {
         var info = new ModelInfo("gpt-4", "openai", "GPT-4", 128_000);
         var item = new ModelItem(info, false);
         assertTrue(item.detailText().contains("openai"));
-        assertTrue(item.detailText().contains("context 125K"));
+        assertTrue(item.detailText().contains("context 128K"), item.detailText());
     }
 
     @Test

@@ -80,10 +80,13 @@ class MainTest {
         // pinned hermetically in ModelDisplayTest.
         var rows = stdio.out().lines().filter(l -> l.startsWith("  ")).toList();
         if (rows.isEmpty()) {
-            assertTrue(stdio.out().contains("No usable models"), stdio.out());
+            // Two dead ends, both correct: no credential anywhere, or credentials but nothing matching the filter.
+            assertTrue(stdio.out().contains("No usable models") || stdio.out().contains("No model matching"),
+                                            stdio.out());
             return;
         }
-        assertTrue(rows.stream().allMatch(l -> l.contains("input:") && l.contains("price:")), stdio.out());
+        assertTrue(rows.stream().allMatch(l -> l.contains("input ") && l.contains("price ")), stdio.out());
+        assertTrue(rows.stream().noneMatch(l -> l.contains("[")), "the provider is already in the id: " + stdio.out());
     }
 
     @Test

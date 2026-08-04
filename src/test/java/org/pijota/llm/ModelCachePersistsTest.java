@@ -1,6 +1,7 @@
 package org.pijota.llm;
 
 import org.pijota.config.AppConfig;
+import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 
 import org.junit.jupiter.api.Test;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -33,9 +35,15 @@ class ModelCachePersistsTest {
     private static void withHome(Path home, Body body) throws Exception {
         String saved = System.setProperty("pijota.home", home.toString());
         List<ModelInfo> before = ModelRegistry.KNOWN_MODELS;
+        // What the bootstrap does before reading the cache: the user's own providers join the catalog first, which is
+        // what keeps their discovered models from being pruned as belonging to a provider that no longer exists.
+        ProviderCatalog.registerUserProviders(List.of(new ProviderCatalog.Provider("mylocal", "My Local", "openai",
+                                        "http://127.0.0.1:1/v1", List.of(), "my-local-llama-70b", Map.of(), null,
+                                        null)));
         try {
             body.run();
         } finally {
+            ProviderCatalog.registerUserProviders(List.of());
             ModelRegistry.KNOWN_MODELS = before; // static catalog: hand it back to the other tests as it was
             if (saved == null)
                 System.clearProperty("pijota.home");
@@ -109,6 +117,39 @@ class ModelCachePersistsTest {
             ModelRefresher.refresh(new SettingsManager(new AppConfig(), ignored -> {}));
             assertTrue(Files.isRegularFile(ModelRegistry.cacheFile()),
                                             "a refresh that only updates memory is forgotten when the process exits");
+        });
+    }
+
+    /**
+     * Nothing else ever removes a cache entry, so a provider deleted from settings.json kept offering its models for
+     * good, and choosing one failed at the request. The catalog already carries the user's own providers by the time
+     * the cache is read, so a provider missing from it is a provider that is gone.
+     */
+    @Test
+    void modelsFromAProviderThatNoLongerExistsAreDropped(@TempDir Path home) throws Exception {
+        withHome(home, () -> {
+            ModelRegistry.saveDiscovered(List.of(new ModelInfo("ghost", "deleted-provider", "Ghost", 128_000L)));
+            ModelRegistry.replaceDiscovered(List.of());
+
+            ModelRegistry.loadDiscoveredCache();
+
+            assertTrue(ModelRegistry.forProvider("deleted-provider").isEmpty(),
+                                            "a provider no longer in the catalog must not keep offering models");
+        });
+    }
+
+    /** And the pruning must not take the live ones with it. */
+    @Test
+    void modelsFromAProviderThatStillExistsSurvive(@TempDir Path home) throws Exception {
+        withHome(home, () -> {
+            var known = ModelRegistry.KNOWN_MODELS.getFirst().provider(); // a built-in, so certainly in the catalog
+            ModelRegistry.saveDiscovered(List.of(new ModelInfo("brand-new-id", known, "Brand New", 128_000L)));
+            ModelRegistry.replaceDiscovered(List.of());
+
+            ModelRegistry.loadDiscoveredCache();
+
+            assertTrue(ModelRegistry.forProvider(known).stream().anyMatch(m -> m.id().equals("brand-new-id")),
+                                            "discovery for a live provider is the whole point of the cache");
         });
     }
 

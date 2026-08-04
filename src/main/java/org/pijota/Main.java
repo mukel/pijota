@@ -465,21 +465,34 @@ public final class Main {
         // frontend's /model picker. The catalog is far larger; the footer notes how many more need a key.
         var settings = new SettingsManager();
         AppBootstrap.prepareModelCatalog(settings);
-        var models = ModelRegistry.search(ModelRegistry.availableModels(settings), filter);
+        var usable = ModelRegistry.availableModels(settings);
+        var models = ModelRegistry.search(usable, filter);
+        boolean filtered = filter != null && !filter.isBlank();
         if (models.isEmpty()) {
-            System.out.println("No usable models"
-                                            + (filter == null || filter.isBlank() ? "" : " matching \"" + filter + "\"")
-                                            + ". Set a provider API key (env or " + PijotaHome.resolve("settings.json")
-                                            + ") or run" + " `" + Cli.name() + " login`.");
+            // Two different dead ends. Reporting "set an API key" to someone whose key is fine and whose filter simply
+            // matched nothing sends them to fix a setting that was never broken.
+            System.out.println(!usable.isEmpty() && filtered
+                                            ? "No model matching \"" + filter + "\" among the " + usable.size()
+                                                                            + " you can reach. `" + Cli.name()
+                                                                            + " --list-models` lists them all."
+                                            : "No usable models. Set a provider API key (env or "
+                                                                            + PijotaHome.resolve("settings.json")
+                                                                            + ") or run `" + Cli.name() + " login`.");
             return;
         }
+        // Sized to the longest name present: a fixed column silently misaligned every row after an id longer than it,
+        // and provider-prefixed ids from a gateway are routinely longer.
+        int width = models.stream().mapToInt(m -> (m.provider() + "/" + m.id()).length()).max().orElse(40);
         System.out.println("Available models:");
         for (var m : models)
-            System.out.printf("  %-45s [%-12s] context: %-5s input: %-14s price: %s%n", m.provider() + "/" + m.id(),
-                                            m.provider(), ModelDisplay.context(m), ModelDisplay.modalities(m),
+            System.out.printf("  %-" + width + "s  context %-5s  input %-12s  price %s%n", m.provider() + "/" + m.id(),
+                                            ModelDisplay.context(m), ModelDisplay.modalities(m),
                                             ModelDisplay.pricing(m));
-        int total = ModelRegistry.search(ModelRegistry.KNOWN_MODELS, filter).size();
-        System.out.printf("%n%d of %d model(s) usable (the rest need a provider API key)%n", models.size(), total);
+
+        int known = ModelRegistry.search(ModelRegistry.KNOWN_MODELS, filter).size();
+        int needKey = known - models.size();
+        System.out.printf("%n%s%s%n", Util.plural(models.size(), "model"),
+                                        needKey > 0 ? ", " + needKey + " more need a provider API key" : "");
     }
 
     private static boolean stdinRedirected() {

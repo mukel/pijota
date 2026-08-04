@@ -10,8 +10,25 @@ public final class ModelDisplay {
         return context(model != null ? model.contextWindow() : 0);
     }
 
+    /**
+     * The window as its provider quotes it.
+     *
+     * <p>
+     * Dividing by 1024 turned every advertised figure into a number nobody recognises: a 1,000,000-token model read
+     * "976K" and a 272,000-token one "265K". Context windows are quoted in decimal thousands by every provider, and
+     * this string is how a user matches what they see here against what they were sold.
+     */
     public static String context(long contextWindow) {
-        return contextWindow > 0 ? (contextWindow / 1024) + "K" : "?";
+        if (contextWindow <= 0)
+            return "?";
+        if (contextWindow >= 1_000_000) {
+            double millions = contextWindow / 1_000_000.0;
+            // 1M, not 1.0M; 1.5M keeps the half that distinguishes it.
+            return (millions == Math.floor(millions)
+                                            ? String.valueOf((long) millions)
+                                            : String.format(Locale.ROOT, "%.1f", millions)) + "M";
+        }
+        return Math.round(contextWindow / 1000.0) + "K";
     }
 
     public static String modalities(ModelInfo model) {
