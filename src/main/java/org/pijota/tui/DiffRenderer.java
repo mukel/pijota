@@ -22,10 +22,52 @@ final class DiffRenderer {
         this.theme = theme;
     }
 
+    /**
+     * Splits into lines, with every character a terminal would obey rather than print rewritten to the caret notation
+     * {@code less} and {@code git} show it in.
+     *
+     * <p>
+     * A diff draws file content, and file content is not trusted: an ESC in a line reaches the terminal as a command.
+     * {@code ESC[2J} clears the transcript, {@code ESC[H} moves the cursor, and either lets whoever wrote the file
+     * paint text that looks like it came from pijota. That is worth more than the display glitch it looks like, since
+     * the whole point of showing a diff is that the reader can trust what it says.
+     *
+     * <p>
+     * Escaping here, before the split feeds anything else, is what keeps it simple: the diff, the word offsets, the
+     * highlighter and the wrap all see the same string the terminal will, so no stage has to agree about raw versus
+     * drawn coordinates. Tab survives, because it is layout rather than a command and the wrap already expands it. C1
+     * controls are left alone: a UTF-8 terminal prints those rather than obeying them, as an escaped one confirms.
+     */
+    private static String[] printableLines(String text) {
+        if (text == null || text.isEmpty())
+            return new String[0];
+        var out = text.split("\\R", -1);
+        for (int i = 0; i < out.length; i++)
+            out[i] = printable(out[i]);
+        return out;
+    }
+
+    private static String printable(String line) {
+        StringBuilder escaped = null; // the overwhelmingly common case is a line with nothing to escape
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch >= ' ' && ch != '\177' || ch == '\t') {
+                if (escaped != null)
+                    escaped.append(ch);
+                continue;
+            }
+            if (escaped == null)
+                escaped = new StringBuilder(line.length() + 8).append(line, 0, i);
+            escaped.append('^').append((char) (ch ^ 0x40)); // 0 -> @, ESC -> [, DEL -> ?
+        }
+        return escaped == null ? line : escaped.toString();
+    }
+
     public List<String> render(String action, String path, String oldText, String newText, int width) {
-        String[] oldLines = oldText != null && !oldText.isEmpty() ? oldText.split("\\R", -1) : new String[0];
-        String[] newLines = newText != null && !newText.isEmpty() ? newText.split("\\R", -1) : new String[0];
-        var rows = DiffAlgorithm.diff(oldText, newText);
+        String[] oldLines = printableLines(oldText);
+        String[] newLines = printableLines(newText);
+        // Diff the printable form, not the raw one, so line numbers, word offsets and what is drawn all agree.
+        var rows = DiffAlgorithm.diff(oldLines, newLines);
         int added = 0;
         int deleted = 0;
         for (var row : rows) {
