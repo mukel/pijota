@@ -2,6 +2,7 @@ package org.pijota.agent;
 
 import org.pijota.util.Platform;
 import org.pijota.util.ProcessRunner;
+import org.pijota.util.SelfRespawn;
 import org.pijota.util.Util;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -111,8 +112,13 @@ public final class SubAgentLauncher {
         String javaHome = System.getProperty("java.home");
         if (javaHome == null || javaHome.isBlank())
             return new ArrayList<>(List.of(currentExecutable()));
-        return new ArrayList<>(List.of(Platform.javaBinary().toString(), "--enable-preview", "-cp",
-                                        resolveClasspath(cwd), "org.pijota.Main"));
+        // The child is a fresh JVM built from scratch, so it inherits no system property unless one is passed.
+        // Without this a sub-agent read ~/.pijota while its parent used the home it was pointed at, and wrote its
+        // logs, sessions and trust decisions there.
+        var command = new ArrayList<String>(List.of(Platform.javaBinary().toString(), "--enable-preview"));
+        command.addAll(SelfRespawn.jvmOptions());
+        command.addAll(List.of("-cp", resolveClasspath(cwd), "org.pijota.Main"));
+        return command;
     }
 
     private static String currentExecutable() {
@@ -126,15 +132,16 @@ public final class SubAgentLauncher {
         if (cp != null && !cp.isBlank())
             return cp;
         try {
-            var ourJar = Path.of(SubAgentLauncher.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-            if (Files.exists(ourJar) && ourJar.toString().endsWith(".jar"))
-                return ourJar.toString();
-            var classesDir = ourJar.resolve("..").normalize();
-            if (Files.isDirectory(classesDir) && Files.exists(classesDir.resolve("ai/pijota/Main.class")))
-                return classesDir.toString();
+            var ourCode = Path.of(SubAgentLauncher.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            if (Files.exists(ourCode) && ourCode.toString().endsWith(".jar"))
+                return ourCode.toString();
+            // The code source of a directory-based classpath IS the classes root, so Main sits directly under it.
+            // Going up a level first looked past it at target/, where no class file has ever lived.
+            if (Files.isDirectory(ourCode) && Files.exists(ourCode.resolve("org/pijota/Main.class")))
+                return ourCode.toString();
         } catch (Exception ignored) {}
         Path cwdClasses = Path.of(cwd).resolve("target/classes");
-        if (Files.isDirectory(cwdClasses) && Files.exists(cwdClasses.resolve("ai/pijota/Main.class")))
+        if (Files.isDirectory(cwdClasses) && Files.exists(cwdClasses.resolve("org/pijota/Main.class")))
             return cwdClasses + File.pathSeparator + System.getProperty("java.class.path", "");
         return ".";
     }

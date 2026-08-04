@@ -429,8 +429,13 @@ class SelfRespawnTest {
     @Test
     void jvmOptionsCarriesSystemPropertiesAndNothingElse() {
         var options = SelfRespawn.jvmOptions();
+
+        // The marker comes from surefire's argLine, so this asserts against a -D the JVM really was started with.
+        // Without one the list is empty and every assertion below holds no matter what the code does.
+        assertTrue(options.contains("-Dpijota.test.propagationMarker=observed"),
+                                        "the test JVM's own -D must be captured: " + options);
         assertTrue(options.stream().allMatch(o -> o.startsWith("-D")),
-                                        "heap sizing and agent flags belong to the launcher's JVM: " + options);
+                                        "heap sizing and JVMCI flags belong to the launcher's JVM: " + options);
 
         String key = "pijota.test.respawn.propagation";
         System.setProperty(key, "x");

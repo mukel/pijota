@@ -56,7 +56,8 @@ final class Supervisor {
         }
     }
 
-    private static List<String> initialWorkerCommand(String[] originalArgs) {
+    /** Package-private so the -D propagation can be asserted; it has no other reason to be visible. */
+    static List<String> initialWorkerCommand(String[] originalArgs) {
         var command = new ArrayList<String>();
         command.add(SelfRespawn.resolveJava());
         command.addAll(SelfRespawn.jvmOptions());

@@ -235,6 +235,11 @@
                to JVM-startup overhead). Safe here, tests use ephemeral ports and per-JVM system properties. -->
           <forkCount>4</forkCount>
           <reuseForks>true</reuseForks>
+          <!-- A real -D on the forked JVM's command line, so the tests that assert pijota propagates system
+               properties to its worker and sub-agent processes have something to observe. Surefire's
+               systemPropertyVariables below do not appear in getInputArguments(), so without this those tests assert
+               against an empty list and pass no matter what the code does. -->
+          <argLine>-Dpijota.test.propagationMarker=observed</argLine>
           <!-- Collapse BrowserSession's settle/consent waits (no protocol event to react to) against the instantly-
                ready FakeChrome; the load wait itself is event-driven. Cuts ~30s off the suite. Test-only: the
                packaged/native build skips tests, so this never reaches a production artifact. -->

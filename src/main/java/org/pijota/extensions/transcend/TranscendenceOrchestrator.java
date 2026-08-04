@@ -353,7 +353,7 @@ final class TranscendenceOrchestrator {
                                                 + ". Use worktree=\"" + finalWorktree
                                                 + "\" for ALL transcendence actions " + "(build, test, respawn).\n\n"
                                                 + "Workflow:\n" + "1. Edit source files under " + finalWorktree
-                                                + "/src/main/java/ai/pijota/\n"
+                                                + "/src/main/java/org/pijota/\n"
                                                 + "2. transcendence action=\"build\" worktree=\"" + finalWorktree
                                                 + "\"\n" + "3. transcendence action=\"test\" worktree=\""
                                                 + finalWorktree + "\"\n"

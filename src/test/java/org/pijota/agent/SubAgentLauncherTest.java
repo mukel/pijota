@@ -1,11 +1,14 @@
 package org.pijota.agent;
 
+import org.pijota.util.SelfRespawn;
 import org.pijota.util.Util;
 
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -46,21 +49,45 @@ class SubAgentLauncherTest {
         assertEquals(before + 1, cmd.size());
     }
 
+    /**
+     * When java.class.path is empty the launcher falls back to the build output it can find. The fallback used to
+     * accept {@code "."} as a pass, which is the value returned when every branch has failed: it looked for
+     * {@code ai/pijota/Main.class} after the package moved to {@code org.pijota}, so no branch could match and the test
+     * still went green. The child would then have launched with a classpath containing no pijota at all.
+     */
     @Test
-    void resolveClasspathFallsBackToCwdTargetClassesWhenNoParentClasspath() {
-        // When java.class.path is empty, the launcher falls back to the build output it can find. This project's
-        // own target/classes (relative to the working dir) satisfies that fallback during the test run.
+    void resolveClasspathFindsARealBuildWhenThereIsNoParentClasspath() {
         String saved = System.getProperty("java.class.path");
         try {
             System.setProperty("java.class.path", "");
             var cmd = SubAgentLauncher.agentCommand(System.getProperty("user.dir"));
-            int cpIndex = cmd.indexOf("-cp");
-            String classpath = cmd.get(cpIndex + 1);
-            assertTrue(classpath.contains("target" + File.separator + "classes") || classpath.endsWith(".jar")
-                                            || classpath.equals("."), "unexpected fallback classpath: " + classpath);
+            String classpath = cmd.get(cmd.indexOf("-cp") + 1);
+
+            assertNotEquals(".", classpath, "'.' is the give-up value, not a fallback");
+            String first = classpath.split(File.pathSeparator, 2)[0];
+            assertTrue(first.endsWith(".jar") || Files.exists(Path.of(first).resolve("org/pijota/Main.class")),
+                                            "the child must be able to load Main from it: " + classpath);
         } finally {
             System.setProperty("java.class.path", saved);
         }
+    }
+
+    /**
+     * A sub-agent is a fresh JVM built from scratch, so it inherits no system property unless one is passed. Without
+     * this it read {@code ~/.pijota} while its parent used the home it was pointed at, and wrote its logs, sessions and
+     * trust decisions there.
+     */
+    @Test
+    void agentCommandCarriesSystemPropertiesToTheChild() {
+        var expected = SelfRespawn.jvmOptions();
+        // From surefire's argLine. Asserting against an empty list would pass however the command is built.
+        assertFalse(expected.isEmpty(), "the test JVM must be started with a -D for this to mean anything");
+
+        var cmd = SubAgentLauncher.agentCommand(System.getProperty("user.dir"));
+        assertTrue(cmd.containsAll(expected), "every -D the parent got must reach the child: " + cmd);
+        // and they must precede -cp and the main class, or java reads them as program arguments
+        for (String option : expected)
+            assertTrue(cmd.indexOf(option) < cmd.indexOf("-cp"), option + " came after -cp: " + cmd);
     }
 
     @Test
