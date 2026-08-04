@@ -30,7 +30,7 @@ not permission to go looking.
 | to add a provider credential | `pj login [provider]` -- OAuth where the provider offers it, otherwise it asks for the key and stores it. `pj logout <provider>` forgets it |
 | more or less reasoning | `Shift+Tab`, or start with `--thinking off\|minimal\|low\|medium\|high\|xhigh\|max` |
 | a different theme | `/theme` -- lists the available ones and switches |
-| to load this project's `AGENTS.md` and `.pijota/` | `/trust` |
+| to load this project's `AGENTS.md` and `.pijota/` | `/trust`; `-a` for one run; `"default_project_trust": "always"` to stop being asked (`"ask"` default, `"never"` refuses) |
 | to stop the running turn | `Esc` (twice forces). `Ctrl+C` clears the line -- twice **exits** |
 | to set the turn aside, still running | `Ctrl+B` twice, or `/bg` -- inside tmux the chord is the tmux prefix, so use the command; it becomes a job (`/jobs`, `/kill <id>`) |
 | to take back the last turn | `/undo` -- drops it and puts the text back in the prompt to edit and resend |
@@ -40,6 +40,7 @@ not permission to go looking.
 | to know what is in context | `/context`; `/usage` for tokens and cost |
 | to shrink the context | `/compact` |
 | to share a conversation | `/export` (Markdown), `/export html`, or `--export <file>` |
+| to open the running session in a browser | `/remote-control` |
 | to start fresh | `/new` |
 | to see the loaded skills | `/skills` |
 | fewer tools this run | `--readonly`, or `--tool <name>` / `--no-tool <name>` (repeatable) |
@@ -56,6 +57,13 @@ repeat it.
 **A command changes the running session; `settings.json` changes the default.** `/model`
 switches the model for this session only -- it does not write `default_model`. Never claim a
 command persists unless you have checked. When the user says "permanently", set the key too.
+
+## Other ways to run it
+
+`pj web [host:port]` browser UI · `pj acp` in an editor (Zed, JetBrains) · `pj telegram` bot ·
+`pj -p "..."` one shot for scripts, with `--mode json` for machine-readable events ·
+`--browse` browser automation · `-a` trusts this folder for the run without asking (`-na`
+refuses) · `pj worktree` a reusable pool of git worktrees.
 
 ## Ask pijota instead of recalling
 
@@ -94,7 +102,9 @@ is trusted, since they run code from that repository.
 
 ## Editing settings.json
 
-The keys (anything else is ignored, so a typo silently never applies):
+The keys (anything else is ignored, so a typo silently never applies). Several that read like
+booleans are strings -- `default_project_trust` is `"ask"`/`"always"`/`"never"`, `thinking_level`
+is a level name -- so check the current value before writing a new one:
 
 `default_provider` `default_model` `api_keys` `aliases` `enabled_models` `theme` `themes`
 `thinking_level` `max_turns` `context_files` `default_project_trust` `session_dir`
