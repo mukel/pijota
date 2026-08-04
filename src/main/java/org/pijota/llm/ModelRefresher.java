@@ -33,6 +33,24 @@ public final class ModelRefresher {
     private ModelRefresher() {}
 
     public record Result(int providersChecked, int modelsFound, List<String> errors) {
+
+        /**
+         * What the refresh did, in one line, for whichever frontend asked.
+         *
+         * <p>
+         * The TUI and the CLI described the same event in two different wordings, each written where it was printed.
+         * Neither said the result is kept, so the command read as something to run again every session, which is
+         * exactly what it used to be before the cache. "0 models from 0 providers" was the answer whenever nothing was
+         * configured: two numbers and no cause.
+         */
+        public String summary() {
+            if (providersChecked == 0)
+                return "No provider to ask: none has a credential yet, and none is configured without one.";
+            String asked = Util.plural(providersChecked, "provider");
+            if (modelsFound == 0)
+                return "Asked " + asked + "; none offered a model list.";
+            return "Found " + Util.plural(modelsFound, "model") + " from " + asked + ", remembered for next time.";
+        }
     }
 
     public static Result refresh(SettingsManager settings) {

@@ -89,8 +89,12 @@ public final class ModelRegistry {
      * The discovered list used to live only in this class's static field, so a refresh died with the process: a user
      * who ran {@code /refresh} to find their provider's newer models had to run it again in every session, forever.
      * Only the discovered models are written; the built-ins are already in the binary and would just go stale on disk.
+     *
+     * <p>
+     * Private: this replaces the file outright, which is only ever right for the merged list the overload above builds.
+     * Reachable on its own, it is a way to erase every provider's discovery by saving one provider's.
      */
-    public static synchronized void saveDiscovered(List<ModelInfo> discovered) {
+    private static synchronized void saveDiscovered(List<ModelInfo> discovered) {
         replaceDiscovered(discovered);
         try {
             Path file = cacheFile();

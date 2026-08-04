@@ -56,7 +56,7 @@ class ModelCachePersistsTest {
     @Test
     void aSavedDiscoveryIsAppliedByTheNextProcess(@TempDir Path home) throws Exception {
         withHome(home, () -> {
-            ModelRegistry.saveDiscovered(List.of(LOCAL));
+            ModelRegistry.saveDiscovered(List.of(LOCAL), Set.of("mylocal"));
             assertTrue(Files.isRegularFile(ModelRegistry.cacheFile()), "the refresh must reach disk");
 
             // What a fresh process does: nothing in memory, then the cache.
@@ -73,7 +73,7 @@ class ModelCachePersistsTest {
     @Test
     void onlyTheDiscoveredModelsAreWritten(@TempDir Path home) throws Exception {
         withHome(home, () -> {
-            ModelRegistry.saveDiscovered(List.of(LOCAL));
+            ModelRegistry.saveDiscovered(List.of(LOCAL), Set.of("mylocal"));
             String written = Files.readString(ModelRegistry.cacheFile());
 
             assertTrue(written.contains("my-local-llama-70b"), written);
@@ -85,7 +85,7 @@ class ModelCachePersistsTest {
     @Test
     void loadingTheCacheKeepsTheBuiltInCatalog(@TempDir Path home) throws Exception {
         withHome(home, () -> {
-            ModelRegistry.saveDiscovered(List.of(LOCAL));
+            ModelRegistry.saveDiscovered(List.of(LOCAL), Set.of("mylocal"));
             ModelRegistry.loadDiscoveredCache();
 
             assertFalse(ModelRegistry.forProvider("anthropic").isEmpty(), "the bundled catalog must survive");
@@ -128,7 +128,8 @@ class ModelCachePersistsTest {
     @Test
     void modelsFromAProviderThatNoLongerExistsAreDropped(@TempDir Path home) throws Exception {
         withHome(home, () -> {
-            ModelRegistry.saveDiscovered(List.of(new ModelInfo("ghost", "deleted-provider", "Ghost", 128_000L)));
+            ModelRegistry.saveDiscovered(List.of(new ModelInfo("ghost", "deleted-provider", "Ghost", 128_000L)),
+                                            Set.of("deleted-provider"));
             ModelRegistry.replaceDiscovered(List.of());
 
             ModelRegistry.loadDiscoveredCache();
@@ -143,7 +144,8 @@ class ModelCachePersistsTest {
     void modelsFromAProviderThatStillExistsSurvive(@TempDir Path home) throws Exception {
         withHome(home, () -> {
             var known = ModelRegistry.KNOWN_MODELS.getFirst().provider(); // a built-in, so certainly in the catalog
-            ModelRegistry.saveDiscovered(List.of(new ModelInfo("brand-new-id", known, "Brand New", 128_000L)));
+            ModelRegistry.saveDiscovered(List.of(new ModelInfo("brand-new-id", known, "Brand New", 128_000L)),
+                                            Set.of(known));
             ModelRegistry.replaceDiscovered(List.of());
 
             ModelRegistry.loadDiscoveredCache();

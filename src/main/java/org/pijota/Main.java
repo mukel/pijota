@@ -538,12 +538,9 @@ public final class Main {
         AppBootstrap.prepareModelCatalog(settings);
         var result = ModelRefresher.refresh(settings);
 
-        if (result.providersChecked() == 0) {
-            System.out.println("No provider to ask: none has a credential yet, and none is configured without one.");
+        System.out.println(result.summary());
+        if (result.providersChecked() == 0)
             return 1;
-        }
-        System.out.println("Asked " + Util.plural(result.providersChecked(), "provider") + ", found "
-                                        + Util.plural(result.modelsFound(), "model") + ".");
         // Each failure on its own line, and never fatal: one unreachable provider must not discard what the others
         // answered, which has already been saved by this point.
         for (String error : result.errors())

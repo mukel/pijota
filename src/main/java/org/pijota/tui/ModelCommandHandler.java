@@ -5,7 +5,6 @@ import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelInfo;
 import org.pijota.llm.ModelRefresher;
 import org.pijota.llm.ModelRegistry;
-import org.pijota.util.Util;
 
 import java.util.List;
 
@@ -74,28 +73,11 @@ final class ModelCommandHandler {
             return;
         }
         var result = ModelRefresher.refresh(host.settings());
-        host.appendPlain(List.of(host.styled("statusText", refreshSummary(result))));
+        host.appendPlain(List.of(host.styled("statusText", result.summary())));
         for (String error : result.errors()) {
             host.appendPlain(List.of(host.styled("toolError", "refresh: " + error)));
         }
         host.redrawPrompt();
-    }
-
-    /**
-     * What the refresh did, in the terms the user asked it in.
-     *
-     * <p>
-     * "refreshed 0 models from 0 provider(s)" was the answer whenever nothing was configured, which names two numbers
-     * and no cause. It also never said the result is kept, so the command looked like something to run again every
-     * session, which is exactly what it used to be.
-     */
-    static String refreshSummary(ModelRefresher.Result result) {
-        if (result.providersChecked() == 0)
-            return "no provider to ask: none has a credential yet";
-        String asked = Util.plural(result.providersChecked(), "provider");
-        if (result.modelsFound() == 0)
-            return "asked " + asked + "; none offered a model list";
-        return "found " + Util.plural(result.modelsFound(), "model") + " from " + asked + ", remembered for next time";
     }
 
     void cycleModel(int direction) {

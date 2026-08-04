@@ -98,7 +98,14 @@ public final class ArgParser {
                 }
                 // Discovery is otherwise reachable only from the TUI's /refresh, which leaves a keyless local
                 // provider (nothing to log in to) and every headless run with no way to ask at all.
-                case "--refresh-models" -> refreshModels = true;
+                case "--refresh-models" -> {
+                    refreshModels = true;
+                    // Same optional filter as its twin, and it shares the field: without this the filter was taken
+                    // as a prompt and silently ignored, so the command listed everything and looked like it worked.
+                    String filter = cursor.optionalValue();
+                    if (filter != null)
+                        listModelsFilter = filter;
+                }
                 case "--print", "-p" -> {
                     print = true;
                     String prompt = cursor.optionalPromptValue();
@@ -227,7 +234,7 @@ public final class ArgParser {
                                         MISC:
                                           --export <file>           Export session to Markdown
                                           --list-models [filter]    List available models
-                                          --refresh-models          Ask each provider what it serves, and remember it
+                                          --refresh-models [filter] Ask each provider what it serves, and remember it
                                           --verbose                 Debug logging to ~/.pijota/logs
                                           --help, -h                Show this help
                                           --version, -v             Show version

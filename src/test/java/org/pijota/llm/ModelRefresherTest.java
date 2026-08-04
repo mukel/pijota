@@ -9,6 +9,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -151,5 +152,19 @@ class ModelRefresherTest {
         // ErrorUtil digs the human sentence out of a provider's JSON error body; the braces never reach the user.
         assertTrue(jsonBody.contains("Incorrect API key"), "the useful part survives: " + jsonBody);
         assertFalse(jsonBody.contains("{"), "no raw JSON: " + jsonBody);
+    }
+
+    /**
+     * One wording for both frontends. The TUI and the CLI each had their own, and neither said the result is kept, so
+     * the command read as something to run again every session, which is what it used to be before the cache.
+     */
+    @Test
+    void theSummarySaysWhatHappenedAndThatItSticks() {
+        assertEquals("No provider to ask: none has a credential yet, and none is configured without one.",
+                                        new ModelRefresher.Result(0, 0, List.of()).summary());
+        assertEquals("Asked 2 providers; none offered a model list.",
+                                        new ModelRefresher.Result(2, 0, List.of()).summary());
+        assertEquals("Found 7 models from 1 provider, remembered for next time.",
+                                        new ModelRefresher.Result(1, 7, List.of()).summary());
     }
 }

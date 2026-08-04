@@ -510,9 +510,14 @@ class ArgParserTest {
         assertFalse(ArgParser.parse(new String[] {"--list-models"}).refreshModels(),
                                         "listing must not ask the network");
 
-        var filtered = ArgParser.parse(new String[] {"--refresh-models", "--list-models", "mylocal"});
+        // The documented form. Without its own optionalValue the filter was taken as a prompt and silently ignored,
+        // so the command listed everything and looked like it had worked.
+        var filtered = ArgParser.parse(new String[] {"--refresh-models", "mylocal"});
         assertTrue(filtered.refreshModels());
         assertEquals("mylocal", filtered.listModelsFilter());
+        assertTrue(filtered.promptArgs().isEmpty(), "the filter is not a prompt: " + filtered.promptArgs());
+
+        assertNull(ArgParser.parse(new String[] {"--refresh-models"}).listModelsFilter(), "the filter is optional");
     }
 
     @Test
