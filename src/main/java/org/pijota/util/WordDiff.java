@@ -110,7 +110,12 @@ public final class WordDiff {
                 unchanged++;
         // Against the longer side: a short line rewritten into a long one shares little of what the reader now sees.
         int longest = Math.max(oldTokens.size(), newTokens.size());
-        if (longest == 0 || (double) unchanged / longest < MIN_UNCHANGED_RATIO)
+        // The gate exists so a rewrite is not painted end to end. A change only in blank characters is the opposite
+        // problem: without emphasis the two rows are indistinguishable, so the diff shows a change and no way to see
+        // it. Retabbing, a stray trailing space and a smuggled non-breaking space all land here, and all of them are
+        // short enough that the ratio would otherwise refuse them.
+        boolean whitespaceOnly = sameIgnoringWhitespace(oldTokens, newTokens);
+        if (!whitespaceOnly && (longest == 0 || (double) unchanged / longest < MIN_UNCHANGED_RATIO))
             return Result.none();
 
         var oldSpans = new ArrayList<Span>();
@@ -135,6 +140,29 @@ public final class WordDiff {
             }
         }
         return new Result(oldSpans, newSpans);
+    }
+
+    /** Whether the two lines say the same thing and differ only in how they are spaced. */
+    private static boolean sameIgnoringWhitespace(List<String> oldTokens, List<String> newTokens) {
+        return withoutWhitespace(oldTokens).equals(withoutWhitespace(newTokens));
+    }
+
+    private static List<String> withoutWhitespace(List<String> tokens) {
+        return tokens.stream().filter(t -> !looksBlank(t)).toList();
+    }
+
+    /**
+     * Whether a token renders as blank, which is a wider question than {@link Character#isWhitespace}.
+     *
+     * <p>
+     * A non-breaking space is not whitespace by that definition, yet it is indistinguishable from a space on screen.
+     * That is exactly what makes one smuggled into indentation worth showing: the two rows look identical, so without
+     * emphasis the diff reports a change the reader cannot find.
+     */
+    private static boolean looksBlank(String token) {
+        return !token.isEmpty() && token.codePoints().allMatch(cp -> Character.isWhitespace(cp)
+                                        || Character.getType(cp) == Character.SPACE_SEPARATOR
+                                        || Character.getType(cp) == Character.FORMAT);
     }
 
     /** Adjacent changed tokens are one region: three highlights with no gap read as one anyway, and cost three. */

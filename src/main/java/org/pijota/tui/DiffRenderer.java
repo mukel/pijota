@@ -171,7 +171,10 @@ final class DiffRenderer {
         String painted = withBackground(body, 0,
                                         offset -> wordBg.isBlank() || !WordDiff.covers(spans, offset) ? rowBg : wordBg);
         var fragments = AnsiWidth.wrapPrefixed(painted, width, prefix, r -> indent + r);
-        return fragments.stream().map(fragment -> rowBg + fragment + pad + theme.reset()).toList();
+        // rowBg twice: once so the gutter carries it, and again for the pad, because the painted body ends with a
+        // reset. Without the second the row background stopped at the last character instead of one column past it,
+        // which is what marks where the changed text ends.
+        return fragments.stream().map(fragment -> rowBg + fragment + rowBg + pad + theme.reset()).toList();
     }
 
     private String withBackground(String slot, String line) {

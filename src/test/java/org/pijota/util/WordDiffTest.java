@@ -203,4 +203,87 @@ class WordDiffTest {
         assertFalse(WordDiff.covers(spans, 5), "the range is half-open");
         assertFalse(WordDiff.covers(List.of(), 0));
     }
+
+    // ---------- whitespace: the changes a reader cannot otherwise see ----------
+
+    @Test
+    void aTabIsItsOwnTokenLikeAnyOtherWhitespace() {
+        assertEquals(List.of("\t", "if", " ", "(", "a", ")"), WordDiff.tokenize("\tif (a)"));
+    }
+
+    /** A run of mixed whitespace is one token: it is one stretch of blank to a reader, however it is spelled. */
+    @Test
+    void mixedWhitespaceRunsIntoASingleToken() {
+        assertEquals(List.of("  \t ", "x"), WordDiff.tokenize("  \t x"));
+    }
+
+    /**
+     * Retabbing is the change that is hardest to see and easiest to make by accident. Emphasis is a background, so it
+     * shows on blank characters, which is the one thing a foreground highlight could never do.
+     */
+    @Test
+    void spacesBecomingATabIsEmphasised() {
+        assertEquals(List.of("    "), oldHighlights("    a();", "\ta();"));
+        assertEquals(List.of("\t"), newHighlights("    a();", "\ta();"));
+    }
+
+    @Test
+    void aTabBecomingSpacesIsEmphasised() {
+        assertEquals(List.of("\t"), oldHighlights("\ta();", "    a();"));
+        assertEquals(List.of("    "), newHighlights("\ta();", "    a();"));
+    }
+
+    @Test
+    void trailingWhitespaceAddedIsEmphasised() {
+        assertEquals(List.of(), oldHighlights("int x = 1;", "int x = 1;   "));
+        assertEquals(List.of("   "), newHighlights("int x = 1;", "int x = 1;   "));
+    }
+
+    @Test
+    void trailingWhitespaceRemovedIsEmphasised() {
+        assertEquals(List.of("   "), oldHighlights("int x = 1;   ", "int x = 1;"));
+        assertEquals(List.of(), newHighlights("int x = 1;   ", "int x = 1;"));
+    }
+
+    @Test
+    void aChangeInTheAmountOfWhitespaceIsEmphasised() {
+        assertEquals(List.of("  "), oldHighlights("a  b", "a b"));
+        assertEquals(List.of(" "), newHighlights("a  b", "a b"));
+    }
+
+    @Test
+    void deeperIndentationIsEmphasisedAndShallowerIsToo() {
+        assertEquals(List.of("        "), newHighlights("    x();", "        x();"));
+        assertEquals(List.of("  "), newHighlights("    x();", "  x();"));
+    }
+
+    /** A line that is only whitespace still diffs; there is nothing else on it to compare. */
+    @Test
+    void aWhitespaceOnlyLineIsComparedAsWhitespace() {
+        var result = WordDiff.spans("    ", "\t");
+        assertFalse(result.isEmpty(), "one blank line became another kind of blank line");
+        assertEquals(List.of("    "), highlighted("    ", result.oldSpans()));
+        assertEquals(List.of("\t"), highlighted("\t", result.newSpans()));
+    }
+
+    @Test
+    void anEmptyLineGainingWhitespaceIsEmphasised() {
+        assertEquals(List.of("   "), newHighlights("", "   "));
+    }
+
+    /**
+     * A non-breaking space is not whitespace to {@link Character#isWhitespace}, so it tokenises on its own rather than
+     * joining the run beside it. That is the behaviour worth pinning: it means an NBSP smuggled into indentation shows
+     * up as its own changed token instead of hiding inside a blank run.
+     */
+    @Test
+    void aNonBreakingSpaceIsNotTreatedAsOrdinaryWhitespace() {
+        assertEquals(List.of(" ", "\u00A0", " ", "x"), WordDiff.tokenize(" \u00A0 x"));
+        assertFalse(WordDiff.spans("  x", " \u00A0x").isEmpty(), "a smuggled NBSP is a real difference");
+    }
+
+    @Test
+    void bothEndsOfALineCanChangeAtOnce() {
+        assertEquals(List.of("  ", "   "), newHighlights("    x();", "  x();   "));
+    }
 }

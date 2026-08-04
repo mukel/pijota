@@ -64,6 +64,20 @@ class DiffWordEmphasisTest {
         return esc.contains("48;") || esc.matches("\033\\[[34][0-9]m");
     }
 
+    /**
+     * The added or removed row of a one-line change. When only whitespace moved, both rows carry the same visible text,
+     * so naming a row by its content picks whichever came first: the marker is the only thing that tells them apart.
+     */
+    private static String markedRow(List<String> lines, char marker) {
+        return lines.stream().filter(l -> {
+            String p = plain(l).stripTrailing();
+            int at = p.indexOf(marker);
+            // the marker sits in the gutter, after the line numbers and before the code
+            return at > 0 && at < 10 && p.substring(0, at).chars().allMatch(c -> c == ' ' || Character.isDigit(c));
+        }).findFirst().orElseThrow(() -> new AssertionError("no '" + marker + "' row in:\n  " + String.join("\n  ",
+                                        lines.stream().map(DiffWordEmphasisTest::plain).toList())));
+    }
+
     /** The one line of the diff that shows {@code text}, so a test can name the row it means. */
     private static String rowContaining(List<String> lines, String text) {
         return lines.stream().filter(l -> plain(l).contains(text)).findFirst()
@@ -219,5 +233,80 @@ class DiffWordEmphasisTest {
 
         assertNotEquals(theme.style("diffAddLine"), theme.style("diffAddWord"), name + ": added words vanish");
         assertNotEquals(theme.style("diffDeleteLine"), theme.style("diffDeleteWord"), name + ": removed words vanish");
+    }
+
+    // ---------- whitespace and tabs, as painted ----------
+
+    /**
+     * Line terminators are not compared, so converting a file between CRLF and LF changes no line and the renderer
+     * draws nothing. Pinned here because "no diff" then means "only the terminators moved", which is worth knowing.
+     */
+    @Test
+    void aLineEndingConversionRendersNothingAtAll() {
+        assertTrue(render("a\nb\n", "a\r\nb\r\n", 100).isEmpty(),
+                                        "nothing changed line for line, so there is nothing to draw");
+    }
+
+    /**
+     * The change a reader can least afford to miss and can least easily see. Foreground emphasis could not show it at
+     * all: there is no glyph to recolour. A background can.
+     */
+    @Test
+    void trailingWhitespaceIsMadeVisibleByTheBackground() {
+        var lines = render("int x = 1;\n", "int x = 1;   \n", 100);
+
+        String added = markedRow(lines, '+');
+        assertEquals("   ", emphasised(added, THEME.style("diffAddWord")),
+                                        "the three added spaces are the whole change and must be painted");
+    }
+
+    @Test
+    void retabbingIsMadeVisibleByTheBackground() {
+        var lines = render("\tif (a) {\n", "    if (a) {\n", 100);
+
+        String added = markedRow(lines, '+');
+        assertEquals("    ", emphasised(added, THEME.style("diffAddWord")), "the new indentation is the change");
+    }
+
+    /**
+     * Tabs never reach the terminal: the wrapper turns each into spaces to a four-column stop, because a tab moves the
+     * cursor without overwriting what it skips. Emphasis has to land on the spaces that replaced it.
+     */
+    @Test
+    void emphasisOnATabIndentedLineLandsOnTheExpandedSpaces() {
+        var lines = render("\tfmt.Println(\"old\")\n", "\tfmt.Println(\"new\")\n", 100);
+
+        String added = rowContaining(lines, "new");
+        assertEquals("new", emphasised(added, THEME.style("diffAddWord")), plain(added));
+        assertFalse(plain(added).contains("\t"), "a raw tab reached the terminal and will not overwrite what it skips");
+    }
+
+    /**
+     * The row background reaches one column past the text, marking where the change ends. Painting the body before
+     * wrapping once dropped it, because the painted body ends with a reset and the trailing pad came after.
+     */
+    @Test
+    void theRowBackgroundExtendsPastTheEndOfTheText() {
+        String added = rowContaining(render("int a = 1;\n", "int b = 1;\n", 100), "int b = 1;");
+
+        int lastReset = added.lastIndexOf("\033[0m");
+        String tail = added.substring(0, lastReset);
+        assertTrue(tail.endsWith(THEME.style("diffAddLine") + " "), "the row should end with its background and a pad: "
+                                        + added.replace("\033", "ESC"));
+    }
+
+    /**
+     * A line that is nothing but blank changing from spaces to a tab. Two rows that render identically, and the pair
+     * shares no token at all, so the similarity gate would refuse it: without the whitespace bypass the diff reports a
+     * change and gives the reader no way to see it. The strongest case for painting with a background.
+     */
+    @Test
+    void aWhitespaceOnlyLineStillShowsWhatChanged() {
+        var lines = render("if (a) {\n    \n}\n", "if (a) {\n\t\n}\n", 100);
+
+        assertEquals("    ", emphasised(markedRow(lines, '-'), THEME.style("diffDeleteWord")),
+                                        "the old blank line is the whole of what was removed");
+        assertEquals("    ", emphasised(markedRow(lines, '+'), THEME.style("diffAddWord")),
+                                        "and the tab, expanded to spaces, is the whole of what replaced it");
     }
 }
