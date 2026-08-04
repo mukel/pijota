@@ -31,6 +31,22 @@ final class TuiCopy {
     static final String CHIP = " · ";
     static final String GROUP = "  ";
 
+    /**
+     * The status-line cue while the model is still emitting a tool call: {@code write 12.3K chars}.
+     *
+     * <p>
+     * One field, so a space and not a {@link #CHIP}: the tool and its size are one fact, and chipping them apart put
+     * the tool, the size and the elapsed counter on the line as three peers of the same kind.
+     *
+     * <p>
+     * {@link org.pijota.util.Util#fmtCountPrecise} and not {@code fmtCount}: whole-thousand rounding leaves the number
+     * identical for a thousand characters, which on a slow write is half a minute of a counter whose entire job is to
+     * prove that something is still moving.
+     */
+    static String toolProgress(String toolName, int chars) {
+        return toolName + " " + org.pijota.util.Util.fmtCountPrecise(chars) + " chars";
+    }
+
     static final String SELECTOR_HINT = "↑/↓ navigate · Enter select · Esc cancel · type to search";
 
     private TuiCopy() {}

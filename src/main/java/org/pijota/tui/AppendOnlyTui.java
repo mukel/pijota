@@ -2306,7 +2306,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             // The one signal that says the model is still producing rather than merely still connected. Text and
             // thinking already grow on screen; a tool call's arguments used to arrive with nothing to show for them.
             case AgentEvent.ToolCallProgress(String toolName, int chars) -> {
-                activity.setPhase(toolName + TuiCopy.CHIP + Util.fmtCount(chars));
+                activity.setPhase(TuiCopy.toolProgress(toolName, chars));
                 redrawPrompt();
             }
             case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
