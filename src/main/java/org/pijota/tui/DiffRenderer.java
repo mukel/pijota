@@ -215,7 +215,12 @@ final class DiffRenderer {
         // width - 1 leaves room for the pad, which is appended after wrapping. Without it a row that fills the
         // terminal exactly comes out one column too wide, the terminal wraps it, and a blank line appears in the
         // middle of a wrapped row. The header guards its own rule the same way, for the same reason.
-        var fragments = AnsiWidth.wrapPrefixed(painted, width - 1, prefix, r -> indent + r);
+        // The gutter is two styled runs and a bare space, and each styled run closes with a full reset that takes the
+        // row background down with it. That left the marker and the space after it as the only cells of a changed row
+        // without one: a two column notch bitten out of the highlight, right where the eye goes to read the sign.
+        // Painting it re-opens the background after each reset, exactly as the body is painted below.
+        var fragments = AnsiWidth.wrapPrefixed(painted, width - 1, withBackground(prefix, 0, offset -> rowBg),
+                                        r -> indent + r);
         // rowBg twice: once so the gutter carries it, and again for the pad, because the painted body ends with a
         // reset. Without the second the row background stopped at the last character instead of one column past it,
         // which is what marks where the changed text ends.

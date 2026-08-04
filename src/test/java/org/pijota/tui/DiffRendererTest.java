@@ -45,6 +45,70 @@ class DiffRendererTest {
         assertTrue(header.contains("-1"), "expected '-1' in header: " + header);
     }
 
+    /** Which columns of a rendered row carry any background at all, by tracking what is in force. */
+    private static String backgroundMap(String line) {
+        var out = new StringBuilder();
+        boolean on = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch == 0x1b) {
+                int end = line.indexOf('m', i);
+                String esc = line.substring(i, end + 1);
+                if (esc.equals("\033[0m"))
+                    on = false;
+                else if (esc.contains("48;"))
+                    on = true;
+                i = end;
+                continue;
+            }
+            out.append(on ? '#' : '.');
+        }
+        return out.toString();
+    }
+
+    private static String rowContaining(List<String> lines, String text) {
+        return lines.stream().filter(l -> AnsiStripper.strip(l).contains(text)).findFirst().orElseThrow();
+    }
+
+    /**
+     * A changed row is a band of colour, and the marker is part of what the band is saying. The gutter is two styled
+     * runs and a bare space, and each styled run closes with a full reset that took the row background down with it, so
+     * the marker and the space after it were the only cells of the row without one: a two column notch bitten out of
+     * the highlight, exactly where the eye goes to read the sign.
+     */
+    @Test
+    void everyCellOfAChangedRowCarriesTheRowBackground() {
+        var lines = new DiffRenderer(AnsiTheme.dark()).render("edit", "X.java", "keep;\nold value;\ntail;\n",
+                                        "keep;\nnew value;\ntail;\n", 44);
+
+        for (String text : List.of("old value;", "new value;")) {
+            String map = backgroundMap(rowContaining(lines, text));
+            assertFalse(map.contains("."), () -> "a changed row has a gap in its background:\n  " + map + "\n  "
+                                            + AnsiStripper.strip(rowContaining(lines, text)));
+        }
+    }
+
+    /**
+     * The continuation of a wrapped changed row is the same band, including the indent that stands in for the gutter.
+     */
+    @Test
+    void aWrappedChangedRowKeepsTheBackgroundOnItsContinuation() {
+        var lines = new DiffRenderer(AnsiTheme.dark()).render("edit", "X.java", "keep;\n" + "alpha ".repeat(12) + "\n",
+                                        "keep;\n" + "omega ".repeat(12) + "\n", 40);
+
+        String continuation = backgroundMap(rowContaining(lines, "omega omega omega"));
+        assertFalse(continuation.contains("."), () -> "a wrapped continuation has a gap: " + continuation);
+    }
+
+    /** Context rows are not part of any change, so they carry no band and must not grow one. */
+    @Test
+    void aContextRowCarriesNoBackgroundAtAll() {
+        var lines = new DiffRenderer(AnsiTheme.dark()).render("edit", "X.java", "keep;\nold;\n", "keep;\nnew;\n", 44);
+
+        String map = backgroundMap(rowContaining(lines, "keep;"));
+        assertFalse(map.contains("#"), () -> "an unchanged row should be plain: " + map);
+    }
+
     @Test
     void aLongPathKeepsTheHeaderOnOneRow() {
         // An absolute path longer than the terminal used to wrap mid-path, so the header broke across two rows and
