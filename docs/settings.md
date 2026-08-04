@@ -75,7 +75,7 @@
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `context_files` | boolean | `true` | load `AGENTS.md`, `CLAUDE.md`, `.pijota/CONTEXT.md` |
+| `context_files` | boolean | `true` | load `AGENTS.md` (or `CLAUDE.md`), `.pijota/CONTEXT.md` |
 | `compaction.enabled` | boolean | `true` | compact as the window fills |
 | `compaction.reserve_tokens` | integer | `16384` | headroom kept for the next turn |
 | `compaction.keep_recent_tokens` | integer | `20000` | recent conversation left uncompacted |

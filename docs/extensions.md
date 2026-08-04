@@ -36,7 +36,7 @@ pj --suggest=~/prompts/suggest.md      # a readable path is read as the prompt
 | `mcp` | [MCP](project-files.md#mcp-servers) servers' tools |
 | `skills` | skill discovery |
 | `prompt-templates` | `/<name>` expansion |
-| `context-files` | `AGENTS.md`, `CLAUDE.md`, `.pijota/CONTEXT.md` |
+| `context-files` | `AGENTS.md` (or `CLAUDE.md`), `.pijota/CONTEXT.md` |
 | `security` | blocks `sudo`, `rm -rf`, `dd`, pipe-to-shell |
 | `filter-output` | redacts secrets before they reach the model |
 | `goal` | goal tracking and continuation |

@@ -4,7 +4,7 @@
 
 | Path | Is |
 |---|---|
-| `AGENTS.md`, `CLAUDE.md` | instructions injected into context |
+| `AGENTS.md` (or `CLAUDE.md`) | instructions injected into context |
 | `.pijota/CONTEXT.md` | the same, pijota-specific |
 | `.pijota/skills/<name>/SKILL.md` | project skills |
 | `.pijota/agents/*.md` | project sub-agents |
@@ -36,8 +36,17 @@ to `default_project_trust`:
 
 ## Context files
 
-`AGENTS.md`, `CLAUDE.md` and `.pijota/CONTEXT.md` go into the system prompt. Disable with
-`--no-context-files` or `"context_files": false`.
+`AGENTS.md` and `.pijota/CONTEXT.md` go into the system prompt, searching upward from the
+working directory. Disable with `--no-context-files` or `"context_files": false`.
+
+`AGENTS.md` is the cross-tool standard, so it is the one pijota reads. `CLAUDE.md` is a
+fallback used only where a directory has no `AGENTS.md`: where a project keeps both, the
+second holds overrides addressed to a different agent, and pijota has no business following
+them. The choice is per directory, so a monorepo with `AGENTS.md` at the root and a
+`CLAUDE.md` in one subproject gets both, each from the level that has it.
+
+Symlinking `CLAUDE.md` to `AGENTS.md` is fine and reads once, for the tools that only look
+for the other name. `.pijota/CONTEXT.md` is pijota's own layer and always loads last.
 
 ## Skills
 

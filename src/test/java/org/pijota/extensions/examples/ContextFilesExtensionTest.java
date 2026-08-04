@@ -187,9 +187,12 @@ class ContextFilesExtensionTest {
         assertEquals(1, injected.split("PROJECT RULES", -1).length - 1, "the same file must not be read twice");
     }
 
-    /** Two genuinely different files still both load; dedup is by real path, not by name. */
+    /**
+     * AGENTS.md is the cross-tool standard; CLAUDE.md is another agent's file, and a project keeping both puts
+     * overrides addressed to that agent in the second. Concatenating them made those look like instructions to pijota.
+     */
     @Test
-    void distinctAgentsAndClaudeFilesBothLoad() throws Exception {
+    void agentsMdWinsAndClaudeMdIsNotAlsoRead() throws Exception {
         Path dir = Files.createTempDirectory("pijota-ctx");
         Files.writeString(dir.resolve("AGENTS.md"), "SHARED RULES");
         Files.writeString(dir.resolve("CLAUDE.md"), "CLAUDE ONLY");
@@ -200,7 +203,43 @@ class ContextFilesExtensionTest {
         ext.init(api);
 
         String injected = injected(api);
-        assertTrue(injected.contains("SHARED RULES") && injected.contains("CLAUDE ONLY"), injected);
+        assertTrue(injected.contains("SHARED RULES"), injected);
+        assertFalse(injected.contains("CLAUDE ONLY"), "another agent's overrides are not pijota's: " + injected);
+    }
+
+    /**
+     * The fallback is per directory, not global: a monorepo with AGENTS.md at the root and a CLAUDE.md in one
+     * subproject gets both, each from the level that has it. A global rule would drop the subproject's entirely.
+     */
+    @Test
+    void eachDirectoryFallsBackOnItsOwn() throws Exception {
+        Path parent = Files.createTempDirectory("pijota-mono");
+        Files.writeString(parent.resolve("AGENTS.md"), "ROOT RULES");
+        Path child = Files.createDirectories(parent.resolve("subproject"));
+        Files.writeString(child.resolve("CLAUDE.md"), "SUBPROJECT RULES");
+        var trust = newTrust();
+        grantTrust(trust, child);
+        var ext = new ContextFilesExtension(child.toString(), trust);
+        var api = new FakeExtensionAPI();
+        ext.init(api);
+
+        String injected = injected(api);
+        assertTrue(injected.contains("ROOT RULES"), injected);
+        assertTrue(injected.contains("SUBPROJECT RULES"), "the subproject's own file must still load: " + injected);
+    }
+
+    /** The many repositories that only ever had CLAUDE.md still work; it is a fallback, not a snub. */
+    @Test
+    void claudeMdIsReadWhenThereIsNoAgentsMd() throws Exception {
+        Path dir = Files.createTempDirectory("pijota-ctx");
+        Files.writeString(dir.resolve("CLAUDE.md"), "ONLY CLAUDE FILE");
+        var trust = newTrust();
+        grantTrust(trust, dir);
+        var ext = new ContextFilesExtension(dir.toString(), trust);
+        var api = new FakeExtensionAPI();
+        ext.init(api);
+
+        assertTrue(injected(api).contains("ONLY CLAUDE FILE"));
     }
 
     /**

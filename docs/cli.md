@@ -85,7 +85,7 @@ Lists apply to built-in, extension and MCP tools alike, and compose. [Tools](too
 | `--no-prompt-templates, -np` | skip template discovery |
 | `--theme <path\|name>` | load or select a theme; `auto` follows the terminal |
 | `--no-themes` | skip theme discovery |
-| `--no-context-files, -nc` | skip `AGENTS.md` / `CLAUDE.md` |
+| `--no-context-files, -nc` | skip `AGENTS.md` / `CLAUDE.md` context |
 | `--approve, -a` | trust project-local resources this run |
 | `--no-approve, -na` | ignore them this run |
 

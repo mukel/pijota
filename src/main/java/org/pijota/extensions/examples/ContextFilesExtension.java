@@ -22,6 +22,16 @@ import java.util.Set;
  * {@code --no-context-files} flag and settings.
  *
  * <p>
+ * Per directory, {@code AGENTS.md} wins and {@code CLAUDE.md} is the fallback, rather than both being concatenated.
+ * {@code AGENTS.md} is the cross-tool standard; {@code CLAUDE.md} is another agent's file, and where a project keeps
+ * both, the second holds overrides addressed to that agent. Reading them as one document made another tool's
+ * instructions look like this one's. Pijota's own layer is {@code .pijota/CONTEXT.md}, which still loads last.
+ *
+ * <p>
+ * The fallback is per directory rather than global, so a monorepo with {@code AGENTS.md} at the root and a
+ * {@code CLAUDE.md} in one subproject gets both, each from the level that has it.
+ *
+ * <p>
  * Injection is also gated by <b>project trust</b>: a folder must be trusted (via {@code /trust}, remembered in
  * {@link TrustStore}) before its context files load; otherwise a cloned, untrusted repo could inject instructions into
  * the agent through its {@code AGENTS.md}/{@code CLAUDE.md}. Trusting takes effect from the next turn.
@@ -137,32 +147,33 @@ public final class ContextFilesExtension implements Extension {
             dirs.add(current);
             current = current.getParent();
         }
-        // Keyed on the real file, so the same one is not read twice. Symlinking CLAUDE.md to AGENTS.md is the usual
-        // way to keep one set of conventions for every agent, and it used to buy a second, identical copy of them in
-        // the system prompt of every turn.
+        // Still keyed on the real file, for a CLAUDE.md symlinked to a parent's AGENTS.md that has already been read.
         var seen = new HashSet<Path>();
-        for (int i = dirs.size() - 1; i >= 0; i--) {
-            loadFile(sb, dirs.get(i), "AGENTS.md", seen);
-            loadFile(sb, dirs.get(i), "CLAUDE.md", seen);
-        }
+        for (int i = dirs.size() - 1; i >= 0; i--)
+            if (!loadFile(sb, dirs.get(i), "AGENTS.md", seen))
+                loadFile(sb, dirs.get(i), "CLAUDE.md", seen);
         loadFile(sb, Path.of(cwd), ".pijota/CONTEXT.md", seen);
         return sb.toString();
     }
 
-    private static void loadFile(StringBuilder sb, Path dir, String filename, Set<Path> seen) {
+    /** @return whether the file was there, so the caller knows a fallback is unnecessary. */
+    private static boolean loadFile(StringBuilder sb, Path dir, String filename, Set<Path> seen) {
         try {
             Path path = dir.resolve(filename);
             if (!Files.exists(path))
-                return;
+                return false;
             // toRealPath follows the link and resolves the target; a plain normalize would still see two paths.
             if (!seen.add(path.toRealPath()))
-                return;
+                return true; // already in context, and present, so the fallback is still not wanted
             String content = Files.readString(path);
             if (content.length() > 8000) {
                 content = content.substring(0, 8000) + "... (truncated)";
             }
             sb.append("--- ").append(filename).append(" (from ").append(path.getParent().getFileName()).append(")")
                                             .append(" ---\n").append(content).append('\n');
-        } catch (IOException ignored) {}
+            return true;
+        } catch (IOException e) {
+            return false; // unreadable is not "absent": let the fallback try
+        }
     }
 }
