@@ -73,5 +73,6 @@ fetch, ask, and nothing else.
 
 ## Reporting
 
-Security issues: open a GitHub issue marked security, or contact the maintainer privately if the
-report itself is sensitive.
+[`SECURITY.md`](../SECURITY.md) has the policy: private vulnerability reporting for anything
+exploitable, a normal issue marked `security` for the rest, and what is in scope. The short
+version of scope is the four things this page says are guarded, plus the credential files.

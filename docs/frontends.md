@@ -26,7 +26,7 @@ address bar. Every request must carry it. On loopback there is no token, because
 else on the interface.
 
 The page streams the live session: messages, tool cards with their output as it arrives, dialogs
-for `/question`, and the same slash commands as the TUI.
+for the `question` tool, and the same slash commands as the TUI.
 
 `/remote-control` from inside a running TUI does the same thing for the session you already have
 open, rather than starting a new one.

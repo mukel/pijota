@@ -23,7 +23,7 @@ default.iprof
 .agents/
 
 # Native-image build output / GraalVM AWT extraction (dropped in the repo root when running the native binary)
-/pijota-0.1.0-SNAPSHOT
+/pijota-*-SNAPSHOT
 /*.so
 
 # OS
@@ -42,6 +42,7 @@ __pycache__/
 !/AGENTS.md
 !/CLAUDE.md
 !/CHANGELOG.md
+!/SECURITY.md
 
 # Test artifacts at repo root (session exports, ad-hoc test output)
 /*.jsonl
