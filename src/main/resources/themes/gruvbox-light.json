@@ -16,7 +16,9 @@
     "orange": "#af3a03",
     "userBg": "#f2e5bc",
     "successBg": "#e3ead0",
-    "errorBg": "#f4ddd2"
+    "errorBg": "#f4ddd2",
+    "diffAddWordBg": "#c8d99a",
+    "diffDeleteWordBg": "#f0b8a0"
   },
   "colors": {
     "accent": "orange",
@@ -67,7 +69,9 @@
     "thinkingHigh": "yellow",
     "thinkingXhigh": "orange",
     "thinkingMax": "red",
-    "bashMode": "green"
+    "bashMode": "green",
+    "toolDiffAddedBg": "diffAddWordBg",
+    "toolDiffRemovedBg": "diffDeleteWordBg"
   },
   "export": {
     "pageBg": "#fbf1c7",

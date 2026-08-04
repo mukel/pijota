@@ -84,6 +84,11 @@ public class AnsiTheme {
     public String diffHunk = "dim;#F29111";
     public String diffAddLine = "bg:#08180F";
     public String diffDeleteLine = "bg:#1D1411";
+    // The words that actually changed, painted inside the row's own background. A brighter tint of the same hue: the
+    // row says "this line changed", the word says "here". Backgrounds because the foreground already carries syntax
+    // colour, and a diff that recoloured code to point at it would destroy the thing it is pointing at.
+    public String diffAddWord = "bg:#1B4B2E";
+    public String diffDeleteWord = "bg:#5A2320";
 
     public Map<String, String> extra = new HashMap<>();
 
@@ -333,6 +338,8 @@ public class AnsiTheme {
         t.diffHunk = styledColor(c, vars, "accent", t.diffHunk);
         t.diffAddLine = bgColor(c, vars, "toolSuccessBg", t.diffAddLine);
         t.diffDeleteLine = bgColor(c, vars, "toolErrorBg", t.diffDeleteLine);
+        t.diffAddWord = bgColor(c, vars, "toolDiffAddedBg", t.diffAddWord);
+        t.diffDeleteWord = bgColor(c, vars, "toolDiffRemovedBg", t.diffDeleteWord);
 
         addExtra(t, c, vars, "mdLink", "mdLinkUrl", "mdListBullet", "success", "warning", "selectedBg", "userMessageBg",
                                         "userMessageText", "customMessageBg", "customMessageText", "customMessageLabel",

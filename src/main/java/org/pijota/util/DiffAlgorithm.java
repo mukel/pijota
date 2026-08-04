@@ -2,7 +2,9 @@ package org.pijota.util;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class DiffAlgorithm {
     private DiffAlgorithm() {}
@@ -16,9 +18,25 @@ public final class DiffAlgorithm {
     public record Hunk(List<Row> rows) {
     }
 
+    /**
+     * The same Myers pass over arbitrary units rather than lines, for diffing a line's words against another's.
+     *
+     * <p>
+     * {@code myersDiff} was already generic over arrays; only the line-splitting entry point above was public. The
+     * {@code oldLine}/{@code newLine} numbers on each row count units, not lines, and callers that diff words ignore
+     * them.
+     */
+    public static List<Row> diff(String[] oldUnits, String[] newUnits) {
+        return rowsFrom(oldUnits == null ? new String[0] : oldUnits, newUnits == null ? new String[0] : newUnits);
+    }
+
     public static List<Row> diff(String oldText, String newText) {
         String[] a = oldText != null && !oldText.isEmpty() ? oldText.split("\\R", -1) : new String[0];
         String[] b = newText != null && !newText.isEmpty() ? newText.split("\\R", -1) : new String[0];
+        return rowsFrom(a, b);
+    }
+
+    private static List<Row> rowsFrom(String[] a, String[] b) {
         var edits = myersDiff(a, b);
         var out = new ArrayList<Row>();
         int oldLine = 1, newLine = 1;
@@ -36,6 +54,40 @@ public final class DiffAlgorithm {
                     for (int i = 0; i < edit.len; i++)
                         out.add(new Row(Kind.ADD, 0, newLine++, b[edit.newStart + i]));
                 }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Which deleted rows replace which added rows, for the intra-line detail a renderer paints on a pair.
+     *
+     * <p>
+     * A hunk holds runs of deletions followed by runs of additions. Pairing them index-wise up to the shorter run
+     * covers what edits actually look like: N lines replaced by N, and, when a line is split or joined, the leading
+     * lines still pair and the surplus is left as a plain insertion or deletion. Matching the ragged remainder by
+     * similarity would need a metric and a threshold to go with it, and no real diff has yet asked for one.
+     *
+     * @return for each row index in {@code rows} that has a counterpart, the index of that counterpart
+     */
+    public static Map<Integer, Integer> pairs(List<Row> rows) {
+        var out = new HashMap<Integer, Integer>();
+        int i = 0;
+        while (i < rows.size()) {
+            if (rows.get(i).kind() != Kind.DELETE) {
+                i++;
+                continue;
+            }
+            int deleteStart = i;
+            while (i < rows.size() && rows.get(i).kind() == Kind.DELETE)
+                i++;
+            int addStart = i;
+            while (i < rows.size() && rows.get(i).kind() == Kind.ADD)
+                i++;
+            int paired = Math.min(addStart - deleteStart, i - addStart);
+            for (int k = 0; k < paired; k++) {
+                out.put(deleteStart + k, addStart + k);
+                out.put(addStart + k, deleteStart + k);
             }
         }
         return out;

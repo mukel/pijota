@@ -28,7 +28,9 @@
     "rampBlue": "#5f87af",
     "rampAqua": "#5cc0ae",
     "rampGreen": "#b6cf5e",
-    "rampRed": "#ff6a5f"
+    "rampRed": "#ff6a5f",
+    "diffAddWordBg": "#33512f",
+    "diffDeleteWordBg": "#6b3434"
   },
   "colors": {
     "accent": "accent",
@@ -79,7 +81,9 @@
     "thinkingHigh": "rampGreen",
     "thinkingXhigh": "yellow",
     "thinkingMax": "rampRed",
-    "bashMode": "green"
+    "bashMode": "green",
+    "toolDiffAddedBg": "diffAddWordBg",
+    "toolDiffRemovedBg": "diffDeleteWordBg"
   },
   "export": {
     "pageBg": "#18181e",

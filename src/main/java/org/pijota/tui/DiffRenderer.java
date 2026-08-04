@@ -3,6 +3,7 @@ package org.pijota.tui;
 import org.pijota.modes.SyntaxHighlighter;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.util.DiffAlgorithm;
+import org.pijota.util.WordDiff;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,12 +57,17 @@ final class DiffRenderer {
             if (h > 0)
                 out.add("");
             var hunk = hunks.get(h);
-            for (var row : hunk.rows()) {
+            // Which deleted row each added row replaced, so a pair can be compared word by word.
+            var pairs = DiffAlgorithm.pairs(hunk.rows());
+            for (int r = 0; r < hunk.rows().size(); r++) {
                 if (rendered >= MAX_RENDERED_ROWS) {
                     truncated = true;
                     break;
                 }
-                out.addAll(format(row, oldWidth, newWidth, highlighter.highlightLine(row.text()), terminalWidth));
+                var row = hunk.rows().get(r);
+                // Computed here rather than up front: rows past the cap are never drawn, and this runs on the redraw.
+                out.addAll(format(row, oldWidth, newWidth, highlighter.highlightLine(row.text()), terminalWidth,
+                                                wordSpans(hunk.rows(), pairs, r)));
                 rendered++;
             }
             if (truncated)
@@ -74,6 +80,21 @@ final class DiffRenderer {
                                             + " changed rows"));
         }
         return out;
+    }
+
+    /** The ranges of row {@code index} that differ from the row it replaced, or none when it replaced nothing. */
+    private static List<WordDiff.Span> wordSpans(List<DiffAlgorithm.Row> rows, java.util.Map<Integer, Integer> pairs,
+                                    int index) {
+        Integer other = pairs.get(index);
+        if (other == null)
+            return List.of();
+        var row = rows.get(index);
+        var counterpart = rows.get(other);
+        boolean isNew = row.kind() == DiffAlgorithm.Kind.ADD;
+        var result = isNew
+                                        ? WordDiff.spans(counterpart.text(), row.text())
+                                        : WordDiff.spans(row.text(), counterpart.text());
+        return isNew ? result.newSpans() : result.oldSpans();
     }
 
     private String header(String action, String path, int added, int deleted, int width) {
@@ -101,6 +122,16 @@ final class DiffRenderer {
      * under the code column and the numbers still read straight down.
      */
     private List<String> format(DiffAlgorithm.Row row, int oldWidth, int newWidth, String body, int width) {
+        return format(row, oldWidth, newWidth, body, width, List.of());
+    }
+
+    /**
+     * @param spans
+     *            the ranges of this row's text that differ from the line it replaced, in the row's own coordinates;
+     *            empty when the pair was too dissimilar for word detail to help, or when the row is not part of a pair
+     */
+    private List<String> format(DiffAlgorithm.Row row, int oldWidth, int newWidth, String body, int width,
+                                    List<WordDiff.Span> spans) {
         String oldNo = row.oldLine() > 0 ? pad(row.oldLine(), oldWidth) : " ".repeat(oldWidth);
         String newNo = row.newLine() > 0 ? pad(row.newLine(), newWidth) : " ".repeat(newWidth);
         String mark = switch (row.kind()) {
@@ -122,24 +153,77 @@ final class DiffRenderer {
         String indent = " ".repeat(AnsiWidth.visibleWidth(prefix));
         // The trailing space carries the row's background to the edge of the change; context rows have none.
         String pad = bgSlot == null ? "" : " ";
-        return AnsiWidth.wrapPrefixed(body, width, prefix, r -> indent + r).stream()
-                                        .map(line -> bgSlot == null ? line + pad : withBackground(bgSlot, line + pad))
-                                        .toList();
+        String wordSlot = switch (row.kind()) {
+            case ADD -> "diffAddWord";
+            case DELETE -> "diffDeleteWord";
+            case CONTEXT -> null;
+        };
+        if (bgSlot == null)
+            return AnsiWidth.wrapPrefixed(body, width, prefix, r -> indent + r).stream().map(line -> line + pad)
+                                            .toList();
+
+        String rowBg = theme.style(bgSlot);
+        String wordBg = spans.isEmpty() || wordSlot == null ? "" : theme.style(wordSlot);
+        // Painted before wrapping, where the spans and the text still share coordinates. Wrapping consumes the space
+        // it breaks at, so fragments do not reassemble into the body and any offset carried across them drifts by one
+        // character per wrap. wrapPreservingAnsi re-opens the SGR state on each continuation, so the backgrounds ride
+        // along instead.
+        String painted = withBackground(body, 0,
+                                        offset -> wordBg.isBlank() || !WordDiff.covers(spans, offset) ? rowBg : wordBg);
+        var fragments = AnsiWidth.wrapPrefixed(painted, width, prefix, r -> indent + r);
+        return fragments.stream().map(fragment -> rowBg + fragment + pad + theme.reset()).toList();
     }
 
     private String withBackground(String slot, String line) {
-        String bg = theme.style(slot);
-        if (bg.isBlank())
-            return line;
-        var sb = new StringBuilder(bg);
-        int last = 0;
-        var matcher = ANSI_RESET.matcher(line);
-        while (matcher.find()) {
-            sb.append(line, last, matcher.end()).append(bg);
-            last = matcher.end();
+        return withBackground(line, 0, ignored -> theme.style(slot));
+    }
+
+    /**
+     * Paints backgrounds over an already highlighted line, changing which one applies as the offset moves.
+     *
+     * <p>
+     * Two facts about the highlighter make this a single pass with no state to track, and
+     * {@code HighlighterInvariantsTest} pins both: no syntax colour ever sets a background, and every close is spelled
+     * {@code ESC[0m}. So the only thing that can clear the background is a full reset, and re-emitting after one
+     * restores it without disturbing the foreground that reset belonged to.
+     *
+     * @param rawStart
+     *            the offset, in the logical line's own coordinates, that this fragment begins at. Wrapping splits a row
+     *            into fragments after the spans were computed, so each fragment resumes where the last left off.
+     * @param backgroundAt
+     *            the background in force at a raw offset, blank for none
+     */
+    private String withBackground(String line, int rawStart, java.util.function.IntFunction<String> backgroundAt) {
+        var sb = new StringBuilder();
+        String current = "";
+        int raw = rawStart;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch == 0x1b) {
+                int end = line.indexOf('m', i);
+                if (end < 0)
+                    end = line.length() - 1;
+                String esc = line.substring(i, end + 1);
+                sb.append(esc);
+                // A full reset drops the background with the colour it was closing, so put it back.
+                if (ANSI_RESET.matcher(esc).matches() && !current.isBlank())
+                    sb.append(current);
+                i = end;
+                continue;
+            }
+            String wanted = backgroundAt.apply(raw);
+            if (!wanted.equals(current)) {
+                // Leaving a background needs a reset; entering one only needs the background.
+                if (wanted.isBlank())
+                    sb.append(theme.reset());
+                sb.append(wanted);
+                current = wanted;
+            }
+            sb.append(ch);
+            raw++;
         }
-        sb.append(line.substring(last));
-        sb.append(theme.reset());
+        if (!current.isBlank())
+            sb.append(theme.reset());
         return sb.toString();
     }
 
