@@ -1,6 +1,8 @@
 package org.pijota.tui;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
@@ -428,6 +430,58 @@ class AnsiWidthTest {
         assertEquals(2, AnsiWidth.visibleWidth("\u26a0\ufe0f"), "the warning sign the table row was misaligned by");
         assertEquals(1, AnsiWidth.visibleWidth("e\u0301"), "e + combining acute is one cell, not two");
         assertEquals(2, AnsiWidth.visibleWidth("\ud83d\udc4d\ud83c\udffd"), "thumbs up + skin tone is one glyph");
+    }
+
+    /**
+     * The bidi controls, the invisible operators and the byte order mark instruct rather than print: a terminal draws
+     * no cell for any of them. Measured as one each, a line carrying them wraps early and anything padded to a column
+     * lands short, which is the same defect the variation selector caused above.
+     *
+     * <p>
+     * These reach a diff readily. Source files pick up a byte order mark from an editor, and the overrides are how the
+     * Trojan Source attack hides code, so a line holding one is exactly a line a reader is trying to measure honestly.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = {0x061C, // Arabic letter mark
+            0x202A, 0x202B, 0x202C, 0x202D, 0x202E, // the embeddings and overrides
+            0x2060, 0x2064, // word joiner, invisible plus
+            0x2066, 0x2067, 0x2068, 0x2069, 0x206F, // the isolates, and the last deprecated format character
+            0xFEFF // byte order mark
+    })
+    void directionAndJoiningInstructionsTakeNoCell(int cp) {
+        String ch = new String(Character.toChars(cp));
+
+        assertEquals(0, AnsiWidth.visibleWidth(ch),
+                                        () -> "U+" + Integer.toHexString(cp).toUpperCase() + " draws nothing");
+        assertEquals(3, AnsiWidth.visibleWidth("a" + ch + "bc"), "and adds nothing to the line holding it");
+    }
+
+    /**
+     * The counter-case, and the reason the invisible characters are enumerated rather than taken from
+     * {@link Character#FORMAT} wholesale. These are all {@code Cf} and all take a cell, so a blanket rule would break
+     * the lines that measure correctly today in order to fix the ones that do not.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = {0x00AD, // soft hyphen
+            0x0600, 0x0605, // Arabic number signs
+            0x06DD, // Arabic end of ayah
+            0x070F // Syriac abbreviation mark
+    })
+    void theFormattingCharactersThatDoDrawAreStillCountedAsACell(int cp) {
+        String ch = new String(Character.toChars(cp));
+
+        assertEquals(1, AnsiWidth.visibleWidth(ch),
+                                        () -> "U+" + Integer.toHexString(cp).toUpperCase() + " occupies a cell");
+    }
+
+    /**
+     * Right-to-left text is ordinary text: the letters take their cells, and nothing about the script makes them
+     * invisible. Only the direction instructions are free.
+     */
+    @Test
+    void rightToLeftLettersAreMeasuredLikeAnyOtherLetters() {
+        assertEquals(4, AnsiWidth.visibleWidth("שלום"), "four Hebrew letters, four cells");
+        assertEquals(5, AnsiWidth.visibleWidth("مرحبا"), "five Arabic letters, five cells");
     }
 
     /** U+FE0F asks for the emoji rendering of the character before it, which is always the two-cell one. */

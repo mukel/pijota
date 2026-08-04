@@ -62,11 +62,22 @@ final class AnsiWidth {
      * <p>
      * U+FE0F was the one that showed: counted as a cell, {@code ⚠️} measured 3 where the terminal drew 2, so a table
      * cell holding it was padded one space short and its column separator sat a column left of every other row's.
+     *
+     * <p>
+     * The formatting characters are listed rather than taken from {@link Character#FORMAT} wholesale, because that
+     * category is not uniformly invisible: a soft hyphen and the Arabic and Kaithi number signs are {@code Cf} and do
+     * take a cell, as both {@code wcwidth} and an actual terminal agree. Enumerating the invisible ones keeps the
+     * characters that already measure correctly measuring correctly.
      */
     private static boolean zeroWidth(int cp) {
-        if (cp == 0x200D || (cp >= 0x200B && cp <= 0x200F) || (cp >= 0xFE00 && cp <= 0xFE0F))
+        if ((cp >= 0x200B && cp <= 0x200F) || (cp >= 0xFE00 && cp <= 0xFE0F))
             return true;
         if ((cp >= 0x1F3FB && cp <= 0x1F3FF) || (cp >= 0xE0020 && cp <= 0xE007F))
+            return true;
+        // The bidi controls, the invisible operators and the byte order mark: direction and joining instructions that
+        // draw nothing. The zero-width marks above are the same family; these are the rest of it.
+        if (cp == 0x061C || (cp >= 0x202A && cp <= 0x202E) || (cp >= 0x2060 && cp <= 0x2064)
+                                        || (cp >= 0x2066 && cp <= 0x206F) || cp == 0xFEFF)
             return true;
         int type = Character.getType(cp);
         return type == Character.NON_SPACING_MARK || type == Character.ENCLOSING_MARK
