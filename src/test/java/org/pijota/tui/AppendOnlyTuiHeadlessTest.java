@@ -133,7 +133,9 @@ class AppendOnlyTuiHeadlessTest {
                 tui.showSettingsSelector();
                 tui.showLoginSelector();
                 tui.requestSessionPicker();
-                tui.refreshModels();
+                // Not refreshModels(): it is not a selector, and it asks every configured provider over the network.
+                // On a machine with keys in the environment that is a live API call from `mvn test`, and it wrote a
+                // models-cache.json into the developer's own home. Its output is covered by ModelCommandHandlerTest.
             });
         } finally {
             tui.close();

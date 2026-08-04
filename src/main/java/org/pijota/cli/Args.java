@@ -11,9 +11,9 @@ public record Args(String provider, String model, String apiKey, String systemPr
                                 List<String> extensionPaths, List<String> skillPaths, List<String> themePaths,
                                 List<String> promptTemplatePaths, boolean print, boolean resume,
                                 boolean continueSession, boolean recoverSession, String forkPath, String exportPath,
-                                boolean listModels, String listModelsFilter, boolean approveProject,
-                                boolean noApproveProject, boolean help, boolean version, boolean license,
-                                boolean verbose, boolean agent, boolean worker, List<String> fileArgs,
+                                boolean listModels, String listModelsFilter, boolean refreshModels,
+                                boolean approveProject, boolean noApproveProject, boolean help, boolean version,
+                                boolean license, boolean verbose, boolean agent, boolean worker, List<String> fileArgs,
                                 List<String> promptArgs, Map<String, String> extensionFlags, Integer maxTurns) {
     public enum OutputMode {
         TEXT, JSON, RPC

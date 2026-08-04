@@ -284,18 +284,33 @@ class ModelRegistryTest {
         assertEquals(7, pricing.ratesFor(9000).inputPerMTok(), "above all tiers: highest tier");
     }
 
+    /**
+     * Discovery adds; it does not overwrite. A provider's /v1/models returns little more than ids, so a discovered
+     * record has no pricing and a placeholder window, and letting it win replaced curated entries with poorer ones.
+     * This used to assert the opposite, and passed only because gpt-4o is not in the bundled catalog.
+     */
     @Test
-    void replaceDiscoveredOverwritesExistingByKey() {
-        var discovered = List.of(new ModelInfo("gpt-4o", "openai", "GPT-4o Updated", 256_000));
+    void replaceDiscoveredNeverDowngradesAModelTheCatalogAlreadyHas() {
+        var builtin = ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.inputCostPerMTok() != null).findFirst()
+                                        .orElseThrow();
         mutateKnownModels(ModelRegistry.KNOWN_MODELS);
 
-        ModelRegistry.replaceDiscovered(discovered);
+        ModelRegistry.replaceDiscovered(List
+                                        .of(new ModelInfo(builtin.id(), builtin.provider(), "Rediscovered", 1_000)));
 
-        var updated = ModelRegistry.KNOWN_MODELS.stream()
-                                        .filter(m -> m.id().equalsIgnoreCase("gpt-4o")
-                                                                        && m.provider().equalsIgnoreCase("openai"))
-                                        .findFirst().orElseThrow();
-        assertEquals(256_000L, updated.contextWindow());
+        var after = ModelRegistry.byId(builtin.id()).orElseThrow();
+        assertEquals(builtin.contextWindow(), after.contextWindow(), "the curated window survives");
+        assertEquals(builtin.inputCostPerMTok(), after.inputCostPerMTok(), "and so does the price");
+    }
+
+    /** What discovery is for: the models the catalog has never heard of. */
+    @Test
+    void replaceDiscoveredAddsAModelTheCatalogDoesNotHave() {
+        mutateKnownModels(ModelRegistry.KNOWN_MODELS);
+
+        ModelRegistry.replaceDiscovered(List.of(new ModelInfo("only-on-my-box", "openai", "Local", 256_000)));
+
+        assertEquals(256_000L, ModelRegistry.byId("only-on-my-box").orElseThrow().contextWindow());
     }
 
     @Test

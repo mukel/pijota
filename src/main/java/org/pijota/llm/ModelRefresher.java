@@ -20,6 +20,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 public final class ModelRefresher {
@@ -39,6 +40,9 @@ public final class ModelRefresher {
         var oauth = new OAuthTokenStore();
         var models = new ArrayList<ModelInfo>();
         var errors = new ArrayList<String>();
+        // Only the providers that actually answered. A provider that could not be reached has not changed its mind,
+        // so its previously discovered models are kept rather than dropped.
+        var answered = new LinkedHashSet<String>();
         int providersChecked = 0;
 
         for (var provider : ProviderCatalog.providers()) {
@@ -53,13 +57,14 @@ public final class ModelRefresher {
             providersChecked++;
             try {
                 models.addAll(fetchOpenAiCompatible(client, provider, token, accountId, oauthToken));
+                answered.add(provider.id());
             } catch (Exception e) {
                 errors.add(provider.id() + ": " + oneLineReason(e));
             }
         }
 
         models.sort(Comparator.comparing(ModelInfo::provider).thenComparing(ModelInfo::id));
-        ModelRegistry.saveDiscovered(models);
+        ModelRegistry.saveDiscovered(models, answered);
         return new Result(providersChecked, models.size(), List.copyOf(errors));
     }
 

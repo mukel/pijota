@@ -52,6 +52,7 @@ public final class ArgParser {
         var exportPath = (String) null;
         var listModels = false;
         var listModelsFilter = (String) null;
+        var refreshModels = false;
         var approveProject = false;
         var noApproveProject = false;
         var help = false;
@@ -95,6 +96,9 @@ public final class ArgParser {
                     if (filter != null)
                         listModelsFilter = filter;
                 }
+                // Discovery is otherwise reachable only from the TUI's /refresh, which leaves a keyless local
+                // provider (nothing to log in to) and every headless run with no way to ask at all.
+                case "--refresh-models" -> refreshModels = true;
                 case "--print", "-p" -> {
                     print = true;
                     String prompt = cursor.optionalPromptValue();
@@ -158,9 +162,9 @@ public final class ArgParser {
                                         noBuiltinExtensions, noSkills, noThemes, noContextFiles, noPromptTemplates,
                                         enabledTools, excludeTools, extensionPaths, skillPaths, themePaths,
                                         promptTemplatePaths, print, resume, continueSession, recoverSession, forkPath,
-                                        exportPath, listModels, listModelsFilter, approveProject, noApproveProject,
-                                        help, version, license, verbose, agent, worker, fileArgs, promptArgs,
-                                        Map.copyOf(extensionFlags), maxTurns);
+                                        exportPath, listModels, listModelsFilter, refreshModels, approveProject,
+                                        noApproveProject, help, version, license, verbose, agent, worker, fileArgs,
+                                        promptArgs, Map.copyOf(extensionFlags), maxTurns);
     }
 
     public static void printHelp() {
@@ -223,6 +227,7 @@ public final class ArgParser {
                                         MISC:
                                           --export <file>           Export session to Markdown
                                           --list-models [filter]    List available models
+                                          --refresh-models          Ask each provider what it serves, and remember it
                                           --verbose                 Debug logging to ~/.pijota/logs
                                           --help, -h                Show this help
                                           --version, -v             Show version

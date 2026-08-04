@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,15 +38,48 @@ public final class ModelRegistry {
         return PijotaHome.resolve("models-cache.json");
     }
 
+    /**
+     * The bundled catalog plus whatever discovery found that it did not already know.
+     *
+     * <p>
+     * Discovery adds, it does not overwrite. A provider's {@code /v1/models} returns little more than ids, so a
+     * discovered record carries no pricing and a placeholder context window; letting it win replaced curated entries
+     * with poorer ones, and after a single refresh DeepSeek's models lost their prices and reported 128K instead of the
+     * 1M they have. What discovery is uniquely good for is the models nothing else lists, and those are exactly the
+     * ones with no built-in entry to lose.
+     */
     public static synchronized void replaceDiscovered(List<ModelInfo> discovered) {
         var byKey = new LinkedHashMap<String, ModelInfo>();
         for (var model : BUILTIN_MODELS) {
             byKey.put(key(model), model);
         }
         for (var model : discovered) {
-            byKey.put(key(model), model);
+            byKey.putIfAbsent(key(model), model);
         }
         KNOWN_MODELS = List.copyOf(byKey.values());
+    }
+
+    /**
+     * Records what the providers that answered are serving, keeping what the others said last time.
+     *
+     * <p>
+     * Replacing the whole file meant one failed refresh erased everything ever discovered: run it on a plane, or with
+     * the local server stopped, and every model that only discovery knows about was gone. A provider that could not be
+     * reached has not changed its mind, it simply did not answer.
+     *
+     * @param answered
+     *            provider ids that returned a list; their entries are replaced, everyone else's are carried over
+     */
+    public static synchronized void saveDiscovered(List<ModelInfo> discovered, Set<String> answered) {
+        // Nothing was asked and nothing came back, so there is nothing to record. Writing anyway rewrote the file on
+        // every no-op refresh, and created one in a home that had never had a model discovered in it.
+        if (answered.isEmpty() && discovered.isEmpty())
+            return;
+        var merged = new ArrayList<>(discovered);
+        for (ModelInfo cached : readCache())
+            if (!answered.contains(cached.provider()))
+                merged.add(cached);
+        saveDiscovered(merged);
     }
 
     /**
@@ -67,6 +101,18 @@ public final class ModelRegistry {
             Util.replaceFile(tmp, file);
         } catch (Exception e) {
             log.warn("Could not save the model cache to {}: {}", cacheFile(), e.getMessage());
+        }
+    }
+
+    /** The cache as written, before any pruning; empty when there is none or it cannot be read. */
+    private static List<ModelInfo> readCache() {
+        Path file = cacheFile();
+        if (!Files.isRegularFile(file))
+            return List.of();
+        try {
+            return Util.MAPPER.readValue(file.toFile(), ModelCatalog.class).models();
+        } catch (Exception e) {
+            return List.of();
         }
     }
 

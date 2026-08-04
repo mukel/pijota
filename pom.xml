@@ -252,6 +252,12 @@
                packaged/native build skips tests, so this never reaches a production artifact. -->
           <systemPropertyVariables>
             <pijota.browser.fastSettle>${pijota.browser.fastSettle}</pijota.browser.fastSettle>
+            <!-- No automatic model discovery from the suite. Logging in or out triggers a refresh, and a unit test
+                 driving that path asked every configured provider over the network, using whatever credentials the
+                 developer had in their environment, and wrote a models-cache.json into their own home. This is the
+                 switch that exists for "never reach out on its own"; an explicit /refresh still would, which is why
+                 no test should call one. -->
+            <pijota.offline>true</pijota.offline>
           </systemPropertyVariables>
         </configuration>
       </plugin>

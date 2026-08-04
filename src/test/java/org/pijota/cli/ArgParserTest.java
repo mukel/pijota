@@ -499,4 +499,24 @@ class ArgParserTest {
         assertFalse(ArgParser.parse(new String[] {"--version"}).license());
         assertFalse(ArgParser.parse(new String[] {}).license());
     }
+
+    /**
+     * Discovery was otherwise reachable only from the TUI's /refresh, which leaves out the two setups that need it
+     * most: a keyless local provider, which has no login to trigger it, and any headless run.
+     */
+    @Test
+    void refreshModelsIsAFlagOfItsOwnAndTakesTheSameFilter() {
+        assertTrue(ArgParser.parse(new String[] {"--refresh-models"}).refreshModels());
+        assertFalse(ArgParser.parse(new String[] {"--list-models"}).refreshModels(),
+                                        "listing must not ask the network");
+
+        var filtered = ArgParser.parse(new String[] {"--refresh-models", "--list-models", "mylocal"});
+        assertTrue(filtered.refreshModels());
+        assertEquals("mylocal", filtered.listModelsFilter());
+    }
+
+    @Test
+    void refreshModelsAppearsInHelpBesideItsTwin() {
+        assertTrue(help().contains("--refresh-models"), "a flag nobody can find is a flag nobody uses");
+    }
 }

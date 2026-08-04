@@ -35,6 +35,7 @@ Give a flag a value with `--flag=value`.
 | `--api-key <key>` | key for this run, this provider |
 | `--thinking <level>` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 | `--list-models [filter]` | list models and exit |
+| `--refresh-models [filter]` | ask each provider what it serves, remember it, then list |
 
 ## Prompt and turns
 

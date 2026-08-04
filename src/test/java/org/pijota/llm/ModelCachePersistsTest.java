@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -108,15 +109,14 @@ class ModelCachePersistsTest {
     }
 
     /**
-     * The refresher itself must persist, not merely update memory. Nothing asserted this, so a refresh that only
-     * touched the static field passed every test while being forgotten at exit.
+     * A refresh with nothing configured asks nobody and finds nothing, so there is nothing to record. Writing anyway
+     * created a models-cache.json in homes where no model had ever been discovered, including in unit tests.
      */
     @Test
-    void aRefreshWritesWhatItFound(@TempDir Path home) throws Exception {
+    void aRefreshThatFoundNothingWritesNothing(@TempDir Path home) throws Exception {
         withHome(home, () -> {
             ModelRefresher.refresh(new SettingsManager(new AppConfig(), ignored -> {}));
-            assertTrue(Files.isRegularFile(ModelRegistry.cacheFile()),
-                                            "a refresh that only updates memory is forgotten when the process exits");
+            assertFalse(Files.exists(ModelRegistry.cacheFile()), "no discovery, no file");
         });
     }
 
@@ -150,6 +150,64 @@ class ModelCachePersistsTest {
 
             assertTrue(ModelRegistry.forProvider(known).stream().anyMatch(m -> m.id().equals("brand-new-id")),
                                             "discovery for a live provider is the whole point of the cache");
+        });
+    }
+
+    /**
+     * A provider that could not be reached has not changed its mind, it simply did not answer. Writing only what came
+     * back meant one failed refresh erased everything ever discovered: run it on a plane, or with the local server
+     * stopped, and the models nothing else knows about were gone.
+     */
+    @Test
+    void aProviderThatDidNotAnswerKeepsWhatItSaidLastTime(@TempDir Path home) throws Exception {
+        withHome(home, () -> {
+            ModelRegistry.saveDiscovered(List.of(LOCAL), Set.of("mylocal"));
+
+            // A later refresh where mylocal was asked and failed: nothing came back, and it is not in `answered`.
+            ModelRegistry.saveDiscovered(List.of(), Set.of());
+            ModelRegistry.replaceDiscovered(List.of());
+            ModelRegistry.loadDiscoveredCache();
+
+            assertEquals(List.of("my-local-llama-70b"),
+                                            ModelRegistry.forProvider("mylocal").stream().map(ModelInfo::id).toList(),
+                                            "an unreachable provider must not lose its models");
+        });
+    }
+
+    /** But a provider that did answer is taken at its word, so a model it dropped really goes. */
+    @Test
+    void aProviderThatAnsweredReplacesItsOwnEntries(@TempDir Path home) throws Exception {
+        withHome(home, () -> {
+            ModelRegistry.saveDiscovered(List.of(LOCAL, new ModelInfo("retired", "mylocal", "Retired", 1000L)),
+                                            Set.of("mylocal"));
+
+            ModelRegistry.saveDiscovered(List.of(LOCAL), Set.of("mylocal"));
+            ModelRegistry.replaceDiscovered(List.of());
+            ModelRegistry.loadDiscoveredCache();
+
+            assertEquals(List.of("my-local-llama-70b"),
+                                            ModelRegistry.forProvider("mylocal").stream().map(ModelInfo::id).toList(),
+                                            "the provider no longer serves it, so neither do we");
+        });
+    }
+
+    /**
+     * A provider's /v1/models returns little more than ids, so a discovered record has no pricing and a placeholder
+     * context window. Letting it win replaced curated entries with poorer ones: after one refresh DeepSeek's models
+     * lost their prices and reported 128K instead of the 1M they have.
+     */
+    @Test
+    void discoveryAddsModelsButNeverDegradesAKnownOne(@TempDir Path home) throws Exception {
+        withHome(home, () -> {
+            var known = ModelRegistry.KNOWN_MODELS.stream().filter(m -> m.inputCostPerMTok() != null).findFirst()
+                                            .orElseThrow();
+            // The same model as a bare discovery: no price, placeholder window.
+            ModelRegistry.replaceDiscovered(List.of(new ModelInfo(known.id(), known.provider(), known.displayName(),
+                                            128_000L)));
+
+            var after = ModelRegistry.byId(known.id()).orElseThrow();
+            assertEquals(known.inputCostPerMTok(), after.inputCostPerMTok(), "the curated price must survive");
+            assertEquals(known.contextWindow(), after.contextWindow(), "and so must the real context window");
         });
     }
 

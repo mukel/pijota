@@ -5,6 +5,10 @@ import org.pijota.testkit.FakeHttpClient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -110,13 +114,26 @@ class ModelRefresherTest {
         assertEquals(100L, ModelRefresher.firstLong(node, "a", "b", 100));
     }
 
+    /**
+     * Also a hermeticity check: a refresh that asked nobody and found nothing must not write, or a unit test leaves a
+     * models-cache.json in the home of whoever ran the suite. The redirected home is belt and braces.
+     */
     @Test
-    void refreshWithNullSettingsReturnsEmptyResult() {
-        var result = ModelRefresher.refresh(null);
-        assertNotNull(result);
-        assertEquals(0, result.providersChecked());
-        assertEquals(0, result.modelsFound());
-        assertTrue(result.errors().isEmpty());
+    void refreshWithNullSettingsReturnsEmptyResultAndWritesNothing(@TempDir Path home) {
+        String saved = System.setProperty("pijota.home", home.toString());
+        try {
+            var result = ModelRefresher.refresh(null);
+            assertNotNull(result);
+            assertEquals(0, result.providersChecked());
+            assertEquals(0, result.modelsFound());
+            assertTrue(result.errors().isEmpty());
+            assertFalse(Files.exists(home.resolve("models-cache.json")), "nothing was discovered, so nothing to save");
+        } finally {
+            if (saved == null)
+                System.clearProperty("pijota.home");
+            else
+                System.setProperty("pijota.home", saved);
+        }
     }
 
     @Test

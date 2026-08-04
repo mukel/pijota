@@ -131,10 +131,13 @@ class MainTest {
         // with no deepseek key nothing is listed, and the guidance names the filter that found nothing.
         var rows = stdio.out().lines().filter(l -> l.startsWith("  ")).toList();
         if (rows.isEmpty()) {
-            assertTrue(stdio.out().contains("No usable models matching \"deepseek-v4-flash\""), stdio.out());
+            // Either dead end names the filter, so the user knows which of the two they hit.
+            assertTrue(stdio.out().contains("deepseek-v4-flash"), stdio.out());
             return;
         }
-        assertTrue(rows.stream().allMatch(l -> l.contains("deepseek-v4-flash")), stdio.out());
+        // A row is one line when it fits and two when the id is too long, so the name lines are the ones to check.
+        assertTrue(rows.stream().filter(l -> !l.contains("context ")).allMatch(l -> l.contains("deepseek-v4-flash")),
+                                        stdio.out());
         assertFalse(stdio.out().contains("openai/gpt-4o"), stdio.out());
     }
 }

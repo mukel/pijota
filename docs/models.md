@@ -31,10 +31,20 @@ gateway, so pijota asks each configured provider what it serves and remembers th
 |---|---|
 | `pj login` / `pj logout`, `/login` / `/logout` | asks now: the reachable set just changed |
 | every later start | reads the remembered answer, no network |
-| `/refresh` | asks again, whenever you want |
+| `/refresh` in the TUI, `pj --refresh-models` outside it | asks again, whenever you want |
 
-A provider needing no key never triggers a login, so run `/refresh` once after adding one. It
-sticks from then on. `PIJOTA_OFFLINE` stops the automatic asking; `/refresh` still works.
+A provider needing no key never triggers a login, so ask once after adding one; it sticks from
+then on. `--refresh-models` takes the same optional filter as `--list-models` and prints the
+result, so it answers "what can I run now" on its own:
+
+```bash
+pj --refresh-models            # ask everyone, then list
+pj --refresh-models mylocal    # ask everyone, then list what matches
+```
+
+A provider that cannot be reached keeps the models it reported last time, so a refresh with the
+laptop offline costs nothing. `PIJOTA_OFFLINE` stops the automatic asking; asking explicitly
+still works.
 
 ## Aliases
 

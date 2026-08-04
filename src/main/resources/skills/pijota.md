@@ -42,14 +42,15 @@ not permission to go looking.
 | to share a conversation | `/export` (Markdown), `/export html`, or `--export <file>` |
 | to open the running session in a browser | `/remote-control` |
 | to start fresh | `/new` |
+| a model the picker does not list | `/refresh` (or `pj --refresh-models`) asks each provider what it serves and remembers it; needed once for a local/keyless provider, since nothing else triggers it |
 | to see the loaded skills | `/skills` |
 | fewer tools this run | `--readonly`, or `--tool <name>` / `--no-tool <name>` (repeatable) |
 | an extension off this run | `--no-<extension>`, e.g. `--no-jobs` |
 
 **`--no-tool <name>` turns off a tool; `--no-<name>` turns off an extension.** They are not
-interchangeable: there is no `--no-bash`. An unknown flag is ignored without an error, so
-the wrong one looks like it worked -- `pj --no-bash` leaves bash fully enabled. To take the
-shell away use `--no-tool bash`, or `--readonly` for read-only tools only.
+interchangeable: there is no `--no-bash`, and pijota says so (`unknown option '--no-bash'
+(no such extension); it does nothing`). To take the shell away use `--no-tool bash`, or
+`--readonly` for read-only tools only.
 
 **Give the command; do not edit their configuration for them.** It is faster and they can
 repeat it.

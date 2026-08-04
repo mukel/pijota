@@ -120,6 +120,8 @@ public final class Main {
                 System.out.println("pijota v" + PijotaVersion.current());
                 return 0;
             }
+            if (parsedArgs.refreshModels())
+                return refreshModels(parsedArgs.listModelsFilter());
             if (parsedArgs.listModels()) {
                 listModels(parsedArgs.listModelsFilter());
                 return 0;
@@ -517,6 +519,38 @@ public final class Main {
 
     private static String padRight(String s, int width) {
         return s.length() >= width ? s : s + " ".repeat(width - s.length());
+    }
+
+    /**
+     * Asks every configured provider what it serves, remembers the answer, and shows the result.
+     *
+     * <p>
+     * The automatic refresh follows a credential change, which covers logging in and out but not the two cases that
+     * have no login at all: a keyless local provider, and any headless run, where {@code /refresh} cannot be reached.
+     * Those are exactly the setups whose models nothing else can know about.
+     *
+     * <p>
+     * It prints the list afterwards because the question behind the command is "what can I run now", and answering with
+     * a count alone would send the user straight to {@code --list-models}.
+     */
+    private static int refreshModels(String filter) {
+        var settings = new SettingsManager();
+        AppBootstrap.prepareModelCatalog(settings);
+        var result = ModelRefresher.refresh(settings);
+
+        if (result.providersChecked() == 0) {
+            System.out.println("No provider to ask: none has a credential yet, and none is configured without one.");
+            return 1;
+        }
+        System.out.println("Asked " + Util.plural(result.providersChecked(), "provider") + ", found "
+                                        + Util.plural(result.modelsFound(), "model") + ".");
+        // Each failure on its own line, and never fatal: one unreachable provider must not discard what the others
+        // answered, which has already been saved by this point.
+        for (String error : result.errors())
+            System.out.println("  could not ask " + error);
+        System.out.println();
+        listModels(filter);
+        return result.errors().isEmpty() ? 0 : 1;
     }
 
     private static void listModels(String filter) {
