@@ -630,8 +630,32 @@ public final class TelegramChat implements ChatHandler {
      * than a hardcoded switch that degraded unknown tools to a generic marker).
      */
     static String toolHint(String toolName, Supplier<String> args, String glyph, String cwd) {
-        String detail = ToolLabels.detail(toolName, args, cwd, PathDisplay.RELATIVE);
+        String detail = literal(ToolLabels.detail(toolName, args, cwd, PathDisplay.RELATIVE));
         return detail.isEmpty() ? glyph + " " + toolName + "…" : glyph + " " + toolName + ": " + detail;
+    }
+
+    /** The CommonMark characters that start emphasis, a code span, a link or a strikethrough. */
+    private static final String MARKDOWN_PUNCTUATION = "\\`*_[]~";
+
+    /**
+     * Backslash-escapes those characters so an argument renders as itself.
+     *
+     * <p>
+     * The hint goes out through the same Markdown render as the agent's prose, and a path or a pattern is not prose.
+     * {@code grep: __init__} arrived as a bold {@code init}, and {@code sed -i 's/_x_/_y_/'} as {@code sed -i 's/x/y/'}
+     * -- the underscores were not merely styled, they were consumed, so the command shown was not the command running.
+     * On this frontend the hint is often the only view of what the agent is doing, which makes that worth more than the
+     * formatting it costs.
+     */
+    static String literal(String text) {
+        var out = new StringBuilder(text.length() + 8);
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (MARKDOWN_PUNCTUATION.indexOf(ch) >= 0)
+                out.append('\\');
+            out.append(ch);
+        }
+        return out.toString();
     }
 
     /** One-line, ellipsized: strips, collapses newlines, then truncates to {@code max} chars with a "…". */

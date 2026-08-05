@@ -11,6 +11,8 @@ import org.pijota.telegram.TelegramClient.Update;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -122,6 +124,37 @@ class TelegramChatTest {
                                         TelegramChat.toolHint("read", () -> "{\"file_path\":\"App.java\"}", "📖", "."));
         assertEquals("🔍 grep: \"TODO\" in .", TelegramChat.toolHint("grep",
                                         () -> "{\"pattern\":\"TODO\",\"path\":\".\"}", "🔍", "."));
+    }
+
+    /**
+     * The hint goes out through the same Markdown render as the agent's prose, and an argument is not prose. Asserted
+     * on the rendered HTML rather than on the hint, because the hint is only an input to the thing the user reads.
+     *
+     * <p>
+     * These are the ones that were wrong, and they were not merely styled: {@code __init__} arrived as a bold
+     * {@code init} and {@code 's/_x_/_y_/'} as {@code 's/x/y/'}, so the command shown was not the command running. On
+     * this frontend that hint is often the only view of what the agent is doing.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"__init__", "a*b*c", "**/*.java", "s/_x_/_y_/", "[a-z]*.txt", "a~b", "`date`", "_leading",
+            "trailing_"})
+    void aToolArgumentReachesTheReaderAsItself(String pattern) {
+        String hint = TelegramChat.toolHint("grep", () -> "{\"pattern\":\"" + pattern + "\"}", "🔍", ".");
+        String rendered = TelegramHtml.toHtml(hint);
+
+        assertTrue(rendered.contains(pattern), () -> "the reader was shown something else: [" + pattern
+                                        + "] rendered as [" + rendered.strip() + "]");
+    }
+
+    /** Escaping it for Markdown must not stop it being escaped for HTML: both run, in that order. */
+    @Test
+    void aToolArgumentStillCannotInjectHtml() {
+        String hint = TelegramChat.toolHint("bash", () -> "{\"command\":\"<a href=\\\"http://evil\\\">click</a>\"}",
+                                        "$", ".");
+
+        String html = TelegramHtml.toHtml(hint);
+        assertFalse(html.contains("<a href"), () -> "a link reached the message: " + html);
+        assertTrue(html.contains("&lt;a href"), () -> "and it should still be readable: " + html);
     }
 
     @Test
