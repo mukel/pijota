@@ -448,6 +448,26 @@ public final class Util {
         return n + " " + noun + (n == 1 ? "" : "s");
     }
 
+    /**
+     * The terminal's width for output written before there is a terminal object to ask: {@code COLUMNS} when the shell
+     * exports it, and otherwise the 80 that {@code --help} is authored for.
+     *
+     * <p>
+     * Shared rather than duplicated because the screens that need it are the ones a person meets first, and they have
+     * to agree: the model list and the first-run guidance were folded to two different widths, and the guidance's was
+     * 96, which is not a width any terminal is.
+     */
+    public static int terminalWidth() {
+        try {
+            int columns = Integer.parseInt(System.getenv("COLUMNS"));
+            if (columns >= 40)
+                return columns;
+        } catch (Exception ignored) {
+            // unset or not a number: the default below is the safe answer, not an error worth reporting
+        }
+        return 80;
+    }
+
     public static String firstLine(String text) {
         if (text == null || text.isBlank())
             return "";

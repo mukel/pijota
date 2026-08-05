@@ -4,6 +4,7 @@ import org.pijota.cli.ArgParser;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.util.Cli;
+import org.pijota.util.Util;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,10 +35,14 @@ class ModelResolverTest {
      * scanning for the one variable they have was reading half of it on each of two rows.
      */
     @Test
-    void theFirstRunMessageFitsAnEightyColumnTerminal() {
+    void theFirstRunMessageFitsTheTerminalItIsShownOn() {
+        // The literal, not Util.terminalWidth(): comparing the message against the same call that shaped it passes for
+        // any width whatsoever, including the 96 this is here to rule out. A shell does not export COLUMNS, so the
+        // test JVM sees the fallback, and this fixture check says so out loud if that ever stops being true.
+        assertEquals(80, Util.terminalWidth(), "fixture: the test JVM should see the fallback width");
         for (String line : ModelResolver.firstRunMessage().lines().toList())
-            assertTrue(line.length() <= 80, () -> "a line is " + line.length() + " columns, so an 80 column terminal "
-                                            + "folds it mid-word: [" + line + "]");
+            assertTrue(line.length() <= 80, () -> "a line is " + line.length()
+                                            + " columns, so an 80 column terminal folds it mid-word: [" + line + "]");
     }
 
     /**

@@ -6,6 +6,7 @@ import org.pijota.config.SettingsManager;
 import org.pijota.util.Cli;
 import org.pijota.util.CliErrorReporter;
 import org.pijota.util.PijotaHome;
+import org.pijota.util.Util;
 
 /**
  * Resolves the effective {@code (provider, model, apiKey)} a run should use, from CLI args + settings, the one gnarly
@@ -134,7 +135,7 @@ public final class ModelResolver {
             int column = label.length();
             for (int i = 0; i < envNames.size(); i++) {
                 String name = envNames.get(i);
-                if (column + name.length() + 2 > WIDTH) {
+                if (column + name.length() + 2 > width()) {
                     sb.append("\n").append(" ".repeat(label.length()));
                     column = label.length();
                 }
@@ -156,21 +157,22 @@ public final class ModelResolver {
     }
 
     /**
-     * The width this screen is written to.
+     * The width this screen is written to: the terminal's, shared with the model list so the two agree.
      *
      * <p>
-     * The same 80 the {@code --help} text is authored for, and for the same reason: this runs before there is a
-     * terminal to ask. It used to be 96, which is not a width anyone's terminal is, so on the classic 80 the list of
-     * variables broke in the middle of five of them -- and this is the first screen pijota ever shows a person.
+     * It used to be a fixed 96, which is not a width anyone's terminal is, so on the classic 80 the list of variables
+     * broke in the middle of five of them, and this is the first screen pijota ever shows a person.
      */
-    private static final int WIDTH = 80;
+    private static int width() {
+        return Util.terminalWidth();
+    }
 
-    /** Folds {@code text} at spaces to {@link #WIDTH}, continuing each line under {@code indent}. */
+    /** Folds {@code text} at spaces to the terminal width, continuing each line under {@code indent}. */
     private static String wrapped(String text, String indent) {
         var out = new StringBuilder();
         int column = 0;
         for (String word : text.split(" ")) {
-            if (column > 0 && column + 1 + word.length() > WIDTH) {
+            if (column > 0 && column + 1 + word.length() > width()) {
                 out.append("\n").append(indent);
                 column = indent.length();
             } else if (column > 0) {

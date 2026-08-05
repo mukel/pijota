@@ -471,16 +471,6 @@ public final class Main {
      * that prints and exits: it reports {@code dumb} whenever the output is piped, which is much of this command's use,
      * and on a recent JDK it writes native-access warnings to stderr that a script does not want.
      */
-    private static int terminalWidth() {
-        try {
-            int columns = Integer.parseInt(System.getenv("COLUMNS"));
-            if (columns >= 40)
-                return columns;
-        } catch (Exception ignored) {
-            // unset or not a number: the default below is the safe answer, not an error worth reporting
-        }
-        return 80;
-    }
 
     /**
      * One row per model, stacked onto a second line when a single line would not fit.
@@ -571,7 +561,7 @@ public final class Main {
             return;
         }
         System.out.println("Available models:");
-        for (String row : modelRows(models, terminalWidth()))
+        for (String row : modelRows(models, Util.terminalWidth()))
             System.out.println(row);
 
         int known = ModelRegistry.search(ModelRegistry.KNOWN_MODELS, filter).size();
