@@ -85,6 +85,18 @@ final class RichMarkdownRenderer implements MarkdownRenderer {
         return out;
     }
 
+    /**
+     * The list marker. U+2981 rather than the U+2022 bullet: heavier, so a list reads as a list at a glance, and still
+     * round, which a square is not.
+     *
+     * <p>
+     * Not U+25CF, which {@code ToolGlyphs.MUTATE} already spends on "a tool that changes something" -- the same glyph
+     * would then mean two things on one screen. Not U+2B24, which is heavier still and thinner on font coverage, a poor
+     * trade for a character that appears on every list. One cell wide in both the width table and a terminal, checked,
+     * because a marker that measures wrong misaligns every list it opens.
+     */
+    private static final String LIST_BULLET = "\u2981";
+
     private void renderBlock(Node node, String base, boolean italic, int depth, List<StyledLine> out) {
         if (node instanceof Heading h) {
             out.add(StyledLine.of(heading(h.getLevel(), MarkdownInline.plainText(h))));
@@ -92,7 +104,7 @@ final class RichMarkdownRenderer implements MarkdownRenderer {
             out.add(StyledLine.of(inline.children(p, base, italic)));
         } else if (node instanceof BulletList list) {
             for (Node item = list.getFirstChild(); item != null; item = item.getNext())
-                renderItem(item, base, italic, depth, "•", out);
+                renderItem(item, base, italic, depth, LIST_BULLET, out);
         } else if (node instanceof OrderedList list) {
             int n = list.getMarkerStartNumber() != null ? list.getMarkerStartNumber() : 1;
             for (Node item = list.getFirstChild(); item != null; item = item.getNext(), n++)

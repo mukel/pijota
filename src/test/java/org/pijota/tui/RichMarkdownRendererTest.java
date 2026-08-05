@@ -80,9 +80,9 @@ class RichMarkdownRendererTest {
 
     @Test
     void unorderedBulletsUseGlyph() {
-        assertEquals("• item", visible("- item"));
-        assertEquals("• item", visible("* item"));
-        assertEquals("• item", visible("+ item"));
+        assertEquals("⦁ item", visible("- item"));
+        assertEquals("⦁ item", visible("* item"));
+        assertEquals("⦁ item", visible("+ item"));
     }
 
     @Test
@@ -93,12 +93,12 @@ class RichMarkdownRendererTest {
 
     @Test
     void listItemInlineMarkdownIsStyled() {
-        assertEquals("• item with bold and code", visible("- item with **bold** and `code`"));
+        assertEquals("⦁ item with bold and code", visible("- item with **bold** and `code`"));
     }
 
     @Test
     void nestedListLinePreservesIndentWhenStreamedAlone() {
-        assertEquals("  • nested", visible("  - nested"));
+        assertEquals("  ⦁ nested", visible("  - nested"));
         assertEquals("   1. deep", visible("   1. deep"));
     }
 
@@ -106,7 +106,7 @@ class RichMarkdownRendererTest {
     void deeplyIndentedListLineRendersAsListNotCode() {
         // 5-space indent parses as an indented code block on its own; the renderer dedents-then-reindents so it stays
         // a styled list item (bullet + consumed ~~strikethrough~~), not raw "- ... ~~...~~".
-        assertEquals("     • Andromeda colliding soon", visible("     - Andromeda ~~colliding~~ soon"));
+        assertEquals("     ⦁ Andromeda colliding soon", visible("     - Andromeda ~~colliding~~ soon"));
     }
 
     // ---- checklists ----

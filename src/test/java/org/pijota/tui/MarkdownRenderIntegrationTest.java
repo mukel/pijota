@@ -231,7 +231,7 @@ class MarkdownRenderIntegrationTest {
     @Test
     void unorderedListRenders() {
         String out = renderRich("- item one", "- item two", "- item three");
-        assertTrue(out.contains("•"), "bullet glyph: " + out);
+        assertTrue(out.contains("⦁"), "bullet glyph: " + out);
         assertTrue(out.contains("item one"), out);
         assertTrue(out.contains("item two"), out);
         assertTrue(out.contains("item three"), out);
@@ -257,7 +257,7 @@ class MarkdownRenderIntegrationTest {
     @Test
     void nestedLists() {
         String out = renderRich("- top", "  - nested", "    - deep");
-        assertTrue(out.contains("• top"), out);
+        assertTrue(out.contains("⦁ top"), out);
         assertTrue(out.contains("nested"), out);
         assertTrue(out.contains("deep"), out);
     }
@@ -265,7 +265,7 @@ class MarkdownRenderIntegrationTest {
     @Test
     void mixedNestedLists() {
         String out = renderRich("- bullet", "  1. ordered inside bullet", "  2. second ordered");
-        assertTrue(out.contains("•"), out);
+        assertTrue(out.contains("⦁"), out);
         assertTrue(out.contains("1."), "ordered inside bullet: " + out);
         assertTrue(out.contains("ordered inside bullet"), out);
     }
@@ -458,7 +458,7 @@ class MarkdownRenderIntegrationTest {
         assertTrue(out.contains("code"), out);
         assertTrue(out.contains("answer = 42;"), "code fence: " + out);
         assertTrue(out.contains("Feature"), "table: " + out);
-        assertTrue(out.contains("•"), "list: " + out);
+        assertTrue(out.contains("⦁"), "list: " + out);
         assertTrue(out.contains("│"), "blockquote: " + out);
         assertTrue(out.contains("─"), "hr: " + out);
         assertTrue(out.contains("highlighted"), "text mark: " + out);
