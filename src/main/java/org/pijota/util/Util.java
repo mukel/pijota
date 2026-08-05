@@ -468,6 +468,40 @@ public final class Util {
         return 80;
     }
 
+    /**
+     * Folds {@code text} at spaces to {@code width}, continuing each line under {@code indent}.
+     *
+     * <p>
+     * For the screens printed before there is a terminal to lay text out properly: the first-run guidance and the trust
+     * prompt. Both were written with the line breaks typed in, to widths that were not the reader's, so a narrower
+     * terminal folded them again in the middle of words.
+     */
+    public static String wrap(String text, int width, String indent) {
+        // A run of spaces survives rather than collapsing: the leading ones are the line's own indent, placing the
+        // " y" of an option against its neighbours, and an inner run is the column that option's text starts in.
+        var out = new StringBuilder();
+        int column = 0;
+        boolean started = false;
+        for (String word : text.split(" ")) {
+            if (word.isEmpty()) {
+                out.append(' ');
+                column++;
+                continue;
+            }
+            if (started && column + 1 + word.length() > width) {
+                out.append('\n').append(indent);
+                column = indent.length();
+            } else if (started) {
+                out.append(' ');
+                column++;
+            }
+            out.append(word);
+            column += word.length();
+            started = true;
+        }
+        return out.toString();
+    }
+
     public static String firstLine(String text) {
         if (text == null || text.isBlank())
             return "";

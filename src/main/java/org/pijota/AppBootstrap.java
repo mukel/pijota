@@ -47,6 +47,7 @@ import org.pijota.util.ProcessRunner;
 import org.pijota.util.Proxies;
 import org.pijota.util.SelfRespawn;
 import org.pijota.util.StartupTimer;
+import org.pijota.util.Util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -335,13 +336,23 @@ public final class AppBootstrap {
      * the folder's agents and skills are quietly absent and their absence reads as a missing feature.
      */
     static String trustPrompt(String cwd) {
+        // Folded to the terminal rather than at typed-in line breaks. The breaks were placed for about 72 columns, so
+        // a narrower one folded the text a second time and split words in half -- on the first question pijota ever
+        // asks anybody. The options continue under their own text, so the y and the N stay the leftmost things.
+        int width = Util.terminalWidth();
+        String indent = "      ";
         return "\npijota " + PijotaVersion.current() + "\n\n"
-                                        + "This folder carries its own pijota resources -- .pijota/ (agents, skills,\n"
-                                        + "commands) and context files such as AGENTS.md. Trusting it means running\n"
-                                        + "code from this repository.\n\n"
-                                        + "  y   trust it; remembered for next time, change later with /trust\n"
-                                        + "  N   skip them; pijota works normally, these are simply ignored\n\n" + cwd
-                                        + "\n";
+                                        + Util.wrap("This folder carries its own pijota resources -- .pijota/ (agents,"
+                                                                        + " skills, commands) and context files such as"
+                                                                        + " AGENTS.md. Trusting it means running code"
+                                                                        + " from this repository.", width, "")
+                                        + "\n\n"
+                                        + Util.wrap("  y   trust it; remembered for next time, change later with"
+                                                                        + " /trust", width, indent)
+                                        + "\n"
+                                        + Util.wrap("  N   skip them; pijota works normally, these are simply ignored",
+                                                                        width, indent)
+                                        + "\n\n" + cwd + "\n";
     }
 
     private static boolean interactiveTuiLaunch(Args args) {

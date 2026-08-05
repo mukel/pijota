@@ -127,7 +127,8 @@ public final class ModelResolver {
         var envNames = ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).distinct().sorted().toList();
 
         var sb = new StringBuilder();
-        sb.append(wrapped("No provider configured yet. Set an API key for any provider:", "")).append("\n\n");
+        sb.append(Util.wrap("No provider configured yet. Set an API key for any provider:", width(), ""))
+                                        .append("\n\n");
         sb.append("  export ").append(envNames.isEmpty() ? "ANTHROPIC_API_KEY" : envNames.get(0)).append("=…\n\n");
         if (envNames.size() > 1) {
             String label = "  any of: ";
@@ -144,15 +145,21 @@ public final class ModelResolver {
             }
             sb.append("\n");
         }
-        sb.append("\n").append(wrapped("Start pijota again once it is set. `" + Cli.name()
-                                        + " --list-models` shows what you can run.", "")).append("\n");
-        sb.append("\n").append(wrapped("Running a local model? Add a keyless provider in "
-                                        + PijotaHome.resolve("settings.json") + ".", ""));
+        sb.append("\n").append(Util.wrap(
+                                        "Start pijota again once it is set. `" + Cli.name()
+                                                                        + " --list-models` shows what you can run.",
+                                        width(), "")).append("\n");
+        sb.append("\n").append(Util.wrap(
+                                        "Running a local model? Add a keyless provider in "
+                                                                        + PijotaHome.resolve("settings.json") + ".",
+                                        width(), ""));
         ProviderCatalog.providers().stream().filter(p -> p.oauth() != null).map(ProviderCatalog.Provider::id)
                                         .findFirst()
-                                        .ifPresent(p -> sb.append("\n").append(wrapped("Have a ChatGPT subscription? `"
-                                                                        + Cli.name() + " login " + p + "` signs in through the browser instead.",
-                                                                        "")));
+                                        .ifPresent(p -> sb.append("\n").append(Util.wrap(
+                                                                        "Have a ChatGPT subscription? `" + Cli.name()
+                                                                                                        + " login " + p
+                                                                                                        + "` signs in through the browser instead.",
+                                                                        width(), "")));
         return sb.toString();
     }
 
@@ -167,21 +174,4 @@ public final class ModelResolver {
         return Util.terminalWidth();
     }
 
-    /** Folds {@code text} at spaces to the terminal width, continuing each line under {@code indent}. */
-    private static String wrapped(String text, String indent) {
-        var out = new StringBuilder();
-        int column = 0;
-        for (String word : text.split(" ")) {
-            if (column > 0 && column + 1 + word.length() > width()) {
-                out.append("\n").append(indent);
-                column = indent.length();
-            } else if (column > 0) {
-                out.append(' ');
-                column++;
-            }
-            out.append(word);
-            column += word.length();
-        }
-        return out.toString();
-    }
 }

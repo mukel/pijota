@@ -344,4 +344,52 @@ class UtilTest {
             assertEquals("/tmp", Util.shortenCwd("/tmp"));
         }
     }
+
+    /**
+     * The screens printed before there is a terminal to lay text out: the first-run guidance and the trust prompt. Both
+     * had their line breaks typed in, to widths that were not the reader's, so a narrower terminal folded them a second
+     * time and split words in half.
+     */
+    @Test
+    void wrapFoldsAtSpacesAndNeverMidWord() {
+        String text = "the quick brown fox jumps over the lazy dog";
+
+        for (int width = 12; width <= 44; width++) {
+            String folded = Util.wrap(text, width, "");
+            for (String line : folded.split("\n"))
+                assertTrue(line.length() <= width, "width " + width + " produced a " + line.length() + " column line: ["
+                                                + line + "]");
+            assertEquals(text, folded.replace("\n", " "), "folding must not change the words, at width " + width);
+        }
+    }
+
+    /** A leading indent places the line against its neighbours; folding may not eat it. */
+    @Test
+    void wrapKeepsTheIndentAndTheColumnTheTextStartsIn() {
+        String option = "  y   trust it; remembered for next time, change later with /trust";
+
+        String folded = Util.wrap(option, 58, "      ");
+
+        assertTrue(folded.startsWith("  y   trust"),
+                                        () -> "the option lost the column it is written in: [" + folded + "]");
+        var lines = folded.split("\n");
+        assertTrue(lines.length > 1, "fixture: this should have folded");
+        for (int i = 1; i < lines.length; i++)
+            assertTrue(lines[i].startsWith("      "), "a continuation must sit under the text, not under the marker: ["
+                                            + lines[i] + "]");
+    }
+
+    /** One word longer than the whole width still has to come out whole, on its own line. */
+    @Test
+    void wrapDoesNotBreakAWordThatIsWiderThanTheLine() {
+        String folded = Util.wrap("a ANTHROPIC_API_KEY b", 10, "");
+
+        assertTrue(folded.contains("ANTHROPIC_API_KEY"), () -> "the word was cut: [" + folded.replace("\n", "|") + "]");
+    }
+
+    /** COLUMNS when the shell exports it, and otherwise the 80 the help text is authored for. */
+    @Test
+    void terminalWidthFallsBackToEighty() {
+        assertEquals(80, Util.terminalWidth(), "a shell does not export COLUMNS, so a test run sees the fallback");
+    }
 }
