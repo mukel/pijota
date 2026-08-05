@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/** Tokens and cost for a session, broken down by provider and model, for {@code /usage} and the session picker. */
 public final class SessionUsage {
     private SessionUsage() {}
 

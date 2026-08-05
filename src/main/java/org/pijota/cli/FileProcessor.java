@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+/** Expands the {@code @file} arguments of a prompt, inlining each file's contents where it was mentioned. */
 public final class FileProcessor {
 
     private FileProcessor() {}

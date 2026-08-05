@@ -12,6 +12,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Rewrites a conversation so another provider will accept it.
+ *
+ * <p>
+ * Switching model mid-session hands the new provider a history shaped for the old one; the wire formats disagree on
+ * tool calls, system messages and thinking, and a provider rejects the whole request over any of it.
+ */
 public final class MessageTransformer {
     private MessageTransformer() {}
 

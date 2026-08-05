@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/** A fluent builder for the JSON Schema a tool advertises, in place of hand-nested maps. */
 public final class ToolSchema {
     private ToolSchema() {}
 

@@ -12,6 +12,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Every provider pijota can reach: the built-in catalog plus any the user defines in settings.
+ *
+ * <p>
+ * A provider is data -- base URL, wire format, environment variable, default model -- so adding one is an entry here,
+ * not code. User-defined entries are validated before they are registered, since a bad base URL surfaces later as an
+ * error naming a provider the user never chose.
+ */
 public final class ProviderCatalog {
     private static final Catalog CATALOG = load();
     // User-defined providers from settings.json (e.g. a local OpenAI-compatible server); registered at startup and

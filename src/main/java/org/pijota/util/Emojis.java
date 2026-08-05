@@ -1,5 +1,6 @@
 package org.pijota.util;
 
+/** The emoji the interface draws, named once so a glyph change is one edit rather than a search. */
 public final class Emojis {
     private Emojis() {}
 

@@ -2,6 +2,13 @@ package org.pijota.agent;
 
 import java.util.Locale;
 
+/**
+ * What to tell the model when an attachment cannot be sent as-is.
+ *
+ * <p>
+ * The message goes into the conversation in the attachment's place, so it names the file and the reason: silently
+ * dropping it leaves the model answering about something it never received.
+ */
 public final class AttachmentMessages {
     private AttachmentMessages() {}
 

@@ -5,6 +5,10 @@ import org.pijota.util.Platform;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * Assembles the system prompt from the parts that describe this run: the environment, the available tools, the
+ * project's own context files, and whatever extensions contribute.
+ */
 public final class SystemPrompt {
 
     private static final String BASE_PROMPT = """

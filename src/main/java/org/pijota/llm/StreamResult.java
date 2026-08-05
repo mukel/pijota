@@ -5,6 +5,10 @@ import org.pijota.messages.Usage;
 
 import java.util.List;
 
+/**
+ * Accumulates one streamed response: content, thinking, tool calls and usage arrive in pieces and are read as a whole
+ * once the stream ends.
+ */
 public final class StreamResult {
     private final StringBuilder contentBuilder = new StringBuilder();
     private final StringBuilder thinkingBuilder = new StringBuilder();

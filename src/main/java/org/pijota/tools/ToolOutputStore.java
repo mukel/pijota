@@ -10,6 +10,13 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * Keeps the full text of oversized tool output on disk and hands back a bounded excerpt for the context.
+ *
+ * <p>
+ * The model reads the excerpt; the path lets the user (or a later tool call) reach the rest. Entries older than the
+ * retention window are swept, since a transcript should not grow without limit.
+ */
 public final class ToolOutputStore {
     public static final int DEFAULT_MAX_CHARS = 100_000;
     private static final Duration RETENTION = Duration.ofDays(7);

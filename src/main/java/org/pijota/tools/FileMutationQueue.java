@@ -6,6 +6,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Serializes mutations to one file, keyed by path.
+ *
+ * <p>
+ * Two tools editing the same file in one batch would otherwise interleave read-modify-write and lose an edit; the lock
+ * is per path, so unrelated files still proceed in parallel.
+ */
 public final class FileMutationQueue {
     private static final ConcurrentHashMap<Path, ReentrantLock> LOCKS = new ConcurrentHashMap<>();
 

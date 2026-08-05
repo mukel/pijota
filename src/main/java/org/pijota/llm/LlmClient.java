@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
+/** One provider's chat API, reduced to what the agent loop needs: stream a turn, and report what it cost. */
 public interface LlmClient extends AutoCloseable {
     String provider();
 

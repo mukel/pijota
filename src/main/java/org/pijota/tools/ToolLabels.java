@@ -10,6 +10,13 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+/**
+ * The one-line label a tool call is shown as -- the path, command or pattern that says what it is doing.
+ *
+ * <p>
+ * Shared by every frontend, so a tool reads the same in the terminal, the web UI and Telegram, and a new tool needs no
+ * per-frontend case.
+ */
 public final class ToolLabels {
 
     private ToolLabels() {}

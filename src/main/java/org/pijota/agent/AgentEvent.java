@@ -6,6 +6,13 @@ import org.pijota.messages.Usage;
 import java.util.List;
 import java.util.function.Supplier;
 
+/**
+ * What a turn is doing, as it happens.
+ *
+ * <p>
+ * Every frontend renders the same stream, so the terminal, the web UI and Telegram never drift on what a turn did.
+ * Sealed: adding a case makes each frontend's switch fail to compile rather than quietly ignore it.
+ */
 public sealed interface AgentEvent {
 
     record TurnStart(int turn) implements AgentEvent {

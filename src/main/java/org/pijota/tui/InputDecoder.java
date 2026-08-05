@@ -4,6 +4,13 @@ import org.jline.terminal.Terminal;
 
 import java.io.IOException;
 
+/**
+ * Turns bytes from the terminal into keys.
+ *
+ * <p>
+ * An arrow key is an escape sequence, and a lone Escape is only distinguishable from the start of one by waiting to see
+ * whether more bytes follow, so reads are timed rather than blocking.
+ */
 public final class InputDecoder {
     private InputDecoder() {}
 

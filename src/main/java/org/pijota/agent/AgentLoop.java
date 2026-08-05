@@ -29,6 +29,14 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * The conversation: send the history, run whatever tools come back, send the results, repeat until the model stops
+ * asking for tools.
+ *
+ * <p>
+ * Everything a turn can do hangs off this -- steering messages arriving mid-turn, compaction when the context fills,
+ * abort, and the events each frontend renders.
+ */
 public final class AgentLoop implements AgentContext {
     private static final Logger log = LoggerFactory.getLogger(AgentLoop.class);
     private final LlmClient llm;

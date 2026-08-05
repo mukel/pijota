@@ -4,6 +4,7 @@ import java.net.Inet4Address;
 import java.net.NetworkInterface;
 import java.util.Collections;
 
+/** Network facts about this host that the interface needs, such as the address to print in a QR code. */
 public final class Net {
     private Net() {}
 

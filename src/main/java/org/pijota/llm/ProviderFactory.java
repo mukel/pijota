@@ -16,6 +16,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Builds the client for a provider family.
+ *
+ * <p>
+ * Three wire formats cover every provider pijota speaks to: OpenAI-compatible, Google and Anthropic. A new provider is
+ * usually a catalog entry naming one of these, not new code.
+ */
 public interface ProviderFactory {
 
     StreamingChatModel create(String baseUrl, String apiKey, String modelName, String providerName,

@@ -15,6 +15,14 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+/**
+ * Keeps a conversation inside the model's context window by summarising its older half.
+ *
+ * <p>
+ * Token counts are estimated from characters for the pre-flight decision; the provider's reported usage is the truth
+ * once a response arrives. Summarising costs a call of its own, which is why it is deferred to a threshold rather than
+ * run eagerly.
+ */
 public final class CompactionManager {
     private static final int DEFAULT_CONTEXT_WINDOW = 128_000;
     private static final int DEFAULT_RESERVE_TOKENS = 16_384;
