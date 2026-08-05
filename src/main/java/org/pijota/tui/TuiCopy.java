@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.theme.AnsiTheme;
+import org.pijota.util.Util;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -44,7 +45,7 @@ final class TuiCopy {
      * prove that something is still moving.
      */
     static String toolProgress(String toolName, int chars) {
-        return toolName + " " + org.pijota.util.Util.fmtCountPrecise(chars) + " chars";
+        return toolName + " " + Util.fmtCountPrecise(chars) + " chars";
     }
 
     static final String SELECTOR_HINT = "↑/↓ navigate · Enter select · Esc cancel · type to search";

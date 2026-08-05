@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -298,7 +299,7 @@ class AnthropicWireReplayTest {
                                                                         + "\"usage\":{\"output_tokens\":9}}",
                                         "message_stop", "{\"type\":\"message_stop\"}"));
 
-        var reports = new java.util.ArrayList<String>();
+        var reports = new ArrayList<String>();
         service().streamMessages(List.of(user("hello")), List.of(), (a, b) -> {}, ThinkingLevel.OFF,
                                         (tool, chars) -> reports.add(tool + ":" + chars)).get(20, TimeUnit.SECONDS);
 

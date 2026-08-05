@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -218,7 +220,7 @@ class DiffWordEmphasisTest {
     @ParameterizedTest
     @ValueSource(strings = {"dark", "light", "gruvbox-dark", "gruvbox-light"})
     void everyBundledThemeDefinesItsOwnWordBackgrounds(String name) throws Exception {
-        var json = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/themes/" + name + ".json"));
+        var json = Files.readString(Path.of("src/main/resources/themes/" + name + ".json"));
 
         assertTrue(json.contains("toolDiffAddedBg"), name + " falls back to the dark-tuned default for added words");
         assertTrue(json.contains("toolDiffRemovedBg"),

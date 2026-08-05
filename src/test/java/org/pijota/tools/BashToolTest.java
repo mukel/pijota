@@ -35,10 +35,10 @@ class BashToolTest {
      */
     @Test
     void theRenderedCardDoesNotRepeatTheExitCodeTheHeaderAlreadyShows() {
-        var result = new Tool.ToolResult("boom\n[Command exited with code 2]", true, java.util.Map.of("exitCode", 2));
+        var result = new Tool.ToolResult("boom\n[Command exited with code 2]", true, Map.of("exitCode", 2));
 
-        var view = new BashTool("/bin/sh", null, java.util.Map::of)
-                                        .renderResult(new Tool.Args(java.util.Map.of("command", "false")), result, ".");
+        var view = new BashTool("/bin/sh", null, Map::of).renderResult(new Tool.Args(Map.of("command", "false")),
+                                        result, ".");
 
         assertFalse(String.join("\n", view.body()).contains("Command exited with code"), view.body().toString());
         assertEquals("1 line", view.summary(), "the marker was counted as output");

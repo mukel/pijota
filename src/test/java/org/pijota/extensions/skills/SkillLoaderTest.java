@@ -5,9 +5,12 @@ import org.pijota.config.ProjectTrust;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -62,8 +65,8 @@ class SkillLoaderTest {
         // extension flags, so a narrower search reports things that plainly do exist.
         String source = sourceTree();
 
-        var missing = new java.util.ArrayList<String>();
-        var named = java.util.regex.Pattern.compile("`(/[a-z-]+|--[a-z-]+)[`< |]").matcher(body);
+        var missing = new ArrayList<String>();
+        var named = Pattern.compile("`(/[a-z-]+|--[a-z-]+)[`< |]").matcher(body);
         while (named.find()) {
             String token = named.group(1);
             // --no-<extension> is built at runtime as "no-" + the extension's own name, so the literal never appears
@@ -78,7 +81,7 @@ class SkillLoaderTest {
         assertTrue(missing.isEmpty(), "the shipped skill names things pijota does not have: " + missing);
     }
 
-    private static String sourceTree() throws java.io.IOException {
+    private static String sourceTree() throws IOException {
         try (var files = Files.walk(Path.of("src/main/java"))) {
             var sb = new StringBuilder();
             for (Path f : files.filter(f -> f.toString().endsWith(".java")).toList())

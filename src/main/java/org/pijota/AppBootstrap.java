@@ -59,6 +59,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -149,7 +150,7 @@ public final class AppBootstrap {
             // A pijota killed mid-batch leaves sub-agent worktrees behind, still registered in the user's own
             // repository, and nothing else ever removes them. Off the startup path; wired here rather than in the
             // extension because tests construct extensions freely and must not touch a real repo.
-            java.util.concurrent.CompletableFuture.runAsync(() -> TaskTool.sweepStaleWorktrees(cwd));
+            CompletableFuture.runAsync(() -> TaskTool.sweepStaleWorktrees(cwd));
             ext.register(new PlanExtension());
             ext.register(new SuggestExtension()); // opt-in --suggest
             ext.register(new TranscendenceExtension()); // opt-in --transcendence

@@ -5,6 +5,7 @@ import org.pijota.util.SelfRespawn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -70,7 +71,7 @@ final class Supervisor {
         // a thin jar beside its dependencies, which is exactly the arrangement this used to break on.
         String classpath = System.getProperty("java.class.path", "");
         Path jar = SelfRespawn.findCurrentJar();
-        if (jar != null && !classpath.contains(java.io.File.pathSeparator)) {
+        if (jar != null && !classpath.contains(File.pathSeparator)) {
             command.add("-jar");
             command.add(jar.toAbsolutePath().toString());
         } else {

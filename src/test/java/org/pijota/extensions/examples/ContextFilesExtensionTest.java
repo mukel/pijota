@@ -33,7 +33,7 @@ class ContextFilesExtensionTest {
         String both = ContextFilesExtension.untrustedHint(true, true);
         assertTrue(both.contains(".pijota/") && both.contains("AGENTS.md"), both);
 
-        for (String hint : java.util.List.of(resourcesOnly, both, ContextFilesExtension.untrustedHint(true, false)))
+        for (String hint : List.of(resourcesOnly, both, ContextFilesExtension.untrustedHint(true, false)))
             assertTrue(hint.contains("/trust"), "every form must say how to fix it: " + hint);
     }
 

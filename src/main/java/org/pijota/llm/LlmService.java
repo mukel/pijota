@@ -199,7 +199,7 @@ public final class LlmService implements LlmClient {
         long streamTimeoutSeconds = LlmTimeouts.request().toSeconds();
         var settled = new AtomicBoolean(false);
         // Per tool call in this stream: arguments stream as deltas, and only the running total is worth showing.
-        var toolCallChars = new java.util.concurrent.ConcurrentHashMap<Integer, Integer>();
+        var toolCallChars = new ConcurrentHashMap<Integer, Integer>();
         future.orTimeout(streamTimeoutSeconds, TimeUnit.SECONDS).exceptionally(ex -> {
             // Only orTimeout completes the future with a TimeoutException; providers report timeouts as IOExceptions.
             if (ex instanceof TimeoutException && settled.compareAndSet(false, true)) {

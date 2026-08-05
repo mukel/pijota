@@ -1,7 +1,9 @@
 package org.pijota.extensions.task;
 
+import org.pijota.extensions.HeadlessToolContext;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
+import org.pijota.tools.Tool;
 import org.pijota.tools.ToolRegistry;
 
 import org.junit.jupiter.api.AfterEach;
@@ -9,8 +11,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -86,9 +95,9 @@ class SubAgentControlTest {
     void labelsStayDistinctUnderConcurrentLaunches() throws Exception {
         var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
         int n = 64;
-        var start = new java.util.concurrent.CountDownLatch(1);
-        var labels = java.util.concurrent.ConcurrentHashMap.<String>newKeySet();
-        var threads = new java.util.ArrayList<Thread>();
+        var start = new CountDownLatch(1);
+        var labels = ConcurrentHashMap.<String>newKeySet();
+        var threads = new ArrayList<Thread>();
         for (int i = 0; i < n; i++) {
             var t = new Thread(() -> {
                 try {
@@ -116,8 +125,7 @@ class SubAgentControlTest {
     @Test
     void theTaskToolAdvertisesItselfAsDetachable() {
         var tool = new TaskTool(List.of(), null, List::of, () -> "", (a, b) -> {}, (a, b, c) -> {}, Path.of("."), 0);
-        assertInstanceOf(org.pijota.tools.Tool.Detachable.class, tool,
-                                        "the TUI finds backgroundable tools by this interface alone");
+        assertInstanceOf(Tool.Detachable.class, tool, "the TUI finds backgroundable tools by this interface alone");
     }
 
     /** Nothing running, nothing to hand off -- and never a half-built DetachedProcess. */
@@ -142,8 +150,7 @@ class SubAgentControlTest {
         assertTrue(tool.detach().isEmpty());
 
         tool.stopFor("explore", "you stopped this sub-agent. It will not be started again in this turn");
-        var refused = tool.execute("id", new org.pijota.tools.Tool.Args(
-                                        java.util.Map.of("agent", "explore", "description", "go")), ".").get();
+        var refused = tool.execute("id", new Tool.Args(Map.of("agent", "explore", "description", "go")), ".").get();
 
         assertTrue(refused.isError(), refused.content());
         assertTrue(refused.content().contains("will not be started again in this turn"), refused.content());
@@ -169,8 +176,7 @@ class SubAgentControlTest {
         tool.stopFor("explore", "this sub-agent was killed by the system (SIGKILL, often the OOM killer). It will"
                                         + " not be started again in this turn");
 
-        var refused = tool.execute("id", new org.pijota.tools.Tool.Args(
-                                        java.util.Map.of("agent", "explore", "description", "go")), ".").get();
+        var refused = tool.execute("id", new Tool.Args(Map.of("agent", "explore", "description", "go")), ".").get();
 
         assertTrue(refused.isError(), refused.content());
         assertTrue(refused.content().contains("killed by the system"), refused.content());
@@ -184,26 +190,25 @@ class SubAgentControlTest {
      */
     @Test
     void staleWorktreesAreSweptButLiveOnesAreLeftAlone(@TempDir Path root) throws Exception {
-        var stale = java.nio.file.Files.createDirectory(root.resolve("wt-0-explore-123"));
-        java.nio.file.Files.writeString(stale.resolve("file.txt"), "debris");
-        java.nio.file.Files.setLastModifiedTime(stale, java.nio.file.attribute.FileTime.fromMillis(
-                                        System.currentTimeMillis() - java.time.Duration.ofHours(3).toMillis()));
-        var live = java.nio.file.Files.createDirectory(root.resolve("wt-1-explore-456"));
-        var unrelated = java.nio.file.Files.createDirectory(root.resolve("not-a-worktree"));
+        var stale = Files.createDirectory(root.resolve("wt-0-explore-123"));
+        Files.writeString(stale.resolve("file.txt"), "debris");
+        Files.setLastModifiedTime(stale, FileTime
+                                        .fromMillis(System.currentTimeMillis() - Duration.ofHours(3).toMillis()));
+        var live = Files.createDirectory(root.resolve("wt-1-explore-456"));
+        var unrelated = Files.createDirectory(root.resolve("not-a-worktree"));
 
-        int removed = TaskTool.sweepStaleWorktrees(root, Path.of("."), java.time.Duration.ofHours(1));
+        int removed = TaskTool.sweepStaleWorktrees(root, Path.of("."), Duration.ofHours(1));
 
         assertEquals(1, removed, "swept the wrong number");
-        assertFalse(java.nio.file.Files.exists(stale), "the stale worktree survived");
-        assertTrue(java.nio.file.Files.exists(live), "a worktree a live batch could still own was removed");
-        assertTrue(java.nio.file.Files.exists(unrelated), "swept something that is not a sub-agent worktree");
+        assertFalse(Files.exists(stale), "the stale worktree survived");
+        assertTrue(Files.exists(live), "a worktree a live batch could still own was removed");
+        assertTrue(Files.exists(unrelated), "swept something that is not a sub-agent worktree");
     }
 
     /** Nothing to sweep must be free: no git calls, no error, on a machine that has never used the feature. */
     @Test
     void sweepingIsANoOpWhenThereIsNothingThere(@TempDir Path root) {
-        assertEquals(0, TaskTool.sweepStaleWorktrees(root.resolve("absent"), Path.of("."),
-                                        java.time.Duration.ofHours(1)));
+        assertEquals(0, TaskTool.sweepStaleWorktrees(root.resolve("absent"), Path.of("."), Duration.ofHours(1)));
     }
 
     /**
@@ -213,9 +218,8 @@ class SubAgentControlTest {
      */
     @Test
     void aSubAgentGetsNoTaskToolOfItsOwn() throws Exception {
-        var registry = new org.pijota.tools.ToolRegistry();
-        var ctx = new org.pijota.extensions.HeadlessToolContext(java.util.List.of("task", "read"), 1, null, registry,
-                                        "", Path.of("."));
+        var registry = new ToolRegistry();
+        var ctx = new HeadlessToolContext(List.of("task", "read"), 1, null, registry, "", Path.of("."));
 
         new TaskExtension().contributeHeadlessTools(ctx);
 

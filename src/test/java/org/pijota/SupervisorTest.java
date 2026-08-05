@@ -4,6 +4,9 @@ import org.pijota.util.SelfRespawn;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -41,7 +44,7 @@ class SupervisorTest {
     void aThinJarBesideItsDependenciesIsLaunchedWithTheClasspath() {
         String original = System.getProperty("java.class.path");
         try {
-            String sep = java.io.File.pathSeparator;
+            String sep = File.pathSeparator;
             System.setProperty("java.class.path", "/repo/org/pijota/pijota/0.2.0/pijota-0.2.0.jar" + sep
                                             + "/repo/org/slf4j/slf4j-api/2.0.18/slf4j-api-2.0.18.jar");
 
@@ -96,6 +99,6 @@ class SupervisorTest {
 
         int worker = command.indexOf("--worker");
         assertTrue(worker > 0, "the child must be told it is the worker: " + command);
-        assertEquals(java.util.List.of("--continue", "-m", "some/model"), command.subList(worker + 1, command.size()));
+        assertEquals(List.of("--continue", "-m", "some/model"), command.subList(worker + 1, command.size()));
     }
 }

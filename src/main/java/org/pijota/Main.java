@@ -16,6 +16,7 @@ import org.pijota.config.OAuthTokenStore;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelDisplay;
+import org.pijota.llm.ModelInfo;
 import org.pijota.llm.ModelRefresher;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.SetupRequiredException;
@@ -43,6 +44,7 @@ import java.io.Console;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class Main {
@@ -481,7 +483,7 @@ public final class Main {
      * have to type back. A gateway's ids ({@code fireworks/accounts/fireworks/models/...}) reach 51 characters on their
      * own, so on a narrow terminal the name gets its line and the facts get the next.
      */
-    static List<String> modelRows(List<org.pijota.llm.ModelInfo> models, int width) {
+    static List<String> modelRows(List<ModelInfo> models, int width) {
         var names = models.stream().map(m -> m.provider() + "/" + m.id()).toList();
         int factsColumn = models.stream().mapToInt(m -> ModelDisplay.summary(m).length()).max().orElse(0);
         int room = width - 2 - 2 - factsColumn; // indent, gap, and the facts the row has to end with
@@ -490,7 +492,7 @@ public final class Main {
         // characters would otherwise stack all fifteen rows, and the table is what makes them comparable.
         int nameColumn = names.stream().mapToInt(String::length).filter(len -> len <= room).max().orElse(0);
 
-        var rows = new java.util.ArrayList<String>(models.size());
+        var rows = new ArrayList<String>(models.size());
         for (int i = 0; i < models.size(); i++) {
             boolean sideBySide = names.get(i).length() <= nameColumn;
             // Even on its own line the facts can outrun a very narrow terminal, so they shed from the end at the

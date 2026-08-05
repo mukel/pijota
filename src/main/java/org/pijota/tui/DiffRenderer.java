@@ -7,8 +7,11 @@ import org.pijota.util.Util;
 import org.pijota.util.WordDiff;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.IntFunction;
 
 final class DiffRenderer {
     private static final int CONTEXT_LINES = 3;
@@ -92,7 +95,7 @@ final class DiffRenderer {
             // asks for the other half of the same answer, finds it done. Filled as rows are drawn rather than up
             // front, so a pair past the cap still costs nothing.
             var pairs = DiffAlgorithm.pairs(hunk.rows());
-            var compared = new java.util.HashMap<Integer, WordDiff.Result>();
+            var compared = new HashMap<Integer, WordDiff.Result>();
             for (int r = 0; r < hunk.rows().size(); r++) {
                 if (rendered >= MAX_RENDERED_ROWS) {
                     truncated = true;
@@ -152,8 +155,8 @@ final class DiffRenderer {
     }
 
     /** The ranges of row {@code index} that differ from the row it replaced, or none when it replaced nothing. */
-    private static List<WordDiff.Span> wordSpans(List<DiffAlgorithm.Row> rows, java.util.Map<Integer, Integer> pairs,
-                                    java.util.Map<Integer, WordDiff.Result> compared, int index) {
+    private static List<WordDiff.Span> wordSpans(List<DiffAlgorithm.Row> rows, Map<Integer, Integer> pairs,
+                                    Map<Integer, WordDiff.Result> compared, int index) {
         Integer other = pairs.get(index);
         if (other == null)
             return List.of();
@@ -262,7 +265,7 @@ final class DiffRenderer {
      * @param backgroundAt
      *            the background in force at an offset into {@code line}, blank for none
      */
-    private String withBackground(String line, java.util.function.IntFunction<String> backgroundAt) {
+    private String withBackground(String line, IntFunction<String> backgroundAt) {
         var sb = new StringBuilder();
         String current = "";
         int raw = 0;

@@ -1,5 +1,7 @@
 package org.pijota.extensions.jobs;
 
+import org.pijota.extensions.testkit.FakeExtensionAPI;
+import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.tools.Tool;
 import org.pijota.util.Executables;
 
@@ -10,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -396,12 +399,10 @@ class JobRegistryTest {
         var proc = new ProcessBuilder("sh", "-c", "sleep 20").start();
         String id = jobs.register(proc, "sleep 20", "sleeper");
 
-        var api = new org.pijota.extensions.testkit.FakeExtensionAPI(
-                                        new org.pijota.extensions.testkit.FakeExtensionRuntime());
+        var api = new FakeExtensionAPI(new FakeExtensionRuntime());
         new JobsExtension(jobs).init(api);
         var result = api.tool("jobs_output").execute()
-                                        .execute("id", new Tool.Args(java.util.Map.of("id", id)), tempDir.toString())
-                                        .get();
+                                        .execute("id", new Tool.Args(Map.of("id", id)), tempDir.toString()).get();
 
         assertTrue(result.isError(), result.content());
         assertTrue(result.content().contains("current turn"), result.content());

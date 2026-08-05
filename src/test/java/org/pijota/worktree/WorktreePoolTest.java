@@ -11,6 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -181,7 +182,7 @@ class WorktreePoolTest {
 
     private static void deleteRecursively(Path dir) throws Exception {
         try (var paths = Files.walk(dir)) {
-            paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+            paths.sorted(Comparator.reverseOrder()).forEach(p -> {
                 try {
                     Files.deleteIfExists(p);
                 } catch (Exception ignored) {}

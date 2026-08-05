@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,8 +50,7 @@ class HeadlessEventsAreReflectionRegisteredTest {
         for (Class<?> nested : HeadlessAgentRunner.class.getDeclaredClasses()) {
             if (!nested.isRecord() || !nested.getSimpleName().endsWith("Event"))
                 continue;
-            List<String> components = java.util.Arrays.stream(nested.getRecordComponents()).map(c -> c.getName())
-                                            .toList();
+            List<String> components = Arrays.stream(nested.getRecordComponents()).map(c -> c.getName()).toList();
             if (!components.contains("type"))
                 missing.add(nested.getSimpleName());
         }

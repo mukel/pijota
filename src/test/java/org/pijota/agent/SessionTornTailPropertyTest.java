@@ -9,6 +9,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -63,7 +65,7 @@ class SessionTornTailPropertyTest {
         for (int cut = 0; cut <= whole.length; cut++) {
             final int length = cut;
             var torn = tempDir.resolve("torn-" + length + ".jsonl");
-            Files.write(torn, java.util.Arrays.copyOf(whole, length));
+            Files.write(torn, Arrays.copyOf(whole, length));
 
             List<Message> loaded;
             try {
@@ -90,7 +92,7 @@ class SessionTornTailPropertyTest {
         for (int cut = 0; cut <= whole.length; cut++) {
             final int length = cut;
             var torn = tempDir.resolve("appendable-" + length + ".jsonl");
-            Files.write(torn, java.util.Arrays.copyOf(whole, length));
+            Files.write(torn, Arrays.copyOf(whole, length));
 
             var resumed = new SessionManager(tempDir);
             List<Message> before;
@@ -129,7 +131,7 @@ class SessionTornTailPropertyTest {
         for (int cut = 0; cut <= whole.length; cut++) {
             final int length = cut;
             var torn = tempDir.resolve("batch-" + length + ".jsonl");
-            Files.write(torn, java.util.Arrays.copyOf(whole, length));
+            Files.write(torn, Arrays.copyOf(whole, length));
 
             List<Message> loaded;
             try {
@@ -139,7 +141,7 @@ class SessionTornTailPropertyTest {
                 return;
             }
             // Every call the context still carries has to have an answer, whether the tool ever ran or not.
-            var answered = new java.util.HashSet<String>();
+            var answered = new HashSet<String>();
             for (var m : loaded)
                 if (m instanceof Message.ToolResult r)
                     answered.add(r.toolCallId());

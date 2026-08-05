@@ -5,6 +5,7 @@ import org.pijota.util.ProcessRunner;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,11 +48,10 @@ class TaskToolAbortTest {
 
         var run = CompletableFuture.supplyAsync(() -> {
             try {
-                return ProcessRunner.command(java.util.List.of("sleep", "60")).timeout(Duration.ofMinutes(5))
-                                                .onStart(p -> {
-                                                    child.set(p);
-                                                    supervisor.running().add(p);
-                                                }).run();
+                return ProcessRunner.command(List.of("sleep", "60")).timeout(Duration.ofMinutes(5)).onStart(p -> {
+                    child.set(p);
+                    supervisor.running().add(p);
+                }).run();
             } catch (Exception e) {
                 throw new IllegalStateException(e);
             }
@@ -78,7 +78,7 @@ class TaskToolAbortTest {
 
         CompletableFuture.runAsync(() -> {
             try {
-                ProcessRunner.command(java.util.List.of("sh", "-c", "sleep 60 & wait")).timeout(Duration.ofMinutes(5))
+                ProcessRunner.command(List.of("sh", "-c", "sleep 60 & wait")).timeout(Duration.ofMinutes(5))
                                                 .onStart(p -> {
                                                     child.set(p);
                                                     supervisor.running().add(p);

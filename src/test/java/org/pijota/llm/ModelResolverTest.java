@@ -2,6 +2,7 @@ package org.pijota.llm;
 
 import org.pijota.cli.ArgParser;
 import org.pijota.config.AppConfig;
+import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
 import org.pijota.util.Cli;
 import org.pijota.util.Util;
@@ -72,8 +73,7 @@ class ModelResolverTest {
         System.setProperty("pijota.home", home.toString());
         try {
             String msg = ModelResolver.firstRunMessage();
-            var known = org.pijota.config.ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).distinct()
-                                            .toList();
+            var known = ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).distinct().toList();
 
             var absent = known.stream().filter(e -> !msg.contains(e)).toList();
             assertTrue(absent.isEmpty(), "variables the reader could be looking for are missing: " + absent);
@@ -92,7 +92,7 @@ class ModelResolverTest {
     void theFirstRunMessageNamesRealEnvironmentVariables() {
         String msg = ModelResolver.firstRunMessage();
 
-        var known = org.pijota.config.ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).toList();
+        var known = ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).toList();
         assertFalse(known.isEmpty(), "no provider declares an env var; the fixture is wrong");
         assertTrue(known.stream().anyMatch(msg::contains), "names none of the real variables:\n" + msg);
     }

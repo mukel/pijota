@@ -22,7 +22,7 @@ class WebfetchToolTest {
         var tool = new WebfetchTool(FakeHttpClient.redirectThenOk(302, "http://169.254.169.254/latest/meta-data/",
                                         "metadata"));
 
-        var result = tool.execute("id", new Tool.Args(java.util.Map.of("url", "https://example.com/start")), ".").get();
+        var result = tool.execute("id", new Tool.Args(Map.of("url", "https://example.com/start")), ".").get();
 
         assertTrue(result.isError(), result.content());
         assertTrue(result.content().contains("169.254.169.254"), result.content());
@@ -34,7 +34,7 @@ class WebfetchToolTest {
     void aRedirectToAPublicAddressIsFollowed() throws Exception {
         var tool = new WebfetchTool(FakeHttpClient.redirectThenOk(302, "https://example.org/moved", "landed"));
 
-        var result = tool.execute("id", new Tool.Args(java.util.Map.of("url", "https://example.com/start")), ".").get();
+        var result = tool.execute("id", new Tool.Args(Map.of("url", "https://example.com/start")), ".").get();
 
         assertFalse(result.isError(), result.content());
         assertTrue(result.content().contains("landed"), result.content());
