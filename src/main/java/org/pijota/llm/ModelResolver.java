@@ -125,31 +125,61 @@ public final class ModelResolver {
         // is the one screen where "and 16 more" is the opposite of helpful, since the reader is looking for theirs.
         var envNames = ProviderCatalog.providers().stream().flatMap(p -> p.env().stream()).distinct().sorted().toList();
 
-        var sb = new StringBuilder("No provider configured yet. Set an API key for any provider:\n\n");
+        var sb = new StringBuilder();
+        sb.append(wrapped("No provider configured yet. Set an API key for any provider:", "")).append("\n\n");
         sb.append("  export ").append(envNames.isEmpty() ? "ANTHROPIC_API_KEY" : envNames.get(0)).append("=…\n\n");
         if (envNames.size() > 1) {
-            sb.append("  any of: ");
-            int column = "  any of: ".length();
+            String label = "  any of: ";
+            sb.append(label);
+            int column = label.length();
             for (int i = 0; i < envNames.size(); i++) {
                 String name = envNames.get(i);
-                if (column + name.length() + 2 > 96) { // wrap rather than run off a narrow terminal
-                    sb.append("\n").append(" ".repeat("  any of: ".length()));
-                    column = "  any of: ".length();
+                if (column + name.length() + 2 > WIDTH) {
+                    sb.append("\n").append(" ".repeat(label.length()));
+                    column = label.length();
                 }
                 sb.append(name).append(i < envNames.size() - 1 ? ", " : "");
                 column += name.length() + 2;
             }
             sb.append("\n");
         }
-        sb.append("\nStart pijota again once it is set. `").append(Cli.name())
-                                        .append(" --list-models` shows what you can run.\n");
-        sb.append("\nRunning a local model? Add a keyless provider in ").append(PijotaHome.resolve("settings.json"))
-                                        .append(".");
+        sb.append("\n").append(wrapped("Start pijota again once it is set. `" + Cli.name()
+                                        + " --list-models` shows what you can run.", "")).append("\n");
+        sb.append("\n").append(wrapped("Running a local model? Add a keyless provider in "
+                                        + PijotaHome.resolve("settings.json") + ".", ""));
         ProviderCatalog.providers().stream().filter(p -> p.oauth() != null).map(ProviderCatalog.Provider::id)
                                         .findFirst()
-                                        .ifPresent(p -> sb.append("\nHave a ChatGPT subscription? `").append(Cli.name())
-                                                                        .append(" login ").append(p)
-                                                                        .append("` signs in through the browser instead."));
+                                        .ifPresent(p -> sb.append("\n").append(wrapped("Have a ChatGPT subscription? `"
+                                                                        + Cli.name() + " login " + p + "` signs in through the browser instead.",
+                                                                        "")));
         return sb.toString();
+    }
+
+    /**
+     * The width this screen is written to.
+     *
+     * <p>
+     * The same 80 the {@code --help} text is authored for, and for the same reason: this runs before there is a
+     * terminal to ask. It used to be 96, which is not a width anyone's terminal is, so on the classic 80 the list of
+     * variables broke in the middle of five of them -- and this is the first screen pijota ever shows a person.
+     */
+    private static final int WIDTH = 80;
+
+    /** Folds {@code text} at spaces to {@link #WIDTH}, continuing each line under {@code indent}. */
+    private static String wrapped(String text, String indent) {
+        var out = new StringBuilder();
+        int column = 0;
+        for (String word : text.split(" ")) {
+            if (column > 0 && column + 1 + word.length() > WIDTH) {
+                out.append("\n").append(indent);
+                column = indent.length();
+            } else if (column > 0) {
+                out.append(' ');
+                column++;
+            }
+            out.append(word);
+            column += word.length();
+        }
+        return out.toString();
     }
 }

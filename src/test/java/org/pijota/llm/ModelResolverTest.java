@@ -26,6 +26,21 @@ class ModelResolverTest {
     }
 
     /**
+     * The first screen pijota shows anyone has to fit the terminal it is shown on.
+     *
+     * <p>
+     * It was folded at 96, which is not a width any terminal is, so on the classic 80 it broke in the middle of five
+     * variable names and of the closing sentence -- {@code FIREWORKS_API_K/EY}, {@code browse/r instead}. A reader
+     * scanning for the one variable they have was reading half of it on each of two rows.
+     */
+    @Test
+    void theFirstRunMessageFitsAnEightyColumnTerminal() {
+        for (String line : ModelResolver.firstRunMessage().lines().toList())
+            assertTrue(line.length() <= 80, () -> "a line is " + line.length() + " columns, so an 80 column terminal "
+                                            + "folds it mid-word: [" + line + "]");
+    }
+
+    /**
      * The first thing a user with no credentials ever sees. It used to lead with `pijota login openai-codex`, which
      * needs a ChatGPT subscription -- presenting the narrow path first and leaving most people to discover that for
      * themselves. An API key works for every provider, so it leads.
