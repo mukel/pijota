@@ -62,13 +62,20 @@ final class Supervisor {
         command.add(SelfRespawn.resolveJava());
         command.addAll(SelfRespawn.jvmOptions());
 
+        // -jar throws the classpath away and takes only what the jar's own manifest declares, which is everything
+        // for the shaded build and nothing for any other. A one entry classpath IS that shaded jar, so -jar is right.
+        // Anything longer means the dependencies were resolved onto the classpath -- jbang, mvn exec, an IDE, a plain
+        // java -cp -- and handing the child -jar starts it with pijota's own classes and nothing else, where it dies
+        // in Main's static initializer looking for a logger. That is what a release from Maven Central looks like:
+        // a thin jar beside its dependencies, which is exactly the arrangement this used to break on.
+        String classpath = System.getProperty("java.class.path", "");
         Path jar = SelfRespawn.findCurrentJar();
-        if (jar != null) {
+        if (jar != null && !classpath.contains(java.io.File.pathSeparator)) {
             command.add("-jar");
             command.add(jar.toAbsolutePath().toString());
         } else {
             command.add("-cp");
-            command.add(System.getProperty("java.class.path"));
+            command.add(classpath);
             command.add(Main.class.getName());
         }
 
