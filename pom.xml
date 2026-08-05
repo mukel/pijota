@@ -10,6 +10,7 @@
   <name>Pijota</name>
   <description>A local-first AI coding agent for people who live in terminals.</description>
   <url>https://pijota.org</url>
+  <inceptionYear>2026</inceptionYear>
 
   <licenses>
     <license>
@@ -21,18 +22,34 @@
 
   <developers>
     <developer>
-      <name>Alfonso Peterssen</name>
+      <id>mukel</id>
+      <name>Alfonso² Peterssen</name>
+      <url>https://github.com/mukel</url>
     </developer>
   </developers>
 
+  <!-- The repository these coordinates are cut from. Central keeps its copy forever, so this is the address that has
+       to still resolve years from now: github.com/mukel/pijota, which is where the remote actually points. -->
   <scm>
-    <connection>scm:git:https://github.com/pijota/pijota.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/pijota/pijota.git</developerConnection>
-    <url>https://github.com/pijota/pijota</url>
+    <connection>scm:git:https://github.com/mukel/pijota.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/mukel/pijota.git</developerConnection>
+    <tag>HEAD</tag>
+    <url>https://github.com/mukel/pijota</url>
   </scm>
+
+  <issueManagement>
+    <system>GitHub Issues</system>
+    <url>https://github.com/mukel/pijota/issues</url>
+  </issueManagement>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- Fixes every timestamp Maven writes into the jars, so two builds of this tag produce byte-identical artifacts
+         and anyone can rebuild the release and check it matches what Central serves. Without it the jars carry the
+         moment they were built and no two agree, which is exactly the property a reader wants when the question is
+         "is the artifact I downloaded the source I am reading". Bump it when the version is bumped. -->
+    <project.build.outputTimestamp>2026-08-05T00:00:00Z</project.build.outputTimestamp>
 
     <!-- Empty by default; the coverage profile's jacoco:prepare-agent replaces it with the agent's -javaagent. The
          surefire <argLine> below must interpolate it with @{...} late binding, or setting argLine there discards the
