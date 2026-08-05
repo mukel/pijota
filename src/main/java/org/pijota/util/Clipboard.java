@@ -15,7 +15,17 @@ import java.util.concurrent.TimeUnit;
  * the selection, which would block a capturing reader, so we redirect to the null device and never read it.
  */
 public final class Clipboard {
-    private static final long TIMEOUT_MS = 5000;
+    /**
+     * How long to give the command to fail before assuming it is holding the selection.
+     *
+     * <p>
+     * Both outcomes are decided in about 25 milliseconds in practice -- a working {@code wl-copy} forks and exits, and
+     * one with no compositor to talk to exits non-zero -- so this is roughly twenty times the headroom either needs. It
+     * was five seconds, which is only reachable by a command that neither forks nor fails, and that is exactly the case
+     * where waiting is worst: {@code /copy} runs on the thread drawing the interface, so the whole terminal sat still
+     * for five seconds and then reported a success that had not happened.
+     */
+    private static final long SETTLE_MS = 500;
 
     private Clipboard() {}
 
@@ -36,14 +46,25 @@ public final class Clipboard {
             try (var stdin = p.getOutputStream()) {
                 stdin.write(text.getBytes(StandardCharsets.UTF_8));
             }
-            // pbcopy/clip exit after reading; xclip/wl-copy fork a persistent child and the parent exits. If the parent
-            // hasn't returned by the timeout it is that persistent daemon holding the selection, so the copy succeeded.
-            if (!p.waitFor(TIMEOUT_MS, TimeUnit.MILLISECONDS))
-                return true;
-            return p.exitValue() == 0;
+            return settled(p);
         } catch (Exception e) {
             return false; // a missing or misbehaving tool must never crash the caller, fall through to the next
         }
+    }
+
+    /**
+     * Whether the command that has just been handed the text counts as having taken it.
+     *
+     * <p>
+     * {@code pbcopy} and {@code clip} read the text and exit, so their status says it. {@code xclip} and
+     * {@code wl-copy} hand the selection to a child and the parent exits, and a build that does not fork stays running
+     * to serve the selection itself -- which is also success, and is indistinguishable from a hang. Still running at
+     * the deadline is therefore read as success; a command that is going to fail has already exited by then.
+     */
+    static boolean settled(Process p) throws InterruptedException {
+        if (!p.waitFor(SETTLE_MS, TimeUnit.MILLISECONDS))
+            return true;
+        return p.exitValue() == 0;
     }
 
     /** The clipboard commands to try, best-first, for this OS. */
