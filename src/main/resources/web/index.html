@@ -403,6 +403,10 @@
     .answer-copy, .think-copy { display: none !important; } /* code-block copy stays, it's a bar button */
     .msg .bubble { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; } /* allow long-press copy */
     .scrollbtn { display: none; } /* on touch, flick-to-bottom is natural; avoid an overlapping floating button */
+    /* Stop floats above the send button, which puts it over the end of the transcript. On a phone that is the last
+       tool card, so while Stop is up we reserve its height at the foot of the thread instead of covering content.
+       Browsers without :has() drop the rule and keep today's behaviour. */
+    body:has(.stopbtn.show) #thread { padding-bottom: 64px; }
   }
   @media (max-width: 640px) {
     header { gap: 8px; padding: 9px 12px; }
@@ -410,9 +414,10 @@
     /* badges scroll as whole chips rather than clipping mid-word; the scrollbar is hidden (swipe to see the rest) */
     .badges { flex: 1 1 auto; min-width: 0; max-width: none; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
     .badges::-webkit-scrollbar { display: none; }
-    #thread { padding: 18px 12px 8px; gap: 14px; }
+    #thread { padding: 18px 12px 16px; gap: 14px; } /* the last message needs air above the composer, not 8px */
     .greeting .mark { font-size: 24px; }
-    .composer { padding: 6px 10px 12px; }
+    /* clear the home-indicator / gesture bar when the page owns the bottom edge (installed to the home screen) */
+    .composer { padding: 6px 10px max(12px, env(safe-area-inset-bottom)); }
     .composer .inner { border-radius: 20px; padding: 6px 6px 6px 14px; }
     button.act, .attach, .stopbtn { width: 40px; height: 40px; } /* comfortable thumb targets on phones (≥40px; button.act to match the base selector's specificity) */
     .msg.user .bubble { max-width: 92%; }
@@ -537,7 +542,7 @@ window.addEventListener("DOMContentLoaded", () => {
   applyTheme(storedTheme() || (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
   themeBtn.addEventListener("click", () => {
     applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
-    input.focus(); // an action button, not a focus target, so return focus to the chat bar
+    refocusChat(); // an action button, not a focus target, so return focus to the chat bar (never on touch)
   });
   let busy = false, live = null;           // live = current streaming assistant bubble
   let pendingFiles = [];                    // {mime, data(base64), url(dataURL), name, isImage} to attach
@@ -608,25 +613,33 @@ window.addEventListener("DOMContentLoaded", () => {
     wrap.append(bar, pre);
   }
   // ---- scrolling ----
-  // run fn, then keep the view pinned to the bottom if it already was (so streaming doesn't fight manual scroll-up)
   // "Stick to bottom" latch: follow the stream only while the user is parked at the bottom. The moment they scroll up
   // we stop yanking them down (so they can read mid-stream); they re-engage by scrolling back down or tapping ↓.
+  const scrollBtn = $("#scrollbtn");
   function atBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 60; }
   let stick = true, lastTop = 0;
-  function toBottom() { main.scrollTop = main.scrollHeight; }
+  // The only writer of the latch, so the button can never disagree with it. It used to be painted from the scroll
+  // handler alone, which left it showing whenever the latch moved anywhere else: tapping it while already at the
+  // bottom scrolls nothing, fires no scroll event, and so never cleared the button that the tap was meant to dismiss.
+  function setStick(on) { stick = on; scrollBtn.classList.toggle("show", !on); }
+  // The pin is deliberately instant. main carries scroll-behavior:smooth, which the scrollTop setter honours, and an
+  // animated pin restarted on every growth increment eases forever without ever catching a fast stream.
+  function toBottom() { main.scrollTo({ top: main.scrollHeight, behavior: "auto" }); setStick(true); }
+  // run fn, then keep the view pinned to the bottom if it already was (so streaming doesn't fight a manual scroll-up)
   function withAutoScroll(fn) { const r = fn(); if (stick) toBottom(); return r; }
-  const scrollBtn = $("#scrollbtn");
-  // Only a genuine upward scroll detaches from the bottom (so streaming re-renders / programmatic scrolls don't flip
-  // it off); returning to the bottom re-attaches. The ResizeObserver then keeps us pinned as content grows.
   main.addEventListener("scroll", () => {
     const top = main.scrollTop;
-    if (top < lastTop - 4) stick = false;
-    else if (atBottom()) stick = true;
+    // Sitting at the bottom is ground truth, so it is asked first: content shrinking (a tool card collapsing, a
+    // replay clearing the thread) clamps scrollTop downward, and a clamp is not the reader scrolling up.
+    if (atBottom()) setStick(true);
+    else if (top < lastTop - 4) setStick(false);
     lastTop = top;
-    scrollBtn.classList.toggle("show", !stick);
   });
-  scrollBtn.addEventListener("click", () => { stick = true; toBottom(); input.focus(); });
-  new ResizeObserver(() => { if (stick) toBottom(); }).observe(thread); // follow all growth: text, tools, thinking
+  scrollBtn.addEventListener("click", () => { toBottom(); refocusChat(); });
+  // The bottom moves away when the thread grows *or* when the viewport shrinks, and only the first resizes thread:
+  // the composer growing as you type, a window resize, and the phone's keyboard opening all resize main instead.
+  const pin = new ResizeObserver(() => { if (stick) toBottom(); });
+  pin.observe(thread); pin.observe(main);
 
   // cyclic keyboard selection over a list of elements (shared by the slash menu and the fuzzy finder): moves the
   // selection by delta, applies the .sel class, scrolls it into view, and returns the new index.
@@ -1160,6 +1173,10 @@ window.addEventListener("DOMContentLoaded", () => {
   // sticky focus: pull focus back to the chat bar when it lands on nothing interactive, but never while a
   // dialog is open (its search/input wants focus) or while the user is selecting text in the transcript.
   function refocusChat() {
+    // Never on touch: focusing the textarea raises the soft keyboard over half the screen, so tapping a tool card
+    // open would cost the reader the very thing they tapped to see. Snapping focus back is a keyboard convenience,
+    // and a device without a keyboard has nothing to gain from it.
+    if (isTouch) return;
     if (document.querySelector(".overlay")) return;
     if (window.getSelection && String(window.getSelection())) return;
     input.focus();
@@ -1355,7 +1372,8 @@ window.addEventListener("DOMContentLoaded", () => {
     return qi === q.length ? 1000 : Infinity;
   }
 
-  autoGrow(); updateComposer(); connect(); input.focus();
+  // No opening focus on touch: it would greet a phone with the keyboard already covering the conversation.
+  autoGrow(); updateComposer(); connect(); refocusChat();
 });
 </script>
 </body>
