@@ -75,6 +75,10 @@ To install the native-image build with JBang:
 jbang app install --native --name pj org.pijota:pijota:RELEASE
 ```
 
+JBang 0.141.0 and earlier end this with `Writing image to non-existent directory`: JBang picks a cache directory
+for the image and does not create it. The fix is [jbangdev/jbang#2623](https://github.com/jbangdev/jbang/pull/2623).
+Until it ships, `mkdir -p` the directory named in the error and run the command again, or use the JVM install above.
+
 To refresh an existing JBang install to the latest published release:
 
 ```bash
