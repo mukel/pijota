@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
+/** Fetches a URL and returns it as markdown, text or HTML. */
 public final class WebfetchTool implements Tool {
 
     private static final Logger log = LoggerFactory.getLogger(WebfetchTool.class);

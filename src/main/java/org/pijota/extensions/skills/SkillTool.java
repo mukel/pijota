@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/** Loads a skill's instructions on demand, so their text costs context only when the task calls for it. */
 public final class SkillTool implements Tool {
 
     private final List<SkillLoader.Skill> skills;

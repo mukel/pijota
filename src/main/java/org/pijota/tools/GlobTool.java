@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
+/** Finds files by glob pattern, answering with paths rather than contents. */
 public final class GlobTool implements Tool {
     private static final int DEFAULT_LIMIT = 1000;
     private static final long DEFAULT_TIMEOUT_SECONDS = 30;

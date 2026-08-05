@@ -21,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/** Runs a shell command in the working directory: builds, tests, git, anything with no dedicated tool. */
 public final class BashTool implements Tool, Tool.Detachable {
     private static final Logger log = LoggerFactory.getLogger(BashTool.class);
 

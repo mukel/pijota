@@ -34,6 +34,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/** Runs a sub-agent in its own process and returns only its answer, keeping its exploration out of this context. */
 public final class TaskTool implements Tool, Tool.Detachable {
     private static final String NAME = "task";
     private static final int MAX_CONCURRENCY = 4;

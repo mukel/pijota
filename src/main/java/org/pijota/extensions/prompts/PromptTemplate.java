@@ -2,6 +2,7 @@ package org.pijota.extensions.prompts;
 
 import java.nio.file.Path;
 
+/** A reusable prompt with named and positional parameters, invoked as a slash command. */
 public record PromptTemplate(String name, // command name, e.g. "review"
                                 String description, // shown in /help and /prompts
                                 String argumentHint, // shown in autocomplete, e.g. "<PR-URL>"

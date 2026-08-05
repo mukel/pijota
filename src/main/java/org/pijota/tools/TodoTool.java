@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
+/** The model's own checklist for multi-step work, kept in the session so progress survives a compaction. */
 public final class TodoTool implements Tool {
 
     /**

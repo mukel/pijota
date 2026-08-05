@@ -6,6 +6,7 @@ import org.pijota.llm.ToolSchema;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/** Answers which model is running, and how much context it has, so the model can size its own work. */
 public final class WhoamiTool implements Tool {
 
     private volatile String currentModel;

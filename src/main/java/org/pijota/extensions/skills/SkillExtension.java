@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/** Discovers skills and exposes them to the model, from the bundled set, the user's home and a trusted project. */
 public final class SkillExtension implements Extension {
     private final List<String> explicitPaths;
     private final List<SkillLoader.Skill> skills;

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/** Writes a file whole, creating or overwriting it. For changing part of a file, {@link EditTool} is the safer tool. */
 public final class WriteTool implements Tool {
 
     @Override

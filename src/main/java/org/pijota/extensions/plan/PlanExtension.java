@@ -11,6 +11,7 @@ import org.pijota.util.Util;
 
 import java.util.List;
 
+/** Read-only mode: the mutating tools are withheld, so exploring a codebase cannot change it. */
 public final class PlanExtension implements Extension {
     private static final List<String> PLAN_TOOLS = List.of("read", "bash", "grep", "glob", "ls", "question");
     private static final List<String> NORMAL_TOOLS = List.of("read", "bash", "edit", "write", "grep", "glob", "ls");

@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** Wires up sub-agents: the tool that launches them and the registry of what can be launched. */
 public final class TaskExtension implements Extension {
     /**
      * How deep sub-agents may go: one level, so a sub-agent never gets a task tool of its own.

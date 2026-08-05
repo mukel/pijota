@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/** Searches file contents for a pattern, answering with the matching lines and where they are. */
 public final class GrepTool implements Tool {
     /** Shared "ripgrep is missing" guidance, also surfaced by the {@code rg} extension tool. */
     public static final String RG_NOT_FOUND = "ripgrep (rg) not found on PATH. Install it: https://github.com/BurntSushi/ripgrep";

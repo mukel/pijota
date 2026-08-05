@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/** Reads a file, or a slice of one. Bounded by default (2000 lines, 50KB) so a large file cannot fill the context. */
 public final class ReadTool implements Tool {
 
     private static final int DEFAULT_READ_LIMIT = 2000;

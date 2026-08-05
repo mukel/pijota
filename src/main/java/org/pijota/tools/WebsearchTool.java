@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
+/** Searches the web for what the model's training data cannot know. */
 public class WebsearchTool implements Tool {
 
     private static final Logger log = LoggerFactory.getLogger(WebsearchTool.class);

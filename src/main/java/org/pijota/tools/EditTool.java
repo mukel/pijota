@@ -16,6 +16,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Replaces exact text in a file. Each match must be unique, so an ambiguous edit fails instead of changing the wrong
+ * line.
+ */
 public final class EditTool implements Tool {
 
     @Override

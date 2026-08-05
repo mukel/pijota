@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/** Builds, tests and respawns pijota from its own edited source. The self-modification path, JVM only. */
 public class TranscendenceTool implements Tool {
 
     private static final String MVN_NOT_FOUND = "✕ Transcend failed\n\nMaven (mvn) not found on PATH. "

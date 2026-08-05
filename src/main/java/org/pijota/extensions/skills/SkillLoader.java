@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+/** Reads a skill from its markdown: the front matter says when to use it, the body is what the model is given. */
 public final class SkillLoader {
 
     private SkillLoader() {}

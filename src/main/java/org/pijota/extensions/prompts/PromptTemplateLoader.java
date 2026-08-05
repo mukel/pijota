@@ -15,6 +15,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+/** Reads prompt templates from markdown, resolving the argument placeholders they declare. */
 public final class PromptTemplateLoader {
 
     private PromptTemplateLoader() {}

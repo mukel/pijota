@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/** Asks the user a question and waits. The one way a turn can pause for an answer instead of guessing. */
 public final class SlashCommandTool implements Tool {
     public record Option(String label, String description) {
     }

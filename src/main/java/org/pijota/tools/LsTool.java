@@ -10,6 +10,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Lists one directory. Deliberately not recursive: exploring a tree is what {@link GlobTool} and {@link GrepTool} are
+ * for.
+ */
 public final class LsTool implements Tool {
 
     @Override
