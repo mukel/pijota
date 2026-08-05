@@ -574,8 +574,10 @@ public final class SessionManager {
      * Repairs the torn tail a crashed append can leave. Blind {@code APPEND} would concatenate the next entry onto a
      * partial final line, corrupting both entries and orphaning their children (silently truncated context), so every
      * live open repairs before any append can happen. A parseable unterminated tail lost only its newline: complete it.
-     * Any other content after the last complete line was never acknowledged: drop it. The header line is never touched;
-     * deeper damage is mid-file corruption, which {@link #readAllEntries} surfaces and skips.
+     * Any other content after the last complete line was never acknowledged: drop it. A complete header line is never
+     * touched, so a session whose header will not parse still loads leniently; an <em>unterminated</em> one is repaired
+     * like any other torn tail, because the damage it does is to the next append rather than to this read. Deeper
+     * damage is mid-file corruption, which {@link #readAllEntries} surfaces and skips.
      */
     private void repairTornTail(Path file) throws IOException {
         lockAndWrite(file, () -> {
@@ -589,11 +591,13 @@ public final class SessionManager {
                     break;
                 }
             }
-            if (lastNl == -1)
-                return; // a single unterminated line is the header; leave the lenient loader to cope
             String tail; // the bytes under repair: either an unterminated suffix or the last complete line
             int keep; // file length to truncate to when the tail is beyond saving
             if (lastNl < bytes.length - 1) {
+                // Everything after the last newline, or the whole file when there is none. A file with no newline at
+                // all is a header torn while the session was being created, and it is not a reading problem to be
+                // left to the lenient loader: it is unterminated, so the next append lands on the same line and every
+                // entry written from then on is lost with it. A partial header was never a usable session anyway.
                 tail = new String(bytes, lastNl + 1, bytes.length - lastNl - 1, StandardCharsets.UTF_8);
                 keep = lastNl + 1;
                 if (parses(tail)) { // the crash cut exactly between the JSON and its newline: complete the line
