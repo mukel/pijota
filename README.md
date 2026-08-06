@@ -106,8 +106,8 @@ pj -s <session-id-or-path>                # load by id/path
 pj --export transcript.md                 # export the current session
 
 pj --readonly                             # read-only tools only
-pj --tool read,grep,glob                  # exact tool allowlist
-pj --no-tool bash,write,edit              # exact tool denylist
+pj --tools read,grep,glob                 # exact tool allowlist
+pj --exclude-tools bash,write,edit        # exact tool denylist
 
 pj web                                    # local web UI
 pj telegram                               # Telegram bot frontend
@@ -136,16 +136,16 @@ The TUI is designed to feel like a good Unix program. It streams Markdown into n
 
 Pijota gives the model a compact tool belt: `read`, `write`, `edit`, `apply_patch`, `glob`, `grep`, `ls`, `bash`, `webfetch`, `websearch`, `question`, `task`, and optional extension tools.
 
-Tool access follows one rule: **deny wins**. A tool that appears in both `--tool` and `--no-tool` is disabled.
+Tool access follows one rule: **deny wins**. A tool that appears in both `--tools` and `--exclude-tools` is disabled.
 
 ```bash
 pj --readonly                 # read, search, fetch, ask; no file edits or shell
 pj --no-tools                 # no model-callable tools
-pj --tool read,grep,glob      # only these tools
-pj --no-tool bash,write,edit  # all default tools except these
+pj --tools read,grep,glob          # only these tools
+pj --exclude-tools bash,write,edit  # all default tools except these
 ```
 
-`--tools` and `--exclude-tools` are accepted for compatibility, but the singular `--tool` and `--no-tool` forms are the primary allow/deny interface.
+`--tools` and `--exclude-tools` are the allow/deny pair, matching pi. The singular `--tool` and `--no-tool` still work, but `--no-tool` (a denylist taking names) reads too much like `--no-tools` (which disables everything), so the plural forms are the ones to reach for.
 
 Tools move through three states: registered, available by policy, then active for the next model request. Extensions may register tools dynamically; the same policy still applies.
 

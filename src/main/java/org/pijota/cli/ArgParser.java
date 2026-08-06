@@ -85,8 +85,11 @@ public final class ArgParser {
                 case "--session", "-s", "--session-path" -> sessionPath = cursor.value(arg);
                 case "--fork" -> forkPath = cursor.value(arg);
                 case "--export" -> exportPath = cursor.value(arg);
-                case "--tool", "--tools", "-t" -> enabledTools.addAll(parseList(cursor.value(arg)));
-                case "--no-tool", "--exclude-tools", "-xt" -> excludeTools.addAll(parseList(cursor.value(arg)));
+                // Primary forms are the plural ones, matching pi. The singular --tool/--no-tool still parse: they were
+                // the primary pair here first, and --no-tool (a denylist taking names) sat one letter from --no-tools
+                // (which disables everything), which is the confusion the rename is meant to end.
+                case "--tools", "--tool", "-t" -> enabledTools.addAll(parseList(cursor.value(arg)));
+                case "--exclude-tools", "--no-tool", "-xt" -> excludeTools.addAll(parseList(cursor.value(arg)));
                 case "--extension", "-e" -> extensionPaths.add(cursor.value(arg));
                 case "--skill" -> skillPaths.add(cursor.value(arg));
                 case "--theme" -> themePaths.add(cursor.value(arg));
@@ -202,11 +205,11 @@ public final class ArgParser {
                                           --resume, -r              Interactive session picker
                                           --fork <id>               Fork a session
                                           --no-session              Don't save session
-                                          --tool, -t <names>        Enable only these tools (allowlist, any source)
-                                          --no-tool, -xt <names>    Disable these tools (denylist, any source)
-                                          --no-tools, -nt           Disable all tools (built-in and extension)
+                                          --tools, -t <list>        Allowlist of tool names to enable (any source)
+                                          --exclude-tools, -xt <list>    Denylist of tool names to disable (any source)
+                                          --no-tools, -nt           Disable all tools by default (built-in + extension)
                                           --readonly, --read-only   Enable read-only exploration tools only
-                                          --no-builtin-tools, -nbt  Disable built-in tools, keep extension tools
+                                          --no-builtin-tools, -nbt  Disable built-in tools by default, keep extension
                                           --no-extensions, -ne      Disable all extensions (built-in and discovered)
                                           --no-builtin-extensions, -nbe  Disable built-in extensions, keep discovered
                                           --no-skills, -ns          Skip skill auto-discovery

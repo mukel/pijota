@@ -65,11 +65,13 @@ Give a flag a value with `--flag=value`.
 
 | Flag | Effect |
 |---|---|
-| `--tool, -t <names>` | allowlist, comma-separated |
-| `--no-tool, -xt <names>` | denylist, comma-separated |
-| `--no-tools, -nt` | no tools |
+| `--tools, -t <list>` | allowlist of tool names, comma-separated |
+| `--exclude-tools, -xt <list>` | denylist of tool names, comma-separated |
+| `--no-tools, -nt` | disable all tools by default (built-in and extension) |
 | `--readonly`, `--read-only` | read-only exploration tools |
-| `--no-builtin-tools, -nbt` | drop built-ins, keep extension tools |
+| `--no-builtin-tools, -nbt` | disable built-in tools by default, keep extension tools |
+
+`--tools`/`--exclude-tools` set the allow/deny lists; `--no-tools`/`--no-builtin-tools` set the floor those lists then adjust. The singular `--tool`/`--no-tool` are kept as aliases.
 
 Lists apply to built-in, extension and MCP tools alike, and compose. [Tools](tools.md) names them.
 

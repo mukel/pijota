@@ -95,7 +95,7 @@ As `~/.pijota/prompts/sec.md`, that is `/sec src/`.
 ## MCP servers
 
 `~/.pijota/mcp.json` globally, `.pijota/mcp.json` per project. Their tools take the same
-`--tool` / `--no-tool` filters as any other.
+`--tools` / `--exclude-tools` filters as any other.
 
 ```json
 {

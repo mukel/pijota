@@ -1,6 +1,6 @@
 # Tools
 
-What the model can do. Names here are the ones `--tool` and `--no-tool` take.
+What the model can do. Names here are the ones `--tools` and `--exclude-tools` take.
 
 ```bash
 pj -t read,grep,glob        # allowlist
@@ -87,7 +87,7 @@ fan-out and every leaf spends tokens: two levels of four is sixteen agents from 
 
 `read`, `ls`, `grep`, `glob`, `webfetch`, `websearch`, `question`, `whoami`
 
-Nothing that writes a file, runs a command, or spawns a process. `--tool` still narrows further.
+Nothing that writes a file, runs a command, or spawns a process. `--tools` still narrows further.
 
 ## Guard rails
 

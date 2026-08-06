@@ -150,6 +150,32 @@ class ArgParserTest {
         assertEquals(List.of("bash", "write"), args.excludeTools());
     }
 
+    /**
+     * The plural pair is primary (matching pi) and the singular pair stays an alias, so an existing script or a habit
+     * keeps working. Both spellings of each side must land in the same list.
+     */
+    @Test
+    void pluralAndSingularSpellingsAgree() {
+        assertEquals(ArgParser.parse(new String[] {"--tool", "read,grep"}).enabledTools(),
+                                        ArgParser.parse(new String[] {"--tools", "read,grep"}).enabledTools());
+        assertEquals(ArgParser.parse(new String[] {"--no-tool", "bash,write"}).excludeTools(),
+                                        ArgParser.parse(new String[] {"--exclude-tools", "bash,write"}).excludeTools());
+    }
+
+    /**
+     * The trap the rename exists for: --exclude-tools takes names, --no-tools takes nothing and disables everything.
+     */
+    @Test
+    void excludeToolsIsADenylistWhileNoToolsDisablesEverything() {
+        var denied = ArgParser.parse(new String[] {"--exclude-tools", "bash"});
+        assertEquals(List.of("bash"), denied.excludeTools());
+        assertFalse(denied.noTools(), "a denylist must not disable everything");
+
+        var none = ArgParser.parse(new String[] {"--no-tools"});
+        assertTrue(none.noTools());
+        assertTrue(none.excludeTools().isEmpty(), "--no-tools names nothing");
+    }
+
     @Test
     void parseToolsShortFlag() {
         var args = ArgParser.parse(new String[] {"-t", "read,write"});

@@ -29,7 +29,7 @@ start with `-a`. See [project files](project-files.md#trust).
 **It forgot the start of the conversation.** Compaction summarised it. `/context` shows the
 breakdown; raise `compaction.keep_recent_tokens` to keep more.
 
-**A tool it should have is missing.** `--readonly`, `--tool` or `--no-tool` filtered it, or its
+**A tool it should have is missing.** `--readonly`, `--tools` or `--exclude-tools` filtered it, or its
 extension is off. `/context` counts the tool schemas actually sent.
 
 ## The terminal

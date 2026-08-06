@@ -13,7 +13,7 @@ determined one. For hard isolation use a container, a VM, a locked-down user, or
 | `security` extension | `sudo`/`su`/`doas`, recursive `rm`, `dd`, pipe-to-shell | `/security`, `--no-security` |
 | `filter-output` extension | secrets and tokens reaching the model | `/filter-output` |
 | SSRF check | `webfetch` reaching localhost and private ranges | not disableable |
-| tool policy | whole classes of action | `--readonly`, `--tool`, `--no-tool` |
+| tool policy | whole classes of action | `--readonly`, `--tools`, `--exclude-tools` |
 | file permissions | other users reading your keys | not disableable |
 | ACP permission prompts | tool calls your editor has not approved | the editor decides |
 | browser launch confirm | `--browse` starting a browser silently | per prompt |
