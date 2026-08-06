@@ -4,6 +4,7 @@ import org.pijota.agent.TestSession;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.messages.ToolCall;
+import org.pijota.testkit.Await;
 import org.pijota.testkit.FauxLlm;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.Tool;
@@ -18,6 +19,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +44,20 @@ class AppendOnlyTuiInputLoopTest {
      * Drives a TUI session on a background thread: feeds {@code keystrokes}, then ESC (dismiss any modal) and Ctrl+D
      * (clean exit), waits for {@code run()} to return, and gives back everything the TUI wrote to the terminal.
      */
+    /**
+     * Waits until the TUI stops writing. "The keystrokes were processed" has no event to hook, but it has an observable
+     * end: two consecutive polls with the byte count unchanged, after something has been drawn.
+     */
+    private static void awaitQuiet(ByteArrayOutputStream captured) {
+        int[] previous = {-1};
+        Await.until(() -> {
+            int now = captured.size();
+            boolean unchanged = now == previous[0] && now > 0;
+            previous[0] = now;
+            return unchanged;
+        }, Duration.ofSeconds(5), "the TUI never stopped redrawing");
+    }
+
     private String driveSession(TestSession ts, byte[] keystrokes) throws Exception {
         var feeder = new PipedOutputStream();
         var pipedIn = new PipedInputStream(feeder, 8192);
@@ -63,11 +79,14 @@ class AppendOnlyTuiInputLoopTest {
         runner.setDaemon(true);
         runner.start();
         try {
-            Thread.sleep(300); // let the greeting render and the input thread spin up
+            // The version reaches the screen only once the greeting is painted, which is the last thing run() does
+            // before it reads. Waiting for it costs what it actually takes instead of a fixed guess.
+            Await.until(() -> captured.toString(StandardCharsets.UTF_8).contains("9.9.9"), Duration.ofSeconds(5),
+                                            "the TUI never rendered its greeting");
             if (keystrokes.length > 0) {
                 feeder.write(keystrokes);
                 feeder.flush();
-                Thread.sleep(250); // let them be processed (a submitted turn runs on FauxLlm)
+                awaitQuiet(captured); // processed = the screen stopped changing (a submitted turn runs on FauxLlm)
             }
             feeder.write(ESC); // dismiss any open overlay/selector so Ctrl+D reaches the exit path
             feeder.flush();
