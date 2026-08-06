@@ -101,6 +101,7 @@ public final class TelegramChat implements ChatHandler {
     private volatile String lastSentText = "";
     private volatile long lastEditAt;
     private volatile boolean streamedProse; // true once real answer text (not a tool placeholder) has been shown
+    private volatile long turnStartedAt; // when this chat submitted the message, for the answer footer's elapsed time
 
     public TelegramChat(long chatId, PijotaSession session, TelegramApi tg, SettingsManager settings) {
         this.chatId = chatId;
@@ -135,6 +136,7 @@ public final class TelegramChat implements ChatHandler {
         streamMessageId = null;
         lastSentText = "";
         streamedProse = false;
+        turnStartedAt = System.currentTimeMillis(); // the clock the footer reports starts at the reader's message
         session.prompt(text, attachments).exceptionally(t -> {
             tg.sendMessage(chatId, "❌ " + ErrorUtil.message(t));
             return List.of();
@@ -597,14 +599,22 @@ public final class TelegramChat implements ChatHandler {
     }
 
     /**
-     * A faint one-line usage footer appended to the final answer, or "" when there's nothing to report. The running
-     * cost is deliberately not here: it rides under every answer where it cannot be dismissed, and a spend figure is
-     * something to go and look at rather than be shown. {@code /usage} reports it on request.
+     * A faint one-line usage footer appended to the final answer, or "" when there's nothing to report. Measured from
+     * the moment the message was submitted, so it is the wait the reader actually sat through, tool calls included. The
+     * running cost is deliberately not here: it rode under every answer where it could not be dismissed, and a spend
+     * figure is something to go and look at rather than be shown. {@code /usage} reports it on request.
      */
     private String footer(Usage usage) {
         if (usage == null || usage.outputTokens() <= 0)
             return "";
-        return "\n\n_%s tok_".formatted(Util.fmtCount(usage.outputTokens()));
+        long started = turnStartedAt; // 0 when this chat did not start the turn, e.g. a resumed session
+        return footerText(usage.outputTokens(), started > 0 ? System.currentTimeMillis() - started : 0);
+    }
+
+    /** {@code "1.2K tok · 8s"}, dropping the clock for an answer that arrived in under a second ("· 0s" is noise). */
+    static String footerText(long outputTokens, long elapsedMs) {
+        String took = elapsedMs >= 1000 ? " · " + Util.formatDuration(elapsedMs) : "";
+        return "\n\n_%s tok%s_".formatted(Util.fmtCount(outputTokens), took);
     }
 
     /**

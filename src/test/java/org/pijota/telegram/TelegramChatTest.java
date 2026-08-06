@@ -92,6 +92,27 @@ class TelegramChatTest {
     }
 
     @Test
+    void footerReportsTokensAndHowLongTheAnswerTook() {
+        String footer = TelegramChat.footerText(1234, 8_400);
+        assertTrue(footer.contains("1K tok"), footer);
+        assertTrue(footer.contains("8s"), footer);
+        assertFalse(footer.contains("$"), "spend belongs to /usage, not under every answer: " + footer);
+    }
+
+    @Test
+    void aSubSecondAnswerGetsNoClock() {
+        String footer = TelegramChat.footerText(42, 999);
+        assertTrue(footer.contains("42 tok"), footer);
+        assertFalse(footer.contains("0s"), "'· 0s' is noise, not information: " + footer);
+        assertFalse(footer.contains("·"), footer);
+    }
+
+    @Test
+    void aLongAnswerReportsMinutes() {
+        assertTrue(TelegramChat.footerText(10, 125_000).contains("2m5s"), TelegramChat.footerText(10, 125_000));
+    }
+
+    @Test
     void appendFooterGoesOnLastChunkWhenItFits() {
         var chunks = new ArrayList<>(List.of("body"));
         TelegramChat.appendFooter(chunks, "\n\nfooter");
