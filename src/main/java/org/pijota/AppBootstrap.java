@@ -185,7 +185,8 @@ public final class AppBootstrap {
                                         ? null
                                         : String.join("\n", parsedArgs.appendSystemPrompts());
         String systemPrompt = SystemPrompt.build(parsedArgs.systemPrompt(), appendPrompt, cwd,
-                                        settings.effectiveShellPath(), ext.systemPromptContributions());
+                                        settings.effectiveShellPath(), ext.systemPromptContributions(),
+                                        !tools.availableTools().isEmpty()); // asked after applyPolicy above
         ext.setSystemPrompt(systemPrompt);
         StartupTimer.mark("system prompt built");
 
