@@ -2,7 +2,7 @@
 
 # Pijota
 
-### Written once, self-improving forever...
+### An ouroboros coding agent, written in Java.
 
 <p align="center">
   <a href="https://openjdk.org/projects/jdk/21/"><img src="https://img.shields.io/badge/Java-21+-007396?logo=openjdk&logoColor=white" alt="Java 21"></a>
@@ -10,8 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a>
 </p>
 
-**A coding agent written in Java.
-One native binary. Any model. Yours to hack and improve.**
+**One native binary. Any model. Yours to hack and improve.**
 
 </div>
 
