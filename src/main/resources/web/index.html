@@ -69,7 +69,11 @@
   .bubble a:focus-visible, .copy-btn:focus-visible, .answer-copy:focus-visible, .think-copy:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
   }
-  #thread { max-width: var(--col); margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: 22px; }
+  /* Two spacings, one derived from the other: --turn-gap separates speakers, --group-gap the blocks within one
+     assistant turn (its prose, thinking and tool cards). Only --turn-gap is re-tuned per screen; the grouping stays
+     put, because the two used to be set independently and a narrower gap silently closed the cards up to nothing. */
+  #thread { --turn-gap: 22px; --group-gap: 8px;
+    max-width: var(--col); margin: 0 auto; padding: 28px 20px 8px; display: flex; flex-direction: column; gap: var(--turn-gap); }
   /* empty conversation: greeting + composer centred in the viewport (drops to the bottom once messages flow) */
   .greeting { display: none; text-align: center; max-width: var(--col); margin: 0 auto 28px; }
   .greeting .mark { font-size: 34px; font-weight: 700; letter-spacing: .5px; }
@@ -141,7 +145,7 @@
   /* an assistant turn reads as one coherent reply: a subtle brand-accent rail down its left edge, and its
      fragments (thinking, answer, each tool card) pulled together instead of floating a full gap apart */
   .msg.assistant { border-left: 2px solid color-mix(in srgb, var(--accent) 22%, transparent); padding-left: 16px; }
-  .msg.assistant + .msg.assistant { margin-top: -14px; }
+  .msg.assistant + .msg.assistant { margin-top: calc(var(--group-gap) - var(--turn-gap)); }
   .msg.error .bubble { border-color: var(--err); color: var(--err-text); background: color-mix(in srgb, var(--err) 12%, transparent); }
   .msg.custom .bubble { background: transparent; border-style: dashed; color: var(--muted); font-size: 13px; }
 
@@ -414,7 +418,7 @@
     /* badges scroll as whole chips rather than clipping mid-word; the scrollbar is hidden (swipe to see the rest) */
     .badges { flex: 1 1 auto; min-width: 0; max-width: none; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
     .badges::-webkit-scrollbar { display: none; }
-    #thread { padding: 18px 12px 16px; gap: 14px; } /* the last message needs air above the composer, not 8px */
+    #thread { --turn-gap: 14px; padding: 18px 12px 16px; } /* the last message needs air above the composer, not 8px */
     .greeting .mark { font-size: 24px; }
     /* clear the home-indicator / gesture bar when the page owns the bottom edge (installed to the home screen) */
     .composer { padding: 6px 10px max(12px, env(safe-area-inset-bottom)); }
