@@ -1,5 +1,7 @@
 package org.pijota.tools;
 
+import org.pijota.util.PijotaHome;
+
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -27,7 +29,7 @@ class ToolOutputStoreTest {
         assertEquals(true, stored.details().get("truncated"));
         Path path = Path.of((String) stored.details().get("outputPath"));
         assertEquals(text, Files.readString(path));
-        assertTrue(path.toString().contains(".pijota"));
+        assertTrue(path.startsWith(PijotaHome.dir()), path + " should sit under " + PijotaHome.dir());
         assertTrue(path.toString().contains("tool-output"));
     }
 }

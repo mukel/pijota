@@ -11,9 +11,17 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PijotaHomeTest {
 
+    /** The fallback, so the override has to be out of the way: the suite sets one for every test. */
     @Test
     void defaultDirStaysUnderUserHome() {
-        assertEquals(Path.of(System.getProperty("user.home"), ".pijota"), PijotaHome.dir());
+        String previous = System.getProperty("pijota.home");
+        System.clearProperty("pijota.home");
+        try {
+            assertEquals(Path.of(System.getProperty("user.home"), ".pijota"), PijotaHome.dir());
+        } finally {
+            if (previous != null)
+                System.setProperty("pijota.home", previous);
+        }
     }
 
     @Test

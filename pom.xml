@@ -277,6 +277,12 @@
                  switch that exists for "never reach out on its own"; an explicit /refresh still would, which is why
                  no test should call one. -->
             <pijota.offline>true</pijota.offline>
+            <!-- Every test's ~/.pijota, under target/ and per fork, so the suite cannot read or write the
+                 developer's real one. The comment above records what that cost once: a test reached the network
+                 with their credentials and left a models-cache.json in their home. Switching off discovery closed
+                 one door; this closes the room. Per fork because forks are reused and run in parallel, and
+                 `mvn clean` disposes of it. -->
+            <pijota.home>${project.build.directory}/test-home-${surefire.forkNumber}</pijota.home>
           </systemPropertyVariables>
         </configuration>
       </plugin>

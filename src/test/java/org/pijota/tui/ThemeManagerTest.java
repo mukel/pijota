@@ -118,8 +118,9 @@ class ThemeManagerTest {
         Files.writeString(themesDir.resolve("mytheme.json"),
                                         "{\"name\":\"mytheme\",\"enabled\":true,\"text\":\"#ffffff\"}");
 
-        String previousHome = System.getProperty("user.home");
-        System.setProperty("user.home", tmp.toString());
+        // pijota.home is the knob PijotaHome reads first; overriding user.home only worked while nothing set it.
+        String previousHome = System.getProperty("pijota.home");
+        System.setProperty("pijota.home", tmp.resolve(".pijota").toString());
         try {
             var host = new FakeHost(AnsiTheme.loadResource("themes/gruvbox-dark.json"));
             var manager = new ThemeManager(host);
@@ -132,7 +133,10 @@ class ThemeManagerTest {
             assertTrue(items.stream().anyMatch(i -> "gruvbox-dark".equals(i.name()) && i.current()),
                                             "expected current theme to be marked");
         } finally {
-            System.setProperty("user.home", previousHome);
+            if (previousHome == null)
+                System.clearProperty("pijota.home");
+            else
+                System.setProperty("pijota.home", previousHome);
         }
     }
 
@@ -143,8 +147,9 @@ class ThemeManagerTest {
         Files.writeString(themesDir.resolve("custom.json"),
                                         "{\"name\":\"custom\",\"enabled\":true,\"text\":\"#ffffff\"}");
 
-        String previousHome = System.getProperty("user.home");
-        System.setProperty("user.home", tmp.toString());
+        // pijota.home is the knob PijotaHome reads first; overriding user.home only worked while nothing set it.
+        String previousHome = System.getProperty("pijota.home");
+        System.setProperty("pijota.home", tmp.resolve(".pijota").toString());
         try {
             var host = new FakeHost(AnsiTheme.dark());
             var manager = new ThemeManager(host);
@@ -153,7 +158,10 @@ class ThemeManagerTest {
             assertTrue(host.statuses.stream().anyMatch(s -> s.contains("switched")),
                                             "expected status message about switching theme, got " + host.statuses);
         } finally {
-            System.setProperty("user.home", previousHome);
+            if (previousHome == null)
+                System.clearProperty("pijota.home");
+            else
+                System.setProperty("pijota.home", previousHome);
         }
     }
 
@@ -176,8 +184,9 @@ class ThemeManagerTest {
 
     @Test
     void discoverWithoutFileThemesListsBuiltinsOnly(@TempDir Path tmp) {
-        String previousHome = System.getProperty("user.home");
-        System.setProperty("user.home", tmp.toString());
+        // pijota.home is the knob PijotaHome reads first; overriding user.home only worked while nothing set it.
+        String previousHome = System.getProperty("pijota.home");
+        System.setProperty("pijota.home", tmp.resolve(".pijota").toString());
         try {
             var host = new FakeHost(AnsiTheme.dark());
             var manager = new ThemeManager(host);
@@ -187,7 +196,10 @@ class ThemeManagerTest {
             assertTrue(names.contains("gruvbox-dark"));
             assertFalse(names.contains("custom"));
         } finally {
-            System.setProperty("user.home", previousHome);
+            if (previousHome == null)
+                System.clearProperty("pijota.home");
+            else
+                System.setProperty("pijota.home", previousHome);
         }
     }
 

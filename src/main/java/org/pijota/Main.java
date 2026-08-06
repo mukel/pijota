@@ -569,8 +569,11 @@ public final class Main {
         if (usableCount > 0 && filtered)
             return "No model matching \"" + filter + "\" among the " + usableCount + " you can reach. `" + Cli.name()
                                             + " --list-models` lists them all.";
-        return "No usable models. Set a provider API key (env or " + PijotaHome.resolve("settings.json") + ") or run `"
-                                        + Cli.name() + " login`.";
+        // Name the filter here too: both dead ends have to say which one you hit, or "no usable models" reads as a
+        // verdict on what you typed rather than on the keys you have.
+        return "No usable models" + (filtered ? " matching \"" + filter + "\"" : "")
+                                        + ". Set a provider API key (env or " + PijotaHome.resolve("settings.json")
+                                        + ") or run `" + Cli.name() + " login`.";
     }
 
     private static void listModels(String filter) {

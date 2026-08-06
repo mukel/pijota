@@ -72,4 +72,12 @@ class NoModelsMessagePointsSomewhereTest {
         assertTrue(Main.noModelsMessage(null, 0).contains("login"), Main.noModelsMessage(null, 0));
         assertTrue(Main.noModelsMessage("zzzz-not-a-provider", 0).contains("login"));
     }
+
+    /** Both dead ends name the filter, or "no usable models" reads as a verdict on what you typed. */
+    @Test
+    void everyDeadEndNamesTheFilterItFailedOn() {
+        for (int reachable : new int[] {0, 33})
+            assertTrue(Main.noModelsMessage("deepseek-v4-flash", reachable).contains("deepseek-v4-flash"), "reachable="
+                                            + reachable + ": " + Main.noModelsMessage("deepseek-v4-flash", reachable));
+    }
 }

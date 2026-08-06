@@ -1,5 +1,7 @@
 package org.pijota.config;
 
+import org.pijota.util.PijotaHome;
+
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
@@ -101,7 +103,7 @@ class SettingsManagerTest {
     void sessionDirDefault() {
         var sm = managerWith(new AppConfig());
         var dir = sm.sessionDir();
-        assertTrue(dir.toString().contains(".pijota"));
+        assertTrue(dir.startsWith(PijotaHome.dir()), dir + " should sit under " + PijotaHome.dir());
     }
 
     @Test
@@ -115,7 +117,7 @@ class SettingsManagerTest {
     @Test
     void configHome() {
         var sm = managerWith(new AppConfig());
-        assertTrue(sm.configHome().toString().endsWith(".pijota"));
+        assertEquals(PijotaHome.dir(), sm.configHome(), "the manager's home is the process's home");
     }
 
     @Test
