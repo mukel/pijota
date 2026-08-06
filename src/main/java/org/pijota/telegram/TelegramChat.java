@@ -596,13 +596,15 @@ public final class TelegramChat implements ChatHandler {
             chunks.add(footer.strip());
     }
 
-    /** A faint one-line usage footer appended to the final answer, or "" when there's nothing to report. */
+    /**
+     * A faint one-line usage footer appended to the final answer, or "" when there's nothing to report. The running
+     * cost is deliberately not here: it rides under every answer where it cannot be dismissed, and a spend figure is
+     * something to go and look at rather than be shown. {@code /usage} reports it on request.
+     */
     private String footer(Usage usage) {
         if (usage == null || usage.outputTokens() <= 0)
             return "";
-        double cost = session.totalCost();
-        String costPart = cost > 0 ? " · $%.4f".formatted(cost) : "";
-        return "\n\n_%s tok%s_".formatted(Util.fmtCount(usage.outputTokens()), costPart);
+        return "\n\n_%s tok_".formatted(Util.fmtCount(usage.outputTokens()));
     }
 
     /**

@@ -348,6 +348,11 @@ class TelegramChatFlowTest {
         assertNull(kbs.get(kbs.size() - 1), "the Stop button is dropped once the turn finalizes");
         assertTrue(c.api().allText().stream().anyMatch(t -> t.contains("tok")),
                                         "a usage footer is appended at the end");
+        // The footer reports tokens only. Cost rides under every single answer where it cannot be dismissed, so it
+        // belongs to /usage, which is asked for. Guard it here: this is the one place the footer reaches a reader.
+        assertTrue(c.api().allText().stream().noneMatch(t -> t.contains("$")),
+                                        "no cost in the answer footer, /usage reports spend on request: "
+                                                                        + c.api().allText());
     }
 
     @Test
