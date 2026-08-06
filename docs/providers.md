@@ -32,6 +32,7 @@ pj logout anthropic
 | `openrouter` | OpenRouter | openai | `OPENROUTER_API_KEY` |
 | `cerebras` | Cerebras | openai | `CEREBRAS_API_KEY` |
 | `fireworks` | Fireworks AI | openai | `FIREWORKS_API_KEY` |
+| `baseten` | Baseten | openai | `BASETEN_API_KEY` |
 | `kimi-coding` | Kimi For Coding | anthropic | `KIMI_API_KEY` |
 | `moonshotai` | Moonshot AI | openai | `MOONSHOT_API_KEY` |
 | `moonshotai-cn` | Moonshot AI China | openai | `MOONSHOT_API_KEY` |

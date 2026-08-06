@@ -62,7 +62,7 @@ pj -p "explain this repo"
 Maven coordinates: `org.pijota:pijota`.
 
 To test quickly, set the key for any provider and go. `pj login` handles OAuth where a provider
-offers it, and [`docs/providers.md`](docs/providers.md) lists all 22 with their environment variables.
+offers it, and [`docs/providers.md`](docs/providers.md) lists all 23 with their environment variables.
 
 ```bash
 export KIMI_API_KEY="..."

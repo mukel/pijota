@@ -89,6 +89,14 @@
       "defaultModel": "accounts/fireworks/models/deepseek-v4-pro"
     },
     {
+      "id": "baseten",
+      "displayName": "Baseten",
+      "apiType": "openai",
+      "baseUrl": "https://inference.baseten.co/v1",
+      "env": ["BASETEN_API_KEY"],
+      "defaultModel": "deepseek-ai/DeepSeek-V4-Pro"
+    },
+    {
       "id": "openai-codex",
       "displayName": "OpenAI Codex",
       "apiType": "openai",

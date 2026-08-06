@@ -25,6 +25,18 @@ class ProviderCatalogTest {
         assertFalse(providers.isEmpty());
     }
 
+    /** Baseten's Model APIs are OpenAI-compatible, so the entry is the catalog's ordinary shape and nothing else. */
+    @Test
+    void basetenIsCatalogued() {
+        var baseten = ProviderCatalog.find("baseten").orElseThrow(() -> new AssertionError("baseten is missing"));
+
+        assertEquals("openai", baseten.apiType());
+        assertEquals("https://inference.baseten.co/v1", baseten.baseUrl());
+        assertTrue(baseten.env().contains("BASETEN_API_KEY"), baseten.env().toString());
+        assertNotNull(baseten.defaultModel());
+        assertFalse(baseten.defaultModel().isBlank(), "a blank defaultModel is what the catalog warns about");
+    }
+
     @Test
     void userProvidersFromSettingsMergeIntoTheCatalog() {
         // a local OpenAI-compatible server defined in settings.json's "providers"
