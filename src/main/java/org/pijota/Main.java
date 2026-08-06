@@ -46,6 +46,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 public final class Main {
     static {
@@ -542,6 +544,35 @@ public final class Main {
         return result.errors().isEmpty() ? 0 : 1;
     }
 
+    /**
+     * What to say when {@code --list-models} matched nothing. Four dead ends with four different fixes, and naming the
+     * wrong one sends someone to repair a setting that was never broken. When the filter is a provider we know, the
+     * answer is about that provider: a catalogue with nothing in it for it yet is waiting on {@code --refresh-models}
+     * (a provider whose models are not bundled looks broken otherwise), and a catalogue that has them is waiting on a
+     * key. Otherwise it is an ordinary filter miss, or there is nothing usable at all.
+     */
+    static String noModelsMessage(String filter, int usableCount) {
+        boolean filtered = filter != null && !filter.isBlank();
+        var provider = filtered
+                                        ? ProviderCatalog.find(filter.strip().toLowerCase(Locale.ROOT))
+                                        : Optional.<ProviderCatalog.Provider>empty();
+        if (provider.isPresent()) {
+            var p = provider.get();
+            var known = ModelRegistry.forProvider(p.id());
+            if (known.isEmpty())
+                return "No models known for " + p.displayName() + " yet. Run `" + Cli.name() + " --refresh-models "
+                                                + p.id() + "` to ask it what it serves.";
+            return Util.plural(known.size(), "model") + " known for " + p.displayName() + ", but none reachable. Set "
+                                            + String.join(" or ", p.env()) + " (or run `" + Cli.name() + " login "
+                                            + p.id() + "`).";
+        }
+        if (usableCount > 0 && filtered)
+            return "No model matching \"" + filter + "\" among the " + usableCount + " you can reach. `" + Cli.name()
+                                            + " --list-models` lists them all.";
+        return "No usable models. Set a provider API key (env or " + PijotaHome.resolve("settings.json") + ") or run `"
+                                        + Cli.name() + " login`.";
+    }
+
     private static void listModels(String filter) {
         // Only models you can actually run: their provider has a key/OAuth token (or is keyless), matching every
         // frontend's /model picker. The catalog is far larger; the footer notes how many more need a key.
@@ -551,15 +582,7 @@ public final class Main {
         var models = ModelRegistry.search(usable, filter);
         boolean filtered = filter != null && !filter.isBlank();
         if (models.isEmpty()) {
-            // Two different dead ends. Reporting "set an API key" to someone whose key is fine and whose filter simply
-            // matched nothing sends them to fix a setting that was never broken.
-            System.out.println(!usable.isEmpty() && filtered
-                                            ? "No model matching \"" + filter + "\" among the " + usable.size()
-                                                                            + " you can reach. `" + Cli.name()
-                                                                            + " --list-models` lists them all."
-                                            : "No usable models. Set a provider API key (env or "
-                                                                            + PijotaHome.resolve("settings.json")
-                                                                            + ") or run `" + Cli.name() + " login`.");
+            System.out.println(noModelsMessage(filter, usable.size()));
             return;
         }
         System.out.println("Available models:");
