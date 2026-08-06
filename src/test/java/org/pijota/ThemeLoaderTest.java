@@ -6,6 +6,7 @@ import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +16,10 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ThemeLoaderTest {
+
+    /** Deleted after every test; these theme dirs used to accumulate in /tmp. */
+    @TempDir
+    Path tempDir;
 
     private static Args emptyArgs() {
         return ArgParser.parse(new String[] {});
@@ -57,7 +62,7 @@ class ThemeLoaderTest {
 
     @Test
     void loadsCustomThemeFromPath() throws Exception {
-        Path dir = Files.createTempDirectory("theme-test");
+        Path dir = Files.createDirectories(tempDir.resolve("themes"));
         Path themeFile = dir.resolve("custom.json");
         Files.writeString(themeFile, "{\"name\":\"custom\",\"text\":\"#ff0000\"}");
 
@@ -70,7 +75,7 @@ class ThemeLoaderTest {
 
     @Test
     void loadsThemeFromDirectory() throws Exception {
-        Path dir = Files.createTempDirectory("theme-test");
+        Path dir = Files.createDirectories(tempDir.resolve("themes"));
         Files.writeString(dir.resolve("ocean.json"), "{\"name\":\"ocean\",\"text\":\"#0000ff\"}");
 
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, "ocean",
@@ -92,7 +97,7 @@ class ThemeLoaderTest {
 
     @Test
     void fallsBackToDarkForInvalidThemeFile() throws Exception {
-        Path dir = Files.createTempDirectory("theme-test");
+        Path dir = Files.createDirectories(tempDir.resolve("themes"));
         Path badFile = dir.resolve("broken.json");
         Files.writeString(badFile, "not json");
 
@@ -103,7 +108,7 @@ class ThemeLoaderTest {
 
     @Test
     void noThemesSkipsDiscovery() throws Exception {
-        Path dir = Files.createTempDirectory("theme-test");
+        Path dir = Files.createDirectories(tempDir.resolve("themes"));
         Files.writeString(dir.resolve("ocean.json"), "{\"name\":\"ocean\",\"text\":\"#0000ff\"}");
 
         var settings = new SettingsManager(new AppConfig(null, null, null, null, null, null, null, null, null,
@@ -122,7 +127,7 @@ class ThemeLoaderTest {
      */
     @Test
     void aUserThemeOverridesABundledNameOfTheSameName() throws Exception {
-        Path dir = Files.createTempDirectory("theme-override");
+        Path dir = Files.createDirectories(tempDir.resolve("override"));
         Files.writeString(dir.resolve("dark.json"),
                                         "{\"name\":\"dark\",\"vars\":{\"x\":\"#ff00ff\"},\"colors\":{\"text\":\"x\"}}");
 

@@ -3,6 +3,7 @@ package org.pijota.util;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -20,6 +21,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SelfRespawnTest {
+
+    /** Deleted after every test; the session files and the fake jar used to outlive the run. */
+    @TempDir
+    Path tempDir;
 
     private final Path recoveryFile = Path.of("target", ".transcend-session");
     private final Path restartFile = Path.of("target", ".transcend-restart");
@@ -194,7 +199,7 @@ class SelfRespawnTest {
 
     @Test
     void readRecoverySessionRoundTrip() throws IOException {
-        Path session = Files.createTempFile("session", ".json");
+        Path session = Files.createFile(tempDir.resolve("session.json"));
         Files.createDirectories(recoveryFile.getParent());
         Files.writeString(recoveryFile, session.toString());
         assertTrue(SelfRespawn.canRecover());
@@ -276,7 +281,7 @@ class SelfRespawnTest {
     @Test
     void requestRespawnAcceptsValidJar() throws IOException {
         Path jar = createTempJar("payload");
-        Path session = Files.createTempFile("session", ".json");
+        Path session = Files.createFile(tempDir.resolve("session.json"));
         SelfRespawn.setSessionFile(session);
         assertTrue(SelfRespawn.requestRespawn(jar));
         assertTrue(SelfRespawn.isPending());
@@ -287,7 +292,7 @@ class SelfRespawnTest {
     @Test
     void requestRespawnSkipsDuplicate() throws IOException {
         Path jar = createTempJar("payload");
-        SelfRespawn.setSessionFile(Files.createTempFile("session", ".json"));
+        SelfRespawn.setSessionFile(Files.createFile(tempDir.resolve("session.json")));
         assertTrue(SelfRespawn.requestRespawn(jar));
         assertFalse(SelfRespawn.requestRespawn(jar));
     }
@@ -349,7 +354,7 @@ class SelfRespawnTest {
     @Test
     void buildCommandViaReflection() throws Exception {
         Path jar = createTempJar("x");
-        Path session = Files.createTempFile("session", ".json");
+        Path session = Files.createFile(tempDir.resolve("session.json"));
         Method method = SelfRespawn.class.getDeclaredMethod("buildCommand", Path.class, Path.class, boolean.class,
                                         String.class, Path.class);
         method.setAccessible(true);
@@ -376,7 +381,7 @@ class SelfRespawnTest {
     }
 
     private Path createTempJar(String content) throws IOException {
-        Path jar = Files.createTempFile("pijota-test", ".jar");
+        Path jar = Files.createFile(tempDir.resolve("pijota-test.jar"));
         Files.writeString(jar, content);
         return jar;
     }

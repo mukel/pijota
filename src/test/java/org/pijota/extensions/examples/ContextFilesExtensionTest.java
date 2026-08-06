@@ -8,6 +8,7 @@ import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.modes.SlashCommand;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,6 +17,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ContextFilesExtensionTest {
+
+    /**
+     * Deleted after every test. The project dir and the trust store used to be two hand-rolled temp directories per
+     * test, and nothing removed either.
+     */
+    @TempDir
+    Path tempDir;
 
     /**
      * The hint used to name only AGENTS.md/CLAUDE.md and only appear when one existed, so a project whose resources are
@@ -52,7 +60,7 @@ class ContextFilesExtensionTest {
 
     @Test
     void contextFilesInjectedOnlyWhenProjectIsTrusted() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "PROJECT RULES");
         var trust = newTrust();
         var ext = new ContextFilesExtension(dir.toString(), trust);
@@ -77,7 +85,7 @@ class ContextFilesExtensionTest {
      */
     @Test
     void anOverrideReplacesItsOwnDirectorysContextFiles() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "NORMAL RULES");
         Files.writeString(dir.resolve("CLAUDE.md"), "OTHER AGENT RULES");
         Files.writeString(dir.resolve("AGENTS.override.md"), "OVERRIDE RULES");
@@ -92,7 +100,7 @@ class ContextFilesExtensionTest {
     /** The override speaks only for its own directory; ancestors still layer, so the root's rules are not discarded. */
     @Test
     void anOverrideDoesNotDiscardAncestorContext() throws Exception {
-        Path root = Files.createTempDirectory("pijota-ctx");
+        Path root = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(root.resolve("AGENTS.md"), "ROOT RULES");
         Path sub = Files.createDirectories(root.resolve("vendored"));
         Files.writeString(sub.resolve("AGENTS.md"), "SUB RULES");
@@ -108,7 +116,7 @@ class ContextFilesExtensionTest {
     /** Without an override, nothing changes: AGENTS.md still wins over CLAUDE.md in the same directory. */
     @Test
     void withoutAnOverrideAgentsStillWinsOverClaude() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "NORMAL RULES");
         Files.writeString(dir.resolve("CLAUDE.md"), "OTHER AGENT RULES");
 
@@ -137,7 +145,7 @@ class ContextFilesExtensionTest {
      */
     @Test
     void aRunThatRefusesTrustIsHonouredOverTheRememberedDecision() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "PROJECT RULES");
         var trust = newTrust();
         trust.trust(dir.toString()); // remembered from an earlier session
@@ -156,7 +164,7 @@ class ContextFilesExtensionTest {
 
     @Test
     void trustCommandEnablesThenRevokeDisablesInjection() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "PROJECT RULES");
         var trust = newTrust();
         var ext = new ContextFilesExtension(dir.toString(), trust);
@@ -175,7 +183,7 @@ class ContextFilesExtensionTest {
 
     @Test
     void trustStatusCommandReportsState() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "X");
         var trust = newTrust();
         var ext = new ContextFilesExtension(dir.toString(), trust);
@@ -192,7 +200,7 @@ class ContextFilesExtensionTest {
 
     @Test
     void onReadyHintsWhenUntrustedWithContextFiles() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "X");
         var trust = newTrust();
         var rt = new FakeExtensionRuntime();
@@ -204,7 +212,7 @@ class ContextFilesExtensionTest {
 
     @Test
     void onReadyDoesNotHintWhenNoContextFiles() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-empty"); // no AGENTS.md/CLAUDE.md
+        Path dir = Files.createDirectories(tempDir.resolve("empty")); // no AGENTS.md/CLAUDE.md
         var trust = newTrust();
         var rt = new FakeExtensionRuntime();
         var ext = new ContextFilesExtension(dir.toString(), trust);
@@ -215,7 +223,7 @@ class ContextFilesExtensionTest {
 
     @Test
     void discoversPijotaContextMdWhenTrusted() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.createDirectories(dir.resolve(".pijota"));
         Files.writeString(dir.resolve(".pijota/CONTEXT.md"), "DOTPIJOTA CONTEXT");
         var trust = newTrust();
@@ -232,7 +240,7 @@ class ContextFilesExtensionTest {
      */
     @Test
     void aClaudeMdSymlinkedToAgentsMdIsLoadedOnce() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "PROJECT RULES");
         Files.createSymbolicLink(dir.resolve("CLAUDE.md"), Path.of("AGENTS.md"));
         var trust = newTrust();
@@ -252,7 +260,7 @@ class ContextFilesExtensionTest {
      */
     @Test
     void agentsMdWinsAndClaudeMdIsNotAlsoRead() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("AGENTS.md"), "SHARED RULES");
         Files.writeString(dir.resolve("CLAUDE.md"), "CLAUDE ONLY");
         var trust = newTrust();
@@ -272,7 +280,7 @@ class ContextFilesExtensionTest {
      */
     @Test
     void eachDirectoryFallsBackOnItsOwn() throws Exception {
-        Path parent = Files.createTempDirectory("pijota-mono");
+        Path parent = Files.createDirectories(tempDir.resolve("mono"));
         Files.writeString(parent.resolve("AGENTS.md"), "ROOT RULES");
         Path child = Files.createDirectories(parent.resolve("subproject"));
         Files.writeString(child.resolve("CLAUDE.md"), "SUBPROJECT RULES");
@@ -290,7 +298,7 @@ class ContextFilesExtensionTest {
     /** The many repositories that only ever had CLAUDE.md still work; it is a fallback, not a snub. */
     @Test
     void claudeMdIsReadWhenThereIsNoAgentsMd() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-ctx");
+        Path dir = Files.createDirectories(tempDir.resolve("project"));
         Files.writeString(dir.resolve("CLAUDE.md"), "ONLY CLAUDE FILE");
         var trust = newTrust();
         grantTrust(trust, dir);
@@ -311,8 +319,8 @@ class ContextFilesExtensionTest {
         ProjectTrust.resolve(dir.toString(), true);
     }
 
-    private static TrustStore newTrust() throws Exception {
-        return new TrustStore(Files.createTempDirectory("pijota-trust").resolve("trust.json"));
+    private TrustStore newTrust() throws Exception {
+        return new TrustStore(Files.createDirectories(tempDir.resolve("trust")).resolve("trust.json"));
     }
 
     private static SlashCommand trustCommand(FakeExtensionAPI api) {

@@ -12,8 +12,8 @@ import org.pijota.messages.Message;
 import org.pijota.util.Cli;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +23,10 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AppBootstrapTest {
+
+    /** Deleted after every test. These used to be hand-rolled temp dirs that nothing cleaned up. */
+    @TempDir
+    Path tempDir;
 
     private static SettingsManager settings(Path tmp, Map<String, String> aliases, String defaultModel) {
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", defaultModel)
@@ -50,7 +54,7 @@ class AppBootstrapTest {
 
     @Test
     void noToolsActivatesNothing() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-tools", "--api-key", "sk-test"}),
                                         settings);
@@ -61,7 +65,7 @@ class AppBootstrapTest {
 
     @Test
     void noBuiltinExtensionsDropsShippedExtensionsButKeepsCoreTools() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         var result = AppBootstrap.bootstrap(ArgParser.parse(
                                         new String[] {"--no-builtin-extensions", "--api-key", "sk-test"}), settings);
@@ -73,7 +77,7 @@ class AppBootstrapTest {
 
     @Test
     void noExtensionsDropsAllExtensionToolsButNotCoreTools() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--no-extensions", "--api-key", "sk-test"}),
                                         settings);
@@ -89,7 +93,7 @@ class AppBootstrapTest {
      */
     @Test
     void noJobsTakesTheModelsToolsAndLeavesTheUserTheirs() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var on = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--api-key", "sk-test"}),
                                         settings(tmp, Map.of(), "gpt-5.5"));
         assertNotNull(on.jobs(), "jobs on by default → registry wired");
@@ -107,7 +111,7 @@ class AppBootstrapTest {
                 {"--no-context-files"}, {"--no-session"}, {"--append-system-prompt", "EXTRA RULES"},
                 {"--system-prompt", "CUSTOM"}, {"--tools", "read,bash"}, {"--continue"}, {"--recover"},
                 {"--no-transcendence"}}) {
-            Path tmp = Files.createTempDirectory("bootstrap-test");
+            Path tmp = tempDir;
             var args = new ArrayList<>(List.of("--api-key", "sk-test"));
             args.addAll(List.of(flags));
             var result = AppBootstrap.bootstrap(ArgParser.parse(args.toArray(new String[0])),
@@ -120,7 +124,7 @@ class AppBootstrapTest {
 
     @Test
     void enabledToolsRestrictsToolsToTheAllowlist() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--tools", "read", "--api-key", "sk-test"}),
                                         settings(tmp, Map.of(), "gpt-5.5"));
         assertTrue(result.tools().get("read").isPresent());
@@ -128,7 +132,7 @@ class AppBootstrapTest {
 
     @Test
     void continueLoadsTheMostRecentSessionForTheCwd() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         // pre-create a session for the current cwd in the session dir, so --continue resolves + loads it
         var sm = new SessionManager(settings.sessionDir());
@@ -147,7 +151,7 @@ class AppBootstrapTest {
 
     @Test
     void whoamiFlagRegistersTheWhoamiTool() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         var result = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--whoami", "--api-key", "sk-test"}),
                                         settings);
@@ -156,7 +160,7 @@ class AppBootstrapTest {
 
     @Test
     void explicitExtensionPathIsLoadedDuringBootstrap() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         Path jar = ExtensionJars.serviceLoaderJar(tmp, "org.pijota.extensions.testkit.PathLoadedExtension");
 
         var result = AppBootstrap.bootstrap(ArgParser
@@ -168,7 +172,7 @@ class AppBootstrapTest {
 
     @Test
     void explicitExtensionPathHonorsCliEnablementFlagsDuringBootstrap() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         Path jar = ExtensionJars.serviceLoaderJar(tmp, "org.pijota.extensions.testkit.DefaultOffPathLoadedExtension");
         var settings = settings(tmp, Map.of(), "gpt-5.5");
 
@@ -184,7 +188,7 @@ class AppBootstrapTest {
 
     @Test
     void transcendencePromptGuidanceFollowsExtensionEnablement() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of(), "gpt-5.5");
 
         var defaultResult = AppBootstrap.bootstrap(ArgParser.parse(new String[] {"--api-key", "sk-test"}), settings);
@@ -206,7 +210,7 @@ class AppBootstrapTest {
 
     @Test
     void printModeResolvesThePrintAliasModel() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of("print", "openai/gpt-4.1-mini"), "gpt-5.5");
         Args args = ArgParser.parse(new String[] {"--print", "hi", "--api-key", "sk-test"});
 
@@ -217,7 +221,7 @@ class AppBootstrapTest {
 
     @Test
     void printModeWithoutPrintAliasKeepsDefaultModel() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of(), "gpt-5.5");
         Args args = ArgParser.parse(new String[] {"--print", "hi", "--api-key", "sk-test"});
 
@@ -226,7 +230,7 @@ class AppBootstrapTest {
 
     @Test
     void interactiveModeIgnoresThePrintAlias() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of("print", "openai/gpt-4.1-mini"), "gpt-5.5");
         Args args = ArgParser.parse(new String[] {"--api-key", "sk-test"}); // no --print
 
@@ -235,7 +239,7 @@ class AppBootstrapTest {
 
     @Test
     void explicitModelOverridesThePrintAlias() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var settings = settings(tmp, Map.of("print", "openai/gpt-4.1-mini"), "gpt-5.5");
         Args args = ArgParser.parse(new String[] {"--print", "hi", "--model", "openai/gpt-5.5", "--api-key",
                 "sk-test"});
@@ -245,7 +249,7 @@ class AppBootstrapTest {
 
     @Test
     void missingApiKeyErrorIncludesProviderModelAndNextSteps() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var provider = new ProviderCatalog.Provider("missing-test", "Missing Test", "openai",
                                         "https://example.invalid/v1", List.of("PIJOTA_MISSING_TEST_API_KEY"),
                                         "test-model", Map.of(), null, null);
@@ -267,7 +271,7 @@ class AppBootstrapTest {
 
     @Test
     void missingOauthProviderKeySuggestsLogin() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var oauth = new ProviderCatalog.OAuth("https://device.example", "https://token.example",
                                         "https://oauth.example", "client", "scope");
         var provider = new ProviderCatalog.Provider("oauth-test", "OAuth Test", "openai", "https://example.invalid/v1",
@@ -287,7 +291,7 @@ class AppBootstrapTest {
 
     @Test
     void missingApiKeyDoesNotBlockHeadlessAgentBootstrap() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var provider = new ProviderCatalog.Provider("agent-missing-test", "Agent Missing Test", "openai",
                                         "https://example.invalid/v1", List.of("PIJOTA_AGENT_MISSING_TEST_API_KEY"),
                                         "test-model", Map.of(), null, null);
@@ -306,7 +310,7 @@ class AppBootstrapTest {
 
     @Test
     void missingApiKeyMessageUsesExplicitProviderAndModel() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var provider = new ProviderCatalog.Provider("explicit-missing-test", "Explicit Missing Test", "openai",
                                         "https://example.invalid/v1", List.of("PIJOTA_EXPLICIT_MISSING_TEST_API_KEY"),
                                         "default-model", Map.of(), null, null);
@@ -325,7 +329,7 @@ class AppBootstrapTest {
 
     @Test
     void bootstrapAgentModeReturnsWiredResult() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")
                                         .withSessionDir(tmp.toString());
         var settings = new SettingsManager(config, ignored -> {});
@@ -350,7 +354,7 @@ class AppBootstrapTest {
 
     @Test
     void bootstrapPrintModeReturnsWiredResult() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")
                                         .withSessionDir(tmp.toString());
         var settings = new SettingsManager(config, ignored -> {});
@@ -365,7 +369,7 @@ class AppBootstrapTest {
 
     @Test
     void bootstrapAppliesThinkingLevel() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")
                                         .withThinkingLevel("low").withSessionDir(tmp.toString());
         var settings = new SettingsManager(config, ignored -> {});
@@ -378,7 +382,7 @@ class AppBootstrapTest {
 
     @Test
     void bootstrapArgsThinkingLevelOverridesSettings() throws Exception {
-        Path tmp = Files.createTempDirectory("bootstrap-test");
+        Path tmp = tempDir;
         var config = new AppConfig().withApiKey("openai", "sk-test").withDefaultProviderModel("openai", "gpt-4o")
                                         .withThinkingLevel("off").withSessionDir(tmp.toString());
         var settings = new SettingsManager(config, ignored -> {});

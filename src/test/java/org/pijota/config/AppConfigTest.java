@@ -143,11 +143,10 @@ class AppConfigTest {
     }
 
     @Test
-    void saveRestrictsSettingsToOwnerOnly() throws IOException {
+    void saveRestrictsSettingsToOwnerOnly(@TempDir Path dir) throws IOException {
         // settings.json holds API keys, so it (and the config dir) must not be readable by other local users.
         var fs = FileSystems.getDefault();
         Assumptions.assumeTrue(fs.supportedFileAttributeViews().contains("posix"));
-        Path dir = Files.createTempDirectory("pijota-sec");
         Path file = dir.resolve("nested").resolve("settings.json");
         new AppConfig().withApiKey("openai", "sk-secret").save(file);
         assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(file)));

@@ -2,6 +2,7 @@ package org.pijota.config;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -12,9 +13,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TrustStoreTest {
 
-    private static Path tempStore() throws Exception {
-        Path dir = Files.createTempDirectory("pijota-trust");
-        return dir.resolve("trust.json");
+    /** Deleted after every test; the store directory used to be left behind. */
+    @TempDir
+    Path tempDir;
+
+    private Path tempStore() throws Exception {
+        return Files.createDirectories(tempDir.resolve("trust")).resolve("trust.json");
     }
 
     @Test
