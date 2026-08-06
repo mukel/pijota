@@ -1,5 +1,6 @@
 package org.pijota.config;
 
+import org.pijota.llm.ModelRegistry;
 import org.pijota.util.Util;
 
 import org.junit.jupiter.api.AfterEach;
@@ -35,6 +36,21 @@ class ProviderCatalogTest {
         assertTrue(baseten.env().contains("BASETEN_API_KEY"), baseten.env().toString());
         assertNotNull(baseten.defaultModel());
         assertFalse(baseten.defaultModel().isBlank(), "a blank defaultModel is what the catalog warns about");
+    }
+
+    /**
+     * Baseten is the first provider whose model ids carry their own slash ({@code deepseek-ai/DeepSeek-V4-Pro}), so
+     * {@code provider/model} has to split on the first one. Splitting on the last would resolve the provider to
+     * "baseten/deepseek-ai" and fail to find it.
+     */
+    @Test
+    void aProviderModelSpecSplitsOnTheFirstSlashSoSlashedModelIdsSurvive() {
+        var baseten = ProviderCatalog.find("baseten").orElseThrow();
+        var parsed = ModelRegistry.parseProviderModel("baseten/" + baseten.defaultModel());
+
+        assertEquals("baseten", parsed.provider());
+        assertEquals(baseten.defaultModel(), parsed.model());
+        assertTrue(parsed.model().contains("/"), "the model id keeps its own slash: " + parsed.model());
     }
 
     @Test
