@@ -22,7 +22,10 @@ import java.util.Set;
  * {@code --no-context-files} flag and settings.
  *
  * <p>
- * Per directory, {@code AGENTS.md} wins and {@code CLAUDE.md} is the fallback, rather than both being concatenated.
+ * Per directory the order is {@code AGENTS.override.md}, then {@code AGENTS.md}, then {@code CLAUDE.md}: the first one
+ * present wins, rather than all being concatenated. An {@code AGENTS.override.md} says "read this instead of my own
+ * AGENTS.md/CLAUDE.md", which is how a vendored or generated subtree drops conventions it does not follow. It replaces
+ * only that directory's files; the levels above still layer, so it cannot quietly discard the root's rules.
  * {@code AGENTS.md} is the cross-tool standard; {@code CLAUDE.md} is another agent's file, and where a project keeps
  * both, the second holds overrides addressed to that agent. Reading them as one document made another tool's
  * instructions look like this one's. Pijota's own layer is {@code .pijota/CONTEXT.md}, which still loads last.
@@ -149,8 +152,11 @@ public final class ContextFilesExtension implements Extension {
         }
         // Still keyed on the real file, for a CLAUDE.md symlinked to a parent's AGENTS.md that has already been read.
         var seen = new HashSet<Path>();
+        // AGENTS.override.md first: a directory that has one is saying "read this instead of my AGENTS.md/CLAUDE.md",
+        // which is how a subproject drops conventions it does not follow. Only this directory's own files are
+        // replaced; the levels above still layer normally, so the override cannot silently discard the root's rules.
         for (int i = dirs.size() - 1; i >= 0; i--)
-            if (!loadFile(sb, dirs.get(i), "AGENTS.md", seen))
+            if (!loadFile(sb, dirs.get(i), "AGENTS.override.md", seen) && !loadFile(sb, dirs.get(i), "AGENTS.md", seen))
                 loadFile(sb, dirs.get(i), "CLAUDE.md", seen);
         loadFile(sb, Path.of(cwd), ".pijota/CONTEXT.md", seen);
         return sb.toString();

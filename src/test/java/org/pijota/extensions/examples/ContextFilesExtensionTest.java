@@ -72,6 +72,65 @@ class ContextFilesExtensionTest {
     }
 
     /**
+     * A directory with {@code AGENTS.override.md} is saying "read this instead of my own AGENTS.md/CLAUDE.md", which is
+     * how a vendored or generated subtree drops conventions it does not follow.
+     */
+    @Test
+    void anOverrideReplacesItsOwnDirectorysContextFiles() throws Exception {
+        Path dir = Files.createTempDirectory("pijota-ctx");
+        Files.writeString(dir.resolve("AGENTS.md"), "NORMAL RULES");
+        Files.writeString(dir.resolve("CLAUDE.md"), "OTHER AGENT RULES");
+        Files.writeString(dir.resolve("AGENTS.override.md"), "OVERRIDE RULES");
+
+        String prompt = contextFor(dir);
+
+        assertTrue(prompt.contains("OVERRIDE RULES"), prompt);
+        assertFalse(prompt.contains("NORMAL RULES"), "the override replaces AGENTS.md: " + prompt);
+        assertFalse(prompt.contains("OTHER AGENT RULES"), "and CLAUDE.md with it: " + prompt);
+    }
+
+    /** The override speaks only for its own directory; ancestors still layer, so the root's rules are not discarded. */
+    @Test
+    void anOverrideDoesNotDiscardAncestorContext() throws Exception {
+        Path root = Files.createTempDirectory("pijota-ctx");
+        Files.writeString(root.resolve("AGENTS.md"), "ROOT RULES");
+        Path sub = Files.createDirectories(root.resolve("vendored"));
+        Files.writeString(sub.resolve("AGENTS.md"), "SUB RULES");
+        Files.writeString(sub.resolve("AGENTS.override.md"), "SUB OVERRIDE");
+
+        String prompt = contextFor(sub);
+
+        assertTrue(prompt.contains("ROOT RULES"), "the level above still layers: " + prompt);
+        assertTrue(prompt.contains("SUB OVERRIDE"), prompt);
+        assertFalse(prompt.contains("SUB RULES"), "but this directory's own AGENTS.md is replaced: " + prompt);
+    }
+
+    /** Without an override, nothing changes: AGENTS.md still wins over CLAUDE.md in the same directory. */
+    @Test
+    void withoutAnOverrideAgentsStillWinsOverClaude() throws Exception {
+        Path dir = Files.createTempDirectory("pijota-ctx");
+        Files.writeString(dir.resolve("AGENTS.md"), "NORMAL RULES");
+        Files.writeString(dir.resolve("CLAUDE.md"), "OTHER AGENT RULES");
+
+        String prompt = contextFor(dir);
+
+        assertTrue(prompt.contains("NORMAL RULES"), prompt);
+        assertFalse(prompt.contains("OTHER AGENT RULES"), prompt);
+    }
+
+    /** Runs a trusted turn in {@code dir} and returns the system prompt the extension contributed to. */
+    private String contextFor(Path dir) throws Exception {
+        var trust = newTrust();
+        var ext = new ContextFilesExtension(dir.toString(), trust);
+        var api = new FakeExtensionAPI();
+        ext.init(api);
+        grantTrust(trust, dir);
+        var prompt = new StringBuilder("BASE");
+        api.fire(new ExtensionEvent.BeforeAgentStart(List.of(), prompt, List.of()));
+        return prompt.toString();
+    }
+
+    /**
      * {@code -na} refuses a folder for this run whatever the store remembers. Reading the store directly meant the flag
      * stopped extensions, skills and MCP servers while AGENTS.md was injected anyway, which is the surface the flag
      * exists for.
