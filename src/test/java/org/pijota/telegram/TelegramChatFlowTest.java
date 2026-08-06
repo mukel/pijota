@@ -9,8 +9,10 @@ import org.pijota.messages.Usage;
 import org.pijota.modes.SlashCommand;
 import org.pijota.testkit.Await;
 import org.pijota.testkit.FauxLlm;
+import org.pijota.tools.SlashCommandTool;
 import org.pijota.tools.Tool;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -29,6 +31,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * helpers are covered separately by {@code TelegramChatTest}; this covers the {@code onText} flow itself.
  */
 class TelegramChatFlowTest {
+
+    /** setTui installs a process-wide question handler; forks are reused, so it has to be given back. */
+    @AfterEach
+    void releaseTheQuestionHandler() {
+        SlashCommandTool.setQuestionHandler(null);
+    }
 
     @TempDir
     Path tempDir;

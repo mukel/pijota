@@ -1,14 +1,28 @@
 package org.pijota.tools;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Timeout(value = 30, unit = TimeUnit.SECONDS) // an unanswerable future is a bug to report, not a build to hang
 class SlashCommandToolTest {
+
+    /**
+     * The question handler is process-wide, and surefire reuses forks, so a test that installed one and did not take it
+     * back leaves this class asking a UI that will never answer. These tests want the no-handler path, so they say so
+     * rather than inheriting whatever ran first.
+     */
+    @BeforeEach
+    void noQuestionHandler() {
+        SlashCommandTool.setQuestionHandler(null);
+    }
 
     @Test
     void nameIsQuestion() {
