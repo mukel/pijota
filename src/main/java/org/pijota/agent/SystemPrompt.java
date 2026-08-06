@@ -4,6 +4,8 @@ import org.pijota.util.Platform;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Assembles the system prompt from the parts that describe this run: the environment, the available tools, the
@@ -25,28 +27,57 @@ public final class SystemPrompt {
                                     - Never generate or guess URLs.
                                     """;
 
+    /** The built-in tools the guidance below has something specific to say about, in the order it names them. */
+    private static final List<String> DEDICATED = List.of("read", "edit", "write", "glob", "grep", "ls");
+
     /**
-     * The half of the prompt that only makes sense when the run actually has tools. Kept separate because a prompt
-     * naming read, glob and bash to a model that was sent no tool manifest is an instruction it cannot carry out: it
-     * answers by writing a tool call as prose, in whatever markup its own template uses, and that reaches the reader.
+     * The tool half of the prompt, naming only what this run actually has. Assembled rather than fixed because the tool
+     * set is not: {@code --no-builtin-tools} keeps extension tools and drops exactly the ones a fixed text names, and
+     * {@code --read-only} leaves read and glob without edit or write. Advice for a tool that was never sent is an
+     * instruction the model cannot carry out, so it reaches for the missing tool and writes the call as prose in its
+     * own markup, which is what the reader gets instead of an answer.
      */
-    private static final String TOOL_PROMPT = """
+    private static String toolGuidance(Set<String> tools) {
+        var use = new StringBuilder();
+        String dedicated = DEDICATED.stream().filter(tools::contains).collect(Collectors.joining(", "));
+        if (!dedicated.isEmpty() && tools.contains("bash"))
+            use.append("- Prefer the dedicated tools (").append(dedicated).append(
+                                            ") over their shell equivalents (cat, sed, find, grep, ls) run through bash;")
+                                            .append(" they are faster and respect .gitignore.\n");
+        line(use, tools, "Use bash for commands, builds, tests, and git.", "bash");
+        line(use, tools, "Find files with glob (by name) and search contents with grep; don't cat or find through the tree.",
+                                        "glob", "grep");
+        use.append("- Make every tool call count: pass complete, valid arguments and act on the result rather than"
+                                        + " re-issuing the same call.\n");
 
-                                    TOOL USE:
-                                    - Prefer the dedicated tools (read, edit, write, glob, grep, ls) over their shell equivalents (cat, sed, find, grep, ls) run through bash; they are faster and respect .gitignore. Use bash for commands, builds, tests, and git.
-                                    - Find files with glob (by name) and search contents with grep; don't cat or find through the tree.
-                                    - Make every tool call count: pass complete, valid arguments and act on the result rather than re-issuing the same call.
+        var explore = new StringBuilder();
+        line(explore, tools, "For codebase overviews, start with glob patterns like '**/*.java', '**/pom.xml',"
+                                        + " or '**/package.json'.", "glob");
+        line(explore, tools, "Do not walk source trees one directory at a time with repeated ls calls.", "ls", "glob");
+        line(explore, tools, "Use ls only when you need the immediate contents of one specific directory.", "ls");
 
-                                    EXPLORATION GUIDELINES:
-                                    - For codebase overviews, start with glob patterns like '**/*.java', '**/pom.xml', or '**/package.json'.
-                                    - Do not walk source trees one directory at a time with repeated ls calls.
-                                    - Use ls only when you need the immediate contents of one specific directory.
+        var rules = new StringBuilder();
+        line(rules, tools, "Read a file before editing it, and edit using the EXACT text that appears in the file.",
+                                        "read", "edit");
+        line(rules, tools, "Run lint/typecheck commands after making changes when possible.", "bash");
+        line(rules, tools, "Create parent directories when writing new files.", "write");
+        rules.append("- Use absolute paths in tool calls.\n");
 
-                                    MORE RULES:
-                                    - Read a file before editing it, and edit using the EXACT text that appears in the file.
-                                    - Run lint/typecheck commands after making changes when possible.
-                                    - Create parent directories when writing new files; use absolute paths in tool calls.
-                                    """;
+        return section("TOOL USE", use) + section("EXPLORATION GUIDELINES", explore) + section("MORE RULES", rules);
+    }
+
+    /** Adds the line only when every tool it names is one the model was actually given. */
+    private static void line(StringBuilder sb, Set<String> tools, String text, String... needs) {
+        for (String need : needs)
+            if (!tools.contains(need))
+                return;
+        sb.append("- ").append(text).append('\n');
+    }
+
+    /** A titled block, or "" when this run's tools left nothing in it to say. */
+    private static String section(String title, StringBuilder body) {
+        return body.isEmpty() ? "" : "\n" + title + ":\n" + body;
+    }
 
     /**
      * Said when the run has no tools. Omitting the tool guidance is not enough on its own: asked something it would
@@ -67,13 +98,13 @@ public final class SystemPrompt {
     /**
      * Builds the system prompt. Tool names, descriptions and schemas are sent to the model separately in the tool
      * manifest, so they are deliberately NOT duplicated here. Optional capabilities add their own guidance through
-     * extension prompt contributions. {@code hasTools} says whether this run has any: with none (--no-tools,
-     * --read-only stripped bare) the tool half is left out, so the prompt describes the run the model is actually in.
+     * extension prompt contributions. {@code toolNames} is what the model is actually being sent, so the guidance
+     * describes the run it is in: empty says so outright, and otherwise only the tools that are there get named.
      */
     public static String build(String customPrompt, String appendPrompt, String cwd, String shell,
-                                    List<String> extensionPrompts, boolean hasTools) {
+                                    List<String> extensionPrompts, Set<String> toolNames) {
         var sb = new StringBuilder(BASE_PROMPT);
-        sb.append(hasTools ? TOOL_PROMPT : NO_TOOL_PROMPT);
+        sb.append(toolNames.isEmpty() ? NO_TOOL_PROMPT : toolGuidance(toolNames));
 
         sb.append("\nENVIRONMENT:\n");
         sb.append("- Working directory: ").append(cwd).append('\n');

@@ -4,10 +4,14 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class SystemPromptTest {
+
+    /** Everything a default run has, as AppBootstrap would pass it. */
+    private static final Set<String> ALL = Set.of("read", "edit", "write", "glob", "grep", "ls", "bash");
 
     @Test
     void buildProducesBasePromptAndEnvironment() {
@@ -80,7 +84,7 @@ class SystemPromptTest {
 
     @Test
     void buildReportsConfiguredShell() {
-        var prompt = SystemPrompt.build(null, null, "/cwd", "/opt/pijota-shell", List.of(), true);
+        var prompt = SystemPrompt.build(null, null, "/cwd", "/opt/pijota-shell", List.of(), ALL);
         assertTrue(prompt.contains("Shell: /opt/pijota-shell"));
     }
 
@@ -90,7 +94,7 @@ class SystemPromptTest {
      */
     @Test
     void withoutToolsThePromptDoesNotNameAnyToolToCall() {
-        var prompt = SystemPrompt.build(null, null, "/cwd", "/bin/test-shell", List.of(), false);
+        var prompt = SystemPrompt.build(null, null, "/cwd", "/bin/test-shell", List.of(), Set.of());
 
         assertFalse(prompt.contains("TOOL USE"), prompt);
         assertFalse(prompt.contains("EXPLORATION GUIDELINES"), prompt);
@@ -108,7 +112,7 @@ class SystemPromptTest {
 
     @Test
     void withToolsTheToolGuidanceIsPresent() {
-        var prompt = SystemPrompt.build(null, null, "/cwd", "/bin/test-shell", List.of(), true);
+        var prompt = SystemPrompt.build(null, null, "/cwd", "/bin/test-shell", List.of(), ALL);
 
         assertTrue(prompt.contains("TOOL USE"), prompt);
         assertTrue(prompt.contains("Read a file before editing it"), prompt);
@@ -116,7 +120,46 @@ class SystemPromptTest {
                                         "shared rules survive the split: " + prompt);
     }
 
+    /** --no-builtin-tools: extension tools survive, and every tool the fixed text used to name is gone. */
+    @Test
+    void withOnlyExtensionToolsNoBuiltinIsNamed() {
+        var prompt = SystemPrompt.build(null, null, "/cwd", "/bin/test-shell", List.of(), Set.of("mcp_query", "task"));
+
+        assertFalse(prompt.contains("bash"), "built-ins are gone under -nbt: " + prompt);
+        assertFalse(prompt.contains("glob"), prompt);
+        assertFalse(prompt.contains("Read a file before editing it"), prompt);
+        assertFalse(prompt.contains("EXPLORATION GUIDELINES"), "nothing left to say there: " + prompt);
+        // it still has tools, so the tool-agnostic advice remains and the no-tools claim must not appear
+        assertTrue(prompt.contains("Make every tool call count"), prompt);
+        assertFalse(prompt.contains("This run has no tools"), prompt);
+    }
+
+    /** --read-only: read and glob survive, edit and write do not, so their advice must not appear. */
+    @Test
+    void readOnlyToolsGetNoEditOrWriteAdvice() {
+        var prompt = SystemPrompt.build(null, null, "/cwd", "/bin/test-shell", List.of(),
+                                        Set.of("read", "ls", "grep", "glob"));
+
+        assertTrue(prompt.contains("glob"), prompt);
+        assertTrue(prompt.contains("Use ls only when"), prompt);
+        assertFalse(prompt.contains("Read a file before editing it"), "no edit tool in a read-only run: " + prompt);
+        assertFalse(prompt.contains("Create parent directories"), "no write tool either: " + prompt);
+        assertFalse(prompt.contains("Run lint/typecheck"), "nor bash: " + prompt);
+        assertFalse(prompt.contains("Prefer the dedicated tools"), "that advice is about preferring them over bash");
+    }
+
+    /** The named list is the run's own tools, not a fixed one. */
+    @Test
+    void theDedicatedListNamesOnlyWhatIsPresent() {
+        var prompt = SystemPrompt.build(null, null, "/cwd", "/bin/test-shell", List.of(),
+                                        Set.of("read", "glob", "bash"));
+
+        assertTrue(prompt.contains("Prefer the dedicated tools (read, glob)"), prompt);
+        assertFalse(prompt.contains("edit"), prompt);
+        assertFalse(prompt.contains("write"), prompt);
+    }
+
     private static String build(String customPrompt, String appendPrompt, List<String> extensionPrompts) {
-        return SystemPrompt.build(customPrompt, appendPrompt, "/cwd", "/bin/test-shell", extensionPrompts, true);
+        return SystemPrompt.build(customPrompt, appendPrompt, "/cwd", "/bin/test-shell", extensionPrompts, ALL);
     }
 }
