@@ -68,3 +68,6 @@ Ask the shell, not the system prompt, for the running model.
 
 One per provider, listed in [Providers](providers.md#built-in). A key in the environment needs no
 `pj login`. Precedence: `--api-key`, environment, `~/.pijota/auth.json`.
+
+Not every provider ships a bundled model list; `pj --list-models <provider>` says so and names the
+command. `pj --refresh-models <provider>` asks it what it serves and remembers the answer.

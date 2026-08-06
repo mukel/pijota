@@ -46,6 +46,14 @@ pj logout anthropic
 
 Anything OpenAI-compatible needs no code, only an entry.
 
+Not every provider's models are bundled. `pj --list-models <provider>` says so rather than looking
+empty, and `pj --refresh-models <provider>` asks the provider what it serves and remembers it:
+
+```bash
+export BASETEN_API_KEY="..."
+pj --refresh-models baseten
+```
+
 ## Custom providers
 
 Under `providers` in [settings](settings.md). Bad entries warn at startup.

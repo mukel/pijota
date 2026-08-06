@@ -65,8 +65,16 @@ To test quickly, set the key for any provider and go. `pj login` handles OAuth w
 offers it, and [`docs/providers.md`](docs/providers.md) lists all 23 with their environment variables.
 
 ```bash
-export KIMI_API_KEY="..."
+export KIMI_API_KEY="..."      # or BASETEN_API_KEY, OPENAI_API_KEY, ... one per provider
 pj -m kimi-coding/k3 -p "explain this repo"
+```
+
+A provider whose models are not bundled (Baseten, say) lists nothing until you ask it what it
+serves:
+
+```bash
+export BASETEN_API_KEY="..."
+pj --refresh-models baseten
 ```
 
 To install the native-image build with JBang:
