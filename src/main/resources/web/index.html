@@ -406,7 +406,17 @@
   @media (hover: none) {
     .answer-copy, .think-copy { display: none !important; } /* code-block copy stays, it's a bar button */
     .msg .bubble { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; } /* allow long-press copy */
-    .scrollbtn { display: none; } /* on touch, flick-to-bottom is natural; avoid an overlapping floating button */
+    /* Kept on touch too. It was hidden here because flicking back is natural and a floating button was one more thing
+       in the way, but touch is the one place with no other way to re-anchor, and the latch no longer detaches on its
+       own, so the button appears only when the reader has genuinely scrolled up. Quieter than the desktop one: a
+       smaller translucent disc that lets the transcript show through, with a thumb-sized tap area it does not wear. */
+    .scrollbtn {
+      width: 34px; height: 34px; font-size: 15px; color: var(--muted);
+      background: color-mix(in srgb, var(--panel) 86%, transparent); backdrop-filter: blur(6px);
+      box-shadow: 0 2px 8px var(--shadow-color);
+      bottom: calc(80px + max(12px, env(safe-area-inset-bottom))); /* rides above the composer, clear of the gesture bar */
+    }
+    .scrollbtn::after { content: ""; position: absolute; inset: -6px; } /* 46px thumb target, no visual weight */
     /* Stop floats above the send button, which puts it over the end of the transcript. On a phone that is the last
        tool card, so while Stop is up we reserve its height at the foot of the thread instead of covering content.
        Browsers without :has() drop the rule and keep today's behaviour. */
