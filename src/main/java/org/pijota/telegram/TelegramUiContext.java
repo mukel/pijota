@@ -43,7 +43,12 @@ public final class TelegramUiContext implements UiContext {
 
     @Override
     public void setStatus(String message) {
-        // A chat has no persistent status line; transient status is not shown.
+        // Unkeyed status is not status-bar chrome: it is what a slash command answers with (the /skills list, "undid
+        // the last turn", an MCP usage line), the same reading WebUiContext takes. A chat has no status line to leave
+        // it on, so dropping it made those commands do nothing at all; here the reply is the message. Status that
+        // really is chrome arrives keyed, and keyed status never reaches a UiContext.
+        if (message != null && !message.isBlank())
+            tg.sendMessage(chatId, message);
     }
 
     @Override

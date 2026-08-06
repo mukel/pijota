@@ -3,8 +3,10 @@ package org.pijota.telegram;
 import org.pijota.agent.TestSession;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
+import org.pijota.extensions.ExtensionRegistry;
 import org.pijota.messages.ToolCall;
 import org.pijota.messages.Usage;
+import org.pijota.modes.SlashCommand;
 import org.pijota.testkit.Await;
 import org.pijota.testkit.FauxLlm;
 import org.pijota.tools.Tool;
@@ -41,6 +43,26 @@ class TelegramChatFlowTest {
         var api = new FakeTelegramApi();
         var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
         return new Chat(chat, api, ts);
+    }
+
+    /**
+     * An extension command whose whole reply is {@code runtime().setStatus(...)}, which is how /skills, /goal and /mcp
+     * answer. Wired exactly as {@code Main} wires the Telegram frontend, so the reply has to come back as a message.
+     */
+    @Test
+    void anExtensionCommandThatAnswersViaStatusReachesTheChat() {
+        var registry = new ExtensionRegistry();
+        var ts = TestSession.in(tempDir).extensions(registry).build();
+        var api = new FakeTelegramApi();
+        var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
+        registry.setTui(chat.ui()); // Main.java does this for the Telegram frontend
+        registry.api().registerSlashCommand(new SlashCommand("skilldemo", "List available skills", List.of(),
+                                        _args -> registry.api().runtime().setStatus("explore · Search a codebase")));
+
+        chat.onText("/skilldemo");
+
+        assertTrue(api.allText().stream().anyMatch(t -> t.contains("explore · Search a codebase")),
+                                        "the command's reply must reach the chat, not vanish: " + api.allText());
     }
 
     @Test

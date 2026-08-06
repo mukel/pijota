@@ -54,6 +54,30 @@ class TelegramUiContextTest {
     }
 
     @Test
+    void unkeyedStatusIsSentAsAMessageSinceAChatHasNoStatusLine() {
+        var api = new FakeApi();
+        var ui = new TelegramUiContext(7, api);
+
+        // what /skills answers with: its whole reply goes through setStatus, which used to be dropped here
+        ui.setStatus("explore · Search a codebase\nsummarize · Compress a conversation");
+
+        assertEquals(1, api.sent.size(), "a command's reply has to reach the chat: " + api.sent);
+        assertTrue(api.sent.get(0).text().contains("explore · Search a codebase"), api.sent.get(0).text());
+        assertNull(api.sent.get(0).keyboard(), "it is a plain reply, not a prompt");
+    }
+
+    @Test
+    void statusWithNothingToSayIsNotSent() {
+        var api = new FakeApi();
+        var ui = new TelegramUiContext(7, api);
+
+        ui.setStatus("   ");
+        ui.setStatus(null);
+
+        assertTrue(api.sent.isEmpty(), "empty status is not a message: " + api.sent);
+    }
+
+    @Test
     void confirmSendsButtonsAndResolvesOnTap() {
         var api = new FakeApi();
         var ui = new TelegramUiContext(7, api);
