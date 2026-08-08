@@ -67,4 +67,14 @@ public sealed interface AgentEvent {
     }
     record Error(Throwable throwable) implements AgentEvent {
     }
+    /**
+     * A request failed with something worth retrying, and the next attempt is {@code delayMs} away.
+     *
+     * <p>
+     * The retry loop knew this all along and only wrote it to the log, so a down server bought 62 seconds of silence in
+     * print mode and 62 seconds of a working animation in the TUI -- which reads as the model thinking, not as nothing
+     * being listening. The same silence covers rate limits, 5xx and dropped streams.
+     */
+    record Retry(int attempt, int maxAttempts, long delayMs, String message) implements AgentEvent {
+    }
 }

@@ -2446,6 +2446,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     appendPlain(List.of(theme.styled("statusText",
                                                     "run /login " + session.llm().provider() + " to update the key")));
             }
+            case AgentEvent.Retry(int attempt, int maxAttempts, long delayMs, String why) ->
+                appendPlain(List.of(theme.styled("statusText", Util.retryLine(attempt, maxAttempts, delayMs, why))));
             case AgentEvent.HistoryChanged ignored -> seedPromptHistoryFromSession(); // /load, /new, /undo, /fork
             default -> {}
         }

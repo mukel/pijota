@@ -77,6 +77,9 @@ public final class JsonEventStream {
             case AgentEvent.CustomMessage(var msg) ->
                 of("custom", "customType", msg.customType(), "content", msg.content());
             case AgentEvent.Error(var t) -> of("error", "message", ErrorUtil.message(t));
+            // Same reason as tool_call_progress: without it the backoff is a silent gap a wrapper cannot explain.
+            case AgentEvent.Retry(int attempt, int max, long delayMs, var why) ->
+                of("retry", "attempt", attempt, "maxAttempts", max, "delayMs", delayMs, "message", why);
             // Compaction streaming duplicates what `compaction` reports once it lands, and is noisy per token.
             case AgentEvent.CompactionStream ignored -> null;
             case AgentEvent.CompactionStreamEnd ignored -> null;

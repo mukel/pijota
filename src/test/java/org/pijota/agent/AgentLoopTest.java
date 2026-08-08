@@ -253,6 +253,30 @@ class AgentLoopTest {
         assertEquals(6, llm.requests().size()); // initial + 5 retries, then give up
     }
 
+    /**
+     * A backoff nobody announces is indistinguishable from the model thinking. A down local server bought 62 seconds of
+     * silence in print mode and 62 seconds of working animation in the TUI, because the retry loop wrote only to the
+     * log file. Every frontend renders from events, so the wait has to be one.
+     */
+    @Test
+    void everyRetryIsAnnouncedAsAnEvent() throws Exception {
+        var llm = new FauxLlm().enqueueError("connection refused").enqueueError("connection refused")
+                                        .enqueue(FauxLlm.Response.content("ok"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").retryBaseDelayMs(1).build();
+        var events = EventRecorder.capture(agent);
+
+        agent.prompt("hi").get(2, TimeUnit.SECONDS);
+
+        var retries = events.stream().filter(e -> e instanceof AgentEvent.Retry).map(e -> (AgentEvent.Retry) e)
+                                        .toList();
+        assertEquals(2, retries.size(), "one per backoff, so the user sees each wait: " + retries);
+        assertEquals(1, retries.get(0).attempt());
+        assertEquals(2, retries.get(1).attempt(), "attempts count up, so 2/6 reads as progress not a loop");
+        assertTrue(retries.get(0).delayMs() > 0, "the wait has to be nameable to be worth announcing");
+        assertTrue(retries.get(0).message().toLowerCase().contains("connection refused"),
+                                        "and it has to say why: " + retries.get(0).message());
+    }
+
     @Test
     void nonRetryableErrorIsNotRetried() {
         var llm = new FauxLlm().enqueueError(new RuntimeException("401 unauthorized"));

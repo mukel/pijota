@@ -59,6 +59,26 @@ class UtilTest {
         assertEquals("2h30s", Util.formatDuration(7_230_000));
     }
 
+    /**
+     * Providers word a reachability failure at length ("...Is it running and is the base URL correct?"). Repeating it
+     * per attempt turned five retries into ten wrapped lines of the same sentence, so only the first carries it.
+     */
+    @Test
+    void retryLineSaysWhyOnceAndThenJustTheWait() {
+        String why = "couldn't reach the model server (connection refused)";
+
+        assertEquals("retrying in 2s (1/6) · " + why, Util.retryLine(1, 6, 2_000, why));
+        assertEquals("retrying in 4s (2/6)", Util.retryLine(2, 6, 4_000, why));
+        assertEquals("retrying in 1m4s (6/6)", Util.retryLine(6, 6, 64_000, why));
+    }
+
+    /** A provider that fails with no message must not leave a dangling separator. */
+    @Test
+    void retryLineOmitsTheSeparatorWhenThereIsNoReason() {
+        assertEquals("retrying in 2s (1/6)", Util.retryLine(1, 6, 2_000, null));
+        assertEquals("retrying in 2s (1/6)", Util.retryLine(1, 6, 2_000, "   "));
+    }
+
     @Test
     void deltaPrefixEmitsOnlyAddedSuffix() {
         assertEquals("world", Util.deltaPrefix("hello world", "hello "));

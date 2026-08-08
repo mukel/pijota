@@ -624,8 +624,9 @@ public final class AgentLoop implements AgentContext {
             // Exponential backoff, capped. (We don't honor a server Retry-After header: langchain4j drops response
             // headers (HttpException carries only a status code), so there is no header to read.)
             long delay = ErrorUtil.backoffMs(retryBaseDelayMs, attempt, ErrorUtil.MAX_BACKOFF_MS);
-            log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}", attempt + 1, MAX_RETRY_ATTEMPTS + 1,
-                                            delay, ErrorUtil.message(ex));
+            // An event, not a log line: the wait is otherwise indistinguishable from the model thinking, and the
+            // always-on AgentEventLogger writes the same warning to the log file from the event.
+            fireEvent(new AgentEvent.Retry(attempt + 1, MAX_RETRY_ATTEMPTS + 1, delay, ErrorUtil.message(ex)));
             var delayed = new CompletableFuture<T>();
             CompletableFuture.delayedExecutor(delay, TimeUnit.MILLISECONDS).execute(() -> retry(task, attempt + 1)
                                             .thenAccept(delayed::complete).exceptionally(e -> {

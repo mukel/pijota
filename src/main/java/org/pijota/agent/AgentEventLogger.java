@@ -46,6 +46,8 @@ final class AgentEventLogger {
                     log.trace("assistant message (streaming/placeholder)");
                 }
             }
+            case AgentEvent.Retry e -> log.warn("LLM call failed (attempt {}/{}), retrying in {}ms: {}", e.attempt(),
+                                            e.maxAttempts(), e.delayMs(), e.message());
             case AgentEvent.ToolStart e -> {
                 log.info("tool ▶ {} [{}]", e.toolName(), e.toolCallId());
                 if (log.isDebugEnabled())

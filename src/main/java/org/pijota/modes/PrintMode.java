@@ -8,6 +8,7 @@ import org.pijota.messages.Message;
 import org.pijota.messages.Usage;
 import org.pijota.util.CliErrorReporter;
 import org.pijota.util.ErrorUtil;
+import org.pijota.util.Util;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -82,6 +83,11 @@ public final class PrintMode {
                         System.out.flush();
                     } catch (Exception ignored) {}
                 }
+            } else if (event instanceof AgentEvent.Retry(int attempt, int max, long delayMs, String why)) {
+                // stderr, so a caller piping stdout still gets a clean answer: the wait is the only thing being
+                // reported here, and a silent minute reads as a hang.
+                if (outputMode != Args.OutputMode.JSON)
+                    System.err.println(Util.retryLine(attempt, max, delayMs, why));
             } else if (event instanceof AgentEvent.Error(var t)) {
                 if (!done.isDone())
                     done.completeExceptionally(t);

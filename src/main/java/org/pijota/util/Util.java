@@ -365,6 +365,19 @@ public final class Util {
         return hours + "h" + (minutes > 0 ? minutes + "m" : "") + (seconds > 0 ? seconds + "s" : "");
     }
 
+    /**
+     * How a frontend announces a backoff, so the TUI and print mode word it the same way.
+     *
+     * <p>
+     * The reason rides on the first attempt only. Repeating it turned five retries into ten lines of the same sentence,
+     * and the wording providers use is long ("...Is it running and is the base URL correct?"). The tail of the sequence
+     * still names it: whatever the last attempt failed with is what the turn reports when it gives up.
+     */
+    public static String retryLine(int attempt, int maxAttempts, long delayMs, String reason) {
+        String head = "retrying in " + formatDuration(delayMs) + " (" + attempt + "/" + maxAttempts + ")";
+        return attempt == 1 && reason != null && !reason.isBlank() ? head + " · " + reason : head;
+    }
+
     /** Reads all of stdin as UTF-8 and strips it; returns {@code null} on any read error. */
     public static String readStdin() {
         try {
