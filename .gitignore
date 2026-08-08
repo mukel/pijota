@@ -58,3 +58,8 @@ logs/
 
 # Pijota local state (generated at runtime)
 .pijota/
+
+# Tailscale drops the node's TLS cert and private key in the CWD when `tailscale serve` runs from here
+# (/remote-control tailscale). Never committable, and this repo is public.
+*.ts.net.crt
+*.ts.net.key
