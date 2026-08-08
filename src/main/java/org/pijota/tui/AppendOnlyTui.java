@@ -1897,13 +1897,21 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var chosen = selectors.<SessionItem>selected(TuiSelectors.Slot.SESSION).orElse(null);
         if (chosen == null)
             return;
+        // The picker steps aside while the question is up. It draws in the same region the confirm's caret needs, so
+        // leaving it open put the question in the scrollback above a list that still looked live, and asked with two
+        // carets at once. One question on screen at a time; the list comes back either way.
+        selectors.deactivate(TuiSelectors.Slot.SESSION);
+        clearStatusOverride();
         dialogs.confirm("delete session '" + chosen.description() + "'?").thenAccept(yes -> {
-            if (!yes)
+            if (!yes) {
+                showSessionPicker();
                 return;
+            }
             try {
                 boolean trashed = session.deleteSession(chosen.path().toString());
                 // Quoted, like the confirm that precedes it ("delete session 'x'?"). Bare concatenation ran the
                 // session's own title into the sentence: "deleted permanently list the files in this directory".
+                showSessionPicker();
                 refreshSessionPicker((trashed ? "moved to trash" : "deleted permanently") + " '" + chosen.description()
                                                 + "'");
             } catch (IOException e) {

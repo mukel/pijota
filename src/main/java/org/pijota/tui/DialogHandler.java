@@ -33,12 +33,10 @@ final class DialogHandler {
 
     CompletableFuture<Boolean> confirm(String question) {
         var future = confirmReq.open();
-        // The keys go on the question, the way the first-run trust prompt already asks ("Trust this folder? [y/N]").
-        // They were a status line, which is the right idea for a dialog with an input field to anchor them -- but a
-        // confirm has none, and the status override renders in the warning slot beneath the stats row. Measured, that
-        // put "y to confirm, n to cancel" eleven rows below its own question, dim yellow, reading as a stray warning
-        // rather than as the thing to press.
-        host.appendPlain(List.of(host.styled("toolLabel", "confirm"), question + "  [y/n]"));
+        // No "[y/n]" on the question: the caret says it, one row below, and saying it twice reads as being asked
+        // twice. They were a status line before that, which rendered in the warning slot beneath the stats row --
+        // measured, eleven rows below the question they belonged to, dim yellow, reading as a stray warning.
+        host.appendPlain(List.of(host.styled("toolLabel", "confirm"), question));
         host.redrawPrompt();
         return future;
     }

@@ -179,23 +179,22 @@ class DialogHandlerTest {
     }
 
     /**
-     * The keys have to be where the question is. They used to travel through the status override, which renders in the
-     * warning slot beneath the stats row: measured live, that put "y to confirm, n to cancel" eleven rows below its own
-     * question, dim yellow, reading as a stray warning. A confirm has no input field to anchor a status line to, so the
-     * affordance goes on the question, the way the first-run trust prompt already asks.
+     * Asked once. The keys first travelled through the status override, which renders in the warning slot beneath the
+     * stats row: measured live, that put "y to confirm, n to cancel" eleven rows below its own question, dim yellow,
+     * reading as a stray warning. Moving them onto the question fixed the distance and then the caret grew an
+     * affordance of its own, so the same question carried "[y/n]" and "y / n" one row apart and read as two.
      */
     @Test
-    void theConfirmKeysRideOnTheQuestionItself() {
+    void aConfirmAsksOnceAndTheKeysLiveAtTheCaret() {
         var transcript = new java.util.ArrayList<String>();
         var handler = new DialogHandler(fakeHost(transcript));
 
         handler.confirm("delete session 'x'?");
 
-        String question = transcript.get(transcript.size() - 1);
-        assertTrue(question.startsWith("delete session 'x'?"), "the question leads: " + question);
-        assertTrue(question.contains("[y/n]"), "and carries the keys that answer it: " + question);
+        assertEquals("delete session 'x'?", transcript.get(transcript.size() - 1), "the question, and only it");
+        assertEquals("y / n", handler.caretAffordance(), "the keys are one row below, at the caret");
         assertTrue(transcript.stream().noneMatch(l -> l.contains("y to confirm")),
-                                        "no second copy adrift in the status slot: " + transcript);
+                                        "no third copy adrift in the status slot: " + transcript);
     }
 
     /**
