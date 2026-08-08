@@ -710,6 +710,9 @@
       "allDeclaredConstructors": true
     },
     {
+      "type": "org.pijota.llm.ModelInfo[]"
+    },
+    {
       "type": "org.pijota.llm.ModelRegistry$ModelCatalog",
       "allDeclaredFields": true,
       "allDeclaredMethods": true,

@@ -28,6 +28,13 @@ library over new dependencies. Comments are documentation, not noise.
 - **Extensions**: `Extension` SPI. Hook into tool calls, add slash commands, keybindings, status lines
 - **Sub-agents**: `agent/SubAgentLauncher` spawns separate JVM processes for parallel work
 - **Self-modify**: `extensions/transcend/TranscendenceOrchestrator`. Worktree edit/rebuild/respawn
+- **Remote control**: `tui/RemoteControl`. `/remote-control` puts a web/telegram frontend on the live
+  session. The web channels share one startup path (`startWeb(host, Tunnel)`); a tunnel is a foreground
+  child (`cloudflared` / `tailscale serve`) that proxies a public URL to the loopback `WebServer` and dies
+  with pijota. `Tunnel` is an enum carrying each kind's `cliName`, `urlPattern` and banner `caveat`, so a
+  new tunnel = one enum constant + one `start*` method + a picker entry in `AppendOnlyTui`. Tunnels are
+  internal, not extensions: they need the full `PijotaSession` (`prompt`/`addEventListener`/…) which the
+  extension SPI deliberately does not expose.
 
 ## Project structure
 

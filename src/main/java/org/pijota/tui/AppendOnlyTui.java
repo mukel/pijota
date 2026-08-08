@@ -986,6 +986,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         session.extensionRegistry().cleanup();
         if (jobRegistry != null)
             jobRegistry.killAll(); // backgrounded ≠ daemonized; backstop for when the jobs extension is disabled
+        // Tear down any remote channel on EVERY exit, not just "/remote-control → stop": otherwise a foreground
+        // tunnel child (cloudflared / tailscale serve) outlives the TUI, still proxying to a dead socket.
+        if (remoteControl != null && remoteControl.active())
+            remoteControl.stop();
         if (SelfRespawn.isRespawnInProgress())
             return;
         try {
@@ -2138,9 +2142,14 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             items.add(new RemoteOptionItem("show", "Show link & QR", remoteControl.summary()));
             items.add(new RemoteOptionItem("stop", "Stop remote control", "active: " + remoteControl.summary()));
         } else {
-            items.add(new RemoteOptionItem("web", "Web (browser / scan QR on phone)",
-                                            "LAN bind · pairing token · QR in the terminal"));
-            items.add(new RemoteOptionItem("telegram", "Telegram", "drive from your phone via the bot"));
+            // Ordered safest-first: Tailscale and Tunnel are encrypted and lead, so a new user lands on a safe
+            // default. Plain Web (cleartext token) is last and carries its own warning.
+            items.add(new RemoteOptionItem("tailscale", "Tailscale (your devices only)",
+                                            "https · encrypted · most private · needs tailscaled"));
+            items.add(new RemoteOptionItem("web-tunnel", "Tunnel (public internet)",
+                                            "https · cloudflared · Cloudflare sees the token"));
+            items.add(new RemoteOptionItem("telegram", "Telegram", "drive from your phone · needs a bot token"));
+            items.add(new RemoteOptionItem("web", "Web (same wifi only)", "cleartext token · trusted networks only"));
         }
         selectors.show(TuiSelectors.Slot.REMOTE, items);
         setStatusOverride("Remote control: Enter to choose, Esc cancels");
@@ -2194,6 +2203,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             // Starting a channel can do network I/O (Telegram getMe + setMyCommands) or bind a socket; run it off the
             // input thread so the UI never freezes; the banner is appended when it lands.
             case "web" -> startRemoteAsync(remoteControl::startWeb);
+            case "web-tunnel" -> startRemoteAsync(remoteControl::startWebTunnel);
+            case "tailscale" -> startRemoteAsync(remoteControl::startTailscale);
             case "telegram" -> startRemoteAsync(remoteControl::startTelegram);
             case "show" -> appendPlain(remoteControl.info()); // instant: re-show the active channel's link & QR
             case "stop" -> appendPlain(remoteControl.stop()); // fast: detach + close

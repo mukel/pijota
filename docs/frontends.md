@@ -29,11 +29,21 @@ The page streams the live session: messages, tool cards with their output as it 
 for the `question` tool, and the same slash commands as the TUI.
 
 `/remote-control` from inside a running TUI does the same thing for the session you already have
-open, rather than starting a new one.
+open, rather than starting a new one. It offers four channels, ordered safest-first:
+
+- **Tailscale** (your devices only) — binds loopback and runs a foreground `tailscale serve` child, for an
+  `https://<node>.<tailnet>.ts.net` address reachable only from your own tailnet. WireGuard-encrypted, TLS is
+  Tailscale's, no third-party edge, and the mapping dies with pijota. Needs `tailscaled` running, Serve + HTTPS
+  certificates enabled in the admin console, and your user as operator (`tailscale set --operator=$USER`).
+- **Tunnel** (public internet) — binds loopback and puts a `cloudflared` quick tunnel in front, for a public
+  `trycloudflare.com` URL. TLS terminates at Cloudflare's edge, which is in the trust path.
+- **Telegram** — the bot, below.
+- **Web** (same wifi only) — binds all interfaces; reachable from anything on the LAN. The token travels in cleartext,
+  so only use this on a network you trust.
 
 > [!NOTE]
-> The token authenticates, it does not encrypt. Plain HTTP on a LAN is fine at home and wrong on
-> a network you do not trust; tunnel it (`ssh -L`, tailscale) if the network is shared.
+> The token authenticates, it does not encrypt. The Tailscale and Tunnel channels add real encryption on top; the LAN
+> Web channel does not, so reach for Tailscale (or `ssh -L`) on any network you do not fully trust.
 
 ## Telegram
 
