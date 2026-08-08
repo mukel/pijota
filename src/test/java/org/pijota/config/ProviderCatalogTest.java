@@ -66,6 +66,28 @@ class ProviderCatalogTest {
         assertNotNull(ProviderCatalog.baseUrl("openai"), "builtin providers still present");
     }
 
+    /**
+     * The free half of "is this server local?". A bundled entry ships a vendor's public URL, so it can never be a
+     * machine on your network, and startup can decline to resolve its name at all.
+     */
+    @Test
+    void onlyAProviderTheUserConfiguredCanBeOnTheirNetwork() {
+        assertFalse(ProviderCatalog.isUserDefined("openai"), "a bundled entry is a vendor's public API");
+        assertFalse(ProviderCatalog.isUserDefined(null));
+        assertFalse(ProviderCatalog.isUserDefined("local"), "not registered yet");
+
+        var local = new ProviderCatalog.Provider("local", "Local", "openai", "http://workstation.lan:17341/v1",
+                                        List.of(), "my-model", Map.of(), null, null);
+        ProviderCatalog.registerUserProviders(List.of(local));
+        assertTrue(ProviderCatalog.isUserDefined("local"));
+
+        // Overriding a bundled id by settings makes it user-defined too: that is how you point "openai" at a proxy.
+        var overridden = new ProviderCatalog.Provider("openai", "Mine", "openai", "http://127.0.0.1:9/v1", List.of(),
+                                        "m", Map.of(), null, null);
+        ProviderCatalog.registerUserProviders(List.of(overridden));
+        assertTrue(ProviderCatalog.isUserDefined("openai"));
+    }
+
     @Test
     void appConfigParsesProvidersFromJson() throws Exception {
         String json = "{\"providers\":[{\"id\":\"local\",\"apiType\":\"openai\",\"baseUrl\":\"http://x/v1\"}]}";

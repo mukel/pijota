@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.function.Supplier;
 
 public final class ModelRefresher {
 
@@ -177,14 +178,18 @@ public final class ModelRefresher {
      * Only ever asked of a host on this machine or network: every remote provider would 404 it, and asking would put a
      * speculative round-trip in front of each of them.
      */
-    public static long servedContextWindow(HttpClient client, String baseUrl) {
-        if (baseUrl == null || baseUrl.isBlank() || !Util.isInternalAddress(URI.create(baseUrl).getHost()))
+    public static long servedContextWindow(Supplier<HttpClient> client, String provider, String baseUrl) {
+        // Two tests, cheapest first. Only a provider the user configured can be a machine on their network -- a
+        // bundled entry is a vendor's public API -- and that is a list lookup, where deciding it by address costs a
+        // name resolution. Asking the expensive one first put the vendor's DNS latency in front of every startup.
+        if (!ProviderCatalog.isUserDefined(provider) || baseUrl == null || baseUrl.isBlank()
+                                        || !Util.isInternalAddress(URI.create(baseUrl).getHost()))
             return 0;
         String root = baseUrl.replaceAll("/+$", "").replaceAll("/v\\d+$", "");
         try {
             var request = HttpRequest.newBuilder().uri(URI.create(root + "/props")).timeout(Duration.ofSeconds(5)).GET()
                                             .build();
-            var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            var response = client.get().send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300)
                 return 0;
             return firstLong(Util.MAPPER.readTree(response.body()), 0, "n_ctx");

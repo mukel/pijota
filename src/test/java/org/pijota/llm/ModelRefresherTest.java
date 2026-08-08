@@ -15,6 +15,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ModelRefresherTest {
 
+    /** The probe only ever asks a provider the user configured, so a test that wants it asked has to register one. */
+    @org.junit.jupiter.api.BeforeEach
+    void registerALocalProvider() {
+        ProviderCatalog.registerUserProviders(List.of(new ProviderCatalog.Provider("local", "Local", "openai",
+                                        "http://127.0.0.1:11434/v1", List.of(), "m", java.util.Map.of(), null, null)));
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void forgetIt() {
+        ProviderCatalog.registerUserProviders(List.of());
+    }
+
     private static ProviderCatalog.Provider provider(String id) {
         return new ProviderCatalog.Provider(id, id, "openai", "https://api.test/v1", null, null, null, null, null);
     }
@@ -26,20 +38,53 @@ class ModelRefresherTest {
     @Test
     void theServedWindowIsAskedForDirectlyAndOnlyOfALocalServer() throws Exception {
         var local = FakeHttpClient.ok("{\"n_ctx\":8192,\"n_ctx_train\":131072}");
-        assertEquals(8192L, ModelRefresher.servedContextWindow(local, "http://127.0.0.1:11434/v1"));
+        assertEquals(8192L, ModelRefresher.servedContextWindow(() -> local, "local", "http://127.0.0.1:11434/v1"));
 
         var remote = FakeHttpClient.ok("{\"n_ctx\":8192}");
-        assertEquals(0L, ModelRefresher.servedContextWindow(remote, "https://api.test/v1"),
+        assertEquals(0L, ModelRefresher.servedContextWindow(() -> remote, "local", "https://api.test/v1"),
                                         "a remote host must not be asked, whatever it would have said");
-        assertEquals(0L, ModelRefresher.servedContextWindow(local, null), "no base URL, nothing to ask");
+        assertEquals(0L, ModelRefresher.servedContextWindow(() -> local, "local", null), "no base URL, nothing to ask");
+    }
+
+    /**
+     * Nothing is built for a server that is never asked. The probe used to take a ready-made
+     * {@link java.net.http.HttpClient}, so every startup constructed one -- selector thread and executor included --
+     * and handed it to a call that declined before the first byte, for every user whose provider is a vendor's public
+     * API.
+     */
+    @Test
+    void theClientIsBuiltOnlyIfTheServerIsActuallyAsked() throws Exception {
+        var built = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.function.Supplier<java.net.http.HttpClient> client = () -> {
+            built.incrementAndGet();
+            return FakeHttpClient.ok("{\"n_ctx\":8192}");
+        };
+
+        assertEquals(0L, ModelRefresher.servedContextWindow(client, "local", "https://api.test/v1"));
+        assertEquals(0, built.get(), "a remote host is settled by its address; no client needed");
+
+        assertEquals(8192L, ModelRefresher.servedContextWindow(client, "local", "http://127.0.0.1:11434/v1"));
+        assertEquals(1, built.get(), "and exactly one is built when there is something to ask");
+    }
+
+    /**
+     * A bundled provider is never asked, whatever its base URL says. Deciding it by address means resolving the name
+     * first, and that lookup was landing on the startup path of every user whose provider is a vendor's public API.
+     */
+    @Test
+    void aBundledProviderIsNeverProbedAndCostsNoLookup() throws Exception {
+        var client = FakeHttpClient.ok("{\"n_ctx\":8192}");
+        assertEquals(0L, ModelRefresher.servedContextWindow(() -> client, "openai", "http://127.0.0.1:11434/v1"),
+                                        "loopback or not, a bundled entry is not the user's machine");
+        assertEquals(0L, ModelRefresher.servedContextWindow(() -> client, null, "http://127.0.0.1:11434/v1"));
     }
 
     /** A server that says nothing leaves the catalogue's answer alone rather than zeroing it. */
     @Test
     void aServerThatDoesNotAnswerLeavesTheCatalogueValue() throws Exception {
-        assertEquals(0L, ModelRefresher.servedContextWindow(FakeHttpClient.ok("not json"),
+        assertEquals(0L, ModelRefresher.servedContextWindow(() -> FakeHttpClient.ok("not json"), "local",
                                         "http://127.0.0.1:11434/v1"));
-        assertEquals(0L, ModelRefresher.servedContextWindow(FakeHttpClient.status(404, "nope"),
+        assertEquals(0L, ModelRefresher.servedContextWindow(() -> FakeHttpClient.status(404, "nope"), "local",
                                         "http://127.0.0.1:11434/v1"));
     }
 

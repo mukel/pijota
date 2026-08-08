@@ -33,6 +33,18 @@ public final class ProviderCatalog {
         userProviders = providers == null ? List.of() : List.copyOf(providers);
     }
 
+    /**
+     * True when {@code id} is defined in settings.json rather than by the bundled catalogue.
+     *
+     * <p>
+     * The bundled entries ship a vendor's public base URL, so they cannot be a machine on your network. That makes this
+     * the free half of "is this server local?": a catalogue fact, answered from a list, worth asking before the half
+     * that costs a name resolution.
+     */
+    public static boolean isUserDefined(String id) {
+        return id != null && userProviders.stream().anyMatch(p -> id.equals(p.id()));
+    }
+
     public static List<String> validateUserProviders(List<Provider> providers) {
         if (providers == null || providers.isEmpty())
             return List.of();

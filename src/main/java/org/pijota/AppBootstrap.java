@@ -192,10 +192,11 @@ public final class AppBootstrap {
         StartupTimer.mark("system prompt built");
 
         // Ask a local server what it is serving before anything reads a window: n_ctx belongs to the server process,
-        // so the cached number is only as good as that process's last launch. One loopback GET, skipped entirely for
-        // remote providers, and a refused connection answers instantly -- the cached value stands if it cannot answer.
-        ModelRegistry.recordServedContextWindow(provider, ModelRefresher.servedContextWindow(
-                                        Proxies.httpClientBuilder().build(), ProviderCatalog.baseUrl(provider)));
+        // so the cached number is only as good as that process's last launch. Costs nothing for the providers it
+        // cannot apply to, and the client is built only if there is something to ask.
+        ModelRegistry.recordServedContextWindow(provider,
+                                        ModelRefresher.servedContextWindow(() -> Proxies.httpClientBuilder().build(),
+                                                                        provider, ProviderCatalog.baseUrl(provider)));
         int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
 
         int maxTurns = parsedArgs.maxTurns() != null ? parsedArgs.maxTurns() : settings.maxTurns();
