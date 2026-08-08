@@ -253,7 +253,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private volatile boolean showSessionPickerOnStart;
     private final LogViewer logViewer = new LogViewer();
     private final WorkingAnimation animation = new WorkingAnimation();
-    private final FollowUpQueue followUps = new FollowUpQueue();
     private final MessageBrowser messageBrowser;
     /** The prompt draft a selector displaced when it borrowed the input line; restored if the selector is cancelled. */
     private String promptStash = "";
@@ -347,8 +346,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.skills = skills;
         Host host = new Host();
         this.dialogs = new DialogHandler(host);
-        this.promptPresenter = new PromptPresenter(host, activity, statusOverride, dialogs, animation, followUps,
-                                        tokenMeter, this::statusLinesWithRemote);
+        this.promptPresenter = new PromptPresenter(host, activity, statusOverride, dialogs, animation,
+                                        session::queuedFollowUps, tokenMeter, this::statusLinesWithRemote);
         this.shellCommands = new ShellCommandRunner(host,
                                         settings != null ? settings.effectiveShellPath() : Platform.defaultShell());
         this.sessionCommands = new SessionCommands(host);
@@ -1098,7 +1097,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     if (!anyOverlayActive() && globalKeys.dispatch(key))
                         continue;
                     if (key == Key.Special.ALT_UP) {
-                        restoreQueuedFollowUp();
+                        undoLastTurn();
                         continue;
                     }
                     if (key == Key.Special.PASTE_START) {
@@ -1386,7 +1385,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void restoreQueuedFollowUpsAfterAbort() {
-        var pending = followUps.drainPending();
+        var pending = session.drainFollowUps();
         if (pending.isEmpty())
             return;
         String restored = String.join("\n\n", pending);
@@ -1689,12 +1688,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 appendPlain(List.of(theme.styled("toolError",
                                                 "attachments aren't sent mid-turn. Resend after this turn")));
             session.followUp(payload);
-            int queued = followUps.add(payload);
-            appendPlain(List.of(theme.styled("statusText", "queued follow-up (" + queued + ")")));
+            appendPlain(List.of(theme.styled("statusText",
+                                            "queued follow-up (" + session.queuedFollowUps().size() + ")")));
             redrawPrompt();
             return;
         }
-        followUps.reset();
         exitGate.disarm();
         long gen = beginBusy("waiting for model");
         redrawPrompt();
@@ -1731,17 +1729,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             case ":q", ":q!", ":wq", ":wq!", ":x", ":quit", ":qa", ":qa!" -> true;
             default -> false;
         };
-    }
-
-    void restoreQueuedFollowUp() {
-        String msg = followUps.popNewest();
-        if (msg == null) {
-            setTransientStatus("No queued follow-up", 2000);
-        } else {
-            promptEditor.setText(msg);
-            setTransientStatus("Restored queued follow-up", 2000);
-        }
-        redrawPrompt();
     }
 
     private long beginBusy(String phase) {
@@ -2381,7 +2368,29 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         }
     }
 
+    /**
+     * Takes the most recent message back and puts it in the editor, wherever it currently is.
+     *
+     * <p>
+     * Queued follow-ups first, newest first, then the last committed turn. They were two commands, /undo and /dequeue,
+     * whose availability windows never overlapped -- /undo refused while busy, /dequeue only meant anything while busy
+     * -- so the choice between them carried no information and only asked the user to know which list pijota happened
+     * to be keeping.
+     *
+     * <p>
+     * It never escalates. When a withdraw finds nothing while the turn is still running, the message is already in
+     * flight, and the answer is to say so: falling through would undo an older, committed turn instead, which is a far
+     * more destructive thing than the one that was asked for.
+     */
     void undoLastTurn() {
+        var queued = session.withdrawNewestFollowUp();
+        if (queued.isPresent()) {
+            promptEditor.setText(queued.get());
+            appendPlain(List.of(theme.styled("statusText",
+                                            "took back the queued follow-up; edit and press Enter to resend")));
+            redrawPrompt();
+            return;
+        }
         if (refuseWhileBusy("/undo"))
             return;
         var previous = session.undoLastUserTurn();
@@ -2400,7 +2409,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 toolsInProgress.clear(); // evict any leftovers from a prior interrupted/aborted turn
                 interruptedCalls.clear();
                 promptEditor.clearOffer(); // a suggestion described the conversation as it stood before this turn
-                followUps.clearPending();
                 streamRenderer.reset();
                 streamingContent = false;
                 activity.setPhase("waiting for model");

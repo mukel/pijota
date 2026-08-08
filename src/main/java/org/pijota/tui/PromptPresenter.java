@@ -45,19 +45,19 @@ final class PromptPresenter {
     private final StatusOverride statusOverride;
     private final DialogHandler dialogs;
     private final WorkingAnimation animation;
-    private final FollowUpQueue followUps;
+    private final Supplier<List<String>> queuedFollowUps;
     private final ContextTokenMeter tokenMeter;
     private final Supplier<List<String>> extensionLines;
 
     PromptPresenter(Host host, TurnActivity activity, StatusOverride statusOverride, DialogHandler dialogs,
-                                    WorkingAnimation animation, FollowUpQueue followUps, ContextTokenMeter tokenMeter,
-                                    Supplier<List<String>> extensionLines) {
+                                    WorkingAnimation animation, Supplier<List<String>> queuedFollowUps,
+                                    ContextTokenMeter tokenMeter, Supplier<List<String>> extensionLines) {
         this.host = host;
         this.activity = activity;
         this.statusOverride = statusOverride;
         this.dialogs = dialogs;
         this.animation = animation;
-        this.followUps = followUps;
+        this.queuedFollowUps = queuedFollowUps;
         this.tokenMeter = tokenMeter;
         this.extensionLines = extensionLines;
     }
@@ -96,15 +96,17 @@ final class PromptPresenter {
             if (elapsed >= 1000) // a running seconds counter so long turns visibly progress (not stuck)
                 stats.append(theme.styled("statusText", TuiCopy.CHIP + (elapsed / 1000) + "s"));
         }
-        int queued = followUps.queuedCount();
-        if (queued > 0)
-            stats.append(theme.styled("statusText", TuiCopy.GROUP + "queued " + queued + TuiCopy.CHIP + "/dequeue"));
+        // One list, so the count and the command can no longer disagree: what is offered is exactly what /undo will
+        // find. The hint used to read off a counter the pending list had already been cleared out from under.
+        var queued = queuedFollowUps.get();
+        if (!queued.isEmpty())
+            stats.append(theme.styled("statusText",
+                                            TuiCopy.GROUP + "queued " + queued.size() + TuiCopy.CHIP + "/undo"));
         else if (!activity.isBusy() && host.messageCount() == 0)
             stats.append(theme.styled("dim", TuiCopy.GROUP + TuiCopy.START_HINT));
 
         return snapshot.withCwd(cwd.toString()).withStatus(stats.toString()).withContextPct(tokenPct())
-                                        .withPendingMessages(followUps.pending())
-                                        .withExtensionLines(mergedExtensionLines())
+                                        .withPendingMessages(queued).withExtensionLines(mergedExtensionLines())
                                         .withPromptState(promptState(snapshot, status))
                                         .withStreamTail(host.liveStreamTail()).withWarning(status);
     }

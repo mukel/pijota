@@ -264,6 +264,45 @@ public final class AgentLoop implements AgentContext {
         return history.userMessages();
     }
 
+    /**
+     * What is queued to run after the current turn, newest last.
+     *
+     * <p>
+     * Read rather than mirrored. The TUI used to keep its own copy for the "queued N" hint and the pending preview,
+     * which is a second truth that drifts: the copy was cleared at each turn start while the counter beside it was not,
+     * so the bar offered a command that had nothing to act on. There is one list, and it is this one.
+     */
+    public List<String> queuedFollowUps() {
+        synchronized (followUpMessages) {
+            return List.copyOf(followUpMessages);
+        }
+    }
+
+    /**
+     * Takes the newest queued follow-up back, or empty when there is none left to take.
+     *
+     * <p>
+     * Empty also covers "too late": once {@link #processFollowUp} has drained the list the message is a turn in flight,
+     * and the caller must say so rather than reach further back. Handing the text to an editor without removing it here
+     * is what made a withdrawn follow-up run anyway.
+     */
+    public Optional<String> withdrawNewestFollowUp() {
+        synchronized (followUpMessages) {
+            return followUpMessages.isEmpty()
+                                            ? Optional.empty()
+                                            : Optional.of(followUpMessages.remove(followUpMessages.size() - 1));
+        }
+    }
+
+    /** Takes every queued follow-up back at once; for an abort, which cancels them rather than running them. */
+    public List<String> drainFollowUps() {
+        synchronized (followUpMessages) {
+            var out = List.copyOf(followUpMessages);
+            followUpMessages.clear();
+            return out;
+        }
+    }
+
     public void followUp(String m) {
         followUpMessages.add(m);
     }

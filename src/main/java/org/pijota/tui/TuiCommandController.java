@@ -31,14 +31,14 @@ final class TuiCommandController {
             case "/refresh" -> tui.refreshModels();
             case "/reload" -> tui.reloadRuntimeResources();
             case "/theme" -> tui.showThemeSelector(arg);
-            case "/undo" -> tui.undoLastTurn();
             case "/compact" -> tui.triggerCompaction(arg);
             case "/branch-summary" -> tui.branchSummary(arg);
             case "/copy" -> tui.copyLastResponse();
             case "/hotkeys" -> tui.showHelpOverlay(true);
             case "/context" -> tui.showContext();
             case "/usage", "/cost" -> tui.showUsage();
-            case "/dequeue" -> tui.restoreQueuedFollowUp();
+            // /dequeue is the old name for the queued half; one gesture takes back the last message now.
+            case "/undo", "/dequeue" -> tui.undoLastTurn();
             case "/bg" -> tui.backgroundRunningTool(); // tmux-friendly alternative to ctrl+b ctrl+b
             case "/export" -> tui.exportSession(input);
             case "/import" -> tui.importSession(input);

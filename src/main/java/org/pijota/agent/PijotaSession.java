@@ -179,6 +179,21 @@ public final class PijotaSession implements AutoCloseable {
         agentLoop.abort();
     }
 
+    /** What is queued to run after the current turn; the frontends' preview and "queued N" hint read this. */
+    public List<String> queuedFollowUps() {
+        return agentLoop.queuedFollowUps();
+    }
+
+    /** Takes the newest queued follow-up back, or empty when there is none (including "already running"). */
+    public Optional<String> withdrawNewestFollowUp() {
+        return agentLoop.withdrawNewestFollowUp();
+    }
+
+    /** Cancels every queued follow-up and returns them, for an abort that hands their text back to the editor. */
+    public List<String> drainFollowUps() {
+        return agentLoop.drainFollowUps();
+    }
+
     public void followUp(String message) {
         agentLoop.followUp(message);
     }

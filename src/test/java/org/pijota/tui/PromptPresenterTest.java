@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PromptPresenterTest {
 
     private final TurnActivity activity = new TurnActivity();
-    private final FollowUpQueue followUps = new FollowUpQueue();
+    private final List<String> queuedFollowUps = new java.util.ArrayList<>();
     private final StatusOverride statusOverride = new StatusOverride();
     private ThinkingLevel level = ThinkingLevel.MEDIUM;
     private long tokens = 1000;
@@ -77,7 +77,8 @@ class PromptPresenterTest {
 
             @Override
             public void clearStatus() {}
-        }), new WorkingAnimation(), followUps, new ContextTokenMeter(() -> messages, () -> tokens, 60_000),
+        }), new WorkingAnimation(), () -> List.copyOf(queuedFollowUps),
+                                        new ContextTokenMeter(() -> messages, () -> tokens, 60_000),
                                         () -> extensionLines);
     }
 
@@ -197,9 +198,9 @@ class PromptPresenterTest {
     /** Typing while the model works queues the message; the bar has to say so, and how to get it back. */
     @Test
     void aQueuedFollowUpIsAnnouncedWithTheWayToRetrieveIt() {
-        followUps.add("and then run the tests");
+        queuedFollowUps.add("and then run the tests");
         assertTrue(statusBar().contains("queued 1"), statusBar());
-        assertTrue(statusBar().contains("/dequeue"), "and how to get it back: " + statusBar());
+        assertTrue(statusBar().contains("/undo"), "and how to get it back: " + statusBar());
     }
 
     @Test
@@ -214,7 +215,7 @@ class PromptPresenterTest {
     @Test
     void aQueuedMessageTakesTheHintsPlaceRatherThanCrowdingIt() {
         messages = 0;
-        followUps.add("later");
+        queuedFollowUps.add("later");
         assertTrue(statusBar().contains("queued 1"), statusBar());
         assertFalse(statusBar().contains("/help"), "both at once would be two things competing: " + statusBar());
     }

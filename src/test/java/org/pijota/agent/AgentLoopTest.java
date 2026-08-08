@@ -138,6 +138,57 @@ class AgentLoopTest {
         assertEquals("second", ((Message.Assistant) messages.get(3)).content());
     }
 
+    /**
+     * The TUI used to mirror this list to draw "queued N" and to back /dequeue, and the copy drifted: it was cleared at
+     * each turn start while the counter beside it was not, so the bar offered a command with nothing to act on. Worse,
+     * the mirror was all /dequeue removed -- the agent still held the message and ran it anyway. One list.
+     */
+    @Test
+    void aQueuedFollowUpCanBeTakenBackBeforeItRuns() throws Exception {
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+
+        agent.followUp("first");
+        agent.followUp("second");
+        assertEquals(List.of("first", "second"), agent.queuedFollowUps());
+
+        assertEquals("second", agent.withdrawNewestFollowUp().orElseThrow(), "newest first");
+        assertEquals(List.of("first"), agent.queuedFollowUps(), "and it is gone from the queue, not just reported");
+
+        assertEquals("first", agent.withdrawNewestFollowUp().orElseThrow());
+        assertTrue(agent.withdrawNewestFollowUp().isEmpty(), "nothing left to take back");
+        assertTrue(agent.queuedFollowUps().isEmpty());
+    }
+
+    /**
+     * A withdrawn follow-up must not run. Before, /dequeue popped a UI mirror and handed the text to the editor while
+     * this list still held it, so the message arrived twice: once from the queue, once when the user pressed Enter.
+     */
+    @Test
+    void aWithdrawnFollowUpDoesNotRun() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("answer"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        agent.followUp("do not run me");
+        assertEquals("do not run me", agent.withdrawNewestFollowUp().orElseThrow());
+        var messages = agent.prompt("hi").get(2, TimeUnit.SECONDS);
+
+        assertTrue(messages.stream().noneMatch(
+                                        m -> m instanceof Message.User u && u.content().contains("do not run me")),
+                                        "it was taken back: " + messages);
+        assertEquals(1, llm.requests().size(), "and no extra turn ran for it");
+    }
+
+    /** Abort cancels queued follow-ups rather than leaving them to run on the next prompt. */
+    @Test
+    void drainingReturnsEveryQueuedFollowUpAndEmptiesTheQueue() {
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
+        agent.followUp("a");
+        agent.followUp("b");
+
+        assertEquals(List.of("a", "b"), agent.drainFollowUps());
+        assertTrue(agent.queuedFollowUps().isEmpty(), "drained means gone, or an aborted turn runs them later");
+    }
+
     @Test
     void addCustomMessageAddsMessageAndFiresEvent() {
         var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").build();
