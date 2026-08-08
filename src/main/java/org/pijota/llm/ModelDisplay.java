@@ -22,11 +22,11 @@ public final class ModelDisplay {
         if (contextWindow <= 0)
             return "?";
         if (contextWindow >= 1_000_000) {
-            double millions = contextWindow / 1_000_000.0;
-            // 1M, not 1.0M; 1.5M keeps the half that distinguishes it.
-            return (millions == Math.floor(millions)
-                                            ? String.valueOf((long) millions)
-                                            : String.format(Locale.ROOT, "%.1f", millions)) + "M";
+            // 1M, not 1.0M; 1.5M keeps the half that distinguishes it. Decided on the rounded figure, not the raw
+            // one: 1,048,576 is not a whole number of millions but rounds to one, so it took the decimal branch and
+            // printed "1.0M" in a list beside a 1,000,000-token model's "1M", making one window look like two.
+            String millions = String.format(Locale.ROOT, "%.1f", contextWindow / 1_000_000.0);
+            return (millions.endsWith(".0") ? millions.substring(0, millions.length() - 2) : millions) + "M";
         }
         return Math.round(contextWindow / 1000.0) + "K";
     }

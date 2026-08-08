@@ -20,6 +20,10 @@ class ModelDisplayTest {
         assertEquals("1M", ModelDisplay.context(1_000_000), "not 1.0M, and certainly not 976K");
         assertEquals("1.5M", ModelDisplay.context(1_500_000), "the half is what distinguishes it");
         assertEquals("2M", ModelDisplay.context(2_000_000));
+        // The models.json catalogue quotes both: deepseek 1_000_000, kimi and gemini 2^20. They are the same window
+        // to a reader, and a list that printed "1M" on one row and "1.0M" on the next said otherwise.
+        assertEquals("1M", ModelDisplay.context(1_048_576), "2^20 is quoted as 1M, not 1.0M");
+        assertEquals("2.1M", ModelDisplay.context(2_097_152), "but a real fraction still shows");
         assertEquals("?", ModelDisplay.context(0));
     }
 
