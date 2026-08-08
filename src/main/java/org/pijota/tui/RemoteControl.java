@@ -132,28 +132,24 @@ final class RemoteControl {
      * path). Adding a channel is a constant plus a {@code start*} method plus a picker entry, with no branch to update.
      */
     enum Tunnel {
-        NONE("", null, "web", "", false), // no child; the LAN bind itself is the exposure
+        NONE("", null, "web", ""), // no child; the LAN bind itself is the exposure
         CLOUDFLARE("cloudflared", "https://[a-z0-9-]+\\.trycloudflare\\.com", "web tunnel",
-                                        "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL.",
-                                        true),
+                                        "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL."),
         // tailscale serve prints the address with a trailing slash; the pattern stops short of it so "?t=" appends
         // cleanly.
         TAILSCALE("tailscale", "https://[a-z0-9-]+\\.[a-z0-9-]+\\.ts\\.net", "tailscale",
-                                        "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.",
-                                        false);
+                                        "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.");
 
         final String cliName; // the binary, also used in failure messages
         final Pattern urlPattern; // what the child prints as its public URL; null for NONE, which starts no child
         final String title; // what the banner calls this channel
         final String caveat; // banner security note; "" for NONE
-        final boolean buffersEventStream; // this edge withholds text/event-stream until a block has accumulated
 
-        Tunnel(String cliName, String urlPattern, String title, String caveat, boolean buffersEventStream) {
+        Tunnel(String cliName, String urlPattern, String title, String caveat) {
             this.cliName = cliName;
             this.urlPattern = urlPattern == null ? null : Pattern.compile(urlPattern);
             this.title = title;
             this.caveat = caveat;
-            this.buffersEventStream = buffersEventStream;
         }
     }
 
@@ -169,8 +165,6 @@ final class RemoteControl {
         String token = WebServer.newPairingToken();
         int port = WebServer.DEFAULT_PORT;
         var server = new WebServer(session, host, port, session.llm(), statusLines, commands.get(), token);
-        if (tunnel.buffersEventStream)
-            server.padForBufferingProxy(); // its edge holds the event stream until ~128KB has accumulated
         try {
             server.start();
         } catch (Exception e) {

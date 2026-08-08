@@ -943,9 +943,15 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!v) showToast("Connection lost, reconnecting…", true);
   }
   function connect() {
-    // POST, not EventSource: a Cloudflare quick tunnel buffers text/event-stream over GET (flushing ~every 128KB),
-    // so the chat would render history but never stream live. POST streams unbuffered (cloudflared #1449), so we
-    // fetch and parse the SSE wire format (event:/data: frames) by hand; comment lines (heartbeats, pad) are skipped.
+    // POST, not EventSource: a Cloudflare quick tunnel buffers text/event-stream over GET, so the chat would render
+    // history but never stream live. POST streams unbuffered (cloudflared #1449), so we fetch and parse the SSE wire
+    // format (event:/data: frames) by hand; comment lines (heartbeats) are skipped.
+    //
+    // Measured through a real quick tunnel, one event every 200ms for 8s: over GET the edge released NOTHING until
+    // the origin closed the stream (first event at 8.1s, all 40 at once); over POST the first event landed at 0.12s
+    // and every gap stayed at 200ms. Unchanged by `Cache-Control: no-transform`, by `X-Accel-Buffering: no`, and by
+    // refusing compression -- so this is not a caching or gzip effect, and no response header talks the edge out of
+    // it. EventSource can only issue GET, which is why the frame parsing below is hand-rolled rather than free.
     const handlers = new Map(), ctrl = new AbortController();
     let alive = true;
     const es = { addEventListener: (n, fn) => handlers.set(n, fn), close: () => { alive = false; ctrl.abort(); } };
