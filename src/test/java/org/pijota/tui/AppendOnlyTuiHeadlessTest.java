@@ -3,6 +3,7 @@ package org.pijota.tui;
 import org.pijota.agent.TestSession;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
+import org.pijota.testkit.Await;
 import org.pijota.testkit.FauxLlm;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.SlashCommandTool;
@@ -14,9 +15,12 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Proxy;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,10 +38,24 @@ class AppendOnlyTuiHeadlessTest {
                                         .dumb(true).build();
     }
 
+    /** A Terminal that delegates everything but counts enterRawMode() calls, to observe terminal-mode re-asserts. */
+    private static Terminal countingRawMode(Terminal delegate, AtomicInteger counter) {
+        return (Terminal) Proxy.newProxyInstance(Terminal.class.getClassLoader(), new Class<?>[] {Terminal.class},
+                                        (proxy, method, args) -> {
+                                            if (method.getName().equals("enterRawMode"))
+                                                counter.incrementAndGet();
+                                            return method.invoke(delegate, args);
+                                        });
+    }
+
     private AppendOnlyTui tui(TestSession ts) throws Exception {
+        return tui(ts, headlessTerminal());
+    }
+
+    private AppendOnlyTui tui(TestSession ts, Terminal terminal) throws Exception {
         var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
         return new AppendOnlyTui(ts.session(), AnsiTheme.plain(), "openai", "gpt-x", List.of(), settings, List.of(),
-                                        List::of, List.of(), headlessTerminal());
+                                        List::of, List.of(), terminal);
     }
 
     @Test
@@ -119,6 +137,49 @@ class AppendOnlyTuiHeadlessTest {
                 tui.suspendTui();
                 tui.resumeTui();
             });
+        } finally {
+            tui.close();
+        }
+    }
+
+    @Test
+    void sigcontHandlerReassertsModesOnlyWhileSuspended() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        var rawCalls = new AtomicInteger();
+        var tui = tui(ts, countingRawMode(headlessTerminal(), rawCalls));
+        try {
+            tui.installSigcontHandler();
+
+            // not suspended: a stray SIGCONT must not touch the terminal (a tcsetattr from a backgrounded process
+            // would re-stop it via SIGTTOU)
+            sun.misc.Signal.raise(new sun.misc.Signal("CONT"));
+            Thread.sleep(300); // signal delivery is async; give the handler its chance to misbehave
+            assertEquals(0, rawCalls.get(), "SIGCONT without a suspend is a no-op");
+
+            // suspended (Ctrl+Z path): fg delivers SIGCONT after the shell's own tcsetattr, so the handler must
+            // re-assert raw mode — it is the repair that deterministically lands last in the restore race
+            tui.suspendTui();
+            sun.misc.Signal.raise(new sun.misc.Signal("CONT"));
+            Await.until(() -> rawCalls.get() >= 1, Duration.ofSeconds(5),
+                                            "SIGCONT after suspend re-asserts terminal modes");
+            tui.resumeTui();
+        } finally {
+            tui.close();
+        }
+    }
+
+    @Test
+    void resumeNeverClobbersSavedOriginalAttributes() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        var tui = tui(ts);
+        try {
+            var field = AppendOnlyTui.class.getDeclaredField("originalAttributes");
+            field.setAccessible(true);
+            var marker = new org.jline.terminal.Attributes();
+            field.set(tui, marker);
+            tui.suspendTui();
+            tui.resumeTui();
+            assertSame(marker, field.get(tui), "resume re-enters raw mode but keeps the startup attribute snapshot");
         } finally {
             tui.close();
         }

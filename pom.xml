@@ -542,6 +542,16 @@
                 <configuration>
                   <transformers>
                     <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                    <!-- JLine 4 resolves terminal providers from META-INF/jline/providers/* (not META-INF/services),
+                         so the default shade clobbering would drop ExecTerminalProvider — the only provider that can
+                         set raw mode on a native image — and the native build would run cooked (control chars typed
+                         literally, no Ctrl-Z, broken Backspace). Append every provider file instead. -->
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                      <resource>META-INF/jline/providers/exec</resource>
+                    </transformer>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                      <resource>META-INF/jline/providers/dumb</resource>
+                    </transformer>
                   </transformers>
                   <filters>
                     <filter>

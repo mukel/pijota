@@ -60,6 +60,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -227,7 +228,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private volatile JobRegistry jobRegistry; // enables ctrl+b ctrl+b; null until the host wires it
     private ThinkingLevel thinkingLevel = ThinkingLevel.OFF;
     private String sessionName;
-    private Attributes originalAttributes;
+    // volatile: assertTerminalModes() snapshots this from the SIGCONT handler's thread, and suspendTui()/close() read
+    // it from the input thread. suspendDepth next door is already volatile for the same crossing; this one was not, so
+    // the restore could read a stale null and hand the shell-out a raw terminal.
+    private volatile Attributes originalAttributes;
     private final Terminal.SignalHandler originalIntHandler;
     private final Terminal.SignalHandler originalWinchHandler;
     private final SlashCommandRegistry commands;
@@ -358,7 +362,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.loginCommands = new LoginCommandHandler(host);
         this.commandPalette = new CommandPaletteHandler(host);
         this.terminal = terminal;
-        this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, ignored -> handleCtrlC());
+        // INT is handled by the byte path (InputDecoder case 3 → the input loop's CTRL_C branch), not here: JLine's
+        // SignalInterceptingInputStream raises Signal.INT *and* still returns byte 0x03 to the reader, so a handler
+        // here would fire handleCtrlC() twice per Ctrl+C — arming exitGate on the first press and exiting on the
+        // "second". Register a no-op purely so shutdown has a stable originalIntHandler to restore.
+        this.originalIntHandler = this.terminal.handle(Terminal.Signal.INT, ignored -> {});
         this.originalWinchHandler = this.terminal.handle(Terminal.Signal.WINCH, ignored -> handleResize());
         // Confirm callbacks point straight at the owning handlers; session/fork keep TUI-local restore logic.
         this.selectors = new TuiSelectors();
@@ -877,10 +885,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.fileRefs = new FileReferenceResolver(Path.of(cwd));
         Runtime.getRuntime().addShutdownHook(new Thread(this::close, "pijota-tui-shutdown"));
         try {
-            originalAttributes = terminal.enterRawMode();
             // Ask for unambiguous modifiers before anything reads a key. Terminals without the protocol ignore it.
-            terminal.writer().print(KittyKeyboard.ENABLE + "\033[?2004h");
-            terminal.writer().flush();
+            assertTerminalModes(); // first call also snapshots the pre-TUI attributes into originalAttributes
+            installSigcontHandler();
             appendStartupGreeting(version, cwd);
             if (showSessionPickerOnStart) {
                 showSessionPicker();
@@ -1434,29 +1441,102 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     /**
      * Ctrl+Z job-control suspend. Raw mode turns off ISIG, so the kernel never turns Ctrl+Z into SIGTSTP; we do it
      * ourselves: drop to cooked mode, stop the process (the shell prints "Suspended"), then re-enter raw mode and
-     * repaint when {@code fg} continues us. {@code Signal.raise} blocks here until SIGCONT.
+     * repaint when {@code fg} continues us. The stop blocks here until SIGCONT; the handler installed by
+     * {@link #installSigcontHandler()} then repairs the modes deterministically if the shell's restore raced us.
      */
     private void suspendProcess() {
         if (Platform.isWindows())
             return; // no SIGTSTP / job control on Windows
         suspendTui();
         try {
-            sun.misc.Signal.raise(new sun.misc.Signal("TSTP"));
-        } catch (IllegalArgumentException | UnsatisfiedLinkError ignored) {
+            raiseSigtstp();
+        } catch (Throwable ignored) {
             // platform without SIGTSTP; fall through and just restore the prompt
         } finally {
             resumeTui();
         }
     }
 
+    /**
+     * Deliver SIGTSTP to this process for a real job-control stop. GraalVM's own runtime installs a SIGTSTP dispatcher
+     * that intercepts the signal before any {@code sun.misc.Signal} disposition applies (confirmed by native stderr
+     * tracing: a Java handler registered for TSTP never runs, and the process never stops). So we bypass the JVM signal
+     * machinery entirely and ask the kernel to stop us: a bare {@code kill -TSTP <pid>} via {@code sh}, which needs no
+     * registered handler and always takes the default stop-the-process action (the shell prints "Suspended").
+     * {@code waitFor()} returns after {@code fg}'s SIGCONT wakes us. No JNA (jnidispatch is not embedded in native
+     * images).
+     */
+    private static void raiseSigtstp() throws Exception {
+        long pid = ProcessHandle.current().pid();
+        // No `sh -c`: ProcessBuilder execs the binary off PATH, so the shell builtin never enters it. One fork per
+        // Ctrl+Z, and suspend is not a hot path.
+        int rc = new ProcessBuilder("kill", "-TSTP", Long.toString(pid)).inheritIO().start().waitFor();
+        if (rc != 0)
+            throw new IllegalStateException("kill -TSTP exited " + rc);
+    }
+
+    /**
+     * Re-assert the TUI's terminal state — raw mode, Kitty keyboard flags, bracketed paste — without touching suspend
+     * bookkeeping or repainting. Idempotent and safe to call from any thread, including the SIGCONT handler's.
+     *
+     * The pre-TUI attributes are snapshotted on the first call (startup) and never replaced afterwards: a resume that
+     * raced the shell must not capture whatever transient modes the tty happens to be in, or the next suspend would
+     * "restore" garbage.
+     */
+    private void assertTerminalModes() {
+        try {
+            Attributes attrs = terminal.enterRawMode();
+            if (originalAttributes == null)
+                originalAttributes = attrs;
+            // suspendTui popped the Kitty flags; the shell may also have toggled bracketed paste. Put both back.
+            terminal.writer().print(KittyKeyboard.ENABLE + "\033[?2004h");
+            terminal.writer().flush();
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Repair the terminal after {@code fg}. When the shell resumes a job it first restores the tty modes it saved when
+     * the job stopped — and that restore races our own {@link #resumeTui()}. If the shell lands last, the tty stays
+     * cooked with ICRNL on and Enter decodes as LF (insert newline) instead of CR (submit). SIGCONT is delivered
+     * strictly after the shell's tcsetattr, so re-asserting here always lands last.
+     *
+     * The handler only fires for our own suspends (depth &gt; 0): after a foreign stop the shell restores our raw state
+     * by itself, and a tcsetattr from a process that is still backgrounded would just re-stop it via SIGTTOU.
+     */
+    void installSigcontHandler() { // package-private for tests
+        if (Platform.isWindows())
+            return; // no job-control signals on Windows; suspendProcess() is disabled there too
+        // Chain, do not replace. handle() installs our disposition and hands back whatever held CONT before, and
+        // dropping that return value silently unregisters it -- for a signal we do not own and only want to observe.
+        // Today's previous holder is the default, but "we are the only ones interested in CONT" is not something this
+        // class can know: JLine picks a terminal provider at runtime, and the JDK and GraalVM both install dispositions
+        // of their own. Delegating costs one call and keeps that true whoever gets there first.
+        var previous = new AtomicReference<sun.misc.SignalHandler>();
+        try {
+            previous.set(sun.misc.Signal.handle(new sun.misc.Signal("CONT"), sig -> {
+                if (suspendDepth > 0)
+                    assertTerminalModes();
+                var prior = previous.get();
+                // SIG_DFL and SIG_IGN are sentinels for a kernel disposition, not callable Java handlers; invoking
+                // either throws. Anything else is a real handler and gets the signal it was registered for.
+                if (prior != null && prior != sun.misc.SignalHandler.SIG_DFL
+                                                && prior != sun.misc.SignalHandler.SIG_IGN) {
+                    try {
+                        prior.handle(sig);
+                    } catch (Throwable ignored) {
+                        // a handler we do not own must not take the resume down with it
+                    }
+                }
+            }));
+        } catch (IllegalArgumentException | UnsatisfiedLinkError ignored) {
+            // no SIGCONT on this platform; the inline resumeTui() path still covers Ctrl+Z
+        }
+    }
+
     public void resumeTui() {
         if (suspendDepth == 0 || --suspendDepth > 0)
             return;
-        try {
-            originalAttributes = terminal.enterRawMode();
-            terminal.writer().print(KittyKeyboard.ENABLE); // suspendTui popped it; the shell-out has handed back
-            terminal.writer().flush();
-        } catch (Exception ignored) {}
+        assertTerminalModes();
         redrawPrompt();
     }
 

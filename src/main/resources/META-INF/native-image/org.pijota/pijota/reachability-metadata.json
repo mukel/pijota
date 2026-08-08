@@ -1969,6 +1969,11 @@
       "allDeclaredFields": true,
       "allDeclaredMethods": true,
       "allDeclaredConstructors": true
+    },
+    {
+      "type": "org.jline.terminal.impl.exec.ExecTerminalProvider",
+      "allDeclaredConstructors": true,
+      "allPublicConstructors": true
     }
   ]
 }
