@@ -69,7 +69,7 @@ final class RemoteControl {
 
     /** Browser remote control on the LAN: bind all interfaces + pairing token, attached to the live session. */
     List<String> startWeb() {
-        return startWeb("0.0.0.0", Tunnel.NONE);
+        return startWeb(Tunnel.NONE);
     }
 
     /**
@@ -85,7 +85,7 @@ final class RemoteControl {
                                             "Arch:          sudo pacman -S cloudflared   (or an AUR helper: yay -S cloudflared)",
                                             "macOS:         brew install cloudflared",
                                             "Windows:       winget install --id Cloudflare.cloudflared");
-        return startWeb(WebServer.DEFAULT_HOST, Tunnel.CLOUDFLARE);
+        return startWeb(Tunnel.CLOUDFLARE);
     }
 
     /**
@@ -113,7 +113,7 @@ final class RemoteControl {
             out.add("   And in the admin console (https://login.tailscale.com/admin): enable Serve + HTTPS certificates.");
             return out;
         }
-        return startWeb(WebServer.DEFAULT_HOST, Tunnel.TAILSCALE);
+        return startWeb(Tunnel.TAILSCALE);
     }
 
     /** A not-installed error that names the tool, links it, and gives a per-OS install one-liner. */
@@ -137,9 +137,10 @@ final class RemoteControl {
      * the other kind's binary.
      */
     enum Tunnel {
-        NONE("", null, "web", ""), // no child; the LAN bind itself is the exposure
+        NONE("", null, "web", "", "0.0.0.0"), // no child; the LAN bind itself is the exposure
         CLOUDFLARE("cloudflared", "https://[a-z0-9-]+\\.trycloudflare\\.com", "web tunnel",
-                                        "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL.") {
+                                        "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL.",
+                                        WebServer.DEFAULT_HOST) {
             @Override
             List<String> diagnose(String output) {
                 // Quick tunnels rate-limit by source IP (HTTP 429 / error 1015) and cloudflared exits without
@@ -153,7 +154,8 @@ final class RemoteControl {
         // tailscale serve prints the address with a trailing slash; the pattern stops short of it so "?t=" appends
         // cleanly.
         TAILSCALE("tailscale", "https://[a-z0-9-]+\\.[a-z0-9-]+\\.ts\\.net", "tailscale",
-                                        "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.") {
+                                        "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.",
+                                        WebServer.DEFAULT_HOST) {
             @Override
             List<String> diagnose(String output) {
                 if (output.contains("access denied"))
@@ -172,12 +174,17 @@ final class RemoteControl {
         final Pattern urlPattern; // what the child prints as its public URL; null for NONE, which starts no child
         final String title; // what the banner calls this channel
         final String caveat; // banner security note; "" for NONE
+        // Where the web server binds. A pure function of the channel: only NONE is exposed on the LAN, because for it
+        // the bind IS the exposure; a tunnel fronts loopback. Passing it in meant a new constant could be wired to
+        // 0.0.0.0 with nothing to catch it -- the same silence the child-spawning switch was made exhaustive to stop.
+        final String bindHost;
 
-        Tunnel(String cliName, String urlPattern, String title, String caveat) {
+        Tunnel(String cliName, String urlPattern, String title, String caveat, String bindHost) {
             this.cliName = cliName;
             this.urlPattern = urlPattern == null ? null : Pattern.compile(urlPattern);
             this.title = title;
             this.caveat = caveat;
+            this.bindHost = bindHost;
         }
 
         /**
@@ -197,11 +204,12 @@ final class RemoteControl {
      * Start the web server on {@code host} and, for the tunnel variants, layer a foreground tunnel child in front of
      * it. One startup path for all three web modes; the tunnel only changes the banner and adds a process to tear down.
      */
-    private List<String> startWeb(String host, Tunnel tunnel) {
+    private List<String> startWeb(Tunnel tunnel) {
         if (active != null)
             return List.of("remote control already active. Stop it first");
         String token = WebServer.newPairingToken();
         int port = WebServer.DEFAULT_PORT;
+        String host = tunnel.bindHost;
         var server = new WebServer(session, host, port, session.llm(), statusLines, commands.get(), token);
         try {
             server.start();

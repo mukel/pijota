@@ -29,12 +29,12 @@ library over new dependencies. Comments are documentation, not noise.
 - **Sub-agents**: `agent/SubAgentLauncher` spawns separate JVM processes for parallel work
 - **Self-modify**: `extensions/transcend/TranscendenceOrchestrator`. Worktree edit/rebuild/respawn
 - **Remote control**: `tui/RemoteControl`. `/remote-control` puts a web/telegram frontend on the live
-  session. The web channels share one startup path (`startWeb(host, Tunnel)`); a tunnel is a foreground
+  session. The web channels share one startup path (`startWeb(Tunnel)`); a tunnel is a foreground
   child (`cloudflared` / `tailscale serve`) that proxies a public URL to the loopback `WebServer` and dies
-  with pijota. `Tunnel` is an enum carrying each kind's `cliName`, `urlPattern` and banner `caveat`, so a
-  new tunnel = one enum constant (carrying its own `diagnose` for failures it recognises) + one `start*`
-  method + a picker entry in `AppendOnlyTui`. The child-spawning `switch` is exhaustive, so the compiler
-  names the one place left to wire rather than letting a new constant fall into another kind's branch. Tunnels are
+  with pijota. `Tunnel` is an enum, so a
+  new tunnel = one enum constant (carrying its own bind host, `diagnose`, banner text and URL pattern) + one
+  `start*` method + a picker entry in `AppendOnlyTui`. The child-spawning `switch` is exhaustive so the
+  compiler names it; the picker's string key is not, so that one is on you. Tunnels are
   internal, not extensions: they need the full `PijotaSession` (`prompt`/`addEventListener`/…) which the
   extension SPI deliberately does not expose.
 

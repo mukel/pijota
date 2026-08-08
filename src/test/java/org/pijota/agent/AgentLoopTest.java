@@ -321,6 +321,50 @@ class AgentLoopTest {
     }
 
     /**
+     * An agent whose overhead is anchored well above baseline: a large message set, then a response reporting a prompt
+     * far bigger than the byte estimate. Shared by the anchor tests, which differ only in how they then change the
+     * history.
+     */
+    private static AgentLoop anchoredAgent() throws Exception {
+        var llm = new FauxLlm();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        assertEquals(0, agent.contextOverhead(), "no tools, nothing anchored yet");
+        agent.addSystemPrompt("sys");
+        llm.enqueue(FauxLlm.Response.content(new Usage(50_000, 10), "ok"));
+        agent.prompt("a big turn " + "x".repeat(4000)).get(2, TimeUnit.SECONDS);
+        assertTrue(agent.contextOverhead() > 0, "a real response anchors the overhead");
+        return agent;
+    }
+
+    /**
+     * The anchor used to be dropped by whichever callers remembered to say so, which is why /undo kept a stale one. It
+     * now invalidates itself: MessageHistory counts every change that is not an append, and the anchor is honoured only
+     * while that count matches. This is the path the caller-announced version missed entirely -- a reminder strip runs
+     * on every submit and deletes messages outright, and nothing notifies anyone.
+     */
+    @Test
+    void strippingASystemReminderDropsTheAnchorItInvalidates() throws Exception {
+        var agent = anchoredAgent();
+        agent.sendUserMessage("keep me <system-reminder>and drop this</system-reminder>");
+
+        agent.stripSystemRemindersFromContext();
+
+        assertEquals(0, agent.contextOverhead(), "the stripped text took its share of the gap with it");
+    }
+
+    /** Appends must NOT invalidate it: the meter growing as a turn streams is the whole reason the anchor exists. */
+    @Test
+    void appendingKeepsTheAnchor() throws Exception {
+        var agent = anchoredAgent();
+        long anchored = agent.contextOverhead();
+
+        agent.sendUserMessage("another message");
+        agent.addCustomMessage(new Message.Custom("note", "value"));
+
+        assertEquals(anchored, agent.contextOverhead(), "adding messages must not throw the anchor away");
+    }
+
+    /**
      * /undo edits the list in place -- it never calls clearMessages or restoreMessages -- so it slipped past the resets
      * those two carry and kept an anchor measured against the turn it had just removed. The meter then read high by
      * that turn's whole underestimate, which is enough to trip auto-compaction on a conversation that just got smaller.

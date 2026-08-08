@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 final class MessageHistory {
+    private int nonAppendEpoch; // see nonAppendEpoch()
     private final List<Message> messages;
 
     MessageHistory() {
@@ -26,9 +27,30 @@ final class MessageHistory {
         }
     }
 
+    /**
+     * How many times the list has changed by anything other than appending.
+     *
+     * <p>
+     * The context anchor in {@link AgentLoop} measures a gap against a specific set of messages and stays valid while
+     * messages are ADDED -- that is the point, so the count grows as a turn streams. It stops being valid the moment
+     * content is removed or rewritten, because the gap it recorded absorbed that content's share of the byte
+     * heuristic's undercount, and keeping it then reads high on a conversation that just got smaller.
+     *
+     * <p>
+     * Counted here rather than announced by each caller. Hanging the invalidation off a notification meant /undo was
+     * covered because it happens to notify, while a system-reminder strip -- which runs on every submit and can delete
+     * messages outright -- was not. A mutator cannot forget to be counted if the counting is inside it.
+     */
+    int nonAppendEpoch() {
+        synchronized (messages) {
+            return nonAppendEpoch;
+        }
+    }
+
     void remove(int index) {
         synchronized (messages) {
             messages.remove(index);
+            nonAppendEpoch++;
         }
     }
 
@@ -40,12 +62,14 @@ final class MessageHistory {
 
     void clear() {
         synchronized (messages) {
+            nonAppendEpoch++;
             messages.clear();
         }
     }
 
     void restore(List<Message> msgs) {
         synchronized (messages) {
+            nonAppendEpoch++;
             messages.clear();
             messages.addAll(msgs);
         }
@@ -80,8 +104,10 @@ final class MessageHistory {
                 return;
             var last = messages.getLast();
             if (last instanceof Message.Assistant a && a.content().isEmpty() && a.toolCalls().isEmpty()
-                                            && (a.thinking() == null || a.thinking().isBlank()))
+                                            && (a.thinking() == null || a.thinking().isBlank())) {
                 messages.removeLast();
+                nonAppendEpoch++;
+            }
         }
     }
 
@@ -109,6 +135,7 @@ final class MessageHistory {
                 if (messages.get(i) instanceof Message.User user) {
                     String content = user.content();
                     messages.subList(i, messages.size()).clear();
+                    nonAppendEpoch++;
                     stripSystemReminders();
                     return Optional.ofNullable(content);
                 }
@@ -120,15 +147,21 @@ final class MessageHistory {
 
     void stripSystemReminders() {
         synchronized (messages) {
+            boolean changed = false;
             for (int i = 0; i < messages.size(); i++) {
                 if (messages.get(i) instanceof Message.User user) {
                     String cleaned = Util.stripSystemReminders(user.content()).strip();
                     if (!cleaned.equals(user.content())) {
                         messages.set(i, new Message.User(user.id(), user.timestamp(), cleaned, user.attachments()));
+                        changed = true;
                     }
                 }
             }
-            messages.removeIf(msg -> msg instanceof Message.User user && user.content().isBlank());
+            changed |= messages.removeIf(msg -> msg instanceof Message.User user && user.content().isBlank());
+            // Only when something actually went: this runs on every submit, and bumping regardless would throw away a
+            // valid anchor before every single turn.
+            if (changed)
+                nonAppendEpoch++;
         }
     }
 

@@ -9,6 +9,7 @@ import org.pijota.llm.StreamResult;
 import org.pijota.messages.Message;
 import org.pijota.messages.ToolCall;
 import org.pijota.messages.Usage;
+import org.pijota.tools.ToolManifest;
 import org.pijota.tools.ToolRegistry;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.Util;
@@ -67,6 +68,7 @@ public final class AgentLoop implements AgentContext {
     // estimatedContextTokens, which adds it back so the live count tracks reality instead of re-estimating everything.
     private volatile long contextOverhead;
     private volatile boolean overheadAnchored; // true once a real response has measured contextOverhead
+    private volatile int anchorEpoch; // history.nonAppendEpoch() when contextOverhead was measured
 
     public static Builder builder(LlmClient llm, ToolRegistry toolRegistry, String cwd) {
         return new Builder(llm, toolRegistry, cwd);
@@ -185,7 +187,10 @@ public final class AgentLoop implements AgentContext {
      * tools' serialized schemas, so a fresh session doesn't undercount by the whole tool overhead.
      */
     public long contextOverhead() {
-        return overheadAnchored ? contextOverhead : Util.approxTokens(toolRegistry.activeSchemaChars());
+        // The gap belongs to the messages it was measured against. It survives appends -- the point is that the count
+        // grows as a turn streams -- but not a removal or a rewrite, whose share of the undercount went with it.
+        boolean stillDescribesTheHistory = overheadAnchored && anchorEpoch == history.nonAppendEpoch();
+        return stillDescribesTheHistory ? contextOverhead : unanchoredOverhead();
     }
 
     /**
@@ -196,16 +201,39 @@ public final class AgentLoop implements AgentContext {
     private void recordContextAnchor(Usage usage) {
         if (usage != null && usage.inputTokens() > 0) {
             contextOverhead = llm.lastContextTokens() - CompactionManager.estimateTokens(history.snapshot());
+            anchorEpoch = history.nonAppendEpoch();
             overheadAnchored = true;
         }
     }
 
     /**
-     * Drop the anchored overhead. The anchor is measured against a specific message set, so when that set is replaced
-     * out from under it (compaction, restore, clear) the gap it recorded no longer reflects reality: it also soaked up
-     * the byte heuristic's undercount of message content (large tool results), which the replacement just removed.
-     * Keeping it would inflate the count by that stale gap. After a reset, {@link #contextOverhead()} falls back to the
-     * honest fixed estimate (tool schemas) until the next real response re-anchors against the current messages.
+     * The fixed overhead with nothing measured to anchor against: the tool manifest, which is exactly the bytes the
+     * provider is sent for the tool list.
+     *
+     * <p>
+     * {@link ToolManifest#snapshot} already builds and memoizes this for the system prompt, so asking it costs nothing
+     * on the poll path and cannot drift from what actually goes on the wire -- a second serializer over the same
+     * schemas would need its own invalidation, in lockstep with the one the manifest already has.
+     */
+    private long unanchoredOverhead() {
+        if (toolRegistry.activeTools().isEmpty())
+            return 0; // approxTokens rounds up, so an empty manifest ("[]") would otherwise read as 1 token
+        try {
+            return Util.approxTokens(ToolManifest.snapshot(toolRegistry).json().length());
+        } catch (RuntimeException e) {
+            // The meter is cosmetic and runs several times a second; an unserializable schema already fails the turn
+            // itself, and must not also break the status line.
+            return 0;
+        }
+    }
+
+    /**
+     * Drop the anchored overhead, for the one editor {@link MessageHistory#nonAppendEpoch()} cannot see.
+     *
+     * <p>
+     * Everything that edits the conversation through {@code MessageHistory} is counted there, so the anchor invalidates
+     * itself. Compaction is the exception: it takes the raw list from {@code mutableList()} and rewrites it in place,
+     * outside every method that counts, so it has to say so.
      */
     private void resetContextAnchor() {
         contextOverhead = 0;
@@ -213,12 +241,10 @@ public final class AgentLoop implements AgentContext {
     }
 
     public void clearMessages() {
-        resetContextAnchor();
         history.clear();
     }
 
     public void restoreMessages(List<Message> msgs) {
-        resetContextAnchor();
         history.restore(msgs);
     }
 
@@ -593,13 +619,6 @@ public final class AgentLoop implements AgentContext {
 
     /** Signals that the conversation history was replaced wholesale (load/new/undo/fork) so frontends can re-render. */
     public void notifyHistoryChanged(String reason) {
-        // The anchor measured its gap against the messages that were just here, so it goes with them. Saying so at
-        // this one signal rather than at each mutator is what closes /undo: it edits the list in place, never touching
-        // clearMessages or restoreMessages, so it kept an anchor describing a conversation that no longer existed and
-        // the meter read high enough to trip auto-compaction early. A branch summary and tree navigation arrive here
-        // the same way. Every caller that does replace the list outright already resets on its own, so this is the
-        // in-place edits, and any mutator added later, for free.
-        resetContextAnchor();
         fireEvent(new AgentEvent.HistoryChanged(reason));
     }
 
