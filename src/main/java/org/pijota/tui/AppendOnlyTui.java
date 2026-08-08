@@ -1425,7 +1425,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return;
         }
         promptEditor.setText("");
-        setTransientStatus("Press Ctrl+C again to exit", 2500);
+        // "Press Ctrl+C again to exit" reads, mid-turn, as the way to stop the thing that is running -- so the hint
+        // invited exactly the loss it was warning about. Esc is the key for that, and it says so only while there is
+        // a turn to stop. It promises no more than it does: the reply stays on screen and in context, but an
+        // interrupted turn is not written to the session file, so it does not survive a restart either way.
+        setTransientStatus(activity.isBusy()
+                                        ? "Ctrl+C again exits pijota · Esc stops the turn without exiting"
+                                        : "Press Ctrl+C again to exit", 2500);
         redrawPrompt();
     }
 
