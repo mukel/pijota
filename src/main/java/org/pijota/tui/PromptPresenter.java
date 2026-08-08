@@ -65,10 +65,7 @@ final class PromptPresenter {
     PromptSnapshot decorate(PromptSnapshot snapshot) {
         String tokens = tokenStatus();
         String status = statusOverride.current();
-        String promptLine = dialogs.promptStatusLine();
-        if (promptLine != null) {
-            status = status != null ? status + "\n" + promptLine : promptLine;
-        }
+
         AnsiTheme theme = host.theme();
         // Two-line bar, built on TuiCopy's two separators: CHIP joins facts of one kind, GROUP opens another.
         // Line 1 (cwd slot): the workspace, then the session name as its own group.
@@ -105,10 +102,16 @@ final class PromptPresenter {
         else if (!activity.isBusy() && host.messageCount() == 0)
             stats.append(theme.styled("dim", TuiCopy.GROUP + TuiCopy.START_HINT));
 
-        return snapshot.withCwd(cwd.toString()).withStatus(stats.toString()).withContextPct(tokenPct())
+        var decorated = snapshot.withCwd(cwd.toString()).withStatus(stats.toString()).withContextPct(tokenPct())
                                         .withPendingMessages(queued).withExtensionLines(mergedExtensionLines())
                                         .withPromptState(promptState(snapshot, status))
                                         .withStreamTail(host.liveStreamTail()).withWarning(status);
+        // Only into an empty box: the affordance shares the ghost slot with the editor's own suggestion, and the
+        // editor's is the one that matters once there is something to complete.
+        String affordance = dialogs.caretAffordance();
+        return affordance != null && snapshot.lines().stream().allMatch(String::isEmpty)
+                                        ? decorated.withSuggestion(affordance)
+                                        : decorated;
     }
 
     /**
@@ -132,8 +135,11 @@ final class PromptPresenter {
     private PromptSnapshot.PromptState promptState(PromptSnapshot snapshot, String status) {
         if (activity.isBusy())
             return PromptSnapshot.PromptState.BUSY;
-        if (dialogs.questionPending())
-            return PromptSnapshot.PromptState.QUESTION;
+        // One state for every kind of dialog: the caret says "answer me", and which keys to press is the
+        // affordance's job, inside the box. Splitting the state per kind bought no glyph and did buy a divergence,
+        // because the caret and its colour slot read the enum in two different places.
+        if (dialogs.anyPending())
+            return PromptSnapshot.PromptState.AWAITING_ANSWER;
         if (status != null && (status.startsWith("Error:") || "Interrupted".equals(status))) {
             return PromptSnapshot.PromptState.ERROR;
         }

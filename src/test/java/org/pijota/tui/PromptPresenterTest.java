@@ -73,9 +73,6 @@ class PromptPresenterTest {
         };
         return new PromptPresenter(host, activity, statusOverride, new DialogHandler(new DialogHandler.Host() {
             @Override
-            public void setStatus(String status) {}
-
-            @Override
             public void clearStatus() {}
         }), new WorkingAnimation(), () -> List.copyOf(queuedFollowUps),
                                         new ContextTokenMeter(() -> messages, () -> tokens, 60_000),

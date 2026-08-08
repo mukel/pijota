@@ -177,7 +177,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
         private String caretGlyph(PromptSnapshot ctx) {
             return switch (ctx.promptState()) {
                 case ERROR -> glyphs.error();
-                case QUESTION -> glyphs.question();
+                case AWAITING_ANSWER -> glyphs.question();
                 case CONTINUATION -> glyphs.continuation();
                 // A running model doesn't change the input caret; the box is still a live follow-up prompt.
                 case IDLE, BUSY -> glyphs.caret();
@@ -198,7 +198,7 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
                 return "toolError";
             if (ctx.promptState() == PromptSnapshot.PromptState.CONTINUATION)
                 return "dim";
-            if (ctx.promptState() == PromptSnapshot.PromptState.QUESTION)
+            if (ctx.promptState() == PromptSnapshot.PromptState.AWAITING_ANSWER)
                 return "statusWarn";
             return firstLine.startsWith("!") ? "bashMode" : "prompt";
         }

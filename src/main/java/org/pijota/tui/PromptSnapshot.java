@@ -6,8 +6,15 @@ record PromptSnapshot(List<String> lines, int cursorRow, int cursorCol, List<Com
                                 int selectedCompletion, String cwd, int contextPct, String status, String warning,
                                 List<String> pendingMessages, List<String> extensionLines, PromptState promptState,
                                 String suggestion, String streamTail) {
+    /**
+     * What posture the input box is in. Two readers derive from it, {@code caretGlyph} and {@code promptPrefixSlot}, so
+     * a state added here has to be given to both: one is a switch the compiler checks, the other an if-chain it does
+     * not. {@code AWAITING_ANSWER} deliberately covers every kind of dialog -- confirm, prompt, question -- since the
+     * caret says the same "answer me" for all three and which keys to press is the affordance's job. Splitting it per
+     * kind is what produced a caret and a colour that disagreed.
+     */
     enum PromptState {
-        IDLE, BUSY, ERROR, CONTINUATION, QUESTION
+        IDLE, BUSY, ERROR, CONTINUATION, AWAITING_ANSWER
     }
 
     public PromptSnapshot(List<String> lines, int cursorRow, int cursorCol, List<CompletionItem> completions,

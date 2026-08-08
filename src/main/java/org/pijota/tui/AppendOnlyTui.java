@@ -130,12 +130,32 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     @Override
     public CompletableFuture<Boolean> confirm(String question) {
-        return dialogs.confirm(question);
+        return aroundDialog(() -> dialogs.confirm(question));
     }
 
     @Override
     public CompletableFuture<String> prompt(String question, String defaultValue) {
-        return dialogs.prompt(question, defaultValue);
+        return aroundDialog(() -> dialogs.prompt(question, defaultValue));
+    }
+
+    /**
+     * Opens a dialog with the editor emptied, and gives back whatever was in it once the dialog closes.
+     *
+     * <p>
+     * A question is answered with the editor's text ({@code submitQuestionAnswer} is handed exactly that), and nothing
+     * cleared it first: a half-written message still in the box was submitted joined to the answer, so "1" arrived as
+     * "some draft1". The draft is not the user's answer and it is not disposable either, so it is put aside and handed
+     * back -- the same courtesy an aborted turn already extends to queued follow-ups.
+     */
+    private <T> CompletableFuture<T> aroundDialog(Supplier<CompletableFuture<T>> open) {
+        String draft = promptEditor.text();
+        if (!draft.isEmpty())
+            promptEditor.setText("");
+        return open.get().whenComplete((result, error) -> {
+            if (!draft.isEmpty() && promptEditor.isEmpty())
+                promptEditor.setText(draft);
+            redrawPrompt();
+        });
     }
 
     @Override
@@ -1363,14 +1383,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void handleEsc(boolean forceInterrupt) {
         if (cancelAuthTaskIfActive())
             return;
-        if (dialogs.cancelQuestionIfIdle(activity.isBusy()))
-            return;
         if (!activity.isBusy())
             return;
         if (forceInterrupt || interruptGate.tryFire()) {
             interruptGate.disarm();
             setStatusOverride("Interrupted");
             session.abort();
+            dialogs.cancelPending(); // the tool that asked is gone with the turn; nothing can answer it now
             streamRenderer.flush();
             streamRenderer.reset();
             // A visible cut mark: without it the transcript just stops mid-sentence, and on a later re-read there is
@@ -1657,7 +1676,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         submitted = expansion.text();
         var attachments = expansion.attachments(); // @image files pulled out for vision models
         String answer = submitted;
-        if (dialogs.submitQuestionAnswer(answer, () -> appendPlain(promptEcho(answer))))
+        if (dialogs.submitAnswer(answer, () -> appendPlain(promptEcho(answer))))
             return;
         String payload = submitted;
         session.stripSystemRemindersFromContext();
@@ -1802,7 +1821,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     @Override
     public CompletableFuture<String> askQuestions(List<SlashCommandTool.Question> questions) {
-        return dialogs.askQuestions(questions);
+        return aroundDialog(() -> dialogs.askQuestions(questions));
     }
 
     void showModelSelector() {
@@ -2391,10 +2410,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     void undoLastTurn() {
         var queued = session.withdrawNewestFollowUp();
         if (queued.isPresent()) {
-            promptEditor.setText(queued.get());
-            appendPlain(List.of(theme.styled("statusText",
-                                            "took back the queued follow-up; edit and press Enter to resend")));
-            redrawPrompt();
+            takeBack(queued.get(), "took back the queued follow-up; edit and press Enter to resend");
             return;
         }
         if (refuseWhileBusy("/undo"))
@@ -2404,8 +2420,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             appendPlain(List.of(theme.styled("statusText", "nothing to undo")));
             return;
         }
-        promptEditor.setText(previous.get());
-        appendPlain(List.of(theme.styled("statusText", "undid last turn; edit and press Enter to resend")));
+        takeBack(previous.get(), "undid last turn; edit and press Enter to resend");
+    }
+
+    /** Puts a withdrawn message back in the editor and says which one it was. */
+    private void takeBack(String message, String note) {
+        promptEditor.setText(message);
+        appendPlain(List.of(theme.styled("statusText", note)));
         redrawPrompt();
     }
 
