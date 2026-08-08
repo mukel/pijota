@@ -9,7 +9,7 @@ import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.pijota.util.Util.fmtCount;
-import static org.pijota.util.Util.fmtCountPrecise;
+import static org.pijota.util.Util.fmtCountFixed;
 
 /**
  * Composes the prompt/status-bar decoration for {@link AppendOnlyTui}: given the editor's {@link PromptSnapshot} it
@@ -198,7 +198,9 @@ final class PromptPresenter {
         int pct = (int) Math.min(99, (tokens * 100) / Math.max(1, contextWindow));
         String pctStr = host.theme().styled(pct >= 90 ? "toolError" : pct >= 70 ? "statusWarn" : "statusText",
                                         "(" + pct + "%)");
-        return fmtCountPrecise(tokens) + "/" + fmtCount((int) contextWindow) + " " + pctStr;
+        // Fixed decimals: this figure is redrawn several times a second, and a trimmed one costs a column at 4.30K
+        // and takes it back at 4.31K, so the line either side of it twitches for no reason.
+        return fmtCountFixed(tokens) + "/" + fmtCount((int) contextWindow) + " " + pctStr;
     }
 
     int tokenPct() {

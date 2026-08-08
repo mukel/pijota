@@ -338,10 +338,26 @@ public final class Util {
      * {@code 1.22K}, {@code 12.3K}, {@code 1.05M}. For live counts where the integer-K rounding loses too much.
      */
     public static String fmtCountPrecise(long value) {
+        String fixed = fmtCountFixed(value);
+        if (fixed.indexOf('.') < 0)
+            return fixed;
+        String unit = fixed.substring(fixed.length() - 1);
+        return trimZeros(fixed.substring(0, fixed.length() - 1)) + unit;
+    }
+
+    /**
+     * The same figure with both fractional digits kept, for a number that is redrawn in place.
+     *
+     * <p>
+     * Trimming is right for a line written once, and wrong for one that updates: a token count climbing past 4.27K to
+     * 4.30K loses a column and takes it back a moment later, so the whole status line shrinks and grows while nothing
+     * of consequence has happened. Digits before the point are left alone -- they change rarely, and only ever grow.
+     */
+    public static String fmtCountFixed(long value) {
         if (value >= 1_000_000)
-            return trimZeros(String.format(Locale.ROOT, "%.2f", value / 1_000_000.0)) + "M";
+            return String.format(Locale.ROOT, "%.2f", value / 1_000_000.0) + "M";
         if (value >= 1_000)
-            return trimZeros(String.format(Locale.ROOT, "%.2f", value / 1_000.0)) + "K";
+            return String.format(Locale.ROOT, "%.2f", value / 1_000.0) + "K";
         return Long.toString(value);
     }
 

@@ -136,11 +136,19 @@ class PromptPresenterTest {
         assertEquals(0, decorate().contextPct());
     }
 
+    /**
+     * The used figure keeps both fractional digits. It is redrawn several times a second, and a trimmed one costs a
+     * column at 4.30K and hands it back at 4.31K, so the line either side of it twitches while nothing has happened.
+     * The window beside it is already fixed-width for the same reason.
+     */
     @Test
     void theMeterShowsWhatIsUsedAgainstTheWindow() {
         tokens = 250_000;
-        assertTrue(statusBar().startsWith("250K/1.0M (25%)"), statusBar());
+        assertTrue(statusBar().startsWith("250.00K/1.0M (25%)"), statusBar());
         assertEquals(25, decorate().contextPct());
+
+        tokens = 4300; // the case that used to lose a column: "4.3K" beside the "4.27K" of a moment earlier
+        assertTrue(statusBar().startsWith("4.30K/"), statusBar());
     }
 
     /**

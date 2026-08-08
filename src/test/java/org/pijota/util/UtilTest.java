@@ -38,6 +38,32 @@ class UtilTest {
         assertEquals("1.5M", Util.fmtCount(1_540_000));
     }
 
+    /**
+     * The status bar redraws this several times a second. Trimming costs a column at 4.30K and hands it back at 4.31K,
+     * so the line twitches while nothing has happened. Digits before the point are left alone: they change rarely, and
+     * only ever grow.
+     */
+    @Test
+    void fmtCountFixedKeepsBothFractionalDigitsSoTheLineDoesNotTwitch() {
+        assertEquals("4.27K", Util.fmtCountFixed(4270));
+        assertEquals("4.30K", Util.fmtCountFixed(4300), "not 4.3K, which is a column narrower");
+        assertEquals("1.00K", Util.fmtCountFixed(1000));
+        assertEquals("1.05M", Util.fmtCountFixed(1_050_000));
+        assertEquals("2.00M", Util.fmtCountFixed(2_000_000));
+
+        // The point of the whole thing: one width for every figure with the same digits before the point.
+        for (long v : new long[] {1000, 4270, 4300, 9990})
+            assertEquals(5, Util.fmtCountFixed(v).length(), "should be 5 columns: " + Util.fmtCountFixed(v));
+        for (long v : new long[] {12_200, 12_210, 99_990})
+            assertEquals(6, Util.fmtCountFixed(v).length(), "should be 6 columns: " + Util.fmtCountFixed(v));
+        // Rounding may carry into the integer part, which is a real column gained, not a twitch: it does not come back.
+        assertEquals("10.00K", Util.fmtCountFixed(9999));
+
+        // Under a thousand there is no point to keep, and trimming never applied there anyway.
+        assertEquals("600", Util.fmtCountFixed(600));
+        assertEquals("0", Util.fmtCountFixed(0));
+    }
+
     @Test
     void fmtCountPreciseKeepsTwoTrimmedFractionalDigits() {
         assertEquals("0", Util.fmtCountPrecise(0));
