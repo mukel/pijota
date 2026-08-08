@@ -153,7 +153,14 @@ public final class ModelRefresher {
             if (idNode == null || idNode.asText().isBlank())
                 continue;
             String id = idNode.asText();
-            out.add(new ModelInfo(id, provider.id(), displayName(id), DEFAULT_CONTEXT_WINDOW));
+            // OpenAI-compatible providers differ in how (or whether) they report context length: fireworks sends
+            // context_length, others context_window / max_context_window / max_tokens, many send nothing. Take the
+            // first present, else the 128k fallback. Same for image input: read the flag when offered so a vision
+            // model isn't misreported as text-only.
+            long contextWindow = firstLong(item, DEFAULT_CONTEXT_WINDOW, "context_length", "context_window",
+                                            "max_context_window", "max_tokens");
+            var input = item.path("supports_image_input").asBoolean(false) ? List.of("text", "image") : null;
+            out.add(new ModelInfo(id, provider.id(), displayName(id), contextWindow, null, null, input));
         }
         return out;
     }
@@ -170,22 +177,35 @@ public final class ModelRefresher {
             String displayName = item.has("display_name") && !item.get("display_name").asText().isBlank()
                                             ? item.get("display_name").asText()
                                             : displayName(id);
-            long contextWindow = firstLong(item, "context_window", "max_context_window", DEFAULT_CONTEXT_WINDOW);
+            long contextWindow = firstLong(item, DEFAULT_CONTEXT_WINDOW, "context_window", "max_context_window");
             out.add(new ModelInfo(id, providerId, displayName, contextWindow));
         }
         return out;
     }
 
-    static long firstLong(JsonNode node, String first, String second, long fallback) {
-        if (node.has(first) && node.get(first).canConvertToLong())
-            return node.get(first).asLong();
-        if (node.has(second) && node.get(second).canConvertToLong())
-            return node.get(second).asLong();
+    /** First present, long-convertible value among {@code keys}, else {@code fallback}. */
+    static long firstLong(JsonNode node, long fallback, String... keys) {
+        for (String key : keys)
+            if (node.has(key) && node.get(key).canConvertToLong())
+                return node.get(key).asLong();
         return fallback;
     }
 
     static String displayName(String id) {
-        var words = id.replace('-', ' ').replace('_', ' ').split("\\s+");
+        // Provider-served ids often carry a path prefix (fireworks: accounts/<org>/(models|routers)/<name>); title-case
+        // only the model name, not the account/path boilerplate. Plain ids (gpt-4, openai/gpt-oss) are untouched: we
+        // strip only when the id starts with "accounts/" and has a models/ or routers/ segment to anchor on.
+        String name = id;
+        if (id.startsWith("accounts/")) {
+            for (String seg : new String[] {"/models/", "/routers/"}) {
+                int at = id.indexOf(seg);
+                if (at >= 0) {
+                    name = id.substring(at + seg.length());
+                    break;
+                }
+            }
+        }
+        var words = name.replace('-', ' ').replace('_', ' ').split("\\s+");
         var out = new StringBuilder();
         for (String word : words) {
             if (word.isBlank())

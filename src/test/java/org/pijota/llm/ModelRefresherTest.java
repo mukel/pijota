@@ -32,6 +32,31 @@ class ModelRefresherTest {
     }
 
     @Test
+    void fetchReadsFireworksContextLengthAndImageCapability() throws Exception {
+        // fireworks self-reports context_length + supports_image_input per model; a vision model with a 1M window must
+        // not collapse to the 128k text-only fallback.
+        var json = "{\"data\":[" + "{\"id\":\"accounts/fireworks/models/kimi-k3\",\"context_length\":1048576,\"supports_image_input\":true,\"supports_tools\":true},"
+                                        + "{\"id\":\"accounts/fireworks/models/gpt-oss-120b\",\"context_length\":131072,\"supports_image_input\":false},"
+                                        + "{\"id\":\"accounts/fireworks/models/no-meta\"}]}";
+
+        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("fireworks"), "tok", null,
+                                        false);
+
+        assertEquals(3, models.size(), models.toString());
+        var k3 = models.get(0);
+        assertEquals(1048576L, k3.contextWindow(), "context_length must be honored, not the 128k default");
+        assertEquals("Kimi K3", k3.displayName(), "the accounts/fireworks/models/ prefix must not leak into the name");
+        assertTrue(k3.inputModalities().contains(org.pijota.llm.Modality.IMAGE),
+                                        "supports_image_input=true must surface the image modality");
+        var textOnly = models.get(1);
+        assertEquals(131072L, textOnly.contextWindow());
+        assertNull(textOnly.input(), "supports_image_input=false leaves modalities unspecified (text-only)");
+        var noMeta = models.get(2);
+        assertEquals(128000L, noMeta.contextWindow(), "a model with no context field still falls back to the default");
+        assertNull(noMeta.input());
+    }
+
+    @Test
     void fetchParsesTheCodexModelsArrayAndSkipsHidden() throws Exception {
         var json = "{\"models\":[{\"slug\":\"codex-1\",\"display_name\":\"Codex One\",\"context_window\":200000},"
                                         + "{\"slug\":\"hidden\",\"visibility\":\"none\"}]}";
@@ -68,6 +93,21 @@ class ModelRefresherTest {
     }
 
     @Test
+    void displayNameStripsTheFireworksAccountPathPrefix() {
+        assertEquals("Kimi K3", ModelRefresher.displayName("accounts/fireworks/models/kimi-k3"));
+        assertEquals("Kimi K3 Fast", ModelRefresher.displayName("accounts/fireworks/routers/kimi-k3-fast"));
+    }
+
+    @Test
+    void displayNameLeavesPlainAndNonAccountsPathsUntouched() {
+        // Only the accounts/<org>/(models|routers)/ boilerplate is stripped; other ids pass through verbatim.
+        assertEquals("Gpt 4", ModelRefresher.displayName("gpt-4"));
+        assertEquals("Openai/gpt Oss 120b", ModelRefresher.displayName("openai/gpt-oss-120b"));
+        assertEquals("Accounts/fireworks/datasets/foo", // not models/ or routers/ -> no strip, but still title-cased
+                                        ModelRefresher.displayName("accounts/fireworks/datasets/foo"));
+    }
+
+    @Test
     void displayNameSingleWord() {
         assertEquals("Gemini", ModelRefresher.displayName("gemini"));
     }
@@ -91,28 +131,28 @@ class ModelRefresherTest {
     void firstLongReturnsFirstWhenPresent() throws Exception {
         var mapper = new ObjectMapper();
         var node = mapper.readTree("{\"a\": 42, \"b\": 99}");
-        assertEquals(42, ModelRefresher.firstLong(node, "a", "b", 0));
+        assertEquals(42, ModelRefresher.firstLong(node, 0, "a", "b"));
     }
 
     @Test
     void firstLongFallsBackToSecond() throws Exception {
         var mapper = new ObjectMapper();
         var node = mapper.readTree("{\"b\": 99}");
-        assertEquals(99, ModelRefresher.firstLong(node, "a", "b", 0));
+        assertEquals(99, ModelRefresher.firstLong(node, 0, "a", "b"));
     }
 
     @Test
     void firstLongReturnsFallbackWhenBothMissing() throws Exception {
         var mapper = new ObjectMapper();
         var node = mapper.readTree("{}");
-        assertEquals(100L, ModelRefresher.firstLong(node, "a", "b", 100));
+        assertEquals(100L, ModelRefresher.firstLong(node, 100, "a", "b"));
     }
 
     @Test
     void firstLongReturnsFallbackWhenNotConvertible() throws Exception {
         var mapper = new ObjectMapper();
         var node = mapper.readTree("{\"a\": \"not-a-number\"}");
-        assertEquals(100L, ModelRefresher.firstLong(node, "a", "b", 100));
+        assertEquals(100L, ModelRefresher.firstLong(node, 100, "a", "b"));
     }
 
     /**
