@@ -9,9 +9,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class DialogHandlerTest {
 
     private static DialogHandler.Host fakeHost() {
+        return fakeHost(new java.util.ArrayList<>());
+    }
+
+    private static DialogHandler.Host fakeHost(List<String> transcript) {
         return new DialogHandler.Host() {
             @Override
-            public void appendPlain(List<String> lines) {}
+            public void appendPlain(List<String> lines) {
+                transcript.addAll(lines);
+            }
 
             @Override
             public String styled(String slot, String text) {
@@ -213,5 +219,25 @@ class DialogHandlerTest {
     void submitQuestionAnswerWhenNonePendingReturnsFalse() {
         var handler = new DialogHandler(fakeHost());
         assertFalse(handler.submitQuestionAnswer("answer", () -> {}));
+    }
+
+    /**
+     * The keys have to be where the question is. They used to travel through the status override, which renders in the
+     * warning slot beneath the stats row: measured live, that put "y to confirm, n to cancel" eleven rows below its own
+     * question, dim yellow, reading as a stray warning. A confirm has no input field to anchor a status line to, so the
+     * affordance goes on the question, the way the first-run trust prompt already asks.
+     */
+    @Test
+    void theConfirmKeysRideOnTheQuestionItself() {
+        var transcript = new java.util.ArrayList<String>();
+        var handler = new DialogHandler(fakeHost(transcript));
+
+        handler.confirm("delete session 'x'?");
+
+        String question = transcript.get(transcript.size() - 1);
+        assertTrue(question.startsWith("delete session 'x'?"), "the question leads: " + question);
+        assertTrue(question.contains("[y/n]"), "and carries the keys that answer it: " + question);
+        assertTrue(transcript.stream().noneMatch(l -> l.contains("y to confirm")),
+                                        "no second copy adrift in the status slot: " + transcript);
     }
 }

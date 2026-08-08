@@ -28,10 +28,12 @@ final class DialogHandler {
 
     CompletableFuture<Boolean> confirm(String question) {
         var future = confirmReq.open();
-        host.appendPlain(List.of(host.styled("toolLabel", "confirm"), question));
-        // Not "confirm (y/n)": the transcript line one row up already says confirm, and a status line is for what to
-        // press. Worded like the prompt dialog's, which never repeated its own name.
-        host.setStatus("y to confirm, n to cancel");
+        // The keys go on the question, the way the first-run trust prompt already asks ("Trust this folder? [y/N]").
+        // They were a status line, which is the right idea for a dialog with an input field to anchor them -- but a
+        // confirm has none, and the status override renders in the warning slot beneath the stats row. Measured, that
+        // put "y to confirm, n to cancel" eleven rows below its own question, dim yellow, reading as a stray warning
+        // rather than as the thing to press.
+        host.appendPlain(List.of(host.styled("toolLabel", "confirm"), question + "  [y/n]"));
         host.redrawPrompt();
         return future;
     }
