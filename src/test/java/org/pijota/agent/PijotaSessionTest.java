@@ -294,4 +294,38 @@ class PijotaSessionTest {
             assertTrue(session.agentLoop().isClosed());
         });
     }
+
+    /**
+     * Stopping a turn releases whatever its tools were blocked on.
+     *
+     * <p>
+     * A dialog is only ever opened by a tool, so the turn is busy the whole time one waits. This lived in the TUI's Esc
+     * handler, which meant the web Stop button, Telegram's /stop and an extension's abort() each left the request
+     * behind: the asker was gone, nothing could answer it, and the loop stayed parked forever. It belongs to abort, so
+     * that a frontend cannot forget it and a new abort site inherits it.
+     */
+    @Test
+    void abortingATurnReleasesWhateverItWasAskingTheUser() {
+        var released = new java.util.concurrent.atomic.AtomicInteger();
+        var extensions = new org.pijota.extensions.ExtensionRegistry();
+        extensions.setTui(new org.pijota.extensions.UiContext() {
+            @Override
+            public void setStatus(String message) {}
+
+            @Override
+            public void cancelPending() {
+                released.incrementAndGet();
+            }
+        });
+
+        TestSession.in(tempDir).extensions(extensions).noSession().build().session().abort();
+
+        assertEquals(1, released.get(), "abort must release the frontend's pending dialog");
+    }
+
+    /** No frontend attached (headless, a sub-agent) is not a reason for abort to throw. */
+    @Test
+    void abortingWithNoFrontendAttachedIsFine() {
+        assertDoesNotThrow(() -> TestSession.in(tempDir).noSession().build().session().abort());
+    }
 }

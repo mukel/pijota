@@ -175,7 +175,19 @@ public final class PijotaSession implements AutoCloseable {
         return undone;
     }
 
+    /**
+     * Stops the turn, and releases whatever its tools are blocked on.
+     *
+     * <p>
+     * A dialog is only ever opened by a tool, so the turn is busy for as long as one waits. Stopping the turn without
+     * releasing it left the request behind: the asker was gone, nothing could answer it, and the loop stayed parked on
+     * an input request forever. Doing it here rather than at each caller means the web Stop button, Telegram's /stop,
+     * the TUI's Esc and an extension's abort() all get it, and a new one cannot forget.
+     */
     public void abort() {
+        var ui = extensionRegistry.ui();
+        if (ui != null)
+            ui.cancelPending();
         agentLoop.abort();
     }
 

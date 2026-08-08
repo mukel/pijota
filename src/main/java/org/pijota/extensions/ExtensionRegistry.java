@@ -148,6 +148,11 @@ public final class ExtensionRegistry {
         this.llm = l;
     }
 
+    /** The frontend currently driving the session, or null when none is attached. */
+    public UiContext ui() {
+        return uiContext;
+    }
+
     public void setTui(UiContext t) {
         this.uiContext = t;
         // The interactive /question tool follows the active UI owner; route it to t's askQuestions (null → text

@@ -107,6 +107,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private final Map<Key.Special, Key.Special> selectorKeyRemaps;
 
     @Override
+    public void cancelPending() {
+        dialogs.cancelPending();
+    }
+
+    @Override
     public void setStatus(String msg) {
         setStatusOverride(msg);
     }
@@ -1388,8 +1393,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         if (forceInterrupt || interruptGate.tryFire()) {
             interruptGate.disarm();
             setStatusOverride("Interrupted");
-            session.abort();
-            dialogs.cancelPending(); // the tool that asked is gone with the turn; nothing can answer it now
+            session.abort(); // releases whatever dialog the turn's tools were blocked on, see PijotaSession.abort
             streamRenderer.flush();
             streamRenderer.reset();
             // A visible cut mark: without it the transcript just stops mid-sentence, and on a later re-read there is
