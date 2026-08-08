@@ -211,11 +211,25 @@ public final class AgentLoop implements AgentContext {
         }
     }
 
+    /**
+     * Drop the anchored overhead. The anchor is measured against a specific message set, so when that set is replaced
+     * out from under it (compaction, restore, clear) the gap it recorded no longer reflects reality: it also soaked up
+     * the byte heuristic's undercount of message content (large tool results), which the replacement just removed.
+     * Keeping it would inflate the count by that stale gap. After a reset, {@link #contextOverhead()} falls back to the
+     * honest fixed estimate (tool schemas) until the next real response re-anchors against the current messages.
+     */
+    private void resetContextAnchor() {
+        contextOverhead = 0;
+        overheadAnchored = false;
+    }
+
     public void clearMessages() {
+        resetContextAnchor();
         history.clear();
     }
 
     public void restoreMessages(List<Message> msgs) {
+        resetContextAnchor();
         history.restore(msgs);
     }
 
@@ -292,6 +306,7 @@ public final class AgentLoop implements AgentContext {
         int estimatedChars = CompactionManager.estimateChars(messages);
         int estimatedTokens = CompactionManager.estimateTokens(messages);
         var result = strategy.apply(messages, compacted -> {
+            resetContextAnchor(); // the message set the overhead was anchored to is gone; re-anchor on the next turn
             fireEvent(new AgentEvent.CompactionStreamEnd());
             fireEvent(new AgentEvent.Compaction(compacted, sizeBefore, estimatedChars, estimatedTokens,
                                             compactionSummary(compacted), reason));

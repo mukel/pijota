@@ -275,6 +275,52 @@ class AgentLoopTest {
     }
 
     @Test
+    void restoreMessagesResetsTheStaleContextOverheadAnchor() throws Exception {
+        // The overhead anchor is measured against a specific message set; replacing that set (restore/clear/compact)
+        // must drop the anchor, or its stale gap keeps inflating the count after the content it absorbed is gone.
+        var llm = new FauxLlm();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        long baseline = agent.contextOverhead(); // no tools → 0
+
+        // A large conversation, then a real response whose promptTokens (50k) far exceed the byte estimate → big
+        // anchor.
+        agent.restoreMessages(List.of(new Message.System("sys"), new Message.User("x".repeat(4000))));
+        llm.enqueue(FauxLlm.Response.content(new Usage(50_000, 10), "ok"));
+        agent.prompt("hi").get(2, TimeUnit.SECONDS);
+        long anchored = agent.contextOverhead();
+        assertTrue(anchored > baseline, "a real response anchors the overhead above baseline: " + anchored);
+
+        // Replacing the messages (what compaction does) must reset the anchor to the pre-anchor baseline.
+        agent.restoreMessages(List.of(new Message.System("sys")));
+        assertEquals(baseline, agent.contextOverhead(),
+                                        "replacing the message set must reset the stale overhead anchor");
+    }
+
+    @Test
+    void compactionResetsTheStaleContextOverheadAnchor() throws Exception {
+        var summarizer = (CompactionManager.SummaryGenerator) (msgs, instr, prev, onPart) -> "summary";
+        var config = new AppConfig.CompactionConfig(true, 100, 1);
+        var llm = new FauxLlm();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").summaryGenerator(summarizer)
+                                        .compactionConfig(config).contextWindow(1000).build();
+
+        agent.addSystemPrompt("sys");
+        agent.sendUserMessage("old");
+        agent.sendUserMessage("middle");
+        agent.sendUserMessage("recent big " + "x".repeat(4000));
+        // Anchor an inflated overhead: the provider reports a 50k prompt for a much smaller byte estimate.
+        llm.enqueue(FauxLlm.Response.content(new Usage(50_000, 10), "ok"));
+        agent.prompt("hi").get(2, TimeUnit.SECONDS);
+        long anchored = agent.contextOverhead();
+        assertTrue(anchored > 0, "a real response anchors the overhead: " + anchored);
+
+        var result = agent.compactWithResult("compact");
+
+        assertTrue(result.compacted());
+        assertEquals(0, agent.contextOverhead(), "compaction replaced the message set; the stale anchor must go");
+    }
+
+    @Test
     void abortStopsTheRetryChain() {
         // A retryable error would normally retry, but aborting mid-flight must halt the chain after the first attempt.
         var llm = new FauxLlm();
@@ -299,6 +345,7 @@ class AgentLoopTest {
         assertEquals(2, messages.size());
         assertEquals("recovered", ((Message.Assistant) messages.get(1)).content());
     }
+
 
     @Test
     void manualCompactionFiresCompactionEventAndInsertsSummary() {
