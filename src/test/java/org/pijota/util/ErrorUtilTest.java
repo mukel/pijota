@@ -65,6 +65,25 @@ class ErrorUtilTest {
         assertTrue(ErrorUtil.isContextOverflow(new RuntimeException("prompt is too long")));
     }
 
+    /**
+     * llama.cpp-shaped local servers never say "context": they derive the output budget as n_ctx minus the prompt and
+     * report the subtraction going negative. pijota sends no max_tokens on this wire format, so the server computed it.
+     */
+    @Test
+    void isContextOverflowDetectsLocalServerWording() {
+        assertTrue(ErrorUtil.isContextOverflow(new RuntimeException(
+                                        "{\"error\":{\"message\":\"Invalid argument: max_tokens must be non-negative\","
+                                                                        + "\"type\":\"invalid_request_error\"}}")));
+        assertTrue(ErrorUtil.isContextOverflow(new RuntimeException("prompt exceeds context of 4096")));
+        assertTrue(ErrorUtil.isContextOverflow(new RuntimeException("input is larger than the context window")));
+    }
+
+    /** Overflow is not retryable: the same request fails the same way, so backoff only wastes the budget. */
+    @Test
+    void localServerOverflowIsNotRetried() {
+        assertFalse(ErrorUtil.isRetryable(new RuntimeException("Invalid argument: max_tokens must be non-negative")));
+    }
+
     @Test
     void isContextOverflowReturnsFalseForRegularErrors() {
         assertFalse(ErrorUtil.isContextOverflow(new RuntimeException("network timeout")));

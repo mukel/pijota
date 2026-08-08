@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -52,6 +53,8 @@ public final class AgentLoop implements AgentContext {
     private final List<String> followUpMessages = Collections.synchronizedList(new ArrayList<>());
     private final ToolExecutor toolExecutor;
     private final AtomicBoolean aborted = new AtomicBoolean(false);
+    /** Consecutive compact-and-retry attempts for one prompt; reset once a request lands. See the overflow path. */
+    private final AtomicInteger overflowRecoveries = new AtomicInteger();
     private final AtomicReference<CompletableFuture<List<Message>>> activeResult = new AtomicReference<>();
     private final AtomicReference<CompletableFuture<StreamResult>> activeStream = new AtomicReference<>();
     private volatile boolean messageStreamStarted = false;
@@ -378,6 +381,7 @@ public final class AgentLoop implements AgentContext {
 
     public CompletableFuture<List<Message>> prompt(Message.User userMessage) {
         aborted.set(false);
+        overflowRecoveries.set(0);
         history.add(userMessage);
         return runLoop();
     }
@@ -480,6 +484,7 @@ public final class AgentLoop implements AgentContext {
             fireEvent(new AgentEvent.AssistantMessage(assistantMsg, streamResult.usage()));
             history.set(history.size() - 1, assistantMsg);
             recordContextAnchor(streamResult.usage());
+            overflowRecoveries.set(0); // a request landed, so a later overflow is a fresh one worth compacting for
 
             if (!streamResult.hasToolCalls()) {
                 fireEvent(new AgentEvent.TurnEnd(turn));
@@ -503,6 +508,15 @@ public final class AgentLoop implements AgentContext {
                 if (!isActive(result))
                     return null;
                 if (ErrorUtil.isContextOverflow(ex)) {
+                    // Compaction buys room by dropping history, so it needs history to drop. When the system prompt and
+                    // the tool schemas are over the limit on their own, the retry rebuilds a request the server rejects
+                    // for the same reason, and the placeholder added per attempt holds the size steady, so this never
+                    // terminates. Twice without the request landing means compaction is not the fix. The server's own
+                    // wording rides along as the cause: failTurn logs that, and shows the actionable text.
+                    if (overflowRecoveries.incrementAndGet() > 1) {
+                        failTurn(result, new IllegalStateException(ErrorUtil.CONTEXT_FLOOR_HINT, ErrorUtil.unwrap(ex)));
+                        return null;
+                    }
                     log.warn("Context overflow, compacting and retrying");
                     history.remove(history.size() - 1);
                     runManualCompaction("overflow: compacted to recover from context limit");

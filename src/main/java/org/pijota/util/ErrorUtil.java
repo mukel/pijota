@@ -106,15 +106,29 @@ public final class ErrorUtil {
         return sw.toString();
     }
 
+    /**
+     * What to say when the request overflows with nothing left to compact. Every other overflow is recoverable by
+     * dropping history, so the advice is "wait, pijota is fixing it"; this one is not, and the fixes all live outside
+     * the conversation.
+     */
+    public static final String CONTEXT_FLOOR_HINT = "the request doesn't fit the model's context even with no "
+                                    + "conversation: the system prompt and tool schemas alone are over the limit, so "
+                                    + "compacting cannot help. Send fewer tools (--no-builtin-tools, or --tools with a "
+                                    + "short list), shorten the system prompt (--system-prompt), or serve the model "
+                                    + "with a larger context.";
+
+    // The prompt did not fit. Hosted services name the context; llama.cpp-shaped local servers (llama-server, jinfer)
+    // never do, and report the failure as an output budget instead: they derive it as n_ctx minus the prompt and
+    // complain when the subtraction goes negative. pijota sends no max_tokens on that wire format (only the Anthropic
+    // path sets one, see ProviderFactory), so the server computed it, and a negative result means the window is full.
+    private static final List<String> CONTEXT_OVERFLOW = List.of("context_length_exceeded", "maximum context length",
+                                    "context window", "exceeds context", "reduce the length", "too long",
+                                    "max_tokens must be non-negative");
+
     public static boolean isContextOverflow(Throwable t) {
-        // Check the RAW message, not the conciseified one. The overflow hint may live outside error.message.
+        // Match the RAW message, not the concise() one: the overflow hint may live outside error.message.
         String m = t != null ? unwrap(t).getMessage() : null;
-        if (m == null)
-            return false;
-        String lower = m.toLowerCase();
-        return lower.contains("context_length_exceeded") || lower.contains("maximum context length")
-                                        || lower.contains("prompt is too long") || lower.contains("reduce the length")
-                                        || lower.contains("too long");
+        return m != null && containsAny(m.toLowerCase(), CONTEXT_OVERFLOW);
     }
 
     private static boolean hasStatusCode(String msg, int... codes) {

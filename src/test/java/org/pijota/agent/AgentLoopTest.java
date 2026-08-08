@@ -346,6 +346,27 @@ class AgentLoopTest {
         assertEquals("recovered", ((Message.Assistant) messages.get(1)).content());
     }
 
+    /**
+     * Overflow recovery drops history to make room, so it only works when there is history to drop. A local server
+     * given a context too small for the system prompt and the tool schemas rejects every attempt identically, and the
+     * empty assistant placeholder added per attempt keeps the history size steady, so the compact-and-retry path used
+     * to spin against the server forever. Two overflows without a request landing means compaction is not the fix.
+     */
+    @Test
+    void overflowThatCompactionCannotFixStopsInsteadOfRetryingForever() {
+        var llm = new FauxLlm();
+        for (int i = 0; i < 8; i++)
+            llm.enqueueError("Invalid argument: max_tokens must be non-negative");
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        var thrown = assertThrows(ExecutionException.class, () -> agent.prompt("hi").get(5, TimeUnit.SECONDS));
+
+        assertEquals(2, llm.requests().size(), "one compact-and-retry, then give up; got " + llm.requests().size());
+        assertTrue(thrown.getCause().getMessage().contains("compacting cannot help"),
+                                        "the message has to say why waiting will not help: " + thrown.getCause());
+        assertTrue(thrown.getCause().getMessage().contains("--no-builtin-tools"),
+                                        "and name a way out: " + thrown.getCause().getMessage());
+    }
 
     @Test
     void manualCompactionFiresCompactionEventAndInsertsSummary() {
