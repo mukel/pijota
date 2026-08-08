@@ -1879,7 +1879,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 return;
             try {
                 boolean trashed = session.deleteSession(chosen.path().toString());
-                refreshSessionPicker((trashed ? "moved to trash " : "deleted permanently ") + chosen.description());
+                // Quoted, like the confirm that precedes it ("delete session 'x'?"). Bare concatenation ran the
+                // session's own title into the sentence: "deleted permanently list the files in this directory".
+                refreshSessionPicker((trashed ? "moved to trash" : "deleted permanently") + " '" + chosen.description()
+                                                + "'");
             } catch (IOException e) {
                 appendPlain(List.of(theme.styled("toolError", "delete failed: " + e.getMessage())));
                 redrawPrompt();
@@ -2766,10 +2769,13 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // terminal wrap instead and the continuation rows dangle bare at column zero, breaking the block open so a
         // long prompt stops looking like one thing the user said.
         int width = Math.max(20, terminal.getWidth());
-        String rail = theme.styled("promptEcho", "│ ");
+        // Soft-wrap continuations too, not just the second logical line: a single long prompt wraps as much as a
+        // multi-line one, and both are still the user talking.
+        String rail = theme.styled("promptEcho", ToolResultLines.AUTHORED_RAIL);
         boolean first = true;
         for (String logical : text.split("\\R", -1)) {
-            out.addAll(AnsiWidth.wrapPrefixed(logical, width, theme.styled("promptEcho", first ? "▸ " : "│ "),
+            out.addAll(AnsiWidth.wrapPrefixed(logical, width,
+                                            theme.styled("promptEcho", first ? "▸ " : ToolResultLines.AUTHORED_RAIL),
                                             row -> rail + row));
             first = false;
         }

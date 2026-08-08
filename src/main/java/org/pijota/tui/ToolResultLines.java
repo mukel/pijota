@@ -270,12 +270,19 @@ final class ToolResultLines {
      * second, competing one. Measured at one column, the same as {@code │}, before being used here.
      */
     private static void addHeader(List<String> lines, String prefix, String text, AnsiTheme theme, int width) {
-        String rail = theme.styled("commandMeta", HEADER_RAIL);
+        String rail = theme.styled("commandMeta", AUTHORED_RAIL);
         lines.addAll(AnsiWidth.wrapPrefixed(text, width, prefix, row -> rail + row));
     }
 
-    /** Marks a wrapped header's continuation rows; the body's rail is {@code │}, and the two must not be the same. */
-    static final String HEADER_RAIL = "┆ ";
+    /**
+     * Continues a line pijota or the user authored: a wrapped command, a wrapped prompt.
+     *
+     * <p>
+     * The body rail is {@code │}, and the two must differ. Output is free to colour itself and to contain box drawing
+     * of its own -- a {@code tmux capture-pane} result arrives carrying both -- so a shared glyph leaves nothing
+     * structural to tell "still the thing I typed" from "what it printed".
+     */
+    static final String AUTHORED_RAIL = "┆ ";
 
     /**
      * A header for a tool with nothing to show: one logical line, wrapped but not railed. Railing it invented a block

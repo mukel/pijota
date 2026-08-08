@@ -231,7 +231,7 @@ class ToolResultLinesTest {
             // Every row of the block is framed: the opener (the tool's own glyph), the rail, or the footer. None
             // dangles bare at column zero.
             assertTrue(line.startsWith("$") || line.startsWith("│") || line.startsWith("└")
-                                            || line.startsWith(ToolResultLines.HEADER_RAIL.strip()),
+                                            || line.startsWith(ToolResultLines.AUTHORED_RAIL.strip()),
                                             "row escaped the frame: [" + line + "] in " + visible);
         }
         assertTrue(visible.size() > 3, "the command really did need more than one row: " + visible);
@@ -327,7 +327,7 @@ class ToolResultLinesTest {
         var lines = ToolResultLines.compose(msg, view, () -> argsJson, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0,
                                         "$", 52).stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList();
 
-        String headerRail = ToolResultLines.HEADER_RAIL.strip();
+        String headerRail = ToolResultLines.AUTHORED_RAIL.strip();
         assertNotEquals("│", headerRail, "the continued command must not wear the body's rail");
         assertTrue(lines.stream().anyMatch(l -> l.startsWith(headerRail)),
                                         "the command wrapped, so some row should carry the header rail: " + lines);
@@ -343,7 +343,7 @@ class ToolResultLinesTest {
         for (String line : out.stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList()) {
             assertTrue(AnsiWidth.visibleWidth(line) <= 60, "row overflows the terminal: [" + line + "]");
             assertTrue(line.startsWith("!") || line.startsWith("│") || line.startsWith("└")
-                                            || line.startsWith(ToolResultLines.HEADER_RAIL.strip()),
+                                            || line.startsWith(ToolResultLines.AUTHORED_RAIL.strip()),
                                             "row escaped the frame: [" + line + "] in " + visible(out));
         }
     }

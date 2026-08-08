@@ -335,4 +335,5 @@ class AppendOnlyTuiHeadlessTest {
             tui.close();
         }
     }
+
 }
