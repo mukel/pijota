@@ -4,6 +4,7 @@ import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.modes.SlashCommand;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -39,11 +40,16 @@ public final class SkillExtension implements Extension {
                 api.runtime().setStatus("No skills loaded");
                 return;
             }
-            var sb = new StringBuilder();
+            // A long list in a transient toast can't scroll and vanishes (the web maps setStatus to a toast), so show
+            // it in the scrollable viewer instead: a modal on the TUI, a collapsible transcript block on the web.
+            // Descriptions can wrap to several lines, so blank-line-separate the entries to keep them scannable.
+            var lines = new ArrayList<String>();
             skills.stream().sorted(Comparator.comparing(SkillLoader.Skill::name)).forEach(s -> {
-                sb.append("\n  ").append(s.name()).append(" · ").append(s.description());
+                if (!lines.isEmpty())
+                    lines.add("");
+                lines.add(s.name() + " · " + s.description());
             });
-            api.runtime().setStatus(sb.toString().stripLeading());
+            api.runtime().ui().viewer("skills (" + skills.size() + ")", lines);
         }));
     }
 
