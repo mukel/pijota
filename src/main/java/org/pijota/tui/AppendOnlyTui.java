@@ -2762,21 +2762,21 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         terminalUi.appendLines(lines.stream().map(StyledLine::of).toList());
     }
 
-    private List<String> promptEcho(String text) {
+    List<String> promptEcho(String text) { // package-private for tests
         var out = new ArrayList<String>();
         out.add(""); // breathing room: set each turn off from the previous answer instead of butting them together
         // Wrap to the railed width ourselves before adding the rail, the same rule tool-result bodies follow: let the
         // terminal wrap instead and the continuation rows dangle bare at column zero, breaking the block open so a
         // long prompt stops looking like one thing the user said.
         int width = Math.max(20, terminal.getWidth());
-        // Soft-wrap continuations too, not just the second logical line: a single long prompt wraps as much as a
-        // multi-line one, and both are still the user talking.
+        // One rail for both ways a prompt continues -- onto a second line the user typed, and onto a row the width
+        // forced -- because both are still the user talking. Sharing the value rather than styling it twice is what
+        // keeps them from drifting apart.
         String rail = theme.styled("promptEcho", ToolResultLines.AUTHORED_RAIL);
+        String opener = theme.styled("promptEcho", "▸ ");
         boolean first = true;
         for (String logical : text.split("\\R", -1)) {
-            out.addAll(AnsiWidth.wrapPrefixed(logical, width,
-                                            theme.styled("promptEcho", first ? "▸ " : ToolResultLines.AUTHORED_RAIL),
-                                            row -> rail + row));
+            out.addAll(AnsiWidth.wrapPrefixed(logical, width, first ? opener : rail, row -> rail + row));
             first = false;
         }
         return out;

@@ -3,6 +3,7 @@ package org.pijota.tui;
 import org.pijota.agent.TestSession;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
+import org.pijota.testkit.AnsiStripper;
 import org.pijota.testkit.Await;
 import org.pijota.testkit.FauxLlm;
 import org.pijota.theme.AnsiTheme;
@@ -336,4 +337,35 @@ class AppendOnlyTuiHeadlessTest {
         }
     }
 
+    /**
+     * A prompt the user typed is authored text, not output. It used to continue on {@code │}, the rail a tool block
+     * uses for what a command printed, differing only by theme slot -- and colour cannot carry that, because output
+     * colours itself and arrives carrying box drawing of its own.
+     *
+     * <p>
+     * Both ways a prompt continues are checked: onto a second line the user typed, and onto a row the width forced.
+     */
+    @Test
+    void aContinuedPromptIsRailedApartFromToolOutput() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        var tui = tui(ts);
+        String authored = ToolResultLines.AUTHORED_RAIL.strip();
+        try {
+            var typed = tui.promptEcho("alpha\nbeta").stream().map(AnsiStripper::strip).filter(l -> !l.isBlank())
+                                            .toList();
+            assertTrue(typed.get(0).startsWith("▸"), "the first row opens the message: " + typed);
+            assertEquals(List.of(true), typed.stream().skip(1).map(l -> l.startsWith(authored)).distinct().toList(),
+                                            "every continued row carries the authored rail: " + typed);
+
+            var wrapped = tui.promptEcho("w".repeat(400)).stream().map(AnsiStripper::strip).filter(l -> !l.isBlank())
+                                            .toList();
+            assertTrue(wrapped.size() > 1, "400 chars has to wrap, or this proves nothing: " + wrapped.size());
+            assertEquals(List.of(true), wrapped.stream().skip(1).map(l -> l.startsWith(authored)).distinct().toList(),
+                                            "a width-forced wrap is the user talking too: " + wrapped);
+
+            assertNotEquals("│", authored, "and the authored rail must differ from the body rail");
+        } finally {
+            tui.close();
+        }
+    }
 }
