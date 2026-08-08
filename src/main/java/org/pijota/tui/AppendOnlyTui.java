@@ -1509,27 +1509,40 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // Chain, do not replace. handle() installs our disposition and hands back whatever held CONT before, and
         // dropping that return value silently unregisters it -- for a signal we do not own and only want to observe.
         // Today's previous holder is the default, but "we are the only ones interested in CONT" is not something this
-        // class can know: JLine picks a terminal provider at runtime, and the JDK and GraalVM both install dispositions
-        // of their own. Delegating costs one call and keeps that true whoever gets there first.
+        // class can know: JLine picks a terminal provider at runtime, and the JDK and GraalVM both install their own.
+        //
+        // Atomic, not a one-element array: the handler reads this from the signal thread, so the write has to be
+        // published to it. A CONT landing between handle() returning and the set below finds it empty and skips the
+        // chain -- a startup-only window, where the previous holder is the default and suspendDepth is 0, so both
+        // halves of the handler are no-ops anyway.
         var previous = new AtomicReference<sun.misc.SignalHandler>();
         try {
             previous.set(sun.misc.Signal.handle(new sun.misc.Signal("CONT"), sig -> {
                 if (suspendDepth > 0)
                     assertTerminalModes();
-                var prior = previous.get();
-                // SIG_DFL and SIG_IGN are sentinels for a kernel disposition, not callable Java handlers; invoking
-                // either throws. Anything else is a real handler and gets the signal it was registered for.
-                if (prior != null && prior != sun.misc.SignalHandler.SIG_DFL
-                                                && prior != sun.misc.SignalHandler.SIG_IGN) {
-                    try {
-                        prior.handle(sig);
-                    } catch (Throwable ignored) {
-                        // a handler we do not own must not take the resume down with it
-                    }
-                }
+                chainTo(previous.get(), sig);
             }));
         } catch (IllegalArgumentException | UnsatisfiedLinkError ignored) {
             // no SIGCONT on this platform; the inline resumeTui() path still covers Ctrl+Z
+        }
+    }
+
+    /**
+     * Hands a signal on to the disposition that held it before us.
+     *
+     * <p>
+     * {@code SIG_DFL} and {@code SIG_IGN} name a kernel disposition rather than a callable Java handler, and invoking
+     * either throws, so they are passed over: the kernel still applies them. Anything else is a real handler and gets
+     * the signal it registered for, inside a catch, because a handler we do not own must not take the resume down with
+     * it.
+     */
+    private static void chainTo(sun.misc.SignalHandler prior, sun.misc.Signal sig) {
+        if (prior == null || prior == sun.misc.SignalHandler.SIG_DFL || prior == sun.misc.SignalHandler.SIG_IGN)
+            return;
+        try {
+            prior.handle(sig);
+        } catch (Throwable ignored) {
+            // not ours to fix, and not ours to die from
         }
     }
 
