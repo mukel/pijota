@@ -109,6 +109,36 @@ class ModelRegistryTest {
         assertNotNull(resolved.model());
     }
 
+    /**
+     * The settings default model belongs to the settings default provider. Naming a provider and no model used to keep
+     * that model anyway, so `--provider anthropic` with deepseek configured as the default sent a deepseek model id to
+     * Anthropic, which answered about a model the user never mentioned.
+     */
+    @Test
+    void namingAProviderWithNoModelUsesThatProvidersDefault() {
+        var settings = new SettingsManager(new AppConfig().withDefaultProviderModel("deepseek", "deepseek-v4-flash"),
+                                        ignored -> {});
+
+        var resolved = ModelRegistry.resolveProviderModel("anthropic", null, settings);
+
+        assertEquals("anthropic", resolved.provider());
+        assertNotEquals("deepseek-v4-flash", resolved.model(), "that model is not Anthropic's to serve");
+        assertTrue(ModelRegistry.isKnownProviderModel("anthropic", resolved.model()),
+                                        "and the replacement has to be one this provider actually serves: "
+                                                                        + resolved.model());
+    }
+
+    /** An explicitly named model is still honoured verbatim, off-catalog ids included. */
+    @Test
+    void namingBothKeepsTheModelEvenWhenItIsOffCatalogue() {
+        var settings = new SettingsManager(new AppConfig().withDefaultProviderModel("deepseek", "deepseek-v4-flash"),
+                                        ignored -> {});
+
+        var resolved = ModelRegistry.resolveProviderModel("anthropic", "some-local-finetune", settings);
+
+        assertEquals("some-local-finetune", resolved.model());
+    }
+
     @Test
     void defaultModelForProviderIgnoresUnknownProviders() {
         assertNull(ModelRegistry.defaultModelForProvider("nonexistent-xyz"));
