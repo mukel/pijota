@@ -181,11 +181,16 @@ public final class ModelRefresher {
      * this server will serve. Reporting it would be exactly as wrong as the fallback while looking authoritative.
      *
      * <p>
-     * Asked only when the list left us guessing, so a provider that reported its context is never sent a second
-     * request, and best effort throughout: a 404 (every hosted provider) or a timeout leaves the fallback in place.
+     * Asked only of a server on this machine or this network, and only when the list left us guessing. Most hosted
+     * providers report no per-model context either, so "did anything fall back?" alone would have put an extra
+     * round-trip in front of every one of them -- sequentially, on the {@code /login} path, at up to the timeout each
+     * against a host that blackholes instead of refusing. Only a local server can answer this anyway. Best effort
+     * throughout: a 404, a non-JSON body or a timeout leaves the fallback in place.
      */
     private static void applyServedContextWindow(HttpClient client, String baseUrl, List<ModelInfo> models) {
         if (models.stream().noneMatch(m -> m.contextWindow() == DEFAULT_CONTEXT_WINDOW))
+            return;
+        if (!Util.isInternalAddress(URI.create(baseUrl).getHost()))
             return;
         String root = baseUrl.replaceAll("/+$", "").replaceAll("/v\\d+$", "");
         long served;

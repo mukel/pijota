@@ -48,7 +48,9 @@ final class TuiCopy {
         return toolName + " " + Util.fmtCountPrecise(chars) + " chars";
     }
 
-    static final String SELECTOR_HINT = "↑/↓ navigate · Enter select · Esc cancel · type to search";
+    private static final String SELECTOR_KEYS = "↑/↓ navigate" + CHIP + "Enter select" + CHIP + "Esc cancel";
+    private static final String TYPE_TO_SEARCH = "type to search";
+    static final String SELECTOR_HINT = SELECTOR_KEYS + CHIP + TYPE_TO_SEARCH;
 
     /**
      * The selector hint with a slot-specific action folded in ("Ctrl+D delete"), or the plain one when there is none.
@@ -56,16 +58,12 @@ final class TuiCopy {
      * terminal, and an action you would never guess should outlive one you would.
      *
      * <p>
-     * Composed here rather than patched at the call site: a caller rewriting this string by searching for one of its
-     * words loses the chip silently the day the wording changes.
+     * Built from the pieces rather than by rewriting the finished string: searching a rendered hint for one of its own
+     * words drops the chip silently the day that wording changes, with no exception to notice.
      */
     static String selectorHint(String extra) {
-        if (extra == null || extra.isBlank())
-            return SELECTOR_HINT;
-        return SELECTOR_HINT.replace(TYPE_TO_SEARCH, extra + CHIP + TYPE_TO_SEARCH);
+        return extra == null || extra.isBlank() ? SELECTOR_HINT : SELECTOR_KEYS + CHIP + extra + CHIP + TYPE_TO_SEARCH;
     }
-
-    private static final String TYPE_TO_SEARCH = "type to search";
 
     private TuiCopy() {}
 

@@ -7,6 +7,7 @@ import org.pijota.modes.SlashCommand;
 import org.pijota.telegram.TelegramChat;
 import org.pijota.telegram.TelegramClient;
 import org.pijota.telegram.TelegramFrontend;
+import org.pijota.util.Executables;
 import org.pijota.util.QrTerminal;
 import org.pijota.web.WebServer;
 
@@ -77,7 +78,7 @@ final class RemoteControl {
      * is in the trust path -- the pairing token is still required on every request.
      */
     List<String> startWebTunnel() {
-        if (!commandRuns("cloudflared", "--version"))
+        if (!Executables.isAvailable("cloudflared"))
             return missingTool("cloudflared", "https://github.com/cloudflare/cloudflared",
                                             "Debian/Ubuntu: sudo apt install cloudflared   (or grab the .deb from the link above)",
                                             "Fedora:        sudo dnf install cloudflared",
@@ -94,7 +95,7 @@ final class RemoteControl {
      * stop, so the mapping dies with pijota.
      */
     List<String> startTailscale() {
-        if (!commandRuns("tailscale", "version"))
+        if (!Executables.isAvailable("tailscale"))
             return missingTool("tailscale", "https://tailscale.com/download",
                                             "Debian/Ubuntu: curl -fsSL https://tailscale.com/install.sh | sh   (or apt install tailscale)",
                                             "Fedora:        sudo dnf install tailscale && sudo systemctl enable --now tailscaled",
@@ -104,7 +105,7 @@ final class RemoteControl {
         // tailscaled must be up and logged in: `tailscale serve` configures the daemon, so a dead daemon or a
         // logged-out node means the child starts but never proxies. Check before spawning so the error names the real
         // cause.
-        if (!commandRuns("tailscale", "status", "--json")) {
+        if (!commandSucceeds("tailscale", "status", "--json")) {
             var out = new ArrayList<String>();
             out.add("tailscale is installed but tailscaled isn't reachable.");
             out.addAll(tailscaledDown());
@@ -131,24 +132,28 @@ final class RemoteControl {
      * path). Adding a channel is a constant plus a {@code start*} method plus a picker entry, with no branch to update.
      */
     enum Tunnel {
-        NONE("", null, "web", ""), // no child; the LAN bind itself is the exposure
+        NONE("", null, "web", "", false), // no child; the LAN bind itself is the exposure
         CLOUDFLARE("cloudflared", "https://[a-z0-9-]+\\.trycloudflare\\.com", "web tunnel",
-                                        "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL."),
+                                        "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL.",
+                                        true),
         // tailscale serve prints the address with a trailing slash; the pattern stops short of it so "?t=" appends
         // cleanly.
         TAILSCALE("tailscale", "https://[a-z0-9-]+\\.[a-z0-9-]+\\.ts\\.net", "tailscale",
-                                        "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.");
+                                        "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.",
+                                        false);
 
         final String cliName; // the binary, also used in failure messages
         final Pattern urlPattern; // what the child prints as its public URL; null for NONE, which starts no child
         final String title; // what the banner calls this channel
         final String caveat; // banner security note; "" for NONE
+        final boolean buffersEventStream; // this edge withholds text/event-stream until a block has accumulated
 
-        Tunnel(String cliName, String urlPattern, String title, String caveat) {
+        Tunnel(String cliName, String urlPattern, String title, String caveat, boolean buffersEventStream) {
             this.cliName = cliName;
             this.urlPattern = urlPattern == null ? null : Pattern.compile(urlPattern);
             this.title = title;
             this.caveat = caveat;
+            this.buffersEventStream = buffersEventStream;
         }
     }
 
@@ -164,7 +169,7 @@ final class RemoteControl {
         String token = WebServer.newPairingToken();
         int port = WebServer.DEFAULT_PORT;
         var server = new WebServer(session, host, port, session.llm(), statusLines, commands.get(), token);
-        if (tunnel == Tunnel.CLOUDFLARE)
+        if (tunnel.buffersEventStream)
             server.padForBufferingProxy(); // its edge holds the event stream until ~128KB has accumulated
         try {
             server.start();
@@ -185,7 +190,13 @@ final class RemoteControl {
             String publicUrl;
             var childOutput = new ArrayList<String>(); // collected while we wait, for diagnosing a failure
             try {
-                child = (tunnel == Tunnel.CLOUDFLARE) ? startCloudflared(port) : startTailscaleServe(port);
+                // A switch, not a ternary: a constant added per the recipe in AGENTS.md must fail to compile here
+                // rather than silently fall into the other kind's else branch.
+                child = switch (tunnel) {
+                    case CLOUDFLARE -> startCloudflared(port);
+                    case TAILSCALE -> startTailscaleServe(port);
+                    case NONE -> throw new IllegalStateException("the LAN bind has no child");
+                };
                 publicUrl = awaitTunnelUrl(child, tunnel, childOutput);
                 drainAsync(child.getInputStream()); // hand the pipe to the drain once the URL is captured
             } catch (Exception e) {
@@ -223,7 +234,8 @@ final class RemoteControl {
      * Whether {@code cmd} runs and exits 0. Output goes to the void rather than to a pipe nobody reads: waiting on a
      * child whose pipe has filled deadlocks, and {@code tailscale status --json} prints the whole network map.
      */
-    private static boolean commandRuns(String... cmd) {
+    /** Runs a command purely for its exit status. Not a presence check -- {@link Executables#isAvailable} is. */
+    private static boolean commandSucceeds(String... cmd) {
         try {
             return new ProcessBuilder(cmd).redirectOutput(ProcessBuilder.Redirect.DISCARD)
                                             .redirectError(ProcessBuilder.Redirect.DISCARD).start().waitFor() == 0;

@@ -490,6 +490,10 @@ public final class WebServer implements AutoCloseable {
                 broadcast("turn", Map.of("busy", false)); // a failed turn fires Error, not TurnEnd, so clear the
                                                           // spinner
             }
+            // A browser on a tunnel is the likeliest place to hit a backoff, and the silence it replaces is exactly
+            // what reads as the model thinking.
+            case AgentEvent.Retry(int attempt, int max, long delayMs, String why) ->
+                broadcast("agent_notice", Map.of("message", Util.retryLine(attempt, max, delayMs, why)));
             case AgentEvent.HistoryChanged ignored -> broadcast("history", history()); // re-render after new/load/undo
             default -> {
                 // TurnStart/compaction internals/stream deltas have no distinct browser representation here

@@ -128,6 +128,22 @@ class ModelRegistryTest {
                                                                         + resolved.model());
     }
 
+    /**
+     * Naming your own default provider must keep your own default model, even when the catalogue has never heard of it.
+     * A local server's model is off-catalogue until the first {@code /refresh}, so testing catalogue membership instead
+     * of which provider the pair belongs to threw the user's configured model away.
+     */
+    @Test
+    void namingTheDefaultProviderKeepsAnOffCatalogueDefaultModel() {
+        var settings = new SettingsManager(new AppConfig().withDefaultProviderModel("local", "my-own-finetune"),
+                                        ignored -> {});
+
+        var resolved = ModelRegistry.resolveProviderModel("local", null, settings);
+
+        assertEquals("my-own-finetune", resolved.model(),
+                                        "the configured default for this very provider is the answer, catalogued or not");
+    }
+
     /** An explicitly named model is still honoured verbatim, off-catalog ids included. */
     @Test
     void namingBothKeepsTheModelEvenWhenItIsOffCatalogue() {

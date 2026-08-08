@@ -988,8 +988,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             jobRegistry.killAll(); // backgrounded ≠ daemonized; backstop for when the jobs extension is disabled
         // Tear down any remote channel on EVERY exit, not just "/remote-control → stop": otherwise a foreground
         // tunnel child (cloudflared / tailscale serve) outlives the TUI, still proxying to a dead socket.
-        if (remoteControl != null && remoteControl.active())
-            remoteControl.stop();
+        remoteControl.stop(); // a no-op when nothing is running; the field is final and set in the constructor
         if (SelfRespawn.isRespawnInProgress())
             return;
         try {

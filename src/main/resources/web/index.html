@@ -1001,6 +1001,9 @@ window.addEventListener("DOMContentLoaded", () => {
       toBottom();
     });
     es.addEventListener("agent_error", e => { simple("error", JSON.parse(e.data).message); });
+    // A backoff, not a failure: the turn is still alive, so it goes in the transcript rather than as a toast that
+    // vanishes before the next attempt. Without it a retry is a silent gap that reads as the model thinking.
+    es.addEventListener("agent_notice", e => { simple("custom", JSON.parse(e.data).message); });
     es.addEventListener("turn", e => setBusy(JSON.parse(e.data).busy));
     es.addEventListener("status", e => { const d = JSON.parse(e.data); if (d.message) showToast(d.message, d.alert); });
     es.addEventListener("statuslines", e => renderStatusLines(JSON.parse(e.data).lines || []));

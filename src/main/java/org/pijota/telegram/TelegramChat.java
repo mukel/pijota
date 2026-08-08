@@ -484,6 +484,9 @@ public final class TelegramChat implements ChatHandler {
                     tg.sendMessage(chatId, "⚠️ " + result.toolName() + " failed" + reason(result.content()));
             }
             case AgentEvent.Error(Throwable error) -> tg.sendMessage(chatId, "❌ " + ErrorUtil.message(error));
+            // A phone waiting on a quiet chat cannot tell a backoff from a slow model.
+            case AgentEvent.Retry(int attempt, int max, long delayMs, String why) ->
+                tg.sendMessage(chatId, "⏳ " + Util.retryLine(attempt, max, delayMs, why));
             default -> {
                 // TurnStart/TurnEnd/Compaction/thinking deltas etc. have no chat representation.
             }

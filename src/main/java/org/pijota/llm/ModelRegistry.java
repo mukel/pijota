@@ -413,16 +413,17 @@ public final class ModelRegistry {
             provider = settings.config().defaultProvider();
         if (provider == null)
             provider = "openai";
-        if (model == null)
-            model = settings != null ? settings.config().defaultModel() : null;
-        // That default belongs to the default provider. Naming a provider and no model is a request for THAT
-        // provider's default, so a settings model belonging to someone else is the wrong answer: `--provider local`
-        // with deepseek configured as the default sent deepseek's model to a llama.cpp server, which answered
-        // "Unknown model" about a model the user never mentioned. Only when no model was named -- an explicit one is
-        // still honoured verbatim below, off-catalog ids included.
-        if (explicitProvider != null && explicitModel == null && model != null
-                                        && !isKnownProviderModel(provider, model))
-            model = defaultModelForProvider(provider);
+        // The settings default model belongs to the settings default provider, since the two are written as a pair.
+        // Naming a different provider and no model is a request for THAT provider's default, so carrying the pair's
+        // model across is the wrong answer: `--provider local` with deepseek configured as the default sent deepseek's
+        // model to a llama.cpp server, which answered "Unknown model" about a model the user never mentioned.
+        //
+        // The test is which provider the pair belongs to, not whether the catalogue has heard of the model. Catalogue
+        // membership looks equivalent and is not: a hand-written default_model for your own default_provider is
+        // off-catalogue until the first /refresh, and naming that same provider would have thrown your model away.
+        if (model == null && settings != null && (explicitProvider == null
+                                        || provider.equalsIgnoreCase(settings.config().defaultProvider())))
+            model = settings.config().defaultModel();
         // Honor an explicit model verbatim. Only fall back to the provider default when none was given. Off-catalog
         // ids (alias targets, local fine-tunes, models newer than the bundled catalog) must reach the provider API
         // as-is; silently swapping them for the default would diverge the live model from the UI and the session.
