@@ -133,8 +133,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
 
     public AppConfig withCompactionEnabled(boolean enabled) {
         var current = compaction != null ? compaction : new CompactionConfig();
-        return toBuilder().compaction(new CompactionConfig(enabled, current.reserveTokens(),
-                                        current.keepRecentTokens())).build();
+        return toBuilder().compaction(new CompactionConfig(enabled, current.reserveTokens(), current.keepRecentTokens(),
+                                        current.triggerTokens())).build();
     }
 
     public AppConfig withWorkingAnimation(String name) {
@@ -317,9 +317,15 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
 
     public record CompactionConfig(@JsonProperty("enabled") boolean enabled,
                                     @JsonProperty("reserve_tokens") int reserveTokens,
-                                    @JsonProperty("keep_recent_tokens") int keepRecentTokens) {
+                                    @JsonProperty("keep_recent_tokens") int keepRecentTokens,
+                                    @JsonProperty("trigger_tokens") int triggerTokens) {
         public CompactionConfig() {
-            this(true, 16384, 20000);
+            this(true, 16384, 20000, 0);
+        }
+
+        /** Without an absolute trigger: auto-compaction happens near the window, as it did before trigger_tokens. */
+        public CompactionConfig(boolean enabled, int reserveTokens, int keepRecentTokens) {
+            this(enabled, reserveTokens, keepRecentTokens, 0);
         }
     }
 }

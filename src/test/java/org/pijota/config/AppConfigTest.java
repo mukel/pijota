@@ -80,6 +80,19 @@ class AppConfigTest {
         var compaction = config.compaction();
         assertNotNull(compaction);
         assertTrue(compaction.enabled());
+        assertEquals(0, compaction.triggerTokens(), "no absolute auto-compact trigger by default");
+    }
+
+    @Test
+    void compactionTriggerTokensSurvivesAJsonRoundTrip() throws Exception {
+        var mapper = org.pijota.util.Util.MAPPER;
+        var withTrigger = new AppConfig.CompactionConfig(true, 16384, 20000, 100000);
+        var read = mapper.readValue(mapper.writeValueAsString(withTrigger), AppConfig.CompactionConfig.class);
+        assertEquals(100000, read.triggerTokens());
+        // A config written before the field existed (no trigger_tokens key) must still load, defaulting to 0.
+        var legacy = mapper.readValue("{\"enabled\":true,\"reserve_tokens\":16384,\"keep_recent_tokens\":20000}",
+                                        AppConfig.CompactionConfig.class);
+        assertEquals(0, legacy.triggerTokens());
     }
 
     @Test

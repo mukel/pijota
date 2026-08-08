@@ -33,6 +33,7 @@ public final class CompactionManager {
     private volatile boolean enabled;
     private final int reserveTokens;
     private final int keepRecentTokens;
+    private final int triggerTokens; // absolute auto-compact threshold; 0 = "near the window" (contextWindow - reserve)
     private final SummaryGenerator summaryGenerator;
     private volatile CompactionAppender sessionAppender;
     private volatile String previousSummary;
@@ -47,6 +48,7 @@ public final class CompactionManager {
         this.enabled = cfg.enabled();
         this.reserveTokens = cfg.reserveTokens() > 0 ? cfg.reserveTokens() : DEFAULT_RESERVE_TOKENS;
         this.keepRecentTokens = cfg.keepRecentTokens() > 0 ? cfg.keepRecentTokens() : DEFAULT_KEEP_RECENT_TOKENS;
+        this.triggerTokens = Math.max(0, cfg.triggerTokens());
         this.summaryGenerator = summaryGenerator;
     }
 
@@ -71,7 +73,11 @@ public final class CompactionManager {
         // the byte heuristic misses, while the heuristic captures cached message bytes the provider reports
         // separately, so the max of the two is the safe, conservative context-size estimate for the trigger.
         int contextTokens = (int) Math.max(realContextTokens, estimateTokens(messages));
+        // Auto-compact at the earlier of "near the window" (contextWindow - reserve) and, when set, the absolute
+        // trigger_tokens ceiling -- so a 1M-window model can still be held to e.g. 100k.
         int limit = Math.max(0, contextWindow - reserveTokens);
+        if (triggerTokens > 0)
+            limit = Math.min(limit, triggerTokens);
 
         if (!enabled || contextTokens < limit) {
             return new CompactionResult(false, estimatedChars, contextTokens, 0);

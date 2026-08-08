@@ -138,6 +138,33 @@ class CompactionManagerTest {
     }
 
     @Test
+    void absoluteTriggerFiresBelowTheWindowDerivedLimit() {
+        var summarizer = (CompactionManager.SummaryGenerator) (m, i, p, o) -> "summary";
+        // A 1M window with the default reserve would only auto-compact near ~1M; an absolute trigger of 1000 must
+        // shrink that limit so a ~1200-token context compacts now.
+        var cfg = new AppConfig.CompactionConfig(true, 16384, 1, 1000);
+        var manager = new CompactionManager(1_000_000, cfg, summarizer);
+        var messages = new ArrayList<>(List.<Message>of(new Message.System("sys"), new Message.User("a".repeat(4800))));
+
+        var result = manager.checkAndCompact(messages, 0, msgs -> {});
+
+        assertTrue(result.compacted(), "a 1200-token context exceeds the 1000 absolute trigger despite the huge window");
+    }
+
+    @Test
+    void noAbsoluteTriggerKeepsTheWindowDerivedLimit() {
+        var summarizer = (CompactionManager.SummaryGenerator) (m, i, p, o) -> "summary";
+        // trigger_tokens = 0 (default): a 1200-token context is far below the 1M-window limit, so nothing happens.
+        var cfg = new AppConfig.CompactionConfig(true, 16384, 1, 0);
+        var manager = new CompactionManager(1_000_000, cfg, summarizer);
+        var messages = new ArrayList<>(List.<Message>of(new Message.System("sys"), new Message.User("a".repeat(4800))));
+
+        var result = manager.checkAndCompact(messages, 0, msgs -> {});
+
+        assertFalse(result.compacted(), "without an absolute trigger, the near-window limit governs");
+    }
+
+    @Test
     void recompactionFeedsPriorSummaryViaParamNotInlineBody() {
         var seenPrev = new AtomicReference<String>();
         var bodyHadSummary = new AtomicReference<>(false);

@@ -79,10 +79,15 @@
 | `compaction.enabled` | boolean | `true` | compact as the window fills |
 | `compaction.reserve_tokens` | integer | `16384` | headroom kept for the next turn |
 | `compaction.keep_recent_tokens` | integer | `20000` | recent conversation left uncompacted |
+| `compaction.trigger_tokens` | integer | `0` | absolute auto-compact threshold; `0` = near the window |
 
 ```json
-{ "compaction": { "enabled": true, "reserve_tokens": 16384, "keep_recent_tokens": 20000 } }
+{ "compaction": { "enabled": true, "reserve_tokens": 16384, "keep_recent_tokens": 20000, "trigger_tokens": 100000 } }
 ```
+
+By default auto-compaction fires at `context_window - reserve_tokens`, which on a large (e.g. 1M-token) window is very
+late. Set `trigger_tokens` to compact earlier — the effective threshold is the smaller of the two, so a 1M-window model
+can still be held to, say, 100k.
 
 ## Extensions
 
