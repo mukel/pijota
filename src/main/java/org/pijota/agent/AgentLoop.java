@@ -296,11 +296,7 @@ public final class AgentLoop implements AgentContext {
 
     /** Takes every queued follow-up back at once; for an abort, which cancels them rather than running them. */
     public List<String> drainFollowUps() {
-        synchronized (followUpMessages) {
-            var out = List.copyOf(followUpMessages);
-            followUpMessages.clear();
-            return out;
-        }
+        return drain(followUpMessages);
     }
 
     public void followUp(String m) {
@@ -611,13 +607,17 @@ public final class AgentLoop implements AgentContext {
     }
 
     private void drainAndProcess(List<String> list) {
-        List<String> pending;
-        synchronized (list) { // atomic snapshot+clear so a concurrent background add() is never lost or double-read
-            pending = List.copyOf(list);
-            list.clear();
-        }
-        for (String msg : pending) {
+        for (String msg : drain(list)) {
             history.add(new Message.User(msg));
+        }
+    }
+
+    /** Atomic snapshot+clear, so a concurrent background add() is never lost or double-read. */
+    private static List<String> drain(List<String> list) {
+        synchronized (list) {
+            var pending = List.copyOf(list);
+            list.clear();
+            return pending;
         }
     }
 
