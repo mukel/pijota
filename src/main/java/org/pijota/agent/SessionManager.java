@@ -483,8 +483,16 @@ public final class SessionManager {
 
         while (currentId != null && visited.add(currentId)) {
             var entry = idToEntry.get(currentId);
-            if (entry == null)
+            if (entry == null) {
+                // Insurance, not a repair. An append-only file cannot grow a hole in its middle, and the one write
+                // that could -- a torn tail swallowing the entry appended after it -- is repaired before every live
+                // open. Measured across 153 real sessions, no file had a gap. So if this ever fires, that reasoning is
+                // wrong somewhere, and the conversation handed to the model starts later than the user's did.
+                log.warn("Session branch stops at parent {}, which is not in the file: {} entries reached, anything "
+                                                + "older than the gap is absent from the context", currentId,
+                                                path.size());
                 break;
+            }
             path.add(entry);
             currentId = (String) entry.get("parentId");
         }

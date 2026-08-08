@@ -428,4 +428,44 @@ class SessionManagerTest {
         assertEquals(3, loaded.size(), "no spurious synthesis on a healthy session");
         assertTrue(loaded.stream().noneMatch(m -> m instanceof Message.ToolResult tr && tr.isError()));
     }
+
+    /**
+     * The walk ends on a missing parent exactly as it ends on the root, so the two are indistinguishable from the
+     * returned list. It returns what it could reach rather than throwing: the file is the user's only copy, and one
+     * real session on disk (2 MB, no header, oldest entry naming a parent that exists nowhere) opens fine this way.
+     * Refusing would lock them out of it; everything present is still returned.
+     */
+    @Test
+    void aBranchWalkStopsAtAMissingParentAndKeepsWhatItReached() {
+        var entries = new java.util.LinkedHashMap<String, Map<String, Object>>();
+        entries.put("b", Map.of("id", "b", "parentId", "gone-a"));
+        entries.put("c", Map.of("id", "c", "parentId", "b"));
+
+        var path = SessionManager.buildBranchPath(entries, "c");
+
+        assertEquals(List.of("b", "c"), path.stream().map(e -> e.get("id")).toList(),
+                                        "oldest first, and nothing that is in the file is dropped");
+    }
+
+    /** The ordinary case: a chain that reaches a root returns the whole conversation. */
+    @Test
+    void aWholeBranchReachesItsRoot() {
+        var entries = new java.util.LinkedHashMap<String, Map<String, Object>>();
+        entries.put("a", new java.util.HashMap<>(Map.of("id", "a")));
+        entries.put("b", Map.of("id", "b", "parentId", "a"));
+
+        var path = SessionManager.buildBranchPath(entries, "b");
+
+        assertEquals(List.of("a", "b"), path.stream().map(e -> e.get("id")).toList());
+        assertNull(path.getFirst().get("parentId"), "the oldest entry is a root, which is how a whole branch ends");
+    }
+
+    /** A parent cycle terminates instead of hanging; a corrupt file must not spin the loader forever. */
+    @Test
+    void aParentCycleTerminates() {
+        var entries = Map.<String, Map<String, Object>>of("x", Map.of("id", "x", "parentId", "y"), "y",
+                                        Map.of("id", "y", "parentId", "x"));
+
+        assertEquals(2, SessionManager.buildBranchPath(entries, "x").size());
+    }
 }
