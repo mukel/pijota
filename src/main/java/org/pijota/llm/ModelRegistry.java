@@ -184,11 +184,9 @@ public final class ModelRegistry {
         return fromCatalog != null && !fromCatalog.isBlank() ? fromCatalog : null;
     }
 
-    /** Look up a known model by its id (case-insensitive); empty if none matches. The one place that scans by id. */
+    /** Look up a known model by its id (case-insensitive), from any provider; empty if none matches. */
     public static Optional<ModelInfo> byId(String id) {
-        if (id == null)
-            return Optional.empty();
-        return KNOWN_MODELS.stream().filter(m -> m.id().equalsIgnoreCase(id)).findFirst();
+        return find(null, id);
     }
 
     public static String providerForModel(String modelId) {
@@ -263,10 +261,9 @@ public final class ModelRegistry {
         Long served = SERVED_CONTEXT.get(provider.toLowerCase(Locale.ROOT));
         if (served != null)
             return served;
-        return KNOWN_MODELS.stream().filter(
-                                        m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model))
-                                        .findFirst().or(() -> byId(model)).map(ModelInfo::contextWindow)
-                                        .orElse(DEFAULT_CONTEXT_WINDOW);
+        // This provider's row first, then the same id under any provider: a model served locally is often catalogued
+        // only under the vendor that trained it.
+        return find(provider, model).or(() -> byId(model)).map(ModelInfo::contextWindow).orElse(DEFAULT_CONTEXT_WINDOW);
     }
 
     /**
@@ -298,8 +295,12 @@ public final class ModelRegistry {
     }
 
     /**
-     * The catalog model matching {@code model} (case-insensitive), preferring a provider match; empty if none. A null
-     * provider matches any provider.
+     * The catalog model matching {@code model} (case-insensitive); empty if none. A named provider is required to
+     * match, not merely preferred: the same id served by two providers is two rows with their own prices, and picking
+     * the wrong one silently bills against the wrong rate. A null provider matches any.
+     *
+     * <p>
+     * The single scan by id; every other lookup here goes through it.
      */
     private static Optional<ModelInfo> find(String provider, String model) {
         if (model == null)
