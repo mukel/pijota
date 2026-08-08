@@ -4,7 +4,7 @@
 
   <groupId>org.pijota</groupId>
   <artifactId>pijota</artifactId>
-  <version>0.2.0</version>
+  <version>0.2.1</version>
   <packaging>jar</packaging>
 
   <name>Pijota</name>
@@ -35,7 +35,7 @@
     <developerConnection>scm:git:ssh://git@github.com/mukel/pijota.git</developerConnection>
     <!-- The tag this version was cut from, not HEAD: Central keeps the POM forever, and a reader years from now needs
          the commit that produced these bytes. Move it with the version. -->
-    <tag>v0.2.0</tag>
+    <tag>v0.2.1</tag>
     <url>https://github.com/mukel/pijota</url>
   </scm>
 
