@@ -62,6 +62,13 @@
 |---|---|---|---|
 | `shell_path` | string | `$SHELL`, else `/bin/bash` (`bash` on `PATH` on Windows) | shell for the bash tool |
 | `shell_command_prefix` | string | - | prepended to every command on its own line, e.g. to source an env file. Not a sandbox |
+| `editor` | string | `$VISUAL`, else `$EDITOR`, else `vi` (`notepad` on Windows) | command `Ctrl+E` opens to edit the prompt |
+
+## Network
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `proxy` | string | - | HTTP(S) proxy, e.g. `http://proxy:3128`. Beaten by `-Dpijota.proxy` / `PIJOTA_PROXY`, beats `HTTPS_PROXY` |
 
 ## Storage
 

@@ -87,6 +87,7 @@ public final class AppBootstrap {
         StartupTimer.mark("bootstrap start");
         // Mirror any configured HTTP proxy into the JVM proxy properties so URLConnection-based paths and providers
         // whose client we can't configure directly (Gemini) route through it too, not just our explicit HttpClients.
+        Proxies.configure(settings.config().proxy()); // before the mirror below, and before any client is built
         Proxies.installSystemProperties();
         String cwd = System.getProperty("user.dir");
 

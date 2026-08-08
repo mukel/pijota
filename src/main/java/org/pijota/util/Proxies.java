@@ -14,8 +14,14 @@ import java.util.Locale;
 
 /**
  * Central HTTP(S) proxy configuration. A proxy is taken from the first of: {@code -Dpijota.proxy} /
- * {@code PIJOTA_PROXY}, then the conventional {@code HTTPS_PROXY}, {@code HTTP_PROXY}, {@code ALL_PROXY} environment
- * variables (upper- or lower-case). {@code NO_PROXY} is a comma-separated list of host suffixes that bypass the proxy.
+ * {@code PIJOTA_PROXY}, then {@code proxy} in settings.json, then the conventional {@code HTTPS_PROXY},
+ * {@code HTTP_PROXY}, {@code ALL_PROXY} environment variables (upper- or lower-case). {@code NO_PROXY} is a
+ * comma-separated list of host suffixes that bypass the proxy.
+ *
+ * <p>
+ * Settings sit between the two kinds of environment: a flag or {@code PIJOTA_PROXY} is aimed at this run and wins,
+ * while {@code HTTPS_PROXY} is ambient and belongs to the shell, so a proxy the user wrote down for pijota beats one
+ * they happen to have exported.
  *
  * <p>
  * Callers that build a {@link HttpClient} route it through {@link #httpClientBuilder()}. Because {@code HttpClient}
@@ -25,6 +31,13 @@ import java.util.Locale;
  */
 public final class Proxies {
     private Proxies() {}
+
+    private static volatile String configured;
+
+    /** Applies the {@code proxy} setting. Called once at startup, before anything builds a client. */
+    public static void configure(String proxy) {
+        configured = proxy == null || proxy.isBlank() ? null : proxy.trim();
+    }
 
     /**
      * The configured proxy selector, or {@code null} when no proxy is set. Resolved from the environment on each call
@@ -104,8 +117,9 @@ public final class Proxies {
 
     /** The configured proxy endpoint, or {@code null} when none is set. */
     private static InetSocketAddress proxyHost() {
-        String url = Util.coalesce(Env.get("pijota.proxy", "PIJOTA_PROXY"), env("HTTPS_PROXY", "https_proxy"),
-                                        env("HTTP_PROXY", "http_proxy"), env("ALL_PROXY", "all_proxy"));
+        String url = Util.coalesce(Env.get("pijota.proxy", "PIJOTA_PROXY"), configured,
+                                        env("HTTPS_PROXY", "https_proxy"), env("HTTP_PROXY", "http_proxy"),
+                                        env("ALL_PROXY", "all_proxy"));
         return url == null ? null : parse(url);
     }
 

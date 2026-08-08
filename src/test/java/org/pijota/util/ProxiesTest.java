@@ -16,6 +16,7 @@ class ProxiesTest {
     @AfterEach
     void clearProxyProperty() {
         System.clearProperty("pijota.proxy");
+        Proxies.configure(null); // process-wide, like the property above: it must not cross between tests
     }
 
     @Test
@@ -77,5 +78,30 @@ class ProxiesTest {
     void aCallerCanStillChooseItsOwnTimeout() {
         var own = Duration.ofSeconds(3);
         assertEquals(Optional.of(own), Proxies.httpClientBuilder().connectTimeout(own).build().connectTimeout());
+    }
+
+    /**
+     * Settings sit between the two kinds of environment. A flag or PIJOTA_PROXY is aimed at this run and wins; a proxy
+     * written down in settings.json beats HTTPS_PROXY, which belongs to the shell and was probably exported for
+     * something else entirely.
+     */
+    @Test
+    void theProxySettingIsUsedButAnExplicitFlagStillWins() {
+        Proxies.configure("http://from-settings:3128");
+        assertNotNull(Proxies.selector(), "the setting alone configures a proxy");
+        assertEquals("from-settings", host(Proxies.selector()));
+
+        System.setProperty("pijota.proxy", "http://from-flag:8080");
+        assertEquals("from-flag", host(Proxies.selector()), "the flag is aimed at this run, so it wins");
+
+        System.clearProperty("pijota.proxy");
+        Proxies.configure("   ");
+        assertNull(Proxies.selector(), "a blank setting is not a proxy");
+    }
+
+    private static String host(java.net.ProxySelector selector) {
+        var address = (java.net.InetSocketAddress) selector.select(java.net.URI.create("https://api.test/v1"))
+                                        .getFirst().address();
+        return address.getHostString();
     }
 }

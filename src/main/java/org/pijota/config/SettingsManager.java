@@ -273,6 +273,28 @@ public final class SettingsManager {
         return null;
     }
 
+    /**
+     * The command to open for {@code Ctrl+E}: the {@code editor} setting, then {@code $VISUAL} / {@code $EDITOR}, then
+     * a per-OS default.
+     *
+     * <p>
+     * The setting is asked first for the reason it exists: {@code $EDITOR} belongs to the shell and is usually set to
+     * whatever that user wants for git, while this one was written down for pijota. {@code $VISUAL} is consulted before
+     * {@code $EDITOR} the way every other tool does it -- the two differ exactly when one is a full-screen editor and
+     * the other a line editor, and this opens a full screen.
+     */
+    public String effectiveEditor() {
+        String configured = config.editor();
+        if (configured != null && !configured.isBlank())
+            return configured.trim();
+        for (String name : List.of("VISUAL", "EDITOR")) {
+            String value = System.getenv(name);
+            if (value != null && !value.isBlank())
+                return value.trim();
+        }
+        return Platform.isWindows() ? "notepad" : "vi";
+    }
+
     public String apiKeyHint(String provider) {
         return String.join(" or ", apiKeyEnvNames(provider));
     }

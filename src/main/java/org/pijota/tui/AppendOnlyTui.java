@@ -1645,7 +1645,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         try {
             suspendTui(false); // the editor takes over the alternate screen like fzf → no fresh-line, or a stale ─
                                // accumulates
-            String editor = System.getenv().getOrDefault("EDITOR", Platform.isWindows() ? "notepad" : "vi");
+            String editor = settings != null
+                                            ? settings.effectiveEditor()
+                                            : System.getenv().getOrDefault("EDITOR",
+                                                                            Platform.isWindows() ? "notepad" : "vi");
             String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
             var result = externalEditor.edit(shell, editor, promptEditor.text());
             resumeTui();

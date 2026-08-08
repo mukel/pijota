@@ -265,4 +265,21 @@ class SettingsManagerTest {
         assertTrue(warning.contains("…"), "and a long value is cut: " + warning);
         assertTrue(warning.length() < 140, "bounded: " + warning.length());
     }
+
+    /**
+     * Explicit beats ambient. $EDITOR belongs to the shell and is usually whatever that user wants for git; the setting
+     * was written down for pijota, so it is asked first.
+     */
+    @Test
+    void theEditorSettingBeatsTheAmbientEnvironment() {
+        var withSetting = new SettingsManager(org.pijota.util.Util.MAPPER.convertValue(Map.of("editor", "  hx  "),
+                                        AppConfig.class), c -> {});
+        assertEquals("hx", withSetting.effectiveEditor(), "trimmed, and preferred over $VISUAL/$EDITOR");
+
+        var withoutSetting = new SettingsManager(new AppConfig(), c -> {});
+        String fallback = withoutSetting.effectiveEditor();
+        String ambient = System.getenv("VISUAL") != null ? System.getenv("VISUAL") : System.getenv("EDITOR");
+        assertEquals(ambient != null && !ambient.isBlank() ? ambient.trim() : "vi", fallback,
+                                        "with no setting it is the environment's, or the per-OS default");
+    }
 }

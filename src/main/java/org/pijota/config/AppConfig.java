@@ -35,8 +35,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                 @JsonProperty("max_turns") Integer maxTurns,
                                 @JsonProperty("providers") List<ProviderCatalog.Provider> providers,
                                 @JsonProperty("extensions") Map<String, Object> extensions,
-                                @JsonProperty("markdown") String markdown,
-                                @JsonProperty("prompt") PromptGlyphs prompt) {
+                                @JsonProperty("markdown") String markdown, @JsonProperty("editor") String editor,
+                                @JsonProperty("proxy") String proxy, @JsonProperty("prompt") PromptGlyphs prompt) {
 
     /** Default per-prompt agent-turn cap when {@code max_turns} is unset. {@code 0} (or negative) means unlimited. */
     public static final int DEFAULT_MAX_TURNS = 256;
@@ -47,7 +47,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         // $SHELL.
         this(null, null, Map.of(), "medium", Platform.defaultShell(), null, null, null, null, List.of(), List.of(),
                                         true, false, false, "dots", null, "ask", new CompactionConfig(), Map.of(), null,
-                                        List.of(), Map.of(), "rich", new PromptGlyphs());
+                                        List.of(), Map.of(), "rich", null, null, new PromptGlyphs());
     }
 
     /** Back-compat positional constructor (pre-{@code prompt}); defaults the prompt glyphs. */
@@ -61,7 +61,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         this(defaultProvider, defaultModel, apiKeys, thinkingLevel, shellPath, shellCommandPrefix, sessionDir,
                                         projectDir, theme, themes, enabledModels, contextFiles, hideThinking,
                                         quietStartup, workingAnimation, pathDisplay, "ask", compaction, aliases,
-                                        maxTurns, providers, extensions, markdown, new PromptGlyphs());
+                                        maxTurns, providers, extensions, markdown, null, null, new PromptGlyphs());
     }
 
     public static AppConfig load(Path path) throws IOException {
@@ -177,6 +177,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
         private List<ProviderCatalog.Provider> providers;
         private Map<String, Object> extensions;
         private String markdown;
+        private String editor;
+        private String proxy;
         private PromptGlyphs prompt;
 
         private Builder(AppConfig c) {
@@ -203,6 +205,8 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             this.providers = c.providers;
             this.extensions = c.extensions;
             this.markdown = c.markdown;
+            this.editor = c.editor;
+            this.proxy = c.proxy;
             this.prompt = c.prompt;
         }
 
@@ -301,6 +305,16 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
             return this;
         }
 
+        public Builder editor(String v) {
+            this.editor = v;
+            return this;
+        }
+
+        public Builder proxy(String v) {
+            this.proxy = v;
+            return this;
+        }
+
         public Builder prompt(PromptGlyphs v) {
             this.prompt = v;
             return this;
@@ -311,7 +325,7 @@ public record AppConfig(@JsonProperty("default_provider") String defaultProvider
                                             sessionDir, projectDir, theme, themes, enabledModels, contextFiles,
                                             hideThinking, quietStartup, workingAnimation, pathDisplay,
                                             defaultProjectTrust, compaction, aliases, maxTurns, providers, extensions,
-                                            markdown, prompt);
+                                            markdown, editor, proxy, prompt);
         }
     }
 
