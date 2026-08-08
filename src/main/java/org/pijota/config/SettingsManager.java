@@ -48,26 +48,55 @@ public final class SettingsManager {
         var warnings = new ArrayList<String>();
         if (config == null)
             return warnings;
+        var trustValues = List.of("ask", "always", "never");
         String trust = config.defaultProjectTrust();
-        if (trust != null && !trust.isBlank() && !List.of("ask", "always", "never").contains(trust))
-            warnings.add("default_project_trust should be ask, always, or never");
+        if (trust != null && !trust.isBlank() && !trustValues.contains(trust))
+            warnings.add(notOneOf("default_project_trust", trust, trustValues));
         String pathDisplay = config.pathDisplay();
         if (pathDisplay != null && !pathDisplay.isBlank() && !PathDisplay.isKnown(pathDisplay))
-            warnings.add("path_display should be " + join(PathDisplay.names()));
+            warnings.add(notOneOf("path_display", pathDisplay, PathDisplay.names()));
         // Validated here with its siblings, and only here: checking the merged flag-then-settings value instead meant
         // a typo'd --thinking was reported twice, the second time blaming a settings.json key the user never touched.
         String thinking = config.thinkingLevel();
         if (thinking != null && !thinking.isBlank() && !ThinkingLevel.isKnown(thinking))
-            warnings.add("thinking_level should be " + join(ThinkingLevel.names()));
+            warnings.add(notOneOf("thinking_level", thinking, ThinkingLevel.names()));
+        var animationValues = List.of("dots", "moon", "bar", "braille", "none");
         String animation = config.workingAnimation();
-        if (animation != null && !animation.isBlank()
-                                        && !List.of("dots", "moon", "bar", "braille", "none").contains(animation))
-            warnings.add("working_animation should be dots, moon, bar, braille, or none");
+        if (animation != null && !animation.isBlank() && !animationValues.contains(animation))
+            warnings.add(notOneOf("working_animation", animation, animationValues));
         if (config.maxTurns() != null && config.maxTurns() < 0)
             warnings.add("max_turns below 0 is treated as unlimited; use 0 for that explicitly");
         warnings.addAll(ProviderCatalog.validateUserProviders(config.providers()));
         return List.copyOf(warnings);
     }
+
+    /**
+     * Names what the file says as well as what it should say.
+     *
+     * <p>
+     * Listing only the legal values leaves the reader going back to their own file to work out which of them they
+     * missed, which is the one thing they already know they got wrong.
+     */
+    private static String notOneOf(String key, String value, List<String> allowed) {
+        return key + " is " + printableQuoted(value) + "; it should be " + join(allowed);
+    }
+
+    /**
+     * A value from settings.json, safe to put on a line of its own.
+     *
+     * <p>
+     * These warnings go to stderr before there is any terminal handling to pass them through, and the text is the
+     * user's, not ours: an ESC among it would be a command rather than a character. Controls become '?' and a long
+     * value is cut, so a mistyped setting cannot repaint the screen it is complaining on.
+     */
+    private static String printableQuoted(String value) {
+        var out = new StringBuilder("\"");
+        value.codePoints().limit(PRINTED_VALUE_LIMIT)
+                                        .forEach(cp -> out.appendCodePoint(Character.isISOControl(cp) ? '?' : cp));
+        return out.append(value.codePointCount(0, value.length()) > PRINTED_VALUE_LIMIT ? "…\"" : "\"").toString();
+    }
+
+    private static final int PRINTED_VALUE_LIMIT = 40;
 
     /** "a, b, or c" -- the wording every warning above already used, said once. */
     private static String join(List<String> values) {

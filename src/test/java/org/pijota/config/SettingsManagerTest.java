@@ -230,4 +230,39 @@ class SettingsManagerTest {
         var sm = managerWith(config);
         assertEquals("/explicit/repo", sm.projectDir());
     }
+
+    /**
+     * The warning names what the file says, not only what it should have said. Listing the legal values alone sends the
+     * reader back to their own file to work out which of them they missed.
+     */
+    @Test
+    void aBadEnumSettingNamesTheValueTheUserActuallyWrote() {
+        var config = org.pijota.util.Util.MAPPER.convertValue(java.util.Map.of("default_project_trust", "trusted"),
+                                        AppConfig.class);
+
+        var warnings = SettingsManager.validate(config);
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.getFirst().contains("\"trusted\""), warnings.getFirst());
+        assertTrue(warnings.getFirst().contains("ask, always, or never"), warnings.getFirst());
+    }
+
+    /**
+     * These print to stderr before there is any terminal handling to pass them through, and the text is the user's. An
+     * ESC in a mistyped setting would be a command, not a character, on the very line complaining about it.
+     */
+    @Test
+    void aSettingValueCannotRepaintTheTerminalItIsReportedOn() {
+        var config = org.pijota.util.Util.MAPPER.convertValue(
+                                        java.util.Map.of("path_display", "\u001b[31mred\u0007" + "x".repeat(80)),
+                                        AppConfig.class);
+
+        String warning = SettingsManager.validate(config).getFirst();
+
+        assertFalse(warning.contains("\u001b"), "no escape reaches the terminal: " + warning);
+        assertFalse(warning.contains("\u0007"), "nor a bell");
+        assertTrue(warning.contains("?"), "controls are shown as ? so the value is still recognisable");
+        assertTrue(warning.contains("…"), "and a long value is cut: " + warning);
+        assertTrue(warning.length() < 140, "bounded: " + warning.length());
+    }
 }
