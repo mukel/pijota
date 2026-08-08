@@ -964,20 +964,28 @@ window.addEventListener("DOMContentLoaded", () => {
       if (!res.ok || !res.body) { reopen(); return; }
       conn.classList.add("on"); reconnectDelay = 1000; setOnline(true); // the "open" moment
       const reader = res.body.getReader(), dec = new TextDecoder();
-      let buf = "", ev = "message", data = [];
+      // `scan` is how far into buf we have already looked for a newline, and it survives across reads. Without it a
+      // line spanning K chunks costs K full rescans from zero -- and the biggest line is `history`, the whole
+      // transcript on one data: frame, which is exactly the one that arrives split across many reads.
+      let buf = "", scan = 0, ev = "message", data = [];
       const dispatch = () => { if (data.length) fire(ev, data.join("\n")); ev = "message"; data = []; };
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += dec.decode(value, { stream: true });
-        let nl;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, nl).replace(/\r$/, ""); buf = buf.slice(nl + 1);
+        let nl, consumed = 0;
+        while ((nl = buf.indexOf("\n", scan)) >= 0) {
+          const line = buf.slice(consumed, nl).replace(/\r$/, "");
+          consumed = scan = nl + 1;
           if (line === "") dispatch();
           else if (line.startsWith("event:")) ev = line.slice(6).trim();
           else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
           // lines starting with ":" are comments — ignore
         }
+        // Drop the consumed prefix once per read rather than once per line, and remember that the unterminated tail
+        // has already been searched, so the next read only scans the bytes it actually brought.
+        if (consumed) { buf = buf.slice(consumed); scan -= consumed; }
+        scan = buf.length;
       }
       reopen(); // clean server close → reconnect
     }).catch(err => { if (alive && err.name !== "AbortError") reopen(); });
