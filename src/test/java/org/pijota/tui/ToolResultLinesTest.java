@@ -308,10 +308,6 @@ class ToolResultLinesTest {
     }
 
     /**
-     * The header goes through the same wrapper a tool header does. Hand-rolled, it was appended unwrapped, so a long
-     * command -- which is exactly what people type after {@code !} -- broke out to column zero and split the box open.
-     */
-    /**
      * A command too long for one row used to be drawn with the body's own rail, so the only thing separating it from
      * the output it produced was the text tone -- and output colours itself. A {@code tmux capture-pane} result arrives
      * carrying box drawing of its own, at which point glyph and colour both stop telling them apart.
@@ -335,6 +331,10 @@ class ToolResultLinesTest {
                                         "and the output should still carry the body rail: " + lines);
     }
 
+    /**
+     * The header goes through the same wrapper a tool header does. Hand-rolled, it was appended unwrapped, so a long
+     * command -- which is exactly what people type after {@code !} -- broke out to column zero and split the box open.
+     */
     @Test
     void aLongUserCommandStaysInsideItsBlock() {
         String command = "echo " + "a".repeat(90) + " | head -c 200";
