@@ -186,6 +186,10 @@ class ModelCommandHandlerTest {
         assertTrue(captured.stream().anyMatch(l -> l.contains("no models")), "should report no models for empty list");
         assertTrue(captured.stream().anyMatch(l -> l.contains("/login") && l.contains("/refresh")),
                                         "empty model picker should explain onboarding next steps");
+        // It read "or /refresh models", which is not a command: /refresh takes no argument. A substring check for
+        // "/refresh" cannot tell the two apart, which is how the phantom argument survived this very test.
+        assertTrue(captured.stream().noneMatch(l -> l.contains("/refresh models")),
+                                        "the command is /refresh; naming an argument sends the reader to a dead end");
     }
 
     private static ModelCommandHandler.Host busyHost(String provider, String model, List<String> output) {

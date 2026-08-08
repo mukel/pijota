@@ -45,8 +45,9 @@ final class ModelCommandHandler {
             return;
         }
         if (models.isEmpty()) {
-            host.appendPlain(List.of(host.styled("statusText", "no models found"), host.styled("commandMeta",
-                                            "run /login, set an API key, or /refresh models")));
+            // "/refresh models" read as the command name; the command is /refresh and takes no argument.
+            host.appendPlain(List.of(host.styled("statusText", "no models found"),
+                                            host.styled("commandMeta", "run /login, /refresh, or set an API key")));
             return;
         }
         var items = models.stream().map(m -> new ModelItem(m, m.id().equals(host.model()))).toList();
