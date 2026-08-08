@@ -31,6 +31,50 @@ class ModelRefresherTest {
         assertEquals("test", models.get(0).provider());
     }
 
+    /**
+     * llama.cpp-shaped servers report nothing about context in {@code /models}, so every model took the 128k fallback
+     * and pijota showed it as measured: a status line reading {@code 4K/128K} against a server serving 64k, and an
+     * auto-compaction threshold that could never fire. The binding number is the runtime {@code n_ctx} at
+     * {@code /props}, which sits at the root rather than under {@code /v1}.
+     */
+    @Test
+    void aServerThatReportsNoContextIsAskedWhatItWasStartedWith() throws Exception {
+        var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gemma-4.gguf\"}]}",
+                                        "{\"n_ctx\":65536,\"n_ctx_train\":131072,\"model\":\"gemma-4.gguf\"}");
+
+        var models = ModelRefresher.fetchOpenAiCompatible(client, provider("local"), "tok", null, false);
+
+        assertEquals(65536L, models.get(0).contextWindow(),
+                                        "n_ctx is what one request gets; 128000 was invented and 131072 is the "
+                                                                        + "model's trained ceiling, not this server's");
+        assertEquals("https://api.test/props", client.lastRequest().uri().toString(),
+                                        "/props lives at the root, not under /v1");
+    }
+
+    /** A provider that reported its context must never be sent a second request. */
+    @Test
+    void aServerThatReportsItsContextIsNotAskedAgain() throws Exception {
+        var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gpt-x\",\"context_length\":200000}]}",
+                                        "{\"n_ctx\":4096}");
+
+        var models = ModelRefresher.fetchOpenAiCompatible(client, provider("hosted"), "tok", null, false);
+
+        assertEquals(200000L, models.get(0).contextWindow());
+        assertTrue(client.lastRequest().uri().toString().contains("/models"),
+                                        "the reported context settles it; /props must not be reached");
+    }
+
+    /** No /props (every hosted provider 404s it) leaves the fallback in place rather than failing the refresh. */
+    @Test
+    void aMissingPropsEndpointLeavesTheFallback() throws Exception {
+        var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gpt-x\"}]}", "not found");
+
+        var models = ModelRefresher.fetchOpenAiCompatible(client, provider("hosted"), "tok", null, false);
+
+        assertEquals(1, models.size(), "a 200 that is not JSON we understand must not lose the model");
+        assertEquals(128_000L, models.get(0).contextWindow());
+    }
+
     @Test
     void fetchReadsFireworksContextLengthAndImageCapability() throws Exception {
         // fireworks self-reports context_length + supports_image_input per model; a vision model with a 1M window must

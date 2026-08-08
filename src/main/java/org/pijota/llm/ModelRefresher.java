@@ -162,7 +162,52 @@ public final class ModelRefresher {
             var input = item.path("supports_image_input").asBoolean(false) ? List.of("text", "image") : null;
             out.add(new ModelInfo(id, provider.id(), displayName(id), contextWindow, null, null, input));
         }
+        applyServedContextWindow(client, baseUrl, out);
         return out;
+    }
+
+    /**
+     * Fills in the context length for models whose {@code /models} entry did not report one, by asking the server what
+     * it was actually started with.
+     *
+     * <p>
+     * llama.cpp-shaped local servers (llama-server, jinfer) publish nothing about context in {@code /models}, so every
+     * model fell back to 128k and pijota then displayed that as though it had been measured -- a status line reading
+     * {@code 4K/128K} against a server serving 64k, and an auto-compaction threshold that could never fire. The number
+     * that binds is the runtime {@code n_ctx} at {@code /props} (root, not under {@code /v1}).
+     *
+     * <p>
+     * {@code n_ctx_train} sits next to it and is deliberately ignored: that is the model's trained ceiling, not what
+     * this server will serve. Reporting it would be exactly as wrong as the fallback while looking authoritative.
+     *
+     * <p>
+     * Asked only when the list left us guessing, so a provider that reported its context is never sent a second
+     * request, and best effort throughout: a 404 (every hosted provider) or a timeout leaves the fallback in place.
+     */
+    private static void applyServedContextWindow(HttpClient client, String baseUrl, List<ModelInfo> models) {
+        if (models.stream().noneMatch(m -> m.contextWindow() == DEFAULT_CONTEXT_WINDOW))
+            return;
+        String root = baseUrl.replaceAll("/+$", "").replaceAll("/v\\d+$", "");
+        long served;
+        try {
+            var request = HttpRequest.newBuilder().uri(URI.create(root + "/props")).timeout(Duration.ofSeconds(5)).GET()
+                                            .build();
+            var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300)
+                return;
+            served = firstLong(Util.MAPPER.readTree(response.body()), 0, "n_ctx");
+        } catch (Exception e) {
+            log.debug("No /props on {}: {}", root, oneLineReason(e));
+            return;
+        }
+        if (served <= 0)
+            return;
+        long finalServed = served;
+        models.replaceAll(m -> m.contextWindow() == DEFAULT_CONTEXT_WINDOW
+                                        ? new ModelInfo(m.id(), m.provider(), m.displayName(), finalServed,
+                                                                        m.inputCostPerMTok(), m.outputCostPerMTok(),
+                                                                        m.input(), m.pricingTiers())
+                                        : m);
     }
 
     private static List<ModelInfo> parseCodexModels(String providerId, JsonNode models) {
