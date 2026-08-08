@@ -256,9 +256,26 @@ final class ToolResultLines {
      * column zero, so its continuation sat outside the frame and broke the box open exactly where the command is
      * hardest to read. Continuations carry the same {@code │} rail as the body, so the whole block reads as one thing.
      */
+    /**
+     * A header, wrapped, with its continuation rows marked as still being the header.
+     *
+     * <p>
+     * They used to be handed to {@link #renderToolBodyLine}, which draws the body's own {@code │} rail: a command too
+     * long for one row was then drawn with exactly the grammar of the output it produced, and only the text tone told
+     * them apart. Tone cannot carry that alone, because output is free to colour itself -- a {@code tmux capture-pane}
+     * result arrives carrying its own box drawing, so the card's own glyphs turn up inside the body.
+     *
+     * <p>
+     * Dashed rather than solid, so a continued header reads as one block with the output beneath it rather than as a
+     * second, competing one. Measured at one column, the same as {@code │}, before being used here.
+     */
     private static void addHeader(List<String> lines, String prefix, String text, AnsiTheme theme, int width) {
-        lines.addAll(AnsiWidth.wrapPrefixed(text, width, prefix, row -> renderToolBodyLine(row, theme, false)));
+        String rail = theme.styled("commandMeta", HEADER_RAIL);
+        lines.addAll(AnsiWidth.wrapPrefixed(text, width, prefix, row -> rail + row));
     }
+
+    /** Marks a wrapped header's continuation rows; the body's rail is {@code │}, and the two must not be the same. */
+    static final String HEADER_RAIL = "┆ ";
 
     /**
      * A header for a tool with nothing to show: one logical line, wrapped but not railed. Railing it invented a block

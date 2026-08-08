@@ -230,7 +230,8 @@ class ToolResultLinesTest {
             assertTrue(AnsiWidth.visibleWidth(line) <= 52, "row overflows the terminal: [" + line + "]");
             // Every row of the block is framed: the opener (the tool's own glyph), the rail, or the footer. None
             // dangles bare at column zero.
-            assertTrue(line.startsWith("$") || line.startsWith("│") || line.startsWith("└"),
+            assertTrue(line.startsWith("$") || line.startsWith("│") || line.startsWith("└")
+                                            || line.startsWith(ToolResultLines.HEADER_RAIL.strip()),
                                             "row escaped the frame: [" + line + "] in " + visible);
         }
         assertTrue(visible.size() > 3, "the command really did need more than one row: " + visible);
@@ -310,6 +311,30 @@ class ToolResultLinesTest {
      * The header goes through the same wrapper a tool header does. Hand-rolled, it was appended unwrapped, so a long
      * command -- which is exactly what people type after {@code !} -- broke out to column zero and split the box open.
      */
+    /**
+     * A command too long for one row used to be drawn with the body's own rail, so the only thing separating it from
+     * the output it produced was the text tone -- and output colours itself. A {@code tmux capture-pane} result arrives
+     * carrying box drawing of its own, at which point glyph and colour both stop telling them apart.
+     */
+    @Test
+    void aWrappedCommandIsRailedDifferentlyFromTheOutputItProduced() {
+        String command = "tmux new-session -d -s pjvnc -x 120 -y 30 && sleep 1 && tmux send-keys -t pjvnc 'byte3'";
+        var msg = new Message.ToolResult("call-1", "bash", "┌mukel@qxotic\n└$", false,
+                                        Map.of("command", command, "exitCode", 0));
+        var view = Tool.ToolResultView.of("2 lines", List.of("┌mukel@qxotic", "└$"));
+        String argsJson = "{\"command\": \"" + command + "\"}";
+
+        var lines = ToolResultLines.compose(msg, view, () -> argsJson, AnsiTheme.dark(), "/cwd", PathDisplay.COMPACT, 0,
+                                        "$", 52).stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList();
+
+        String headerRail = ToolResultLines.HEADER_RAIL.strip();
+        assertNotEquals("│", headerRail, "the continued command must not wear the body's rail");
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith(headerRail)),
+                                        "the command wrapped, so some row should carry the header rail: " + lines);
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith("│")),
+                                        "and the output should still carry the body rail: " + lines);
+    }
+
     @Test
     void aLongUserCommandStaysInsideItsBlock() {
         String command = "echo " + "a".repeat(90) + " | head -c 200";
@@ -317,7 +342,8 @@ class ToolResultLinesTest {
 
         for (String line : out.stream().map(AnsiStripper::strip).filter(l -> !l.isBlank()).toList()) {
             assertTrue(AnsiWidth.visibleWidth(line) <= 60, "row overflows the terminal: [" + line + "]");
-            assertTrue(line.startsWith("!") || line.startsWith("│") || line.startsWith("└"),
+            assertTrue(line.startsWith("!") || line.startsWith("│") || line.startsWith("└")
+                                            || line.startsWith(ToolResultLines.HEADER_RAIL.strip()),
                                             "row escaped the frame: [" + line + "] in " + visible(out));
         }
     }
