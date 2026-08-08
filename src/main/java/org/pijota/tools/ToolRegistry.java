@@ -1,5 +1,7 @@
 package org.pijota.tools;
 
+import org.pijota.util.Util;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,6 +26,7 @@ public final class ToolRegistry {
     private ToolPolicy policy = ToolPolicy.UNRESTRICTED;
     private Set<String> activeNames;
     private ToolManifest.Snapshot cachedManifestSnapshot;
+    private long cachedSchemaChars = -1; // -1 = not measured yet; see activeSchemaChars()
 
     private record ToolEntry(Tool tool, boolean builtin) {
     }
@@ -35,7 +38,7 @@ public final class ToolRegistry {
     private synchronized void register(Tool tool, boolean builtin) {
         tools.put(tool.name(), new ToolEntry(tool, builtin));
         pruneActiveNames();
-        cachedManifestSnapshot = null;
+        invalidateActiveSetCaches();
     }
 
     /** Register a first-party (non-extension) tool; distinguished only so {@code --no-builtin-tools} can target it. */
@@ -46,20 +49,20 @@ public final class ToolRegistry {
     public synchronized void applyPolicy(ToolPolicy policy) {
         this.policy = policy == null ? ToolPolicy.UNRESTRICTED : policy;
         pruneActiveNames();
-        cachedManifestSnapshot = null;
+        invalidateActiveSetCaches();
     }
 
     /** Removes a tool (and disables it). No-op if it was never registered. Used for dynamic tools (e.g. MCP). */
     public synchronized void unregister(String name) {
         tools.remove(name);
         pruneActiveNames();
-        cachedManifestSnapshot = null;
+        invalidateActiveSetCaches();
     }
 
     public synchronized void setActiveTools(Set<String> names) {
         activeNames = names == null ? null : Set.copyOf(names);
         pruneActiveNames();
-        cachedManifestSnapshot = null;
+        invalidateActiveSetCaches();
     }
 
     public synchronized List<Tool> registeredTools() {
@@ -90,6 +93,47 @@ public final class ToolRegistry {
 
     public synchronized List<String> activeToolNames() {
         return activeTools().stream().map(Tool::name).toList();
+    }
+
+    /**
+     * How many characters the active tools' names, descriptions and JSON schemas occupy on the wire: the fixed
+     * per-request overhead a context estimate has to add before it has a real token count to anchor against.
+     *
+     * <p>
+     * Memoized because it is a pure function of the active set, asked far more often than that set changes: the context
+     * meter behind the status line refreshes several times a second, and answering means building every tool's schema
+     * (each {@code schema()} call constructs a fresh nested map) and serializing it only to take its length. It only
+     * moves when the active set does, which is exactly when {@link #invalidateActiveSetCaches()} runs.
+     *
+     * <p>
+     * Worth being precise rather than dramatic: measured on six real built-in tools with Jackson warm, one recompute is
+     * 30us, so the previous behaviour cost roughly 0.2ms per second. The reasons to cache are that the answer cannot
+     * change between invalidations, that it keeps this monitor off the render thread, and that it stops per-poll
+     * garbage in a native image. Not that it was slow.
+     */
+    public synchronized long activeSchemaChars() {
+        if (cachedSchemaChars < 0) {
+            long chars = 0;
+            for (var tool : activeTools()) {
+                chars += tool.name().length() + tool.description().length();
+                try {
+                    chars += Util.MAPPER.writeValueAsString(tool.schema()).length();
+                } catch (Exception ignored) {
+                    // unserializable schema; skip it rather than fail the whole estimate
+                }
+            }
+            cachedSchemaChars = chars;
+        }
+        return cachedSchemaChars;
+    }
+
+    /**
+     * Forget what was derived from the active tool set. One place, so a mutator added later cannot invalidate the
+     * manifest and leave the schema size describing the tools of a moment ago.
+     */
+    private void invalidateActiveSetCaches() {
+        cachedManifestSnapshot = null;
+        cachedSchemaChars = -1;
     }
 
     public synchronized Optional<Tool> get(String name) {
@@ -221,7 +265,7 @@ public final class ToolRegistry {
      * Invalidates the cached provider-facing tool manifest. Call when a registered tool's metadata changes in place.
      */
     public synchronized void invalidateManifestSnapshot() {
-        cachedManifestSnapshot = null;
+        invalidateActiveSetCaches();
     }
 
     synchronized ToolManifest.Snapshot cachedManifestSnapshot() {

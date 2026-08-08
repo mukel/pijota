@@ -185,21 +185,7 @@ public final class AgentLoop implements AgentContext {
      * tools' serialized schemas, so a fresh session doesn't undercount by the whole tool overhead.
      */
     public long contextOverhead() {
-        return overheadAnchored ? contextOverhead : estimateToolSchemaTokens();
-    }
-
-    /** Rough token size of the tool schemas the provider adds to every request (name + description + JSON schema). */
-    private long estimateToolSchemaTokens() {
-        long chars = 0;
-        for (var tool : toolRegistry.activeTools()) {
-            chars += tool.name().length() + tool.description().length();
-            try {
-                chars += Util.MAPPER.writeValueAsString(tool.schema()).length();
-            } catch (Exception ignored) {
-                // unserializable schema; skip it rather than fail the whole estimate
-            }
-        }
-        return Util.approxTokens(chars);
+        return overheadAnchored ? contextOverhead : Util.approxTokens(toolRegistry.activeSchemaChars());
     }
 
     /**
