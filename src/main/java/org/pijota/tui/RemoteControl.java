@@ -128,17 +128,45 @@ final class RemoteControl {
 
     /**
      * What fronts the loopback web server, if anything. Each constant carries everything that differs between the
-     * channels: the CLI name, the URL its child prints, the banner title, and the security caveat (who is in the trust
-     * path). Adding a channel is a constant plus a {@code start*} method plus a picker entry, with no branch to update.
+     * channels: the CLI name, the URL its child prints, the banner title, the security caveat (who is in the trust
+     * path), and the failure signatures it can explain.
+     *
+     * <p>
+     * Adding a channel is a constant plus a {@code start*} method plus a picker entry. The one dispatch left, which
+     * child to spawn, is an exhaustive {@code switch}: the compiler names it, rather than a ternary quietly launching
+     * the other kind's binary.
      */
     enum Tunnel {
         NONE("", null, "web", ""), // no child; the LAN bind itself is the exposure
         CLOUDFLARE("cloudflared", "https://[a-z0-9-]+\\.trycloudflare\\.com", "web tunnel",
-                                        "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL."),
+                                        "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL.") {
+            @Override
+            List<String> diagnose(String output) {
+                // Quick tunnels rate-limit by source IP (HTTP 429 / error 1015) and cloudflared exits without
+                // retrying. The only fix is to wait it out or come from a different IP.
+                if (output.contains("429") || output.contains("1015") || output.contains("rate limit"))
+                    return List.of("   Cloudflare rate-limited this IP (error 1015). It clears on its own, usually within an hour.",
+                                                    "   Retry later, or use the Tailscale channel instead (no third-party edge, no rate limit).");
+                return null;
+            }
+        },
         // tailscale serve prints the address with a trailing slash; the pattern stops short of it so "?t=" appends
         // cleanly.
         TAILSCALE("tailscale", "https://[a-z0-9-]+\\.[a-z0-9-]+\\.ts\\.net", "tailscale",
-                                        "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.");
+                                        "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.") {
+            @Override
+            List<String> diagnose(String output) {
+                if (output.contains("access denied"))
+                    return List.of("   tailscale serve was denied permission to set the serve config (operator not set).",
+                                                    "   Fix once, then retry:   sudo tailscale set --operator=$USER");
+                if (output.contains("serve is not enabled"))
+                    return List.of("   Serve is not enabled on your tailnet.",
+                                                    "   Enable Serve + HTTPS certificates in the admin console: https://login.tailscale.com/admin");
+                if (output.contains("failed to connect to local tailscaled"))
+                    return tailscaledDown();
+                return null;
+            }
+        };
 
         final String cliName; // the binary, also used in failure messages
         final Pattern urlPattern; // what the child prints as its public URL; null for NONE, which starts no child
@@ -150,6 +178,16 @@ final class RemoteControl {
             this.urlPattern = urlPattern == null ? null : Pattern.compile(urlPattern);
             this.title = title;
             this.caveat = caveat;
+        }
+
+        /**
+         * The fix lines for a failure signature this channel recognises in its child's output, or null for anything
+         * else. Lives on the constant because the signatures are per-channel data: as a chain of {@code tunnel ==}
+         * tests elsewhere, a new channel silently got no diagnosis and the caller fell back to "is the network
+         * reachable?" for a cause it could have named.
+         */
+        List<String> diagnose(String output) {
+            return null;
         }
     }
 
@@ -293,7 +331,7 @@ final class RemoteControl {
         String all = String.join("\n", childOutput).toLowerCase(Locale.ROOT);
         var out = new ArrayList<String>();
         out.add(tunnel.cliName + " tunnel failed.");
-        var known = knownFailure(tunnel, all);
+        var known = tunnel.diagnose(all);
         if (known != null) {
             out.addAll(known);
             return out;
@@ -305,26 +343,6 @@ final class RemoteControl {
         }
         out.add("   No public URL within " + TUNNEL_URL_WAIT.toSeconds() + "s -- is the network reachable?");
         return out;
-    }
-
-    /** The fix lines for a known failure signature in the child's output, or null if none matches. */
-    private static List<String> knownFailure(Tunnel tunnel, String output) {
-        if (tunnel == Tunnel.CLOUDFLARE && (output.contains("429") || output.contains("1015")
-                                        || output.contains("rate limit"))) {
-            // Cloudflare quick tunnels rate-limit by source IP (HTTP 429 / error 1015) and cloudflared exits without
-            // retrying. The only fix is to wait it out or come from a different IP.
-            return List.of("   Cloudflare rate-limited this IP (error 1015). It clears on its own, usually within an hour.",
-                                            "   Retry later, or use the Tailscale channel instead (no third-party edge, no rate limit).");
-        }
-        if (tunnel == Tunnel.TAILSCALE && output.contains("access denied"))
-            return List.of("   tailscale serve was denied permission to set the serve config (operator not set).",
-                                            "   Fix once, then retry:   sudo tailscale set --operator=$USER");
-        if (tunnel == Tunnel.TAILSCALE && output.contains("serve is not enabled"))
-            return List.of("   Serve is not enabled on your tailnet.",
-                                            "   Enable Serve + HTTPS certificates in the admin console: https://login.tailscale.com/admin");
-        if (tunnel == Tunnel.TAILSCALE && output.contains("failed to connect to local tailscaled"))
-            return tailscaledDown();
-        return null;
     }
 
     /** How to bring tailscaled up and logged in; shared by the pre-flight check and the failure diagnosis. */

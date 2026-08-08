@@ -192,27 +192,31 @@ public final class ModelRefresher {
             return;
         if (!Util.isInternalAddress(URI.create(baseUrl).getHost()))
             return;
-        String root = baseUrl.replaceAll("/+$", "").replaceAll("/v\\d+$", "");
-        long served;
+        long served = servedContextWindow(client, baseUrl.replaceAll("/+$", "").replaceAll("/v\\d+$", ""));
+        if (served <= 0)
+            return;
+        models.replaceAll(m -> m.contextWindow() == DEFAULT_CONTEXT_WINDOW
+                                        ? new ModelInfo(m.id(), m.provider(), m.displayName(), served,
+                                                                        m.inputCostPerMTok(), m.outputCostPerMTok(),
+                                                                        m.input(), m.pricingTiers())
+                                        : m);
+    }
+
+    /**
+     * The {@code n_ctx} a llama.cpp-shaped server reports at {@code root/props}, or 0 if it does not answer with one.
+     */
+    private static long servedContextWindow(HttpClient client, String root) {
         try {
             var request = HttpRequest.newBuilder().uri(URI.create(root + "/props")).timeout(Duration.ofSeconds(5)).GET()
                                             .build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300)
-                return;
-            served = firstLong(Util.MAPPER.readTree(response.body()), 0, "n_ctx");
+                return 0;
+            return firstLong(Util.MAPPER.readTree(response.body()), 0, "n_ctx");
         } catch (Exception e) {
             log.debug("No /props on {}: {}", root, oneLineReason(e));
-            return;
+            return 0;
         }
-        if (served <= 0)
-            return;
-        long finalServed = served;
-        models.replaceAll(m -> m.contextWindow() == DEFAULT_CONTEXT_WINDOW
-                                        ? new ModelInfo(m.id(), m.provider(), m.displayName(), finalServed,
-                                                                        m.inputCostPerMTok(), m.outputCostPerMTok(),
-                                                                        m.input(), m.pricingTiers())
-                                        : m);
     }
 
     private static List<ModelInfo> parseCodexModels(String providerId, JsonNode models) {

@@ -32,7 +32,9 @@ library over new dependencies. Comments are documentation, not noise.
   session. The web channels share one startup path (`startWeb(host, Tunnel)`); a tunnel is a foreground
   child (`cloudflared` / `tailscale serve`) that proxies a public URL to the loopback `WebServer` and dies
   with pijota. `Tunnel` is an enum carrying each kind's `cliName`, `urlPattern` and banner `caveat`, so a
-  new tunnel = one enum constant + one `start*` method + a picker entry in `AppendOnlyTui`. Tunnels are
+  new tunnel = one enum constant (carrying its own `diagnose` for failures it recognises) + one `start*`
+  method + a picker entry in `AppendOnlyTui`. The child-spawning `switch` is exhaustive, so the compiler
+  names the one place left to wire rather than letting a new constant fall into another kind's branch. Tunnels are
   internal, not extensions: they need the full `PijotaSession` (`prompt`/`addEventListener`/…) which the
   extension SPI deliberately does not expose.
 
