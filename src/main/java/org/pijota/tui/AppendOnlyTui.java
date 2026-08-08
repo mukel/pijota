@@ -1086,8 +1086,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                         handleCtrlB();
                         continue;
                     }
-                    // The session picker's own Ctrl+D (delete) is handled before the global keymap. It no-ops unless
-                    // the picker is open, so it's safe here first.
+                    // The session picker's own Ctrl+X (delete) is handled before the global keymap. It no-ops
+                    // unless the picker is open, so it's safe here first.
                     if (handleSessionPickerAction(key))
                         continue;
                     // App shortcuts (command palette, model picker, editor, …) are modal-suppressed while an overlay is
@@ -1839,14 +1839,17 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         var items = SessionItem.fromPaths(sessions);
         selectors.show(TuiSelectors.Slot.SESSION, items, query);
         promptEditor.setText(query == null ? "" : query);
-        setStatusOverride("Sessions: Enter load, Ctrl+D delete");
+        setStatusOverride("Sessions: Enter load, Ctrl+X delete");
         redrawPrompt();
     }
 
     private boolean handleSessionPickerAction(Key key) {
         if (selectors.<SessionItem>selected(TuiSelectors.Slot.SESSION).isEmpty())
             return false;
-        if (key == Key.Special.CTRL_D) {
+        // Not Ctrl+D. That byte is also what the decoder reports for EOF (InputDecoder: `case -1, 4`), and this
+        // runs before the global keymap, so with the picker open a closed stdin asked to delete a session instead of
+        // quitting -- and the universal quit key could not quit. Ctrl+X is decoded already and bound to nothing else.
+        if (key == Key.Special.CTRL_X) {
             deleteSelectedSession();
             return true;
         }

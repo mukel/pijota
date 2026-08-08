@@ -9,7 +9,7 @@ import java.util.function.Predicate;
 final class TuiSelectors {
     enum Slot {
         MODEL(ModelItem.class, "models"), //
-        SESSION(SessionItem.class, "sessions", "Ctrl+D delete"), //
+        SESSION(SessionItem.class, "sessions", "Ctrl+X delete"), //
         TREE(TreeEntryItem.class, "conversation tree"), //
         THEME(ThemeItem.class, "themes"), //
         SETTINGS(SettingsItem.class, "settings"), //

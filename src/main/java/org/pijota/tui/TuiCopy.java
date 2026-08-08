@@ -53,7 +53,7 @@ final class TuiCopy {
     static final String SELECTOR_HINT = SELECTOR_KEYS + CHIP + TYPE_TO_SEARCH;
 
     /**
-     * The selector hint with a slot-specific action folded in ("Ctrl+D delete"), or the plain one when there is none.
+     * The selector hint with a slot-specific action folded in ("Ctrl+X delete"), or the plain one when there is none.
      * The extra chip lands before "type to search" because {@link #footer} sheds chips from the end on a narrow
      * terminal, and an action you would never guess should outlive one you would.
      *

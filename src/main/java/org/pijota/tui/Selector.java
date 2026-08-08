@@ -14,7 +14,7 @@ final class Selector<T extends SelectorItem> {
     private boolean active;
     private String title = "select";
     private String query = ""; // the active filter, kept so the renderer can highlight matched characters
-    private String extraHint = ""; // a slot-specific footer chip (e.g. the sessions picker's "Ctrl+D delete")
+    private String extraHint = ""; // a slot-specific footer chip (e.g. the sessions picker's "Ctrl+X delete")
 
     Selector(List<T> items) {
         allItems = List.copyOf(items);
