@@ -593,6 +593,13 @@ public final class AgentLoop implements AgentContext {
 
     /** Signals that the conversation history was replaced wholesale (load/new/undo/fork) so frontends can re-render. */
     public void notifyHistoryChanged(String reason) {
+        // The anchor measured its gap against the messages that were just here, so it goes with them. Saying so at
+        // this one signal rather than at each mutator is what closes /undo: it edits the list in place, never touching
+        // clearMessages or restoreMessages, so it kept an anchor describing a conversation that no longer existed and
+        // the meter read high enough to trip auto-compaction early. A branch summary and tree navigation arrive here
+        // the same way. Every caller that does replace the list outright already resets on its own, so this is the
+        // in-place edits, and any mutator added later, for free.
+        resetContextAnchor();
         fireEvent(new AgentEvent.HistoryChanged(reason));
     }
 

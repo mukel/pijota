@@ -320,6 +320,29 @@ class AgentLoopTest {
                                         "replacing the message set must reset the stale overhead anchor");
     }
 
+    /**
+     * /undo edits the list in place -- it never calls clearMessages or restoreMessages -- so it slipped past the resets
+     * those two carry and kept an anchor measured against the turn it had just removed. The meter then read high by
+     * that turn's whole underestimate, which is enough to trip auto-compaction on a conversation that just got smaller.
+     * Reaching it through the session, because notifyHistoryChanged is what the undo path actually goes through.
+     */
+    @Test
+    void undoDropsTheAnchorMeasuredAgainstTheUndoneTurn() throws Exception {
+        var llm = new FauxLlm();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+        long baseline = agent.contextOverhead(); // no tools → 0
+
+        agent.addSystemPrompt("sys");
+        llm.enqueue(FauxLlm.Response.content(new Usage(50_000, 10), "ok"));
+        agent.prompt("a big turn " + "x".repeat(4000)).get(2, TimeUnit.SECONDS);
+        assertTrue(agent.contextOverhead() > baseline, "a real response anchors the overhead above baseline");
+
+        agent.undoLastUserTurn();
+        agent.notifyHistoryChanged("undo"); // what PijotaSession.undoLastUserTurn does on success
+
+        assertEquals(baseline, agent.contextOverhead(), "the undone turn took its share of the gap with it");
+    }
+
     @Test
     void compactionResetsTheStaleContextOverheadAnchor() throws Exception {
         var summarizer = (CompactionManager.SummaryGenerator) (msgs, instr, prev, onPart) -> "summary";
