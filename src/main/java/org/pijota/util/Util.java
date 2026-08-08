@@ -326,8 +326,10 @@ public final class Util {
     }
 
     public static String fmtCount(long value) {
+        // 1M, not 1.0M: two columns saved on a figure that is on screen constantly, and the same spelling the model
+        // catalogue and /goal's own "1M" budgets use. A real fraction still shows, as 1.5M.
         if (value >= 1_000_000)
-            return String.format(Locale.ROOT, "%.1fM", value / 1_000_000.0);
+            return trimZeros(String.format(Locale.ROOT, "%.1f", value / 1_000_000.0)) + "M";
         if (value >= 1_000)
             return (value / 1_000) + "K";
         return Long.toString(value);

@@ -317,7 +317,9 @@ class UtilTest {
         assertEquals("999", Util.fmtCount(999));
         assertEquals("1K", Util.fmtCount(1000));
         assertEquals("999K", Util.fmtCount(999_999));
-        assertEquals("1.0M", Util.fmtCount(1_000_000));
+        assertEquals("1M", Util.fmtCount(1_000_000), "not 1.0M: two columns on a figure that is always on screen");
+        assertEquals("1M", Util.fmtCount(1_048_576), "2^20 is the same window to a reader");
+        assertEquals("1.5M", Util.fmtCount(1_500_000), "a real fraction still shows");
     }
 
     @Test
