@@ -362,6 +362,8 @@ public final class WebServer implements AutoCloseable {
             // it.
             for (Map<String, Object> dialog : ui.pendingDialogs())
                 client.write(frame("dialog", Util.MAPPER.writeValueAsString(dialog)));
+            if (padForBufferingProxy)
+                client.write(FlushPad.BYTES); // see FlushPad: pushes the replay past the proxy's buffer threshold
             client.await(); // parked until a write fails (disconnect) or the server closes
         } catch (IOException ignored) {
             // client went away before/while replaying history
@@ -760,7 +762,31 @@ public final class WebServer implements AutoCloseable {
         };
     }
 
+    private volatile boolean padForBufferingProxy;
+
+    /**
+     * Tell this server it sits behind a proxy that buffers {@code text/event-stream}, so each new connection gets the
+     * {@link FlushPad} that shakes the history replay loose. Off by default: only the Cloudflare channel needs it.
+     */
+    public void padForBufferingProxy() {
+        this.padForBufferingProxy = true;
+    }
+
     private static final byte[] PING = ": ping\n\n".getBytes(StandardCharsets.UTF_8);
+
+    /**
+     * 128KB SSE comment, written once on connect so a buffering proxy releases the history replay instead of holding
+     * it: Cloudflare's free edge flushes {@code text/event-stream} only about every 128KB, so without this the first
+     * screen of a tunnelled session arrives when the next 128KB does. A comment is a spec no-op the parser skips.
+     *
+     * <p>
+     * Held in a holder so it is built on first use. Only the Cloudflare channel asks for it; a local browser, the LAN
+     * bind and {@code tailscale serve} do not buffer, and paying 128KB per connection (and in the native image's heap)
+     * for a problem they do not have is a cost with no buyer.
+     */
+    private static final class FlushPad {
+        static final byte[] BYTES = (": " + "x".repeat(128 * 1024 - 4) + "\n\n").getBytes(StandardCharsets.UTF_8);
+    }
 
     /** One browser's SSE pipe. Writes are serialized; a failed write means the tab is gone. */
     private static final class SseClient {

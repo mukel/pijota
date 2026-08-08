@@ -943,17 +943,38 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!v) showToast("Connection lost, reconnecting…", true);
   }
   function connect() {
-    const es = new EventSource("/events");
-    es.addEventListener("open", () => { conn.classList.add("on"); reconnectDelay = 1000; setOnline(true); });
-    es.addEventListener("error", () => {
-      conn.classList.remove("on");
-      setOnline(false);
-      // EventSource auto-retries while CONNECTING, but a CLOSED stream is terminal, so reconnect ourselves (capped backoff).
-      if (es.readyState === EventSource.CLOSED) {
-        setTimeout(connect, reconnectDelay);
-        reconnectDelay = Math.min(reconnectDelay * 2, 5000);
+    // POST, not EventSource: a Cloudflare quick tunnel buffers text/event-stream over GET (flushing ~every 128KB),
+    // so the chat would render history but never stream live. POST streams unbuffered (cloudflared #1449), so we
+    // fetch and parse the SSE wire format (event:/data: frames) by hand; comment lines (heartbeats, pad) are skipped.
+    const handlers = new Map(), ctrl = new AbortController();
+    let alive = true;
+    const es = { addEventListener: (n, fn) => handlers.set(n, fn), close: () => { alive = false; ctrl.abort(); } };
+    const fire = (n, d) => { const h = handlers.get(n); if (h) h({ data: d }); };
+    const reopen = () => {
+      conn.classList.remove("on"); setOnline(false);
+      if (alive) { setTimeout(connect, reconnectDelay); reconnectDelay = Math.min(reconnectDelay * 2, 5000); }
+    };
+    fetch("/events", { method: "POST", signal: ctrl.signal }).then(async res => {
+      if (!res.ok || !res.body) { reopen(); return; }
+      conn.classList.add("on"); reconnectDelay = 1000; setOnline(true); // the "open" moment
+      const reader = res.body.getReader(), dec = new TextDecoder();
+      let buf = "", ev = "message", data = [];
+      const dispatch = () => { if (data.length) fire(ev, data.join("\n")); ev = "message"; data = []; };
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).replace(/\r$/, ""); buf = buf.slice(nl + 1);
+          if (line === "") dispatch();
+          else if (line.startsWith("event:")) ev = line.slice(6).trim();
+          else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+          // lines starting with ":" are comments — ignore
+        }
       }
-    });
+      reopen(); // clean server close → reconnect
+    }).catch(err => { if (alive && err.name !== "AbortError") reopen(); });
 
     es.addEventListener("history", e => {
       thread.innerHTML = ""; toolCards.clear(); live = null; activityBubble = null; sessionModalities.clear(); // replay re-populates it
