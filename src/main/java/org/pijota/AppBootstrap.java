@@ -35,6 +35,7 @@ import org.pijota.extensions.task.TaskTool;
 import org.pijota.extensions.tmux.TmuxExtension;
 import org.pijota.extensions.transcend.TranscendenceExtension;
 import org.pijota.llm.LlmService;
+import org.pijota.llm.ModelRefresher;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.ModelResolver;
 import org.pijota.llm.ThinkingLevel;
@@ -190,6 +191,11 @@ public final class AppBootstrap {
         ext.setSystemPrompt(systemPrompt);
         StartupTimer.mark("system prompt built");
 
+        // Ask a local server what it is serving before anything reads a window: n_ctx belongs to the server process,
+        // so the cached number is only as good as that process's last launch. One loopback GET, skipped entirely for
+        // remote providers, and a refused connection answers instantly -- the cached value stands if it cannot answer.
+        ModelRegistry.recordServedContextWindow(provider, ModelRefresher.servedContextWindow(
+                                        Proxies.httpClientBuilder().build(), ProviderCatalog.baseUrl(provider)));
         int contextWindow = (int) ModelRegistry.resolveContextWindow(provider, model);
 
         int maxTurns = parsedArgs.maxTurns() != null ? parsedArgs.maxTurns() : settings.maxTurns();

@@ -45,6 +45,7 @@ public final class IsolatedGlobals implements BeforeEachCallback, AfterEachCallb
     @Override
     public void afterEach(ExtensionContext context) {
         ModelRegistry.KNOWN_MODELS = models;
+        ModelRegistry.clearServedContextWindows(); // a probed window belongs to one run against one server
         // Write-only from here, so the reset is to "nothing attached", which is the state a fresh process starts in.
         SlashCommandTool.setQuestionHandler(null);
         ProviderCatalog.registerUserProviders(List.of());

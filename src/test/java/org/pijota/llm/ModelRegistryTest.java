@@ -155,6 +155,27 @@ class ModelRegistryTest {
         assertEquals("some-local-finetune", resolved.model());
     }
 
+    /**
+     * The probed window has to reach every consumer, not just the one that asked. The compaction threshold and the
+     * status line resolve the window separately, so a fix that only told one of them left the display reading 65K
+     * against a server serving 8K -- measured, and wrong.
+     */
+    @Test
+    void aProbedWindowOverridesTheCatalogueForEveryConsumer() {
+        String provider = ModelRegistry.KNOWN_MODELS.get(0).provider();
+        String model = ModelRegistry.KNOWN_MODELS.get(0).id();
+        long catalogue = ModelRegistry.resolveContextWindow(provider, model);
+
+        ModelRegistry.recordServedContextWindow(provider, 8192);
+
+        assertEquals(8192L, ModelRegistry.resolveContextWindow(provider, model),
+                                        "what the server says it serves wins over what the catalogue remembers");
+        assertNotEquals(catalogue, 8192L, "the test would prove nothing if the catalogue already said 8192");
+
+        ModelRegistry.clearServedContextWindows();
+        assertEquals(catalogue, ModelRegistry.resolveContextWindow(provider, model), "and it is not persisted");
+    }
+
     @Test
     void defaultModelForProviderIgnoresUnknownProviders() {
         assertNull(ModelRegistry.defaultModelForProvider("nonexistent-xyz"));

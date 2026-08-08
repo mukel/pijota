@@ -162,50 +162,25 @@ public final class ModelRefresher {
             var input = item.path("supports_image_input").asBoolean(false) ? List.of("text", "image") : null;
             out.add(new ModelInfo(id, provider.id(), displayName(id), contextWindow, null, null, input));
         }
-        applyServedContextWindow(client, baseUrl, out);
         return out;
     }
 
     /**
-     * Fills in the context length for models whose {@code /models} entry did not report one, by asking the server what
-     * it was actually started with.
+     * What a local server says it is currently serving, or 0 if it does not say.
      *
      * <p>
-     * llama.cpp-shaped local servers (llama-server, jinfer) publish nothing about context in {@code /models}, so every
-     * model fell back to 128k and pijota then displayed that as though it had been measured -- a status line reading
-     * {@code 4K/128K} against a server serving 64k, and an auto-compaction threshold that could never fire. The number
-     * that binds is the runtime {@code n_ctx} at {@code /props} (root, not under {@code /v1}).
+     * {@code n_ctx} belongs to the server process, not to the model: it is whatever {@code -c} that launch chose, so
+     * unlike everything else in the catalogue it stops being true when the server restarts. A caller that needs it to
+     * be right -- the compaction threshold -- asks again rather than trusting a remembered answer.
      *
      * <p>
-     * {@code n_ctx_train} sits next to it and is deliberately ignored: that is the model's trained ceiling, not what
-     * this server will serve. Reporting it would be exactly as wrong as the fallback while looking authoritative.
-     *
-     * <p>
-     * Asked only of a server on this machine or this network, and only when the list left us guessing. Most hosted
-     * providers report no per-model context either, so "did anything fall back?" alone would have put an extra
-     * round-trip in front of every one of them -- sequentially, on the {@code /login} path, at up to the timeout each
-     * against a host that blackholes instead of refusing. Only a local server can answer this anyway. Best effort
-     * throughout: a 404, a non-JSON body or a timeout leaves the fallback in place.
+     * Only ever asked of a host on this machine or network: every remote provider would 404 it, and asking would put a
+     * speculative round-trip in front of each of them.
      */
-    private static void applyServedContextWindow(HttpClient client, String baseUrl, List<ModelInfo> models) {
-        if (models.stream().noneMatch(m -> m.contextWindow() == DEFAULT_CONTEXT_WINDOW))
-            return;
-        if (!Util.isInternalAddress(URI.create(baseUrl).getHost()))
-            return;
-        long served = servedContextWindow(client, baseUrl.replaceAll("/+$", "").replaceAll("/v\\d+$", ""));
-        if (served <= 0)
-            return;
-        models.replaceAll(m -> m.contextWindow() == DEFAULT_CONTEXT_WINDOW
-                                        ? new ModelInfo(m.id(), m.provider(), m.displayName(), served,
-                                                                        m.inputCostPerMTok(), m.outputCostPerMTok(),
-                                                                        m.input(), m.pricingTiers())
-                                        : m);
-    }
-
-    /**
-     * The {@code n_ctx} a llama.cpp-shaped server reports at {@code root/props}, or 0 if it does not answer with one.
-     */
-    private static long servedContextWindow(HttpClient client, String root) {
+    public static long servedContextWindow(HttpClient client, String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank() || !Util.isInternalAddress(URI.create(baseUrl).getHost()))
+            return 0;
+        String root = baseUrl.replaceAll("/+$", "").replaceAll("/v\\d+$", "");
         try {
             var request = HttpRequest.newBuilder().uri(URI.create(root + "/props")).timeout(Duration.ofSeconds(5)).GET()
                                             .build();

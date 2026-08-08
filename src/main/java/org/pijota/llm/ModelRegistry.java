@@ -19,8 +19,10 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public final class ModelRegistry {
@@ -233,9 +235,34 @@ public final class ModelRegistry {
         return prev[b.length()];
     }
 
+    /**
+     * What a local server told us it is serving this run, by provider id.
+     *
+     * <p>
+     * Everything else in the catalogue is a property of the model and survives a restart. {@code n_ctx} is a property
+     * of the server process -- whatever {@code -c} its launch chose -- so it is held here, in memory, and never written
+     * to the model cache: a remembered value would come back after the server had been restarted at a different size,
+     * and read as measured. Asked once at startup, and it applies to every consumer because they all arrive through
+     * {@link #resolveContextWindow}.
+     */
+    private static final Map<String, Long> SERVED_CONTEXT = new ConcurrentHashMap<>();
+
+    /** Forgets every probed window. For tests: this is process-wide state, and it must not cross between them. */
+    public static void clearServedContextWindows() {
+        SERVED_CONTEXT.clear();
+    }
+
+    public static void recordServedContextWindow(String provider, long window) {
+        if (provider != null && window > 0)
+            SERVED_CONTEXT.put(provider.toLowerCase(Locale.ROOT), window);
+    }
+
     public static long resolveContextWindow(String provider, String model) {
         if (provider == null || model == null)
             return DEFAULT_CONTEXT_WINDOW;
+        Long served = SERVED_CONTEXT.get(provider.toLowerCase(Locale.ROOT));
+        if (served != null)
+            return served;
         return KNOWN_MODELS.stream().filter(
                                         m -> m.provider().equalsIgnoreCase(provider) && m.id().equalsIgnoreCase(model))
                                         .findFirst().or(() -> byId(model)).map(ModelInfo::contextWindow)

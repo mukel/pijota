@@ -19,83 +19,40 @@ class ModelRefresherTest {
         return new ProviderCatalog.Provider(id, id, "openai", "https://api.test/v1", null, null, null, null, null);
     }
 
-    /** A server on this machine, which is the only kind asked what context it serves. */
-    private static ProviderCatalog.Provider localProvider(String id) {
-        return new ProviderCatalog.Provider(id, id, "openai", "http://127.0.0.1:11434/v1", null, null, null, null,
-                                        null);
-    }
-
-    @Test
-    void fetchParsesTheOpenAiDataArrayAndSkipsBlankIds() throws Exception {
-        var json = "{\"data\":[{\"id\":\"gpt-x\"},{\"id\":\"gpt-y\"},{\"id\":\"\"}]}";
-
-        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("test"), "tok", null,
-                                        false);
-
-        assertEquals(2, models.size(), models.toString());
-        assertEquals("gpt-x", models.get(0).id());
-        assertEquals("test", models.get(0).provider());
-    }
-
     /**
-     * llama.cpp-shaped servers report nothing about context in {@code /models}, so every model took the 128k fallback
-     * and pijota showed it as measured: a status line reading {@code 4K/128K} against a server serving 64k, and an
-     * auto-compaction threshold that could never fire. The binding number is the runtime {@code n_ctx} at
-     * {@code /props}, which sits at the root rather than under {@code /v1}.
+     * n_ctx belongs to the server process, not the model, so it is asked for directly rather than remembered. Only of a
+     * local server: every remote provider would 404 it, and asking would put a speculative round-trip in front of each.
      */
     @Test
-    void aServerThatReportsNoContextIsAskedWhatItWasStartedWith() throws Exception {
-        var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gemma-4.gguf\"}]}",
-                                        "{\"n_ctx\":65536,\"n_ctx_train\":131072,\"model\":\"gemma-4.gguf\"}");
+    void theServedWindowIsAskedForDirectlyAndOnlyOfALocalServer() throws Exception {
+        var local = FakeHttpClient.ok("{\"n_ctx\":8192,\"n_ctx_train\":131072}");
+        assertEquals(8192L, ModelRefresher.servedContextWindow(local, "http://127.0.0.1:11434/v1"));
 
-        var models = ModelRefresher.fetchOpenAiCompatible(client, localProvider("local"), "tok", null, false);
-
-        assertEquals(65536L, models.get(0).contextWindow(),
-                                        "n_ctx is what one request gets; 128000 was invented and 131072 is the "
-                                                                        + "model's trained ceiling, not this server's");
-        assertEquals("http://127.0.0.1:11434/props", client.lastRequest().uri().toString(),
-                                        "/props lives at the root, not under /v1");
+        var remote = FakeHttpClient.ok("{\"n_ctx\":8192}");
+        assertEquals(0L, ModelRefresher.servedContextWindow(remote, "https://api.test/v1"),
+                                        "a remote host must not be asked, whatever it would have said");
+        assertEquals(0L, ModelRefresher.servedContextWindow(local, null), "no base URL, nothing to ask");
     }
 
-    /** A provider that reported its context must never be sent a second request. */
+    /** A server that says nothing leaves the catalogue's answer alone rather than zeroing it. */
     @Test
-    void aServerThatReportsItsContextIsNotAskedAgain() throws Exception {
-        var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gpt-x\",\"context_length\":200000}]}",
-                                        "{\"n_ctx\":4096}");
-
-        var models = ModelRefresher.fetchOpenAiCompatible(client, provider("hosted"), "tok", null, false);
-
-        assertEquals(200000L, models.get(0).contextWindow());
-        assertTrue(client.lastRequest().uri().toString().contains("/models"),
-                                        "the reported context settles it; /props must not be reached");
+    void aServerThatDoesNotAnswerLeavesTheCatalogueValue() throws Exception {
+        assertEquals(0L, ModelRefresher.servedContextWindow(FakeHttpClient.ok("not json"),
+                                        "http://127.0.0.1:11434/v1"));
+        assertEquals(0L, ModelRefresher.servedContextWindow(FakeHttpClient.status(404, "nope"),
+                                        "http://127.0.0.1:11434/v1"));
     }
 
-    /**
-     * Most hosted providers report no per-model context either, so "did anything fall back?" alone put a speculative
-     * round-trip in front of every one of them -- sequentially, on the /login path, at up to the timeout each against a
-     * host that blackholes rather than refuses. Only a local server can answer this anyway.
-     */
+    /** Nothing per-server reaches the model cache any more: it would come back after a restart looking measured. */
     @Test
-    void aRemoteProviderIsNeverAskedWhatContextItServes() throws Exception {
-        var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gpt-x\"}]}", "{\"n_ctx\":4096}");
+    void aLocalServersWindowIsNeverStampedOntoTheCatalogueRows() throws Exception {
+        var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gemma.gguf\"}]}", "{\"n_ctx\":8192}");
 
-        var models = ModelRefresher.fetchOpenAiCompatible(client, provider("hosted"), "tok", null, false);
+        var models = ModelRefresher.fetchOpenAiCompatible(client, provider("local"), "tok", null, false);
 
-        assertEquals(128_000L, models.get(0).contextWindow(), "a remote /props answer must not be consulted at all");
-        assertTrue(client.lastRequest().uri().toString().contains("/models"),
-                                        "no second request should have left the building: "
-                                                                        + client.lastRequest().uri());
-    }
-
-    /** No /props (every hosted provider 404s it) leaves the fallback in place rather than failing the refresh. */
-    @Test
-    void aMissingPropsEndpointLeavesTheFallback() throws Exception {
-        var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gpt-x\"}]}", "not found");
-
-        var models = ModelRefresher.fetchOpenAiCompatible(client, localProvider("local"), "tok", null, false);
-
-        assertEquals(1, models.size(), "a 200 that is not JSON we understand must not lose the model");
-        assertEquals(128_000L, models.get(0).contextWindow());
+        assertEquals(128_000L, models.get(0).contextWindow(),
+                                        "the row keeps the catalogue default; the served window is resolved live");
+        assertTrue(client.lastRequest().uri().toString().contains("/models"), "and /props is not consulted here");
     }
 
     @Test
