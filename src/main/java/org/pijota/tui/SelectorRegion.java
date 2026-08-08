@@ -28,10 +28,11 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
 
         var rows = new ArrayList<String>();
         rows.add(theme.styled("hr", selector.title() + (total > 0 ? "  " + total : "")));
+        String hint = TuiCopy.selectorHint(selector.extraHint());
 
         if (total == 0) {
             rows.add(theme.styled("statusText", selector.itemCount() == 0 ? "  nothing to show" : "  no matches"));
-            rows.add(TuiCopy.footer(theme, width, "", TuiCopy.SELECTOR_HINT));
+            rows.add(TuiCopy.footer(theme, width, "", hint));
             return Body.of(rows);
         }
 
@@ -61,7 +62,7 @@ public final class SelectorRegion<T extends SelectorItem> implements PromptRegio
         if (start + MAX_VISIBLE < total)
             rows.add(theme.styled("dim", "  ↓ " + (total - start - MAX_VISIBLE) + " more below"));
 
-        rows.add(TuiCopy.footer(theme, width, (sel + 1) + "/" + total, TuiCopy.SELECTOR_HINT));
+        rows.add(TuiCopy.footer(theme, width, (sel + 1) + "/" + total, hint));
         return Body.of(rows);
     }
 

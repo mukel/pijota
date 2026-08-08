@@ -170,6 +170,34 @@ class SelectorRegionTest {
     }
 
     @Test
+    void slotSpecificActionAppearsInTheFooterAheadOfTypeToSearch() {
+        // The sessions picker deletes with Ctrl+D, but the footer only named the generic chips; the one action the
+        // picker adds was invisible unless you had already read the status line or /help.
+        var selector = new Selector<>(List.<SelectorItem>of(new CompletionItem("alpha", "desc A")));
+        selector.setExtraHint("Ctrl+D delete");
+        selector.activate("");
+        var region = new SelectorRegion<>(selector);
+
+        String footer = compose(region).rows().getLast();
+        assertTrue(footer.contains("Ctrl+D delete"), AnsiStripper.strip(footer));
+        String plain = AnsiStripper.strip(footer);
+        assertTrue(plain.indexOf("Ctrl+D delete") < plain.indexOf("type to search"),
+                                        "the extra chip goes before the most droppable one: " + plain);
+    }
+
+    @Test
+    void blankExtraHintKeepsTheGenericFooter() {
+        var selector = new Selector<>(List.<SelectorItem>of(new CompletionItem("alpha", "desc A")));
+        selector.setExtraHint(" ");
+        selector.activate("");
+        var region = new SelectorRegion<>(selector);
+
+        String plain = AnsiStripper.strip(compose(region).rows().getLast());
+        assertTrue(plain.contains("type to search"), plain);
+        assertFalse(plain.contains("  ·  · "), "no empty chip: " + plain);
+    }
+
+    @Test
     void scrolledListShowsBothScrollIndicators() {
         var items = new ArrayList<SelectorItem>();
         for (int i = 0; i < 12; i++)

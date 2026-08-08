@@ -8,21 +8,28 @@ import java.util.function.Predicate;
 
 final class TuiSelectors {
     enum Slot {
-        MODEL(ModelItem.class, "models"), SESSION(SessionItem.class, "sessions"), TREE(TreeEntryItem.class,
-                                        "conversation tree"), THEME(ThemeItem.class, "themes"), SETTINGS(
-                                                                        SettingsItem.class,
-                                                                        "settings"), LOGIN(LoginProviderItem.class,
-                                                                                                        "providers"), FORK(ForkMessageItem.class,
-                                                                                                                                        "fork from"), PALETTE(CompletionItem.class,
-                                                                                                                                                                        "command palette"), REMOTE(RemoteOptionItem.class,
-                                                                                                                                                                                                        "remote control");
+        MODEL(ModelItem.class, "models"), //
+        SESSION(SessionItem.class, "sessions", "Ctrl+D delete"), //
+        TREE(TreeEntryItem.class, "conversation tree"), //
+        THEME(ThemeItem.class, "themes"), //
+        SETTINGS(SettingsItem.class, "settings"), //
+        LOGIN(LoginProviderItem.class, "providers"), //
+        FORK(ForkMessageItem.class, "fork from"), //
+        PALETTE(CompletionItem.class, "command palette"), //
+        REMOTE(RemoteOptionItem.class, "remote control");
 
         private final Class<? extends SelectorItem> itemType;
         private final String title;
+        private final String hint; // extra footer chip, "" for the generic hints only
 
         Slot(Class<? extends SelectorItem> itemType, String title) {
+            this(itemType, title, "");
+        }
+
+        Slot(Class<? extends SelectorItem> itemType, String title, String hint) {
             this.itemType = itemType;
             this.title = title;
+            this.hint = hint;
         }
     }
 
@@ -63,6 +70,7 @@ final class TuiSelectors {
     <T extends SelectorItem> void show(Slot slot, List<T> items, String query) {
         checkItems(slot, items);
         selector(slot).setTitle(slot.title);
+        selector(slot).setExtraHint(slot.hint);
         selector(slot).setItems(new ArrayList<>(items));
         selector(slot).activate(query);
     }

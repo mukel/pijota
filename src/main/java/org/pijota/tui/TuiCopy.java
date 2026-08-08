@@ -50,6 +50,23 @@ final class TuiCopy {
 
     static final String SELECTOR_HINT = "↑/↓ navigate · Enter select · Esc cancel · type to search";
 
+    /**
+     * The selector hint with a slot-specific action folded in ("Ctrl+D delete"), or the plain one when there is none.
+     * The extra chip lands before "type to search" because {@link #footer} sheds chips from the end on a narrow
+     * terminal, and an action you would never guess should outlive one you would.
+     *
+     * <p>
+     * Composed here rather than patched at the call site: a caller rewriting this string by searching for one of its
+     * words loses the chip silently the day the wording changes.
+     */
+    static String selectorHint(String extra) {
+        if (extra == null || extra.isBlank())
+            return SELECTOR_HINT;
+        return SELECTOR_HINT.replace(TYPE_TO_SEARCH, extra + CHIP + TYPE_TO_SEARCH);
+    }
+
+    private static final String TYPE_TO_SEARCH = "type to search";
+
     private TuiCopy() {}
 
     /**
