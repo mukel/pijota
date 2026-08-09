@@ -53,7 +53,7 @@ ignored.
 ```json
 {
   "app.command.palette": "ctrl+t",
-  "app.model.select": ["ctrl+l", "ctrl+n"]
+  "app.model.select": ["ctrl+l", "ctrl+t"]
 }
 ```
 
@@ -74,6 +74,10 @@ Editor and selector actions remap the same way: `tui.input.submit`, `tui.input.n
 `deleteWordForward` / `deleteToLineStart` / `deleteToLineEnd`, `tui.editor.undo`,
 `tui.editor.yank`, `tui.editor.yankPop`, `tui.select.up` / `down` / `pageUp` / `pageDown` /
 `confirm` / `cancel`.
+
+Not every `ctrl+` key can be bound: `ctrl+m` is Enter, `ctrl+h` is backspace, and `ctrl+c`, `ctrl+d` and
+`ctrl+z` are how a terminal interrupts, ends input and suspends. A name pijota cannot bind is
+reported on startup and the action keeps its default, rather than being dropped in silence.
 
 Key names: `ctrl+g`, `ctrl+l`, `ctrl+o`, `ctrl+p`, `ctrl+t`, `ctrl+shift+p`, `shift+tab`,
 `alt+up`, `alt+enter`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`,
