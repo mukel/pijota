@@ -1184,6 +1184,15 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                     clearStatusOverride();
                     redrawPrompt();
                 }
+            } catch (IOException terminalGone) {
+                // The read itself failed, which means the keyboard is gone: the pty closed, or whatever owned this
+                // terminal was killed. A keystroke that fails to handle is the inner catch's business and still
+                // reaches the branch below; this is the terminal, and there is nothing left to recover into and
+                // nothing to print onto. It used to dump the whole stack trace to the screen and then claim the
+                // terminal was "still active", which was both debugger output and untrue.
+                log.debug("Input loop ending, terminal unreadable: {}", ErrorUtil.message(terminalGone));
+                close();
+                break;
             } catch (Throwable e) {
                 // Throwable, not Exception: an Error such as NoClassDefFoundError (e.g. the jar was rebuilt under a
                 // running instance, so a lazily-loaded class vanished) must not kill the input thread and strand the
@@ -1792,8 +1801,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     private void cycleThinkingLevel() {
         thinkingLevel = thinkingLevel.next();
+        // This conversation only. session.setThinkingLevel records the change in the session's own history, so
+        // resuming comes back at the level you left it at -- but a key you press to look at the next option must not
+        // rewrite settings.json, which is the default every future session starts from. Cycling past MAX to read the
+        // labels quietly changed a configured MAX to MEDIUM for good, and nothing said so. The explicit way to move
+        // the default is to edit the setting or use the settings selector.
         session.setThinkingLevel(thinkingLevel);
-        settings.setThinkingLevel(thinkingLevel.name());
         // No transient line: the footer's own effort chip is the feedback. It sits a row below where the eye already
         // is, and it carries the level's colour, which says "you are at max" faster than a second row repeating the
         // word does.
