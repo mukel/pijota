@@ -37,8 +37,9 @@ class ChildEnvironmentTest {
     void whatIsUnknownIsUnsetRatherThanInherited() {
         var env = ChildEnvironment.of(null, null, null, null);
 
-        for (String key : env.keySet())
-            assertTrue(env.containsKey(key), key + " must be present so it can be unset");
+        assertEquals(java.util.Set.of("PIJOTA_PROVIDER", "PIJOTA_MODEL", "PIJOTA_REASONING_LEVEL",
+                                        "PIJOTA_SESSION_FILE", "PIJOTA_SESSION_ID", "PIJOTA_CODING_AGENT"),
+                                        env.keySet(), "every key is present so every one can be unset");
         assertNull(env.get("PIJOTA_PROVIDER"));
         assertNull(env.get("PIJOTA_REASONING_LEVEL"));
         assertNull(env.get("PIJOTA_SESSION_FILE"));

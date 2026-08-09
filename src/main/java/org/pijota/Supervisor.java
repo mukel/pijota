@@ -1,5 +1,6 @@
 package org.pijota;
 
+import org.pijota.util.ProcessRunner;
 import org.pijota.util.SelfRespawn;
 
 import org.slf4j.Logger;
@@ -19,12 +20,6 @@ final class Supervisor {
 
     /** The worker this supervisor is currently waiting on, so the shutdown hook can take it with us. */
     private static volatile Process worker;
-
-    /**
-     * How long a worker is given to leave on its own before it is taken down. Long enough for a TUI to put the terminal
-     * back, short enough that nobody waits on a process that is already gone.
-     */
-    private static final long GRACE_MILLIS = 2000;
 
     static int run(String[] originalArgs) throws IOException, InterruptedException {
         // Measured: without this, killing the supervisor left the worker running and reparented to systemd, still
@@ -72,19 +67,16 @@ final class Supervisor {
         }
     }
 
-    /** Asks the worker to leave, then insists. A worker that has already exited is left alone. */
+    /**
+     * Takes the worker with us, and its own children with it.
+     *
+     * <p>
+     * killTree, not a hand-rolled destroy: the worker spawns sub-agent JVMs and tunnel processes, and killing only the
+     * worker leaves those reparented and running -- which is the bug this whole hook exists to stop, one generation
+     * down.
+     */
     static void stopWorker() {
-        var child = worker;
-        if (child == null || !child.isAlive())
-            return;
-        child.destroy();
-        try {
-            if (!child.waitFor(GRACE_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS))
-                child.destroyForcibly();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            child.destroyForcibly();
-        }
+        ProcessRunner.killTree(worker);
     }
 
     /** Package-private so the -D propagation can be asserted; it has no other reason to be visible. */

@@ -1,6 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.agent.AgentEvent;
+import org.pijota.agent.ChildEnvironment;
 import org.pijota.agent.PijotaSession;
 import org.pijota.agent.SessionDescriptor;
 import org.pijota.config.PathDisplay;
@@ -648,22 +649,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
         @Override
         public Map<String, String> shellEnvironment() {
-            var env = new HashMap<String, String>();
-            env.put("PIJOTA_PROVIDER", null);
-            env.put("PIJOTA_MODEL", null);
-            env.put("PIJOTA_REASONING_LEVEL", null);
-            env.put("PIJOTA_SESSION_FILE", null);
-            env.put("PIJOTA_SESSION_ID", null);
-            env.put("PIJOTA_PROVIDER", provider);
-            env.put("PIJOTA_MODEL", model);
-            env.put("PIJOTA_REASONING_LEVEL", thinkingLevel.name().toLowerCase(Locale.ROOT));
-            if (session.sessionFile() != null) {
-                Path file = session.sessionFile();
-                env.put("PIJOTA_SESSION_FILE", file.toString());
-                String name = file.getFileName().toString();
-                env.put("PIJOTA_SESSION_ID", name.endsWith(".jsonl") ? name.substring(0, name.length() - 6) : name);
-            }
-            return env;
+            // The same set every other child gets. Hand-built here, it had already lost PIJOTA_CODING_AGENT, so a
+            // `!` command typed in the TUI could not see the variable docs/environment.md promises every bash
+            // command -- while the bash tool, built from the shared owner, could.
+            return ChildEnvironment.of(provider, model, thinkingLevel, session.sessionFile());
         }
 
         @Override
@@ -1654,10 +1643,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         try {
             suspendTui(false); // the editor takes over the alternate screen like fzf → no fresh-line, or a stale ─
                                // accumulates
-            String editor = settings != null
-                                            ? settings.effectiveEditor()
-                                            : System.getenv().getOrDefault("EDITOR",
-                                                                            Platform.isWindows() ? "notepad" : "vi");
+            String editor = settings != null ? settings.effectiveEditor() : Platform.defaultEditor();
             String shell = settings != null ? settings.effectiveShellPath() : Platform.defaultShell();
             var result = externalEditor.edit(shell, editor, promptEditor.text());
             resumeTui();

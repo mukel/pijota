@@ -1,5 +1,7 @@
 package org.pijota.llm;
 
+import org.pijota.util.Util;
+
 import java.util.Locale;
 
 /** Shared, terminal-friendly formatting for model capabilities. */
@@ -21,13 +23,11 @@ public final class ModelDisplay {
     public static String context(long contextWindow) {
         if (contextWindow <= 0)
             return "?";
-        if (contextWindow >= 1_000_000) {
-            // 1M, not 1.0M; 1.5M keeps the half that distinguishes it. Decided on the rounded figure, not the raw
-            // one: 1,048,576 is not a whole number of millions but rounds to one, so it took the decimal branch and
-            // printed "1.0M" in a list beside a 1,000,000-token model's "1M", making one window look like two.
-            String millions = String.format(Locale.ROOT, "%.1f", contextWindow / 1_000_000.0);
-            return (millions.endsWith(".0") ? millions.substring(0, millions.length() - 2) : millions) + "M";
-        }
+        // Util.fmtCount already spells millions this way, and was taught the same "1M, not 1.0M" rule in the same
+        // week. The K branch below genuinely differs: it rounds where fmtCount truncates, which is what keeps a
+        // 65536-token window reading as 66K rather than 65K.
+        if (contextWindow >= 1_000_000)
+            return Util.fmtCount(contextWindow);
         return Math.round(contextWindow / 1000.0) + "K";
     }
 

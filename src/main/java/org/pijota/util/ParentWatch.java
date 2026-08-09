@@ -28,7 +28,12 @@ public final class ParentWatch {
 
     /** Arms the watch if this process should die with its parent; returns whether it did. */
     public static boolean arm(boolean worker) {
-        return arm(worker, ProcessHandle.current().parent(), () -> System.exit(EXIT_PARENT_GONE));
+        // Checked before touching ProcessHandle: resolving the parent costs a couple of milliseconds of class init
+        // the first time, and every headless run, every sub-agent and every native launch would pay it to learn it
+        // is not a worker.
+        if (!worker)
+            return false;
+        return arm(true, ProcessHandle.current().parent(), () -> System.exit(EXIT_PARENT_GONE));
     }
 
     /**

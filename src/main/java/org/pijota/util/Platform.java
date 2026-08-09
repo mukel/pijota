@@ -34,6 +34,11 @@ public final class Platform {
         return isWindows() ? "bash" : "/bin/bash";
     }
 
+    /** The editor to open when nothing else says which; beside {@link #defaultShell} for the same reason. */
+    public static String defaultEditor() {
+        return isWindows() ? "notepad" : "vi";
+    }
+
     public static Path javaBinary() {
         return Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java");
     }

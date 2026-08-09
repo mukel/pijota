@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * style; frame advancement is driven by the caller's tick. Pure and unit-testable. Styles are held in insertion order
  * so {@link #toggle()} cycles deterministically.
  */
-final class WorkingAnimation {
+public final class WorkingAnimation {
 
     private static final Map<String, String[]> ANIMATIONS = new LinkedHashMap<>();
 
@@ -21,7 +21,8 @@ final class WorkingAnimation {
         ANIMATIONS.put("spinner", new String[] {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"});
     }
 
-    static final List<String> NAMES = List.copyOf(ANIMATIONS.keySet());
+    /** The styles that exist, from the table above: the source of truth a settings warning must quote. */
+    public static final List<String> NAMES = List.copyOf(ANIMATIONS.keySet());
 
     private final AtomicInteger frameIndex = new AtomicInteger();
     private volatile String style = "dots";

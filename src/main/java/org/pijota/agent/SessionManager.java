@@ -832,15 +832,6 @@ public final class SessionManager {
         return out;
     }
 
-    private static Usage deserializeUsage(Object raw) {
-        if (!(raw instanceof Map<?, ?> m))
-            return null;
-        return new Usage(SessionUsage.asLong(m.get("inputTokens")), SessionUsage.asLong(m.get("outputTokens")),
-                                        SessionUsage.asLong(m.get("cacheReadTokens")),
-                                        SessionUsage.asLong(m.get("cacheWriteTokens")),
-                                        SessionUsage.asLong(m.get("reasoningTokens")));
-    }
-
     @SuppressWarnings("unchecked")
     private static Message deserializeEntry(Map<String, Object> entry) {
         String type = (String) entry.getOrDefault("type", "message");
@@ -884,7 +875,7 @@ public final class SessionManager {
                     }).toList();
                 }
                 yield new Message.Assistant(id, ts, content, tcs, thinking, sourceProvider, sourceModel,
-                                                deserializeUsage(entry.get("usage")));
+                                                SessionUsage.usageFrom(entry.get("usage")));
             }
             case "tool", "tool_result" -> {
                 String tcId = (String) entry.get("tool_call_id");

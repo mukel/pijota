@@ -344,13 +344,11 @@ public final class Util {
      * {@code 1.22K}, {@code 12.3K}, {@code 1.05M}. For live counts where the integer-K rounding loses too much.
      */
     public static String fmtCountPrecise(long value) {
-        // The fixed form with the padding taken off. Only the mantissa is trimmed; the K or M on the end is put back,
-        // or "4.30K" would come out as "4.30K" (nothing to strip) and "4.00K" as "4.00K" rather than "4K".
-        String fixed = fmtCountFixed(value);
-        if (fixed.indexOf('.') < 0)
-            return fixed;
-        String unit = fixed.substring(fixed.length() - 1);
-        return trimZeros(fixed.substring(0, fixed.length() - 1)) + unit;
+        if (value >= 1_000_000)
+            return trimZeros(String.format(Locale.ROOT, "%.2f", value / 1_000_000.0)) + "M";
+        if (value >= 1_000)
+            return trimZeros(String.format(Locale.ROOT, "%.2f", value / 1_000.0)) + "K";
+        return Long.toString(value);
     }
 
     /**

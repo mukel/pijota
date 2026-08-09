@@ -57,7 +57,7 @@ public final class SessionUsage {
         return value == null || value.isBlank() ? fallback == null || fallback.isBlank() ? "unknown" : fallback : value;
     }
 
-    private static Usage usageFrom(Object raw) {
+    static Usage usageFrom(Object raw) {
         if (!(raw instanceof Map<?, ?> m))
             return null;
         return new Usage(asLong(m.get("inputTokens")), asLong(m.get("outputTokens")), asLong(m.get("cacheReadTokens")),

@@ -119,7 +119,7 @@ public final class SubAgentLauncher {
         // logs, sessions and trust decisions there.
         var command = new ArrayList<String>(List.of(Platform.javaBinary().toString(), "--enable-preview"));
         command.addAll(SelfRespawn.jvmOptions());
-        command.addAll(List.of("-cp", resolveClasspath(cwd), "org.pijota.Main"));
+        command.addAll(List.of("-cp", absolutize(resolveClasspath(cwd)), "org.pijota.Main"));
         return command;
     }
 
@@ -128,7 +128,6 @@ public final class SubAgentLauncher {
                                         () -> new IllegalStateException("cannot resolve current executable"));
     }
 
-    /** The classpath to launch the child with: the parent's classpath, with fat-jar / target-classes fallbacks. */
     /**
      * The parent's classpath, with every entry made absolute.
      *
@@ -146,10 +145,11 @@ public final class SubAgentLauncher {
                                         .collect(Collectors.joining(File.pathSeparator));
     }
 
+    /** The classpath to launch the child with: the parent's classpath, with fat-jar / target-classes fallbacks. */
     private static String resolveClasspath(String cwd) {
         String cp = System.getProperty("java.class.path");
         if (cp != null && !cp.isBlank())
-            return absolutize(cp);
+            return cp;
         try {
             var ourCode = Path.of(SubAgentLauncher.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             if (Files.exists(ourCode) && ourCode.toString().endsWith(".jar"))

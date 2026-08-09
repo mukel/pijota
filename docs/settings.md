@@ -36,7 +36,7 @@
 | `themes` | string[] | `[]` | extra theme files to load |
 | `markdown` | string | `"rich"` | `rich`, or `plain` |
 | `path_display` | string | `"compact"` | `full`, `relative`, `compact`, `name` |
-| `working_animation` | string | `"dots"` | `dots`, `moon`, `bar`, `braille`, `none` |
+| `working_animation` | string | `"dots"` | `dots`, `moon`, `spinner` |
 | `quiet_startup` | boolean | `false` | skip the startup header |
 | `prompt` | object | - | glyphs, below |
 

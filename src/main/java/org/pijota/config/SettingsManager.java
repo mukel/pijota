@@ -1,10 +1,12 @@
 package org.pijota.config;
 
 import org.pijota.llm.ThinkingLevel;
+import org.pijota.tui.WorkingAnimation;
 import org.pijota.util.ErrorUtil;
 import org.pijota.util.PijotaHome;
 import org.pijota.util.Platform;
 import org.pijota.util.SelfRespawn;
+import org.pijota.util.Util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,10 +62,11 @@ public final class SettingsManager {
         String thinking = config.thinkingLevel();
         if (thinking != null && !thinking.isBlank() && !ThinkingLevel.isKnown(thinking))
             warnings.add(notOneOf("thinking_level", thinking, ThinkingLevel.names()));
-        var animationValues = List.of("dots", "moon", "bar", "braille", "none");
+        // From the type that owns them, like the two checks above. Hand-copied, the list had drifted: it offered
+        // bar, braille and none, none of which exist, and rejected spinner, which does.
         String animation = config.workingAnimation();
-        if (animation != null && !animation.isBlank() && !animationValues.contains(animation))
-            warnings.add(notOneOf("working_animation", animation, animationValues));
+        if (animation != null && !animation.isBlank() && !WorkingAnimation.NAMES.contains(animation))
+            warnings.add(notOneOf("working_animation", animation, WorkingAnimation.NAMES));
         if (config.maxTurns() != null && config.maxTurns() < 0)
             warnings.add("max_turns below 0 is treated as unlimited; use 0 for that explicitly");
         warnings.addAll(ProviderCatalog.validateUserProviders(config.providers()));
@@ -285,15 +288,8 @@ public final class SettingsManager {
      * the other a line editor, and this opens a full screen.
      */
     public String effectiveEditor() {
-        String configured = config.editor();
-        if (configured != null && !configured.isBlank())
-            return configured.trim();
-        for (String name : List.of("VISUAL", "EDITOR")) {
-            String value = System.getenv(name);
-            if (value != null && !value.isBlank())
-                return value.trim();
-        }
-        return Platform.isWindows() ? "notepad" : "vi";
+        String editor = Util.coalesce(config.editor(), System.getenv("VISUAL"), System.getenv("EDITOR"));
+        return editor != null ? editor.trim() : Platform.defaultEditor();
     }
 
     public String apiKeyHint(String provider) {
