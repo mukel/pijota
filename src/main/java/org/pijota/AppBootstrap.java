@@ -211,41 +211,13 @@ public final class AppBootstrap {
         ext.register(new CoreCommandsExtension(session, settings, jobRegistry));
         boolean loadedSession = false;
         try {
-            if (parsedArgs.sessionPath() != null) {
-                session.load(parsedArgs.sessionPath());
+            loadedSession = openRequestedSession(parsedArgs, session);
+            // Once, for whichever way the session was opened. Each of the four arms used to carry its own copy of
+            // this pair, so a fifth way to open one would have started with the model and thinking level of the
+            // command line rather than of the conversation, and nothing would have said so.
+            if (loadedSession) {
                 restoreSessionModel(session, settings);
                 restoreSessionThinkingLevel(session);
-                loadedSession = true;
-            } else if (parsedArgs.recoverSession()) {
-                Path recovery = SelfRespawn.readRecoverySession();
-                if (recovery != null) {
-                    session.load(recovery);
-                    restoreSessionModel(session, settings);
-                    restoreSessionThinkingLevel(session);
-                    loadedSession = true;
-                    SelfRespawn.clearRecoveryFile();
-                } else {
-                    // Only the log knew, so --recover after a crash looked like it had worked: a normal startup, and
-                    // the loss discovered later when the model has no memory of the conversation. Say it on screen,
-                    // and name the flags that do resume an ordinary session.
-                    System.err.println("pijota: no interrupted self-rebuild to recover; starting fresh."
-                                                    + " For an ordinary session use -c (continue last) or -r (pick).");
-                }
-            } else if (parsedArgs.continueSession()) {
-                session.continueLastSession();
-                restoreSessionModel(session, settings);
-                restoreSessionThinkingLevel(session);
-                loadedSession = true;
-            } else if (parsedArgs.forkPath() != null) {
-                // Load, then immediately branch into a copy, so the run continues from the named session's history
-                // with the named session itself left untouched -- which is the whole point of forking rather than
-                // resuming. The flag was parsed and stored and nothing read it, so --fork <id> silently started a
-                // fresh session instead.
-                session.load(parsedArgs.forkPath());
-                session.cloneCurrentBranch();
-                restoreSessionModel(session, settings);
-                restoreSessionThinkingLevel(session);
-                loadedSession = true;
             }
         } catch (IOException e) {
             logger.warn("Failed to load session ({}); starting fresh", e.getMessage());
@@ -470,6 +442,49 @@ public final class AppBootstrap {
         if (flagKey == null || flagKey.isBlank())
             return settings::resolveApiKey;
         return p -> p != null && p.equals(provider) ? flagKey : settings.resolveApiKey(p);
+    }
+
+    /**
+     * Opens whichever session the flags asked for, and says whether one was opened.
+     *
+     * <p>
+     * Only the opening: what follows an open is the same whichever door was used, and lives at the call site. The order
+     * is the precedence -- an explicit {@code --session} beats a recovery, which beats {@code -c}, which beats a fork
+     * -- and putting each door in its own arm is what makes that precedence readable as a list.
+     */
+    static boolean openRequestedSession(Args args, PijotaSession session) throws IOException { // package-private for
+                                                                                               // tests
+        if (args.sessionPath() != null) {
+            session.load(args.sessionPath());
+            return true;
+        }
+        if (args.recoverSession()) {
+            Path recovery = SelfRespawn.readRecoverySession();
+            if (recovery == null) {
+                // Only the log knew, so --recover after a crash looked like it had worked: a normal startup, and the
+                // loss discovered later when the model has no memory of the conversation. Say it on screen, and name
+                // the flags that do resume an ordinary session.
+                System.err.println("pijota: no interrupted self-rebuild to recover; starting fresh."
+                                                + " For an ordinary session use -c (continue last) or -r (pick).");
+                return false;
+            }
+            session.load(recovery);
+            SelfRespawn.clearRecoveryFile();
+            return true;
+        }
+        if (args.continueSession()) {
+            session.continueLastSession();
+            return true;
+        }
+        if (args.forkPath() != null) {
+            // Load, then immediately branch into a copy, so the run continues from the named session's history with
+            // the named session itself left untouched -- which is the whole point of forking rather than resuming.
+            // The flag was parsed and stored and nothing read it, so --fork <id> silently started a fresh session.
+            session.load(args.forkPath());
+            session.cloneCurrentBranch();
+            return true;
+        }
+        return false;
     }
 
     private static void restoreSessionModel(PijotaSession session, SettingsManager settings) throws IOException {

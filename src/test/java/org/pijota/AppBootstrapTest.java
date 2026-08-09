@@ -421,4 +421,43 @@ class AppBootstrapTest {
         assertEquals("stored", resolver.apply("openai"), "openai must not be handed anthropic's key");
         assertDoesNotThrow(() -> resolver.apply(null));
     }
+
+    /**
+     * Which door opens the session, and in what order. The four ways in used to be four arms that each repeated the
+     * model and thinking-level restore afterwards; the restore is now written once at the call site, which only works
+     * if this reports honestly whether anything was opened.
+     */
+    @Test
+    void anExplicitSessionBeatsContinuingTheLastOne() throws Exception {
+        var ts = org.pijota.agent.TestSession.in(tempDir).build();
+        Path wanted = ts.sessionManager().createSession(tempDir.toString());
+        Path newer = ts.sessionManager().createSession(tempDir.toString());
+        // Two sessions, and the one -c would reach is deliberately not the one named: with a single session on disk
+        // both doors open the same file and the precedence is unobservable. Stamped rather than assumed, because two
+        // files created in the same millisecond tie.
+        java.nio.file.Files.setLastModifiedTime(wanted, java.nio.file.attribute.FileTime.fromMillis(1_000_000));
+        java.nio.file.Files.setLastModifiedTime(newer, java.nio.file.attribute.FileTime.fromMillis(2_000_000));
+
+        Args args = ArgParser.parse(new String[] {"--session", wanted.toString(), "-c"});
+        assertTrue(AppBootstrap.openRequestedSession(args, ts.session()));
+
+        assertEquals(wanted, ts.session().sessionFile(), "--session wins over -c, which would have taken " + newer);
+    }
+
+    @Test
+    void withNoSessionFlagNothingIsOpenedAndNothingIsRestored() throws Exception {
+        var ts = org.pijota.agent.TestSession.in(tempDir).build();
+        Path fresh = ts.session().sessionFile();
+
+        assertFalse(AppBootstrap.openRequestedSession(ArgParser.parse(new String[] {}), ts.session()),
+                                        "no flag asked for a session");
+        assertEquals(fresh, ts.session().sessionFile(), "and none was opened");
+    }
+
+    /** --recover with nothing to recover says so on screen and reports that it opened nothing. */
+    @Test
+    void recoverWithNothingToRecoverOpensNothingAndSaysWhy() throws Exception {
+        var ts = org.pijota.agent.TestSession.in(tempDir).build();
+        assertFalse(AppBootstrap.openRequestedSession(ArgParser.parse(new String[] {"--recover"}), ts.session()));
+    }
 }
