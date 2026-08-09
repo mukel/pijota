@@ -44,7 +44,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -271,10 +270,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * Per-tool-call state captured at ToolStart, consumed at ToolResult: args for the header + start time for elapsed.
      * The name and pre-computed target detail also feed the live stream-tail line while the tool runs.
      */
-    private record ToolInProgress(String name, String detail, Supplier<String> args, long startedAtMs) {
-    }
-
-    private final Map<String, ToolInProgress> toolsInProgress = new ConcurrentHashMap<>();
+    /** What is running right now, and since when: the model's tool calls and the user's own ! command. */
+    private final InFlight inFlight = new InFlight();
     // Calls already reported as interrupted. Their results still arrive (a killed process reports exit 143), and
     // rendering those would report one interrupted call twice: once as "interrupted", once as a failed block.
     private final Set<String> interruptedCalls = ConcurrentHashMap.newKeySet();
@@ -647,7 +644,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
         @Override
         public void setRunningShellCommand(String command) {
-            runningShell = command == null ? null : new RunningShell(command, System.currentTimeMillis());
+            inFlight.shellStarted(command, System.currentTimeMillis());
         }
 
         @Override
@@ -2493,7 +2490,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private void onEvent(AgentEvent event) {
         switch (event) {
             case AgentEvent.TurnStart ignored -> {
-                toolsInProgress.clear(); // evict any leftovers from a prior interrupted/aborted turn
+                inFlight.clearTools(); // evict any leftovers from a prior interrupted/aborted turn
                 interruptedCalls.clear();
                 promptEditor.clearOffer(); // a suggestion described the conversation as it stood before this turn
                 streamRenderer.reset();
@@ -2540,10 +2537,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 streamRenderer.flush();
                 if (toolCallId != null)
                     // The running-tool tail draws this detail, and it is built from arguments the model chose.
-                    toolsInProgress.put(toolCallId, new ToolInProgress(name, TerminalText.printable(ToolLabels.detail(
-                                                    name, args, rawCwd,
+                    inFlight.toolStarted(toolCallId, name, TerminalText.printable(ToolLabels.detail(name, args, rawCwd,
                                                     settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
-                                                    ToolLabels.FULL_COMMAND)), args, System.currentTimeMillis()));
+                                                    ToolLabels.FULL_COMMAND)), args, System.currentTimeMillis());
                 pendingEdit.onToolStart(name, args);
                 // No phase: the running-tool tail one row up already names the tool, with its arguments and its own
                 // elapsed. "tool bash" beside it was the same word twice with two timers of different scope between
@@ -2563,7 +2559,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 pendingEdit.onToolResult(isEditWrite(msg), msg.isError());
                 if (msg.toolCallId() != null && interruptedCalls.remove(msg.toolCallId()))
                     break; // already reported as interrupted; its exit-143 result would say the same thing twice
-                ToolInProgress started = msg.toolCallId() != null ? toolsInProgress.remove(msg.toolCallId()) : null;
+                InFlight.Tool started = inFlight.toolFinished(msg.toolCallId());
                 Supplier<String> args = started != null ? started.args() : null;
                 long elapsedMs = started != null ? System.currentTimeMillis() - started.startedAtMs() : 0;
                 Tool.ToolResultView rendered = renderToolResultView(msg);
@@ -2645,12 +2641,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * "interrupted" for its metadata, so no block is ever left dangling and the live tail line has a resolution.
      */
     private void closeAbandonedTools() {
-        if (toolsInProgress.isEmpty())
+        if (inFlight.noTools())
             return;
-        var abandoned = toolsInProgress.entrySet().stream()
-                                        .sorted(Comparator.comparingLong(e -> e.getValue().startedAtMs())).toList();
+        var abandoned = inFlight.takeAll();
         abandoned.forEach(e -> interruptedCalls.add(e.getKey()));
-        toolsInProgress.clear();
         String dot = theme.styled("commandMeta", " · ");
         for (var entry : abandoned) {
             var tool = entry.getValue();
@@ -2678,11 +2672,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private static final String INTERRUPT_HINT = Keys.label(" \u00b7 Esc twice to interrupt");
 
     /** The user's own {@code !} command while it runs; the live tail names it the way it names a tool call. */
-    private record RunningShell(String command, long startedAtMs) {
-    }
-
-    private volatile RunningShell runningShell;
-
     /**
      * The width a block is laid out for. JLine reports 0 when it cannot size the terminal, and a block wrapped to 0
      * draws one character per row, so every caller floors it -- in one place rather than four.
@@ -2700,8 +2689,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * leave the tail describing the older of the two.
      */
     private String runningToolTail() {
-        RunningShell shell = runningShell;
-        ToolInProgress current = newestToolInProgress();
+        InFlight.Shell shell = inFlight.shell();
+        InFlight.Tool current = inFlight.newestTool();
         if (shell != null && (current == null || shell.startedAtMs() >= current.startedAtMs())) {
             long elapsed = System.currentTimeMillis() - shell.startedAtMs();
             return tail("! " + shell.command(), elapsed, INTERRUPT_HINT);
@@ -2732,14 +2721,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return theme.styled("commandMeta", what + elapsed + (elapsedMs >= HINT_AFTER_MS ? hint : ""));
     }
 
-    private ToolInProgress newestToolInProgress() {
-        ToolInProgress current = null;
-        for (var tool : toolsInProgress.values())
-            if (current == null || tool.startedAtMs() > current.startedAtMs())
-                current = tool;
-        return current;
-    }
-
     private Tool.Detachable detachableTool(String name) {
         if (jobRegistry == null)
             return null;
@@ -2753,7 +2734,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * inert.
      */
     private void handleCtrlB() {
-        var current = newestToolInProgress();
+        var current = inFlight.newestTool();
         var detachable = current != null ? detachableTool(current.name()) : null;
         if (detachable == null || !activity.isBusy()) {
             backgroundGate.disarm();
@@ -2769,7 +2750,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     /** The /bg command: same effect as ctrl+b ctrl+b, without the chord (ctrl+b is the tmux prefix). */
     void backgroundRunningTool() {
-        var current = newestToolInProgress();
+        var current = inFlight.newestTool();
         var detachable = current != null ? detachableTool(current.name()) : null;
         if (detachable == null || !activity.isBusy()) {
             appendPlain(List.of(theme.styled("statusText", "nothing to background. No detachable tool is running")));
@@ -2778,7 +2759,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         backgroundCurrentTool(current, detachable);
     }
 
-    private void backgroundCurrentTool(ToolInProgress current, Tool.Detachable detachable) {
+    private void backgroundCurrentTool(InFlight.Tool current, Tool.Detachable detachable) {
         var handoff = detachable.detach();
         if (handoff.isEmpty()) {
             setTransientStatus("Nothing to background (the command just finished)", 2000);
