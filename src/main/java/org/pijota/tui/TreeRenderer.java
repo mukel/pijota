@@ -64,16 +64,15 @@ final class TreeRenderer {
         var userNumbers = new HashMap<String, Integer>();
         int userCount = 0;
         for (var entry : entries) {
-            String id = entryId(entry);
+            String id = SessionCodec.entryId(entry);
             if (id == null)
                 continue;
             byId.put(id, entry);
-            if (isUserEntry(entry))
+            if (SessionCodec.isUserEntry(entry))
                 userNumbers.put(id, ++userCount);
         }
         for (var entry : entries) {
-            Object pid = entry.get("parentId");
-            String parentId = pid instanceof String s ? s : null;
+            String parentId = SessionCodec.parentId(entry);
             if (parentId == null || !byId.containsKey(parentId))
                 roots.add(entry);
             else
@@ -85,7 +84,7 @@ final class TreeRenderer {
     private Set<String> entryIds(List<Map<String, Object>> entries) {
         var ids = new HashSet<String>();
         for (var entry : entries) {
-            String id = entryId(entry);
+            String id = SessionCodec.entryId(entry);
             if (id != null)
                 ids.add(id);
         }
@@ -104,7 +103,7 @@ final class TreeRenderer {
         Map<String, Object> entry = start;
         boolean first = true;
         while (entry != null) {
-            String id = entryId(entry);
+            String id = SessionCodec.entryId(entry);
             if (id != null && !seen.add(id))
                 break; // already rendered this turn; a cyclic parentId chain; stop rather than loop forever
             appendTurnLine(lines, entry, first ? firstPrefix : restPrefix, children, activePath, leafId, userNumbers);
@@ -129,7 +128,7 @@ final class TreeRenderer {
     private void appendTurnLine(List<String> lines, Map<String, Object> entry, String prefix,
                                     Map<String, List<Map<String, Object>>> children, Set<String> activePath,
                                     String leafId, Map<String, Integer> userNumbers) {
-        String id = entryId(entry);
+        String id = SessionCodec.entryId(entry);
         boolean currentTurn = leafId != null && containsBeforeNextUser(entry, children, leafId::equals);
         boolean activeTurn = containsBeforeNextUser(entry, children, activePath::contains);
         String marker = currentTurn ? "→" : activeTurn ? "·" : " ";
@@ -145,7 +144,7 @@ final class TreeRenderer {
         String number = userNumber == null ? "?" : String.valueOf(userNumber);
         label.append(theme.styled(currentTurn ? "toolLabel" : "statusText", String.format("%2s", number)));
         label.append("  ");
-        label.append(theme.styled(currentTurn ? "toolLabel" : "", snippet((String) entry.get("content"), 44)));
+        label.append(theme.styled(currentTurn ? "toolLabel" : "", snippet(SessionCodec.entryContent(entry), 44)));
         if (summary.toolCalls() > 0) {
             label.append(theme.styled("statusText", "  · ")).append(
                                             theme.styled("statusText", Util.plural(summary.toolCalls(), "tool")));
@@ -172,10 +171,11 @@ final class TreeRenderer {
                                     Map<String, List<Map<String, Object>>> children) {
         var users = new ArrayList<Map<String, Object>>();
         for (var entry : entries) {
-            if (isUserEntry(entry)) {
+            if (SessionCodec.isUserEntry(entry)) {
                 users.add(entry);
             } else {
-                users.addAll(firstUserDescendants(children.getOrDefault(entryId(entry), List.of()), children));
+                users.addAll(firstUserDescendants(children.getOrDefault(SessionCodec.entryId(entry), List.of()),
+                                                children));
             }
         }
         return users;
@@ -184,7 +184,7 @@ final class TreeRenderer {
     private TurnSummary summarizeTurn(Map<String, Object> entry, Map<String, List<Map<String, Object>>> children) {
         var state = new TurnSummaryState();
         state.chars += contentChars(entry); // the user message itself
-        summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, state);
+        summarizeTurnChildren(children.getOrDefault(SessionCodec.entryId(entry), List.of()), children, state);
         return new TurnSummary(state.toolCallIds.size(), state.errors, state.compacted,
                                         SessionDescriptor.estimateTokens(state.chars));
     }
@@ -192,11 +192,11 @@ final class TreeRenderer {
     private void summarizeTurnChildren(List<Map<String, Object>> entries,
                                     Map<String, List<Map<String, Object>>> children, TurnSummaryState state) {
         for (var entry : entries) {
-            if (isUserEntry(entry))
+            if (SessionCodec.isUserEntry(entry))
                 continue;
             state.chars += contentChars(entry);
-            String type = (String) entry.getOrDefault("type", "message");
-            String role = (String) entry.getOrDefault("role", "");
+            String type = SessionCodec.entryType(entry);
+            String role = SessionCodec.entryRole(entry);
             if ("compaction".equals(type)) {
                 Object compacted = entry.get("compactedCount");
                 if (compacted instanceof Number n)
@@ -215,17 +215,17 @@ final class TreeRenderer {
                 if (Boolean.TRUE.equals(entry.get("is_error")))
                     state.errors++;
             }
-            summarizeTurnChildren(children.getOrDefault(entryId(entry), List.of()), children, state);
+            summarizeTurnChildren(children.getOrDefault(SessionCodec.entryId(entry), List.of()), children, state);
         }
     }
 
     private boolean containsBeforeNextUser(Map<String, Object> entry, Map<String, List<Map<String, Object>>> children,
                                     Predicate<String> predicate) {
-        String id = entryId(entry);
+        String id = SessionCodec.entryId(entry);
         if (id != null && predicate.test(id))
             return true;
         for (var child : children.getOrDefault(id, List.of())) {
-            if (isUserEntry(child))
+            if (SessionCodec.isUserEntry(child))
                 continue;
             if (containsBeforeNextUser(child, children, predicate))
                 return true;
@@ -236,8 +236,9 @@ final class TreeRenderer {
     /** Characters of model-visible text in an entry (content + thinking), used for the ~token estimate. */
     private static long contentChars(Map<String, Object> entry) {
         long chars = 0;
-        if (entry.get("content") instanceof String s)
-            chars += s.length();
+        String content = SessionCodec.entryContent(entry);
+        if (content != null)
+            chars += content.length();
         if (entry.get("thinking") instanceof String t)
             chars += t.length();
         return chars;
@@ -246,7 +247,7 @@ final class TreeRenderer {
     private static long totalTokens(List<Map<String, Object>> entries) {
         long chars = 0;
         for (var e : entries) {
-            if ("message".equals(e.getOrDefault("type", "message")))
+            if ("message".equals(SessionCodec.entryType(e)))
                 chars += contentChars(e);
         }
         return SessionDescriptor.estimateTokens(chars);
@@ -261,15 +262,6 @@ final class TreeRenderer {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    static String entryId(Map<String, Object> entry) {
-        Object id = entry.get("id");
-        return id instanceof String s ? s : null;
-    }
-
-    static boolean isUserEntry(Map<String, Object> entry) {
-        return "message".equals(entry.getOrDefault("type", "message")) && "user".equals(entry.getOrDefault("role", ""));
     }
 
     static String snippet(String content, int max) {

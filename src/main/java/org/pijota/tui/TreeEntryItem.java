@@ -1,5 +1,6 @@
 package org.pijota.tui;
 
+import org.pijota.agent.SessionCodec;
 import org.pijota.util.Util;
 
 import java.util.Map;
@@ -23,15 +24,18 @@ record TreeEntryItem(String id, String parentId, String role, String content, St
      * long conversation was compacted, which is one of the likelier places to want to go back to.
      */
     static boolean isInternalMetadata(Map<String, Object> entry) {
-        return INTERNAL_TYPES.contains(String.valueOf(entry.getOrDefault("type", "message")));
+        return INTERNAL_TYPES.contains(SessionCodec.entryType(entry));
     }
 
     static TreeEntryItem from(Map<String, Object> entry, boolean current) {
-        String id = String.valueOf(entry.getOrDefault("id", ""));
-        String parentId = entry.get("parentId") instanceof String s ? s : null;
-        String type = String.valueOf(entry.getOrDefault("type", "message"));
-        String role = "message".equals(type) ? String.valueOf(entry.getOrDefault("role", type)) : type;
-        String content = entry.get("content") instanceof String s && !s.isBlank() ? s : type;
+        String id = SessionCodec.entryId(entry) != null ? SessionCodec.entryId(entry) : "";
+        String parentId = SessionCodec.parentId(entry);
+        String type = SessionCodec.entryType(entry);
+        String role = "message".equals(type) && !SessionCodec.entryRole(entry).isEmpty()
+                                        ? SessionCodec.entryRole(entry)
+                                        : type;
+        String body = SessionCodec.entryContent(entry);
+        String content = body != null && !body.isBlank() ? body : type;
         content = content.replace('\n', ' ').trim();
         String display = Util.ellipsize(content, 90);
         return new TreeEntryItem(id, parentId, role, content, display, current);

@@ -107,4 +107,27 @@ class SessionCodecTest {
         var badId = new LinkedHashMap<String, Object>(Map.of("id", "not-a-uuid", "role", "user", "content", "x"));
         assertNull(SessionCodec.deserializeEntry(badId));
     }
+
+    /**
+     * The questions a reader asks of a raw entry. These used to be answered by the tree and its picker, each spelling
+     * the keys out itself -- and they had already drifted: one read a missing id as null, the other as "".
+     */
+    @Test
+    void theAccessorsAnswerForEveryReaderOfTheFormat() {
+        assertEquals("abc-123", SessionCodec.entryId(Map.of("id", "abc-123")));
+        assertNull(SessionCodec.entryId(Map.of("id", 42)), "a non-string id is no id");
+        assertNull(SessionCodec.entryId(Map.of()));
+        assertEquals("p1", SessionCodec.parentId(Map.of("parentId", "p1")));
+        assertNull(SessionCodec.parentId(Map.of()), "no parent means a root");
+
+        assertTrue(SessionCodec.isUserEntry(Map.of("type", "message", "role", "user")));
+        assertFalse(SessionCodec.isUserEntry(Map.of("type", "message", "role", "assistant")));
+        assertFalse(SessionCodec.isUserEntry(Map.of("type", "tool_result", "role", "")));
+        // The earliest writer omitted the type, and those sessions still load: absent means message.
+        assertTrue(SessionCodec.isUserEntry(Map.of("role", "user")));
+        assertEquals("message", SessionCodec.entryType(Map.of()));
+
+        assertEquals("hi", SessionCodec.entryContent(Map.of("content", "hi")));
+        assertNull(SessionCodec.entryContent(Map.of()));
+    }
 }

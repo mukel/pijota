@@ -148,7 +148,46 @@ public final class SessionCodec {
      * from. The two lists look interchangeable and are not.
      */
     public static boolean isMetadataEntry(Map<String, Object> entry) {
-        return METADATA_TYPES.contains((String) entry.getOrDefault("type", "message"));
+        return METADATA_TYPES.contains(entryType(entry));
+    }
+
+    /**
+     * The handful of questions a reader asks of a raw entry, answered here rather than by each caller spelling out the
+     * key.
+     *
+     * <p>
+     * The conversation tree and its picker read entries straight from the file and were asking with string literals --
+     * {@code entry.get("id")}, {@code getOrDefault("type", "message")} -- seventeen times across two classes in another
+     * package. That is the file format known in three places, and they had already drifted: one read a missing id as
+     * null, the other as the empty string. A key spelled wrong, or a default disagreeing, fails as absent data rather
+     * than as an error.
+     */
+    public static String entryId(Map<String, Object> entry) {
+        return entry.get("id") instanceof String s ? s : null;
+    }
+
+    /** The entry this one follows, or null at a root. */
+    public static String parentId(Map<String, Object> entry) {
+        return entry.get("parentId") instanceof String s ? s : null;
+    }
+
+    /** An entry with no type is a message: that is what the earliest writer omitted, and old sessions still load. */
+    public static String entryType(Map<String, Object> entry) {
+        return entry.get("type") instanceof String s ? s : "message";
+    }
+
+    public static String entryRole(Map<String, Object> entry) {
+        return entry.get("role") instanceof String s ? s : "";
+    }
+
+    /** The model-visible text of an entry, or null when it has none. */
+    public static String entryContent(Map<String, Object> entry) {
+        return entry.get("content") instanceof String s ? s : null;
+    }
+
+    /** A turn somebody typed: what the tree numbers and the picker offers as a place to go back to. */
+    public static boolean isUserEntry(Map<String, Object> entry) {
+        return "message".equals(entryType(entry)) && "user".equals(entryRole(entry));
     }
 
     @SuppressWarnings("unchecked")
