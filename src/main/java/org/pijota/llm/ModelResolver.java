@@ -22,14 +22,29 @@ public final class ModelResolver {
 
     private ModelResolver() {}
 
+    /**
+     * The four decisions a run's model comes out of, in the order they depend on each other: what was asked for, what
+     * credential answers for it, whether that is enough to start, and whether the name looks like a typo.
+     *
+     * <p>
+     * They were one cascade of 72 lines, which read as a single hard thing rather than four ordinary ones. The second
+     * step can change the first step's answer -- detecting a provider from the environment switches the model with it
+     * -- so each step takes a {@link Resolved} and gives one back, and the order below is the policy.
+     */
     public static Resolved resolve(Args args, SettingsManager settings) {
-        String apiKey = args.apiKey();
+        var chosen = chooseProviderAndModel(args, settings);
+        var withCredential = attachCredential(chosen, args, settings);
+        requireSomethingToRunWith(withCredential, args, settings);
+        warnIfTheModelLooksLikeATypo(withCredential, args);
+        return withCredential;
+    }
 
+    /** What was asked for, by flag or alias, with the two names that cannot be honoured rejected by name. */
+    private static Resolved chooseProviderAndModel(Args args, SettingsManager settings) {
         // Per-role model: print/-p uses the "print" alias when set and no explicit --model was given, so
-        // non-interactive
-        // runs can default to a cheaper/faster model (e.g. alias print -> alias/fast). ArgParser splits "alias/<name>"
-        // into provider="alias" + model="<name>", so resolve the print role the same way rather than passing a bare
-        // "alias/print" string (which resolveProviderModel would take literally).
+        // non-interactive runs can default to a cheaper/faster model (e.g. alias print -> alias/fast). ArgParser
+        // splits "alias/<name>" into provider="alias" + model="<name>", so resolve the print role the same way rather
+        // than passing a bare "alias/print" string (which resolveProviderModel would take literally).
         boolean usePrintAlias = args.model() == null && args.print() && settings.config().aliases() != null
                                         && settings.config().aliases().containsKey("print");
         var resolved = usePrintAlias
@@ -50,50 +65,70 @@ public final class ModelResolver {
             throw new IllegalStateException("Unknown provider '" + resolved.provider() + "'. Run `" + Cli.name()
                                             + " --list-models` for the ones you can reach, or define it under "
                                             + "\"providers\" in " + PijotaHome.resolve("settings.json") + ".");
-        String provider = resolved.provider();
-        String model = resolved.model();
+        return new Resolved(resolved.provider(), resolved.model(), args.apiKey());
+    }
 
-        if (apiKey == null || apiKey.isBlank()) {
-            if (provider != null && !provider.isBlank())
-                apiKey = settings.resolveApiKey(provider);
-            if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
-                if (args.provider() == null) {
-                    String detected = settings.detectProviderFromEnv();
-                    if (detected != null) {
-                        provider = detected;
-                        apiKey = settings.resolveApiKey(detected);
-                        // Switching provider must switch the model too, otherwise we'd run the detected provider with
-                        // the previous provider's model (e.g. openai-codex with "gpt-4o").
-                        if (!ModelRegistry.isKnownProviderModel(detected, model))
-                            model = ModelRegistry.defaultModelForProvider(detected);
-                    }
-                }
-            }
-        }
-        if (apiKey == null || (apiKey.isBlank() && SettingsManager.requiresApiKey(provider))) {
-            if (!args.agent()) {
-                // Onboard only when the user asked for nothing in particular AND nothing is configured: that is a
-                // first run. Someone who typed --provider/--model made a choice and wants to know what is wrong with
-                // THAT choice, not a tour of how to get started.
-                boolean chosen = args.provider() != null || args.model() != null;
-                if (!chosen && ModelRegistry.availableModels(settings).isEmpty())
-                    throw new SetupRequiredException(firstRunMessage());
-                throw new IllegalStateException(missingApiKeyMessage(provider, model, settings));
-            }
-        }
+    /**
+     * The credential that answers for the chosen provider: the flag, else what is stored or in the environment for it.
+     *
+     * <p>
+     * Failing that, and only when no provider was named, whichever provider the environment does have a key for --
+     * which switches the model too, or the detected provider would be run with the previous one's model (openai-codex
+     * with "gpt-4o").
+     */
+    private static Resolved attachCredential(Resolved chosen, Args args, SettingsManager settings) {
+        if (chosen.apiKey() != null && !chosen.apiKey().isBlank())
+            return chosen;
+        String provider = chosen.provider();
+        String model = chosen.model();
+        String apiKey = provider != null && !provider.isBlank() ? settings.resolveApiKey(provider) : chosen.apiKey();
+        if (hasUsableKey(apiKey, provider) || args.provider() != null)
+            return new Resolved(provider, model, apiKey);
 
-        // Pre-flight typo check: an explicitly chosen model that isn't in a catalogued provider's list is usually a
-        // typo. Suggest the closest known model up front instead of letting the provider API reject it after a wasted
-        // round-trip. Non-fatal: new/uncatalogued models still pass straight through.
-        if (args.model() != null && !ModelRegistry.isKnownProviderModel(provider, model)
-                                        && !ModelRegistry.forProvider(provider).isEmpty()) {
-            String chosenProvider = provider;
-            String chosenModel = model;
-            ModelRegistry.closestModel(chosenProvider, chosenModel).ifPresent(suggestion -> CliErrorReporter.warn("'"
-                                            + chosenModel + "' is not a known " + chosenProvider
-                                            + " model. Did you mean '" + suggestion + "'? Proceeding anyway."));
-        }
-        return new Resolved(provider, model, apiKey);
+        String detected = settings.detectProviderFromEnv();
+        if (detected == null)
+            return new Resolved(provider, model, apiKey);
+        if (!ModelRegistry.isKnownProviderModel(detected, model))
+            model = ModelRegistry.defaultModelForProvider(detected);
+        return new Resolved(detected, model, settings.resolveApiKey(detected));
+    }
+
+    /** A blank key is fine for a provider that needs none -- a local server, or anything keyless. */
+    private static boolean hasUsableKey(String apiKey, String provider) {
+        return apiKey != null && !(apiKey.isBlank() && SettingsManager.requiresApiKey(provider));
+    }
+
+    /**
+     * Nothing to run with: either this is a first run and nothing is configured, or one specific key is missing.
+     *
+     * <p>
+     * Onboard only when the user asked for nothing in particular AND nothing is configured. Someone who typed
+     * --provider/--model made a choice and wants to know what is wrong with THAT choice, not a tour of how to get
+     * started. {@code --agent} is exempt: it is handed its credential elsewhere.
+     */
+    private static void requireSomethingToRunWith(Resolved resolved, Args args, SettingsManager settings) {
+        if (hasUsableKey(resolved.apiKey(), resolved.provider()) || args.agent())
+            return;
+        boolean chosen = args.provider() != null || args.model() != null;
+        if (!chosen && ModelRegistry.availableModels(settings).isEmpty())
+            throw new SetupRequiredException(firstRunMessage());
+        throw new IllegalStateException(missingApiKeyMessage(resolved.provider(), resolved.model(), settings));
+    }
+
+    /**
+     * An explicitly chosen model that is not in a catalogued provider's list is usually a typo. Say so up front rather
+     * than letting the provider API reject it after a wasted round-trip. Non-fatal: new and uncatalogued models still
+     * pass straight through.
+     */
+    private static void warnIfTheModelLooksLikeATypo(Resolved resolved, Args args) {
+        if (args.model() == null || ModelRegistry.isKnownProviderModel(resolved.provider(), resolved.model())
+                                        || ModelRegistry.forProvider(resolved.provider()).isEmpty())
+            return;
+        ModelRegistry.closestModel(resolved.provider(), resolved.model())
+                                        .ifPresent(suggestion -> CliErrorReporter.warn("'" + resolved.model()
+                                                                        + "' is not a known " + resolved.provider()
+                                                                        + " model. Did you mean '" + suggestion
+                                                                        + "'? Proceeding anyway."));
     }
 
     /**
