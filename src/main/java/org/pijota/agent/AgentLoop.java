@@ -300,7 +300,9 @@ public final class AgentLoop implements AgentContext {
         return drain(followUpMessages);
     }
 
-    /** Queues text a person typed while a turn was running. Duplicates are kept: see {@link #queueGeneratedFollowUp}. */
+    /**
+     * Queues text a person typed while a turn was running. Duplicates are kept: see {@link #queueGeneratedFollowUp}.
+     */
     public void followUp(String m) {
         followUpMessages.add(m);
     }
@@ -423,11 +425,11 @@ public final class AgentLoop implements AgentContext {
      * Queues a re-prompt the product generated, such as a goal loop's continuation.
      *
      * <p>
-     * Identical text already waiting says nothing the queue is not going to say anyway, so it is not queued twice.
-     * When a loop's re-prompts outrun its turns they pile up, and the drain hands the model every copy at once:
-     * twenty identical instructions in one request, paid for by the token and counted as twenty iterations. Text the
-     * user typed goes through {@link #followUp} instead, which keeps duplicates -- saying something twice can be
-     * meant when a person does it.
+     * Identical text already waiting says nothing the queue is not going to say anyway, so it is not queued twice. When
+     * a loop's re-prompts outrun its turns they pile up, and the drain hands the model every copy at once: twenty
+     * identical instructions in one request, paid for by the token and counted as twenty iterations. Text the user
+     * typed goes through {@link #followUp} instead, which keeps duplicates -- saying something twice can be meant when
+     * a person does it.
      */
     private void queueGeneratedFollowUp(String content) {
         synchronized (followUpMessages) {
@@ -494,6 +496,38 @@ public final class AgentLoop implements AgentContext {
         }
     }
 
+    /**
+     * Publishes one partial response while the model is still talking: the new text as a delta, and the assistant
+     * message at the tail of the history rewritten to match.
+     *
+     * <p>
+     * Only ever the tail. Every mid-turn write here is an overwrite of the placeholder added just before the request,
+     * which is what keeps the provider's view of the context a growing prefix and its KV cache valid -- rewriting
+     * anything earlier would invalidate everything after it.
+     *
+     * <p>
+     * The provider and model are the ones the request was sent with, passed in rather than read from {@code llm}: a
+     * /model switch landing mid-stream would otherwise attribute the tail of this reply to the model that did not write
+     * it.
+     */
+    private void publishPartial(CompletableFuture<List<Message>> result, String requestProvider, String requestModel,
+                                    String partialContent, String partialThinking) {
+        if (!isActive(result))
+            return;
+        if (!messageStreamStarted) {
+            messageStreamStarted = true;
+            fireEvent(new AgentEvent.MessageStreamStart("assistant"));
+        }
+        String content = partialContent != null ? partialContent : "";
+        String delta = Util.deltaPrefix(content, lastStreamContent);
+        lastStreamContent = content;
+        if (delta != null && !delta.isEmpty())
+            fireEvent(new AgentEvent.MessageStreamDelta(delta));
+        var updated = new Message.Assistant(partialContent, List.of(), partialThinking);
+        fireEvent(new AgentEvent.AssistantMessage(updated, null));
+        history.set(history.size() - 1, updated.withSource(requestProvider, requestModel));
+    }
+
     private void runTurn(CompletableFuture<List<Message>> result, int turn) {
         if (aborted.get()) {
             fireEvent(new AgentEvent.Error(new RuntimeException("Aborted")));
@@ -529,25 +563,10 @@ public final class AgentLoop implements AgentContext {
             if (extensionRegistry != null)
                 extensionRegistry.fireBeforeProviderRequest(providerMessages);
             CompletableFuture<StreamResult> stream = llm.streamMessages(providerMessages, toolSpecs,
-                                            (partialContent, partialThinking) -> {
-                                                if (!isActive(result))
-                                                    return;
-                                                if (!messageStreamStarted) {
-                                                    messageStreamStarted = true;
-                                                    fireEvent(new AgentEvent.MessageStreamStart("assistant"));
-                                                }
-                                                String content = partialContent != null ? partialContent : "";
-                                                String delta = Util.deltaPrefix(content, lastStreamContent);
-                                                lastStreamContent = content;
-                                                if (delta != null && !delta.isEmpty()) {
-                                                    fireEvent(new AgentEvent.MessageStreamDelta(delta));
-                                                }
-                                                var updated = new Message.Assistant(partialContent, List.of(),
-                                                                                partialThinking);
-                                                fireEvent(new AgentEvent.AssistantMessage(updated, null));
-                                                history.set(history.size() - 1, updated.withSource(requestProvider,
-                                                                                requestModel));
-                                            }, llm.thinkingLevel(), (toolName, chars) -> {
+                                            (partialContent, partialThinking) -> publishPartial(result, requestProvider,
+                                                                            requestModel, partialContent,
+                                                                            partialThinking),
+                                            llm.thinkingLevel(), (toolName, chars) -> {
                                                 if (isActive(result))
                                                     fireEvent(new AgentEvent.ToolCallProgress(toolName, chars));
                                             });
