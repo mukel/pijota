@@ -484,4 +484,23 @@ class SessionManagerTest {
                                         new Message.ToolResult("tc1", "bash", "output that can be re-run", false)));
         assertFalse(SessionManager.isUnreproducible(new Message.Custom("note", "a frontend line")));
     }
+
+    /**
+     * Falling back to the newest entry is what lets a session open at all when the recorded leaf is gone -- a torn
+     * tail, a hand-edited file, an id belonging to another session. The rule was written once here and again in the
+     * exporter, spelled slightly differently.
+     */
+    @Test
+    void anUnknownLeafFallsBackToTheLastEntryWritten() {
+        var entries = new java.util.LinkedHashMap<String, java.util.Map<String, Object>>();
+        entries.put("a", java.util.Map.of("id", "a"));
+        entries.put("b", java.util.Map.of("id", "b"));
+        entries.put("c", java.util.Map.of("id", "c"));
+
+        assertEquals("b", SessionManager.effectiveLeaf(entries, "b"), "a leaf that exists is the leaf");
+        assertEquals("c", SessionManager.effectiveLeaf(entries, "gone"), "an unknown leaf falls back to the newest");
+        assertEquals("c", SessionManager.effectiveLeaf(entries, null), "and so does no leaf at all");
+        assertNull(SessionManager.effectiveLeaf(new java.util.LinkedHashMap<>(), "anything"),
+                                        "nothing to fall back to in an empty file");
+    }
 }

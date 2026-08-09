@@ -49,34 +49,14 @@ public final class SessionExporter {
             throw new IOException("Session file not found: " + sessionFile);
         }
 
-        // Read the session header (first line with type=session)
-        var header = Map.<String, Object>of();
-        try (var lines = SessionManager.readLines(sessionFile)) {
-            var first = lines.limit(1).reduce((a, b) -> b).orElse(null);
-            if (first != null) {
-                try {
-                    @SuppressWarnings("unchecked")
-                    var h = (Map<String, Object>) Util.MAPPER.readValue(first, Map.class);
-                    if ("session".equals(h.get("type")))
-                        header = h;
-                } catch (Exception ignored) {}
-            }
-        }
+        var header = readHeader(sessionFile);
 
         var idToEntry = SessionManager.readAllEntries(sessionFile);
         if (idToEntry.isEmpty()) {
             return "# Pijota Session\n\n*(empty session)*\n";
         }
 
-        // If no leafId specified, use the last entry in insertion order
-        String effectiveLeaf = leafId;
-        if (effectiveLeaf == null || !idToEntry.containsKey(effectiveLeaf)) {
-            effectiveLeaf = null;
-            for (var id : idToEntry.keySet())
-                effectiveLeaf = id;
-        }
-
-        var branch = SessionManager.buildBranchPath(idToEntry, effectiveLeaf);
+        var branch = SessionManager.buildBranchPath(idToEntry, SessionManager.effectiveLeaf(idToEntry, leafId));
 
         var md = new StringBuilder();
         appendFrontMatter(md, header, sessionFile);
@@ -119,6 +99,28 @@ public final class SessionExporter {
     }
 
     // -- internal helpers --
+
+    /**
+     * The session's own first line -- when it has one that parses and says so.
+     *
+     * <p>
+     * Empty for anything else, and deliberately quiet about it: a header that will not parse costs the export its front
+     * matter, not the conversation underneath. The entries are read separately and do not depend on it.
+     */
+    private static Map<String, Object> readHeader(Path sessionFile) throws IOException {
+        try (var lines = SessionManager.readLines(sessionFile)) {
+            String first = lines.limit(1).reduce((a, b) -> b).orElse(null);
+            if (first == null)
+                return Map.of();
+            @SuppressWarnings("unchecked")
+            var header = (Map<String, Object>) Util.MAPPER.readValue(first, Map.class);
+            return "session".equals(header.get("type")) ? header : Map.of();
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception malformed) {
+            return Map.of();
+        }
+    }
 
     private static void appendFrontMatter(StringBuilder md, Map<String, Object> header, Path sessionFile) {
         md.append("# Pijota Session\n\n");

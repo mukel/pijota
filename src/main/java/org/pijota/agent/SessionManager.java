@@ -585,12 +585,26 @@ public final class SessionManager {
         var idToEntry = readAllEntries(file);
         if (idToEntry.isEmpty())
             return List.of();
-        String effectiveLeaf = leafId;
-        if (effectiveLeaf == null || !idToEntry.containsKey(effectiveLeaf)) {
-            for (var id : idToEntry.keySet())
-                effectiveLeaf = id;
-        }
-        return buildBranchPath(idToEntry, effectiveLeaf);
+        return buildBranchPath(idToEntry, effectiveLeaf(idToEntry, leafId));
+    }
+
+    /**
+     * Which entry to walk a branch back from: the one named, or the last one written when that name is missing or
+     * unknown.
+     *
+     * <p>
+     * Falling back to the newest entry is what makes a session open at all when the recorded leaf is gone -- a torn
+     * tail, a hand-edited file, an id from another session. The rule lived here and again in the exporter, spelled
+     * slightly differently each time; the same rule twice is the kind that stays the same until one of them is fixed.
+     * {@code idToEntry} is insertion-ordered, so the last key is the last entry written.
+     */
+    public static String effectiveLeaf(Map<String, Map<String, Object>> idToEntry, String leafId) {
+        if (leafId != null && idToEntry.containsKey(leafId))
+            return leafId;
+        String last = null;
+        for (var id : idToEntry.keySet())
+            last = id;
+        return last;
     }
 
     public List<Map<String, Object>> getTreeEntries(Path file) throws IOException {
