@@ -20,7 +20,7 @@ class FrameIntegrityTest {
     private static final AnsiTheme THEME = AnsiTheme.dark();
 
     private static PromptLayout productionLayout() {
-        return new PromptLayout(List.of(new PromptRegion.Editor(), new AppendOnlyTui.PendingRegion(),
+        return new PromptLayout(List.of(new PromptRegion.Editor(), new AppendOnlyTui.PendingRegion(() -> false),
                                         new PromptRegion.Completions(), new PromptRegion.StatusBar()));
     }
 

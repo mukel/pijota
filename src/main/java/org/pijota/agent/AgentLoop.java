@@ -407,7 +407,18 @@ public final class AgentLoop implements AgentContext {
     public void sendUserMessage(String content, DeliverAs deliverAs) {
         switch (deliverAs) {
             case STEER -> steeringMessages.add(content);
-            case FOLLOW_UP -> followUpMessages.add(content);
+            // A follow-up identical to one already waiting says nothing the queue is not already going to say. These
+            // are generated re-prompts, not typed text: when a loop's re-prompts outrun its turns they pile up, and
+            // the drain hands the model every copy at once -- twenty identical instructions in one request, paid for
+            // by the token, counted as twenty iterations, and twenty rows of the same sentence above the prompt.
+            // Only this arm dedupes; text the user queued by hand arrives through followUp(), where saying something
+            // twice can be meant.
+            case FOLLOW_UP -> {
+                synchronized (followUpMessages) {
+                    if (!followUpMessages.contains(content))
+                        followUpMessages.add(content);
+                }
+            }
             case NEXT_TURN -> {
                 if (isBusy())
                     steeringMessages.add(content);

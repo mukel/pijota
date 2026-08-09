@@ -3,6 +3,7 @@ package org.pijota.tui;
 import org.pijota.extensions.KeyChord;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.messages.Message;
+import org.pijota.testkit.AnsiStripper;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.EditTool;
 import org.pijota.tools.GrepTool;
@@ -361,23 +362,46 @@ class AppendOnlyTuiTest {
     @Test
     void pendingRegionEmptyWhenNothingQueued() {
         var ctx = new PromptSnapshot(List.of(), 0, 0, List.of());
-        assertTrue(new AppendOnlyTui.PendingRegion().compose(80, AnsiTheme.dark(), ctx).rows().isEmpty());
+        assertTrue(new AppendOnlyTui.PendingRegion(() -> false).compose(80, AnsiTheme.dark(), ctx).rows().isEmpty());
     }
 
     @Test
     void pendingRegionOneClampedRowPerQueuedMessage() {
         var ctx = new PromptSnapshot(List.of(), 0, 0, List.of())
                                         .withPendingMessages(List.of("short", "very long message that wraps"));
-        var rows = new AppendOnlyTui.PendingRegion().compose(15, AnsiTheme.dark(), ctx).rows();
+        var rows = new AppendOnlyTui.PendingRegion(() -> false).compose(15, AnsiTheme.dark(), ctx).rows();
         assertEquals(2, rows.size(), "exactly one row per queued message, never a wrapped extra row");
         for (String row : rows)
             assertTrue(AnsiWidth.visibleWidth(row) <= 15, "queued row exceeds width: " + row);
     }
 
+    /**
+     * A loop whose re-prompts outran its turns queued two dozen, and the region drew every one of them: the
+     * conversation went off the top of the screen behind copies of a single sentence. The count on the stats line stays
+     * exact; what is capped is how much of the queue gets spelled out.
+     */
+    @Test
+    void pendingRegionCapsALongQueueAndSaysHowMuchItHid() {
+        var many = new java.util.ArrayList<String>();
+        for (int i = 0; i < 24; i++)
+            many.add("Keep working toward the objective");
+        var ctx = new PromptSnapshot(List.of(), 0, 0, List.of()).withPendingMessages(many);
+
+        var rows = new AppendOnlyTui.PendingRegion(() -> false).compose(100, AnsiTheme.dark(), ctx).rows();
+        assertEquals(4, rows.size(), "three queued rows plus the affordance, not 24: " + rows.size());
+        assertTrue(AnsiStripper.strip(rows.get(3)).contains("21 more"), rows.get(3));
+        // The affordance is not itself a queued message, so it does not wear the label.
+        assertFalse(AnsiStripper.strip(rows.get(3)).contains("queued"), rows.get(3));
+
+        // Ctrl+O unrolls it, the same key that unrolls the status rows.
+        var expanded = new AppendOnlyTui.PendingRegion(() -> true).compose(100, AnsiTheme.dark(), ctx).rows();
+        assertEquals(25, expanded.size(), "all 24 plus the collapse affordance");
+    }
+
     @Test
     void pendingRegionSingleMessage() {
         var ctx = new PromptSnapshot(List.of(), 0, 0, List.of()).withPendingMessages(List.of("hello"));
-        var rows = new AppendOnlyTui.PendingRegion().compose(100, AnsiTheme.dark(), ctx).rows();
+        var rows = new AppendOnlyTui.PendingRegion(() -> false).compose(100, AnsiTheme.dark(), ctx).rows();
         assertEquals(1, rows.size());
         assertTrue(rows.get(0).contains("queued"));
     }

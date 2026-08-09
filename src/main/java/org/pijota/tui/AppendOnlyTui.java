@@ -415,7 +415,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                         ? settings.config().prompt()
                                         : PromptGlyphs.DEFAULTS;
         regions.add(new PromptRegion.Editor(promptGlyphs));
-        regions.add(new PendingRegion());
+        regions.add(new PendingRegion(() -> statusExpanded));
         regions.addAll(selectors.regions());
         regions.add(new PromptRegion.Completions());
         regions.add(new PromptSelectorRegion(selector));
@@ -2324,6 +2324,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * session.
      */
     private static final int STATUS_COLLAPSED_LINES = 3; // status rows shown before "… N more"; Ctrl+O unrolls
+    private static final int PENDING_COLLAPSED_LINES = 3; // same, for the queue above the prompt
     private volatile boolean statusExpanded;
 
     private void toggleStatusExpanded() {
@@ -2982,12 +2983,30 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return ModelRegistry.resolveContextWindow(provider, model);
     }
 
+    /**
+     * The queue above the prompt, capped like the status rows and unrolled by the same Ctrl+O.
+     *
+     * <p>
+     * It drew one row per queued message with no limit, so a loop whose re-prompts outran its turns pushed the
+     * conversation off the top of the screen with two dozen copies of one sentence. The count stays exact on the stats
+     * line ("queued 24"); what is capped is how much of the queue is spelled out, which is the part with nothing to say
+     * once you have read the first row.
+     */
     static final class PendingRegion implements PromptRegion.Custom {
+        /** Read live, not captured: the region is built once at startup and Ctrl+O flips the flag long afterwards. */
+        private final BooleanSupplier expanded;
+
+        PendingRegion(BooleanSupplier expanded) {
+            this.expanded = expanded;
+        }
+
         @Override
         public Body compose(int width, AnsiTheme theme, PromptSnapshot ctx) {
-            var rows = new ArrayList<String>(ctx.pendingMessages().size());
-            for (String msg : ctx.pendingMessages())
-                rows.add(theme.styled("statusWarn", AnsiWidth.truncateVisual("queued  " + msg, width)));
+            // Labelled before collapsing, so the "… N more" row collapse appends is not itself labelled "queued".
+            var labelled = ctx.pendingMessages().stream().map(msg -> "queued  " + msg).toList();
+            var rows = new ArrayList<String>();
+            for (String row : collapse(labelled, expanded.getAsBoolean(), PENDING_COLLAPSED_LINES))
+                rows.add(theme.styled("statusWarn", AnsiWidth.truncateVisual(row, width)));
             return Body.of(rows);
         }
     }

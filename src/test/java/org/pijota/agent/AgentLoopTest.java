@@ -125,6 +125,41 @@ class AgentLoopTest {
         assertEquals("ok", ((Message.Assistant) messages.get(2)).content());
     }
 
+    /**
+     * A loop whose re-prompts outrun its turns queued one copy per idle. The drain hands the model everything at once,
+     * so the request carried the same sentence twenty times over -- paid for by the token, and counted as twenty
+     * iterations of a goal that had been told once.
+     */
+    @Test
+    void anIdenticalFollowUpAlreadyWaitingIsNotQueuedTwice() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("first")).enqueue(FauxLlm.Response.content("second"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        for (int i = 0; i < 20; i++)
+            agent.sendUserMessage("keep working toward the objective", DeliverAs.FOLLOW_UP);
+        var messages = agent.prompt("hi").get(2, TimeUnit.SECONDS);
+
+        long copies = messages.stream().filter(m -> m instanceof Message.User u
+                                        && u.content().equals("keep working toward the objective")).count();
+        assertEquals(1, copies, "one instruction, said once: " + messages.size() + " messages");
+    }
+
+    /** Different follow-ups are all distinct instructions and every one of them still has to arrive. */
+    @Test
+    void followUpsThatDifferAreAllKept() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.content("first")).enqueue(FauxLlm.Response.content("second"));
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+
+        agent.sendUserMessage("job bg_1 finished", DeliverAs.FOLLOW_UP);
+        agent.sendUserMessage("job bg_2 failed", DeliverAs.FOLLOW_UP);
+        var messages = agent.prompt("hi").get(2, TimeUnit.SECONDS);
+
+        var said = messages.stream().filter(m -> m instanceof Message.User).map(m -> ((Message.User) m).content())
+                                        .toList();
+        assertTrue(said.contains("job bg_1 finished"), said.toString());
+        assertTrue(said.contains("job bg_2 failed"), said.toString());
+    }
+
     @Test
     void sendUserMessageWithFollowUpAddsToFollowUpQueue() throws Exception {
         var llm = new FauxLlm().enqueue(FauxLlm.Response.content("first")).enqueue(FauxLlm.Response.content("second"));
