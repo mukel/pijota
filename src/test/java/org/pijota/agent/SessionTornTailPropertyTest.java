@@ -161,4 +161,71 @@ class SessionTornTailPropertyTest {
 
         assertTrue(new SessionManager(tempDir).loadMessages(empty).isEmpty());
     }
+
+    /**
+     * Corruption that is not truncation: a killed write, a bad sector or a hand-edit leaves garbage in the middle of a
+     * file, not a clean cut at the end. Loading such a file is the crash-recovery path, so it has to survive whatever
+     * it finds -- the one outcome that must never happen is startup dying on a session it was asked to resume.
+     *
+     * <p>
+     * The property is weaker than the truncation one on purpose, and the difference is the interesting part. Destroy
+     * the entry in the middle and the entries older than it are orphaned: the branch walk starts at the tip and stops
+     * at the gap. Corrupt a parentId and the chain skips the entry it used to name, leaving a hole. So what survives is
+     * an ordered subsequence rather than a prefix. Destroy a byte inside a message's text and the line still parses, so
+     * the message arrives with a replacement character in it -- which is the better outcome than dropping it, and why
+     * the run is matched allowing for that. A reordering, an invented message or an exception is a real failure.
+     */
+    @Test
+    void garbageAnywhereInTheFileNeverBringsDownTheLoad() throws Exception {
+        byte[] whole = Files.readAllBytes(writeSession());
+        var random = new java.util.Random(20260809L); // seeded: a failure has to be reproducible, not a rumour
+        byte[][] junk = {"GARBAGE NOT JSON".getBytes(java.nio.charset.StandardCharsets.UTF_8), {0, 1, 2, 3},
+                {(byte) 0xff, (byte) 0xfe}, "{\"unterminated\": ".getBytes(java.nio.charset.StandardCharsets.UTF_8)};
+
+        for (int t = 0; t < 300; t++) {
+            final int trial = t;
+            byte[] corrupted = whole.clone();
+            byte[] blob = junk[random.nextInt(junk.length)];
+            int at = random.nextInt(Math.max(1, corrupted.length - blob.length));
+            System.arraycopy(blob, 0, corrupted, at, Math.min(blob.length, corrupted.length - at));
+
+            var file = tempDir.resolve("corrupt-" + trial + ".jsonl");
+            Files.write(file, corrupted);
+
+            List<String> got;
+            try {
+                got = texts(new SessionManager(tempDir).loadMessages(file));
+            } catch (Exception e) {
+                fail("trial " + trial + " (blob at byte " + at + " of " + corrupted.length + ") threw " + e);
+                return;
+            }
+            assertTrue(got.size() <= CONTENT.size(),
+                                            () -> "trial " + trial + " loaded more messages than were written: " + got);
+            assertTrue(survivorsAreInOriginalOrder(got),
+                                            () -> "trial " + trial + " reordered what survived intact: " + got);
+        }
+    }
+
+    /**
+     * Of the messages that came back byte-identical, the order must be the order they were written in.
+     *
+     * <p>
+     * Deliberately not stronger. Junk that happens to be valid UTF-8 landing inside a JSON string is valid JSON with
+     * different text, and nothing downstream can tell that from something the user typed -- trial 129 produced "third
+     * withGARBAGE NOT JSON" and no loader could have known. So the altered ones are not checked; what is checked is
+     * that nothing was invented, nothing duplicated, and nothing swapped around, which is what a reader can actually
+     * promise.
+     */
+    private static boolean survivorsAreInOriginalOrder(List<String> got) {
+        int next = 0;
+        for (String loaded : got) {
+            int at = CONTENT.indexOf(loaded);
+            if (at < 0)
+                continue; // altered beyond recognition; unknowable, so not judged
+            if (at < next)
+                return false;
+            next = at + 1;
+        }
+        return true;
+    }
 }

@@ -51,7 +51,7 @@ public final class SessionExporter {
 
         // Read the session header (first line with type=session)
         var header = Map.<String, Object>of();
-        try (var lines = Files.lines(sessionFile)) {
+        try (var lines = SessionManager.readLines(sessionFile)) {
             var first = lines.limit(1).reduce((a, b) -> b).orElse(null);
             if (first != null) {
                 try {

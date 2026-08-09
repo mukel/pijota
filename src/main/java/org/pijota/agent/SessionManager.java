@@ -3,13 +3,17 @@ package org.pijota.agent;
 import org.pijota.messages.Message;
 import org.pijota.messages.ToolCall;
 import org.pijota.messages.Usage;
+import org.pijota.util.ErrorUtil;
 import org.pijota.util.Util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -83,7 +87,7 @@ public final class SessionManager {
         try {
             lockAndWrite(sessionFile, () -> {
                 boolean hasConversation;
-                try (var lines = Files.lines(sessionFile)) {
+                try (var lines = readLines(sessionFile)) {
                     hasConversation = lines.anyMatch(line -> {
                         try {
                             String type = Util.MAPPER.readTree(line).path("type").asText("");
@@ -661,9 +665,29 @@ public final class SessionManager {
         }
     }
 
+    /**
+     * Session lines, with undecodable bytes replaced rather than thrown.
+     *
+     * <p>
+     * {@code Files.lines} decodes UTF-8 with REPORT, so one bad byte anywhere in the file makes the stream throw
+     * mid-iteration -- past every per-line guard, and the session simply would not load. A crash can leave a partial
+     * multi-byte character, and a bad sector can leave anything at all; this is the crash-recovery path, so it has to
+     * survive whatever it finds. A replaced byte turns its line into unparseable JSON, which the callers already skip.
+     */
+    static Stream<String> readLines(Path file) throws IOException {
+        var decoder = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPLACE)
+                                        .onUnmappableCharacter(CodingErrorAction.REPLACE);
+        var reader = new BufferedReader(new InputStreamReader(Files.newInputStream(file), decoder));
+        return reader.lines().onClose(() -> {
+            try {
+                reader.close();
+            } catch (IOException ignored) {}
+        });
+    }
+
     public static Map<String, Map<String, Object>> readAllEntries(Path file) throws IOException {
         var idToEntry = new LinkedHashMap<String, Map<String, Object>>();
-        try (Stream<String> lines = Files.lines(file)) {
+        try (Stream<String> lines = readLines(file)) {
             lines.forEach(line -> {
                 try {
                     @SuppressWarnings("unchecked")
@@ -738,7 +762,7 @@ public final class SessionManager {
     private String findLastEntryId(Path sessionFile) {
         try {
             String lastLine = null;
-            try (var lines = Files.lines(sessionFile)) {
+            try (var lines = readLines(sessionFile)) {
                 lastLine = lines.reduce((ignored, b) -> b).orElse(null);
             }
             if (lastLine != null) {
@@ -862,7 +886,12 @@ public final class SessionManager {
         try {
             id = UUID.fromString((String) entry.getOrDefault("id", UUID.randomUUID().toString()));
             ts = Instant.parse((String) entry.getOrDefault("timestamp", Instant.now().toString()));
-        } catch (IllegalArgumentException | ClassCastException e) {
+        } catch (RuntimeException e) {
+            // Any field we cannot make sense of means we skip this entry, which is what the narrower catch here meant
+            // to say: it named IllegalArgumentException for a bad id and ClassCastException for a wrong type, and
+            // missed DateTimeParseException, which is neither. A corrupted timestamp then threw out of the whole load
+            // and the session would not open at all -- one bad byte costing a conversation.
+            log.warn("Skipping a session entry with an unreadable id or timestamp: {}", ErrorUtil.message(e));
             return null;
         }
 

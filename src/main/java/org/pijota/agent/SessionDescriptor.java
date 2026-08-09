@@ -132,7 +132,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
         String sessionName = null;
         int messages = 0;
         long chars = 0;
-        try (var lines = Files.lines(p)) {
+        try (var lines = SessionManager.readLines(p)) {
             for (var it = lines.iterator(); it.hasNext();) {
                 Map<String, Object> entry;
                 try {
