@@ -118,13 +118,7 @@ public final class AppBootstrap {
         // Shared with the jobs extension so jobs_output/jobs_kill see adopted processes.
         var jobRegistry = new JobRegistry();
         StartupTimer.mark("tools registered");
-        String effectiveThinking = parsedArgs.thinkingLevel();
-        if (effectiveThinking == null || effectiveThinking.isBlank()) {
-            effectiveThinking = settings.config().thinkingLevel();
-        }
-        if (effectiveThinking != null && !effectiveThinking.isBlank()) {
-            llm.setThinkingLevel(ThinkingLevel.fromString(effectiveThinking));
-        }
+        applyThinkingLevel(llm, parsedArgs, settings);
 
         var ext = new ExtensionRegistry();
         llm.setModelChangeCallback((oldModel, newModel) -> ext.fireModelSelect(newModel, oldModel, "set"));
@@ -144,39 +138,7 @@ public final class AppBootstrap {
         if (ext.isEnabled("whoami", false))
             tools.registerBuiltin(new WhoamiTool());
 
-        // Built-in (shipped) extensions, skipped by --no-extensions (all off) or --no-builtin-extensions (keep only
-        // discovered). Otherwise each is registered here and ExtensionRegistry.register() still gates it via
-        // isEnabled()
-        // on the declared default + settings + flags. (TranscendenceExtension is also JVM-only via its reason.)
-        if (!parsedArgs.noExtensions() && !parsedArgs.noBuiltinExtensions()) {
-            ext.register(new TaskExtension(jobRegistry));
-            // A pijota killed mid-batch leaves sub-agent worktrees behind, still registered in the user's own
-            // repository, and nothing else ever removes them. Off the startup path; wired here rather than in the
-            // extension because tests construct extensions freely and must not touch a real repo.
-            CompletableFuture.runAsync(() -> TaskTool.sweepStaleWorktrees(cwd));
-            ext.register(new PlanExtension()); // opt-in --plan
-            ext.register(new SuggestExtension()); // opt-in --suggest
-            ext.register(new TranscendenceExtension()); // opt-in --transcendence
-            ext.register(new InlineBashExtension());
-            ext.register(new FilterOutputExtension());
-            ext.register(new SecurityExtension());
-            ext.register(new WhimsicalExtension());
-            ext.register(new GoalExtension());
-            ext.register(new ScheduleExtension());
-            ext.register(new McpExtension());
-            ext.register(new TodoExtension()); // opt-in --todo
-            ext.register(new TokenSpeedExtension()); // opt-in --token-speed
-            ext.register(new WebBrowseExtension()); // opt-in --browse[=engine]
-            ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
-            ext.register(new TmuxExtension()); // opt-in --tmux
-            // --no-jobs removes the model's four jobs_* tools; /jobs, /kill and Ctrl+B come from the core
-            // extension and stay.
-            ext.register(new JobsExtension(jobRegistry, settings.effectiveShellPath()));
-            ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
-            ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths())); // --no-prompt-templates
-                                                                                         // disables
-            ext.register(new ContextFilesExtension(cwd)); // --no-context-files / context_files setting disables
-        }
+        registerBuiltinExtensions(ext, parsedArgs, settings, jobRegistry, cwd);
         StartupTimer.mark("extensions registered");
         // Only now: every extension has had its chance to register, so a name still unaccounted for is a typo. The
         // frontend subcommands reach the same map without being extensions.
@@ -442,6 +404,67 @@ public final class AppBootstrap {
         if (flagKey == null || flagKey.isBlank())
             return settings::resolveApiKey;
         return p -> p != null && p.equals(provider) ? flagKey : settings.resolveApiKey(p);
+    }
+
+    /**
+     * The shipped extensions, in registration order.
+     *
+     * <p>
+     * A list, so it reads as one: {@code --no-extensions} turns all of them off and {@code --no-builtin-extensions}
+     * keeps only the discovered ones, while each constant here is still gated individually by
+     * {@code ExtensionRegistry.register()} on its declared default plus settings and flags. The comments mark which are
+     * opt-in, which is the question anyone reading this list actually has.
+     */
+    private static void registerBuiltinExtensions(ExtensionRegistry ext, Args parsedArgs, SettingsManager settings,
+                                    JobRegistry jobRegistry, String cwd) {
+        // Built-in (shipped) extensions, skipped by --no-extensions (all off) or --no-builtin-extensions (keep only
+        // discovered). Otherwise each is registered here and ExtensionRegistry.register() still gates it via
+        // isEnabled()
+        // on the declared default + settings + flags. (TranscendenceExtension is also JVM-only via its reason.)
+        if (!parsedArgs.noExtensions() && !parsedArgs.noBuiltinExtensions()) {
+            ext.register(new TaskExtension(jobRegistry));
+            // A pijota killed mid-batch leaves sub-agent worktrees behind, still registered in the user's own
+            // repository, and nothing else ever removes them. Off the startup path; wired here rather than in the
+            // extension because tests construct extensions freely and must not touch a real repo.
+            CompletableFuture.runAsync(() -> TaskTool.sweepStaleWorktrees(cwd));
+            ext.register(new PlanExtension()); // opt-in --plan
+            ext.register(new SuggestExtension()); // opt-in --suggest
+            ext.register(new TranscendenceExtension()); // opt-in --transcendence
+            ext.register(new InlineBashExtension());
+            ext.register(new FilterOutputExtension());
+            ext.register(new SecurityExtension());
+            ext.register(new WhimsicalExtension());
+            ext.register(new GoalExtension());
+            ext.register(new ScheduleExtension());
+            ext.register(new McpExtension());
+            ext.register(new TodoExtension()); // opt-in --todo
+            ext.register(new TokenSpeedExtension()); // opt-in --token-speed
+            ext.register(new WebBrowseExtension()); // opt-in --browse[=engine]
+            ext.register(new BtwExtension()); // /btw side-conversation (slash commands only)
+            ext.register(new TmuxExtension()); // opt-in --tmux
+            // --no-jobs removes the model's four jobs_* tools; /jobs, /kill and Ctrl+B come from the core
+            // extension and stay.
+            ext.register(new JobsExtension(jobRegistry, settings.effectiveShellPath()));
+            ext.register(new SkillExtension(parsedArgs.skillPaths())); // --no-skills disables
+            ext.register(new PromptTemplateExtension(parsedArgs.promptTemplatePaths())); // --no-prompt-templates
+                                                                                         // disables
+            ext.register(new ContextFilesExtension(cwd)); // --no-context-files / context_files setting disables
+        }
+    }
+
+    /**
+     * The reasoning effort a run starts at: the flag if given, else the setting, else whatever the model defaults to.
+     *
+     * <p>
+     * Three states, not two -- "unset" has to stay distinct from "off", or a run with neither flag nor setting would be
+     * forced to a level nobody chose.
+     */
+    private static void applyThinkingLevel(LlmService llm, Args parsedArgs, SettingsManager settings) {
+        String level = parsedArgs.thinkingLevel();
+        if (level == null || level.isBlank())
+            level = settings.config().thinkingLevel();
+        if (level != null && !level.isBlank())
+            llm.setThinkingLevel(ThinkingLevel.fromString(level));
     }
 
     /**
