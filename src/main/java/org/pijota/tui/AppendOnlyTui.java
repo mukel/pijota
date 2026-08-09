@@ -1924,7 +1924,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         // carets at once. One question on screen at a time; the list comes back either way.
         selectors.deactivate(TuiSelectors.Slot.SESSION);
         clearStatusOverride();
-        dialogs.confirm("delete session '" + chosen.description() + "'?").thenAccept(yes -> {
+        // Through confirm(), not dialogs.confirm(): the wrapper puts the editor's contents aside for the duration.
+        // The picker's search filter lives in that editor, and the caret only shows an affordance into an empty box,
+        // so filtering the list and then pressing Ctrl+X replaced "y / n" with the stale filter text -- the one row
+        // that says how to answer, missing exactly when the question is asked.
+        confirm("delete session '" + chosen.description() + "'?").thenAccept(yes -> {
             if (!yes) {
                 showSessionPicker();
                 return;
