@@ -55,15 +55,43 @@ class SessionCommandsTest {
     }
 
     @Test
-    void deleteSessionAsksConfirmationAndCancels() {
-        var host = new FakeHost();
+    void deleteSessionAsksConfirmationAndCancels() throws Exception {
+        var host = hostWith(true);
         host.confirmAnswer = false;
-        var sc = new SessionCommands(host);
+        Path other = tempDir.resolve("another-session.jsonl"); // a real file, and not the active one
+        Files.writeString(other, "{\"type\":\"session\",\"id\":\"another\"}\n");
 
-        sc.deleteSession("/delete abc123");
+        new SessionCommands(host).deleteSession("/delete " + other);
 
-        assertTrue(host.confirmQuestion.contains("abc123"), host.confirmQuestion);
+        assertTrue(host.confirmQuestion.contains(other.toString()), host.confirmQuestion);
         assertTrue(String.join(" ", host.lines).contains("cancelled"));
+        assertTrue(Files.exists(other), "cancelling leaves the file alone");
+    }
+
+    /**
+     * The question is asked only once there is something to delete. It used to come first, so a typo'd id was confirmed
+     * ("delete session 'deadbeef-0000'? this cannot be undone") and only then reported missing -- a question about a
+     * session that was never there, and one the user could answer yes to.
+     */
+    @Test
+    void deletingSomethingThatDoesNotExistIsNotWorthAsking() {
+        var host = hostWith(true);
+
+        new SessionCommands(host).deleteSession("/delete deadbeef-0000");
+
+        assertNull(host.confirmQuestion, "nothing to confirm: " + host.confirmQuestion);
+        assertTrue(String.join(" ", host.lines).contains("delete failed"), host.lines.toString());
+    }
+
+    /** The active session cannot be deleted either, and that refusal was also arriving after the confirm. */
+    @Test
+    void deletingTheActiveSessionIsRefusedBeforeAsking() {
+        var host = hostWith(true);
+
+        new SessionCommands(host).deleteSession("/delete " + host.session.sessionFile());
+
+        assertNull(host.confirmQuestion, "nothing to confirm: " + host.confirmQuestion);
+        assertTrue(String.join(" ", host.lines).contains("active session"), host.lines.toString());
     }
 
     @Test

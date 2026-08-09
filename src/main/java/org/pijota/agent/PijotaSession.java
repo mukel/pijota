@@ -514,10 +514,23 @@ public final class PijotaSession implements AutoCloseable {
         }
     }
 
-    public boolean deleteSession(String spec) throws IOException {
+    /**
+     * The session {@code spec} names, if it exists and may be deleted.
+     *
+     * <p>
+     * Separate from the deleting so a caller can ask before it asks the user. Both refusals used to arrive after the
+     * confirm, so "delete session 'deadbeef-0000'? this cannot be undone" was asked about a session that was never
+     * there, and answering it got "delete failed: Session not found".
+     */
+    public Path resolveDeletable(String spec) throws IOException {
         Path target = sessionManager.resolveSession(cwd, spec);
         if (sessionFile != null && target.toAbsolutePath().normalize().equals(sessionFile.toAbsolutePath().normalize()))
             throw new IOException("cannot delete active session");
+        return target;
+    }
+
+    public boolean deleteSession(String spec) throws IOException {
+        Path target = resolveDeletable(spec);
         try {
             var result = ProcessRunner.command("trash", target.toString()).run();
             if (result.exitCode() == 0)

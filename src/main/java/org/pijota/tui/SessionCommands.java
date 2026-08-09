@@ -102,7 +102,15 @@ final class SessionCommands {
             host.appendPlain(List.of(host.styled("statusText", "usage: /delete <id|path>")));
             return;
         }
+        // Asked only once there is something to delete. The question used to come first, so a typo'd id was
+        // confirmed and only then reported missing -- and "cannot delete active session" arrived the same way.
         String target = spec;
+        try {
+            host.session().resolveDeletable(target);
+        } catch (IOException e) {
+            host.appendPlain(List.of(host.styled("toolError", "delete failed: " + e.getMessage())));
+            return;
+        }
         host.confirm("delete session '" + target + "'? this cannot be undone").thenAccept(confirmed -> {
             if (!confirmed) {
                 host.appendPlain(List.of(host.styled("statusText", "delete cancelled")));
