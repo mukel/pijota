@@ -1,5 +1,6 @@
 package org.pijota.agent;
 
+import org.pijota.util.ErrorUtil;
 import org.pijota.util.Util;
 
 import java.io.IOException;
@@ -110,7 +111,11 @@ public final class SessionExporter {
         }
         turnNumber = flushTurn(md, turn, turnNumber);
 
-        return md.toString();
+        // Redacted on the way out, and only here: an export is the one artefact of a session meant to leave the
+        // machine, where the JSONL behind it sits under a 0700 home. If a key was pasted into a prompt it is in the
+        // transcript, and this is the last point before it becomes a file someone attaches to an issue. The same
+        // redactor the error path uses, so a credential shape is recognised in one place.
+        return ErrorUtil.sanitize(md.toString());
     }
 
     // -- internal helpers --

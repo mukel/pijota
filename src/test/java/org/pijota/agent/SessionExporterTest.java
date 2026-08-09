@@ -246,4 +246,39 @@ class SessionExporterTest {
         assertTrue(md.contains("offset 10"));
         assertTrue(md.contains("limit 20"));
     }
+
+    /**
+     * An export is the one artefact of a session meant to leave the machine: attached to an issue, pasted into a
+     * review, mailed to a colleague. The JSONL behind it sits under a 0700 home; the markdown does not. A key pasted
+     * into a prompt is in the transcript, so it has to be caught on the way out.
+     */
+    @Test
+    void aCredentialPastedIntoAPromptDoesNotLeaveInTheExport(@TempDir Path tmp) throws Exception {
+        var sessionFile = tmp.resolve("session.jsonl");
+        Files.writeString(sessionFile, """
+                                        {"type":"session","id":"s1","timestamp":"2025-01-15T10:30:00Z","cwd":"/w"}
+                                        {"type":"message","role":"user","id":"u1","parentId":null,"timestamp":"2025-01-15T10:31:00Z","content":"use sk-abcdef1234567890 for now"}
+                                        {"type":"message","role":"assistant","id":"a1","parentId":"u1","timestamp":"2025-01-15T10:31:05Z","content":"authorization: bearer tok_9876543210"}
+                                        """);
+
+        var md = SessionExporter.toMarkdown(sessionFile);
+
+        assertFalse(md.contains("sk-abcdef1234567890"), "the key survived the export:\n" + md);
+        assertFalse(md.contains("tok_9876543210"), "the bearer token survived the export:\n" + md);
+        assertTrue(md.contains("sk-***"), "and it is visibly redacted rather than silently dropped:\n" + md);
+        // The transcript is still a transcript: only the credential shape goes.
+        assertTrue(md.contains("use") && md.contains("for now"), "surrounding prose must survive:\n" + md);
+    }
+
+    /** HTML goes through the same door, so it cannot become the unredacted way out. */
+    @Test
+    void theHtmlExportIsRedactedToo(@TempDir Path tmp) throws Exception {
+        var sessionFile = tmp.resolve("session.jsonl");
+        Files.writeString(sessionFile, """
+                                        {"type":"session","id":"s1","timestamp":"2025-01-15T10:30:00Z","cwd":"/w"}
+                                        {"type":"message","role":"user","id":"u1","parentId":null,"timestamp":"2025-01-15T10:31:00Z","content":"key sk-zzzzzzzzzzzzzzzz here"}
+                                        """);
+
+        assertFalse(SessionExporter.toHtml(sessionFile).contains("sk-zzzzzzzzzzzzzzzz"));
+    }
 }
