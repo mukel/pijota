@@ -27,6 +27,57 @@ class PlanExtensionTest {
     }
 
     /**
+     * The system prompt is the front of every request, so anything plan mode puts there changes the cached prefix and
+     * throws away the provider-side cache -- twice per on/off cycle, once each way. The instruction rides the turn's
+     * own message instead, where it costs nothing.
+     */
+    @Test
+    void togglingPlanModeLeavesTheSystemPromptUntouched() throws Exception {
+        var api = new FakeExtensionAPI();
+        new PlanExtension().init(api);
+        var prompt = new StringBuilder("the session system prompt");
+
+        api.fire(new org.pijota.extensions.ExtensionEvent.BeforeAgentStart(List.of(), prompt, null));
+        api.slashCommand("plan").handler().accept(""); // on
+        api.fire(new org.pijota.extensions.ExtensionEvent.BeforeAgentStart(List.of(), prompt, null));
+
+        assertEquals("the session system prompt", prompt.toString(), "plan mode must not write into the cached prefix");
+    }
+
+    /** And the model is still told, on the turn itself, where it costs no cache. */
+    @Test
+    void theModelIsToldOnTheTurnRatherThanInThePrefix() throws Exception {
+        var api = new FakeExtensionAPI();
+        new PlanExtension().init(api);
+
+        assertEquals("just asking", api.filterInput("just asking").text(), "off: the turn is untouched");
+
+        api.slashCommand("plan").handler().accept("");
+        String filtered = api.filterInput("just asking").text();
+
+        assertTrue(filtered.startsWith("just asking"), "the user's words come first: " + filtered);
+        assertTrue(filtered.contains("PLAN MODE ACTIVE"), "and the model is told: " + filtered);
+        assertTrue(filtered.contains("<system-reminder>"), "as a reminder, so it is not shown and is stripped later");
+    }
+
+    /** A read-only mode has no business taking away tools that only read. */
+    @Test
+    void planModeWithholdsOnlyTheToolsThatWrite() throws Exception {
+        var registry = registryWith("read", "bash", "edit", "write", "apply_patch", "grep", "glob", "ls", "webfetch",
+                                        "websearch", "todo");
+        var runtime = new FakeExtensionRuntime();
+        runtime.setToolRegistry(registry);
+        var api = new FakeExtensionAPI(runtime);
+        new PlanExtension().init(api);
+
+        api.slashCommand("plan").handler().accept("");
+
+        var active = names(registry);
+        assertEquals(List.of("bash", "glob", "grep", "ls", "read", "todo", "webfetch", "websearch"), active,
+                                        "only edit, write and apply_patch go: " + active);
+    }
+
+    /**
      * Leaving plan mode gives back the tools it borrowed, not a guess at what "normal" means.
      *
      * <p>

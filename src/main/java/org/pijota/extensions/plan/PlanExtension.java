@@ -11,10 +11,25 @@ import org.pijota.tools.Tool;
 import org.pijota.util.Util;
 
 import java.util.List;
+import java.util.Set;
 
 /** Read-only mode: the mutating tools are withheld, so exploring a codebase cannot change it. */
 public final class PlanExtension implements Extension {
-    private static final List<String> PLAN_TOOLS = List.of("read", "bash", "grep", "glob", "ls", "question");
+    /**
+     * The builtins plan mode withholds. Everything else the session had stays, because a read-only mode has no reason
+     * to take away webfetch, websearch, todo or an extension's tools -- and the allow-list this replaces did exactly
+     * that, silently narrowing a twenty-tool session to six on the way in.
+     */
+    private static final Set<String> WITHHELD = Set.of("edit", "write", "apply_patch");
+
+    private static final String PLAN_REMINDER = """
+
+                                    <system-reminder>
+                                    [PLAN MODE ACTIVE] Read-only exploration. The edit, write and apply_patch tools are
+                                    withheld and bash is limited to read-only commands; everything else this session had
+                                    is still available. Do not attempt to make changes. Answer with a numbered plan
+                                    under a "Plan:" header describing what you would do.
+                                    </system-reminder>""";
 
     private volatile boolean planEnabled;
     /** What was active when plan mode started, so leaving it gives back exactly that. Null when it never started. */
@@ -55,20 +70,11 @@ public final class PlanExtension implements Extension {
             return null;
         });
 
-        api.on(ExtensionEvent.BeforeAgentStart.class, bas -> {
-            if (!planEnabled)
-                return;
-            bas.systemPrompt().append("""
-
-                                            [PLAN MODE ACTIVE]
-                                            You are in plan mode, read-only exploration. Available tools: read, bash (safe commands only), grep, glob, ls, question. Edit/write are disabled.
-                                            Create a numbered plan under a "Plan:" header:
-                                            Plan:
-                                            1. First step description
-                                            2. Second step description
-                                            ...
-                                            Do NOT attempt to make changes, just describe what you would do.""");
-        });
+        // Attached to the turn, not to the system prompt. The system prompt is the front of every request, so
+        // toggling plan mode there changed the cached prefix and threw away the provider-side cache twice per
+        // on/off cycle. A reminder rides the message instead: the prefix is byte-identical whether plan mode is on
+        // or off, and history strips reminders on the next submit so they do not accumulate.
+        api.onInput(text -> planEnabled ? new ExtensionResult.InputResult(text + PLAN_REMINDER, false) : null);
 
         api.on(ExtensionEvent.SessionStart.class, _event -> {
             if (runtime.getFlag("plan", false)) {
@@ -88,11 +94,11 @@ public final class PlanExtension implements Extension {
 
     private void enter(ExtensionAPI api) {
         // Captured once. Entering twice -- a session that starts with the plan flag after a toggle, or SessionStart
-        // firing again on /new -- would otherwise record the plan set as what to go back to, and leaving would give
-        // back the six tools plan mode had just imposed.
+        // firing again on /new -- would otherwise record the reduced set as what to go back to, and leaving would
+        // give back the tools plan mode had just imposed.
         if (toolsBeforePlan == null)
             toolsBeforePlan = names(api.runtime().activeTools());
-        api.runtime().setActiveTools(PLAN_TOOLS);
+        api.runtime().setActiveTools(toolsBeforePlan.stream().filter(name -> !WITHHELD.contains(name)).toList());
     }
 
     /**
