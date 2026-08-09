@@ -10,6 +10,7 @@ import org.pijota.tools.ReadTool;
 import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.WhoamiTool;
 import org.pijota.tools.WriteTool;
+import org.pijota.util.ParentWatch;
 
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,6 +51,28 @@ class AppendOnlyTuiTest {
                                                                                                                        // hint
         assertEquals(List.of("a", "b"), AppendOnlyTui.collapse(List.of("a", "b"), false, 3)); // under cap → untouched
         assertEquals(List.of("a", "b"), AppendOnlyTui.collapse(List.of("a", "b"), true, 3));
+    }
+
+    /**
+     * Ctrl+Z has to stop the supervisor too. Under it the shell is waiting on the supervisor, not on us, so stopping
+     * only ourselves left the shell with nothing to report and nothing to fg: a frozen screen, keystrokes echoed raw
+     * over it by a tty nobody was reading, and Ctrl+C the only way out -- which kills the session instead of suspending
+     * it.
+     */
+    @Test
+    void ctrlZStopsTheSupervisorBeforeItself() {
+        assertEquals(List.of("kill", "-TSTP", "111", "222"), AppendOnlyTui.suspendCommand(Optional.of(111L), 222L));
+    }
+
+    /**
+     * Unsupervised -- a native launch -- the parent is the user's shell, and stopping that would be far worse than the
+     * bug this guards. Empty must mean "only me".
+     */
+    @Test
+    void ctrlZStopsOnlyItselfWhenNothingIsSupervisingIt() {
+        assertEquals(List.of("kill", "-TSTP", "222"), AppendOnlyTui.suspendCommand(Optional.empty(), 222L));
+        // And that is what the real lookup answers in any process no supervisor started, this test JVM included.
+        assertTrue(ParentWatch.supervisor().isEmpty(), "nothing supervises a test run");
     }
 
     @Test

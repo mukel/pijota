@@ -24,6 +24,9 @@ public final class ParentWatch {
     /** Exit code when the supervisor vanished. Distinct so it is recognisable in a log or a wrapper script. */
     public static final int EXIT_PARENT_GONE = 137;
 
+    /** The supervisor that started this worker, or null when nothing is supervising us. Set by {@link #arm}. */
+    private static volatile ProcessHandle supervisor;
+
     private ParentWatch() {}
 
     /** Arms the watch if this process should die with its parent; returns whether it did. */
@@ -33,7 +36,23 @@ public final class ParentWatch {
         // is not a worker.
         if (!worker)
             return false;
-        return arm(true, ProcessHandle.current().parent(), () -> System.exit(EXIT_PARENT_GONE));
+        var parent = ProcessHandle.current().parent();
+        supervisor = parent.orElse(null);
+        return arm(true, parent, () -> System.exit(EXIT_PARENT_GONE));
+    }
+
+    /**
+     * The supervisor that started this worker, empty for anything not launched by one -- a native run, a headless run,
+     * a sub-agent.
+     *
+     * <p>
+     * Two things need to know who the supervisor is, and both are about not outliving or outrunning it: this class,
+     * which exits when it dies, and Ctrl+Z, which has to stop it as well or the shell keeps waiting on a parent that
+     * never stopped. Empty is the answer that means "there is only me", so a caller that gets it acts on itself alone
+     * -- which is exactly right when the parent is the user's shell.
+     */
+    public static Optional<ProcessHandle> supervisor() {
+        return Optional.ofNullable(supervisor);
     }
 
     /**

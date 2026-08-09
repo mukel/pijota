@@ -26,6 +26,7 @@ import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.ToolLabels;
 import org.pijota.tools.WhoamiTool;
 import org.pijota.util.ErrorUtil;
+import org.pijota.util.ParentWatch;
 import org.pijota.util.Platform;
 import org.pijota.util.ProcessRunner;
 import org.pijota.util.SelfRespawn;
@@ -1504,12 +1505,35 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * images).
      */
     private static void raiseSigtstp() throws Exception {
-        long pid = ProcessHandle.current().pid();
         // No `sh -c`: ProcessBuilder execs the binary off PATH, so the shell builtin never enters it. One fork per
         // Ctrl+Z, and suspend is not a hot path.
-        int rc = new ProcessBuilder("kill", "-TSTP", Long.toString(pid)).inheritIO().start().waitFor();
+        var command = suspendCommand(ParentWatch.supervisor().map(ProcessHandle::pid), ProcessHandle.current().pid());
+        int rc = new ProcessBuilder(command).inheritIO().start().waitFor();
         if (rc != 0)
             throw new IllegalStateException("kill -TSTP exited " + rc);
+    }
+
+    /**
+     * Who has to stop for Ctrl+Z to be a suspend: under a supervisor, both of us.
+     *
+     * <p>
+     * Stopping only ourselves left the supervisor running, and the supervisor is the process the shell is waiting on --
+     * so the shell never printed "Suspended", never took the terminal back, and never registered a job there was
+     * anything to {@code fg}. What the user got was a frozen screen with their keystrokes echoed raw across it by a tty
+     * nobody was reading, and Ctrl+C the only way out, which killed the session instead of resuming it. The native
+     * binary never spawns a supervisor, so there the two have always been the same process and this was invisible.
+     *
+     * <p>
+     * The supervisor goes first, so the shell is already reclaiming the terminal by the time we stop. Both pids are
+     * named rather than signalling the process group, because {@code kill} itself runs in that group: signalling the
+     * group would stop the very process we are waiting on to deliver the signal. Empty means nothing is supervising us
+     * and the parent is the user's shell, which must never be stopped.
+     */
+    static List<String> suspendCommand(Optional<Long> supervisorPid, long selfPid) {
+        var command = new ArrayList<>(List.of("kill", "-TSTP"));
+        supervisorPid.ifPresent(pid -> command.add(Long.toString(pid)));
+        command.add(Long.toString(selfPid));
+        return command;
     }
 
     /**
