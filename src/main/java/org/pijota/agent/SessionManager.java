@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -871,14 +872,27 @@ public final class SessionManager {
         return out;
     }
 
+    /**
+     * Session-file entry types that carry no conversation content: bookkeeping written between messages.
+     *
+     * <p>
+     * They still hold ids and are still linked into the parent chain, so the tree walk needs them and only the counting
+     * does not. One list with two readers -- the loader, which turns entries into messages, and {@code /tree}, whose
+     * header used to size itself with {@code entries.size()} and so counted every model switch and cache note as a
+     * piece of the conversation.
+     */
+    private static final Set<String> METADATA_TYPES = Set.of("model_change", "thinking_level_change", "cache_metadata",
+                                    "session_info", "compaction", "session", "branch_summary");
+
+    /** True when this entry is bookkeeping rather than something said. See {@link #METADATA_TYPES}. */
+    public static boolean isMetadataEntry(Map<String, Object> entry) {
+        return METADATA_TYPES.contains((String) entry.getOrDefault("type", "message"));
+    }
+
     @SuppressWarnings("unchecked")
     private static Message deserializeEntry(Map<String, Object> entry) {
-        String type = (String) entry.getOrDefault("type", "message");
-        if ("model_change".equals(type) || "thinking_level_change".equals(type) || "cache_metadata".equals(type)
-                                        || "session_info".equals(type) || "compaction".equals(type)
-                                        || "session".equals(type) || "branch_summary".equals(type)) {
+        if (isMetadataEntry(entry))
             return null;
-        }
 
         String role = (String) entry.getOrDefault("role", "user");
         UUID id;

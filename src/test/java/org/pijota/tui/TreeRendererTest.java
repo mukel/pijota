@@ -207,6 +207,20 @@ class TreeRendererTest {
     }
 
     @Test
+    void entryCountLeavesOutTheBookkeepingBetweenMessages() {
+        var renderer = new TreeRenderer(fakeTheme());
+        // A model switch and a cache note sit in the chain between two turns, exactly as a real session records them.
+        var entries = List.of(e("u1", null, "message", "user", "q1"), e("m1", "u1", "model_change", null, null),
+                                        e("c1", "m1", "cache_metadata", null, null),
+                                        e("u2", "c1", "message", "user", "q2"));
+        String header = AnsiStripper.strip(renderer.render(entries, entries, "u2").get(1));
+        assertTrue(header.contains("2 entries"), "only what was said is an entry: " + header);
+        // The bookkeeping still holds the chain together: drop it from the walk and the second turn loses its parent.
+        assertEquals(2, renderer.render(entries, entries, "u2").stream()
+                                        .filter(l -> AnsiStripper.strip(l).contains("q")).count());
+    }
+
+    @Test
     void entryIdExtractsStringId() {
         assertEquals("abc-123", TreeRenderer.entryId(Map.of("id", "abc-123")));
         assertNull(TreeRenderer.entryId(Map.of("id", 42)));
