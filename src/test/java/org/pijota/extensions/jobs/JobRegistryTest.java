@@ -263,6 +263,23 @@ class JobRegistryTest {
      * The map only ever grew, so a long session's /jobs filled with exited entries -- and jobs_list is a tool, so the
      * model paid for that wall in tokens on every call.
      */
+    /**
+     * A process backgrounded with Ctrl+B has already been running, often for minutes. Clocking it from the moment the
+     * registry heard about it reported how long the user had been ignoring it, not how long the work had taken.
+     */
+    @Test
+    void aJobAdoptedLateIsClockedFromWhenItsProcessStarted() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var jobs = new JobRegistry();
+        var running = new ProcessBuilder("sh", "-c", "sleep 30").start();
+        Thread.sleep(1200); // it runs for a while before anyone backgrounds it
+        String id = jobs.register(running, "sleep 30", null);
+
+        long elapsed = jobs.list().stream().filter(s -> s.id().equals(id)).findFirst().orElseThrow().elapsedMs();
+        assertTrue(elapsed >= 1000, "the timer restarted at the hand-off: " + elapsed + "ms");
+        running.destroy();
+    }
+
     @Test
     void finishedJobsDoNotAccumulateForever() throws Exception {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");

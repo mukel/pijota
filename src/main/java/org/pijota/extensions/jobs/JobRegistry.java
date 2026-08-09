@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -65,7 +66,7 @@ public final class JobRegistry {
         final String command;
         final String name;
         final Process process;
-        final long startedAtMs = System.currentTimeMillis();
+        final long startedAtMs;
         final StringBuilder out = new StringBuilder(); // guarded by this
         int readOffset; // guarded by this
         boolean truncated; // guarded by this
@@ -87,6 +88,12 @@ public final class JobRegistry {
             this.command = command;
             this.name = name;
             this.process = process;
+            // When the process started, not when this registry heard about it. A job adopted with Ctrl+B has usually
+            // been running for a while, and clocking it from the hand-off reported how long the user had been ignoring
+            // it rather than how long the work had taken -- including in the completion notice, where the duration is
+            // the whole point. Asking the OS covers both cases: for a job started here the two moments are the same.
+            this.startedAtMs = process.info().startInstant().map(Instant::toEpochMilli)
+                                            .orElseGet(System::currentTimeMillis);
         }
 
         void append(char[] buf, int len) {
