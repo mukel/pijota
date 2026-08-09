@@ -35,8 +35,9 @@ class SubAgentLauncherTest {
         assertTrue(cpIndex >= 0, "command should specify a classpath: " + cmd);
         String classpath = cmd.get(cpIndex + 1);
         assertFalse(classpath.isBlank());
-        // The parent's own classpath is reused so the child loads the same build.
-        assertEquals(System.getProperty("java.class.path"), classpath);
+        // The parent's own classpath is reused so the child loads the same build -- absolutised, because the child
+        // starts in a worktree where a relative entry resolves to nothing (see SubAgentClasspathTest).
+        assertEquals(SubAgentLauncher.absolutize(System.getProperty("java.class.path")), classpath);
     }
 
     @Test

@@ -13,9 +13,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Runs a one-shot sub-agent in a separate {@code pijota --agent --no-session} process and returns its final answer. A
@@ -127,10 +129,27 @@ public final class SubAgentLauncher {
     }
 
     /** The classpath to launch the child with: the parent's classpath, with fat-jar / target-classes fallbacks. */
+    /**
+     * The parent's classpath, with every entry made absolute.
+     *
+     * <p>
+     * A relative entry is relative to the JVM that owns it, and a sub-agent's working directory is a pooled git
+     * worktree -- a checkout with sources and no {@code target/}. Handing {@code target/classes} to a child that starts
+     * there resolves to nothing and it dies before {@code main}: "Could not find or load main class org.pijota.Main",
+     * surfaced as a task that ran zero turns and zero tools. Only the dev launch is relative; a fat jar and the native
+     * image are absolute already, which is why this survived.
+     */
+    static String absolutize(String classpath) {
+        Path base = Path.of(System.getProperty("user.dir", "."));
+        return Arrays.stream(classpath.split(File.pathSeparator)).filter(e -> !e.isBlank())
+                                        .map(e -> base.resolve(e).normalize().toString())
+                                        .collect(Collectors.joining(File.pathSeparator));
+    }
+
     private static String resolveClasspath(String cwd) {
         String cp = System.getProperty("java.class.path");
         if (cp != null && !cp.isBlank())
-            return cp;
+            return absolutize(cp);
         try {
             var ourCode = Path.of(SubAgentLauncher.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             if (Files.exists(ourCode) && ourCode.toString().endsWith(".jar"))
