@@ -402,7 +402,7 @@ public final class SessionManager {
         var path = buildBranchPath(idToEntry, leafId);
         var compactionIdx = -1;
         for (int i = 0; i < path.size(); i++) {
-            if ("compaction".equals(path.get(i).getOrDefault("type", "message"))) {
+            if ("compaction".equals(SessionCodec.entryType(path.get(i)))) {
                 compactionIdx = i;
             }
         }
@@ -468,7 +468,7 @@ public final class SessionManager {
     }
 
     private static void appendContextMessage(List<Message> messages, Map<String, Object> entry) {
-        switch ((String) entry.getOrDefault("type", "message")) {
+        switch (SessionCodec.entryType(entry)) {
             case "branch_summary" -> {
                 String summary = (String) entry.get("summary");
                 if (summary != null && !summary.isBlank()) {
@@ -478,7 +478,7 @@ public final class SessionManager {
             case "compaction" -> {}
             case "custom_message" -> {
                 String customType = (String) entry.get("custom_type");
-                String content = (String) entry.get("content");
+                String content = SessionCodec.entryContent(entry);
                 if (customType != null && content != null) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> details = (Map<String, Object>) entry.get("details");

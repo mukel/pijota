@@ -140,7 +140,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
                 } catch (Exception bad) {
                     continue; // skip blank/corrupt lines, same resilience as parseLine
                 }
-                String type = (String) entry.getOrDefault("type", "message");
+                String type = SessionCodec.entryType(entry);
                 if ("session_info".equals(type)) {
                     String name = clean((String) entry.get("name"));
                     if (name != null)
@@ -149,7 +149,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
                 }
                 if (!"message".equals(type))
                     continue; // header / compaction / model_change / cache_metadata · not conversation
-                String role = (String) entry.getOrDefault("role", "");
+                String role = SessionCodec.entryRole(entry);
                 // Count conversational turns only, tool_result entries are plumbing and would inflate the picker
                 // count.
                 if ("user".equals(role) || "assistant".equals(role))
@@ -160,7 +160,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
                 if (entry.get("thinking") instanceof String t)
                     chars += t.length();
                 if (firstUser == null && "user".equals(role)) {
-                    String c = clean((String) entry.get("content"));
+                    String c = clean(SessionCodec.entryContent(entry));
                     if (c != null)
                         firstUser = truncate(c);
                 }

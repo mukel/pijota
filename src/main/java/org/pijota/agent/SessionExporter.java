@@ -84,7 +84,7 @@ public final class SessionExporter {
         int turnNumber = 0;
         var turn = new TurnAccumulator();
         for (var entry : branch) {
-            String type = (String) entry.getOrDefault("type", "message");
+            String type = SessionCodec.entryType(entry);
             switch (type) {
                 case "model_change" -> {} // rendered in front matter
                 case "session_info" -> {} // rendered in front matter
@@ -99,7 +99,7 @@ public final class SessionExporter {
                     appendBranchSummary(md, entry);
                 }
                 case "message" -> {
-                    String role = (String) entry.getOrDefault("role", "");
+                    String role = SessionCodec.entryRole(entry);
                     if ("user".equals(role)) {
                         turnNumber = flushTurn(md, turn, turnNumber);
                         turn.reset();
@@ -168,7 +168,7 @@ public final class SessionExporter {
         md.append("## Turn ").append(turnNumber).append("\n\n");
 
         for (var entry : turn.entries) {
-            String role = (String) entry.getOrDefault("role", "");
+            String role = SessionCodec.entryRole(entry);
             switch (role) {
                 case "user" -> appendUserMessage(md, entry);
                 case "assistant" -> appendAssistantMessage(md, entry);
@@ -181,8 +181,8 @@ public final class SessionExporter {
 
     private static void appendUserMessage(StringBuilder md, Map<String, Object> entry) {
         md.append("### User\n\n");
-        String content = (String) entry.getOrDefault("content", "");
-        if (!content.isBlank()) {
+        String content = SessionCodec.entryContent(entry);
+        if (content != null && !content.isBlank()) {
             md.append(content).append("\n\n");
         }
     }
@@ -219,7 +219,7 @@ public final class SessionExporter {
         }
 
         // Assistant text content
-        String content = (String) entry.get("content");
+        String content = SessionCodec.entryContent(entry);
         if (content != null && !content.isBlank()) {
             md.append(content).append("\n\n");
         }
@@ -228,7 +228,7 @@ public final class SessionExporter {
     private static void appendToolResult(StringBuilder md, Map<String, Object> entry) {
         String toolName = String.valueOf(entry.getOrDefault("tool_name", "?"));
         boolean isError = Boolean.TRUE.equals(entry.get("is_error"));
-        String content = (String) entry.get("content");
+        String content = SessionCodec.entryContent(entry);
 
         md.append("### Tool: `").append(toolName).append("`");
         if (isError)
