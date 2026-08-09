@@ -14,6 +14,7 @@ import org.pijota.tools.WriteTool;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -180,37 +181,24 @@ class AppendOnlyTuiTest {
     }
 
     @Test
-    void showExtensionStatusLineNormal() {
-        assertTrue(PromptPresenter.showExtensionStatusLine("hello"));
-    }
-
-    @Test
-    void showExtensionStatusLineFiltered() {
-        assertFalse(PromptPresenter.showExtensionStatusLine("something filtered"));
-    }
-
-    @Test
-    void showExtensionStatusLineSecured() {
-        assertFalse(PromptPresenter.showExtensionStatusLine("secured status"));
-    }
-
-    @Test
-    void showExtensionStatusLineEmpty() {
-        assertTrue(PromptPresenter.showExtensionStatusLine(""));
-    }
-
-    @Test
-    void showExtensionStatusLineNull() {
-        assertFalse(PromptPresenter.showExtensionStatusLine(null));
-    }
-
-    @Test
-    void mergeExtensionLinesFiltersBeforeCollapseCountsVisibleLines() {
+    void anExtensionsStatusLineIsShownWhateverItSays() {
+        // These two words used to be a denylist here, so an extension whose chip said "filtered" or "secured" was
+        // silently dropped -- which is how the two safety toggles came to be invisible in exactly their on state.
+        // Which state deserves a chip is the extension's call; this merge only de-duplicates and flattens.
         var merged = PromptPresenter.mergeExtensionLines(
-                                        List.of("a", "b", "c", "something filtered", "secured status"));
+                                        List.of("hello", "something filtered", "secured status", "hello"));
+        assertEquals(List.of("hello", "something filtered", "secured status"), merged);
+    }
 
-        assertEquals(List.of("a", "b", "c"), merged);
-        assertEquals(List.of("a", "b", "c"), AppendOnlyTui.collapse(merged, false, 3));
+    @Test
+    void mergeExtensionLinesDropsNothingButBlanksAndNulls() {
+        var merged = PromptPresenter.mergeExtensionLines(Arrays.asList("a", null, "", "   ", "b"));
+        assertEquals(List.of("a", "b"), merged);
+    }
+
+    @Test
+    void mergeExtensionLinesFlattensNewlinesSoOneChipCannotBecomeTwoRows() {
+        assertEquals(List.of("a b"), PromptPresenter.mergeExtensionLines(List.of("a\nb")));
     }
 
     @Test

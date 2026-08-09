@@ -54,10 +54,11 @@ public final class SecurityExtension implements Extension {
     public void init(ExtensionAPI api) {
         var runtime = api.runtime();
         api.registerSlashCommand(new SlashCommand("security", "Toggle dangerous command blocking", List.of(),
-                                        ignored -> toggle()));
+                                        ignored -> toggle(runtime)));
         // A live supplier (re-evaluated each render) keeps the chip in sync with the toggle everywhere, including
-        // after /new, which clears keyed setStatus entries but not the extension's own state.
-        api.registerStatusLines(() -> List.of(enabled ? Emojis.SHIELD + " secured" : Emojis.UNLOCK + " unlocked"));
+        // after /new, which clears keyed setStatus entries but not the extension's own state. Blocking is on by
+        // default, so only its absence earns a chip: the status bar should name the exception, not the norm.
+        api.registerStatusLines(() -> enabled ? List.of() : List.of(Emojis.UNLOCK + " unlocked"));
 
         api.onToolCall(tc -> {
             if (!enabled)
@@ -111,8 +112,14 @@ public final class SecurityExtension implements Extension {
             enabled = false;
     }
 
-    private void toggle() {
+    /**
+     * Says what it did. Re-arming the guard takes the only chip off the status bar, so a silent toggle showed nothing
+     * but a disappearance -- indistinguishable from a command that did not run. This is also the more important of the
+     * two directions to state plainly: it decides whether the next rm -rf is stopped.
+     */
+    private void toggle(ExtensionRuntime runtime) {
         enabled = !enabled;
+        runtime.setStatus(enabled ? "blocking dangerous commands" : "not blocking: dangerous commands will run");
     }
 
     static String summarize(String command) {

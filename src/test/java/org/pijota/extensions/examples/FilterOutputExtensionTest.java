@@ -184,4 +184,30 @@ class FilterOutputExtensionTest {
         api.fire(new ExtensionEvent.BeforeProviderRequest(messages));
         assertEquals("already [REDACTED]", ((Message.User) messages.get(0)).content());
     }
+
+    /**
+     * Redaction is on by default, so the chip marks its absence. That makes the on state the one with no visible effect
+     * at all, and a toggle whose success looks like nothing happening reads as a broken command.
+     */
+    @Test
+    void togglingRedactionSaysWhatItDid() {
+        var runtime = new FakeExtensionRuntime();
+        var api = new FakeExtensionAPI(runtime);
+        var ext = new FilterOutputExtension();
+        ext.init(api);
+        var status = api.statusLineSuppliers().getFirst();
+        assertEquals(List.of(), status.get(), "redacting is the default and the quiet state");
+
+        api.slashCommand("filter-output").handler().accept(""); // redaction off
+
+        assertTrue(String.join("", status.get()).contains("visible"), "the unprotected state earns a chip");
+        assertTrue(runtime.statusCalls().stream().anyMatch(m -> m.contains("not redacting")),
+                                        "and the toggle says so: " + runtime.statusCalls());
+
+        api.slashCommand("filter-output").handler().accept(""); // back on
+
+        assertEquals(List.of(), status.get());
+        assertTrue(runtime.statusCalls().stream().anyMatch(m -> m.contains("redacting secrets")),
+                                        "turning it back on must report too: " + runtime.statusCalls());
+    }
 }

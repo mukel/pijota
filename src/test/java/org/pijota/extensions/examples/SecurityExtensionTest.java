@@ -8,6 +8,8 @@ import org.pijota.extensions.testkit.FakeUiContext;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class SecurityExtensionTest {
@@ -118,7 +120,11 @@ class SecurityExtensionTest {
 
         api.slashCommand("security").handler().accept(""); // toggle → blocking on
 
-        assertTrue(String.join("", status.get()).contains("secured"));
+        // Blocking is the default, so being on earns no chip: the bar names the exception. What the toggle owes the
+        // user is a word about what it just did, since its only other effect is a chip disappearing.
+        assertEquals(List.of(), status.get(), "the guarded state is the quiet one");
+        assertTrue(runtime.statusCalls().stream().anyMatch(m -> m.contains("blocking dangerous")),
+                                        "the toggle must say what it did: " + runtime.statusCalls());
     }
 
     @Test

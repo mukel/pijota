@@ -53,10 +53,11 @@ public final class FilterOutputExtension implements Extension {
     @Override
     public void init(ExtensionAPI api) {
         api.registerSlashCommand(new SlashCommand("filter-output", "Toggle secret/token redaction", List.of(),
-                                        ignored -> toggle()));
+                                        ignored -> toggle(api)));
         // A live supplier keeps the chip in sync with the toggle everywhere, including after /new (which clears keyed
-        // setStatus entries but not this extension's state).
-        api.registerStatusLines(() -> List.of(enabled ? Emojis.SEE_NO_EVIL + " filtered" : Emojis.EYES + " visible"));
+        // setStatus entries but not this extension's state). Redaction is on by default, so only its absence is worth
+        // a chip: a permanent badge for the safe state is noise, and the eye stops seeing it long before it matters.
+        api.registerStatusLines(() -> enabled ? List.of() : List.of(Emojis.EYES + " visible"));
 
         api.onInput(text -> {
             if (!enabled)
@@ -87,8 +88,15 @@ public final class FilterOutputExtension implements Extension {
             enabled = false;
     }
 
-    private void toggle() {
+    /**
+     * Says what it did. Turning redaction back on removes the only chip that was on screen, so a toggle that reported
+     * nothing looked like a command that had failed: the one visible effect of succeeding was something disappearing.
+     */
+    private void toggle(ExtensionAPI api) {
         enabled = !enabled;
+        api.runtime().setStatus(enabled
+                                        ? "redacting secrets and tokens before they are sent"
+                                        : "not redacting: secrets in output go to the model as they are");
     }
 
     private static String contentOf(Message msg) {

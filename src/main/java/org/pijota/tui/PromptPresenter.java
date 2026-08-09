@@ -5,7 +5,6 @@ import org.pijota.theme.AnsiTheme;
 
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.pijota.util.Util.fmtCount;
@@ -174,20 +173,13 @@ final class PromptPresenter {
     static List<String> mergeExtensionLines(List<String> lines) {
         var seen = new LinkedHashSet<String>();
         for (String raw : lines) {
-            if (!showExtensionStatusLine(raw))
+            if (raw == null)
                 continue;
             String sanitized = raw.replace('\n', ' ').replace('\r', ' ');
             if (!sanitized.isBlank())
                 seen.add(sanitized);
         }
         return List.copyOf(seen);
-    }
-
-    static boolean showExtensionStatusLine(String line) {
-        if (line == null)
-            return false;
-        String normalized = line.toLowerCase(Locale.ROOT);
-        return !(normalized.contains("filtered") || normalized.contains("secured"));
     }
 
     String tokenStatus() {
