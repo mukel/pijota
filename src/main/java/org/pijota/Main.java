@@ -28,6 +28,7 @@ import org.pijota.telegram.TelegramFrontend;
 import org.pijota.tui.AppendOnlyTui;
 import org.pijota.util.Cli;
 import org.pijota.util.CliErrorReporter;
+import org.pijota.util.ParentWatch;
 import org.pijota.util.PijotaHome;
 import org.pijota.util.Platform;
 import org.pijota.util.SelfRespawn;
@@ -136,6 +137,9 @@ public final class Main {
             if (!parsedArgs.worker() && shouldSupervise(parsedArgs))
                 return Supervisor.run(args);
 
+            // A worker outlives its supervisor only when the supervisor was killed outright, which no hook over there
+            // can catch. See ParentWatch: this is the half that closes it.
+            ParentWatch.arm(parsedArgs.worker());
             return runFrontend(parsedArgs);
         } catch (SetupRequiredException e) {
             // Not a crash: nothing is configured yet. Print the guidance plainly, without the failure framing.

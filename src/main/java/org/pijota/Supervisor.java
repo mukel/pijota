@@ -17,7 +17,20 @@ final class Supervisor {
 
     private Supervisor() {}
 
+    /** The worker this supervisor is currently waiting on, so the shutdown hook can take it with us. */
+    private static volatile Process worker;
+
+    /**
+     * How long a worker is given to leave on its own before it is taken down. Long enough for a TUI to put the terminal
+     * back, short enough that nobody waits on a process that is already gone.
+     */
+    private static final long GRACE_MILLIS = 2000;
+
     static int run(String[] originalArgs) throws IOException, InterruptedException {
+        // Measured: without this, killing the supervisor left the worker running and reparented to systemd, still
+        // serving HTTP. That is where week-old `--worker web` processes come from. This covers the signals a JVM can
+        // see; SIGKILL cannot be caught here at all, which is why the worker also watches for us going away.
+        Runtime.getRuntime().addShutdownHook(new Thread(Supervisor::stopWorker, "pijota-supervisor-shutdown"));
         SelfRespawn.clearRestartRequest();
         SelfRespawn.markStartupHealthy(); // clear any stale boot sentinel from a prior run
         var cwd = Path.of(System.getProperty("user.dir")).toFile();
@@ -28,7 +41,9 @@ final class Supervisor {
         while (true) {
             if (respawned)
                 SelfRespawn.markBooting(); // arm the boot-health check; the worker clears it once it starts cleanly
-            int exitCode = new ProcessBuilder(command).inheritIO().directory(cwd).start().waitFor();
+            var child = new ProcessBuilder(command).inheritIO().directory(cwd).start();
+            worker = child;
+            int exitCode = child.waitFor();
 
             var restart = SelfRespawn.readRestartRequest();
             if (restart.isPresent()) {
@@ -54,6 +69,21 @@ final class Supervisor {
             }
             SelfRespawn.markStartupHealthy(); // clear the sentinel on a clean/normal exit
             return exitCode;
+        }
+    }
+
+    /** Asks the worker to leave, then insists. A worker that has already exited is left alone. */
+    static void stopWorker() {
+        var child = worker;
+        if (child == null || !child.isAlive())
+            return;
+        child.destroy();
+        try {
+            if (!child.waitFor(GRACE_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS))
+                child.destroyForcibly();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            child.destroyForcibly();
         }
     }
 
