@@ -248,7 +248,8 @@ public final class SessionManager {
             String model = (String) entry.getOrDefault("model", "");
             return provider.isBlank() || model.isBlank()
                                             ? null
-                                            : new ModelSelection(provider, model, asLong(entry.get("contextWindow")));
+                                            : new ModelSelection(provider, model, SessionUsage
+                                                                            .asLong(entry.get("contextWindow")));
         }, true);
     }
 
@@ -821,17 +822,6 @@ public final class SessionManager {
         }
     }
 
-    private static long asLong(Object value) {
-        if (value instanceof Number n)
-            return n.longValue();
-        if (value instanceof String s) {
-            try {
-                return Long.parseLong(s);
-            } catch (NumberFormatException ignored) {}
-        }
-        return 0;
-    }
-
     private static Map<String, Object> serializeUsage(Usage usage) {
         var out = new LinkedHashMap<String, Object>();
         out.put("inputTokens", usage.inputTokens());
@@ -845,8 +835,10 @@ public final class SessionManager {
     private static Usage deserializeUsage(Object raw) {
         if (!(raw instanceof Map<?, ?> m))
             return null;
-        return new Usage(asLong(m.get("inputTokens")), asLong(m.get("outputTokens")), asLong(m.get("cacheReadTokens")),
-                                        asLong(m.get("cacheWriteTokens")), asLong(m.get("reasoningTokens")));
+        return new Usage(SessionUsage.asLong(m.get("inputTokens")), SessionUsage.asLong(m.get("outputTokens")),
+                                        SessionUsage.asLong(m.get("cacheReadTokens")),
+                                        SessionUsage.asLong(m.get("cacheWriteTokens")),
+                                        SessionUsage.asLong(m.get("reasoningTokens")));
     }
 
     @SuppressWarnings("unchecked")

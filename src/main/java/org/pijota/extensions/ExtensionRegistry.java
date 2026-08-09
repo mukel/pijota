@@ -1,6 +1,7 @@
 package org.pijota.extensions;
 
 import org.pijota.agent.AgentEvent;
+import org.pijota.agent.ChildEnvironment;
 import org.pijota.extensions.skills.SkillLoader;
 import org.pijota.llm.LlmClient;
 import org.pijota.messages.Message;
@@ -20,7 +21,6 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -796,31 +796,10 @@ public final class ExtensionRegistry {
         }
 
         private Map<String, String> execEnvironment() {
-            var env = new LinkedHashMap<String, String>();
-            env.put("PIJOTA_PROVIDER", null);
-            env.put("PIJOTA_MODEL", null);
-            env.put("PIJOTA_REASONING_LEVEL", null);
-            env.put("PIJOTA_SESSION_FILE", null);
-            env.put("PIJOTA_SESSION_ID", null);
-            env.put("PIJOTA_CODING_AGENT", "true");
             LlmClient client = llm();
-            if (client != null) {
-                env.put("PIJOTA_PROVIDER", client.provider());
-                env.put("PIJOTA_MODEL", client.model());
-                if (client.thinkingLevel() != null)
-                    env.put("PIJOTA_REASONING_LEVEL", client.thinkingLevel().name().toLowerCase(Locale.ROOT));
-            }
-            Path file = sessionFile();
-            if (file != null) {
-                env.put("PIJOTA_SESSION_FILE", file.toString());
-                env.put("PIJOTA_SESSION_ID", sessionId(file));
-            }
-            return env;
-        }
-
-        private String sessionId(Path sessionFile) {
-            String name = sessionFile.getFileName().toString();
-            return name.endsWith(".jsonl") ? name.substring(0, name.length() - ".jsonl".length()) : name;
+            return ChildEnvironment.of(client == null ? null : client.provider(),
+                                            client == null ? null : client.model(),
+                                            client == null ? null : client.thinkingLevel(), sessionFile());
         }
 
         @Override

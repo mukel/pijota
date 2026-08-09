@@ -64,7 +64,7 @@ public final class SessionUsage {
                                         asLong(m.get("cacheWriteTokens")), asLong(m.get("reasoningTokens")));
     }
 
-    private static long asLong(Object value) {
+    static long asLong(Object value) {
         if (value instanceof Number n)
             return n.longValue();
         if (value instanceof String s) {

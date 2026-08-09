@@ -1,5 +1,6 @@
 package org.pijota;
 
+import org.pijota.agent.ChildEnvironment;
 import org.pijota.agent.PijotaSession;
 import org.pijota.agent.SessionManager;
 import org.pijota.agent.SystemPrompt;
@@ -374,29 +375,8 @@ public final class AppBootstrap {
     }
 
     private static Map<String, String> bashEnvironment(LlmService llm, PijotaSession session) {
-        var env = new LinkedHashMap<String, String>();
-        env.put("PIJOTA_PROVIDER", null);
-        env.put("PIJOTA_MODEL", null);
-        env.put("PIJOTA_REASONING_LEVEL", null);
-        env.put("PIJOTA_SESSION_FILE", null);
-        env.put("PIJOTA_SESSION_ID", null);
-        env.put("PIJOTA_CODING_AGENT", "true");
-        env.put("PIJOTA_PROVIDER", llm.provider());
-        env.put("PIJOTA_MODEL", llm.model());
-        var thinking = llm.thinkingLevel();
-        if (thinking != null)
-            env.put("PIJOTA_REASONING_LEVEL", thinking.name().toLowerCase(Locale.ROOT));
-        if (session != null && session.sessionFile() != null) {
-            Path file = session.sessionFile();
-            env.put("PIJOTA_SESSION_FILE", file.toString());
-            env.put("PIJOTA_SESSION_ID", sessionId(file));
-        }
-        return env;
-    }
-
-    private static String sessionId(Path sessionFile) {
-        String name = sessionFile.getFileName().toString();
-        return name.endsWith(".jsonl") ? name.substring(0, name.length() - ".jsonl".length()) : name;
+        return ChildEnvironment.of(llm.provider(), llm.model(), llm.thinkingLevel(),
+                                        session == null ? null : session.sessionFile());
     }
 
     private static void configureExtensionEnablement(ExtensionRegistry ext, Args parsedArgs, SettingsManager settings) {
