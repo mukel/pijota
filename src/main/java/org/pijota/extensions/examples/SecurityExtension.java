@@ -8,6 +8,9 @@ import org.pijota.modes.SlashCommand;
 import org.pijota.util.Emojis;
 import org.pijota.util.Util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -37,6 +40,8 @@ public final class SecurityExtension implements Extension {
             "disk destruction (dd/mkfs/fdisk/wipefs/parted)", "system shutdown/reboot", "systemctl destructive",
             "fork bomb", "write to raw disk device", "pipe wget to shell", "pipe curl to shell",
             "iptables modification", "netcat listen/exec", "destructive git (force push / hard reset)",};
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityExtension.class);
 
     private volatile boolean enabled = true;
 
@@ -71,6 +76,8 @@ public final class SecurityExtension implements Extension {
 
             for (int pi = 0; pi < DANGEROUS_CMDS.length; pi++) {
                 if (DANGEROUS_CMDS[pi].matcher(command).find()) {
+                    log.warn("security: blocked {} tool call -- {} in: {}", tc.toolName(), DANGEROUS_LABELS[pi],
+                                                    summarize(command));
                     return new ExtensionResult.Block("Blocked by security: " + DANGEROUS_LABELS[pi] + " in: "
                                                     + summarize(command));
                 }
@@ -91,6 +98,11 @@ public final class SecurityExtension implements Extension {
                         try {
                             boolean ok = runtime.ui().confirm(Emojis.WARN + " Dangerous command:\n  " + command
                                                             + "\n\nExecute anyway?").join();
+                            // The override is the line worth keeping. A block is the guard working and leaves the
+                            // machine as it was; an approved rm -rf is the one event you go looking for afterwards,
+                            // and it is the only one that leaves nothing else behind to find.
+                            log.warn("security: user {} {} in: {}", ok ? "ALLOWED" : "declined", DANGEROUS_LABELS[pi],
+                                                            summarize(command));
                             if (!ok)
                                 return ExtensionResult.UserBashResult.block("Blocked by user");
                             return ExtensionResult.UserBashResult.allow();
@@ -98,6 +110,8 @@ public final class SecurityExtension implements Extension {
                             return ExtensionResult.UserBashResult.block("Confirm failed: " + e.getMessage());
                         }
                     }
+                    log.warn("security: blocked user command with no UI to ask -- {} in: {}", DANGEROUS_LABELS[pi],
+                                                    summarize(command));
                     return ExtensionResult.UserBashResult
                                                     .block("Blocked by security: dangerous command (no UI available)");
                 }

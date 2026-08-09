@@ -6,7 +6,12 @@ import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.extensions.testkit.FakeUiContext;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -169,5 +174,32 @@ class SecurityExtensionTest {
         // after toggle, dangerous commands are allowed
         var result = api.fire(new ExtensionEvent.ToolCall("id", "bash", "{\"command\":\"rm -rf /\"}", true));
         assertNull(result);
+    }
+
+    /**
+     * A veto leaves the machine as it was, so nothing else records that it happened; an override changes the machine
+     * and equally leaves no trace of who decided. The log is the only place either fact survives the session.
+     */
+    @Test
+    void everyVerdictOnADangerousCommandIsWrittenToTheLog() {
+        var logger = (Logger) LoggerFactory.getLogger(SecurityExtension.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        Level saved = logger.getLevel();
+        logger.addAppender(appender);
+        logger.setLevel(Level.WARN);
+        try {
+            var api = new FakeExtensionAPI();
+            var ext = new SecurityExtension();
+            ext.init(api);
+            api.fireToolCall("bash", "sudo rm -rf /");
+
+            var lines = appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+            assertTrue(lines.stream().anyMatch(l -> l.contains("blocked") && l.contains("sudo rm -rf /")),
+                                            "the blocked call must be on the record: " + lines);
+        } finally {
+            logger.setLevel(saved);
+            logger.detachAppender(appender);
+        }
     }
 }
