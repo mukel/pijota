@@ -251,26 +251,27 @@ class SessionCommandsTest {
             }
 
             @Override
-            public String styled(String slot, String text) {
-                slots.add(slot);
-                return text;
+            public void appendPlain(List<String> lines) {
+                said.addAll(lines);
             }
 
             @Override
-            public void appendPlain(List<String> lines) {
-                said.addAll(lines);
+            public void setTransientStatus(String message, long millis) {
+                slots.add(message);
             }
         }
         var host = new Busy();
 
         assertTrue(host.refuseWhileBusy("/model"), "it reports the refusal so callers can just return");
-        assertEquals(List.of("/model is unavailable while a turn is running"), said);
-        assertEquals(List.of("statusWarn"), slots, "amber, not the red that means something broke");
+        assertEquals(List.of("/model is unavailable while a turn is running"), slots);
+        // Not the transcript: a declined keystroke is not part of the conversation, and appending it put the refusal
+        // directly under the user's own message, where it read as something that had been sent to the model.
+        assertTrue(said.isEmpty(), "the transcript is for the conversation: " + said);
 
-        said.clear();
+        slots.clear();
         host.busy = false;
         assertFalse(host.refuseWhileBusy("/model"), "idle: nothing is refused");
-        assertTrue(said.isEmpty(), "and nothing is said");
+        assertTrue(slots.isEmpty(), "and nothing is said");
     }
 
     /** One sentence for one condition; "/compact unavailable while model is responding" was a second one. */
@@ -296,6 +297,11 @@ class SessionCommandsTest {
         @Override
         public String styled(String slot, String text) {
             return text;
+        }
+
+        @Override
+        public void setTransientStatus(String message, long millis) {
+            this.lines.add(message); // the busy refusal goes to the status line now
         }
 
         @Override

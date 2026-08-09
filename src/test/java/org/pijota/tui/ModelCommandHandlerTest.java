@@ -215,6 +215,11 @@ class ModelCommandHandlerTest {
             }
 
             @Override
+            public void setTransientStatus(String message, long millis) {
+                output.add(message); // the busy refusal goes to the status line now
+            }
+
+            @Override
             public String styled(String slot, String text) {
                 return text;
             }
@@ -272,6 +277,11 @@ class ModelCommandHandlerTest {
             @Override
             public void appendPlain(List<String> lines) {
                 output.addAll(lines);
+            }
+
+            @Override
+            public void setTransientStatus(String message, long millis) {
+                output.add(message); // the busy refusal goes to the status line now
             }
 
             @Override

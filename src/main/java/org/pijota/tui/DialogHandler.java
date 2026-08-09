@@ -128,18 +128,24 @@ final class DialogHandler {
     boolean handleConfirm(Key key) {
         if (!confirmReq.active())
             return false;
+        boolean answer;
         if (key instanceof Key.Char c) {
             if (c.value() == 'y' || c.value() == 'Y')
-                confirmReq.fulfill(true);
+                answer = true;
             else if (c.value() == 'n' || c.value() == 'N')
-                confirmReq.fulfill(false);
+                answer = false;
             else
                 return true;
         } else if (key == Key.Special.ESC) {
-            confirmReq.fulfill(false);
+            answer = false;
         } else {
             return true;
         }
+        confirmReq.fulfill(answer);
+        // Echoed like any other answer. A question puts the user's reply in the transcript; a confirm did not, so the
+        // record kept the question and dropped the answer -- and a moment later, with the next turn's message beneath
+        // it, an answered dialog read as one still waiting.
+        host.appendPlain(host.promptEcho(answer ? "y" : "n"));
         dialogClosed();
         return true;
     }

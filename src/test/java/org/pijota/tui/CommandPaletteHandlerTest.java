@@ -190,6 +190,11 @@ class CommandPaletteHandlerTest {
         }
 
         @Override
+        public void setTransientStatus(String message, long millis) {
+            lines.add(message); // the refusal goes to the status line; the assertion is about being told
+        }
+
+        @Override
         public void appendPlain(List<String> appended) {
             lines.addAll(appended);
         }

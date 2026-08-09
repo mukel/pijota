@@ -32,6 +32,9 @@ interface TuiHost {
 
     default void clearPrompt() {}
 
+    /** A message that shows for {@code millis} and then goes: feedback on a keystroke, not a line of the transcript. */
+    default void setTransientStatus(String message, long millis) {}
+
     default boolean busy() {
         return false;
     }
@@ -66,7 +69,10 @@ interface TuiHost {
     default boolean refuseWhileBusy(String command) {
         if (!busy())
             return false;
-        appendPlain(List.of(styled("statusWarn", busyRefusal(command))));
+        // The status line, not the transcript. A declined keystroke is not part of the conversation, and appending
+        // it put "/sessions is unavailable while a turn is running" directly under the user's own message, where it
+        // read as something that had been sent. It also landed mid-stream, interleaved with the model's output.
+        setTransientStatus(busyRefusal(command), 3000);
         return true;
     }
 }

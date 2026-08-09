@@ -215,7 +215,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private boolean refuseWhileBusy(String command) {
         if (!activity.isBusy())
             return false;
-        appendPlain(List.of(theme.styled("statusWarn", TuiHost.busyRefusal(command))));
+        setTransientStatus(TuiHost.busyRefusal(command), 3000); // see TuiHost.refuseWhileBusy
         return true;
     }
 
