@@ -73,6 +73,8 @@ import static org.pijota.util.Util.shortenCwd;
 
 public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private static final Logger log = LoggerFactory.getLogger(AppendOnlyTui.class);
+    /** Columns the banner's session titles keep whatever else wants room; below this a title says nothing at all. */
+    private static final int MIN_TITLE = 8;
     private AnsiTheme theme;
     private String provider;
     private String model;
@@ -955,12 +957,16 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 lines.add("");
                 lines.add(theme.styled("dim", "recent sessions"));
                 int width = Math.max(20, terminal.getWidth());
-                var metas = items.stream().map(AppendOnlyTui::bannerSessionMeta).toList();
+                // The row is GROUP + title + GROUP + meta, so the two separators cost 4 columns and the title is
+                // promised MIN_TITLE of what remains. The meta is built to that budget rather than measured after
+                // the fact: it used to be built at full length and only the title was cut to fit, so once the meta
+                // alone was wider than the terminal the floor below guaranteed the overflow it was meant to prevent.
+                var metas = items.stream().map(it -> bannerSessionMeta(it, width - 4 - MIN_TITLE)).toList();
                 // Metadata in one column so ages and counts can be compared straight down the list; trailing each
                 // title, it landed somewhere different on every row. The column sits just past the longest title
                 // rather than against the right margin, which would leave a canyon of blank the eye has to cross.
                 int metaWidth = metas.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
-                int titleRoom = Math.max(8, width - metaWidth - 4); // 2 leading + one GROUP gap
+                int titleRoom = Math.max(MIN_TITLE, width - metaWidth - 4); // 2 leading + one GROUP gap
                 // Columns, not characters: a CJK title cut to N characters is 2N columns wide, and the row wrapped.
                 var titles = items.stream().map(it -> AnsiWidth.ellipsize(it.description(), titleRoom)).toList();
                 int titleColumn = titles.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
@@ -979,7 +985,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * selector's detail string, which also carried an absolute timestamp and the session id: at three rows the question
      * is "which one was I just in", and a relative age answers it without a second time format competing.
      */
-    static String bannerSessionMeta(SessionItem item) {
+    static String bannerSessionMeta(SessionItem item, int budget) {
         var parts = new ArrayList<String>();
         String age = SessionDescriptor.relativeAge(item.mtime());
         if (age != null && !age.isBlank())
@@ -989,6 +995,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             if (item.estTokens() > 0)
                 parts.add("~" + SessionDescriptor.formatTokens(item.estTokens()));
         }
+        // Built most-telling-first, so a narrow terminal gives up the tail: at three rows the question is "which
+        // session was I just in", which the age answers and the token estimate does not. Saying less on one row
+        // beats saying everything across two, which is what wrapping actually costs.
+        while (!parts.isEmpty() && AnsiWidth.visibleWidth(String.join(" · ", parts)) > budget)
+            parts.remove(parts.size() - 1);
         return String.join(" · ", parts);
     }
 
