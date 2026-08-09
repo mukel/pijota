@@ -126,6 +126,33 @@ class AgentLoopTest {
     }
 
     /**
+     * DeliverAs.NEXT_TURN is documented as the default, and the no-argument send is how the default is reached. They
+     * were two bodies that disagreed -- only one of them fired TurnStart -- and nothing in the product passed the
+     * enum, so the divergence hid behind a name nobody used.
+     */
+    @Test
+    void theDefaultDeliveryMeansTheSameThingSpeltEitherWay() throws Exception {
+        for (boolean viaEnum : new boolean[] {false, true}) {
+            var llm = new FauxLlm().enqueue(FauxLlm.Response.content("ok"));
+            var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").build();
+            var starts = new java.util.concurrent.atomic.AtomicInteger();
+            agent.addEventListener(e -> {
+                if (e instanceof AgentEvent.TurnStart)
+                    starts.incrementAndGet();
+            });
+
+            if (viaEnum)
+                agent.sendUserMessage("hello", DeliverAs.NEXT_TURN);
+            else
+                agent.sendUserMessage("hello");
+
+            assertEquals(1, starts.get(), "a turn starts either way (viaEnum=" + viaEnum + ")");
+            assertEquals(List.of("hello"),
+                                            agent.userMessages().stream().map(Message.User::content).toList());
+        }
+    }
+
+    /**
      * A loop whose re-prompts outrun its turns queued one copy per idle. The drain hands the model everything at once,
      * so the request carried the same sentence twenty times over -- paid for by the token, and counted as twenty
      * iterations of a goal that had been told once.

@@ -1,5 +1,6 @@
 package org.pijota;
 
+import org.pijota.agent.SessionManager;
 import org.pijota.testkit.StdioCapture;
 
 import org.junit.jupiter.api.AfterEach;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -35,21 +37,20 @@ class ExportSessionTest {
     Path out;
     private String savedHome;
     private String id;
+    private Path sessionFile;
 
     @BeforeEach
     void writeASession() throws IOException {
         savedHome = System.setProperty("pijota.home", home.toString());
-        id = UUID.randomUUID().toString();
-        String cwd = System.getProperty("user.dir");
-        // The layout SessionManager resolves for a cwd: one directory per project, sessions named by id.
-        Path dir = home.resolve("sessions").resolve(cwd.replaceFirst("^/", "").replace('/', '_'));
-        Files.createDirectories(dir);
-        String now = Instant.now().toString();
-        String user = UUID.randomUUID().toString();
-        Files.writeString(dir.resolve(id + ".jsonl"), "{\"type\":\"session\",\"version\":3,\"cwd\":\"" + cwd
-                                        + "\",\"timestamp\":\"" + now + "\"}\n" + "{\"id\":\"" + user
-                                        + "\",\"timestamp\":\"" + now
-                                        + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"hello there\"}\n");
+        // Created through SessionManager, so this never spells the on-disk layout a second time. Where a session
+        // lives for a cwd is that class's rule -- it flattens the path and strips the characters Windows forbids --
+        // and a copy of it here would be a second truth to keep in step with the first.
+        sessionFile = new SessionManager(home.resolve("sessions")).createSession(System.getProperty("user.dir"));
+        id = sessionFile.getFileName().toString().replace(".jsonl", "");
+        Files.writeString(sessionFile,
+                                        "{\"id\":\"" + UUID.randomUUID() + "\",\"timestamp\":\"" + Instant.now()
+                                                                        + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"hello there\"}\n",
+                                        StandardOpenOption.APPEND);
     }
 
     @AfterEach
@@ -81,10 +82,7 @@ class ExportSessionTest {
     /** The only form that used to work has to keep working. */
     @Test
     void andAnExplicitPathStillWorks() {
-        Path file = home.resolve("sessions").resolve(
-                                        System.getProperty("user.dir").replaceFirst("^/", "").replace('/', '_'))
-                                        .resolve(id + ".jsonl");
-        assertEquals(0, export("--session", file.toString()), stdio.err());
+        assertEquals(0, export("--session", sessionFile.toString()), stdio.err());
     }
 
     @Test

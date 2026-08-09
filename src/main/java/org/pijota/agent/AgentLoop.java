@@ -300,6 +300,7 @@ public final class AgentLoop implements AgentContext {
         return drain(followUpMessages);
     }
 
+    /** Queues text a person typed while a turn was running. Duplicates are kept: see {@link #queueGeneratedFollowUp}. */
     public void followUp(String m) {
         followUpMessages.add(m);
     }
@@ -395,36 +396,43 @@ public final class AgentLoop implements AgentContext {
 
     @Override
     public void sendUserMessage(String content) {
-        if (isBusy()) {
-            sendUserMessage(content, DeliverAs.STEER);
-        } else {
-            addUserMessage(new Message.User(content));
-            fireEvent(new AgentEvent.TurnStart(sessionTurn + 1));
-        }
+        sendUserMessage(content, DeliverAs.NEXT_TURN);
     }
 
     @Override
     public void sendUserMessage(String content, DeliverAs deliverAs) {
         switch (deliverAs) {
             case STEER -> steeringMessages.add(content);
-            // A follow-up identical to one already waiting says nothing the queue is not already going to say. These
-            // are generated re-prompts, not typed text: when a loop's re-prompts outrun its turns they pile up, and
-            // the drain hands the model every copy at once -- twenty identical instructions in one request, paid for
-            // by the token, counted as twenty iterations, and twenty rows of the same sentence above the prompt.
-            // Only this arm dedupes; text the user queued by hand arrives through followUp(), where saying something
-            // twice can be meant.
-            case FOLLOW_UP -> {
-                synchronized (followUpMessages) {
-                    if (!followUpMessages.contains(content))
-                        followUpMessages.add(content);
+            case FOLLOW_UP -> queueGeneratedFollowUp(content);
+            // What the no-argument form means, and now the only place it is written. The two used to be separate
+            // bodies that disagreed: this one added the message and stopped, while the default fired TurnStart as
+            // well, so a message delivered by the enum the javadoc calls "the default" started no turn. Nothing in
+            // the product ever passed NEXT_TURN, so the divergence sat behind a name nobody used.
+            case NEXT_TURN -> {
+                if (isBusy()) {
+                    steeringMessages.add(content);
+                } else {
+                    addUserMessage(new Message.User(content));
+                    fireEvent(new AgentEvent.TurnStart(sessionTurn + 1));
                 }
             }
-            case NEXT_TURN -> {
-                if (isBusy())
-                    steeringMessages.add(content);
-                else
-                    addUserMessage(new Message.User(content));
-            }
+        }
+    }
+
+    /**
+     * Queues a re-prompt the product generated, such as a goal loop's continuation.
+     *
+     * <p>
+     * Identical text already waiting says nothing the queue is not going to say anyway, so it is not queued twice.
+     * When a loop's re-prompts outrun its turns they pile up, and the drain hands the model every copy at once:
+     * twenty identical instructions in one request, paid for by the token and counted as twenty iterations. Text the
+     * user typed goes through {@link #followUp} instead, which keeps duplicates -- saying something twice can be
+     * meant when a person does it.
+     */
+    private void queueGeneratedFollowUp(String content) {
+        synchronized (followUpMessages) {
+            if (!followUpMessages.contains(content))
+                followUpMessages.add(content);
         }
     }
 
