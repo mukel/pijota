@@ -46,7 +46,7 @@ Prompt templates become commands too, one per `.md` file: see
 | `/jobs` | every running process with an id, `in turn` or `background` |
 | `/kill <id>` | stop one, whatever kind it is |
 | `/trust` | trust this folder's project files |
-| `/plan` | toggle read-only plan mode |
+| `/plan` | toggle read-only plan mode (example extension, enable with `--plan`) |
 | `/bg` | background the running tool |
 
 ## Account

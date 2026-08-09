@@ -1,7 +1,7 @@
 package org.pijota.tui;
 
 import org.pijota.extensions.KeyChord;
-import org.pijota.extensions.plan.PlanExtension;
+import org.pijota.extensions.examples.plan.PlanExtension;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
 import org.pijota.extensions.transcend.TranscendenceExtension;

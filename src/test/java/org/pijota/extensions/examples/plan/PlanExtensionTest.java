@@ -1,4 +1,4 @@
-package org.pijota.extensions.plan;
+package org.pijota.extensions.examples.plan;
 
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;

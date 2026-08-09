@@ -32,7 +32,7 @@ pj --suggest=~/prompts/suggest.md      # a readable path is read as the prompt
 |---|---|
 | `jobs` | lets the model run background jobs: `jobs_run`, `jobs_output`, `jobs_list`, `jobs_kill` |
 | `task` | sub-agents in separate processes, optionally in isolated worktrees |
-| `plan` | read-only plan mode |
+| `plan` | read-only plan mode; off unless `--plan` |
 | `mcp` | [MCP](project-files.md#mcp-servers) servers' tools |
 | `skills` | skill discovery |
 | `prompt-templates` | `/<name>` expansion |

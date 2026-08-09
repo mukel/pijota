@@ -1,4 +1,4 @@
-package org.pijota.extensions.plan;
+package org.pijota.extensions.examples.plan;
 
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
@@ -41,8 +41,13 @@ public final class PlanExtension implements Extension {
     }
 
     @Override
+    public boolean enabledByDefault() {
+        return false; // a demonstration of the extension API, not something every session needs; enable with --plan
+    }
+
+    @Override
     public String description() {
-        return "Read-only plan mode for safe code exploration";
+        return "Read-only plan mode for safe code exploration. Enable with --plan.";
     }
 
     @Override

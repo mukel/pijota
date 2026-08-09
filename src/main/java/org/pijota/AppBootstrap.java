@@ -24,10 +24,10 @@ import org.pijota.extensions.examples.TodoExtension;
 import org.pijota.extensions.examples.TokenSpeedExtension;
 import org.pijota.extensions.examples.WebBrowseExtension;
 import org.pijota.extensions.examples.WhimsicalExtension;
+import org.pijota.extensions.examples.plan.PlanExtension;
 import org.pijota.extensions.jobs.JobRegistry;
 import org.pijota.extensions.jobs.JobsExtension;
 import org.pijota.extensions.mcp.McpExtension;
-import org.pijota.extensions.plan.PlanExtension;
 import org.pijota.extensions.prompts.PromptTemplateExtension;
 import org.pijota.extensions.skills.SkillExtension;
 import org.pijota.extensions.suggest.SuggestExtension;
@@ -154,7 +154,7 @@ public final class AppBootstrap {
             // repository, and nothing else ever removes them. Off the startup path; wired here rather than in the
             // extension because tests construct extensions freely and must not touch a real repo.
             CompletableFuture.runAsync(() -> TaskTool.sweepStaleWorktrees(cwd));
-            ext.register(new PlanExtension());
+            ext.register(new PlanExtension()); // opt-in --plan
             ext.register(new SuggestExtension()); // opt-in --suggest
             ext.register(new TranscendenceExtension()); // opt-in --transcendence
             ext.register(new InlineBashExtension());

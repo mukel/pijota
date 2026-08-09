@@ -1,4 +1,4 @@
-package org.pijota.extensions.plan;
+package org.pijota.extensions.examples.plan;
 
 import org.junit.jupiter.api.Test;
 
