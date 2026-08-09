@@ -127,8 +127,8 @@ class AgentLoopTest {
 
     /**
      * DeliverAs.NEXT_TURN is documented as the default, and the no-argument send is how the default is reached. They
-     * were two bodies that disagreed -- only one of them fired TurnStart -- and nothing in the product passed the
-     * enum, so the divergence hid behind a name nobody used.
+     * were two bodies that disagreed -- only one of them fired TurnStart -- and nothing in the product passed the enum,
+     * so the divergence hid behind a name nobody used.
      */
     @Test
     void theDefaultDeliveryMeansTheSameThingSpeltEitherWay() throws Exception {
@@ -147,8 +147,7 @@ class AgentLoopTest {
                 agent.sendUserMessage("hello");
 
             assertEquals(1, starts.get(), "a turn starts either way (viaEnum=" + viaEnum + ")");
-            assertEquals(List.of("hello"),
-                                            agent.userMessages().stream().map(Message.User::content).toList());
+            assertEquals(List.of("hello"), agent.userMessages().stream().map(Message.User::content).toList());
         }
     }
 

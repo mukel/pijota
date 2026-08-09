@@ -138,7 +138,15 @@ public final class SessionCodec {
     private static final Set<String> METADATA_TYPES = Set.of("model_change", "thinking_level_change", "cache_metadata",
                                     "session_info", "compaction", "session", "branch_summary");
 
-    /** True when this entry is bookkeeping rather than something said. See {@link #METADATA_TYPES}. */
+    /**
+     * True when this entry is bookkeeping rather than something said. See {@link #METADATA_TYPES}.
+     *
+     * <p>
+     * The question is "does this become a message", which is why {@code compaction} and {@code branch_summary} are
+     * here: they shape a conversation without being a line of it. That is not the same question the fork picker asks --
+     * see {@code TreeEntryItem.isInternalMetadata}, which keeps both, because a compaction is a real place to branch
+     * from. The two lists look interchangeable and are not.
+     */
     public static boolean isMetadataEntry(Map<String, Object> entry) {
         return METADATA_TYPES.contains((String) entry.getOrDefault("type", "message"));
     }

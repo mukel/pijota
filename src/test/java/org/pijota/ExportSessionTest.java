@@ -47,9 +47,8 @@ class ExportSessionTest {
         // and a copy of it here would be a second truth to keep in step with the first.
         sessionFile = new SessionManager(home.resolve("sessions")).createSession(System.getProperty("user.dir"));
         id = sessionFile.getFileName().toString().replace(".jsonl", "");
-        Files.writeString(sessionFile,
-                                        "{\"id\":\"" + UUID.randomUUID() + "\",\"timestamp\":\"" + Instant.now()
-                                                                        + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"hello there\"}\n",
+        Files.writeString(sessionFile, "{\"id\":\"" + UUID.randomUUID() + "\",\"timestamp\":\"" + Instant.now()
+                                        + "\",\"type\":\"message\",\"role\":\"user\",\"content\":\"hello there\"}\n",
                                         StandardOpenOption.APPEND);
     }
 
