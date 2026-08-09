@@ -43,7 +43,7 @@
 | `Ctrl+B` twice | send the running command to the background (needs the `jobs` extension) |
 
 `/bg` does the same as Ctrl+B twice, for use inside tmux, where Ctrl+B is tmux's prefix.
-In the session picker, `Enter` loads and `Ctrl+D` deletes.
+In the session picker, `Enter` loads and `Ctrl+X` deletes. Ctrl+D stays quit: it is the EOF byte, so a closed stdin would otherwise delete a session instead of leaving.
 
 ## Remapping
 

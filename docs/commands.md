@@ -25,7 +25,7 @@ Prompt templates become commands too, one per `.md` file: see
 
 | Command | Does |
 |---|---|
-| `/sessions` | pick a session; `Enter` loads, `Ctrl+D` deletes |
+| `/sessions` | pick a session; `Enter` loads, `Ctrl+X` deletes |
 | `/save [path]` | save to a file |
 | `/load <id\|path>` | load and resume |
 | `/delete <id\|path>` | delete |

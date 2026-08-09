@@ -19,7 +19,7 @@ pj -s ./path/to.jsonl    # or a path
 pj --recover             # recover the last interrupted session
 ```
 
-In the TUI: `/sessions` to pick (`Enter` loads, `Ctrl+D` deletes), `/load`, `/save`, `/delete`,
+In the TUI: `/sessions` to pick (`Enter` loads, `Ctrl+X` deletes), `/load`, `/save`, `/delete`,
 `/name <name>`, `/new`.
 
 ## Branching
