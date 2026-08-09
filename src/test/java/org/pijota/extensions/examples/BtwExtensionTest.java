@@ -129,7 +129,9 @@ class BtwExtensionTest {
 
         api.slashCommand("btw").handler().accept("anything");
 
-        assertTrue(api.lastSentMessage().contains("btw failed"), api.lastSentMessage());
+        // "failed", not "btw failed": the custom type is already drawn as the label above the note, so a note that
+        // named itself said it twice.
+        assertTrue(api.lastSentMessage().contains("failed"), api.lastSentMessage());
         assertTrue(api.lastSentMessage().contains("provider unavailable"), api.lastSentMessage());
     }
 }

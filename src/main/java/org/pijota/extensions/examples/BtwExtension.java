@@ -88,14 +88,14 @@ public final class BtwExtension implements Extension {
         }
         String digest = contextual ? contextDigest() : "";
         String task = (digest.isBlank() ? "" : digest + "\n\n") + "Side question: " + question;
-        note("🤔 btw: " + question + " · running…");
+        note("🤔 " + question + " · running…");
         executor.execute(() -> {
             try {
                 String answer = runSide(task);
                 lastAnswer = answer == null ? "" : answer.strip();
-                note(lastAnswer.isBlank() ? "btw: (no answer)" : "💡 btw answer:\n\n" + lastAnswer);
+                note(lastAnswer.isBlank() ? "(no answer)" : "💡 answer:\n\n" + lastAnswer);
             } catch (Exception e) {
-                note("btw failed: " + (e.getMessage() != null ? e.getMessage() : e.toString()));
+                note("failed: " + (e.getMessage() != null ? e.getMessage() : e.toString()));
             }
         });
     }
@@ -145,7 +145,13 @@ public final class BtwExtension implements Extension {
         return sb.length() > headerLen ? sb.toString() : "";
     }
 
-    /** Shows text to the user as a custom message, displayed everywhere, never added to the main agent's context. */
+    /**
+     * Shows text to the user as a custom message, displayed everywhere, never added to the main agent's context.
+     *
+     * <p>
+     * The text does not name itself: every frontend already draws the custom type as the label above it, so a note
+     * beginning "btw:" rendered as "btw" / "btw: …", saying it twice in two rows.
+     */
     private void note(String text) {
         api.sendMessage(new Message.Custom("btw", text));
     }

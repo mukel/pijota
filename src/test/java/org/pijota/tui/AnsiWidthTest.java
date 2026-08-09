@@ -637,4 +637,29 @@ class AnsiWidthTest {
                                             () -> String.format("U+%04X", s.codePointAt(0)));
         }
     }
+
+    /**
+     * A path cut mid-component reads as damage rather than as shortening: "~/Desktop/playg…ota" looks like a corrupted
+     * directory name, where "~/Desktop/…/pijota" plainly says something was left out. Both halves give up whole
+     * components, and the one you are actually in survives intact.
+     */
+    @Test
+    void aTruncatedPathGivesUpWholeComponents() {
+        for (int width : new int[] {18, 20, 24, 26}) {
+            String out = AnsiWidth.truncateMiddle("~/Desktop/playground/pijota", width);
+            assertTrue(AnsiWidth.visibleWidth(out) <= width, "wider than asked at " + width + ": " + out);
+            assertTrue(out.endsWith("/pijota"), "the directory you are in survives whole: " + out);
+            assertFalse(out.contains("playg…"), "and nothing is cut mid-component: " + out);
+        }
+    }
+
+    /** Text with no separator is left exactly as it was: this only ever affects things shaped like paths. */
+    @Test
+    void textWithNoSeparatorIsTruncatedAsBefore() {
+        String plain = "a-very-long-single-token-with-no-separators";
+        String out = AnsiWidth.truncateMiddle(plain, 20);
+
+        assertEquals(20, AnsiWidth.visibleWidth(out), out);
+        assertTrue(out.startsWith("a-very-lon") && out.contains("…"), out);
+    }
 }

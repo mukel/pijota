@@ -203,7 +203,7 @@ final class AnsiWidth {
         int keep = maxWidth - 1; // one column for the ellipsis
         int tail = keep / 2; // ties go to the head, which carries the root
         int head = keep - tail;
-        String start = truncateVisual(text, head).replace(RESET, "");
+        String start = snapHeadToSeparator(truncateVisual(text, head).replace(RESET, ""), head);
         // Walk back from the end until the tail fits; charWidth handles wide glyphs.
         int i = text.length();
         int width = 0;
@@ -215,7 +215,33 @@ final class AnsiWidth {
             width += cw;
             i = prev;
         }
-        return start + "…" + text.substring(i);
+        return start + "…" + text.substring(snapToSeparator(text, i, tail));
+    }
+
+    /**
+     * Moves a tail cut forward to just past the next {@code /}, when one is close enough to give up for it.
+     *
+     * <p>
+     * A path cut mid-component reads as damage rather than as shortening: {@code ~/Desktop/playg…ota} looks like a
+     * corrupted name, where {@code ~/Desktop/…/pijota} plainly says "something was left out". Text with no separator in
+     * reach is returned untouched, so this only ever affects things shaped like paths.
+     */
+    /** The head half, cut back to its last {@code /} when that still leaves most of the room used. */
+    private static String snapHeadToSeparator(String head, int headBudget) {
+        int slash = head.lastIndexOf('/');
+        if (slash <= 0)
+            return head;
+        String snapped = head.substring(0, slash + 1);
+        return visibleWidth(snapped) * 2 >= headBudget ? snapped : head;
+    }
+
+    private static int snapToSeparator(String text, int tailStart, int tailBudget) {
+        int slash = text.indexOf('/', tailStart);
+        if (slash < 0 || slash + 1 >= text.length())
+            return tailStart;
+        // Only if the component that survives is still worth showing: snapping away all but a couple of columns
+        // trades one unreadable form for another.
+        return visibleWidth(text.substring(slash)) * 2 >= tailBudget ? slash : tailStart;
     }
 
     public static String truncateVisual(String text, int maxWidth) {
