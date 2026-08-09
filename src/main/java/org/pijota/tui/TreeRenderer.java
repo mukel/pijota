@@ -1,7 +1,7 @@
 package org.pijota.tui;
 
+import org.pijota.agent.SessionCodec;
 import org.pijota.agent.SessionDescriptor;
-import org.pijota.agent.SessionManager;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.util.Util;
 
@@ -33,7 +33,7 @@ final class TreeRenderer {
         // What was said, not what was recorded: a model switch, a cache note and a thinking-level change each write an
         // entry of their own, so a session with a dozen of them read as a dozen pieces of conversation that are
         // nowhere in the tree below. They stay in the walk -- they hold ids and the parent chain runs through them.
-        long contentEntries = tree.entries().stream().filter(e -> !SessionManager.isMetadataEntry(e)).count();
+        long contentEntries = tree.entries().stream().filter(e -> !SessionCodec.isMetadataEntry(e)).count();
         var report = new Report(theme::styled, "tree").chip(Util.count(tree.userCount(), "turn", "turns"))
                                         .chip(Util.count(contentEntries, "entry", "entries"));
         if (totalTokens > 0)
