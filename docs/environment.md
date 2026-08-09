@@ -12,6 +12,7 @@ Every `PIJOTA_*` tuning variable has a system-property twin, which wins when bot
 | `PIJOTA_CONNECT_TIMEOUT` | `pijota.connect-timeout` | connect timeout in seconds (default 10) |
 | `PIJOTA_LLM_CONNECT_TIMEOUT` | `pijota.llm.connect-timeout` | connect timeout for provider calls |
 | `PIJOTA_LLM_REQUEST_TIMEOUT` | `pijota.llm.request-timeout` | whole-request timeout for provider calls |
+| `PIJOTA_LLM_FIRST_TOKEN_TIMEOUT` | `pijota.llm.first-token-timeout` | how long a request may produce nothing at all before it is abandoned and retried (default 60s, never longer than the request timeout) |
 | `PIJOTA_SUBAGENT_MODEL` | `pijota.subagent.model` | model for `task` sub-agents |
 | `PIJOTA_BROWSER` | `pijota.browse.engine` | `chrome`, `firefox`, `safari` |
 | `PIJOTA_BROWSER_BIN` | `pijota.browse.bin` | path to the browser binary |

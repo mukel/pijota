@@ -200,6 +200,29 @@ public final class LlmService implements LlmClient {
         var settled = new AtomicBoolean(false);
         // Per tool call in this stream: arguments stream as deltas, and only the running total is worth showing.
         var toolCallChars = new ConcurrentHashMap<Integer, Integer>();
+        // Silence has its own, shorter deadline. The safety net below bounds a stream that is arriving; this bounds
+        // one that never starts. They are different failures: a stalled prefill has produced nothing, so asking again
+        // on a fresh connection loses nothing, and waiting the full request timeout for it spends minutes per attempt
+        // discovering the same silence. Completed by the first token of any kind, so a stream that has begun is the
+        // other timeout's business.
+        var firstToken = new CompletableFuture<Void>();
+        long firstTokenSeconds = LlmTimeouts.firstToken().toSeconds();
+        firstToken.orTimeout(firstTokenSeconds, TimeUnit.SECONDS).exceptionally(ex -> {
+            if (ex instanceof TimeoutException && settled.compareAndSet(false, true)) {
+                log.warn("No response from {}/{} within {}s; abandoning and retrying", providerName, modelName,
+                                                firstTokenSeconds);
+                Runnable cancel = cancelRef != null ? cancelRef.get() : null;
+                if (cancel != null)
+                    cancel.run();
+                future.completeExceptionally(new TimeoutException("no response from " + providerName + "/" + modelName
+                                                + " within " + firstTokenSeconds + "s"));
+            }
+            return null;
+        });
+        // However the request ends -- a token, an error, a refused connection -- the silence deadline is done with.
+        // Without this a request that failed in two seconds still had a timer that woke a minute later and reported
+        // silence that had already been explained.
+        future.whenComplete((ignored, ex) -> firstToken.complete(null));
         future.orTimeout(streamTimeoutSeconds, TimeUnit.SECONDS).exceptionally(ex -> {
             // Only orTimeout completes the future with a TimeoutException; providers report timeouts as IOExceptions.
             if (ex instanceof TimeoutException && settled.compareAndSet(false, true)) {
@@ -227,6 +250,7 @@ public final class LlmService implements LlmClient {
             private void markFirstToken() {
                 if (firstTokenNanos == 0)
                     firstTokenNanos = System.nanoTime();
+                firstToken.complete(null); // whatever arrived, the silence deadline no longer applies
             }
 
             @Override
