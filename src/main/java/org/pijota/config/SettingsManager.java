@@ -70,6 +70,9 @@ public final class SettingsManager {
         return List.copyOf(warnings);
     }
 
+    /** How much of a bad value is echoed back before it is cut; long enough to recognise, short enough to read. */
+    private static final int PRINTED_VALUE_LIMIT = 40;
+
     /**
      * Names what the file says as well as what it should say.
      *
@@ -95,8 +98,6 @@ public final class SettingsManager {
                                         .forEach(cp -> out.appendCodePoint(Character.isISOControl(cp) ? '?' : cp));
         return out.append(value.codePointCount(0, value.length()) > PRINTED_VALUE_LIMIT ? "…\"" : "\"").toString();
     }
-
-    private static final int PRINTED_VALUE_LIMIT = 40;
 
     /** "a, b, or c" -- the wording every warning above already used, said once. */
     private static String join(List<String> values) {

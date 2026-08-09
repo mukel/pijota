@@ -325,6 +325,10 @@ public final class Util {
         return n + " " + (n == 1 ? singular : plural);
     }
 
+    /**
+     * The compact spelling: whole thousands, and one fractional digit for millions. The lossiest of the three, for
+     * figures that are read rather than watched -- see {@link #fmtCountPrecise} and {@link #fmtCountFixed}.
+     */
     public static String fmtCount(long value) {
         // 1M, not 1.0M: two columns saved on a figure that is on screen constantly, and the same spelling the model
         // catalogue and /goal's own "1M" budgets use. A real fraction still shows, as 1.5M.
@@ -340,6 +344,8 @@ public final class Util {
      * {@code 1.22K}, {@code 12.3K}, {@code 1.05M}. For live counts where the integer-K rounding loses too much.
      */
     public static String fmtCountPrecise(long value) {
+        // The fixed form with the padding taken off. Only the mantissa is trimmed; the K or M on the end is put back,
+        // or "4.30K" would come out as "4.30K" (nothing to strip) and "4.00K" as "4.00K" rather than "4K".
         String fixed = fmtCountFixed(value);
         if (fixed.indexOf('.') < 0)
             return fixed;

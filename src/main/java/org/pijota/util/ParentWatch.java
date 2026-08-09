@@ -26,25 +26,19 @@ public final class ParentWatch {
 
     private ParentWatch() {}
 
-    /**
-     * Whether this process should die with {@code parent}.
-     *
-     * <p>
-     * Only a worker: anything else was started by a shell, and a shell exiting is not a reason to stop. Split out so
-     * the rule can be tested without spawning anything, which is the only part of this worth testing in a unit.
-     */
-    public static boolean shouldWatch(boolean worker, Optional<ProcessHandle> parent) {
-        return worker && parent.isPresent();
-    }
-
-    /** Arms the watch when {@link #shouldWatch} says so; returns whether it did, for the caller's logs and tests. */
+    /** Arms the watch if this process should die with its parent; returns whether it did. */
     public static boolean arm(boolean worker) {
         return arm(worker, ProcessHandle.current().parent(), () -> System.exit(EXIT_PARENT_GONE));
     }
 
-    /** Seam for tests: takes the parent handle and what to do when it exits. */
+    /**
+     * Seam for tests: takes the parent handle and what to do when it exits.
+     *
+     * <p>
+     * Only a worker is watched. Anything else was started from a shell, and a shell exiting is not a reason to stop.
+     */
     static boolean arm(boolean worker, Optional<ProcessHandle> parent, Runnable onParentExit) {
-        if (!shouldWatch(worker, parent))
+        if (!worker || parent.isEmpty())
             return false;
         parent.get().onExit().thenRun(() -> {
             log.warn("Supervisor process {} exited; shutting down rather than outliving it", parent.get().pid());

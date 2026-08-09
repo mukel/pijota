@@ -16,11 +16,10 @@ class ParentWatchTest {
      */
     @Test
     void onlyAWorkerWithAKnownParentIsWatched() {
-        var parent = ProcessHandle.current().parent();
-        assertFalse(ParentWatch.shouldWatch(false, parent), "not a worker: nothing to die with");
-        assertFalse(ParentWatch.shouldWatch(true, Optional.empty()), "no parent to watch (pid 1, or unavailable)");
-        assertEquals(parent.isPresent(), ParentWatch.shouldWatch(true, parent));
-        assertFalse(ParentWatch.arm(false), "arming is a no-op unless this is a supervised worker");
+        Runnable never = () -> fail("nothing should be armed here");
+        assertFalse(ParentWatch.arm(false, ProcessHandle.current().parent(), never), "not a worker");
+        assertFalse(ParentWatch.arm(true, Optional.empty(), never), "no parent to watch (pid 1, or unavailable)");
+        assertFalse(ParentWatch.arm(false), "and the same through the real entry point");
     }
 
     /**
