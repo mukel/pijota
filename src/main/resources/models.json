@@ -1,6 +1,66 @@
 {
   "models": [
     {
+      "id": "gpt-5.6-sol",
+      "provider": "openai",
+      "displayName": "GPT-5.6 Sol",
+      "contextWindow": 272000,
+      "inputCostPerMTok": 5.0,
+      "outputCostPerMTok": 30.0,
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "pricingTiers": [
+        {
+          "inputTokensAbove": 272000,
+          "inputCostPerMTok": 10.0,
+          "outputCostPerMTok": 45.0
+        }
+      ]
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "provider": "openai",
+      "displayName": "GPT-5.6 Terra",
+      "contextWindow": 272000,
+      "inputCostPerMTok": 2.5,
+      "outputCostPerMTok": 15.0,
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "pricingTiers": [
+        {
+          "inputTokensAbove": 272000,
+          "inputCostPerMTok": 5.0,
+          "outputCostPerMTok": 22.5
+        }
+      ]
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "provider": "openai",
+      "displayName": "GPT-5.6 Luna",
+      "contextWindow": 272000,
+      "inputCostPerMTok": 1.0,
+      "outputCostPerMTok": 6.0,
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "pricingTiers": [
+        {
+          "inputTokensAbove": 272000,
+          "inputCostPerMTok": 2.0,
+          "outputCostPerMTok": 9.0
+        }
+      ]
+    },
+    {
       "id": "gpt-5.5",
       "provider": "openai",
       "displayName": "GPT-5.5",
