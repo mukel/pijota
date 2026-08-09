@@ -153,9 +153,10 @@ public final class SessionManager {
 
     /**
      * Durability stance: ordinary appends are process-crash durable only (the write has left the JVM when this returns;
-     * no fsync promise against power loss). Compaction is the deliberate exception and passes {@code dsync=true}:
-     * losing a compaction on crash would rebuild context from the pre-compaction entries and silently present stale
-     * context. A torn tail from a crash mid-append is repaired on the next live open.
+     * no fsync promise against power loss). Two kinds pass {@code dsync=true}. Compaction, because losing it would
+     * rebuild context from the pre-compaction entries and silently present stale context -- a wrong answer rather than
+     * a missing one. And a user message, because it is the only entry nobody can reproduce: see
+     * {@link #isUnreproducible}. A torn tail from a crash mid-append is repaired on the next live open.
      */
     private void appendEntry(Path sessionFile, String entryId, String type,
                                     Consumer<LinkedHashMap<String, Object>> fields, boolean dsync) throws IOException {
@@ -182,7 +183,21 @@ public final class SessionManager {
         appendEntry(sessionFile, entryId, "message", entry -> {
             entry.put("timestamp", timestampOf(message)); // use message's real timestamp
             serializeMessage(entry, message);
-        }, false);
+        }, isUnreproducible(message));
+    }
+
+    /**
+     * Whether losing this message to a power cut would lose something that cannot be had again.
+     *
+     * <p>
+     * What the user typed is the only thing here nobody can reconstruct: a reply can be asked for again, a tool result
+     * can be re-run, a compaction is rebuilt from what it summarised. So the user's own words are worth an fsync and
+     * the rest are not -- which matters because the rest are the frequent ones. An assistant message and a tool result
+     * land several times a turn, on the turn thread; a typed message arrives at human speed, where a few milliseconds
+     * of fsync is not observable.
+     */
+    static boolean isUnreproducible(Message message) {
+        return message instanceof Message.User;
     }
 
     public void appendCompaction(Path sessionFile, String summary, int compactedCount, String firstKeptEntryId)

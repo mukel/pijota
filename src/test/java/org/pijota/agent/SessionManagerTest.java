@@ -468,4 +468,20 @@ class SessionManagerTest {
 
         assertEquals(2, SessionManager.buildBranchPath(entries, "x").size());
     }
+
+    /**
+     * Only what nobody can reproduce is worth an fsync. A reply can be asked for again and a tool result re-run, and
+     * those are the frequent ones -- several a turn, on the turn thread. What the user typed arrives at human speed and
+     * is gone for good if the machine loses power before it reaches the platter.
+     */
+    @Test
+    void onlyTheUsersOwnWordsAreWorthAnFsync() {
+        assertTrue(SessionManager.isUnreproducible(new Message.User("what I typed")));
+
+        assertFalse(SessionManager.isUnreproducible(
+                                        new Message.Assistant("a reply that can be asked for again", List.of(), null)));
+        assertFalse(SessionManager.isUnreproducible(
+                                        new Message.ToolResult("tc1", "bash", "output that can be re-run", false)));
+        assertFalse(SessionManager.isUnreproducible(new Message.Custom("note", "a frontend line")));
+    }
 }
