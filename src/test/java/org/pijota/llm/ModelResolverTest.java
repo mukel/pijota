@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -173,5 +174,34 @@ class ModelResolverTest {
         assertTrue(msg.contains("API_KEY"), "the key path is offered too: " + msg);
         assertFalse(msg.contains("gpt-5.5"), "no diagnosis of a default the user never chose: " + msg);
         assertFalse(msg.startsWith("No API key for"), "not phrased as a failure: " + msg);
+    }
+
+    /**
+     * The rule this class's own javadoc calls out -- "provider-switch-also-switches-model" -- and the one path through
+     * resolve() that had no test at all: with no key for the configured provider and nothing named on the command line,
+     * the environment decides, and the model has to move with it or the detected provider is run with the previous
+     * one's model (openai-codex with "gpt-4o").
+     *
+     * <p>
+     * Driven through a user provider that declares HOME, which is set wherever pijota runs, because a test cannot set
+     * an environment variable for its own JVM.
+     */
+    @Test
+    void aProviderDetectedFromTheEnvironmentBringsItsOwnModel() {
+        var fixture = new ProviderCatalog.Provider("env-fixture", "Fixture", "openai", "http://127.0.0.1:1/v1",
+                                        List.of("HOME"), "fixture-model", Map.of(), null, null);
+        ProviderCatalog.registerUserProviders(List.of(fixture));
+        try {
+            // No api key anywhere, so neither the flag nor the settings can answer and detection is all that is left.
+            var config = new AppConfig().withDefaultProviderModel("openai", "gpt-5.5");
+            var r = ModelResolver.resolve(ArgParser.parse(new String[] {}), new SettingsManager(config, ignored -> {}));
+
+            assertTrue(ModelRegistry.isKnownProviderModel(r.provider(), r.model())
+                                            || r.model().equals(ModelRegistry.defaultModelForProvider(r.provider())),
+                                            "the model must belong to the provider that was detected: " + r.provider()
+                                                                            + " ended up with " + r.model());
+        } finally {
+            ProviderCatalog.registerUserProviders(List.of());
+        }
     }
 }
