@@ -56,6 +56,7 @@ public final class AgentLoop implements AgentContext {
     private final AtomicBoolean aborted = new AtomicBoolean(false);
     /** Consecutive compact-and-retry attempts for one prompt; reset once a request lands. See the overflow path. */
     private final AtomicInteger overflowRecoveries = new AtomicInteger();
+    private volatile Consumer<Message.User> userMessageAppender = m -> {};
     private final AtomicReference<CompletableFuture<List<Message>>> activeResult = new AtomicReference<>();
     private final AtomicReference<CompletableFuture<StreamResult>> activeStream = new AtomicReference<>();
     private volatile boolean messageStreamStarted = false;
@@ -397,7 +398,7 @@ public final class AgentLoop implements AgentContext {
         if (isBusy()) {
             sendUserMessage(content, DeliverAs.STEER);
         } else {
-            history.add(new Message.User(content));
+            addUserMessage(new Message.User(content));
             fireEvent(new AgentEvent.TurnStart(sessionTurn + 1));
         }
     }
@@ -411,7 +412,7 @@ public final class AgentLoop implements AgentContext {
                 if (isBusy())
                     steeringMessages.add(content);
                 else
-                    history.add(new Message.User(content));
+                    addUserMessage(new Message.User(content));
             }
         }
     }
@@ -426,10 +427,29 @@ public final class AgentLoop implements AgentContext {
         compaction.setSessionAppender(appender);
     }
 
+    /**
+     * Persists a user message the moment it enters history, whoever put it there.
+     *
+     * <p>
+     * Only the typed-prompt path used to be saved, by the caller, and the four other ways a user message reaches
+     * history were not: a follow-up queued while a turn ran, a steering message, and both arms of
+     * {@link #sendUserMessage}, which is what extensions call. The model saw those, answered them, and the answer was
+     * written -- so a reloaded session showed replies with no question above them. Persisting where the message is
+     * added is the only place a fifth path cannot forget.
+     */
+    public void addUserMessageAppender(Consumer<Message.User> appender) {
+        this.userMessageAppender = appender != null ? appender : m -> {};
+    }
+
+    private void addUserMessage(Message.User message) {
+        history.add(message);
+        userMessageAppender.accept(message);
+    }
+
     public CompletableFuture<List<Message>> prompt(Message.User userMessage) {
         aborted.set(false);
         overflowRecoveries.set(0);
-        history.add(userMessage);
+        addUserMessage(userMessage);
         return runLoop();
     }
 
@@ -608,7 +628,7 @@ public final class AgentLoop implements AgentContext {
 
     private void drainAndProcess(List<String> list) {
         for (String msg : drain(list)) {
-            history.add(new Message.User(msg));
+            addUserMessage(new Message.User(msg));
         }
     }
 

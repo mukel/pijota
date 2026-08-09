@@ -328,4 +328,32 @@ class PijotaSessionTest {
     void abortingWithNoFrontendAttachedIsFine() {
         assertDoesNotThrow(() -> TestSession.in(tempDir).noSession().build().session().abort());
     }
+
+    /**
+     * A follow-up typed while a turn runs reaches the model and is answered, and used to leave no trace on disk: a
+     * reloaded session showed the reply with no question above it. Every way a user message enters history now
+     * persists, not only the typed prompt the caller happened to save by hand.
+     */
+    @Test
+    void aFollowUpQueuedDuringATurnSurvivesAReload() throws Exception {
+        var ts = TestSession.in(tempDir).build();
+        ts.llm().enqueue(contentWithUsage("first"));
+        ts.llm().enqueue(contentWithUsage("second"));
+        // Queued from inside the turn, which is the only time the queue is drained -- and the case a user hits by
+        // typing while the model is still answering.
+        var queued = new java.util.concurrent.atomic.AtomicBoolean();
+        ts.session().addEventListener(event -> {
+            if (event instanceof AgentEvent.AssistantMessage && queued.compareAndSet(false, true))
+                ts.session().followUp("the follow-up");
+        });
+
+        ts.session().prompt("original question").get(10, TimeUnit.SECONDS);
+
+        var onDisk = new SessionManager(tempDir).loadMessages(ts.session().sessionFile()).stream()
+                                        .filter(m -> m instanceof Message.User).map(m -> ((Message.User) m).content())
+                                        .toList();
+        assertTrue(onDisk.contains("the follow-up"),
+                                        "the queued message must be on disk, not only in memory: " + onDisk);
+        assertTrue(onDisk.contains("original question"), "and the typed one still is: " + onDisk);
+    }
 }

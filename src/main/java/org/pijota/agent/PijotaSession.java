@@ -83,6 +83,9 @@ public final class PijotaSession implements AutoCloseable {
 
         this.agentLoop.addCompactionAppender((summary, count, firstKeptId, usage) -> save("compaction save",
                                         f -> sessionManager.appendCompaction(f, summary, count, firstKeptId, usage)));
+        // Every user message, not just the typed one: see AgentLoop.addUserMessageAppender.
+        this.agentLoop.addUserMessageAppender(message -> save("user message save",
+                                        f -> sessionManager.appendMessage(f, message)));
         this.agentLoop.addSystemPrompt(systemPrompt);
 
         this.agentLoop.addEventListener(event -> {
@@ -115,7 +118,6 @@ public final class PijotaSession implements AutoCloseable {
                                         llm().model());
         String filtered = extensionRegistry.filterInput(normalized.text());
         var userMessage = new Message.User(filtered, normalized.media());
-        save("user message save", f -> sessionManager.appendMessage(f, userMessage));
         String effectivePrompt = extensionRegistry.fireBeforeAgentStart(agentLoop.messages(), sessionSystemPrompt);
         agentLoop.replaceSystemPrompt(effectivePrompt);
         extensionRegistry.setSystemPrompt(effectivePrompt);
