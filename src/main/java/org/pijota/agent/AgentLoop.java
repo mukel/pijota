@@ -497,6 +497,54 @@ public final class AgentLoop implements AgentContext {
     }
 
     /**
+     * Replaces the placeholder at the tail with the finished assistant message.
+     *
+     * <p>
+     * The tail again, as during streaming: the placeholder added before the request is overwritten in place, so the
+     * provider's view of the context stays a growing prefix. Provider and model are the ones the request went out with,
+     * so a /model switch landing mid-stream cannot claim a reply it did not write.
+     */
+    private void settleAssistantMessage(StreamResult streamResult, String requestProvider, String requestModel) {
+        var toolCalls = streamResult.hasToolCalls() ? streamResult.toolCalls() : List.<ToolCall>of();
+        String content = streamResult.content() != null ? streamResult.content() : "";
+        String thinking = streamResult.thinking() != null && !streamResult.thinking().isBlank()
+                                        ? streamResult.thinking()
+                                        : null;
+        var assistantMsg = new Message.Assistant(content, toolCalls, thinking).withSource(requestProvider, requestModel)
+                                        .withUsage(streamResult.usage());
+        fireEvent(new AgentEvent.AssistantMessage(assistantMsg, streamResult.usage()));
+        history.set(history.size() - 1, assistantMsg);
+        recordContextAnchor(streamResult.usage());
+        overflowRecoveries.set(0); // a request landed, so a later overflow is a fresh one worth compacting for
+    }
+
+    /**
+     * What the model asked for next: nothing, or a batch of tools.
+     *
+     * <p>
+     * No tool calls is the only way a turn ends, and the only point a queued follow-up is consumed. A batch always
+     * forces another step -- the model has to see its own results -- with auto-compaction between the two, which is the
+     * one place the context is allowed to stop being a pure prefix.
+     */
+    private void continueOrFinish(StreamResult streamResult, CompletableFuture<List<Message>> result, int turn) {
+        if (!streamResult.hasToolCalls()) {
+            fireEvent(new AgentEvent.TurnEnd(turn));
+            processFollowUp(result, turn);
+            return;
+        }
+        toolExecutor.execute(streamResult.toolCalls()).thenAccept(ignored -> {
+            if (!isActive(result))
+                return;
+            fireEvent(new AgentEvent.TurnEnd(turn));
+            runAutoCompaction("auto"); // checkpoint: compact if the next request would not fit
+            runLoopRecursive(result, turn + 1);
+        }).exceptionally(ex -> {
+            failTurn(result, ex);
+            return null;
+        });
+    }
+
+    /**
      * Publishes one partial response while the model is still talking: the new text as a delta, and the assistant
      * message at the tail of the history rewritten to match.
      *
@@ -577,36 +625,8 @@ public final class AgentLoop implements AgentContext {
             if (!isActive(result))
                 return;
             fireEvent(new AgentEvent.MessageStreamEnd("assistant"));
-
-            var newToolCalls = streamResult.hasToolCalls() ? streamResult.toolCalls() : List.<ToolCall>of();
-
-            var finalContent = streamResult.content() != null ? streamResult.content() : "";
-            var finalThinking = streamResult.thinking() != null && !streamResult.thinking().isBlank()
-                                            ? streamResult.thinking()
-                                            : null;
-            var assistantMsg = new Message.Assistant(finalContent, newToolCalls, finalThinking)
-                                            .withSource(requestProvider, requestModel).withUsage(streamResult.usage());
-            fireEvent(new AgentEvent.AssistantMessage(assistantMsg, streamResult.usage()));
-            history.set(history.size() - 1, assistantMsg);
-            recordContextAnchor(streamResult.usage());
-            overflowRecoveries.set(0); // a request landed, so a later overflow is a fresh one worth compacting for
-
-            if (!streamResult.hasToolCalls()) {
-                fireEvent(new AgentEvent.TurnEnd(turn));
-                processFollowUp(result, turn);
-                return;
-            }
-
-            toolExecutor.execute(streamResult.toolCalls()).thenAccept(ignored -> {
-                if (!isActive(result))
-                    return;
-                fireEvent(new AgentEvent.TurnEnd(turn));
-                runAutoCompaction("auto"); // checkpoint: compact if the next request would not fit
-                runLoopRecursive(result, turn + 1); // a tool batch always forces another step (results must be seen)
-            }).exceptionally(ex -> {
-                failTurn(result, ex);
-                return null;
-            });
+            settleAssistantMessage(streamResult, requestProvider, requestModel);
+            continueOrFinish(streamResult, result, turn);
         }).exceptionally(ex -> {
             try {
                 activeStream.set(null);
