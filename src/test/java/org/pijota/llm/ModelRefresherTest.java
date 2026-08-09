@@ -93,7 +93,7 @@ class ModelRefresherTest {
     void aLocalServersWindowIsNeverStampedOntoTheCatalogueRows() throws Exception {
         var client = FakeHttpClient.sequence("{\"data\":[{\"id\":\"gemma.gguf\"}]}", "{\"n_ctx\":8192}");
 
-        var models = ModelRefresher.fetchOpenAiCompatible(client, provider("local"), "tok", null, false);
+        var models = ModelRefresher.fetchOpenAiCompatible(client, provider("local"), "tok", null);
 
         assertEquals(128_000L, models.get(0).contextWindow(),
                                         "the row keeps the catalogue default; the served window is resolved live");
@@ -108,8 +108,7 @@ class ModelRefresherTest {
                                         + "{\"id\":\"accounts/fireworks/models/gpt-oss-120b\",\"context_length\":131072,\"supports_image_input\":false},"
                                         + "{\"id\":\"accounts/fireworks/models/no-meta\"}]}";
 
-        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("fireworks"), "tok", null,
-                                        false);
+        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("fireworks"), "tok", null);
 
         assertEquals(3, models.size(), models.toString());
         var k3 = models.get(0);
@@ -130,8 +129,7 @@ class ModelRefresherTest {
         var json = "{\"models\":[{\"slug\":\"codex-1\",\"display_name\":\"Codex One\",\"context_window\":200000},"
                                         + "{\"slug\":\"hidden\",\"visibility\":\"none\"}]}";
 
-        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("openai"), "tok", null,
-                                        false);
+        var models = ModelRefresher.fetchOpenAiCompatible(FakeHttpClient.ok(json), provider("openai"), "tok", null);
 
         assertEquals(1, models.size(), models.toString());
         assertEquals("codex-1", models.get(0).id());
@@ -142,8 +140,8 @@ class ModelRefresherTest {
     @Test
     void fetchThrowsOnAnHttpErrorStatus() {
         var client = FakeHttpClient.status(500, "boom");
-        assertThrows(Exception.class, () -> ModelRefresher.fetchOpenAiCompatible(client, provider("test"), "tok", null,
-                                        false));
+        assertThrows(Exception.class, () -> ModelRefresher.fetchOpenAiCompatible(client, provider("test"), "tok",
+                                        null));
     }
 
     @Test

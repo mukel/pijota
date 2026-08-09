@@ -71,11 +71,10 @@ public final class ModelRefresher {
             if (!"openai".equals(ProviderCatalog.apiType(provider.id())))
                 continue;
             String accountId = oauth.getAccountId(provider.id());
-            boolean oauthToken = accountId != null && !accountId.isBlank();
 
             providersChecked++;
             try {
-                models.addAll(fetchOpenAiCompatible(client, provider, token, accountId, oauthToken));
+                models.addAll(fetchOpenAiCompatible(client, provider, token, accountId));
                 answered.add(provider.id());
             } catch (Exception e) {
                 errors.add(provider.id() + ": " + oneLineReason(e));
@@ -122,17 +121,20 @@ public final class ModelRefresher {
 
     // package-private: tested directly with an injected (fake) HttpClient against canned /models responses
     static List<ModelInfo> fetchOpenAiCompatible(HttpClient client, ProviderCatalog.Provider provider, String token,
-                                    String accountId, boolean oauthToken) throws Exception {
-        String baseUrl = oauthToken ? CHATGPT_CODEX_BASE_URL : provider.baseUrl();
+                                    String accountId) throws Exception {
+        // Having an account id IS being on the subscription endpoint -- the caller derived a boolean from exactly this
+        // and passed both, and this method then re-checked the id anyway before using it. Two parameters that could
+        // disagree, for one fact.
+        boolean subscription = accountId != null && !accountId.isBlank();
+        String baseUrl = subscription ? CHATGPT_CODEX_BASE_URL : provider.baseUrl();
         if (baseUrl == null || baseUrl.isBlank())
             return List.of();
         String url = baseUrl.replaceAll("/+$", "") + "/models?client_version=" + CLIENT_VERSION;
         var request = HttpRequest.newBuilder().uri(URI.create(url)).timeout(Duration.ofSeconds(30))
                                         .header("Authorization", "Bearer " + token).header("originator", "pijota")
                                         .header("OpenAI-Beta", "responses=experimental").GET();
-        if (oauthToken && accountId != null && !accountId.isBlank()) {
+        if (subscription)
             request.header("ChatGPT-Account-Id", accountId);
-        }
         var builtRequest = request.build();
         var response = client.send(builtRequest, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
