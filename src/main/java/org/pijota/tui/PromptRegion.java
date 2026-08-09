@@ -221,9 +221,14 @@ public sealed interface PromptRegion permits PromptRegion.Editor, PromptRegion.S
             if (hasText(ctx.status()))
                 rows.addAll(AnsiWidth.wrapPreservingAnsi(ctx.status(), width));
 
+            // Wrapped, like the status line directly above, and for the same reason. This one truncated instead, so
+            // at 30 columns "Sessions: Enter load, Ctrl+X delete" became "Sessions: Enter load, Ctrl+" -- losing the
+            // key that does the thing, and stopping mid-token, which does not read as narrow, it reads as broken.
+            // Two lines a row apart cannot answer the same question two different ways.
             if (hasText(ctx.warning()))
                 for (String part : ctx.warning().split("\\n", -1))
-                    rows.add(theme.styled("statusWarn", AnsiWidth.truncateVisual("  " + part, width)));
+                    for (String row : AnsiWidth.wrapPreservingAnsi("  " + part, width))
+                        rows.add(theme.styled("statusWarn", row));
 
             // The supplier already capped/expanded the list (AppendOnlyTui.collapse); render whatever it gave,
             // dimming the "… N more / collapse" affordance line.
