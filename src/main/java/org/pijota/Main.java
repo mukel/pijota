@@ -42,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Console;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -344,14 +345,21 @@ public final class Main {
     }
 
     private static int exportSession(Args args) throws Exception {
+        var sm = new SessionManager(PijotaHome.resolve("sessions"));
+        var cwd = System.getProperty("user.dir");
+        boolean chosenForYou = args.sessionPath() == null;
         Path sessionFile;
-        if (args.sessionPath() != null) {
-            sessionFile = Path.of(args.sessionPath());
-        } else {
-            var sessionDir = PijotaHome.resolve("sessions");
-            var sm = new SessionManager(sessionDir);
-            var cwd = System.getProperty("user.dir");
+        if (chosenForYou) {
             sessionFile = sm.latestSession(cwd, null);
+        } else {
+            // The resolution /resume and the session picker already share: a path when it is one, otherwise an id or a
+            // unique prefix of it. Export alone did Path.of, so the one name a session normally goes by -- the id the
+            // picker and /tree both print -- was the one thing it would not accept.
+            try {
+                sessionFile = sm.resolveSession(cwd, args.sessionPath());
+            } catch (IOException e) {
+                return CliErrorReporter.fatal(e.getMessage());
+            }
         }
         if (!Files.exists(sessionFile))
             return CliErrorReporter.fatal("Session file not found: " + sessionFile);
@@ -359,7 +367,11 @@ public final class Main {
         String md = SessionExporter.toMarkdown(sessionFile);
         Path output = Path.of(args.exportPath());
         Files.writeString(output, md);
-        System.out.println("Exported to " + output);
+        // Name what was read, not only where it landed. Without --session this takes the newest session in the
+        // directory, which for anyone working there is the conversation they are in the middle of -- and "Exported to
+        // out.md" looked identical whether that was a finished session or the live one, copied out whole.
+        System.out.println("Exported " + sessionFile.getFileName() + (chosenForYou ? " (newest in this directory)" : "")
+                                        + " to " + output + " -- " + Util.fmtCount(md.length()) + " chars");
         return 0;
     }
 
