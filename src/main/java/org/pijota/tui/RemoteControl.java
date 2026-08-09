@@ -137,10 +137,22 @@ final class RemoteControl {
      * the other kind's binary.
      */
     enum Tunnel {
-        NONE("", null, "web", "", "0.0.0.0"), // no child; the LAN bind itself is the exposure
+        NONE("", null, "web", "", "0.0.0.0") { // no child; the LAN bind itself is the exposure
+            @Override
+            List<String> command(int port) {
+                throw new IllegalStateException("the LAN bind has no child");
+            }
+        },
         CLOUDFLARE("cloudflared", "https://[a-z0-9-]+\\.trycloudflare\\.com", "web tunnel",
                                         "Public via cloudflared; TLS terminates at Cloudflare's edge, which can see the token URL.",
                                         WebServer.DEFAULT_HOST) {
+            @Override
+            List<String> command(int port) {
+                // --no-autoupdate: the daemon must never self-replace mid-session (and the update check is startup
+                // latency).
+                return List.of("cloudflared", "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:" + port);
+            }
+
             @Override
             List<String> diagnose(String output) {
                 // Quick tunnels rate-limit by source IP (HTTP 429 / error 1015) and cloudflared exits without
@@ -156,6 +168,13 @@ final class RemoteControl {
         TAILSCALE("tailscale", "https://[a-z0-9-]+\\.[a-z0-9-]+\\.ts\\.net", "tailscale",
                                         "Tailnet-only via tailscale serve; TLS is Tailscale's, no third-party edge.",
                                         WebServer.DEFAULT_HOST) {
+            @Override
+            List<String> command(int port) {
+                // Foreground serve (no --bg): the mapping lives only as long as this child, so killing it on stop
+                // tears the proxy down. The target is the loopback web server; only http://127.0.0.1 is valid there.
+                return List.of("tailscale", "serve", String.valueOf(port));
+            }
+
             @Override
             List<String> diagnose(String output) {
                 if (output.contains("access denied"))
@@ -186,6 +205,17 @@ final class RemoteControl {
             this.caveat = caveat;
             this.bindHost = bindHost;
         }
+
+        /**
+         * The child that publishes this channel, as a command line.
+         *
+         * <p>
+         * Abstract, so the compiler asks for it where the constant is declared -- a stronger version of what the
+         * exhaustive switch used to buy at the spawn site, since a constant cannot even be written without answering.
+         * The commands lived in two static methods and a switch beside them; here each sits with the channel it belongs
+         * to, and adding a channel is one constant, as the recipe in AGENTS.md says it should be.
+         */
+        abstract List<String> command(int port);
 
         /**
          * The fix lines for a failure signature this channel recognises in its child's output, or null for anything
@@ -230,13 +260,9 @@ final class RemoteControl {
             String publicUrl;
             var childOutput = new ArrayList<String>(); // collected while we wait, for diagnosing a failure
             try {
-                // A switch, not a ternary: a constant added per the recipe in AGENTS.md must fail to compile here
-                // rather than silently fall into the other kind's else branch.
-                child = switch (tunnel) {
-                    case CLOUDFLARE -> startCloudflared(port);
-                    case TAILSCALE -> startTailscaleServe(port);
-                    case NONE -> throw new IllegalStateException("the LAN bind has no child");
-                };
+                // No drain thread yet: awaitTunnelUrl reads the stream itself, and two readers on one pipe deadlock
+                // (the drain's transferTo holds the stream monitor while the URL reader blocks waiting for it).
+                child = new ProcessBuilder(tunnel.command(port)).redirectErrorStream(true).start();
                 publicUrl = awaitTunnelUrl(child, tunnel, childOutput);
                 drainAsync(child.getInputStream()); // hand the pipe to the drain once the URL is captured
             } catch (Exception e) {
@@ -282,20 +308,6 @@ final class RemoteControl {
         } catch (Exception e) {
             return false;
         }
-    }
-
-    private static Process startCloudflared(int port) throws IOException {
-        // --no-autoupdate: the daemon must never self-replace mid-session (and the update check is startup latency).
-        // No drain thread here: awaitTunnelUrl reads the stream itself, and two readers on one pipe deadlock (the
-        // drain's transferTo holds the stream monitor while the URL reader blocks waiting for it).
-        return new ProcessBuilder("cloudflared", "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:" + port)
-                                        .redirectErrorStream(true).start();
-    }
-
-    private static Process startTailscaleServe(int port) throws IOException {
-        // Foreground serve (no --bg): the mapping lives only as long as this child, so killing it on stop tears the
-        // proxy down. target is the loopback web server; only http://127.0.0.1 is a valid proxy target.
-        return new ProcessBuilder("tailscale", "serve", String.valueOf(port)).redirectErrorStream(true).start();
     }
 
     /** Drains the stream after the URL is captured, so a full pipe can't stall the long-lived child. */
