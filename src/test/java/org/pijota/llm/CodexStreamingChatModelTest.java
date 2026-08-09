@@ -361,7 +361,7 @@ class CodexStreamingChatModelTest {
 
         String delta = CodexStreamingChatModel.processSseLine(
                                         "{\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}", text,
-                                        toolCalls, seen);
+                                        toolCalls, seen, u -> {});
 
         assertEquals("hello", delta);
         assertEquals("hello", text.toString());
@@ -376,7 +376,7 @@ class CodexStreamingChatModelTest {
 
         String delta = CodexStreamingChatModel.processSseLine(
                                         "{\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"call_id\":\"c1\",\"name\":\"f\",\"arguments\":\"{}\"}}",
-                                        text, toolCalls, seen);
+                                        text, toolCalls, seen, u -> {});
 
         assertNull(delta);
         assertEquals(1, toolCalls.size());
@@ -391,10 +391,47 @@ class CodexStreamingChatModelTest {
 
         String delta = CodexStreamingChatModel.processSseLine(
                                         "{\"type\":\"response.completed\",\"response\":{\"output\":[{\"type\":\"function_call\",\"call_id\":\"c2\",\"name\":\"g\",\"arguments\":\"{}\"}]}}",
-                                        text, toolCalls, seen);
+                                        text, toolCalls, seen, u -> {});
 
         assertNull(delta);
         assertEquals(1, toolCalls.size());
+    }
+
+    /**
+     * Every Codex turn reported an empty TokenUsage, so --token-speed divided zero by the elapsed time and could only
+     * ever print "pp 0 · tg 0.0". The counts were in the completed event the whole time, next to the output array this
+     * already read for tool calls.
+     */
+    @Test
+    void completedEventCarriesTheTokenCountsToTheResponse() throws Exception {
+        var text = new StringBuilder();
+        var toolCalls = new ArrayList<ToolExecutionRequest>();
+        var seen = new HashSet<String>();
+        var counted = new java.util.concurrent.atomic.AtomicReference<dev.langchain4j.model.output.TokenUsage>();
+
+        CodexStreamingChatModel.processSseLine(
+                                        "{\"type\":\"response.completed\",\"response\":{\"output\":[],\"usage\":{\"input_tokens\":1200,"
+                                                                        + "\"input_tokens_details\":{\"cached_tokens\":1000},\"output_tokens\":37,"
+                                                                        + "\"output_tokens_details\":{\"reasoning_tokens\":12},\"total_tokens\":1237}}}",
+                                        text, toolCalls, seen, counted::set);
+
+        var usage = counted.get();
+        assertNotNull(usage, "the completed event's usage must reach the response");
+        assertEquals(1200, usage.inputTokenCount());
+        assertEquals(37, usage.outputTokenCount());
+        // As an OpenAiTokenUsage, so the cache and reasoning details survive the conversion downstream.
+        var openAi = assertInstanceOf(dev.langchain4j.model.openai.OpenAiTokenUsage.class, usage);
+        assertEquals(1000, openAi.inputTokensDetails().cachedTokens());
+        assertEquals(12, openAi.outputTokensDetails().reasoningTokens());
+    }
+
+    /** A turn that reports nothing must report nothing, not a confident zero. */
+    @Test
+    void aCompletedEventWithoutUsageLeavesTheCountsUnset() throws Exception {
+        var counted = new java.util.concurrent.atomic.AtomicReference<dev.langchain4j.model.output.TokenUsage>();
+        CodexStreamingChatModel.processSseLine("{\"type\":\"response.completed\",\"response\":{\"output\":[]}}",
+                                        new StringBuilder(), new ArrayList<>(), new HashSet<>(), counted::set);
+        assertNull(counted.get());
     }
 
     @Test
@@ -404,7 +441,8 @@ class CodexStreamingChatModelTest {
         var seen = new HashSet<String>();
 
         assertThrows(IOException.class, () -> CodexStreamingChatModel.processSseLine(
-                                        "{\"type\":\"response.failed\",\"error\":\"boom\"}", text, toolCalls, seen));
+                                        "{\"type\":\"response.failed\",\"error\":\"boom\"}", text, toolCalls, seen,
+                                        u -> {}));
     }
 
     @Test
@@ -413,7 +451,8 @@ class CodexStreamingChatModelTest {
         var toolCalls = new ArrayList<ToolExecutionRequest>();
         var seen = new HashSet<String>();
 
-        String delta = CodexStreamingChatModel.processSseLine("{\"type\":\"some.other.event\"}", text, toolCalls, seen);
+        String delta = CodexStreamingChatModel.processSseLine("{\"type\":\"some.other.event\"}", text, toolCalls, seen,
+                                        u -> {});
 
         assertNull(delta);
         assertTrue(toolCalls.isEmpty());

@@ -21,6 +21,7 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.PartialResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
+import dev.langchain4j.model.openai.OpenAiTokenUsage;
 import dev.langchain4j.model.output.TokenUsage;
 
 import java.io.BufferedReader;
@@ -38,6 +39,7 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 final class CodexStreamingChatModel implements StreamingChatModel {
     private static final String DEFAULT_BASE_URL = "https://chatgpt.com/backend-api";
@@ -243,6 +245,7 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         var text = new StringBuilder();
         var toolCalls = new ArrayList<ToolExecutionRequest>();
         var seenToolCalls = new HashSet<String>();
+        var counted = new AtomicReference<TokenUsage>();
         try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -253,18 +256,23 @@ final class CodexStreamingChatModel implements StreamingChatModel {
                 String data = line.substring(5).trim();
                 if (data.isEmpty() || data.equals("[DONE]"))
                     continue;
-                String delta = processSseLine(data, text, toolCalls, seenToolCalls);
+                String delta = processSseLine(data, text, toolCalls, seenToolCalls, counted::set);
                 if (delta != null) {
                     handler.onPartialResponse(new PartialResponse(text.toString()), null);
                 }
             }
         }
         var ai = toolCalls.isEmpty() ? AiMessage.from(text.toString()) : AiMessage.from(text.toString(), toolCalls);
-        handler.onCompleteResponse(ChatResponse.builder().aiMessage(ai).tokenUsage(new TokenUsage()).build());
+        // An empty TokenUsage was sent here unconditionally, so every Codex turn reported zero tokens: --token-speed
+        // divides counts by elapsed time and could only ever print "pp 0 · tg 0.0", and the cache and reasoning
+        // counters this provider does report were thrown away with them.
+        var reported = counted.get();
+        handler.onCompleteResponse(ChatResponse.builder().aiMessage(ai)
+                                        .tokenUsage(reported != null ? reported : new TokenUsage()).build());
     }
 
     static String processSseLine(String data, StringBuilder text, List<ToolExecutionRequest> toolCalls,
-                                    HashSet<String> seenToolCalls) throws IOException {
+                                    HashSet<String> seenToolCalls, Consumer<TokenUsage> usage) throws IOException {
         JsonNode event = Util.MAPPER.readTree(data);
         String type = event.has("type") ? event.get("type").asText() : "";
         if (type.equals("response.output_text.delta") && event.has("delta")) {
@@ -275,10 +283,40 @@ final class CodexStreamingChatModel implements StreamingChatModel {
             addToolCall(event.get("item"), toolCalls, seenToolCalls);
         } else if (type.equals("response.completed") && event.has("response")) {
             collectCompleted(event.get("response"), toolCalls, seenToolCalls);
+            var counted = usageOf(event.get("response"));
+            if (counted != null)
+                usage.accept(counted);
         } else if (type.equals("response.failed")) {
             throw new IOException(event.toString());
         }
         return null;
+    }
+
+    /**
+     * The token counts the Responses API puts on {@code response.completed}.
+     *
+     * <p>
+     * Built as an {@link OpenAiTokenUsage} rather than a bare one because the details are the interesting part here:
+     * this provider bills nothing per token but does report how much of the prompt was served from cache and how many
+     * of the output tokens were reasoning, and the usage conversion downstream already reads both from exactly this
+     * type. Absent or malformed usage returns null, which leaves the turn reporting nothing rather than zero.
+     */
+    static TokenUsage usageOf(JsonNode response) {
+        var u = response != null ? response.get("usage") : null;
+        if (u == null || !u.isObject())
+            return null;
+        var builder = OpenAiTokenUsage.builder().inputTokenCount(u.path("input_tokens").asInt(0))
+                                        .outputTokenCount(u.path("output_tokens").asInt(0))
+                                        .totalTokenCount(u.path("total_tokens").asInt(0));
+        var cached = u.path("input_tokens_details").path("cached_tokens");
+        if (cached.isNumber())
+            builder.inputTokensDetails(OpenAiTokenUsage.InputTokensDetails.builder().cachedTokens(cached.asInt())
+                                            .build());
+        var reasoning = u.path("output_tokens_details").path("reasoning_tokens");
+        if (reasoning.isNumber())
+            builder.outputTokensDetails(OpenAiTokenUsage.OutputTokensDetails.builder()
+                                            .reasoningTokens(reasoning.asInt()).build());
+        return builder.build();
     }
 
     static void collectCompleted(JsonNode response, List<ToolExecutionRequest> toolCalls,
