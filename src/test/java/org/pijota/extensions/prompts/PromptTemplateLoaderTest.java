@@ -133,4 +133,34 @@ class PromptTemplateLoaderTest {
         var prompt = PromptTemplateLoader.buildPrompt(List.of(t));
         assertFalse(prompt.contains("<argument-hint>"));
     }
+
+    /**
+     * Emptiness is judged before the quotes come off, so {@code key: ""} is a deliberate empty value and {@code key:}
+     * is a line that says nothing. Strip first and the two become indistinguishable -- which is exactly what a tidier
+     * looking rewrite of this parser does.
+     */
+    @Test
+    void anExplicitlyEmptyFrontmatterValueIsNotTheSameAsAMissingOne() {
+        var quotedEmpty = PromptTemplateLoader.parseFrontmatter("---\ndescription: \"\"\n---\nbody");
+        assertEquals("", quotedEmpty.frontmatter().get("description"), "key: \"\" is an empty value, and is kept");
+
+        var missing = PromptTemplateLoader.parseFrontmatter("---\ndescription:\n---\nbody");
+        assertFalse(missing.frontmatter().containsKey("description"), "key: with nothing after it is not a value");
+    }
+
+    @Test
+    void frontmatterQuotesComeOffAndTheBodySurvives() {
+        var parsed = PromptTemplateLoader.parseFrontmatter("---\nname: 'review'\nargs: \"a b\"\n---\nthe body\n");
+        assertEquals("review", parsed.frontmatter().get("name"));
+        assertEquals("a b", parsed.frontmatter().get("args"));
+        assertEquals("the body", parsed.body());
+    }
+
+    /** No frontmatter, or an unterminated block, leaves the whole file as the body rather than eating it. */
+    @Test
+    void aFileWithNoFrontmatterIsAllBody() {
+        assertEquals("just text", PromptTemplateLoader.parseFrontmatter("just text").body());
+        assertTrue(PromptTemplateLoader.parseFrontmatter("just text").frontmatter().isEmpty());
+        assertEquals("--- unterminated", PromptTemplateLoader.parseFrontmatter("--- unterminated").body());
+    }
 }

@@ -206,31 +206,41 @@ public final class PromptTemplateLoader {
     record Parsed(Map<String, String> frontmatter, String body) {
     }
 
-    private static Parsed parseFrontmatter(String raw) {
+    static Parsed parseFrontmatter(String raw) { // package-private for tests
         var frontmatter = new LinkedHashMap<String, String>();
-        String body = raw;
-        String trimmed = raw.stripLeading();
-        if (trimmed.startsWith("---")) {
-            int start = raw.indexOf("---") + 3;
-            int end = raw.indexOf("---", start);
-            if (end > start) {
-                body = raw.substring(end + 3);
-                for (String line : raw.substring(start, end).strip().split("\n")) {
-                    int colon = line.indexOf(':');
-                    if (colon > 0) {
-                        String key = line.substring(0, colon).trim();
-                        String value = line.substring(colon + 1).trim();
-                        if (!key.isEmpty() && !value.isEmpty()) {
-                            if (value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\""))
-                                                            || (value.startsWith("'") && value.endsWith("'")))) {
-                                value = value.substring(1, value.length() - 1);
-                            }
-                            frontmatter.put(key, value);
-                        }
-                    }
-                }
-            }
-        }
-        return new Parsed(frontmatter, body.strip());
+        if (!raw.stripLeading().startsWith("---"))
+            return new Parsed(frontmatter, raw.strip());
+        int start = raw.indexOf("---") + 3;
+        int end = raw.indexOf("---", start);
+        if (end <= start)
+            return new Parsed(frontmatter, raw.strip());
+
+        for (String line : raw.substring(start, end).strip().split("\n"))
+            putField(frontmatter, line);
+        return new Parsed(frontmatter, raw.substring(end + 3).strip());
+    }
+
+    /**
+     * One {@code key: value} line of frontmatter, or nothing when the line is not one.
+     *
+     * <p>
+     * Emptiness is judged before the quotes come off, which is what keeps {@code key: ""} a deliberate empty value
+     * rather than a line that says nothing: strip first and it would be indistinguishable from {@code key:}.
+     */
+    private static void putField(Map<String, String> into, String line) {
+        int colon = line.indexOf(':');
+        if (colon <= 0)
+            return;
+        String key = line.substring(0, colon).trim();
+        String value = line.substring(colon + 1).trim();
+        if (key.isEmpty() || value.isEmpty())
+            return;
+        into.put(key, unquote(value));
+    }
+
+    private static String unquote(String value) {
+        boolean quoted = value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\""))
+                                        || (value.startsWith("'") && value.endsWith("'")));
+        return quoted ? value.substring(1, value.length() - 1) : value;
     }
 }
