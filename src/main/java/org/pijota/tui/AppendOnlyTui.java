@@ -3,7 +3,7 @@ package org.pijota.tui;
 import org.pijota.agent.AgentEvent;
 import org.pijota.agent.ChildEnvironment;
 import org.pijota.agent.PijotaSession;
-import org.pijota.agent.SessionDescriptor;
+import org.pijota.agent.SessionCodec;
 import org.pijota.config.PathDisplay;
 import org.pijota.config.PromptGlyphs;
 import org.pijota.config.SettingsManager;
@@ -18,6 +18,7 @@ import org.pijota.llm.ModelInfo;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
+import org.pijota.messages.Usage;
 import org.pijota.modes.SlashCommand;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.SlashCommandTool;
@@ -26,7 +27,6 @@ import org.pijota.tools.ToolGlyphs;
 import org.pijota.tools.ToolLabels;
 import org.pijota.tools.WhoamiTool;
 import org.pijota.util.ErrorUtil;
-import org.pijota.util.ParentWatch;
 import org.pijota.util.Platform;
 import org.pijota.util.ProcessRunner;
 import org.pijota.util.SelfRespawn;
@@ -44,9 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -74,8 +72,6 @@ import static org.pijota.util.Util.shortenCwd;
 
 public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private static final Logger log = LoggerFactory.getLogger(AppendOnlyTui.class);
-    /** Columns the banner's session titles keep whatever else wants room; below this a title says nothing at all. */
-    private static final int MIN_TITLE = 8;
     private AnsiTheme theme;
     private String provider;
     private String model;
@@ -271,10 +267,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * Per-tool-call state captured at ToolStart, consumed at ToolResult: args for the header + start time for elapsed.
      * The name and pre-computed target detail also feed the live stream-tail line while the tool runs.
      */
-    private record ToolInProgress(String name, String detail, Supplier<String> args, long startedAtMs) {
-    }
-
-    private final Map<String, ToolInProgress> toolsInProgress = new ConcurrentHashMap<>();
+    /** What is running right now, and since when: the model's tool calls and the user's own ! command. */
+    private final InFlight inFlight = new InFlight();
     // Calls already reported as interrupted. Their results still arrive (a killed process reports exit 143), and
     // rendering those would report one interrupted call twice: once as "interrupted", once as a failed block.
     private final Set<String> interruptedCalls = ConcurrentHashMap.newKeySet();
@@ -358,8 +352,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         this.promptEditor = new PromptEditor(commands);
         var userKeys = UserKeybindings.load();
         this.globalKeys = buildGlobalKeyMap(userKeys);
-        this.editorKeyRemaps = buildEditorKeyRemaps(userKeys);
-        this.selectorKeyRemaps = buildSelectorKeyRemaps(userKeys);
+        this.editorKeyRemaps = KeyMaps.buildEditorKeyRemaps(userKeys);
+        this.selectorKeyRemaps = KeyMaps.buildSelectorKeyRemaps(userKeys);
         this.messageBrowser = new MessageBrowser(promptEditor, session::userMessages);
         this.session = session;
         this.tokenMeter = new ContextTokenMeter(() -> this.session.messages().size(),
@@ -437,7 +431,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             }
         }
         this.extensionKeybindings = new HashMap<>();
-        var deliverable = deliverableChords();
+        var deliverable = KeyMaps.deliverableChords();
         for (var binding : extensionKeybindings) {
             if (binding == null || binding.key() == null)
                 continue;
@@ -647,7 +641,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
         @Override
         public void setRunningShellCommand(String command) {
-            runningShell = command == null ? null : new RunningShell(command, System.currentTimeMillis());
+            inFlight.shellStarted(command, System.currentTimeMillis());
         }
 
         @Override
@@ -904,7 +898,9 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             // Ask for unambiguous modifiers before anything reads a key. Terminals without the protocol ignore it.
             assertTerminalModes(); // first call also snapshots the pre-TUI attributes into originalAttributes
             installSigcontHandler();
-            appendStartupGreeting(version, cwd);
+            appendPlain(StartupBanner.lines(theme, version, provider, model,
+                                            settings != null && settings.config().quietStartup(),
+                                            Math.max(20, terminal.getWidth()), session::resumableSessions));
             if (showSessionPickerOnStart) {
                 showSessionPicker();
                 showSessionPickerOnStart = false;
@@ -935,74 +931,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * stays quiet and the part that is pijota's carries the colour, which reads as a name rather than as a version
      * string and tells the lineage without a sentence about it.
      */
-    private String wordmark() {
-        return theme.styled("bannerRoot", "pi") + theme.styled("bannerName", "jota");
-    }
-
-    private void appendStartupGreeting(String version, String cwd) {
-        if (settings != null && settings.config().quietStartup()) {
-            appendPlain(List.of(wordmark() + theme.styled("bannerMeta", " " + version)));
-            return;
-        }
-        var lines = new ArrayList<String>();
-        // Three levels, loudest last-but-one: the name carries the accent, the model is the fact worth reading
-        // every launch, and the version is trivia. They shared one slot, so the eye had nothing to land on.
-        lines.add(wordmark() + theme.styled("bannerMeta", " " + version) + TuiCopy.GROUP
-                                        + theme.styled("commandMeta", PromptPresenter.modelLabel(provider, model)));
-        lines.add(theme.styled("dim", TuiCopy.START_HINT));
-
-        // recent sessions
-        try {
-            var items = SessionItem.fromPaths(session.resumableSessions(), 3);
-            if (!items.isEmpty()) {
-                lines.add("");
-                lines.add(theme.styled("dim", "recent sessions"));
-                int width = Math.max(20, terminal.getWidth());
-                // The row is GROUP + title + GROUP + meta, so the two separators cost 4 columns and the title is
-                // promised MIN_TITLE of what remains. The meta is built to that budget rather than measured after
-                // the fact: it used to be built at full length and only the title was cut to fit, so once the meta
-                // alone was wider than the terminal the floor below guaranteed the overflow it was meant to prevent.
-                var metas = items.stream().map(it -> bannerSessionMeta(it, width - 4 - MIN_TITLE)).toList();
-                // Metadata in one column so ages and counts can be compared straight down the list; trailing each
-                // title, it landed somewhere different on every row. The column sits just past the longest title
-                // rather than against the right margin, which would leave a canyon of blank the eye has to cross.
-                int metaWidth = metas.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
-                int titleRoom = Math.max(MIN_TITLE, width - metaWidth - 4); // 2 leading + one GROUP gap
-                // Columns, not characters: a CJK title cut to N characters is 2N columns wide, and the row wrapped.
-                var titles = items.stream().map(it -> AnsiWidth.ellipsize(it.description(), titleRoom)).toList();
-                int titleColumn = titles.stream().mapToInt(AnsiWidth::visibleWidth).max().orElse(0);
-                // The title carries the emphasis and the age gives way, which was the wrong way round: statusText is
-                // dimmed and commandMeta is not, so the eye landed on "1h ago" rather than on which session it was.
-                for (int i = 0; i < titles.size(); i++)
-                    lines.add(theme.styled("commandMeta", TuiCopy.GROUP + padRight(titles.get(i), titleColumn))
-                                                    + TuiCopy.GROUP + theme.styled("statusText", metas.get(i)));
-            }
-        } catch (Exception ignored) {}
-        appendPlain(lines);
-    }
 
     /**
      * The banner's one-glance metadata for a session. Built from the item's own fields rather than by cutting up the
      * selector's detail string, which also carried an absolute timestamp and the session id: at three rows the question
      * is "which one was I just in", and a relative age answers it without a second time format competing.
      */
-    static String bannerSessionMeta(SessionItem item, int budget) {
-        var parts = new ArrayList<String>();
-        String age = SessionDescriptor.relativeAge(item.mtime());
-        if (age != null && !age.isBlank())
-            parts.add(age);
-        if (item.messageCount() > 0) {
-            parts.add(Util.plural(item.messageCount(), "msg"));
-            if (item.estTokens() > 0)
-                parts.add("~" + SessionDescriptor.formatTokens(item.estTokens()));
-        }
-        // Built most-telling-first, so a narrow terminal gives up the tail: at three rows the question is "which
-        // session was I just in", which the age answers and the token estimate does not. Saying less on one row
-        // beats saying everything across two, which is what wrapping actually costs.
-        while (!parts.isEmpty() && AnsiWidth.visibleWidth(String.join(" · ", parts)) > budget)
-            parts.remove(parts.size() - 1);
-        return String.join(" · ", parts);
-    }
 
     @Override
     public void close() {
@@ -1056,6 +990,124 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         } catch (Exception ignored) {}
     }
 
+    /**
+     * Routes one keypress to whoever should have it: first match wins, and the order below is the precedence.
+     *
+     * <p>
+     * Job control first, because Ctrl+Z has to work from any state. Then the modal things -- dialogs, the log viewer,
+     * the select picker -- so Esc closes what is open rather than triggering a generic escape. Then extension bindings,
+     * the global chords (suppressed while an overlay is open, or one selector stacks on another), and only then the
+     * editor. Returns false when the editor asked to exit, which is the one answer the loop acts on.
+     */
+    private boolean dispatchKey(Key key) throws IOException {
+        if (key == Key.Special.CTRL_Z) { // job-control suspend (works from any state)
+            suspendProcess();
+            return true;
+        }
+        if (dialogs.handleConfirm(key))
+            return true;
+        if (dialogs.handlePrompt(key))
+            return true;
+        if (routeModalKey(logViewer::active, logViewer::handleKey, key))
+            return true;
+        // The select picker is modal too: route keys to it before global ESC/etc. so Esc cancels the
+        // picker rather than triggering a generic escape.
+        if (routeModalKey(selector::active, selector::handleKey, key))
+            return true;
+        if (handleExtensionKeybinding(key))
+            return true;
+        // Every overlay is cancellable with Esc, double-Esc, or a single Ctrl+C; it closes instead of
+        // falling through to interrupt/exit. The log viewer and select picker also consume plain Esc via
+        // routeModalKey above; this is the single guarantee for their Ctrl+C and for the selectors, the
+        // completions popup (incl. the Ctrl+R history search), and the message browser.
+        if (key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C) {
+            if (cancelActiveOverlay()) {
+                redrawPrompt();
+                return true;
+            }
+        }
+        if (key == Key.Special.DOUBLE_ESC) {
+            handleEsc(true);
+            return true;
+        }
+        if (key == Key.Special.ESC) {
+            handleEsc(false);
+            return true;
+        }
+        if (key == Key.Special.CTRL_C) {
+            handleCtrlC();
+            return true;
+        }
+        if (key == Key.Special.CTRL_B) {
+            handleCtrlB();
+            return true;
+        }
+        // The session picker's own Ctrl+X (delete) is handled before the global keymap. It no-ops
+        // unless the picker is open, so it's safe here first.
+        if (handleSessionPickerAction(key))
+            return true;
+        // App shortcuts (command palette, model picker, editor, …) are modal-suppressed while an overlay is
+        // open; otherwise one selector-opening chord stacks a second selector on top of the first (e.g.
+        // Ctrl+P over the /sessions picker). Mirrors the same guard on extension keybindings; Esc and the
+        // navigation keys still reach the active overlay through the routing below.
+        if (!anyOverlayActive() && globalKeys.dispatch(key))
+            return true;
+        if (key == Key.Special.ALT_UP) {
+            undoLastTurn();
+            return true;
+        }
+        if (key == Key.Special.PASTE_START) {
+            Key paste = InputDecoder.readPaste(terminal);
+            if (paste instanceof Key.Paste p) {
+                promptEditor.insertText(p.text());
+                redrawPrompt();
+            }
+            return true;
+        }
+        key = remapSpecial(key, selectorKeyRemaps);
+        if (selectors.handle(key, this::redrawPrompt))
+            return true;
+        if (promptEditor.handleCompletionKey(key)) {
+            redrawPrompt();
+            return true;
+        }
+        if (key == Key.Special.UP && (promptEditor.isEmpty() || promptEditor.isInHistory())) {
+            if (!promptEditor.historyPrev() && !activity.isBusy()) {
+                messageBrowser.enter();
+            }
+            redrawPrompt();
+            return true;
+        }
+        if (key == Key.Special.DOWN && promptEditor.isInHistory()) {
+            promptEditor.historyNext();
+            redrawPrompt();
+            return true;
+        }
+        if (messageBrowser.isActive() && messageBrowser.handleKey(key)) {
+            redrawPrompt();
+            return true;
+        }
+        if (key instanceof Key.Char at && at.value() == '@' && !activity.isBusy() && FzfFilePicker.available()) {
+            pickFileWithFzf(true); // @ opens fzf file completion; the chosen path is inserted as @"…"
+            return true;
+        }
+        var result = promptEditor.apply(remapSpecial(key, editorKeyRemaps));
+        // Ctrl+R on an empty history opened nothing and said nothing, so an advertised key read as
+        // broken. The editor reports no change in that case, so the redraw below never runs: say it here.
+        if (key == Key.Special.CTRL_R && !promptEditor.hasCompletions()) {
+            setTransientStatus("no history to search yet", 2500);
+            redrawPrompt();
+        }
+        if (result.exit())
+            return false;
+        if (result.changed()) {
+            selectors.filter(promptEditor.text());
+            redrawPrompt();
+        }
+        result.submitted().ifPresent(this::handleSubmit);
+        return true;
+    }
+
     private void readInputLoop() {
         while (running.get()) {
             if (SelfRespawn.isRespawnInProgress()) {
@@ -1070,114 +1122,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             try {
                 var key = InputDecoder.readKey(terminal);
                 try {
-                    if (key == Key.Special.CTRL_Z) { // job-control suspend (works from any state)
-                        suspendProcess();
-                        continue;
-                    }
-                    if (dialogs.handleConfirm(key))
-                        continue;
-                    if (dialogs.handlePrompt(key))
-                        continue;
-                    if (routeModalKey(logViewer::active, logViewer::handleKey, key))
-                        continue;
-                    // The select picker is modal too: route keys to it before global ESC/etc. so Esc cancels the
-                    // picker rather than triggering a generic escape.
-                    if (routeModalKey(selector::active, selector::handleKey, key))
-                        continue;
-                    if (handleExtensionKeybinding(key))
-                        continue;
-                    // Every overlay is cancellable with Esc, double-Esc, or a single Ctrl+C; it closes instead of
-                    // falling through to interrupt/exit. The log viewer and select picker also consume plain Esc via
-                    // routeModalKey above; this is the single guarantee for their Ctrl+C and for the selectors, the
-                    // completions popup (incl. the Ctrl+R history search), and the message browser.
-                    if (key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C) {
-                        if (cancelActiveOverlay()) {
-                            redrawPrompt();
-                            continue;
-                        }
-                    }
-                    if (key == Key.Special.DOUBLE_ESC) {
-                        handleEsc(true);
-                        continue;
-                    }
-                    if (key == Key.Special.ESC) {
-                        handleEsc(false);
-                        continue;
-                    }
-                    if (key == Key.Special.CTRL_C) {
-                        handleCtrlC();
-                        continue;
-                    }
-                    if (key == Key.Special.CTRL_B) {
-                        handleCtrlB();
-                        continue;
-                    }
-                    // The session picker's own Ctrl+X (delete) is handled before the global keymap. It no-ops
-                    // unless the picker is open, so it's safe here first.
-                    if (handleSessionPickerAction(key))
-                        continue;
-                    // App shortcuts (command palette, model picker, editor, …) are modal-suppressed while an overlay is
-                    // open; otherwise one selector-opening chord stacks a second selector on top of the first (e.g.
-                    // Ctrl+P over the /sessions picker). Mirrors the same guard on extension keybindings; Esc and the
-                    // navigation keys still reach the active overlay through the routing below.
-                    if (!anyOverlayActive() && globalKeys.dispatch(key))
-                        continue;
-                    if (key == Key.Special.ALT_UP) {
-                        undoLastTurn();
-                        continue;
-                    }
-                    if (key == Key.Special.PASTE_START) {
-                        Key paste = InputDecoder.readPaste(terminal);
-                        if (paste instanceof Key.Paste p) {
-                            promptEditor.insertText(p.text());
-                            redrawPrompt();
-                        }
-                        continue;
-                    }
-                    key = remapSpecial(key, selectorKeyRemaps);
-                    if (selectors.handle(key, this::redrawPrompt))
-                        continue;
-                    if (promptEditor.handleCompletionKey(key)) {
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (key == Key.Special.UP && (promptEditor.isEmpty() || promptEditor.isInHistory())) {
-                        if (!promptEditor.historyPrev() && !activity.isBusy()) {
-                            messageBrowser.enter();
-                        }
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (key == Key.Special.DOWN && promptEditor.isInHistory()) {
-                        promptEditor.historyNext();
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (messageBrowser.isActive() && messageBrowser.handleKey(key)) {
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (key instanceof Key.Char at && at.value() == '@' && !activity.isBusy()
-                                                    && FzfFilePicker.available()) {
-                        pickFileWithFzf(true); // @ opens fzf file completion; the chosen path is inserted as @"…"
-                        continue;
-                    }
-                    var result = promptEditor.apply(remapSpecial(key, editorKeyRemaps));
-                    // Ctrl+R on an empty history opened nothing and said nothing, so an advertised key read as
-                    // broken. The editor reports no change in that case, so the redraw below never runs: say it here.
-                    if (key == Key.Special.CTRL_R && !promptEditor.hasCompletions()) {
-                        setTransientStatus("no history to search yet", 2500);
-                        redrawPrompt();
-                    }
-                    if (result.exit()) {
+                    if (!dispatchKey(key)) {
                         running.set(false);
                         break;
                     }
-                    if (result.changed()) {
-                        selectors.filter(promptEditor.text());
-                        redrawPrompt();
-                    }
-                    result.submitted().ifPresent(this::handleSubmit);
                 } catch (Exception inner) {
                     if (SelfRespawn.isRespawnInProgress())
                         continue;
@@ -1209,11 +1157,11 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private boolean handleExtensionKeybinding(Key key) {
         if (key instanceof Key.Char)
             return false;
-        if (isReservedKey(key))
+        if (KeyMaps.isReservedKey(key))
             return false;
         if (selectors.anyActive() || promptEditor.hasCompletions() || messageBrowser.isActive())
             return false;
-        var chord = toKeyChord(key);
+        var chord = KeyMaps.toKeyChord(key);
         if (chord == null)
             return false;
         var binding = extensionKeybindings.get(chord);
@@ -1242,38 +1190,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return map;
     }
 
-    private static Map<Key.Special, Key.Special> buildEditorKeyRemaps(UserKeybindings keys) {
-        return keys.remaps(Map.ofEntries(Map.entry("tui.editor.cursorUp", Key.Special.UP),
-                                        Map.entry("tui.editor.cursorDown", Key.Special.DOWN),
-                                        Map.entry("tui.editor.cursorLeft", Key.Special.LEFT),
-                                        Map.entry("tui.editor.cursorRight", Key.Special.RIGHT),
-                                        Map.entry("tui.editor.cursorLineStart", Key.Special.HOME),
-                                        Map.entry("tui.editor.cursorLineEnd", Key.Special.END),
-                                        Map.entry("tui.editor.cursorWordLeft", Key.Special.CTRL_LEFT),
-                                        Map.entry("tui.editor.cursorWordRight", Key.Special.CTRL_RIGHT),
-                                        Map.entry("tui.editor.deleteCharBackward", Key.Special.BACKSPACE),
-                                        Map.entry("tui.editor.deleteCharForward", Key.Special.DELETE),
-                                        Map.entry("tui.editor.deleteWordBackward", Key.Special.CTRL_W),
-                                        Map.entry("tui.editor.deleteWordForward", Key.Special.ALT_D),
-                                        Map.entry("tui.editor.deleteToLineStart", Key.Special.CTRL_U),
-                                        Map.entry("tui.editor.deleteToLineEnd", Key.Special.CTRL_K),
-                                        Map.entry("tui.editor.yank", Key.Special.CTRL_Y),
-                                        Map.entry("tui.editor.yankPop", Key.Special.ALT_Y),
-                                        Map.entry("tui.editor.undo", Key.Special.CTRL_UNDERSCORE),
-                                        Map.entry("tui.input.newLine", Key.Special.NEWLINE),
-                                        Map.entry("tui.input.submit", Key.Special.ENTER),
-                                        Map.entry("tui.input.tab", Key.Special.TAB)));
-    }
-
-    private static Map<Key.Special, Key.Special> buildSelectorKeyRemaps(UserKeybindings keys) {
-        return keys.remaps(Map.ofEntries(Map.entry("tui.select.up", Key.Special.UP),
-                                        Map.entry("tui.select.down", Key.Special.DOWN),
-                                        Map.entry("tui.select.pageUp", Key.Special.PG_UP),
-                                        Map.entry("tui.select.pageDown", Key.Special.PG_DOWN),
-                                        Map.entry("tui.select.confirm", Key.Special.ENTER),
-                                        Map.entry("tui.select.cancel", Key.Special.ESC)));
-    }
-
     private static Key remapSpecial(Key key, Map<Key.Special, Key.Special> remaps) {
         return key instanceof Key.Special special ? remaps.getOrDefault(special, special) : key;
     }
@@ -1281,70 +1197,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private static void bind(GlobalKeyMap map, List<Key.Special> keys, Runnable action) {
         for (Key.Special key : keys)
             map.bind(key, action);
-    }
-
-    static boolean isReservedKey(Key key) {
-        return key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C
-                                        || key == Key.Special.ENTER || key == Key.Special.NEWLINE
-                                        || key == Key.Special.BACKSPACE || key == Key.Special.TAB
-                                        || key == Key.Special.PASTE_START;
-    }
-
-    /**
-     * The chords an extension binding can actually fire: the image of {@link #toKeyChord} over the keys the decoder
-     * produces, minus the ones the TUI reserves for itself and never routes onward. A binding outside this set is
-     * unreachable, so it is refused at registration rather than listed in {@code /help} as a shortcut that does
-     * nothing.
-     */
-    static Set<KeyChord> deliverableChords() {
-        var out = new HashSet<KeyChord>();
-        for (var key : Key.Special.values()) {
-            if (isReservedKey(key))
-                continue;
-            KeyChord chord = toKeyChord(key);
-            if (chord != null)
-                out.add(chord);
-        }
-        return out;
-    }
-
-    static KeyChord toKeyChord(Key key) {
-        if (!(key instanceof Key.Special special))
-            return null;
-        return switch (special) {
-            case ENTER -> new KeyChord(KeyChord.Key.ENTER);
-            case BACKSPACE -> new KeyChord(KeyChord.Key.BACKSPACE);
-            case DELETE -> new KeyChord(KeyChord.Key.DELETE);
-            case TAB -> new KeyChord(KeyChord.Key.TAB);
-            case ESC -> new KeyChord(KeyChord.Key.ESC);
-            case UP -> new KeyChord(KeyChord.Key.UP);
-            case DOWN -> new KeyChord(KeyChord.Key.DOWN);
-            case LEFT -> new KeyChord(KeyChord.Key.LEFT);
-            case RIGHT -> new KeyChord(KeyChord.Key.RIGHT);
-            case PG_UP -> new KeyChord(KeyChord.Key.PG_UP);
-            case PG_DOWN -> new KeyChord(KeyChord.Key.PG_DOWN);
-            case HOME -> new KeyChord(KeyChord.Key.HOME);
-            case END -> new KeyChord(KeyChord.Key.END);
-            case CTRL_A -> new KeyChord(KeyChord.Key.A, KeyChord.Modifier.CTRL);
-            case CTRL_C -> new KeyChord(KeyChord.Key.C, KeyChord.Modifier.CTRL);
-            case CTRL_D -> new KeyChord(KeyChord.Key.D, KeyChord.Modifier.CTRL);
-            case CTRL_E -> new KeyChord(KeyChord.Key.E, KeyChord.Modifier.CTRL);
-            case CTRL_G -> new KeyChord(KeyChord.Key.G, KeyChord.Modifier.CTRL);
-            case CTRL_K -> new KeyChord(KeyChord.Key.K, KeyChord.Modifier.CTRL);
-            case CTRL_L -> new KeyChord(KeyChord.Key.L, KeyChord.Modifier.CTRL);
-            case CTRL_P -> new KeyChord(KeyChord.Key.P, KeyChord.Modifier.CTRL);
-            case CTRL_R -> new KeyChord(KeyChord.Key.R, KeyChord.Modifier.CTRL);
-            case CTRL_T -> new KeyChord(KeyChord.Key.T, KeyChord.Modifier.CTRL);
-            case CTRL_U -> new KeyChord(KeyChord.Key.U, KeyChord.Modifier.CTRL);
-            case CTRL_W -> new KeyChord(KeyChord.Key.W, KeyChord.Modifier.CTRL);
-            case CTRL_SHIFT_P -> new KeyChord(KeyChord.Key.P, KeyChord.Modifier.CTRL, KeyChord.Modifier.SHIFT);
-            case CTRL_ALT_G -> new KeyChord(KeyChord.Key.G, KeyChord.Modifier.CTRL, KeyChord.Modifier.ALT);
-            case CTRL_ALT_P -> new KeyChord(KeyChord.Key.P, KeyChord.Modifier.CTRL, KeyChord.Modifier.ALT);
-            case CTRL_LEFT -> new KeyChord(KeyChord.Key.LEFT, KeyChord.Modifier.CTRL);
-            case CTRL_RIGHT -> new KeyChord(KeyChord.Key.RIGHT, KeyChord.Modifier.CTRL);
-            case SHIFT_TAB -> new KeyChord(KeyChord.Key.TAB, KeyChord.Modifier.SHIFT);
-            default -> null;
-        };
     }
 
     /** Cancels an in-flight OAuth login (interrupts its poll loop); returns true if one was active. */
@@ -1487,53 +1339,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             return; // no SIGTSTP / job control on Windows
         suspendTui();
         try {
-            raiseSigtstp();
+            JobControl.raiseSigtstp();
         } catch (Throwable ignored) {
             // platform without SIGTSTP; fall through and just restore the prompt
         } finally {
             resumeTui();
         }
-    }
-
-    /**
-     * Deliver SIGTSTP to this process for a real job-control stop. GraalVM's own runtime installs a SIGTSTP dispatcher
-     * that intercepts the signal before any {@code sun.misc.Signal} disposition applies (confirmed by native stderr
-     * tracing: a Java handler registered for TSTP never runs, and the process never stops). So we bypass the JVM signal
-     * machinery entirely and ask the kernel to stop us: a bare {@code kill -TSTP <pid>} via {@code sh}, which needs no
-     * registered handler and always takes the default stop-the-process action (the shell prints "Suspended").
-     * {@code waitFor()} returns after {@code fg}'s SIGCONT wakes us. No JNA (jnidispatch is not embedded in native
-     * images).
-     */
-    private static void raiseSigtstp() throws Exception {
-        // No `sh -c`: ProcessBuilder execs the binary off PATH, so the shell builtin never enters it. One fork per
-        // Ctrl+Z, and suspend is not a hot path.
-        var command = suspendCommand(ParentWatch.supervisor().map(ProcessHandle::pid), ProcessHandle.current().pid());
-        int rc = new ProcessBuilder(command).inheritIO().start().waitFor();
-        if (rc != 0)
-            throw new IllegalStateException("kill -TSTP exited " + rc);
-    }
-
-    /**
-     * Who has to stop for Ctrl+Z to be a suspend: under a supervisor, both of us.
-     *
-     * <p>
-     * Stopping only ourselves left the supervisor running, and the supervisor is the process the shell is waiting on --
-     * so the shell never printed "Suspended", never took the terminal back, and never registered a job there was
-     * anything to {@code fg}. What the user got was a frozen screen with their keystrokes echoed raw across it by a tty
-     * nobody was reading, and Ctrl+C the only way out, which killed the session instead of resuming it. The native
-     * binary never spawns a supervisor, so there the two have always been the same process and this was invisible.
-     *
-     * <p>
-     * The supervisor goes first, so the shell is already reclaiming the terminal by the time we stop. Both pids are
-     * named rather than signalling the process group, because {@code kill} itself runs in that group: signalling the
-     * group would stop the very process we are waiting on to deliver the signal. Empty means nothing is supervising us
-     * and the parent is the user's shell, which must never be stopped.
-     */
-    static List<String> suspendCommand(Optional<Long> supervisorPid, long selfPid) {
-        var command = new ArrayList<>(List.of("kill", "-TSTP"));
-        supervisorPid.ifPresent(pid -> command.add(Long.toString(pid)));
-        command.add(Long.toString(selfPid));
-        return command;
     }
 
     /**
@@ -1581,29 +1392,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             previous.set(sun.misc.Signal.handle(new sun.misc.Signal("CONT"), sig -> {
                 if (suspendDepth > 0)
                     assertTerminalModes();
-                chainTo(previous.get(), sig);
+                JobControl.chainTo(previous.get(), sig);
             }));
         } catch (IllegalArgumentException | UnsatisfiedLinkError ignored) {
             // no SIGCONT on this platform; the inline resumeTui() path still covers Ctrl+Z
-        }
-    }
-
-    /**
-     * Hands a signal on to the disposition that held it before us.
-     *
-     * <p>
-     * {@code SIG_DFL} and {@code SIG_IGN} name a kernel disposition rather than a callable Java handler, and invoking
-     * either throws, so they are passed over: the kernel still applies them. Anything else is a real handler and gets
-     * the signal it registered for, inside a catch, because a handler we do not own must not take the resume down with
-     * it.
-     */
-    private static void chainTo(sun.misc.SignalHandler prior, sun.misc.Signal sig) {
-        if (prior == null || prior == sun.misc.SignalHandler.SIG_DFL || prior == sun.misc.SignalHandler.SIG_IGN)
-            return;
-        try {
-            prior.handle(sig);
-        } catch (Throwable ignored) {
-            // not ours to fix, and not ours to die from
         }
     }
 
@@ -1707,44 +1499,46 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                             + String.join("/", unreadable) + ", sending text only")));
     }
 
-    private void handleSubmit(String text) {
-        String cleaned = Util.stripSystemReminders(text);
-        // A leading space escapes command/shell syntax: " /review …" or " !cmd" is sent to the model as a literal
-        // message; only an unindented "/" or "!" is treated as a command.
-        boolean literal = !cleaned.isEmpty() && Character.isWhitespace(cleaned.charAt(0));
-        String submitted = cleaned.strip();
-        if (submitted.isBlank())
-            return;
-        var expansion = fileRefs.expand(submitted);
-        submitted = expansion.text();
-        var attachments = expansion.attachments(); // @image files pulled out for vision models
-        String answer = submitted;
-        if (dialogs.submitAnswer(answer, () -> appendPlain(promptEcho(answer))))
-            return;
-        String payload = submitted;
-        session.stripSystemRemindersFromContext();
-        if (!literal && isBareHelp(payload)) {
+    /**
+     * Everything an unindented line can mean other than "send this to the model", in the order it is tried.
+     *
+     * <p>
+     * Only reached when the line was not indented: a leading space escapes all of this, so " /review" and " !cmd" go to
+     * the model as the literal text somebody typed. Returns whether the line was taken.
+     */
+    private boolean routeAsCommand(String payload) {
+        if (isBareHelp(payload)) {
             commandController.handle("/help");
-            return;
+            return true;
         }
-        if (!literal && payload.startsWith("/")) {
+        if (payload.startsWith("/")) {
             commandController.handle(payload.strip());
-            return;
+            return true;
         }
-        if (!literal && isVimQuit(payload)) { // chef's kiss: :q (and its cousins) quit pijota, for Vim muscle memory
+        if (isVimQuit(payload)) { // chef's kiss: :q (and its cousins) quit pijota, for Vim muscle memory
             commandController.handle("/quit");
-            return;
+            return true;
         }
-        if (!literal && payload.startsWith("!!")) {
+        if (payload.startsWith("!!")) {
             shellCommands.run(payload.substring(2).strip(), false);
-            return;
+            return true;
         }
-        if (!literal && payload.startsWith("!")) {
+        if (payload.startsWith("!")) {
             shellCommands.run(payload.substring(1).strip(), true);
-            return;
+            return true;
         }
-        warnUnreadableAttachments(attachments);
-        appendPlain(promptEcho(submitted));
+        return false;
+    }
+
+    /**
+     * Starts a turn, or queues the line behind the one already running.
+     *
+     * <p>
+     * The failure path is deliberately quiet: a turn that fails has already rendered it through AgentEvent.Error, so
+     * this forwards to extensions and puts it in the status line rather than printing a second "Exception:" beneath the
+     * first.
+     */
+    private void sendToModel(String payload, List<Message.Attachment> attachments) {
         if (activity.isBusy() && session.isBusy()) {
             if (!attachments.isEmpty()) // followUp steers with text only; attachments can't ride along mid-turn
                 appendPlain(List.of(theme.styled("toolError",
@@ -1776,6 +1570,29 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 redrawPrompt();
             }
         });
+    }
+
+    private void handleSubmit(String text) {
+        String cleaned = Util.stripSystemReminders(text);
+        // A leading space escapes command/shell syntax: " /review …" or " !cmd" is sent to the model as a literal
+        // message; only an unindented "/" or "!" is treated as a command.
+        boolean literal = !cleaned.isEmpty() && Character.isWhitespace(cleaned.charAt(0));
+        String submitted = cleaned.strip();
+        if (submitted.isBlank())
+            return;
+        var expansion = fileRefs.expand(submitted);
+        submitted = expansion.text();
+        var attachments = expansion.attachments(); // @image files pulled out for vision models
+        String answer = submitted;
+        if (dialogs.submitAnswer(answer, () -> appendPlain(promptEcho(answer))))
+            return;
+        String payload = submitted;
+        session.stripSystemRemindersFromContext();
+        if (!literal && routeAsCommand(payload))
+            return;
+        warnUnreadableAttachments(attachments);
+        appendPlain(promptEcho(submitted));
+        sendToModel(payload, attachments);
     }
 
     static boolean isBareHelp(String payload) {
@@ -2267,8 +2084,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         String leaf = session.leafId();
         var items = new ArrayList<TreeEntryItem>();
         for (var entry : entries) {
-            String id = String.valueOf(entry.getOrDefault("id", ""));
-            if (!id.isBlank() && !TreeEntryItem.isInternalMetadata(entry))
+            String id = SessionCodec.entryId(entry);
+            if (id != null && !TreeEntryItem.isInternalMetadata(entry))
                 items.add(TreeEntryItem.from(entry, id.equals(leaf)));
         }
         if (items.isEmpty())
@@ -2493,149 +2310,161 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
+    private void onTurnStart() {
+        inFlight.clearTools(); // evict any leftovers from a prior interrupted/aborted turn
+        interruptedCalls.clear();
+        promptEditor.clearOffer(); // a suggestion described the conversation as it stood before this turn
+        streamRenderer.reset();
+        streamingContent = false;
+        activity.setPhase("waiting for model");
+        redrawPrompt();
+    }
+
+    private void onAssistantMessage(Message.Assistant msg, Usage usage) {
+        if (usage == null)
+            activity.setPhase(null);
+        streamingContent = usage == null; // reserve the live-tail row for the whole streaming turn
+        String content = msg.content() == null ? "" : msg.content();
+        boolean committed = false;
+        if (msg.thinking() != null && !msg.thinking().isBlank()) {
+            if (showThinking())
+                committed = streamRenderer.streamThinking(msg.thinking());
+            else
+                streamRenderer.recordThinking(msg.thinking()); // closeThinking explains the pause with ∴
+        }
+        // Assistant messages always stream. Message renderers apply to custom messages (handled by the
+        // CustomMessage case below), and never to assistant content, so they must not disable streaming.
+        committed = streamRenderer.streamContent(content) || committed;
+        if (usage != null) {
+            streamRenderer.closeThinking();
+            streamRenderer.flush();
+            redrawPrompt(); // final frame: clears the now-committed tail, unthrottled
+        } else if (committed) {
+            // A line just committed: a full redraw keeps the committed line and the region (with the refreshed
+            // tail) in one consistent frame; otherwise the stale tail makes the prompt jitter up then down.
+            redrawPrompt();
+        } else {
+            redrawStreamTail(); // live preview of the in-progress line, ~30fps
+        }
+    }
+
+    private void onToolStart(String name, String toolCallId, Supplier<String> args) {
+        streamingContent = false;
+        streamRenderer.closeThinking();
+        streamRenderer.flush();
+        if (toolCallId != null)
+            // The running-tool tail draws this detail, and it is built from arguments the model chose.
+            inFlight.toolStarted(toolCallId, name, TerminalText.printable(ToolLabels.detail(name, args, rawCwd,
+                                            settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
+                                            ToolLabels.FULL_COMMAND)), args, System.currentTimeMillis());
+        pendingEdit.onToolStart(name, args);
+        // No phase: the running-tool tail one row up already names the tool, with its arguments and its own
+        // elapsed. "tool bash" beside it was the same word twice with two timers of different scope between
+        // them, which reads as two things running.
+        activity.setPhase(null);
+        if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)
+                                        && pendingEdit.newText() != null
+                                        && !pendingEdit.oldText().equals(pendingEdit.newText())) {
+            appendPlain(new DiffRenderer(theme).render("edit preview", pendingEdit.filePath(), pendingEdit.oldText(),
+                                            pendingEdit.newText(), terminal.getWidth()));
+            pendingEdit.setPreviewShown(true);
+        }
+        redrawPrompt();
+    }
+
+    private void onToolResult(Message.ToolResult msg) {
+        streamRenderer.flush();
+        pendingEdit.onToolResult(isEditWrite(msg), msg.isError());
+        if (msg.toolCallId() != null && interruptedCalls.remove(msg.toolCallId()))
+            return; // already reported as interrupted; its exit-143 result would say the same thing twice
+        InFlight.Tool started = inFlight.toolFinished(msg.toolCallId());
+        Supplier<String> args = started != null ? started.args() : null;
+        long elapsedMs = started != null ? System.currentTimeMillis() - started.startedAtMs() : 0;
+        Tool.ToolResultView rendered = renderToolResultView(msg);
+        if (isEditWrite(msg)) {
+            // The TUI renders the diff itself (the preview above, or the DiffRenderer below). Drop the tool
+            // view's own diff body so the change isn't shown twice; keep only its one-line summary.
+            if (rendered != null)
+                rendered = Tool.ToolResultView.of(rendered.summary());
+            if (pendingEdit.hasEditResult() && !pendingEdit.previewShown())
+                appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
+                                                pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
+        }
+        String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse(ToolGlyphs.AGENT);
+        appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
+                                        settings != null ? settings.pathDisplay() : PathDisplay.COMPACT, elapsedMs,
+                                        glyph, blockWidth()));
+        streamRenderer.separateNextContent(); // the answer resumes with one blank line of air
+        pendingEdit.clear();
+    }
+
+    private void onCompaction(AgentEvent.Compaction c) {
+        int remaining = c.compactedMessages().size();
+        int removed = c.oldCount() - remaining;
+        int estTokens = c.estimatedTokens();
+        String reason = c.reason() != null && !c.reason().isBlank() ? " · " + c.reason() : "";
+        if (!streamRenderer.compactionStreamRendered() && c.summary() != null && !c.summary().isBlank()) {
+            streamRenderer.renderCompactionSummary(c.summary());
+        }
+        appendPlain(List.of(theme.styled("statusText", "[compacted] " + c.oldCount() + " → " + remaining + " msgs"
+                                        + " · ~" + fmtCount(estTokens) + " tokens" + reason)));
+        streamRenderer.clearCompactionStream();
+    }
+
+    private void onCustomMessage(Message.Custom custom) {
+        // (see customMessageLines)
+        streamRenderer.flush();
+        // Some custom entries are state snapshots persisted for reload (e.g. goal status), shown via a status
+        // line rather than the transcript; skip them so they don't print once per state change.
+        if (!custom.isSilent()) {
+            if (session.extensionRegistry().hasMessageRenderers()) {
+                var rendered = session.extensionRegistry().renderMessage(custom);
+                if (rendered.isPresent()) {
+                    appendPlain(List.of(theme.styled("customMessageLabel", custom.customType())));
+                    appendPlain(rendered.get());
+                } else {
+                    appendPlain(customMessageLines(custom));
+                }
+            } else {
+                appendPlain(customMessageLines(custom));
+            }
+        }
+        redrawPrompt();
+    }
+
+    private void onError(Throwable t) {
+        closeAbandonedTools();
+        String msg = ErrorUtil.message(t);
+        appendPlain(List.of(theme.styled("toolError", "error: " + msg)));
+        // A bad credential is a dead end the user can fix in one command; say which one.
+        String lower = msg == null ? "" : msg.toLowerCase(Locale.ROOT);
+        if (lower.contains("api key") || lower.contains("unauthorized") || lower.contains("invalid_api_key")
+                                        || lower.contains("authentication"))
+            appendPlain(List.of(theme.styled("statusText",
+                                            "run /login " + session.llm().provider() + " to update the key")));
+    }
+
     private void onEvent(AgentEvent event) {
         switch (event) {
-            case AgentEvent.TurnStart ignored -> {
-                toolsInProgress.clear(); // evict any leftovers from a prior interrupted/aborted turn
-                interruptedCalls.clear();
-                promptEditor.clearOffer(); // a suggestion described the conversation as it stood before this turn
-                streamRenderer.reset();
-                streamingContent = false;
-                activity.setPhase("waiting for model");
-                redrawPrompt();
-            }
+            case AgentEvent.TurnStart ignored -> onTurnStart();
             // The one signal that says the model is still producing rather than merely still connected. Text and
             // thinking already grow on screen; a tool call's arguments used to arrive with nothing to show for them.
             case AgentEvent.ToolCallProgress(String toolName, int chars) -> {
                 activity.setPhase(TuiCopy.toolProgress(toolName, chars));
                 redrawPrompt();
             }
-            case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
-                if (usage == null)
-                    activity.setPhase(null);
-                streamingContent = usage == null; // reserve the live-tail row for the whole streaming turn
-                String content = msg.content() == null ? "" : msg.content();
-                boolean committed = false;
-                if (msg.thinking() != null && !msg.thinking().isBlank()) {
-                    if (showThinking())
-                        committed = streamRenderer.streamThinking(msg.thinking());
-                    else
-                        streamRenderer.recordThinking(msg.thinking()); // closeThinking explains the pause with ∴
-                }
-                // Assistant messages always stream. Message renderers apply to custom messages (handled by the
-                // CustomMessage case below), and never to assistant content, so they must not disable streaming.
-                committed = streamRenderer.streamContent(content) || committed;
-                if (usage != null) {
-                    streamRenderer.closeThinking();
-                    streamRenderer.flush();
-                    redrawPrompt(); // final frame: clears the now-committed tail, unthrottled
-                } else if (committed) {
-                    // A line just committed: a full redraw keeps the committed line and the region (with the refreshed
-                    // tail) in one consistent frame; otherwise the stale tail makes the prompt jitter up then down.
-                    redrawPrompt();
-                } else {
-                    redrawStreamTail(); // live preview of the in-progress line, ~30fps
-                }
-            }
-            case AgentEvent.ToolStart(var name, var toolCallId, var args) -> {
-                streamingContent = false;
-                streamRenderer.closeThinking();
-                streamRenderer.flush();
-                if (toolCallId != null)
-                    // The running-tool tail draws this detail, and it is built from arguments the model chose.
-                    toolsInProgress.put(toolCallId, new ToolInProgress(name, TerminalText.printable(ToolLabels.detail(
-                                                    name, args, rawCwd,
-                                                    settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
-                                                    ToolLabels.FULL_COMMAND)), args, System.currentTimeMillis()));
-                pendingEdit.onToolStart(name, args);
-                // No phase: the running-tool tail one row up already names the tool, with its arguments and its own
-                // elapsed. "tool bash" beside it was the same word twice with two timers of different scope between
-                // them, which reads as two things running.
-                activity.setPhase(null);
-                if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)
-                                                && pendingEdit.newText() != null
-                                                && !pendingEdit.oldText().equals(pendingEdit.newText())) {
-                    appendPlain(new DiffRenderer(theme).render("edit preview", pendingEdit.filePath(),
-                                                    pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
-                    pendingEdit.setPreviewShown(true);
-                }
-                redrawPrompt();
-            }
-            case AgentEvent.ToolResult(Message.ToolResult msg) -> {
-                streamRenderer.flush();
-                pendingEdit.onToolResult(isEditWrite(msg), msg.isError());
-                if (msg.toolCallId() != null && interruptedCalls.remove(msg.toolCallId()))
-                    break; // already reported as interrupted; its exit-143 result would say the same thing twice
-                ToolInProgress started = msg.toolCallId() != null ? toolsInProgress.remove(msg.toolCallId()) : null;
-                Supplier<String> args = started != null ? started.args() : null;
-                long elapsedMs = started != null ? System.currentTimeMillis() - started.startedAtMs() : 0;
-                Tool.ToolResultView rendered = renderToolResultView(msg);
-                if (isEditWrite(msg)) {
-                    // The TUI renders the diff itself (the preview above, or the DiffRenderer below). Drop the tool
-                    // view's own diff body so the change isn't shown twice; keep only its one-line summary.
-                    if (rendered != null)
-                        rendered = Tool.ToolResultView.of(rendered.summary());
-                    if (pendingEdit.hasEditResult() && !pendingEdit.previewShown())
-                        appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
-                                                        pendingEdit.oldText(), pendingEdit.newText(),
-                                                        terminal.getWidth()));
-                }
-                String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse(ToolGlyphs.AGENT);
-                appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
-                                                settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
-                                                elapsedMs, glyph, blockWidth()));
-                streamRenderer.separateNextContent(); // the answer resumes with one blank line of air
-                pendingEdit.clear();
-            }
-            case AgentEvent.Compaction c -> {
-                int remaining = c.compactedMessages().size();
-                int removed = c.oldCount() - remaining;
-                int estTokens = c.estimatedTokens();
-                String reason = c.reason() != null && !c.reason().isBlank() ? " · " + c.reason() : "";
-                if (!streamRenderer.compactionStreamRendered() && c.summary() != null && !c.summary().isBlank()) {
-                    streamRenderer.renderCompactionSummary(c.summary());
-                }
-                appendPlain(List.of(theme.styled("statusText", "[compacted] " + c.oldCount() + " → " + remaining
-                                                + " msgs" + " · ~" + fmtCount(estTokens) + " tokens" + reason)));
-                streamRenderer.clearCompactionStream();
-            }
+            case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> onAssistantMessage(msg, usage);
+            case AgentEvent.ToolStart(var name, var toolCallId, var args) -> onToolStart(name, toolCallId, args);
+            case AgentEvent.ToolResult(Message.ToolResult msg) -> onToolResult(msg);
+            case AgentEvent.Compaction c -> onCompaction(c);
             case AgentEvent.CompactionStream stream -> streamRenderer.renderCompactionStream(stream.content());
             case AgentEvent.CompactionStreamEnd ignored -> {
                 streamRenderer.flush();
                 streamRenderer.reset();
             }
-            case AgentEvent.CustomMessage(Message.Custom custom) -> {
-                // (see customMessageLines)
-                streamRenderer.flush();
-                // Some custom entries are state snapshots persisted for reload (e.g. goal status), shown via a status
-                // line rather than the transcript; skip them so they don't print once per state change.
-                if (!custom.isSilent()) {
-                    if (session.extensionRegistry().hasMessageRenderers()) {
-                        var rendered = session.extensionRegistry().renderMessage(custom);
-                        if (rendered.isPresent()) {
-                            appendPlain(List.of(theme.styled("customMessageLabel", custom.customType())));
-                            appendPlain(rendered.get());
-                        } else {
-                            appendPlain(customMessageLines(custom));
-                        }
-                    } else {
-                        appendPlain(customMessageLines(custom));
-                    }
-                }
-                redrawPrompt();
-            }
+            case AgentEvent.CustomMessage(Message.Custom custom) -> onCustomMessage(custom);
             case AgentEvent.TurnEnd ignored -> closeAbandonedTools();
-            case AgentEvent.Error(Throwable t) -> {
-                closeAbandonedTools();
-                String msg = ErrorUtil.message(t);
-                appendPlain(List.of(theme.styled("toolError", "error: " + msg)));
-                // A bad credential is a dead end the user can fix in one command; say which one.
-                String lower = msg == null ? "" : msg.toLowerCase(Locale.ROOT);
-                if (lower.contains("api key") || lower.contains("unauthorized") || lower.contains("invalid_api_key")
-                                                || lower.contains("authentication"))
-                    appendPlain(List.of(theme.styled("statusText",
-                                                    "run /login " + session.llm().provider() + " to update the key")));
-            }
+            case AgentEvent.Error(Throwable t) -> onError(t);
             case AgentEvent.Retry(int attempt, int maxAttempts, long delayMs, String why) ->
                 appendPlain(List.of(theme.styled("statusText", Util.retryLine(attempt, maxAttempts, delayMs, why))));
             case AgentEvent.HistoryChanged ignored -> seedPromptHistoryFromSession(); // /load, /new, /undo, /fork
@@ -2648,12 +2477,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * "interrupted" for its metadata, so no block is ever left dangling and the live tail line has a resolution.
      */
     private void closeAbandonedTools() {
-        if (toolsInProgress.isEmpty())
+        if (inFlight.noTools())
             return;
-        var abandoned = toolsInProgress.entrySet().stream()
-                                        .sorted(Comparator.comparingLong(e -> e.getValue().startedAtMs())).toList();
+        var abandoned = inFlight.takeAll();
         abandoned.forEach(e -> interruptedCalls.add(e.getKey()));
-        toolsInProgress.clear();
         String dot = theme.styled("commandMeta", " · ");
         for (var entry : abandoned) {
             var tool = entry.getValue();
@@ -2681,11 +2508,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     private static final String INTERRUPT_HINT = Keys.label(" \u00b7 Esc twice to interrupt");
 
     /** The user's own {@code !} command while it runs; the live tail names it the way it names a tool call. */
-    private record RunningShell(String command, long startedAtMs) {
-    }
-
-    private volatile RunningShell runningShell;
-
     /**
      * The width a block is laid out for. JLine reports 0 when it cannot size the terminal, and a block wrapped to 0
      * draws one character per row, so every caller floors it -- in one place rather than four.
@@ -2703,8 +2525,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * leave the tail describing the older of the two.
      */
     private String runningToolTail() {
-        RunningShell shell = runningShell;
-        ToolInProgress current = newestToolInProgress();
+        InFlight.Shell shell = inFlight.shell();
+        InFlight.Tool current = inFlight.newestTool();
         if (shell != null && (current == null || shell.startedAtMs() >= current.startedAtMs())) {
             long elapsed = System.currentTimeMillis() - shell.startedAtMs();
             return tail("! " + shell.command(), elapsed, INTERRUPT_HINT);
@@ -2735,14 +2557,6 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         return theme.styled("commandMeta", what + elapsed + (elapsedMs >= HINT_AFTER_MS ? hint : ""));
     }
 
-    private ToolInProgress newestToolInProgress() {
-        ToolInProgress current = null;
-        for (var tool : toolsInProgress.values())
-            if (current == null || tool.startedAtMs() > current.startedAtMs())
-                current = tool;
-        return current;
-    }
-
     private Tool.Detachable detachableTool(String name) {
         if (jobRegistry == null)
             return null;
@@ -2756,7 +2570,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
      * inert.
      */
     private void handleCtrlB() {
-        var current = newestToolInProgress();
+        var current = inFlight.newestTool();
         var detachable = current != null ? detachableTool(current.name()) : null;
         if (detachable == null || !activity.isBusy()) {
             backgroundGate.disarm();
@@ -2772,7 +2586,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
 
     /** The /bg command: same effect as ctrl+b ctrl+b, without the chord (ctrl+b is the tmux prefix). */
     void backgroundRunningTool() {
-        var current = newestToolInProgress();
+        var current = inFlight.newestTool();
         var detachable = current != null ? detachableTool(current.name()) : null;
         if (detachable == null || !activity.isBusy()) {
             appendPlain(List.of(theme.styled("statusText", "nothing to background. No detachable tool is running")));
@@ -2781,7 +2595,7 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         backgroundCurrentTool(current, detachable);
     }
 
-    private void backgroundCurrentTool(ToolInProgress current, Tool.Detachable detachable) {
+    private void backgroundCurrentTool(InFlight.Tool current, Tool.Detachable detachable) {
         var handoff = detachable.detach();
         if (handoff.isEmpty()) {
             setTransientStatus("Nothing to background (the command just finished)", 2000);

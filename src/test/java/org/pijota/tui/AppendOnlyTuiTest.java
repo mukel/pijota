@@ -15,7 +15,6 @@ import org.pijota.util.ParentWatch;
 
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +61,7 @@ class AppendOnlyTuiTest {
      */
     @Test
     void ctrlZStopsTheSupervisorBeforeItself() {
-        assertEquals(List.of("kill", "-TSTP", "111", "222"), AppendOnlyTui.suspendCommand(Optional.of(111L), 222L));
+        assertEquals(List.of("kill", "-TSTP", "111", "222"), JobControl.suspendCommand(Optional.of(111L), 222L));
     }
 
     /**
@@ -71,43 +70,9 @@ class AppendOnlyTuiTest {
      */
     @Test
     void ctrlZStopsOnlyItselfWhenNothingIsSupervisingIt() {
-        assertEquals(List.of("kill", "-TSTP", "222"), AppendOnlyTui.suspendCommand(Optional.empty(), 222L));
+        assertEquals(List.of("kill", "-TSTP", "222"), JobControl.suspendCommand(Optional.empty(), 222L));
         // And that is what the real lookup answers in any process no supervisor started, this test JVM included.
         assertTrue(ParentWatch.supervisor().isEmpty(), "nothing supervises a test run");
-    }
-
-    @Test
-    void bannerSessionMetaReadsAtAGlanceWithoutTwoCompetingTimeFormats() {
-        var item = new SessionItem(Path.of("/tmp/s.jsonl"), "id", "a session", System.currentTimeMillis(), false, 12,
-                                        277);
-        String meta = AppendOnlyTui.bannerSessionMeta(item, 80);
-        assertTrue(meta.contains("12 msgs"), meta);
-        assertTrue(meta.contains("~277"), meta);
-        // The selector's detail line also carries an absolute timestamp and the session id; at three banner rows a
-        // second time format only competes with the relative age, and the id is not what you recognize a session by.
-        assertFalse(meta.matches(".*\\b\\d{2}:\\d{2}\\b.*"), "no clock time: " + meta);
-        assertFalse(meta.contains("id"), meta);
-    }
-
-    @Test
-    void bannerSessionMetaGivesUpItsTailRatherThanOverflowANarrowRow() {
-        var item = new SessionItem(Path.of("/tmp/s.jsonl"), "id", "scan the codebase",
-                                        System.currentTimeMillis() - 3_600_000, false, 921, 349_000);
-        // 30 columns is the width the banner actually broke at: two GROUP separators cost 4 and the title keeps 8.
-        int budget = 30 - 4 - 8;
-        String meta = AppendOnlyTui.bannerSessionMeta(item, budget);
-        assertTrue(AnsiWidth.visibleWidth(meta) <= budget, "meta must fit its budget: '" + meta + "'");
-        // The age survives because it is what the banner is for; the token estimate is the first thing to go.
-        assertTrue(meta.contains("ago"), meta);
-        assertFalse(meta.contains("~349K"), "the tail gives way before the age does: " + meta);
-    }
-
-    @Test
-    void bannerSessionMetaOmitsCountsForAnEmptySession() {
-        var empty = new SessionItem(Path.of("/tmp/s.jsonl"), "id", "empty", System.currentTimeMillis(), false, 0, 0);
-        String meta = AppendOnlyTui.bannerSessionMeta(empty, 80);
-        assertFalse(meta.contains("msg"), "0 msgs is noise, not information: " + meta);
-        assertFalse(meta.endsWith("·") || meta.startsWith("·"), "no dangling separator: " + meta);
     }
 
     /**
@@ -245,46 +210,46 @@ class AppendOnlyTuiTest {
 
     @Test
     void isReservedKeyEnter() {
-        assertTrue(AppendOnlyTui.isReservedKey(Key.Special.ENTER));
+        assertTrue(KeyMaps.isReservedKey(Key.Special.ENTER));
     }
 
     @Test
     void isReservedKeyEsc() {
-        assertTrue(AppendOnlyTui.isReservedKey(Key.Special.ESC));
+        assertTrue(KeyMaps.isReservedKey(Key.Special.ESC));
     }
 
     @Test
     void isReservedKeyChar() {
-        assertFalse(AppendOnlyTui.isReservedKey(new Key.Char('a')));
+        assertFalse(KeyMaps.isReservedKey(new Key.Char('a')));
     }
 
     @Test
     void toKeyChordEnter() {
-        var chord = AppendOnlyTui.toKeyChord(Key.Special.ENTER);
+        var chord = KeyMaps.toKeyChord(Key.Special.ENTER);
         assertEquals(KeyChord.Key.ENTER, chord.key());
     }
 
     @Test
     void toKeyChordEsc() {
-        var chord = AppendOnlyTui.toKeyChord(Key.Special.ESC);
+        var chord = KeyMaps.toKeyChord(Key.Special.ESC);
         assertEquals(KeyChord.Key.ESC, chord.key());
     }
 
     @Test
     void toKeyChordChar() {
-        assertNull(AppendOnlyTui.toKeyChord(new Key.Char('a')));
+        assertNull(KeyMaps.toKeyChord(new Key.Char('a')));
     }
 
     @Test
     void toKeyChordCtrlC() {
-        var chord = AppendOnlyTui.toKeyChord(Key.Special.CTRL_C);
+        var chord = KeyMaps.toKeyChord(Key.Special.CTRL_C);
         assertTrue(chord.modifiers().contains(KeyChord.Modifier.CTRL));
         assertEquals(KeyChord.Key.C, chord.key());
     }
 
     @Test
     void toKeyChordCtrlK() {
-        var chord = AppendOnlyTui.toKeyChord(Key.Special.CTRL_K);
+        var chord = KeyMaps.toKeyChord(Key.Special.CTRL_K);
         assertTrue(chord.modifiers().contains(KeyChord.Modifier.CTRL));
         assertEquals(KeyChord.Key.K, chord.key());
     }
