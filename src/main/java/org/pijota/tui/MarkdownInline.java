@@ -41,86 +41,119 @@ final class MarkdownInline {
 
     String children(Node parent, String baseSlot, boolean italic) {
         var sb = new StringBuilder();
+        var style = new Style(baseSlot, italic, false, false);
         for (Node c = parent.getFirstChild(); c != null; c = c.getNext())
-            node(c, baseSlot, italic, false, false, sb);
+            node(c, style, sb);
         return sb.toString();
     }
 
-    private void node(Node n, String slot, boolean italic, boolean bold, boolean strk, StringBuilder sb) {
+    /**
+     * The inline style a run of text is under: which theme slot paints it, and the marks it has inherited from the
+     * nodes above it.
+     *
+     * <p>
+     * One value rather than four positional arguments threaded through the descent. {@code recur(n, slot, italic,
+     * bold, strk, sb)} compiles just as happily with two of those booleans swapped, and nothing downstream would say
+     * so; {@code style.bold()} cannot be written wrong that way. The withers also name what the recursion is doing,
+     * which was previously spelled as a literal true in the right position.
+     */
+    private record Style(String slot, boolean italic, boolean bold, boolean strikethrough) {
+        /** Emphasis: italic, and the emphasis slot paints it. */
+        Style emphasised() {
+            return new Style("italic", true, bold, strikethrough);
+        }
+
+        /** Strong emphasis: bold, and the strong slot paints it. */
+        Style strong() {
+            return new Style("bold", italic, true, strikethrough);
+        }
+
+        /** Struck through; the slot is unchanged, because strikethrough layers over whatever is painting. */
+        Style struck() {
+            return new Style(slot, italic, bold, true);
+        }
+
+        Style in(String otherSlot) {
+            return new Style(otherSlot, italic, bold, strikethrough);
+        }
+    }
+
+    private void node(Node n, Style style, StringBuilder sb) {
         if (n instanceof Text t) {
-            sb.append(strip ? marksStrip(t.getLiteral(), slot, italic, bold, strk) : applyTextMarks(t.getLiteral()));
+            sb.append(strip ? marksStrip(t.getLiteral(), style) : applyTextMarks(t.getLiteral()));
         } else if (n instanceof Code c) {
             sb.append(strip ? styled("inlineCode", c.getLiteral()) : delim("`", "inlineCode", c.getLiteral(), "`"));
         } else if (n instanceof Emphasis) {
             if (strip)
-                recur(n, "italic", true, bold, strk, sb);
+                recur(n, style.emphasised(), sb);
             else
-                sb.append(delim("*", "italic", keepChildren(n, slot), "*"));
+                sb.append(delim("*", "italic", keepChildren(n, style.slot()), "*"));
         } else if (n instanceof StrongEmphasis) {
             if (strip)
-                recur(n, "bold", italic, true, strk, sb);
+                recur(n, style.strong(), sb);
             else
-                sb.append(delim("**", "bold", keepChildren(n, slot), "**"));
+                sb.append(delim("**", "bold", keepChildren(n, style.slot()), "**"));
         } else if (n instanceof Strikethrough) {
             if (strip)
-                recur(n, slot, italic, bold, true, sb);
+                recur(n, style.struck(), sb);
             else
-                sb.append(delim("~~", "strikethrough", keepChildren(n, slot), "~~"));
+                sb.append(delim("~~", "strikethrough", keepChildren(n, style.slot()), "~~"));
         } else if (n instanceof Link link) {
-            sb.append(strip ? stripLink(link, italic, bold, strk) : keepLink(link, slot));
+            sb.append(strip ? stripLink(link, style) : keepLink(link, style.slot()));
         } else if (n instanceof Image img) {
-            sb.append(strip ? run(altLabel(img), "mdLinkUrl", italic, bold, strk, false) : keepImage(img));
+            sb.append(strip ? run(altLabel(img), style.in("mdLinkUrl"), false) : keepImage(img));
         } else if (n instanceof SoftLineBreak || n instanceof HardLineBreak) {
             sb.append(' ');
         } else if (n instanceof HtmlInline h) {
             sb.append(styled("dim", h.getLiteral()));
         } else {
-            recur(n, slot, italic, bold, strk, sb);
+            recur(n, style, sb);
         }
     }
 
-    private void recur(Node parent, String slot, boolean italic, boolean bold, boolean strk, StringBuilder sb) {
+    private void recur(Node parent, Style style, StringBuilder sb) {
         for (Node c = parent.getFirstChild(); c != null; c = c.getNext())
-            node(c, slot, italic, bold, strk, sb);
+            node(c, style, sb);
     }
 
     private String keepChildren(Node parent, String slot) {
         var sb = new StringBuilder();
-        recur(parent, slot, false, false, false, sb);
+        recur(parent, new Style(slot, false, false, false), sb);
         return sb.toString();
     }
 
     // ---- STRIP mode (delimiters consumed) ----
 
-    private String run(String text, String slot, boolean italic, boolean bold, boolean strk, boolean underline) {
+    private String run(String text, Style style, boolean underline) {
         if (text == null || text.isEmpty())
             return "";
         if (!theme.enabled)
             return text;
-        var sb = new StringBuilder(theme.style(slot));
-        if (bold)
+        var sb = new StringBuilder(theme.style(style.slot()));
+        if (style.bold())
             sb.append(BOLD);
-        if (italic)
+        if (style.italic())
             sb.append(ITALIC);
         if (underline)
             sb.append(UNDERLINE);
-        if (strk)
+        if (style.strikethrough())
             sb.append(STRIKE);
         return sb.append(text).append(theme.reset()).toString();
     }
 
-    private String stripLink(Link link, boolean italic, boolean bold, boolean strk) {
+    private String stripLink(Link link, Style style) {
         String text = plainText(link);
         String url = link.getDestination();
         if (text.isEmpty())
             text = url == null ? "" : url;
-        String rendered = run(text, "mdLink", italic, bold, strk, true);
+        String rendered = run(text, style.in("mdLink"), true);
         if (url == null || url.isBlank() || url.indexOf(' ') >= 0)
             return rendered;
         // Show the URL (dimmed) unless it already IS the text, so it's readable when the terminal ignores OSC 8.
         String visible = text.equals(url)
                                         ? rendered
-                                        : rendered + run(" (" + url + ")", "mdLinkUrl", false, false, false, false);
+                                        : rendered + run(" (" + url + ")", new Style("mdLinkUrl", false, false, false),
+                                                                        false);
         return osc8(url, visible);
     }
 
@@ -174,25 +207,25 @@ final class MarkdownInline {
     /**
      * STRIP-mode counterpart of {@link #applyTextMarks}: consume the ==/++/-- delimiters, style the content by slot.
      */
-    private String marksStrip(String text, String slot, boolean italic, boolean bold, boolean strk) {
+    private String marksStrip(String text, Style style) {
         var sb = new StringBuilder();
         int i = 0;
         while (i < text.length()) {
             Mark mark = nextMark(text, i);
             if (mark == null) {
-                sb.append(run(text.substring(i), slot, italic, bold, strk, false));
+                sb.append(run(text.substring(i), style, false));
                 break;
             }
             if (mark.start() > i)
-                sb.append(run(text.substring(i, mark.start()), slot, italic, bold, strk, false));
+                sb.append(run(text.substring(i, mark.start()), style, false));
             int contentStart = mark.start() + mark.marker().length();
             int end = text.indexOf(mark.marker(), contentStart);
             if (end < 0) { // no closing marker, the delimiter is literal text
-                sb.append(run(text.substring(mark.start(), contentStart), slot, italic, bold, strk, false));
+                sb.append(run(text.substring(mark.start(), contentStart), style, false));
                 i = contentStart;
                 continue;
             }
-            sb.append(run(text.substring(contentStart, end), mark.slot(), italic, bold, strk, false));
+            sb.append(run(text.substring(contentStart, end), style.in(mark.slot()), false));
             i = end + mark.marker().length();
         }
         return sb.toString();
