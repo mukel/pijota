@@ -25,7 +25,7 @@ class SessionManagerTest {
         var manager = new SessionManager(tempDir);
 
         var empty = manager.createSession(tempDir.toString());
-        manager.appendCacheMetadata(empty, "sys", "hash", "{}", "openai", "gpt-4");
+        manager.appendCacheMetadata(empty, new SessionManager.CacheMetadata("sys", "hash", "{}", "openai", "gpt-4"));
         assertTrue(Files.exists(empty));
         manager.deleteIfEmpty(empty);
         assertFalse(Files.exists(empty), "header/metadata-only session should be deleted");
@@ -114,7 +114,8 @@ class SessionManagerTest {
         manager.appendSessionInfo(file, "Demo");
         manager.appendModelChange(file, "openai", "gpt-test", 1234);
         manager.appendThinkingLevelChange(file, "HIGH");
-        manager.appendCacheMetadata(file, "system", "hash", "{}", "openai", "gpt-test");
+        manager.appendCacheMetadata(file,
+                                        new SessionManager.CacheMetadata("system", "hash", "{}", "openai", "gpt-test"));
 
         assertEquals("Demo", manager.sessionName(file));
         assertEquals("HIGH", manager.latestThinkingLevel(file));
@@ -502,5 +503,29 @@ class SessionManagerTest {
         assertEquals("c", SessionManager.effectiveLeaf(entries, null), "and so does no leaf at all");
         assertNull(SessionManager.effectiveLeaf(new java.util.LinkedHashMap<>(), "anything"),
                                         "nothing to fall back to in an empty file");
+    }
+
+    /**
+     * The five fields used to be written loose and in a row, all String, so a caller that transposed the provider with
+     * the model compiled and wrote the swap to disk, where the next load read it back as fact. Now the writer takes the
+     * record the reader returns, and this pins the round trip field by field.
+     */
+    @Test
+    void cacheMetadataSurvivesTheRoundTripWithoutTransposing() throws Exception {
+        var manager = new SessionManager(tempDir);
+        var file = manager.createSession(tempDir.toString());
+        var written = new SessionManager.CacheMetadata("the system prompt", "abc123", "{\"tools\":[]}", "openai",
+                                        "gpt-5.6-sol");
+
+        manager.appendCacheMetadata(file, written);
+
+        var read = manager.latestCacheMetadata(file);
+        assertEquals(written, read, "every field back where it went in");
+        // Named individually as well: an equals() on a record of five Strings passes just as happily when the
+        // writer and the reader transpose the same pair.
+        assertEquals("openai", read.provider());
+        assertEquals("gpt-5.6-sol", read.model());
+        assertEquals("abc123", read.toolManifestHash());
+        assertEquals("{\"tools\":[]}", read.toolManifestJson());
     }
 }

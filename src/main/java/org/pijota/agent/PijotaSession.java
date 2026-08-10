@@ -594,7 +594,8 @@ public final class PijotaSession implements AutoCloseable {
             return;
         try {
             var manifest = ToolManifest.snapshot(toolRegistry);
-            sessionManager.appendCacheMetadata(file, systemPrompt, manifest.hash(), manifest.json(), provider, model);
+            sessionManager.appendCacheMetadata(file, new SessionManager.CacheMetadata(systemPrompt, manifest.hash(),
+                                            manifest.json(), provider, model));
         } catch (Exception e) {
             rememberSessionWarning("cache metadata save", new IOException(e));
         }

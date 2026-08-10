@@ -235,15 +235,26 @@ public final class SessionManager {
         }, false);
     }
 
-    public void appendCacheMetadata(Path sessionFile, String systemPrompt, String toolManifestHash,
-                                    String toolManifestJson, String provider, String model) throws IOException {
+    /**
+     * Writes the cache anchor, taking the same record {@link #latestCacheMetadata} hands back.
+     *
+     * <p>
+     * Symmetry, and not only for tidiness: this used to take the five fields loose and in a row, all of them String, so
+     * a caller that transposed the provider with the model -- or the manifest hash with its json -- compiled, ran, and
+     * wrote the swap to disk, where the next load would read it back as fact.
+     */
+    public void appendCacheMetadata(Path sessionFile, CacheMetadata metadata) throws IOException {
         appendEntry(sessionFile, UUID.randomUUID().toString(), "cache_metadata", entry -> {
-            entry.put("systemPrompt", systemPrompt == null ? "" : systemPrompt);
-            entry.put("toolManifestHash", toolManifestHash == null ? "" : toolManifestHash);
-            entry.put("toolManifestJson", toolManifestJson == null ? "" : toolManifestJson);
-            entry.put("provider", provider == null ? "" : provider);
-            entry.put("model", model == null ? "" : model);
+            entry.put("systemPrompt", blankIfNull(metadata.systemPrompt()));
+            entry.put("toolManifestHash", blankIfNull(metadata.toolManifestHash()));
+            entry.put("toolManifestJson", blankIfNull(metadata.toolManifestJson()));
+            entry.put("provider", blankIfNull(metadata.provider()));
+            entry.put("model", blankIfNull(metadata.model()));
         }, false);
+    }
+
+    private static String blankIfNull(String value) {
+        return value == null ? "" : value;
     }
 
     public void appendThinkingLevelChange(Path sessionFile, String level) throws IOException {
