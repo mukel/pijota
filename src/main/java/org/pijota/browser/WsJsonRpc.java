@@ -23,6 +23,18 @@ import java.util.function.Consumer;
  * lock-free.
  */
 final class WsJsonRpc {
+
+    /**
+     * How long to wait for the socket, and for a reply once it is up.
+     *
+     * <p>
+     * Here rather than on each backend: both spelled the same two numbers out for the same protocol over the same kind
+     * of connection, so changing one and not the other would have given the CDP and BiDi backends different patience
+     * for no reason either of them stated. A backend that genuinely needs its own still passes them in.
+     */
+    static final long CONNECT_TIMEOUT_MS = 15_000;
+    static final long CALL_TIMEOUT_MS = 30_000;
+
     private final HttpClient http;
     private final long connectTimeoutMs;
     private final long callTimeoutMs;
@@ -33,6 +45,10 @@ final class WsJsonRpc {
     private volatile boolean closed; // tripped by close(); makes an in-flight call() bail out instead of waiting
     private volatile Runnable onDrop = () -> {}; // backend marks itself not-ready when the socket drops or stalls
     private volatile Consumer<JsonNode> eventSink = e -> {}; // server-initiated event frames (no id) → backend
+
+    WsJsonRpc(HttpClient http) {
+        this(http, CONNECT_TIMEOUT_MS, CALL_TIMEOUT_MS);
+    }
 
     WsJsonRpc(HttpClient http, long connectTimeoutMs, long callTimeoutMs) {
         this.http = http;

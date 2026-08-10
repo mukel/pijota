@@ -28,8 +28,6 @@ public final class BiDiBackend implements BrowserBackend {
 
     private static final Logger LOG = LoggerFactory.getLogger(BiDiBackend.class);
     private static final long DRIVER_TIMEOUT_MS = 20_000;
-    private static final long CONNECT_TIMEOUT_MS = 15_000;
-    private static final long CALL_TIMEOUT_MS = 30_000;
     private static final int MAX_OBJECT_DEPTH = 10; // deep-serialize returned objects/arrays (DOM nodes never returned)
 
     private final List<String> driverCommand; // how to launch the driver on driverPort
@@ -42,7 +40,7 @@ public final class BiDiBackend implements BrowserBackend {
     private final List<String> initScripts;
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-    private final WsJsonRpc rpc = new WsJsonRpc(http, CONNECT_TIMEOUT_MS, CALL_TIMEOUT_MS);
+    private final WsJsonRpc rpc = new WsJsonRpc(http);
     private final LaunchedProcess driver = new LaunchedProcess(); // the WebDriver process we launched
 
     private volatile String sessionId;

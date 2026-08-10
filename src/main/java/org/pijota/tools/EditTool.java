@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -224,15 +225,8 @@ public final class EditTool implements Tool {
      */
     private static Match fuzzyMatch(String content, String oldLF, String newLF, int idx) {
         var contentLines = splitLines(content);
-        String[] patternLines = oldLF.split("\n", -1);
-        String[] patternKey = new String[patternLines.length];
-        boolean allBlank = true;
-        for (int j = 0; j < patternLines.length; j++) {
-            patternKey[j] = canonLine(patternLines[j]);
-            if (!patternKey[j].isEmpty())
-                allBlank = false;
-        }
-        if (allBlank)
+        String[] patternKey = Arrays.stream(oldLF.split("\n", -1)).map(EditTool::canonLine).toArray(String[]::new);
+        if (Arrays.stream(patternKey).allMatch(String::isEmpty))
             return null; // never anchor a fuzzy match on blank/whitespace-only oldText
 
         int foundLine = -1, count = 0;

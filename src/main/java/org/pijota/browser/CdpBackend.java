@@ -27,9 +27,11 @@ import java.util.function.Consumer;
  */
 public final class CdpBackend implements BrowserBackend {
 
-    private static final long CONNECT_TIMEOUT_MS = 15_000;
-    private static final long CALL_TIMEOUT_MS = 30_000;
     private static final long LOAD_TIMEOUT_MS = 25_000; // cap on the wait for the new document's load event
+    // How long a freshly spawned Chrome gets to open its DevTools port. Its own constant, not the socket's connect
+    // timeout: this waits on a process starting, that waits on a websocket handshake, and they are only the same
+    // number by coincidence. BiDiBackend names the equivalent DRIVER_TIMEOUT_MS.
+    private static final long CHROME_TIMEOUT_MS = 15_000;
 
     private final int port;
     private final Path profileDir;
@@ -41,7 +43,7 @@ public final class CdpBackend implements BrowserBackend {
     private final List<String> initScripts; // run on every new document (e.g. define Readability)
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-    private final WsJsonRpc rpc = new WsJsonRpc(http, CONNECT_TIMEOUT_MS, CALL_TIMEOUT_MS);
+    private final WsJsonRpc rpc = new WsJsonRpc(http);
     private final LaunchedProcess chrome = new LaunchedProcess(); // the Chrome we launched (absent when we attached)
 
     private volatile boolean connected; // attached + CDP domains enabled (cleared on drop → next call reconnects)
@@ -189,7 +191,7 @@ public final class CdpBackend implements BrowserBackend {
     }
 
     private void waitForDevtools() throws Exception {
-        chrome.awaitReady(this::devtoolsAlive, CONNECT_TIMEOUT_MS, "Chrome DevTools (port " + port + ")",
+        chrome.awaitReady(this::devtoolsAlive, CHROME_TIMEOUT_MS, "Chrome DevTools (port " + port + ")",
                                         "the port may be in use or the profile locked");
     }
 
