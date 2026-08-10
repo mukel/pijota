@@ -219,7 +219,11 @@ class JobRegistryTest {
             var r = jobs.read(id);
             out.append(r.output());
             truncated |= r.truncated();
-            if (!r.running())
+            // Not just !running: JobRegistry says so itself -- "process exit does NOT imply this: the pipe can
+            // still hold output the drain thread hasn't copied yet" -- and read() reports drained for exactly this.
+            // Exiting on process exit alone lost the last chunk under load, which is how this test failed in full
+            // runs and never in isolation.
+            if (!r.running() && r.drained())
                 break;
             Thread.sleep(15);
         }
