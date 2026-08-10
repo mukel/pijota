@@ -32,6 +32,34 @@ import java.util.stream.Collectors;
 final class MessageConverter {
     private MessageConverter() {}
 
+    /**
+     * Adds one assistant message, and answers which tool-call ids may still be followed by their results.
+     *
+     * <p>
+     * Three cases, and the middle one is the reason this is not a one-liner. An assistant that asked for tools whose
+     * results are not all present cannot be sent as a tool-calling turn -- providers reject a call with no matching
+     * result -- so its calls are dropped and only whatever it said survives. That leaves nothing pending, which is what
+     * the empty set means: the next tool result in the list belongs to nobody and is skipped.
+     */
+    private static Set<String> appendAssistant(List<ChatMessage> out, List<Message> messages, int i,
+                                    Message.Assistant a) {
+        String said = a.content() != null ? a.content() : "";
+        if (a.toolCalls() == null || a.toolCalls().isEmpty()) {
+            out.add(assistantMessage(said, a.thinking()));
+            return new LinkedHashSet<>();
+        }
+        if (!hasCompleteImmediateToolResults(messages, i)) {
+            if (hasText(a.content()) || hasText(a.thinking()))
+                out.add(assistantMessage(said, a.thinking()));
+            return new LinkedHashSet<>();
+        }
+        var requests = a.toolCalls().stream().map(tc -> ToolExecutionRequest.builder().id(tc.id()).name(tc.name())
+                                        .arguments(sendableArguments(tc.arguments())).build()).toList();
+        out.add(AiMessage.builder().text(nonBlank(a.content())).thinking(nonBlank(a.thinking()))
+                                        .toolExecutionRequests(requests).build());
+        return a.toolCalls().stream().map(tc -> tc.id()).collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
     public static List<ChatMessage> toLangChain4j(List<Message> messages) {
         return toLangChain4j(messages, null);
     }
@@ -57,30 +85,7 @@ final class MessageConverter {
                     pendingToolResultIds = new LinkedHashSet<>();
                     chatMessages.add(userMessage(u, allowed));
                 }
-                case Message.Assistant a -> {
-                    if (a.toolCalls() != null && !a.toolCalls().isEmpty()) {
-                        if (hasCompleteImmediateToolResults(messages, i)) {
-                            var tcList = a.toolCalls().stream().map(tc -> ToolExecutionRequest.builder().id(tc.id())
-                                                            .name(tc.name())
-                                                            .arguments(sendableArguments(tc.arguments())).build())
-                                                            .toList();
-                            String text = a.content() != null && !a.content().isBlank() ? a.content() : null;
-                            chatMessages.add(AiMessage.builder().text(text).thinking(nonBlank(a.thinking()))
-                                                            .toolExecutionRequests(tcList).build());
-                            pendingToolResultIds = a.toolCalls().stream().map(tc -> tc.id())
-                                                            .collect(Collectors.toCollection(LinkedHashSet::new));
-                        } else {
-                            pendingToolResultIds = new LinkedHashSet<>();
-                            if (hasText(a.content()) || hasText(a.thinking())) {
-                                chatMessages.add(assistantMessage(a.content() != null ? a.content() : "",
-                                                                a.thinking()));
-                            }
-                        }
-                    } else {
-                        pendingToolResultIds = new LinkedHashSet<>();
-                        chatMessages.add(assistantMessage(a.content() != null ? a.content() : "", a.thinking()));
-                    }
-                }
+                case Message.Assistant a -> pendingToolResultIds = appendAssistant(chatMessages, messages, i, a);
                 case Message.ToolResult tr -> {
                     if (pendingToolResultIds.remove(tr.toolCallId())) {
                         chatMessages.add(ToolExecutionResultMessage.builder().id(tr.toolCallId())
