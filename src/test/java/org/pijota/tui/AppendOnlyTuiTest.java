@@ -210,46 +210,46 @@ class AppendOnlyTuiTest {
 
     @Test
     void isReservedKeyEnter() {
-        assertTrue(AppendOnlyTui.isReservedKey(Key.Special.ENTER));
+        assertTrue(KeyMaps.isReservedKey(Key.Special.ENTER));
     }
 
     @Test
     void isReservedKeyEsc() {
-        assertTrue(AppendOnlyTui.isReservedKey(Key.Special.ESC));
+        assertTrue(KeyMaps.isReservedKey(Key.Special.ESC));
     }
 
     @Test
     void isReservedKeyChar() {
-        assertFalse(AppendOnlyTui.isReservedKey(new Key.Char('a')));
+        assertFalse(KeyMaps.isReservedKey(new Key.Char('a')));
     }
 
     @Test
     void toKeyChordEnter() {
-        var chord = AppendOnlyTui.toKeyChord(Key.Special.ENTER);
+        var chord = KeyMaps.toKeyChord(Key.Special.ENTER);
         assertEquals(KeyChord.Key.ENTER, chord.key());
     }
 
     @Test
     void toKeyChordEsc() {
-        var chord = AppendOnlyTui.toKeyChord(Key.Special.ESC);
+        var chord = KeyMaps.toKeyChord(Key.Special.ESC);
         assertEquals(KeyChord.Key.ESC, chord.key());
     }
 
     @Test
     void toKeyChordChar() {
-        assertNull(AppendOnlyTui.toKeyChord(new Key.Char('a')));
+        assertNull(KeyMaps.toKeyChord(new Key.Char('a')));
     }
 
     @Test
     void toKeyChordCtrlC() {
-        var chord = AppendOnlyTui.toKeyChord(Key.Special.CTRL_C);
+        var chord = KeyMaps.toKeyChord(Key.Special.CTRL_C);
         assertTrue(chord.modifiers().contains(KeyChord.Modifier.CTRL));
         assertEquals(KeyChord.Key.C, chord.key());
     }
 
     @Test
     void toKeyChordCtrlK() {
-        var chord = AppendOnlyTui.toKeyChord(Key.Special.CTRL_K);
+        var chord = KeyMaps.toKeyChord(Key.Special.CTRL_K);
         assertTrue(chord.modifiers().contains(KeyChord.Modifier.CTRL));
         assertEquals(KeyChord.Key.K, chord.key());
     }

@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ExtensionKeybindingReachabilityTest {
 
     private static Set<String> deliverable() {
-        return AppendOnlyTui.deliverableChords().stream().map(KeyChord::display)
+        return KeyMaps.deliverableChords().stream().map(KeyChord::display)
                                         .collect(Collectors.toCollection(TreeSet::new));
     }
 
@@ -87,8 +87,8 @@ class ExtensionKeybindingReachabilityTest {
     /** Reserved keys never reach an extension, so they are unusable for a different reason and stay out of the set. */
     @Test
     void reservedKeysAreNotOfferedToExtensions() {
-        assertTrue(AppendOnlyTui.isReservedKey(Key.Special.TAB), "Tab decodes fine, but the TUI keeps it");
-        assertTrue(AppendOnlyTui.isReservedKey(Key.Special.ENTER));
+        assertTrue(KeyMaps.isReservedKey(Key.Special.TAB), "Tab decodes fine, but the TUI keeps it");
+        assertTrue(KeyMaps.isReservedKey(Key.Special.ENTER));
         assertFalse(deliverable().contains(new KeyChord(KeyChord.Key.TAB).display()),
                                         "a reserved key must not be offered as bindable");
     }
