@@ -346,6 +346,11 @@ class TelegramChatFlowTest {
         assertEquals(1, u.attachments().size());
         assertEquals("audio/mpeg", u.attachments().getFirst().mime());
         assertFalse(api.sent().stream().anyMatch(s -> s.contains("can't read")), api.sent().toString());
+        // The message appearing in history is not the end of the work: downloadAndSubmit runs the whole turn on the
+        // common pool, and that turn keeps writing session files under tempDir. Returning here left JUnit deleting
+        // the directory underneath a live write, which is the "Failed to close extension context" this test threw
+        // intermittently under full-suite load and never in isolation.
+        Await.until(() -> !ts.session().isBusy(), Duration.ofSeconds(5), "the turn was still running at teardown");
     }
 
     @Test

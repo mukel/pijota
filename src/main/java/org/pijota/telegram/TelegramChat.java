@@ -146,7 +146,7 @@ public final class TelegramChat implements ChatHandler {
     @Override
     public void onPhoto(List<TelegramClient.PhotoSize> photo, String caption) {
         // Telegram orders sizes ascending → the last is the highest resolution; photos are always JPEG.
-        submitFile(photo.get(photo.size() - 1).fileId(), "image/jpeg", "photo.jpg", caption, "image");
+        submitFile(new Incoming(photo.get(photo.size() - 1).fileId(), "image/jpeg", "photo.jpg", caption, "image"));
     }
 
     @Override
@@ -155,19 +155,34 @@ public final class TelegramChat implements ChatHandler {
                                         ? file.mimeType()
                                         : "application/octet-stream";
         String name = file.fileName() != null && !file.fileName().isBlank() ? file.fileName() : "file";
-        submitFile(file.fileId(), mime, name, caption, "file");
+        submitFile(new Incoming(file.fileId(), mime, name, caption, "file"));
     }
 
     /**
      * Downloads a Telegram file and submits it as an attachment, gated to the model's modalities (text always works).
      */
-    private void submitFile(String fileId, String mime, String filename, String caption, String kind) {
+    /**
+     * A file Telegram delivered.
+     *
+     * <p>
+     * {@code kind} is how it arrived, not what it is: Telegram calls a photo a photo and everything else a document, so
+     * a PNG sent as an attachment is a {@code file} even though its mime says image. It only ever reaches the user
+     * ("resend the file", "couldn't download that photo"), and deriving it from the mime would rename that case.
+     *
+     * <p>
+     * One value rather than five loose Strings handed from submitFile to downloadAndSubmit, where the two of them could
+     * disagree about the order and still compile.
+     */
+    private record Incoming(String fileId, String mime, String filename, String caption, String kind) {
+    }
+
+    private void submitFile(Incoming file) {
         if (session.isBusy()) {
             tg.sendMessage(chatId, "➕ Busy right now. Text replies are queued, but files are not. Send /stop to abort "
-                                            + "or resend the " + kind + " after this turn finishes.");
+                                            + "or resend the " + file.kind() + " after this turn finishes.");
             return;
         }
-        var modality = Modality.fromMime(mime);
+        var modality = Modality.fromMime(file.mime());
         // text is extracted and PDFs are staged for the web_pdf_to_markdown tool, so both work on any model; other
         // media
         // (image/audio/video) needs the model to declare the modality.
@@ -178,33 +193,36 @@ public final class TelegramChat implements ChatHandler {
                                             + " files. Switch with /model, then resend.");
             return;
         }
-        if (modality == Modality.IMAGE && !Modality.isSupportedImage(mime)) { // provider limitation, not ours
+        if (modality == Modality.IMAGE && !Modality.isSupportedImage(file.mime())) { // provider limitation, not ours
             tg.sendMessage(chatId, "⚠️ That image format isn't supported by " + session.llm().provider() + "/"
                                             + session.llm().model() + ". Send JPEG/PNG/GIF/WebP.");
             return;
         }
         // The download is multi-MB and blocking. Run it off the single poll/dispatch thread so other chats aren't
         // stalled.
-        CompletableFuture.runAsync(() -> downloadAndSubmit(fileId, mime, filename, caption, kind));
+        CompletableFuture.runAsync(() -> downloadAndSubmit(file));
     }
 
-    private void downloadAndSubmit(String fileId, String mime, String filename, String caption, String kind) {
-        byte[] bytes = tg.downloadFile(fileId);
+    private void downloadAndSubmit(Incoming file) {
+        byte[] bytes = tg.downloadFile(file.fileId());
         if (bytes == null) {
-            tg.sendMessage(chatId, "❌ Couldn't download that " + kind + ".");
+            tg.sendMessage(chatId, "❌ Couldn't download that " + file.kind() + ".");
             return;
         }
         if (bytes.length > Message.Attachment.MAX_BYTES) {
-            tg.sendMessage(chatId, "⚠️ That " + kind + " is too large (max 5MB).");
+            tg.sendMessage(chatId, "⚠️ That " + file.kind() + " is too large (max 5MB).");
             return;
         }
         if (session.isBusy()) { // a turn may have started during the (async) download; don't prompt over it
             tg.sendMessage(chatId, "➕ Busy now. Text replies are queued, but files are not. Send /stop to abort or "
-                                            + "resend the " + kind + " after this turn finishes.");
+                                            + "resend the " + file.kind() + " after this turn finishes.");
             return;
         }
-        var attachment = new Message.Attachment(mime, Base64.getEncoder().encodeToString(bytes), filename);
-        String text = caption != null && !caption.isBlank() ? caption : "(" + kind + ": " + filename + ")";
+        var attachment = new Message.Attachment(file.mime(), Base64.getEncoder().encodeToString(bytes),
+                                        file.filename());
+        String text = file.caption() != null && !file.caption().isBlank()
+                                        ? file.caption()
+                                        : "(" + file.kind() + ": " + file.filename() + ")";
         runTurn(text, List.of(attachment));
     }
 
