@@ -990,6 +990,124 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         } catch (Exception ignored) {}
     }
 
+    /**
+     * Routes one keypress to whoever should have it: first match wins, and the order below is the precedence.
+     *
+     * <p>
+     * Job control first, because Ctrl+Z has to work from any state. Then the modal things -- dialogs, the log viewer,
+     * the select picker -- so Esc closes what is open rather than triggering a generic escape. Then extension bindings,
+     * the global chords (suppressed while an overlay is open, or one selector stacks on another), and only then the
+     * editor. Returns false when the editor asked to exit, which is the one answer the loop acts on.
+     */
+    private boolean dispatchKey(Key key) throws IOException {
+        if (key == Key.Special.CTRL_Z) { // job-control suspend (works from any state)
+            suspendProcess();
+            return true;
+        }
+        if (dialogs.handleConfirm(key))
+            return true;
+        if (dialogs.handlePrompt(key))
+            return true;
+        if (routeModalKey(logViewer::active, logViewer::handleKey, key))
+            return true;
+        // The select picker is modal too: route keys to it before global ESC/etc. so Esc cancels the
+        // picker rather than triggering a generic escape.
+        if (routeModalKey(selector::active, selector::handleKey, key))
+            return true;
+        if (handleExtensionKeybinding(key))
+            return true;
+        // Every overlay is cancellable with Esc, double-Esc, or a single Ctrl+C; it closes instead of
+        // falling through to interrupt/exit. The log viewer and select picker also consume plain Esc via
+        // routeModalKey above; this is the single guarantee for their Ctrl+C and for the selectors, the
+        // completions popup (incl. the Ctrl+R history search), and the message browser.
+        if (key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C) {
+            if (cancelActiveOverlay()) {
+                redrawPrompt();
+                return true;
+            }
+        }
+        if (key == Key.Special.DOUBLE_ESC) {
+            handleEsc(true);
+            return true;
+        }
+        if (key == Key.Special.ESC) {
+            handleEsc(false);
+            return true;
+        }
+        if (key == Key.Special.CTRL_C) {
+            handleCtrlC();
+            return true;
+        }
+        if (key == Key.Special.CTRL_B) {
+            handleCtrlB();
+            return true;
+        }
+        // The session picker's own Ctrl+X (delete) is handled before the global keymap. It no-ops
+        // unless the picker is open, so it's safe here first.
+        if (handleSessionPickerAction(key))
+            return true;
+        // App shortcuts (command palette, model picker, editor, …) are modal-suppressed while an overlay is
+        // open; otherwise one selector-opening chord stacks a second selector on top of the first (e.g.
+        // Ctrl+P over the /sessions picker). Mirrors the same guard on extension keybindings; Esc and the
+        // navigation keys still reach the active overlay through the routing below.
+        if (!anyOverlayActive() && globalKeys.dispatch(key))
+            return true;
+        if (key == Key.Special.ALT_UP) {
+            undoLastTurn();
+            return true;
+        }
+        if (key == Key.Special.PASTE_START) {
+            Key paste = InputDecoder.readPaste(terminal);
+            if (paste instanceof Key.Paste p) {
+                promptEditor.insertText(p.text());
+                redrawPrompt();
+            }
+            return true;
+        }
+        key = remapSpecial(key, selectorKeyRemaps);
+        if (selectors.handle(key, this::redrawPrompt))
+            return true;
+        if (promptEditor.handleCompletionKey(key)) {
+            redrawPrompt();
+            return true;
+        }
+        if (key == Key.Special.UP && (promptEditor.isEmpty() || promptEditor.isInHistory())) {
+            if (!promptEditor.historyPrev() && !activity.isBusy()) {
+                messageBrowser.enter();
+            }
+            redrawPrompt();
+            return true;
+        }
+        if (key == Key.Special.DOWN && promptEditor.isInHistory()) {
+            promptEditor.historyNext();
+            redrawPrompt();
+            return true;
+        }
+        if (messageBrowser.isActive() && messageBrowser.handleKey(key)) {
+            redrawPrompt();
+            return true;
+        }
+        if (key instanceof Key.Char at && at.value() == '@' && !activity.isBusy() && FzfFilePicker.available()) {
+            pickFileWithFzf(true); // @ opens fzf file completion; the chosen path is inserted as @"…"
+            return true;
+        }
+        var result = promptEditor.apply(remapSpecial(key, editorKeyRemaps));
+        // Ctrl+R on an empty history opened nothing and said nothing, so an advertised key read as
+        // broken. The editor reports no change in that case, so the redraw below never runs: say it here.
+        if (key == Key.Special.CTRL_R && !promptEditor.hasCompletions()) {
+            setTransientStatus("no history to search yet", 2500);
+            redrawPrompt();
+        }
+        if (result.exit())
+            return false;
+        if (result.changed()) {
+            selectors.filter(promptEditor.text());
+            redrawPrompt();
+        }
+        result.submitted().ifPresent(this::handleSubmit);
+        return true;
+    }
+
     private void readInputLoop() {
         while (running.get()) {
             if (SelfRespawn.isRespawnInProgress()) {
@@ -1004,114 +1122,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
             try {
                 var key = InputDecoder.readKey(terminal);
                 try {
-                    if (key == Key.Special.CTRL_Z) { // job-control suspend (works from any state)
-                        suspendProcess();
-                        continue;
-                    }
-                    if (dialogs.handleConfirm(key))
-                        continue;
-                    if (dialogs.handlePrompt(key))
-                        continue;
-                    if (routeModalKey(logViewer::active, logViewer::handleKey, key))
-                        continue;
-                    // The select picker is modal too: route keys to it before global ESC/etc. so Esc cancels the
-                    // picker rather than triggering a generic escape.
-                    if (routeModalKey(selector::active, selector::handleKey, key))
-                        continue;
-                    if (handleExtensionKeybinding(key))
-                        continue;
-                    // Every overlay is cancellable with Esc, double-Esc, or a single Ctrl+C; it closes instead of
-                    // falling through to interrupt/exit. The log viewer and select picker also consume plain Esc via
-                    // routeModalKey above; this is the single guarantee for their Ctrl+C and for the selectors, the
-                    // completions popup (incl. the Ctrl+R history search), and the message browser.
-                    if (key == Key.Special.ESC || key == Key.Special.DOUBLE_ESC || key == Key.Special.CTRL_C) {
-                        if (cancelActiveOverlay()) {
-                            redrawPrompt();
-                            continue;
-                        }
-                    }
-                    if (key == Key.Special.DOUBLE_ESC) {
-                        handleEsc(true);
-                        continue;
-                    }
-                    if (key == Key.Special.ESC) {
-                        handleEsc(false);
-                        continue;
-                    }
-                    if (key == Key.Special.CTRL_C) {
-                        handleCtrlC();
-                        continue;
-                    }
-                    if (key == Key.Special.CTRL_B) {
-                        handleCtrlB();
-                        continue;
-                    }
-                    // The session picker's own Ctrl+X (delete) is handled before the global keymap. It no-ops
-                    // unless the picker is open, so it's safe here first.
-                    if (handleSessionPickerAction(key))
-                        continue;
-                    // App shortcuts (command palette, model picker, editor, …) are modal-suppressed while an overlay is
-                    // open; otherwise one selector-opening chord stacks a second selector on top of the first (e.g.
-                    // Ctrl+P over the /sessions picker). Mirrors the same guard on extension keybindings; Esc and the
-                    // navigation keys still reach the active overlay through the routing below.
-                    if (!anyOverlayActive() && globalKeys.dispatch(key))
-                        continue;
-                    if (key == Key.Special.ALT_UP) {
-                        undoLastTurn();
-                        continue;
-                    }
-                    if (key == Key.Special.PASTE_START) {
-                        Key paste = InputDecoder.readPaste(terminal);
-                        if (paste instanceof Key.Paste p) {
-                            promptEditor.insertText(p.text());
-                            redrawPrompt();
-                        }
-                        continue;
-                    }
-                    key = remapSpecial(key, selectorKeyRemaps);
-                    if (selectors.handle(key, this::redrawPrompt))
-                        continue;
-                    if (promptEditor.handleCompletionKey(key)) {
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (key == Key.Special.UP && (promptEditor.isEmpty() || promptEditor.isInHistory())) {
-                        if (!promptEditor.historyPrev() && !activity.isBusy()) {
-                            messageBrowser.enter();
-                        }
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (key == Key.Special.DOWN && promptEditor.isInHistory()) {
-                        promptEditor.historyNext();
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (messageBrowser.isActive() && messageBrowser.handleKey(key)) {
-                        redrawPrompt();
-                        continue;
-                    }
-                    if (key instanceof Key.Char at && at.value() == '@' && !activity.isBusy()
-                                                    && FzfFilePicker.available()) {
-                        pickFileWithFzf(true); // @ opens fzf file completion; the chosen path is inserted as @"…"
-                        continue;
-                    }
-                    var result = promptEditor.apply(remapSpecial(key, editorKeyRemaps));
-                    // Ctrl+R on an empty history opened nothing and said nothing, so an advertised key read as
-                    // broken. The editor reports no change in that case, so the redraw below never runs: say it here.
-                    if (key == Key.Special.CTRL_R && !promptEditor.hasCompletions()) {
-                        setTransientStatus("no history to search yet", 2500);
-                        redrawPrompt();
-                    }
-                    if (result.exit()) {
+                    if (!dispatchKey(key)) {
                         running.set(false);
                         break;
                     }
-                    if (result.changed()) {
-                        selectors.filter(promptEditor.text());
-                        redrawPrompt();
-                    }
-                    result.submitted().ifPresent(this::handleSubmit);
                 } catch (Exception inner) {
                     if (SelfRespawn.isRespawnInProgress())
                         continue;
