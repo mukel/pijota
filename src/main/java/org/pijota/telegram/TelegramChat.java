@@ -216,55 +216,12 @@ public final class TelegramChat implements ChatHandler {
     private boolean handleCommand(String text) {
         String cmd = commandWord(text);
         switch (cmd) {
-            case "/start" -> {
-                // Telegram deep link: t.me/<bot>?start=<payload> arrives as "/start <payload>". A payload means the
-                // user opened the bot from the remote-control link/QR, so confirm the connection.
-                String payload = text.length() > cmd.length() ? text.substring(cmd.length()).strip() : "";
-                String prefix = payload.isBlank() ? "" : "🔗 Connected to your pijota session.\n\n";
-                tg.sendMessage(chatId, prefix + WELCOME + helpText());
-            }
+            case "/start" -> greet(text, cmd);
             case "/help" -> tg.sendMessage(chatId, helpText());
-            case "/stop", "/cancel" -> {
-                if (session.isBusy()) {
-                    session.abort();
-                    tg.sendMessage(chatId, "⏹ Stopped.");
-                } else {
-                    tg.sendMessage(chatId, "Nothing is running.");
-                }
-            }
-            case "/undo" -> {
-                if (requireIdle())
-                    tg.sendMessage(chatId, session.undoLastUserTurn().map(s -> "↩️ Undone: " + s)
-                                                    .orElse("Nothing to undo."));
-            }
-            case "/compact" -> {
-                if (!requireIdle())
-                    break;
-                tg.sendChatAction(chatId, "typing");
-                try {
-                    session.compact("");
-                    tg.sendMessage(chatId, "🗜 Context compacted.");
-                } catch (RuntimeException e) {
-                    tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
-                }
-            }
-            case "/new" -> {
-                if (!requireIdle())
-                    break;
-                // Confirm first (parity with the TUI). An accidental /new tap shouldn't drop the live conversation.
-                ui.confirm("🆕 Start a new conversation? The current one is cleared (it stays saved on disk).")
-                                                .thenAccept(yes -> {
-                                                    if (!yes)
-                                                        return;
-                                                    try {
-                                                        session.newSession(); // fresh session file; clears in-context
-                                                                              // history
-                                                        tg.sendMessage(chatId, "🆕 Started a new conversation.");
-                                                    } catch (IOException e) {
-                                                        tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
-                                                    }
-                                                });
-            }
+            case "/stop", "/cancel" -> stopWhateverIsRunning();
+            case "/undo" -> undoLastTurn();
+            case "/compact" -> compactContext();
+            case "/new" -> startNewConversation();
             case "/status" -> tg.sendMessage(chatId, statusText());
             case "/usage" -> tg.sendMessage(chatId, usageSummary());
             case "/model" -> showModelPicker();
@@ -277,6 +234,59 @@ public final class TelegramChat implements ChatHandler {
             }
         }
         return true;
+    }
+
+    /**
+     * Telegram deep link: {@code t.me/<bot>?start=<payload>} arrives as {@code /start <payload>}. A payload means the
+     * user opened the bot from the remote-control link or QR, so the reply confirms the connection first.
+     */
+    private void greet(String text, String cmd) {
+        String payload = text.length() > cmd.length() ? text.substring(cmd.length()).strip() : "";
+        String prefix = payload.isBlank() ? "" : "🔗 Connected to your pijota session.\n\n";
+        tg.sendMessage(chatId, prefix + WELCOME + helpText());
+    }
+
+    private void stopWhateverIsRunning() {
+        if (!session.isBusy()) {
+            tg.sendMessage(chatId, "Nothing is running.");
+            return;
+        }
+        session.abort();
+        tg.sendMessage(chatId, "⏹ Stopped.");
+    }
+
+    private void undoLastTurn() {
+        if (requireIdle())
+            tg.sendMessage(chatId, session.undoLastUserTurn().map(s -> "↩️ Undone: " + s).orElse("Nothing to undo."));
+    }
+
+    private void compactContext() {
+        if (!requireIdle())
+            return;
+        tg.sendChatAction(chatId, "typing");
+        try {
+            session.compact("");
+            tg.sendMessage(chatId, "🗜 Context compacted.");
+        } catch (RuntimeException e) {
+            tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
+        }
+    }
+
+    /** Confirmed first, for parity with the TUI: an accidental /new tap must not drop the live conversation. */
+    private void startNewConversation() {
+        if (!requireIdle())
+            return;
+        ui.confirm("🆕 Start a new conversation? The current one is cleared (it stays saved on disk).")
+                                        .thenAccept(yes -> {
+                                            if (!yes)
+                                                return;
+                                            try {
+                                                session.newSession(); // fresh file; clears the in-context history
+                                                tg.sendMessage(chatId, "🆕 Started a new conversation.");
+                                            } catch (IOException e) {
+                                                tg.sendMessage(chatId, "❌ " + ErrorUtil.message(e));
+                                            }
+                                        });
     }
 
     /**
