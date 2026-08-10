@@ -1499,44 +1499,46 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                                             + String.join("/", unreadable) + ", sending text only")));
     }
 
-    private void handleSubmit(String text) {
-        String cleaned = Util.stripSystemReminders(text);
-        // A leading space escapes command/shell syntax: " /review …" or " !cmd" is sent to the model as a literal
-        // message; only an unindented "/" or "!" is treated as a command.
-        boolean literal = !cleaned.isEmpty() && Character.isWhitespace(cleaned.charAt(0));
-        String submitted = cleaned.strip();
-        if (submitted.isBlank())
-            return;
-        var expansion = fileRefs.expand(submitted);
-        submitted = expansion.text();
-        var attachments = expansion.attachments(); // @image files pulled out for vision models
-        String answer = submitted;
-        if (dialogs.submitAnswer(answer, () -> appendPlain(promptEcho(answer))))
-            return;
-        String payload = submitted;
-        session.stripSystemRemindersFromContext();
-        if (!literal && isBareHelp(payload)) {
+    /**
+     * Everything an unindented line can mean other than "send this to the model", in the order it is tried.
+     *
+     * <p>
+     * Only reached when the line was not indented: a leading space escapes all of this, so " /review" and " !cmd" go to
+     * the model as the literal text somebody typed. Returns whether the line was taken.
+     */
+    private boolean routeAsCommand(String payload) {
+        if (isBareHelp(payload)) {
             commandController.handle("/help");
-            return;
+            return true;
         }
-        if (!literal && payload.startsWith("/")) {
+        if (payload.startsWith("/")) {
             commandController.handle(payload.strip());
-            return;
+            return true;
         }
-        if (!literal && isVimQuit(payload)) { // chef's kiss: :q (and its cousins) quit pijota, for Vim muscle memory
+        if (isVimQuit(payload)) { // chef's kiss: :q (and its cousins) quit pijota, for Vim muscle memory
             commandController.handle("/quit");
-            return;
+            return true;
         }
-        if (!literal && payload.startsWith("!!")) {
+        if (payload.startsWith("!!")) {
             shellCommands.run(payload.substring(2).strip(), false);
-            return;
+            return true;
         }
-        if (!literal && payload.startsWith("!")) {
+        if (payload.startsWith("!")) {
             shellCommands.run(payload.substring(1).strip(), true);
-            return;
+            return true;
         }
-        warnUnreadableAttachments(attachments);
-        appendPlain(promptEcho(submitted));
+        return false;
+    }
+
+    /**
+     * Starts a turn, or queues the line behind the one already running.
+     *
+     * <p>
+     * The failure path is deliberately quiet: a turn that fails has already rendered it through AgentEvent.Error, so
+     * this forwards to extensions and puts it in the status line rather than printing a second "Exception:" beneath the
+     * first.
+     */
+    private void sendToModel(String payload, List<Message.Attachment> attachments) {
         if (activity.isBusy() && session.isBusy()) {
             if (!attachments.isEmpty()) // followUp steers with text only; attachments can't ride along mid-turn
                 appendPlain(List.of(theme.styled("toolError",
@@ -1568,6 +1570,29 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
                 redrawPrompt();
             }
         });
+    }
+
+    private void handleSubmit(String text) {
+        String cleaned = Util.stripSystemReminders(text);
+        // A leading space escapes command/shell syntax: " /review …" or " !cmd" is sent to the model as a literal
+        // message; only an unindented "/" or "!" is treated as a command.
+        boolean literal = !cleaned.isEmpty() && Character.isWhitespace(cleaned.charAt(0));
+        String submitted = cleaned.strip();
+        if (submitted.isBlank())
+            return;
+        var expansion = fileRefs.expand(submitted);
+        submitted = expansion.text();
+        var attachments = expansion.attachments(); // @image files pulled out for vision models
+        String answer = submitted;
+        if (dialogs.submitAnswer(answer, () -> appendPlain(promptEcho(answer))))
+            return;
+        String payload = submitted;
+        session.stripSystemRemindersFromContext();
+        if (!literal && routeAsCommand(payload))
+            return;
+        warnUnreadableAttachments(attachments);
+        appendPlain(promptEcho(submitted));
+        sendToModel(payload, attachments);
     }
 
     static boolean isBareHelp(String payload) {
