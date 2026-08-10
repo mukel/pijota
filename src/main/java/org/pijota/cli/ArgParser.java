@@ -5,6 +5,7 @@ import org.pijota.extensions.BuiltinExtensions;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.util.Cli;
+import org.pijota.util.Util;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,6 +18,12 @@ public final class ArgParser {
     /** Frontend subcommands: `pijota web|telegram|acp`, the positional twins of the {@code --web}/… flags. */
     /** Also the set that {@link org.pijota.extensions.ExtensionRegistry} must not report as unknown flags. */
     public static final Set<String> FRONTEND_SUBCOMMANDS = Set.of("web", "telegram", "acp", "tui");
+
+    public static final class ParseException extends IllegalArgumentException {
+        ParseException(String message) {
+            super(message);
+        }
+    }
 
     public static Args parse(String[] rawArgs) {
         var provider = (String) null;
@@ -80,7 +87,7 @@ public final class ArgParser {
                 case "--system-prompt" -> systemPrompt = cursor.value(arg);
                 case "--append-system-prompt" -> appendSystemPrompts.add(cursor.value(arg));
                 case "--thinking" -> thinkingLevel = checkThinking(cursor.value(arg));
-                case "--max-turns" -> maxTurns = parseMaxTurns(cursor.value(arg));
+                case "--max-turns" -> maxTurns = parseMaxTurns(cursor.signedIntegerValue(arg));
                 case "--mode" -> outputMode = parseMode(cursor.value(arg));
                 case "--session", "-s", "--session-path" -> sessionPath = cursor.value(arg);
                 case "--fork" -> forkPath = cursor.value(arg);
@@ -178,7 +185,11 @@ public final class ArgParser {
     }
 
     public static void printHelp() {
-        System.out.println("""
+        printHelp(Util.terminalWidth());
+    }
+
+    static void printHelp(int width) {
+        printHelpBlock("""
                                         %1$s - minimalist Java coding agent
 
                                         USAGE: %1$s [SUBCOMMAND] [OPTIONS] [PROMPT...]
@@ -222,18 +233,18 @@ public final class ArgParser {
                                           --prompt-template <path>  Load prompt template (repeatable)
                                           --approve, -a             Trust project-local resources for this run
                                           --no-approve, -na         Ignore project-local resources for this run
-                                        """.formatted(Cli.name()));
-        System.out.println("""
+                                        """.formatted(Cli.name()), width);
+        printHelpBlock("""
                                         COMMANDS (before any options):
                                           login [provider] [model]  Sign in to a provider (OAuth, else an API key)
                                           logout [provider]         Forget a provider's stored credential
                                           auth <cmd> --provider <p> Print a credential for another tool (print-api-key,
                                                                     print-bearer-token); see `%1$s auth --help`
                                           worktree <cmd>            Manage git worktrees; see `%1$s worktree --help`
-                                        """.formatted(Cli.name()));
-        System.out.println(BuiltinExtensions.helpSection());
+                                        """.formatted(Cli.name()), width);
+        printHelpBlock(BuiltinExtensions.helpSection(), width);
         System.out.println();
-        System.out.println("""
+        printHelpBlock("""
                                         MISC:
                                           --export <file>           Export session to Markdown
                                           --list-models [filter]    List available models
@@ -251,7 +262,22 @@ public final class ArgParser {
                                           %1$s -c                                Continue last session
                                           %1$s -r                                Pick session interactively
                                           %1$s --list-models openai              List OpenAI models
-                                        """.formatted(Cli.name()));
+                                        """.formatted(Cli.name()), width);
+    }
+
+    private static void printHelpBlock(String block, int width) {
+        if (width >= 80) {
+            System.out.println(block);
+            return;
+        }
+        for (String line : block.lines().toList()) {
+            if (line.isBlank()) {
+                System.out.println();
+                continue;
+            }
+            String indent = Character.isWhitespace(line.charAt(0)) ? "  " : "";
+            System.out.println(Util.wrap(indent + line.strip(), width, indent + "  "));
+        }
     }
 
     /**
@@ -276,10 +302,28 @@ public final class ArgParser {
             return args[++i];
         }
 
-        /** The required value for the flag just returned by {@link #next}; throws if argv ended. */
+        /**
+         * The required value for the flag just returned by {@link #next}. A token that syntactically names another
+         * option is missing-value evidence, but prose such as {@code "- rule"} is still a legitimate value.
+         */
         String value(String flag) {
-            if (i + 1 >= args.length)
-                throw new IllegalArgumentException("Missing value for " + flag);
+            if (i + 1 >= args.length || looksLikeOption(args[i + 1]))
+                throw new ParseException("Missing value for " + flag);
+            return args[++i];
+        }
+
+        private static boolean looksLikeOption(String token) {
+            if (token.equals("-") || !token.startsWith("-"))
+                return false;
+            return token.length() > 1 && !Character.isWhitespace(token.charAt(1));
+        }
+
+        /**
+         * Required integer value, including a leading minus so validation can report it as invalid rather than missing.
+         */
+        String signedIntegerValue(String flag) {
+            if (i + 1 >= args.length || (args[i + 1].startsWith("-") && !args[i + 1].matches("-\\d+")))
+                throw new ParseException("Missing value for " + flag);
             return args[++i];
         }
 
@@ -334,7 +378,10 @@ public final class ArgParser {
     /** Parses {@code --max-turns} (non-negative; 0 = unlimited). Invalid → null, so the configured default applies. */
     private static Integer parseMaxTurns(String v) {
         try {
-            return Math.max(0, Integer.parseInt(v.trim()));
+            int turns = Integer.parseInt(v.trim());
+            if (turns < 0)
+                throw new NumberFormatException();
+            return turns;
         } catch (NumberFormatException e) {
             System.err.println("pijota: ignoring invalid --max-turns '" + v + "'");
             return null;

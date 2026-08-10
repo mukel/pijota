@@ -33,7 +33,12 @@ class TerminalCoordinatorTest {
                                     PipedOutputStream toTerminal) implements AutoCloseable {
         String rendered() {
             terminal.writer().flush();
-            return AnsiStripper.strip(sink.toString(StandardCharsets.UTF_8));
+            return AnsiStripper.strip(raw());
+        }
+
+        String raw() {
+            terminal.writer().flush();
+            return sink.toString(StandardCharsets.UTF_8);
         }
 
         /**
@@ -78,6 +83,16 @@ class TerminalCoordinatorTest {
             Thread.sleep(10);
         }
         fail("writer never emitted " + marker + "; got: " + rig.rendered());
+    }
+
+    private static void settleRaw(Rig rig, String marker) throws Exception {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            if (rig.raw().contains(marker))
+                return;
+            Thread.sleep(10);
+        }
+        fail("writer never emitted the expected terminal sequence");
     }
 
     @Test
@@ -203,6 +218,34 @@ class TerminalCoordinatorTest {
                                                     + " times; every line is written exactly once");
                 }
         }
+    }
+
+    @Test
+    void resetPromptUsesScreenRecoveryFrame() throws Exception {
+        try (Rig rig = rig()) {
+            rig.coordinator().start(new PromptSnapshot(List.of("before"), 0, 6, List.of()));
+            rig.coordinator().resetPrompt(new PromptSnapshot(List.of("after-resize"), 0, 12, List.of()));
+            settleRaw(rig, "\033[2J\033[H");
+
+            assertTrue(rig.raw().contains("\033[2J\033[H"), "resize recovery must clear and re-anchor the screen");
+        }
+    }
+
+    @Test
+    void closeCleansFrameAfterQueuedOutputIsDrained() throws Exception {
+        Rig rig = rig();
+        rig.coordinator().start(new PromptSnapshot(List.of("draft"), 0, 0, List.of()));
+        rig.coordinator().appendLines(lines("last-queued-line"));
+        settle(rig, "last-queued-line");
+
+        rig.coordinator().close();
+
+        String raw = rig.raw();
+        assertTrue(raw.lastIndexOf("last-queued-line") < raw.lastIndexOf("\033[J"),
+                                        "the shutdown clear must follow all queued writes");
+        assertTrue(raw.endsWith("\r\n"), "the shell must start on a fresh line");
+        rig.toTerminal().close();
+        rig.terminal().close();
     }
 
     @Test

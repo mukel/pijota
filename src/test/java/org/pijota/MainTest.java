@@ -57,6 +57,15 @@ class MainTest {
     }
 
     @Test
+    void missingOptionValueIsAUsageErrorNotACrash() {
+        int code = Main.run(new String[] {"--model", "--version"});
+
+        assertEquals(2, code);
+        assertEquals("pj: Missing value for --model", stdio.err().strip());
+        assertFalse(stdio.out().contains("pijota v"), "the following flag was not consumed as a value");
+    }
+
+    @Test
     void versionFlagPrintsTheVersionAndReturnsZero() {
         int code = Main.run(new String[] {"--version"});
         assertEquals(0, code);

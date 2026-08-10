@@ -3,6 +3,7 @@ package org.pijota.cli;
 import org.pijota.config.OAuthTokenStore;
 import org.pijota.config.ProviderCatalog;
 import org.pijota.config.SettingsManager;
+import org.pijota.util.Cli;
 
 import java.util.List;
 
@@ -27,17 +28,20 @@ public final class AuthCommand {
     /** The subcommand name, matched positionally by {@link ArgParser} before any other parsing. */
     public static final String NAME = "auth";
 
-    private static final String USAGE = """
-                                    USAGE: pijota auth <command> --provider <name>
+    private static String usage() {
+        return """
+                                        USAGE: %1$s auth <command> --provider <name>
 
-                                    COMMANDS:
-                                      print-api-key       Print the provider's API key (settings, ${ENV} interpolation, then env vars)
-                                      print-bearer-token  Print the provider's OAuth access token, refreshing it if expired
+                                        COMMANDS:
+                                          print-api-key       Print the provider's API key (settings, ${ENV} interpolation, then env vars)
+                                          print-bearer-token  Print the provider's OAuth access token, refreshing it if expired
 
-                                    EXAMPLES:
-                                      curl -H "Authorization: Bearer $(pijota auth print-bearer-token --provider anthropic)" ...
-                                      export OPENAI_API_KEY="$(pijota auth print-api-key --provider openai)"
-                                    """;
+                                        EXAMPLES:
+                                          curl -H "Authorization: Bearer $(%1$s auth print-bearer-token --provider anthropic)" ...
+                                          export OPENAI_API_KEY="$(%1$s auth print-api-key --provider openai)"
+                                        """
+                                        .formatted(Cli.name());
+    }
 
     /**
      * @param args
@@ -47,7 +51,10 @@ public final class AuthCommand {
     public static int run(List<String> args, SettingsManager settings) {
         String command = args.isEmpty() ? "" : args.get(0);
         if (command.isBlank() || command.equals("--help") || command.equals("-h")) {
-            System.err.print(USAGE);
+            if (command.isBlank())
+                System.err.print(usage());
+            else
+                System.out.print(usage());
             return command.isBlank() ? 2 : 0;
         }
         String provider = valueOf(args, "--provider");

@@ -34,4 +34,28 @@ class TerminalFrameRendererTest {
         assertTrue(AnsiStripper.strip(frame).contains("─".repeat(10)));
         assertTrue(frame.contains(TerminalFrameRenderer.SHOW_CURSOR));
     }
+
+    @Test
+    void resetFrameClearsAndHomesBeforeRedrawing() {
+        var renderer = new TerminalFrameRenderer(new PromptLayout(List.of(new PromptRegion.Editor())));
+        var snapshot = new PromptSnapshot(List.of("hello"), 0, 5, List.of());
+
+        String frame = renderer.renderResetFrame(40, 20, snapshot, List.of(), AnsiTheme.dark());
+
+        assertTrue(frame.contains("\r\n".repeat(20) + "\033[2J\033[H"));
+        assertTrue(AnsiStripper.strip(frame).contains("hello"));
+    }
+
+    @Test
+    void closeFrameErasesThePromptAndLeavesAFreshLine() {
+        var renderer = new TerminalFrameRenderer(new PromptLayout(List.of()));
+        var snapshot = new PromptSnapshot(List.of("draft"), 0, 5, List.of());
+        renderer.renderFrame(40, 20, snapshot, List.of(), true, true, AnsiTheme.dark());
+
+        String close = renderer.closeFrame();
+
+        assertTrue(close.contains("\033[J"));
+        assertTrue(close.endsWith("\r\n"));
+        assertTrue(close.contains(TerminalFrameRenderer.SHOW_CURSOR));
+    }
 }

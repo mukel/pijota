@@ -73,6 +73,29 @@ class ArgParserTest {
         assertEquals(12, ArgParser.parse(new String[] {"--max-turns", "12"}).maxTurns());
         assertEquals(0, ArgParser.parse(new String[] {"--max-turns", "0"}).maxTurns(), "0 = unlimited");
         assertNull(ArgParser.parse(new String[] {"--max-turns", "abc"}).maxTurns(), "invalid → null (warned)");
+        assertNull(ArgParser.parse(new String[] {"--max-turns", "-3"}).maxTurns(), "negative → null (warned)");
+    }
+
+    @Test
+    void requiredValueDoesNotConsumeTheNextOption() {
+        var error = assertThrows(IllegalArgumentException.class,
+                                        () -> ArgParser.parse(new String[] {"--model", "--version"}));
+
+        assertEquals("Missing value for --model", error.getMessage());
+    }
+
+    @Test
+    void requiredTextValueMayStartWithDashAndWhitespace() {
+        var args = ArgParser.parse(new String[] {"--system-prompt", "- rule"});
+
+        assertEquals("- rule", args.systemPrompt());
+    }
+
+    @Test
+    void loneDashIsARequiredValueNotAnOption() {
+        var args = ArgParser.parse(new String[] {"--system-prompt", "-"});
+
+        assertEquals("-", args.systemPrompt());
     }
 
     @Test
@@ -468,6 +491,15 @@ class ArgParserTest {
     void helpFitsAnEightyColumnTerminal() {
         for (String line : help().split("\n"))
             assertTrue(line.length() <= 80, line.length() + " columns: " + line);
+    }
+
+    @Test
+    void narrowHelpWrapsWithoutBreakingWords() {
+        ArgParser.printHelp(40);
+        for (String line : stdio.out().split("\n"))
+            assertTrue(line.length() <= 40, line.length() + " columns: " + line);
+        assertFalse(stdio.out().contains("T\nUI"), stdio.out());
+        assertFalse(stdio.out().contains("PROMPT\n..."), stdio.out());
     }
 
     /**

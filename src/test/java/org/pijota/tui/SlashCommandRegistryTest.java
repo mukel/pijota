@@ -52,6 +52,7 @@ class SlashCommandRegistryTest {
         assertTrue(help.contains("session"));
         assertTrue(help.contains("workspace"));
         assertTrue(help.contains("/model"));
+        assertTrue(help.contains("/bg"), "the tmux-safe background command must be discoverable");
     }
 
     @Test

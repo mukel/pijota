@@ -76,7 +76,7 @@ final class SlashCommandRegistry {
         var out = new ArrayList<String>();
         out.add("pijota commands");
         appendGroup(out, "chat", "/help", "/model", "/settings", "/compact", "/branch-summary", "/context", "/usage",
-                                        "/dequeue", "/skills");
+                                        "/dequeue", "/bg", "/skills");
         appendGroup(out, "session", "/sessions", "/save", "/load", "/export", "/import", "/name", "/new", "/delete");
         appendGroup(out, "workspace", "/tree", "/fork", "/undo", "/copy", "/theme");
         appendGroup(out, "remote", "/remote-control");

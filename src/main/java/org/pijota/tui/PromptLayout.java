@@ -32,6 +32,11 @@ public final class PromptLayout {
 
     private Stamp stamp = Stamp.NONE;
 
+    /** Forget the old frame after an external screen reset (resize recovery or shutdown). */
+    void reset() {
+        stamp = Stamp.NONE;
+    }
+
     public PromptLayout(List<PromptRegion> regions) {
         this(regions, true);
     }

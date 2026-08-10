@@ -59,4 +59,47 @@ final class TerminalFrameRenderer {
         out.flush();
         return buf.toString();
     }
+
+    /** Re-anchor after terminal reflow made the previous frame's physical row count unknowable. */
+    String renderResetFrame(int width, int height, PromptSnapshot snapshot, List<StyledLine> lines, AnsiTheme theme) {
+        layout.reset();
+        var buf = new StringWriter();
+        var out = new PrintWriter(buf);
+        out.print(BEGIN_SYNC);
+        out.print(HIDE_CURSOR);
+        // Move the visible screen into normal scrollback before clearing it. ED alone would make the resize clean by
+        // deleting the most recent screenful of conversation on terminals that do not archive cleared rows.
+        out.print("\033[999B");
+        out.print("\r\n".repeat(height));
+        out.print("\033[2J\033[H");
+        for (var line : lines) {
+            for (var physical : AnsiWidth.wrapPreservingAnsi(line.text(), width)) {
+                out.print(physical);
+                if (AnsiWidth.visibleWidth(physical) < width)
+                    out.print("\033[K");
+                out.print("\r\n");
+            }
+        }
+        out.print(AUTOWRAP_OFF);
+        layout.renderAfterErase(out, width, height, theme, snapshot);
+        out.print(AUTOWRAP_ON);
+        out.print(SHOW_CURSOR);
+        out.print(END_SYNC);
+        out.flush();
+        return buf.toString();
+    }
+
+    /** Remove the live frame before handing the terminal back to the shell. */
+    String closeFrame() {
+        var buf = new StringWriter();
+        var out = new PrintWriter(buf);
+        out.print(BEGIN_SYNC);
+        out.print(HIDE_CURSOR);
+        layout.eraseCurrent(out);
+        out.print("\033[J");
+        layout.reset();
+        out.print(AUTOWRAP_ON + SHOW_CURSOR + END_SYNC + "\r\n");
+        out.flush();
+        return buf.toString();
+    }
 }

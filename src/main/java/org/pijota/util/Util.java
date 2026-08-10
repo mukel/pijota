@@ -493,14 +493,30 @@ public final class Util {
      * 96, which is not a width any terminal is.
      */
     public static int terminalWidth() {
+        int columns = parseWidth(System.getenv("COLUMNS"));
+        if (columns >= 40)
+            return columns;
+        if (System.console() == null)
+            return 80;
         try {
-            int columns = Integer.parseInt(System.getenv("COLUMNS"));
+            var process = new ProcessBuilder("stty", "size").redirectInput(new java.io.File("/dev/tty")).start();
+            String size = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (process.waitFor() == 0 && !size.isEmpty())
+                columns = parseWidth(size.substring(size.lastIndexOf(' ') + 1));
             if (columns >= 40)
                 return columns;
         } catch (Exception ignored) {
-            // unset or not a number: the default below is the safe answer, not an error worth reporting
+            // No controlling terminal (a pipe or test): the default below is the safe answer.
         }
         return 80;
+    }
+
+    private static int parseWidth(String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (Exception ignored) {
+            return 0;
+        }
     }
 
     /**

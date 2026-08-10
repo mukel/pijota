@@ -93,13 +93,17 @@ final class Selector<T extends SelectorItem> {
             // score each item once (Schwartzian) so the sort is a cheap array lookup, not a matchScore + toLowerCase
             // recompute per comparison; this runs on every keystroke over the whole (e.g. ~400-model) list.
             int[] scoreByIndex = new int[allItems.size()];
+            boolean hasContiguousMatch = false;
             for (int i = 0; i < allItems.size(); i++) {
                 String searchText = allItems.get(i).searchText().toLowerCase();
                 if (SlashCommandRegistry.fuzzyMatch(q, searchText)) {
                     scoreByIndex[i] = SlashCommandRegistry.matchScore(q, searchText);
                     visibleIndices.add(i);
+                    hasContiguousMatch |= searchText.contains(q);
                 }
             }
+            if (hasContiguousMatch)
+                visibleIndices.removeIf(i -> !allItems.get(i).searchText().toLowerCase().contains(q));
             // rank best matches first: prefix beats substring beats a scattered subsequence. A stable sort keeps
             // equal-scoring items in their original order (e.g. the configured model/theme order), so "pro" surfaces
             // "deepseek-v4-pro" (substring) above a scattered match instead of leaving list order untouched.

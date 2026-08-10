@@ -1817,7 +1817,10 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
     }
 
     private void handleResize() {
-        redrawPrompt(); // re-sizes the viewer viewport via fitViewerViewport
+        var snapshot = promptPresenter.decorate(promptEditor.snapshot());
+        if (logViewer.active())
+            logViewer.setViewport(fitViewerViewport(snapshot));
+        terminalUi.resetPrompt(snapshot);
     }
 
     private void cycleThinkingLevel() {

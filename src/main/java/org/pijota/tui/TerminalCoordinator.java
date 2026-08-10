@@ -19,6 +19,8 @@ final class TerminalCoordinator implements AutoCloseable {
         }
         record Tail(String tail) implements UiOp {
         }
+        record Reset(PromptSnapshot snapshot) implements UiOp {
+        }
         record Stop() implements UiOp {
         }
     }
@@ -58,6 +60,10 @@ final class TerminalCoordinator implements AutoCloseable {
         queue.offer(new UiOp.Prompt(snapshot));
     }
 
+    public void resetPrompt(PromptSnapshot snapshot) {
+        queue.offer(new UiOp.Reset(snapshot));
+    }
+
     /** Requests an in-place repaint of just the live streaming-tail row (falls back to a full frame when needed). */
     public void updateStreamTail(String tail) {
         queue.offer(new UiOp.Tail(tail == null ? "" : tail));
@@ -78,7 +84,12 @@ final class TerminalCoordinator implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        restore();
+        try {
+            terminal.writer().print(frameRenderer.closeFrame());
+            terminal.writer().flush();
+        } catch (Exception e) {
+            restore();
+        }
     }
 
     private void writerLoop() {
@@ -101,8 +112,6 @@ final class TerminalCoordinator implements AutoCloseable {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } finally {
-            restore();
         }
     }
 
@@ -118,6 +127,7 @@ final class TerminalCoordinator implements AutoCloseable {
         PromptSnapshot finalSnapshot = prompt;
         var lines = new ArrayList<StyledLine>();
         String tailUpdate = null; // a Tail op always carries a non-null string (updateStreamTail coerces null to "")
+        boolean reset = false;
         for (var op : ops) {
             switch (op) {
                 case UiOp.Append append -> {
@@ -130,6 +140,10 @@ final class TerminalCoordinator implements AutoCloseable {
                     }
                 }
                 case UiOp.Prompt p -> finalSnapshot = p.snapshot();
+                case UiOp.Reset r -> {
+                    finalSnapshot = r.snapshot();
+                    reset = true;
+                }
                 case UiOp.Tail t -> tailUpdate = t.tail();
                 default -> {}
             }
@@ -137,7 +151,12 @@ final class TerminalCoordinator implements AutoCloseable {
         if (tailUpdate != null)
             finalSnapshot = finalSnapshot.withStreamTail(tailUpdate);
         prompt = finalSnapshot;
-        emitFrame(width, height, finalSnapshot, lines, true, true);
+        if (reset) {
+            terminal.writer().print(frameRenderer.renderResetFrame(width, height, finalSnapshot, lines, theme));
+            terminal.writer().flush();
+        } else {
+            emitFrame(width, height, finalSnapshot, lines, true, true);
+        }
     }
 
     private void emitFrame(int width, int height, PromptSnapshot snapshot, List<StyledLine> lines, boolean erase,

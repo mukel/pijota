@@ -146,6 +146,9 @@ public final class Main {
             // Not a crash: nothing is configured yet. Print the guidance plainly, without the failure framing.
             System.err.println(e.getMessage());
             return 1;
+        } catch (ArgParser.ParseException e) {
+            System.err.println(Cli.name() + ": " + e.getMessage());
+            return 2;
         } catch (Throwable e) {
             return CliErrorReporter.fatal("Pijota failed", e);
         }

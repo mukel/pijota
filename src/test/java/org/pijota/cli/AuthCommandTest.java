@@ -66,7 +66,9 @@ class AuthCommandTest {
     @Test
     void helpIsSuccessNotAnError() {
         assertEquals(0, run(withKeys(Map.of()), "--help"));
-        assertTrue(stdio.err().contains("print-bearer-token"), stdio.err());
+        assertTrue(stdio.out().contains("print-bearer-token"), stdio.out());
+        assertTrue(stdio.out().contains("pj auth"), stdio.out());
+        assertTrue(stdio.err().isEmpty(), stdio.err());
     }
 
     @Test

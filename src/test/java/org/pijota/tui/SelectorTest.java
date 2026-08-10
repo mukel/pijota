@@ -104,6 +104,17 @@ class SelectorTest {
     }
 
     @Test
+    void contiguousMatchesHideNoisySubsequenceMatches() {
+        var s = new Selector<CompletionItem>(List.of(new CompletionItem("/sessions", "command"),
+                                        new CompletionItem("deepseek-model", "model")));
+
+        s.filter("sess");
+
+        assertEquals(1, s.total());
+        assertEquals("/sessions", s.selectedItem().name());
+    }
+
+    @Test
     void selectNextAndPrevCycleThroughFilteredItems() {
         var s = new Selector<>(List.of(A, B, C));
         s.activate("");
