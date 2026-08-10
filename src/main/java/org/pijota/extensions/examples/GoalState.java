@@ -27,31 +27,36 @@ record GoalState(String objective, Status status, long tokenBudget, String compl
         return new GoalState("", Status.IDLE, 0, "", false, 0, 0, 0, 0, -1, List.of(), 0, 0, 0);
     }
 
-    static GoalState start(String objective, long tokenBudget, String completionCriterion, boolean continueOnIdle,
+    /**
+     * What stops a goal: a token budget, a cap on auto-continue iterations, a wall-clock limit. Zero means no limit for
+     * each, independently.
+     *
+     * <p>
+     * One value rather than three numbers spread through three overloads of {@code start}. Those overloads differed
+     * only in which of these they defaulted, so a call read {@code start("x", 0, "", true, 2, 0, 0, 0)} and nothing in
+     * it said which zero was a budget, which a cap and which a starting token count. Swapping two of them compiles and
+     * changes when the loop stops.
+     */
+    record Limits(long tokenBudget, int maxIterations, long maxTimeMs) {
+        static final Limits NONE = new Limits(0, 0, 0);
+
+        static Limits ofTokens(long tokenBudget) {
+            return new Limits(tokenBudget, 0, 0);
+        }
+    }
+
+    static GoalState start(String objective, String completionCriterion, boolean continueOnIdle, Limits limits,
                                     long inputTokensAtStart, long outputTokensAtStart, long nowMs) {
-        return start(objective, tokenBudget, completionCriterion, continueOnIdle, 0, 0, inputTokensAtStart,
-                                        outputTokensAtStart, nowMs);
-    }
-
-    static GoalState start(String objective, long tokenBudget, String completionCriterion, boolean continueOnIdle,
-                                    int maxIterations, long inputTokensAtStart, long outputTokensAtStart, long nowMs) {
-        return start(objective, tokenBudget, completionCriterion, continueOnIdle, maxIterations, 0, inputTokensAtStart,
-                                        outputTokensAtStart, nowMs);
-    }
-
-    static GoalState start(String objective, long tokenBudget, String completionCriterion, boolean continueOnIdle,
-                                    int maxIterations, long maxTimeMs, long inputTokensAtStart,
-                                    long outputTokensAtStart, long nowMs) {
         Objects.requireNonNull(objective, "objective");
         if (objective.isBlank())
             throw new IllegalArgumentException("objective is required");
         if (objective.length() > MAX_OBJECTIVE_LENGTH)
             throw new IllegalArgumentException("objective exceeds " + MAX_OBJECTIVE_LENGTH + " chars");
         String criterion = completionCriterion == null ? "" : completionCriterion;
-        return new GoalState(objective.strip(), Status.ACTIVE, Math.max(0, tokenBudget), criterion.strip(),
+        return new GoalState(objective.strip(), Status.ACTIVE, Math.max(0, limits.tokenBudget()), criterion.strip(),
                                         continueOnIdle, Math.max(0, inputTokensAtStart),
                                         Math.max(0, outputTokensAtStart), nowMs, 0, -1, List.of(),
-                                        Math.max(0, maxIterations), 0, Math.max(0, maxTimeMs));
+                                        Math.max(0, limits.maxIterations()), 0, Math.max(0, limits.maxTimeMs()));
     }
 
     GoalState pause(long nowMs) {

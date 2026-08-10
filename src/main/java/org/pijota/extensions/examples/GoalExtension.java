@@ -430,8 +430,8 @@ public final class GoalExtension implements Extension {
         String obj = objective;
         long now = System.currentTimeMillis();
         var llm = api.runtime().llm();
-        GoalState next = GoalState.start(obj, budget, crit, cont, cap, timeMs, llm.totalInputTokens(),
-                                        llm.totalOutputTokens(), now);
+        GoalState next = GoalState.start(obj, crit, cont, new GoalState.Limits(budget, cap, timeMs),
+                                        llm.totalInputTokens(), llm.totalOutputTokens(), now);
         updateState(s -> next);
         api.runtime().setStatus(Emojis.DART + " " + (cont ? "Loop: " : "Goal: ") + objective
                                         + loopCapsSummary(cap, budget, timeMs));
@@ -558,7 +558,8 @@ public final class GoalExtension implements Extension {
         boolean continueOnIdle = Boolean.TRUE.equals(args.get("continue_on_idle"));
         long now = System.currentTimeMillis();
         var llm = api.runtime().llm();
-        GoalState next = GoalState.start(objective, tokenBudget, criterion, continueOnIdle, maxIterations, maxTimeMs,
+        GoalState next = GoalState.start(objective, criterion, continueOnIdle,
+                                        new GoalState.Limits(tokenBudget, maxIterations, maxTimeMs),
                                         llm.totalInputTokens(), llm.totalOutputTokens(), now);
         consecutiveFailures.set(0);
         updateState(s -> next);
