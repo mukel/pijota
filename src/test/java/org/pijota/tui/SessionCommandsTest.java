@@ -5,6 +5,7 @@ import org.pijota.agent.TestSession;
 import org.pijota.config.AppConfig;
 import org.pijota.config.SettingsManager;
 import org.pijota.llm.ThinkingLevel;
+import org.pijota.messages.Usage;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -96,7 +97,7 @@ class SessionCommandsTest {
 
     @Test
     void usageReportShowsTokensCostAndBudget() {
-        var lines = SessionCommands.usageReport(1500, 500, 0, 0, 0, 0.0123, 5.0, "  rate    unknown",
+        var lines = SessionCommands.usageReport(new Usage(1500, 500, 0, 0, 0), 0.0123, 5.0, "  rate    unknown",
                                         (slot, text) -> text);
         String out = String.join("\n", lines);
         assertTrue(out.contains("input"), out);
@@ -120,7 +121,7 @@ class SessionCommandsTest {
 
     @Test
     void aFreshSessionReportsNoSpendRatherThanAStringOfZeroes() {
-        var lines = SessionCommands.usageReport(0, 0, 0, 0, 0, 0.0, null, "unknown", (slot, text) -> text);
+        var lines = SessionCommands.usageReport(new Usage(0, 0, 0, 0, 0), 0.0, null, "unknown", (slot, text) -> text);
         String out = String.join("\n", lines);
         assertTrue(out.contains("none yet"), out);
         assertFalse(out.contains("0.0000"), "no four-decimal zero: " + out);
@@ -128,13 +129,14 @@ class SessionCommandsTest {
 
     @Test
     void usageReportOmitsBudgetWhenUnset() {
-        var lines = SessionCommands.usageReport(10, 20, 0, 0, 0, 0.0, null, "  rate    unknown", (slot, text) -> text);
+        var lines = SessionCommands.usageReport(new Usage(10, 20, 0, 0, 0), 0.0, null, "  rate    unknown",
+                                        (slot, text) -> text);
         assertFalse(String.join("\n", lines).contains("budget"));
     }
 
     @Test
     void usageReportIncludesRateLineWhenProvided() {
-        var lines = SessionCommands.usageReport(10, 20, 0, 0, 0, 0.0, null,
+        var lines = SessionCommands.usageReport(new Usage(10, 20, 0, 0, 0), 0.0, null,
                                         "  rate    $5.00 in / $25.00 out per 1M  (x)", (slot, text) -> text);
         assertTrue(String.join("\n", lines).contains("$5.00 in / $25.00 out"));
     }
@@ -142,7 +144,8 @@ class SessionCommandsTest {
     @Test
     void usageReportShowsCacheHitRateWhenCached() {
         // 4000 read of a 5000-token prompt (200 fresh input + 4000 read + 800 write) → 80% hit.
-        var lines = SessionCommands.usageReport(200, 100, 0, 4000, 800, 0.0, null, "  rate", (slot, text) -> text);
+        var lines = SessionCommands.usageReport(new Usage(200, 100, 4000, 800, 0), 0.0, null, "  rate",
+                                        (slot, text) -> text);
         String out = String.join("\n", lines);
         assertTrue(out.contains("cache") && out.contains("read") && out.contains("write"), out);
         assertTrue(out.contains("80% hit"), out);
@@ -150,7 +153,8 @@ class SessionCommandsTest {
 
     @Test
     void usageReportAnnotatesOutputWithReasoningTokens() {
-        var lines = SessionCommands.usageReport(100, 900, 600, 0, 0, 0.0, null, "  rate", (slot, text) -> text);
+        var lines = SessionCommands.usageReport(new Usage(100, 900, 0, 0, 600), 0.0, null, "  rate",
+                                        (slot, text) -> text);
         String out = String.join("\n", lines);
         assertTrue(out.contains("output") && out.contains("reasoning"), out); // 600 of the 900 output are reasoning
     }

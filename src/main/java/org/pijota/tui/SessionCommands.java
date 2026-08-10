@@ -8,6 +8,7 @@ import org.pijota.config.SettingsManager;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
+import org.pijota.messages.Usage;
 import org.pijota.util.Clipboard;
 
 import java.io.IOException;
@@ -161,9 +162,9 @@ final class SessionCommands {
         var session = host.session();
         if (session == null)
             return;
-        host.appendPlain(usageReport(session.totalInputTokens(), session.totalOutputTokens(),
-                                        session.totalReasoningTokens(), session.totalCacheReadTokens(),
-                                        session.totalCacheWriteTokens(), session.totalCost(), session.costBudget(),
+        var totals = new Usage(session.totalInputTokens(), session.totalOutputTokens(), session.totalCacheReadTokens(),
+                                        session.totalCacheWriteTokens(), session.totalReasoningTokens());
+        host.appendPlain(usageReport(totals, session.totalCost(), session.costBudget(),
                                         rateLine(session.provider(), session.model(), session.hasUnpricedUsage()),
                                         host::styled));
         var breakdown = SessionUsage.breakdown(session.messages(), session.provider(), session.model());
@@ -206,9 +207,21 @@ final class SessionCommands {
         return String.format(Locale.ROOT, "~$%.2f", cost);
     }
 
-    static List<String> usageReport(long input, long output, long reasoning, long cacheRead, long cacheWrite,
-                                    double cost, Double budget, String rateLine,
+    /**
+     * Takes the {@link Usage} record rather than its five numbers loose.
+     *
+     * <p>
+     * They were five consecutive longs in an order of their own -- input, output, reasoning, cacheRead, cacheWrite --
+     * while {@code Usage} orders the same five as input, output, cacheRead, cacheWrite, reasoning. Two orderings of one
+     * set of numbers in one codebase is a transposition waiting to be written, and it compiles either way.
+     */
+    static List<String> usageReport(Usage usage, double cost, Double budget, String rateLine,
                                     BiFunction<String, String, String> styled) {
+        long input = usage.inputTokens();
+        long output = usage.outputTokens();
+        long reasoning = usage.reasoningTokens();
+        long cacheRead = usage.cacheReadTokens();
+        long cacheWrite = usage.cacheWriteTokens();
         var report = new Report(styled, "usage").chip("this session");
         // Cells, not one string per row: input/output/total are there to be compared with each other, and a ragged
         // left edge is exactly what stops the eye doing that.

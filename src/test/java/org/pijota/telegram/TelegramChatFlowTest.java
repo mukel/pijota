@@ -18,6 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -47,7 +48,7 @@ class TelegramChatFlowTest {
     }
 
     private Chat newChat() {
-        var ts = TestSession.in(tempDir).build();
+        var ts = newSession();
         var api = new FakeTelegramApi();
         var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
         return new Chat(chat, api, ts);
@@ -57,6 +58,31 @@ class TelegramChatFlowTest {
      * An extension command whose whole reply is {@code runtime().setStatus(...)}, which is how /skills, /goal and /mcp
      * answer. Wired exactly as {@code Main} wires the Telegram frontend, so the reply has to come back as a message.
      */
+    private final List<org.pijota.agent.PijotaSession> started = new ArrayList<>();
+
+    /** Every session this class builds, remembered so teardown can wait for its turns. */
+    private TestSession newSession() {
+        var ts = TestSession.in(tempDir).build();
+        started.add(ts.session());
+        return ts;
+    }
+
+    /**
+     * Lets any in-flight turn finish before JUnit removes the temp directory.
+     *
+     * <p>
+     * Submitting a file hands off to the common pool, and that turn writes session files under {@code tempDir}. A test
+     * that returns as soon as the message appears in history -- true the moment it joins the in-memory list -- leaves
+     * JUnit deleting the directory underneath a live write. That is the "Failed to close extension context" these tests
+     * threw under full-suite load and never in isolation, and it moved from one test to another when only one of them
+     * waited. Here it cannot be forgotten by the next one.
+     */
+    @AfterEach
+    void letTurnsFinishBeforeTheTempDirGoes() {
+        for (var session : started)
+            Await.until(() -> !session.isBusy(), Duration.ofSeconds(5), "a turn was still running at teardown");
+    }
+
     @Test
     void anExtensionCommandThatAnswersViaStatusReachesTheChat() {
         var registry = new ExtensionRegistry();
@@ -129,7 +155,7 @@ class TelegramChatFlowTest {
 
     @Test
     void modelOpensAPickerKeyboardWhenSettingsAreAvailable() {
-        var ts = TestSession.in(tempDir).build();
+        var ts = newSession();
         var api = new FakeTelegramApi();
         var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
         var chat = new TelegramChat(CHAT_ID, ts.session(), api, settings);
@@ -179,7 +205,7 @@ class TelegramChatFlowTest {
 
     @Test
     void tappingAModelInThePickerSwitchesTheModel() {
-        var ts = TestSession.in(tempDir).build();
+        var ts = newSession();
         var api = new FakeTelegramApi();
         var settings = new SettingsManager(new AppConfig().withApiKey("openai", "sk-test"), c -> {});
         var chat = new TelegramChat(CHAT_ID, ts.session(), api, settings);
@@ -315,7 +341,7 @@ class TelegramChatFlowTest {
 
     @Test
     void pdfDocumentIsAcceptedAndStagedOnANonPdfModel() {
-        var ts = TestSession.in(tempDir).build();
+        var ts = newSession();
         ts.llm().provider("deepseek").model("deepseek-v4-pro"); // text-only model, can't read PDFs natively
         ts.llm().enqueue(FauxLlm.Response.contentWithUsage("ok"));
         var api = new FakeTelegramApi();
@@ -332,7 +358,7 @@ class TelegramChatFlowTest {
 
     @Test
     void audioFileIsSubmittedAsAttachmentOnAnAudioCapableModel() {
-        var ts = TestSession.in(tempDir).build();
+        var ts = newSession();
         ts.llm().provider("google").model("gemini-3.1-pro-preview"); // declares "audio" in the catalog
         ts.llm().enqueue(FauxLlm.Response.contentWithUsage("heard it"));
         var api = new FakeTelegramApi();
@@ -346,16 +372,11 @@ class TelegramChatFlowTest {
         assertEquals(1, u.attachments().size());
         assertEquals("audio/mpeg", u.attachments().getFirst().mime());
         assertFalse(api.sent().stream().anyMatch(s -> s.contains("can't read")), api.sent().toString());
-        // The message appearing in history is not the end of the work: downloadAndSubmit runs the whole turn on the
-        // common pool, and that turn keeps writing session files under tempDir. Returning here left JUnit deleting
-        // the directory underneath a live write, which is the "Failed to close extension context" this test threw
-        // intermittently under full-suite load and never in isolation.
-        Await.until(() -> !ts.session().isBusy(), Duration.ofSeconds(5), "the turn was still running at teardown");
     }
 
     @Test
     void voiceMessageIsRejectedOnATextOnlyModel() {
-        var ts = TestSession.in(tempDir).build();
+        var ts = newSession();
         ts.llm().provider("deepseek").model("deepseek-v4-pro"); // text-only, audio is disabled for it
         var api = new FakeTelegramApi();
         var chat = new TelegramChat(CHAT_ID, ts.session(), api, null);
