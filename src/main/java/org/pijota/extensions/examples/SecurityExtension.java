@@ -20,26 +20,59 @@ import java.util.regex.Pattern;
  */
 public final class SecurityExtension implements Extension {
 
-    private static final Pattern[] DANGEROUS_CMDS = {Pattern.compile("\\b(sudo|su|doas)\\b"),
-            Pattern.compile("\\brm\\s+.*(?:-[a-zA-Z]*[rR][a-zA-Z]*|--recursive|--dir)\\b"),
-            Pattern.compile("\\b(chmod|chown)\\b.*\\b777\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bchmod\\s+.*-R\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bchown\\s+.*-R\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\b(dd|mkfs|fdisk|wipefs|parted)\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\b(shutdown|reboot|halt|poweroff|init\\s+[06])\\b"),
-            Pattern.compile("\\bsystemctl\\s+(stop|disable|mask|halt|poweroff|reboot|kexec)\\b"),
-            Pattern.compile(":\\s*\\(\\s*\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*}\\s*;\\s*:"),
-            Pattern.compile("[0-9&]*>>?\\s*/dev/sd[a-z]"), Pattern.compile("\\bwget\\s+.*\\|\\s*(ba)?sh\\b"),
-            Pattern.compile("\\bcurl\\s+.*\\|\\s*(ba)?sh\\b"),
-            Pattern.compile("\\biptables\\s+-[ADIFXP]\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bnc\\s+.*-(l|e)\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\bgit\\s+(?:push\\s+.*--(?:force|-f)|reset\\s+--hard)\\b", Pattern.CASE_INSENSITIVE),};
+    /** A command shape worth stopping, and what to call it when explaining the block. */
+    private record Danger(Pattern pattern, String what) {
+    }
 
-    private static final String[] DANGEROUS_LABELS = {"privilege escalation (sudo/su/doas)", "recursive delete (rm -r)",
-            "world-writable perms (chmod/chown 777)", "recursive chmod", "recursive chown",
-            "disk destruction (dd/mkfs/fdisk/wipefs/parted)", "system shutdown/reboot", "systemctl destructive",
-            "fork bomb", "write to raw disk device", "pipe wget to shell", "pipe curl to shell",
-            "iptables modification", "netcat listen/exec", "destructive git (force push / hard reset)",};
+    /**
+     * One list, not two arrays in index lockstep.
+     *
+     * <p>
+     * The patterns and their names were parallel arrays walked by a shared index, in two separate scans. Adding a
+     * pattern without its label, or inserting one in the middle of one array only, mislabels every entry after it -- or
+     * throws -- and nothing says so until a real command matches. Pairing them makes the mistake unwritable, the same
+     * move the tunnel channels and the metadata types already use here.
+     */
+    private static final List<Danger> DANGERS = List.of(
+                                    new Danger(Pattern.compile("\\b(sudo|su|doas)\\b"),
+                                                                    "privilege escalation (sudo/su/doas)"),
+                                    new Danger(Pattern.compile("\\brm\\s+.*(?:-[a-zA-Z]*[rR][a-zA-Z]*|--recursive|--dir)\\b"),
+                                                                    "recursive delete (rm -r)"),
+                                    new Danger(Pattern.compile("\\b(chmod|chown)\\b.*\\b777\\b",
+                                                                    Pattern.CASE_INSENSITIVE),
+                                                                    "world-writable perms (chmod/chown 777)"),
+                                    new Danger(Pattern.compile("\\bchmod\\s+.*-R\\b", Pattern.CASE_INSENSITIVE),
+                                                                    "recursive chmod"),
+                                    new Danger(Pattern.compile("\\bchown\\s+.*-R\\b", Pattern.CASE_INSENSITIVE),
+                                                                    "recursive chown"),
+                                    new Danger(Pattern.compile("\\b(dd|mkfs|fdisk|wipefs|parted)\\b",
+                                                                    Pattern.CASE_INSENSITIVE),
+                                                                    "disk destruction (dd/mkfs/fdisk/wipefs/parted)"),
+                                    new Danger(Pattern.compile("\\b(shutdown|reboot|halt|poweroff|init\\s+[06])\\b"),
+                                                                    "system shutdown/reboot"),
+                                    new Danger(Pattern.compile("\\bsystemctl\\s+(stop|disable|mask|halt|poweroff|reboot|kexec)\\b"),
+                                                                    "systemctl destructive"),
+                                    new Danger(Pattern.compile(":\\s*\\(\\s*\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*}\\s*;\\s*:"),
+                                                                    "fork bomb"),
+                                    new Danger(Pattern.compile("[0-9&]*>>?\\s*/dev/sd[a-z]"),
+                                                                    "write to raw disk device"),
+                                    new Danger(Pattern.compile("\\bwget\\s+.*\\|\\s*(ba)?sh\\b"), "pipe wget to shell"),
+                                    new Danger(Pattern.compile("\\bcurl\\s+.*\\|\\s*(ba)?sh\\b"), "pipe curl to shell"),
+                                    new Danger(Pattern.compile("\\biptables\\s+-[ADIFXP]\\b", Pattern.CASE_INSENSITIVE),
+                                                                    "iptables modification"),
+                                    new Danger(Pattern.compile("\\bnc\\s+.*-(l|e)\\b", Pattern.CASE_INSENSITIVE),
+                                                                    "netcat listen/exec"),
+                                    new Danger(Pattern.compile("\\bgit\\s+(?:push\\s+.*--(?:force|-f)|reset\\s+--hard)\\b",
+                                                                    Pattern.CASE_INSENSITIVE),
+                                                                    "destructive git (force push / hard reset)"));
+
+    /** The first shape this command matches, or null when none does. Both callers ask the same question. */
+    private static Danger firstDanger(String command) {
+        for (var danger : DANGERS)
+            if (danger.pattern().matcher(command).find())
+                return danger;
+        return null;
+    }
 
     private static final Logger log = LoggerFactory.getLogger(SecurityExtension.class);
 
@@ -74,15 +107,11 @@ public final class SecurityExtension implements Extension {
             if (command == null)
                 return null;
 
-            for (int pi = 0; pi < DANGEROUS_CMDS.length; pi++) {
-                if (DANGEROUS_CMDS[pi].matcher(command).find()) {
-                    log.warn("security: blocked {} tool call -- {} in: {}", tc.toolName(), DANGEROUS_LABELS[pi],
-                                                    summarize(command));
-                    return new ExtensionResult.Block("Blocked by security: " + DANGEROUS_LABELS[pi] + " in: "
-                                                    + summarize(command));
-                }
-            }
-            return null;
+            var danger = firstDanger(command);
+            if (danger == null)
+                return null;
+            log.warn("security: blocked {} tool call -- {} in: {}", tc.toolName(), danger.what(), summarize(command));
+            return new ExtensionResult.Block("Blocked by security: " + danger.what() + " in: " + summarize(command));
         });
 
         api.onUserBash(ub -> {
@@ -92,31 +121,28 @@ public final class SecurityExtension implements Extension {
             if (command == null)
                 return ExtensionResult.UserBashResult.allow();
 
-            for (int pi = 0; pi < DANGEROUS_CMDS.length; pi++) {
-                if (DANGEROUS_CMDS[pi].matcher(command).find()) {
-                    if (runtime.ui() != null) {
-                        try {
-                            boolean ok = runtime.ui().confirm(Emojis.WARN + " Dangerous command:\n  " + command
-                                                            + "\n\nExecute anyway?").join();
-                            // The override is the line worth keeping. A block is the guard working and leaves the
-                            // machine as it was; an approved rm -rf is the one event you go looking for afterwards,
-                            // and it is the only one that leaves nothing else behind to find.
-                            log.warn("security: user {} {} in: {}", ok ? "ALLOWED" : "declined", DANGEROUS_LABELS[pi],
-                                                            summarize(command));
-                            if (!ok)
-                                return ExtensionResult.UserBashResult.block("Blocked by user");
-                            return ExtensionResult.UserBashResult.allow();
-                        } catch (Exception e) {
-                            return ExtensionResult.UserBashResult.block("Confirm failed: " + e.getMessage());
-                        }
-                    }
-                    log.warn("security: blocked user command with no UI to ask -- {} in: {}", DANGEROUS_LABELS[pi],
+            var danger = firstDanger(command);
+            if (danger == null)
+                return ExtensionResult.UserBashResult.allow();
+            if (runtime.ui() != null) {
+                try {
+                    boolean ok = runtime.ui().confirm(Emojis.WARN + " Dangerous command:\n  " + command
+                                                    + "\n\nExecute anyway?").join();
+                    // The override is the line worth keeping. A block is the guard working and leaves the machine as
+                    // it was; an approved rm -rf is the one event you go looking for afterwards, and it is the only
+                    // one that leaves nothing else behind to find.
+                    log.warn("security: user {} {} in: {}", ok ? "ALLOWED" : "declined", danger.what(),
                                                     summarize(command));
-                    return ExtensionResult.UserBashResult
-                                                    .block("Blocked by security: dangerous command (no UI available)");
+                    if (!ok)
+                        return ExtensionResult.UserBashResult.block("Blocked by user");
+                    return ExtensionResult.UserBashResult.allow();
+                } catch (Exception e) {
+                    return ExtensionResult.UserBashResult.block("Confirm failed: " + e.getMessage());
                 }
             }
-            return ExtensionResult.UserBashResult.allow();
+            log.warn("security: blocked user command with no UI to ask -- {} in: {}", danger.what(),
+                                            summarize(command));
+            return ExtensionResult.UserBashResult.block("Blocked by security: dangerous command (no UI available)");
         });
     }
 
