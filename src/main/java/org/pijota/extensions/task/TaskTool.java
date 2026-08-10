@@ -354,6 +354,40 @@ public final class TaskTool implements Tool, Tool.Detachable {
     // --- parallel mode ---
 
     @SuppressWarnings("unchecked")
+    /**
+     * One task of a parallel batch, on a pool thread. An unknown agent is a result rather than a throw: a sibling
+     * naming a typo must not take the whole batch down with it, and the batch's report names it.
+     */
+    private SubAgentResult runOneTask(Map<String, Object> task, int taskIdx, boolean useWorktree,
+                                    List<Path> worktrees) {
+        String agentId = (String) task.getOrDefault("agent", "");
+        String desc = (String) task.getOrDefault("description", task.getOrDefault("instructions", ""));
+        var agent = agents.stream().filter(a -> a.name().equalsIgnoreCase(agentId)).findFirst();
+        if (agent.isEmpty())
+            return new SubAgentResult(agentId, "", 1, 0, 0, null,
+                                            "Unknown agent: " + agentId + ". Available: " + agentList());
+        return agentRunner.run(agent.get(), desc, workDirFor(agent.get(), taskIdx, useWorktree, worktrees));
+    }
+
+    /**
+     * Where one task runs: its own worktree when asked for and one could be made, else the shared cwd.
+     *
+     * <p>
+     * Registered in {@code worktrees} before it is used, under that list's own lock, because the caller cleans up
+     * whatever is in there when the batch ends -- a worktree created and not recorded is one nothing ever removes.
+     */
+    private String workDirFor(SubAgent agent, int taskIdx, boolean useWorktree, List<Path> worktrees) {
+        if (!useWorktree)
+            return cwd.toString();
+        Path worktree = createWorktree(agent.name(), taskIdx);
+        if (worktree == null)
+            return cwd.toString();
+        synchronized (worktrees) {
+            worktrees.add(worktree);
+        }
+        return worktree.toString();
+    }
+
     private CompletableFuture<ToolResult> executeParallel(Map<String, Object> args) {
         inFlight = null; // a batch cannot be handed off: one process per hand-off, and siblings would be abandoned
         List<Map<String, Object>> tasks = (List<Map<String, Object>>) args.get("tasks");
@@ -372,26 +406,7 @@ public final class TaskTool implements Tool, Tool.Detachable {
         for (var task : tasks) {
             final int taskIdx = idx++;
             futures.add(CompletableFuture.runAsync(() -> {
-                String agentId = (String) task.getOrDefault("agent", "");
-                String desc = (String) task.getOrDefault("description", task.getOrDefault("instructions", ""));
-                var agent = agents.stream().filter(a -> a.name().equalsIgnoreCase(agentId)).findFirst();
-                SubAgentResult result;
-                if (agent.isPresent()) {
-                    String wd = cwd.toString();
-                    if (useWorktree) {
-                        Path wt = createWorktree(agent.get().name(), taskIdx);
-                        if (wt != null) {
-                            synchronized (worktrees) {
-                                worktrees.add(wt);
-                            }
-                            wd = wt.toString();
-                        }
-                    }
-                    result = agentRunner.run(agent.get(), desc, wd);
-                } else {
-                    result = new SubAgentResult(agentId, "", 1, 0, 0, null,
-                                                    "Unknown agent: " + agentId + ". Available: " + agentList());
-                }
+                var result = runOneTask(task, taskIdx, useWorktree, worktrees);
                 synchronized (results) {
                     results.add(result);
                 }
