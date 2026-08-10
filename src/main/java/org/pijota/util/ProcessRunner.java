@@ -152,6 +152,11 @@ public final class ProcessRunner {
         return this;
     }
 
+    /**
+     * Whether the child's stderr is drained and kept. On by default, which is why passing {@code true} is a no-op --
+     * three callers did, and read as though they were switching something on. {@link #discardStderr} is the off switch
+     * with a name.
+     */
     public ProcessRunner captureStderr(boolean capture) {
         this.captureStderr = capture;
         return this;

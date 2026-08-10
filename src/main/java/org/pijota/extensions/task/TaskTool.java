@@ -643,7 +643,7 @@ public final class TaskTool implements Tool, Tool.Detachable {
                                                         jobId[0] = jobs.register(proc, "task:" + label, null);
                                                         fireActivity(label, "job: " + jobId[0]);
                                                     }
-                                                }).captureStderr(true).run();
+                                                }).run();
             } finally {
                 Child started = child.get();
                 if (started != null)

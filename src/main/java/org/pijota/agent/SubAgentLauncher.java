@@ -53,8 +53,7 @@ public final class SubAgentLauncher {
         var lines = new ArrayList<String>();
         ProcessRunner.Result result = ProcessRunner.command(cmd).workDir(Path.of(spec.cwd()))
                                         .timeout(spec.timeout() != null ? spec.timeout() : Duration.ofMinutes(3))
-                                        .feedStdin(buildTaskJson(spec)).consumeStdoutLines(lines::add)
-                                        .captureStderr(true).run();
+                                        .feedStdin(buildTaskJson(spec)).consumeStdoutLines(lines::add).run();
         return resolveOutput(lines, result.exitCode(), result.stderr());
     }
 

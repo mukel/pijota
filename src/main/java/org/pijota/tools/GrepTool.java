@@ -217,8 +217,7 @@ public final class GrepTool implements Tool {
         command.add(searchPath.toString());
 
         var result = ProcessRunner.command(command).timeout(Duration.ofSeconds(timeoutSeconds))
-                                        .maxOutputBytes(MAX_CAPTURE_BYTES).captureStderr(true)
-                                        .onStart(p -> currentProcess = p).run();
+                                        .maxOutputBytes(MAX_CAPTURE_BYTES).onStart(p -> currentProcess = p).run();
 
         return new SearchResult(result.stdout(), result.stderr(), result.exitCode(), result.timedOut());
     }
