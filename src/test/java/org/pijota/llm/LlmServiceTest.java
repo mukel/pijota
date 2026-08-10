@@ -74,6 +74,29 @@ class LlmServiceTest {
         assertEquals(0, service.totalCacheWriteTokens(), "OpenAI-compatible caching has no separate write count");
     }
 
+    /**
+     * A cache hit is precisely the prompt the server did not process, so it cannot count toward prefill speed. The
+     * speed line read the provider's raw prompt_tokens while the usage conversion two lines above it had already netted
+     * the cached ones out -- so a reused KV cache divided a whole conversation's prompt by the fraction of a second the
+     * reuse took. Local servers show it worst because they reuse most aggressively.
+     */
+    @Test
+    void prefillSpeedCountsOnlyThePromptTheServerActuallyProcessed() {
+        var usage = OpenAiTokenUsage.builder().inputTokenCount(100_000).outputTokenCount(10).inputTokensDetails(
+                                        OpenAiTokenUsage.InputTokensDetails.builder().cachedTokens(99_900).build())
+                                        .build();
+        var service = serviceWithFake(new FakeModel().withContent("ok").withUsage(usage).withPrefillMillis(50));
+
+        service.streamMessages(List.of(new Message.User("hi")), List.of(), (ignoredChunk, ignoredType) -> {}).join();
+
+        var speed = service.lastRequestSpeed();
+        assertNotNull(speed, "a completed request must record its speed");
+        // 100 tokens over a 50ms stall is ~2000/s. Counting the 99,900 cached ones gives ~2,000,000/s, so any bound
+        // between them separates the two; 100,000 leaves room for a slow machine without admitting the bug.
+        assertTrue(speed.prefillTokensPerSec() < 100_000, "cached prompt counted as prefill work: "
+                                        + Math.round(speed.prefillTokensPerSec()) + " tok/s from 100 processed tokens");
+    }
+
     @Test
     void extractsCacheTokensFromAnthropicUsage() {
         var usage = AnthropicTokenUsage.builder().inputTokenCount(100).outputTokenCount(20).cacheReadInputTokens(4000)
@@ -377,6 +400,7 @@ class LlmServiceTest {
         private final List<ToolExecutionRequest> toolCalls = new ArrayList<>();
         private TokenUsage tokenUsage;
         private RuntimeException error;
+        private long prefillMillis; // held before the first token, so time-to-first-token is measurable
         private final List<FakeRequest> requests = new ArrayList<>();
 
         FakeModel withContent(String content) {
@@ -404,6 +428,12 @@ class LlmServiceTest {
             return this;
         }
 
+        /** Stalls before the first token, so a test can assert a prefill rate instead of dividing by ~0. */
+        FakeModel withPrefillMillis(long millis) {
+            this.prefillMillis = millis;
+            return this;
+        }
+
         FakeModel withError(RuntimeException error) {
             this.error = error;
             return this;
@@ -419,6 +449,13 @@ class LlmServiceTest {
             if (error != null) {
                 handler.onError(error);
                 return;
+            }
+            if (prefillMillis > 0) {
+                try {
+                    Thread.sleep(prefillMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
             for (String t : thinkingDeltas) {
                 handler.onPartialThinking(new PartialThinking(t), null);

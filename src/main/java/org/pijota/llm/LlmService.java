@@ -319,20 +319,30 @@ public final class LlmService implements LlmClient {
                 if (u != null)
                     result.setUsage(usageFrom(u));
                 usage.add(result.usage(), ModelRegistry.pricingFor(providerName, modelName));
-                recordSpeed(u);
+                recordSpeed(result.usage());
                 if (cancelRef != null)
                     cancelRef.set(null);
                 future.complete(result);
             }
 
-            // prefill = input tokens / time-to-first-token; decode = output tokens / generation time.
-            private void recordSpeed(TokenUsage u) {
+            /**
+             * prefill = prompt tokens actually processed / time-to-first-token; decode = output tokens / the rest.
+             *
+             * <p>
+             * Takes the converted {@link Usage}, not the provider's raw counts, because that conversion is where cached
+             * prompt tokens are already subtracted -- and a cache hit is precisely the prompt the server did not
+             * process. Reading the raw count divided a whole conversation's prompt by the fraction of a second a
+             * KV-cache reuse takes, which reads as hundreds of thousands of tokens a second. Local servers show it
+             * worst because they reuse the cache most aggressively, but any provider with prompt caching inflates the
+             * same way.
+             */
+            private void recordSpeed(Usage u) {
                 long completeNanos = System.nanoTime();
                 long ttft = firstTokenNanos == 0 ? completeNanos : firstTokenNanos;
                 double prefillSec = (ttft - streamStartNanos) / 1e9;
                 double decodeSec = (completeNanos - ttft) / 1e9;
-                int in = u != null && u.inputTokenCount() != null ? u.inputTokenCount() : 0;
-                int out = u != null && u.outputTokenCount() != null ? u.outputTokenCount() : 0;
+                long in = u != null ? u.inputTokens() : 0;
+                long out = u != null ? u.outputTokens() : 0;
                 double prefill = prefillSec > 0 ? in / prefillSec : 0;
                 double decode = decodeSec > 0 ? out / decodeSec : 0;
                 lastRequestSpeed = new LlmClient.RequestSpeed(prefill, decode);
