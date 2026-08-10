@@ -79,8 +79,10 @@ class TelegramChatFlowTest {
      */
     @AfterEach
     void letTurnsFinishBeforeTheTempDirGoes() {
-        for (var session : started)
+        for (var session : started) {
             Await.until(() -> !session.isBusy(), Duration.ofSeconds(5), "a turn was still running at teardown");
+            session.close(); // idle is not the same as finished: close so nothing can write after this point
+        }
     }
 
     @Test
