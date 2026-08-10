@@ -40,7 +40,7 @@ public final class SessionUsage {
     public static List<Breakdown> compactionBreakdown(List<Map<String, Object>> entries) {
         var totals = new Totals();
         for (var entry : entries) {
-            if (!"compaction".equals(entry.get("type")))
+            if (!"compaction".equals(SessionCodec.entryType(entry)))
                 continue;
             Usage usage = usageFrom(entry.get("usage"));
             if (usage != null)

@@ -155,7 +155,7 @@ public record SessionDescriptor(Path path, String id, String description, boolea
                 if ("user".equals(role) || "assistant".equals(role))
                     messages++;
                 // Tokens, however, include every message's content (tool results consume context too).
-                if (entry.get("content") instanceof String c)
+                if (SessionCodec.entryContent(entry) instanceof String c)
                     chars += c.length();
                 if (entry.get("thinking") instanceof String t)
                     chars += t.length();

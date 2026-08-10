@@ -295,7 +295,7 @@ public final class SessionManager {
             return null;
         T result = null;
         for (var entry : currentBranchEntries(sessionFile)) {
-            if (type.equals(entry.get("type"))) {
+            if (type.equals(SessionCodec.entryType(entry))) {
                 T mapped = mapper.apply(entry);
                 if (mapped != null || !keepPreviousOnNull)
                     result = mapped;
@@ -513,7 +513,7 @@ public final class SessionManager {
                 break;
             }
             path.add(entry);
-            currentId = (String) entry.get("parentId");
+            currentId = SessionCodec.parentId(entry);
         }
         Collections.reverse(path);
         return path;
