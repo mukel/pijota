@@ -328,68 +328,88 @@ final class SessionCommands {
         }
     }
 
+    /**
+     * Messages of one kind and what they are estimated to cost. A count and its token sum move together or the
+     * breakdown lies; as ten separate locals in five implicit pairs, incrementing one and forgetting the other was a
+     * single missed line away.
+     */
+    private record Bucket(int msgs, long tokens) {
+        static final Bucket EMPTY = new Bucket(0, 0);
+
+        Bucket plus(long more) {
+            return new Bucket(msgs + 1, tokens + more);
+        }
+    }
+
+    private record ContextTally(Bucket system, Bucket user, Bucket assistant, Bucket tool, Bucket summary) {
+        long messageTokens() {
+            return system.tokens() + user.tokens() + assistant.tokens() + tool.tokens() + summary.tokens();
+        }
+    }
+
+    /** Counts and sizes the context by kind, using the same per-message estimate the status line sums. */
+    private static ContextTally tally(List<Message> msgs) {
+        var tally = new ContextTally(Bucket.EMPTY, Bucket.EMPTY, Bucket.EMPTY, Bucket.EMPTY, Bucket.EMPTY);
+        for (var m : msgs) {
+            long t = CompactionManager.estimateTokens(m);
+            tally = switch (m) {
+                case Message.System ignored -> new ContextTally(tally.system().plus(t), tally.user(), tally.assistant(),
+                                                tally.tool(), tally.summary());
+                case Message.User ignored -> new ContextTally(tally.system(), tally.user().plus(t), tally.assistant(),
+                                                tally.tool(), tally.summary());
+                case Message.Assistant ignored -> new ContextTally(tally.system(), tally.user(),
+                                                tally.assistant().plus(t), tally.tool(), tally.summary());
+                case Message.ToolResult ignored -> new ContextTally(tally.system(), tally.user(), tally.assistant(),
+                                                tally.tool().plus(t), tally.summary());
+                case Message.CompactionSummary ignored -> new ContextTally(tally.system(), tally.user(),
+                                                tally.assistant(), tally.tool(), tally.summary().plus(t));
+                default -> tally;
+            };
+        }
+        return tally;
+    }
+
     void showContext() {
         var msgs = host.session().messages();
-        int systems = 0, users = 0, assistants = 0, tools = 0, compactions = 0;
-        long systemTok = 0, userTok = 0, assistantTok = 0, toolTok = 0, summaryTok = 0;
-        for (var m : msgs) {
-            long t = CompactionManager.estimateTokens(m); // the same per-message estimate the status line sums
-            switch (m) {
-                case Message.System s -> {
-                    systems++;
-                    systemTok += t;
-                }
-                case Message.User u -> {
-                    users++;
-                    userTok += t;
-                }
-                case Message.Assistant a -> {
-                    assistants++;
-                    assistantTok += t;
-                }
-                case Message.ToolResult tr -> {
-                    tools++;
-                    toolTok += t;
-                }
-                case Message.CompactionSummary cs -> {
-                    compactions++;
-                    summaryTok += t;
-                }
-                default -> {}
-            }
-        }
+        var tally = tally(msgs);
         // The status line's total is this message estimate plus the provider overhead the estimate can't see (system
         // prompt + tool schemas + tokenizer diff). Give that overhead its own row so the breakdown adds up to the one
-        // reported total, instead of the old second, smaller "est tokens" number that never matched it.
-        long messageTok = systemTok + userTok + assistantTok + toolTok + summaryTok;
-        long overhead = Math.max(0, host.session().estimatedContextTokens() - messageTok);
+        // reported total, instead of a second, smaller "est tokens" number that never matched it.
+        long overhead = Math.max(0, host.session().estimatedContextTokens() - tally.messageTokens());
 
         // "estimated" is said once in the header rather than on every row: the counts are what the eye is comparing,
         // and repeating the qualifier five times pushed them out of any column they could have been compared in.
         var report = new Report(host::styled, "context").chip(plural(msgs.size(), "msg")).chip(host.tokenStatus())
                                         .chip("estimated");
         report.row("auto-compact", host.settings() == null || host.settings().compactionEnabled() ? "on" : "off");
-        if (systems > 0)
-            report.cells("system", plural(systems, "msg"), fmtCount((int) systemTok), "tokens");
-        report.cells("user", plural(users, "msg"), fmtCount((int) userTok), "tokens");
-        report.cells("assistant", plural(assistants, "msg"), fmtCount((int) assistantTok), "tokens");
-        report.cells("tool", plural(tools, "msg"), fmtCount((int) toolTok), "tokens");
-        if (compactions > 0)
-            report.cells("summaries", plural(compactions, "msg"), fmtCount((int) summaryTok), "tokens");
+        if (tally.system().msgs() > 0)
+            row(report, "system", tally.system());
+        row(report, "user", tally.user());
+        row(report, "assistant", tally.assistant());
+        row(report, "tool", tally.tool());
+        if (tally.summary().msgs() > 0)
+            row(report, "summaries", tally.summary());
         if (overhead > 0)
             report.cells("overhead", "", fmtCount((int) overhead), "tokens  system prompt + tools");
         var lines = report.render();
-        if (compactions > 0) {
-            for (var m : msgs) {
-                if (m instanceof Message.CompactionSummary cs) {
-                    lines.add(host.styled("hr", "─".repeat(40)));
-                    lines.add(host.styled("statusText", "  last summary:"));
-                    for (String line : cs.summary().lines().toList())
-                        lines.add(host.styled("statusText", "  " + line));
-                }
+        if (tally.summary().msgs() > 0)
+            appendLastSummary(lines, msgs);
+        host.appendPlain(lines);
+    }
+
+    private static void row(Report report, String label, Bucket bucket) {
+        report.cells(label, plural(bucket.msgs(), "msg"), fmtCount((int) bucket.tokens()), "tokens");
+    }
+
+    private void appendLastSummary(List<String> lines, List<Message> msgs) {
+        for (var m : msgs) {
+            if (m instanceof Message.CompactionSummary cs) {
+                lines.add(host.styled("hr", "─".repeat(40)));
+                lines.add(host.styled("statusText", "  last summary:"));
+                for (String line : cs.summary().lines().toList())
+                    lines.add(host.styled("statusText", "  " + line));
             }
         }
-        host.appendPlain(lines);
     }
 
 }
