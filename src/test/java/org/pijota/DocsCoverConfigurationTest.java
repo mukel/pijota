@@ -64,6 +64,28 @@ class DocsCoverConfigurationTest {
         return docs.contains("`" + key + "`") || docs.contains("." + key + "`") || docs.contains("\"" + key + "\"");
     }
 
+    /**
+     * A count written into prose is a fact maintained by hope. AGENTS.md states how many models and providers ship, and
+     * adding three models to two providers made it wrong the same afternoon -- silently, because nothing reads it.
+     * Either the number goes or it gets checked; it is genuinely useful for scale, so it gets checked.
+     */
+    @Test
+    void theCountsInTheProjectReferenceAreStillTrue() throws IOException {
+        String reference = Files.readString(Path.of("AGENTS.md"), StandardCharsets.UTF_8);
+
+        // The bundled files themselves, because that is what the reference names -- not the live registry, which a
+        // user's own providers and a --refresh both add to.
+        int models = Util.MAPPER.readTree(Path.of("src/main/resources/models.json").toFile()).get("models").size();
+        int providers = Util.MAPPER.readTree(Path.of("src/main/resources/providers.json").toFile()).get("providers")
+                                        .size();
+
+        assertTrue(reference.contains("(" + models + " models)"),
+                                        "AGENTS.md no longer states models.json's " + models + " models");
+        assertTrue(reference.contains(providers + " provider configurations"),
+                                        "AGENTS.md no longer states providers.json's " + providers
+                                                                        + " provider configurations");
+    }
+
     /** A provider nobody documents is a provider nobody finds. */
     @Test
     void everyBuiltInProviderIsDocumented() throws IOException {

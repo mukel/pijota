@@ -71,7 +71,7 @@ src/test/                    tests mirroring main structure
 
 - `pom.xml`: Maven build with native-image, fat jar, and static profiles
 - `Makefile`: dev-loop convenience (build, test, run, native, format)
-- `src/main/resources/models.json`: model registry (53 models)
+- `src/main/resources/models.json`: model registry (59 models)
 - `src/main/resources/providers.json`: 23 provider configurations
 - `eclipse-formatter.xml`: code style (Spotless)
 
