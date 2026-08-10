@@ -15,6 +15,29 @@ import java.util.function.Function;
 
 public final class RpcMode {
 
+    /**
+     * One prompt, bracketed by notifications so a client can show progress before the answer exists.
+     *
+     * <p>
+     * A failure is reported twice on purpose: once as {@code prompt_error} so the client can stop waiting on this id,
+     * and then rethrown, because the loop's own handler is what turns it into the JSON-RPC error response. Reporting
+     * only one of the two leaves either a client hanging or a protocol error with no id attached to it.
+     */
+    private static void runPrompt(Writer writer, Function<String, CompletableFuture<List<Message>>> handler,
+                                    RpcRequest request, String id) throws Exception {
+        writeNotification(writer, "prompt_start", "{\"id\":" + jsonId(id) + "}");
+        writer.flush();
+        try {
+            var result = handler.apply(request.params()).get();
+            writeNotification(writer, "prompt_end", "{\"id\":" + jsonId(id) + "}");
+            writeResponse(writer, id, "\"" + Util.escapeJson(responseContent(result)) + "\"");
+        } catch (Exception e) {
+            writeNotification(writer, "prompt_error", "{\"id\":" + jsonId(id) + ",\"message\":\""
+                                            + Util.escapeJson(e.getMessage()) + "\"}");
+            throw e;
+        }
+    }
+
     public static void run(Function<String, CompletableFuture<List<Message>>> handler) {
         var reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         var writer = new OutputStreamWriter(System.out, StandardCharsets.UTF_8);
@@ -38,19 +61,7 @@ public final class RpcMode {
                 String id = request.id();
 
                 switch (method) {
-                    case "prompt" -> {
-                        writeNotification(writer, "prompt_start", "{\"id\":" + jsonId(id) + "}");
-                        writer.flush();
-                        try {
-                            var result = handler.apply(request.params()).get();
-                            writeNotification(writer, "prompt_end", "{\"id\":" + jsonId(id) + "}");
-                            writeResponse(writer, id, "\"" + Util.escapeJson(responseContent(result)) + "\"");
-                        } catch (Exception e) {
-                            writeNotification(writer, "prompt_error", "{\"id\":" + jsonId(id) + ",\"message\":\""
-                                                            + Util.escapeJson(e.getMessage()) + "\"}");
-                            throw e;
-                        }
-                    }
+                    case "prompt" -> runPrompt(writer, handler, request, id);
                     case "ping" -> writeResponse(writer, id, "\"pong\"");
                     case "shutdown" -> {
                         writeResponse(writer, id, "null");
