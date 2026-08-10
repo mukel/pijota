@@ -61,7 +61,7 @@ class AppendOnlyTuiTest {
      */
     @Test
     void ctrlZStopsTheSupervisorBeforeItself() {
-        assertEquals(List.of("kill", "-TSTP", "111", "222"), AppendOnlyTui.suspendCommand(Optional.of(111L), 222L));
+        assertEquals(List.of("kill", "-TSTP", "111", "222"), JobControl.suspendCommand(Optional.of(111L), 222L));
     }
 
     /**
@@ -70,7 +70,7 @@ class AppendOnlyTuiTest {
      */
     @Test
     void ctrlZStopsOnlyItselfWhenNothingIsSupervisingIt() {
-        assertEquals(List.of("kill", "-TSTP", "222"), AppendOnlyTui.suspendCommand(Optional.empty(), 222L));
+        assertEquals(List.of("kill", "-TSTP", "222"), JobControl.suspendCommand(Optional.empty(), 222L));
         // And that is what the real lookup answers in any process no supervisor started, this test JVM included.
         assertTrue(ParentWatch.supervisor().isEmpty(), "nothing supervises a test run");
     }
