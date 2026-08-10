@@ -3,6 +3,7 @@ package org.pijota.tui;
 import org.pijota.agent.AgentEvent;
 import org.pijota.agent.ChildEnvironment;
 import org.pijota.agent.PijotaSession;
+import org.pijota.agent.SessionCodec;
 import org.pijota.agent.SessionDescriptor;
 import org.pijota.config.PathDisplay;
 import org.pijota.config.PromptGlyphs;
@@ -2261,8 +2262,8 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         String leaf = session.leafId();
         var items = new ArrayList<TreeEntryItem>();
         for (var entry : entries) {
-            String id = String.valueOf(entry.getOrDefault("id", ""));
-            if (!id.isBlank() && !TreeEntryItem.isInternalMetadata(entry))
+            String id = SessionCodec.entryId(entry);
+            if (id != null && !TreeEntryItem.isInternalMetadata(entry))
                 items.add(TreeEntryItem.from(entry, id.equals(leaf)));
         }
         if (items.isEmpty())
