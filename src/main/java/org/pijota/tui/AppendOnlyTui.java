@@ -18,6 +18,7 @@ import org.pijota.llm.ModelInfo;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.llm.ThinkingLevel;
 import org.pijota.messages.Message;
+import org.pijota.messages.Usage;
 import org.pijota.modes.SlashCommand;
 import org.pijota.theme.AnsiTheme;
 import org.pijota.tools.SlashCommandTool;
@@ -2267,148 +2268,161 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
+    private void onTurnStart() {
+        inFlight.clearTools(); // evict any leftovers from a prior interrupted/aborted turn
+        interruptedCalls.clear();
+        promptEditor.clearOffer(); // a suggestion described the conversation as it stood before this turn
+        streamRenderer.reset();
+        streamingContent = false;
+        activity.setPhase("waiting for model");
+        redrawPrompt();
+    }
+
+    private void onAssistantMessage(Message.Assistant msg, Usage usage) {
+        if (usage == null)
+            activity.setPhase(null);
+        streamingContent = usage == null; // reserve the live-tail row for the whole streaming turn
+        String content = msg.content() == null ? "" : msg.content();
+        boolean committed = false;
+        if (msg.thinking() != null && !msg.thinking().isBlank()) {
+            if (showThinking())
+                committed = streamRenderer.streamThinking(msg.thinking());
+            else
+                streamRenderer.recordThinking(msg.thinking()); // closeThinking explains the pause with ∴
+        }
+        // Assistant messages always stream. Message renderers apply to custom messages (handled by the
+        // CustomMessage case below), and never to assistant content, so they must not disable streaming.
+        committed = streamRenderer.streamContent(content) || committed;
+        if (usage != null) {
+            streamRenderer.closeThinking();
+            streamRenderer.flush();
+            redrawPrompt(); // final frame: clears the now-committed tail, unthrottled
+        } else if (committed) {
+            // A line just committed: a full redraw keeps the committed line and the region (with the refreshed
+            // tail) in one consistent frame; otherwise the stale tail makes the prompt jitter up then down.
+            redrawPrompt();
+        } else {
+            redrawStreamTail(); // live preview of the in-progress line, ~30fps
+        }
+    }
+
+    private void onToolStart(String name, String toolCallId, Supplier<String> args) {
+        streamingContent = false;
+        streamRenderer.closeThinking();
+        streamRenderer.flush();
+        if (toolCallId != null)
+            // The running-tool tail draws this detail, and it is built from arguments the model chose.
+            inFlight.toolStarted(toolCallId, name, TerminalText.printable(ToolLabels.detail(name, args, rawCwd,
+                                            settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
+                                            ToolLabels.FULL_COMMAND)), args, System.currentTimeMillis());
+        pendingEdit.onToolStart(name, args);
+        // No phase: the running-tool tail one row up already names the tool, with its arguments and its own
+        // elapsed. "tool bash" beside it was the same word twice with two timers of different scope between
+        // them, which reads as two things running.
+        activity.setPhase(null);
+        if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)
+                                        && pendingEdit.newText() != null
+                                        && !pendingEdit.oldText().equals(pendingEdit.newText())) {
+            appendPlain(new DiffRenderer(theme).render("edit preview", pendingEdit.filePath(), pendingEdit.oldText(),
+                                            pendingEdit.newText(), terminal.getWidth()));
+            pendingEdit.setPreviewShown(true);
+        }
+        redrawPrompt();
+    }
+
+    private void onToolResult(Message.ToolResult msg) {
+        streamRenderer.flush();
+        pendingEdit.onToolResult(isEditWrite(msg), msg.isError());
+        if (msg.toolCallId() != null && interruptedCalls.remove(msg.toolCallId()))
+            return; // already reported as interrupted; its exit-143 result would say the same thing twice
+        InFlight.Tool started = inFlight.toolFinished(msg.toolCallId());
+        Supplier<String> args = started != null ? started.args() : null;
+        long elapsedMs = started != null ? System.currentTimeMillis() - started.startedAtMs() : 0;
+        Tool.ToolResultView rendered = renderToolResultView(msg);
+        if (isEditWrite(msg)) {
+            // The TUI renders the diff itself (the preview above, or the DiffRenderer below). Drop the tool
+            // view's own diff body so the change isn't shown twice; keep only its one-line summary.
+            if (rendered != null)
+                rendered = Tool.ToolResultView.of(rendered.summary());
+            if (pendingEdit.hasEditResult() && !pendingEdit.previewShown())
+                appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
+                                                pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
+        }
+        String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse(ToolGlyphs.AGENT);
+        appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
+                                        settings != null ? settings.pathDisplay() : PathDisplay.COMPACT, elapsedMs,
+                                        glyph, blockWidth()));
+        streamRenderer.separateNextContent(); // the answer resumes with one blank line of air
+        pendingEdit.clear();
+    }
+
+    private void onCompaction(AgentEvent.Compaction c) {
+        int remaining = c.compactedMessages().size();
+        int removed = c.oldCount() - remaining;
+        int estTokens = c.estimatedTokens();
+        String reason = c.reason() != null && !c.reason().isBlank() ? " · " + c.reason() : "";
+        if (!streamRenderer.compactionStreamRendered() && c.summary() != null && !c.summary().isBlank()) {
+            streamRenderer.renderCompactionSummary(c.summary());
+        }
+        appendPlain(List.of(theme.styled("statusText", "[compacted] " + c.oldCount() + " → " + remaining + " msgs"
+                                        + " · ~" + fmtCount(estTokens) + " tokens" + reason)));
+        streamRenderer.clearCompactionStream();
+    }
+
+    private void onCustomMessage(Message.Custom custom) {
+        // (see customMessageLines)
+        streamRenderer.flush();
+        // Some custom entries are state snapshots persisted for reload (e.g. goal status), shown via a status
+        // line rather than the transcript; skip them so they don't print once per state change.
+        if (!custom.isSilent()) {
+            if (session.extensionRegistry().hasMessageRenderers()) {
+                var rendered = session.extensionRegistry().renderMessage(custom);
+                if (rendered.isPresent()) {
+                    appendPlain(List.of(theme.styled("customMessageLabel", custom.customType())));
+                    appendPlain(rendered.get());
+                } else {
+                    appendPlain(customMessageLines(custom));
+                }
+            } else {
+                appendPlain(customMessageLines(custom));
+            }
+        }
+        redrawPrompt();
+    }
+
+    private void onError(Throwable t) {
+        closeAbandonedTools();
+        String msg = ErrorUtil.message(t);
+        appendPlain(List.of(theme.styled("toolError", "error: " + msg)));
+        // A bad credential is a dead end the user can fix in one command; say which one.
+        String lower = msg == null ? "" : msg.toLowerCase(Locale.ROOT);
+        if (lower.contains("api key") || lower.contains("unauthorized") || lower.contains("invalid_api_key")
+                                        || lower.contains("authentication"))
+            appendPlain(List.of(theme.styled("statusText",
+                                            "run /login " + session.llm().provider() + " to update the key")));
+    }
+
     private void onEvent(AgentEvent event) {
         switch (event) {
-            case AgentEvent.TurnStart ignored -> {
-                inFlight.clearTools(); // evict any leftovers from a prior interrupted/aborted turn
-                interruptedCalls.clear();
-                promptEditor.clearOffer(); // a suggestion described the conversation as it stood before this turn
-                streamRenderer.reset();
-                streamingContent = false;
-                activity.setPhase("waiting for model");
-                redrawPrompt();
-            }
+            case AgentEvent.TurnStart ignored -> onTurnStart();
             // The one signal that says the model is still producing rather than merely still connected. Text and
             // thinking already grow on screen; a tool call's arguments used to arrive with nothing to show for them.
             case AgentEvent.ToolCallProgress(String toolName, int chars) -> {
                 activity.setPhase(TuiCopy.toolProgress(toolName, chars));
                 redrawPrompt();
             }
-            case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> {
-                if (usage == null)
-                    activity.setPhase(null);
-                streamingContent = usage == null; // reserve the live-tail row for the whole streaming turn
-                String content = msg.content() == null ? "" : msg.content();
-                boolean committed = false;
-                if (msg.thinking() != null && !msg.thinking().isBlank()) {
-                    if (showThinking())
-                        committed = streamRenderer.streamThinking(msg.thinking());
-                    else
-                        streamRenderer.recordThinking(msg.thinking()); // closeThinking explains the pause with ∴
-                }
-                // Assistant messages always stream. Message renderers apply to custom messages (handled by the
-                // CustomMessage case below), and never to assistant content, so they must not disable streaming.
-                committed = streamRenderer.streamContent(content) || committed;
-                if (usage != null) {
-                    streamRenderer.closeThinking();
-                    streamRenderer.flush();
-                    redrawPrompt(); // final frame: clears the now-committed tail, unthrottled
-                } else if (committed) {
-                    // A line just committed: a full redraw keeps the committed line and the region (with the refreshed
-                    // tail) in one consistent frame; otherwise the stale tail makes the prompt jitter up then down.
-                    redrawPrompt();
-                } else {
-                    redrawStreamTail(); // live preview of the in-progress line, ~30fps
-                }
-            }
-            case AgentEvent.ToolStart(var name, var toolCallId, var args) -> {
-                streamingContent = false;
-                streamRenderer.closeThinking();
-                streamRenderer.flush();
-                if (toolCallId != null)
-                    // The running-tool tail draws this detail, and it is built from arguments the model chose.
-                    inFlight.toolStarted(toolCallId, name, TerminalText.printable(ToolLabels.detail(name, args, rawCwd,
-                                                    settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
-                                                    ToolLabels.FULL_COMMAND)), args, System.currentTimeMillis());
-                pendingEdit.onToolStart(name, args);
-                // No phase: the running-tool tail one row up already names the tool, with its arguments and its own
-                // elapsed. "tool bash" beside it was the same word twice with two timers of different scope between
-                // them, which reads as two things running.
-                activity.setPhase(null);
-                if (pendingEdit.hasPath() && pendingEdit.oldText() != null && "edit".equals(name)
-                                                && pendingEdit.newText() != null
-                                                && !pendingEdit.oldText().equals(pendingEdit.newText())) {
-                    appendPlain(new DiffRenderer(theme).render("edit preview", pendingEdit.filePath(),
-                                                    pendingEdit.oldText(), pendingEdit.newText(), terminal.getWidth()));
-                    pendingEdit.setPreviewShown(true);
-                }
-                redrawPrompt();
-            }
-            case AgentEvent.ToolResult(Message.ToolResult msg) -> {
-                streamRenderer.flush();
-                pendingEdit.onToolResult(isEditWrite(msg), msg.isError());
-                if (msg.toolCallId() != null && interruptedCalls.remove(msg.toolCallId()))
-                    break; // already reported as interrupted; its exit-143 result would say the same thing twice
-                InFlight.Tool started = inFlight.toolFinished(msg.toolCallId());
-                Supplier<String> args = started != null ? started.args() : null;
-                long elapsedMs = started != null ? System.currentTimeMillis() - started.startedAtMs() : 0;
-                Tool.ToolResultView rendered = renderToolResultView(msg);
-                if (isEditWrite(msg)) {
-                    // The TUI renders the diff itself (the preview above, or the DiffRenderer below). Drop the tool
-                    // view's own diff body so the change isn't shown twice; keep only its one-line summary.
-                    if (rendered != null)
-                        rendered = Tool.ToolResultView.of(rendered.summary());
-                    if (pendingEdit.hasEditResult() && !pendingEdit.previewShown())
-                        appendPlain(new DiffRenderer(theme).render(msg.toolName(), pendingEdit.filePath(),
-                                                        pendingEdit.oldText(), pendingEdit.newText(),
-                                                        terminal.getWidth()));
-                }
-                String glyph = session.tool(msg.toolName()).map(Tool::glyph).orElse(ToolGlyphs.AGENT);
-                appendPlain(ToolResultLines.compose(msg, rendered, args, theme, rawCwd,
-                                                settings != null ? settings.pathDisplay() : PathDisplay.COMPACT,
-                                                elapsedMs, glyph, blockWidth()));
-                streamRenderer.separateNextContent(); // the answer resumes with one blank line of air
-                pendingEdit.clear();
-            }
-            case AgentEvent.Compaction c -> {
-                int remaining = c.compactedMessages().size();
-                int removed = c.oldCount() - remaining;
-                int estTokens = c.estimatedTokens();
-                String reason = c.reason() != null && !c.reason().isBlank() ? " · " + c.reason() : "";
-                if (!streamRenderer.compactionStreamRendered() && c.summary() != null && !c.summary().isBlank()) {
-                    streamRenderer.renderCompactionSummary(c.summary());
-                }
-                appendPlain(List.of(theme.styled("statusText", "[compacted] " + c.oldCount() + " → " + remaining
-                                                + " msgs" + " · ~" + fmtCount(estTokens) + " tokens" + reason)));
-                streamRenderer.clearCompactionStream();
-            }
+            case AgentEvent.AssistantMessage(Message.Assistant msg, var usage) -> onAssistantMessage(msg, usage);
+            case AgentEvent.ToolStart(var name, var toolCallId, var args) -> onToolStart(name, toolCallId, args);
+            case AgentEvent.ToolResult(Message.ToolResult msg) -> onToolResult(msg);
+            case AgentEvent.Compaction c -> onCompaction(c);
             case AgentEvent.CompactionStream stream -> streamRenderer.renderCompactionStream(stream.content());
             case AgentEvent.CompactionStreamEnd ignored -> {
                 streamRenderer.flush();
                 streamRenderer.reset();
             }
-            case AgentEvent.CustomMessage(Message.Custom custom) -> {
-                // (see customMessageLines)
-                streamRenderer.flush();
-                // Some custom entries are state snapshots persisted for reload (e.g. goal status), shown via a status
-                // line rather than the transcript; skip them so they don't print once per state change.
-                if (!custom.isSilent()) {
-                    if (session.extensionRegistry().hasMessageRenderers()) {
-                        var rendered = session.extensionRegistry().renderMessage(custom);
-                        if (rendered.isPresent()) {
-                            appendPlain(List.of(theme.styled("customMessageLabel", custom.customType())));
-                            appendPlain(rendered.get());
-                        } else {
-                            appendPlain(customMessageLines(custom));
-                        }
-                    } else {
-                        appendPlain(customMessageLines(custom));
-                    }
-                }
-                redrawPrompt();
-            }
+            case AgentEvent.CustomMessage(Message.Custom custom) -> onCustomMessage(custom);
             case AgentEvent.TurnEnd ignored -> closeAbandonedTools();
-            case AgentEvent.Error(Throwable t) -> {
-                closeAbandonedTools();
-                String msg = ErrorUtil.message(t);
-                appendPlain(List.of(theme.styled("toolError", "error: " + msg)));
-                // A bad credential is a dead end the user can fix in one command; say which one.
-                String lower = msg == null ? "" : msg.toLowerCase(Locale.ROOT);
-                if (lower.contains("api key") || lower.contains("unauthorized") || lower.contains("invalid_api_key")
-                                                || lower.contains("authentication"))
-                    appendPlain(List.of(theme.styled("statusText",
-                                                    "run /login " + session.llm().provider() + " to update the key")));
-            }
+            case AgentEvent.Error(Throwable t) -> onError(t);
             case AgentEvent.Retry(int attempt, int maxAttempts, long delayMs, String why) ->
                 appendPlain(List.of(theme.styled("statusText", Util.retryLine(attempt, maxAttempts, delayMs, why))));
             case AgentEvent.HistoryChanged ignored -> seedPromptHistoryFromSession(); // /load, /new, /undo, /fork
