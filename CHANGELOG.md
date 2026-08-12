@@ -26,7 +26,7 @@ now, not the ones the catalog guessed.
 - **Retries are visible.** When a request is retried, the agent says so instead of silently
   waiting out the backoff.
 - **`editor` and `proxy` settings**, explicit before ambient: the `editor` key names the
-  command `Ctrl+E` opens, and `proxy` sits between `-Dpijota.proxy` / `PIJOTA_PROXY` and
+  command `Ctrl+G` opens, and `proxy` sits between `-Dpijota.proxy` / `PIJOTA_PROXY` and
   `HTTPS_PROXY` in precedence.
 - **Usage errors, a help that fits, a resize that repaints.** Bad flags fail with the flag
   named, `--help` fits an 80-column terminal, and narrowing the window repaints the rules
@@ -41,9 +41,9 @@ now, not the ones the catalog guessed.
 - **Every user message is persisted, not only the typed one.** A piped prompt used to reach
   the agent loop without ever being written to disk, so a resumed session had the model
   talking to itself.
-- **Ctrl+C stops the turn, not the program** -- the quit offer is gone -- and **Ctrl+Z stops
-  the supervisor too**, not just the worker it started. A supervised worker can no longer
-  outlive the supervisor that spawned it.
+- **Esc stops the turn, not the program.** The Ctrl+C hint that read as the way to stop what
+  is running is gone -- and **Ctrl+Z stops the supervisor too**, not just the worker it
+  started. A supervised worker can no longer outlive the supervisor that spawned it.
 - **Sub-agents got an absolute classpath**, so a `task` spawned from a relative launch no
   longer fails to find its own tools.
 - **The status bar stopped twitching** as the token count filled, and a dead terminal leaves

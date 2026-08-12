@@ -204,7 +204,7 @@ trust the folder.
 
 Extensions add capabilities to Pijota. Some add tools the model can call; others add slash commands, prompt context, keybindings, status lines, renderers, or safety policies.
 
-Built-in extensions cover browsing, background jobs, tmux, todos, token speed, skills, prompt templates, context files, and transcendence. User extensions are loaded from `~/.pijota/extensions`, explicit `--extension <path>` arguments, and trusted project extension directories.
+Built-in extensions cover browsing, background jobs, message suggestions, tmux, todos, token speed, model info, skills, prompt templates, context files, and transcendence. User extensions are loaded from `~/.pijota/extensions`, explicit `--extension <path>` arguments, and trusted project extension directories.
 
 Disable all extensions with `--no-extensions`, or only shipped extensions with `--no-builtin-extensions`. Individual extensions use `--name` / `--no-name`, for example `--todo` or `--no-todo`.
 
