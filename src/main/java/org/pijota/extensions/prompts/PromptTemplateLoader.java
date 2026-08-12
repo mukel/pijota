@@ -40,7 +40,7 @@ public final class PromptTemplateLoader {
         return new ArrayList<>(templates.values());
     }
 
-    /** Replace shell-style variables: $1..$9, $@, $ARGUMENTS, defaults, ${@:N}, ${@:N:L}. */
+    /** Replace shell-style variables: {@code $1..$9, $@, $ARGUMENTS}, defaults, {@code ${@:N}}, {@code ${@:N:L}}. */
     public static String expand(String content, String[] args) {
         String expanded = content;
 

@@ -32,7 +32,7 @@ make acp-smoke                     # editor-protocol client against `pj acp`
 
 ## Publish
 
-- Create and push a release tag matching the pom version, for example `v0.2.0`.
+- Create and push a release tag matching the pom version, for example `v0.2.1`.
 - Deploy with the `release` profile and Central credentials.
 - Choose the intended Central publishing mode in Sonatype Central Portal.
 - Wait for Maven Central sync.
@@ -40,13 +40,13 @@ make acp-smoke                     # editor-protocol client against `pj acp`
 ## After Sync
 
 ```bash
-jbang app install --name pj org.pijota:pijota:0.2.0
+jbang app install --name pj org.pijota:pijota:0.2.1
 pj --version
 ```
 
 For native JBang install:
 
 ```bash
-jbang app install --native --name pj org.pijota:pijota:0.2.0
+jbang app install --native --name pj org.pijota:pijota:0.2.1
 pj --version
 ```

@@ -116,7 +116,7 @@
       "apiType": "anthropic",
       "baseUrl": "https://api.kimi.com/coding/v1",
       "env": ["KIMI_API_KEY"],
-      "defaultModel": "k2p7",
+      "defaultModel": "k3-256k",
       "headers": {
         "User-Agent": "KimiCLI/1.5"
       }

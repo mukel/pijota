@@ -1,5 +1,72 @@
 # Changelog
 
+## v0.2.1
+
+125 commits since v0.2.0: 50 fixes, 10 features. The theme of the release is that the
+session leaves the terminal: your live conversation can be driven from a phone or a browser,
+and the numbers the agent works with -- context windows, retries, limits -- are the real ones
+now, not the ones the catalog guessed.
+
+### Features
+
+- **`/remote-control`** puts the live session behind a channel of your choosing instead of
+  starting a new one: a Tailscale URL for your devices only (foreground `tailscale serve`
+  child, dies with pijota), a `cloudflared` quick tunnel for a public `trycloudflare.com`
+  URL, the Telegram bot, or a LAN web bind. The web and Telegram channels share one startup
+  path, and each tunnel carries its own bind host, banner and diagnostics.
+- **The catalog tells the truth about context.** Pijota reads the context length a provider
+  reports, resolves a local server's window live instead of from a stale cache, and a bare
+  `--provider` means that provider's default model. GPT-5.6 Sol, Terra and Luna and Kimi K3
+  256K joined the catalog, and a one-million-token window is spelled `1M` in the status bar
+  too.
+- **Compaction at an absolute token ceiling.** Compaction now fires against a ceiling you can
+  set, not only just under the context limit, and it stops retrying an overflow that
+  compaction cannot fix. The context anchor invalidates itself when the history it measured
+  is gone, so `/undo` and `/compact` can no longer leave a stale measurement behind.
+- **Retries are visible.** When a request is retried, the agent says so instead of silently
+  waiting out the backoff.
+- **`editor` and `proxy` settings**, explicit before ambient: the `editor` key names the
+  command `Ctrl+E` opens, and `proxy` sits between `-Dpijota.proxy` / `PIJOTA_PROXY` and
+  `HTTPS_PROXY` in precedence.
+- **Usage errors, a help that fits, a resize that repaints.** Bad flags fail with the flag
+  named, `--help` fits an 80-column terminal, and narrowing the window repaints the rules
+  instead of threading blank rows through the transcript.
+- **Security verdicts are logged.** Every decision on a dangerous command goes to the log,
+  and `/export` redacts credentials on the way out.
+
+### Fixes worth naming
+
+- **One bad byte no longer costs a whole conversation.** A corrupt session entry is skipped
+  instead of failing the open, and session writes fsync what nobody can reproduce.
+- **Every user message is persisted, not only the typed one.** A piped prompt used to reach
+  the agent loop without ever being written to disk, so a resumed session had the model
+  talking to itself.
+- **Ctrl+C stops the turn, not the program** -- the quit offer is gone -- and **Ctrl+Z stops
+  the supervisor too**, not just the worker it started. A supervised worker can no longer
+  outlive the supervisor that spawned it.
+- **Sub-agents got an absolute classpath**, so a `task` spawned from a relative launch no
+  longer fails to find its own tools.
+- **The status bar stopped twitching** as the token count filled, and a dead terminal leaves
+  quietly instead of letting Shift+Tab rewrite `settings.json` on the way out.
+- **The web UI streams events over POST**, so a buffering tunnel can no longer stall the
+  chat, and the 128KB flush pad that papered over it is gone.
+- **A goal loop stopped queueing the same re-prompt two dozen times**, and `--export` takes
+  a session id and names the session it exported.
+
+### Polish
+
+The TUI was decomposed into named pieces -- keys as data, one class for "what is running
+right now", the input loop reading as a loop, every agent event answered in one line -- and
+the confirm keys live on the question, not in the warning slot. Two perf passes: pijota
+stopped resolving a provider's name on every launch, and the web SSE buffer is scanned once
+instead of once per chunk.
+
+### Removed
+
+- **Plan mode is now an example extension**, off unless asked (`--plan`). It stopped
+  throwing away the prompt cache on entry and gives back the tools it borrowed on exit, but
+  it is a pattern to copy, not a feature to ship.
+
 ## v0.2.0
 
 159 commits since v0.1.0: 69 fixes, 28 polish passes, 19 features. The theme of

@@ -185,6 +185,14 @@ The same agent core powers the TUI, print mode, JSON-RPC, ACP editor clients, we
 | ACP | `pj acp` | Editor integration over stdio. |
 | Web | `pj web [host:port]` | Local browser UI with streaming updates. |
 | Telegram | `pj telegram` | Bot frontend for a configured chat. |
+| Remote | `/remote-control` | Drive the live session from a phone or browser: Tailscale, a public tunnel, Telegram, or the LAN. |
+
+`/remote-control` attaches a channel to the session you already have open rather than
+starting a new frontend. The picker runs safest-first: **Tailscale** serves loopback over
+`tailscale serve` for a tailnet-only URL (no third-party edge), **Tunnel** fronts it with a
+public `cloudflared` quick tunnel (`trycloudflare.com`), then Telegram and a LAN web bind.
+Each tunnel is a foreground child that dies with pijota; see [frontends](docs/frontends.md#web)
+for the full breakdown of who can see what.
 
 ### Browser, MCP, And Skills
 

@@ -426,6 +426,18 @@
       ]
     },
     {
+      "id": "k3-256k",
+      "provider": "kimi-coding",
+      "displayName": "Kimi K3 256K",
+      "contextWindow": 262144,
+      "inputCostPerMTok": 1.5,
+      "outputCostPerMTok": 7.5,
+      "input": [
+        "text",
+        "image"
+      ]
+    },
+    {
       "id": "kimi-k2.7-code",
       "provider": "kimi-coding",
       "displayName": "Kimi K2.7 Code",

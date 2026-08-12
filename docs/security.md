@@ -61,6 +61,13 @@ The web frontend authenticates with a 192-bit pairing token once it binds past l
 speaks plain HTTP: fine on a home LAN, wrong on a shared network. See
 [frontends](frontends.md#web).
 
+`/remote-control` layers real encryption on top of the same loopback server: the **Tailscale**
+channel is reachable only from your own tailnet with TLS held by Tailscale, and the
+**Tunnel** channel is a `cloudflared` quick tunnel whose TLS terminates at Cloudflare's
+edge -- which is in the trust path and can see the token URL. The LAN **Web** channel stays
+cleartext, token or not. Same rule either way: anyone in reach with the link can drive the
+agent.
+
 ## What is not guarded
 
 - the `bash` tool runs what the model asks, minus the patterns above
