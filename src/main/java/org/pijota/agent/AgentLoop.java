@@ -59,6 +59,7 @@ public final class AgentLoop implements AgentContext {
     private volatile Consumer<Message.User> userMessageAppender = m -> {};
     private final AtomicReference<CompletableFuture<List<Message>>> activeResult = new AtomicReference<>();
     private final AtomicReference<CompletableFuture<StreamResult>> activeStream = new AtomicReference<>();
+    private final AtomicBoolean compacting = new AtomicBoolean(); // see isBusy()/compactWithResult
     private volatile boolean messageStreamStarted = false;
     private volatile String lastStreamContent = "";
     private int sessionTurn;
@@ -307,8 +308,13 @@ public final class AgentLoop implements AgentContext {
         followUpMessages.add(m);
     }
 
+    /**
+     * True while a turn is running OR a manual compaction holds the history. Frontends gate prompts and
+     * history-mutating commands on this one bit, so compaction must show up in it: a prompt sent while the summarizer
+     * runs then queues as a follow-up instead of starting a turn that races the in-place rewrite.
+     */
     public boolean isBusy() {
-        return activeResult.get() != null;
+        return activeResult.get() != null || compacting.get();
     }
 
     public boolean isClosed() {
@@ -320,11 +326,27 @@ public final class AgentLoop implements AgentContext {
     }
 
     public void compact(String instructions) {
-        runManualCompaction(instructions);
+        compactWithResult(instructions);
     }
 
+    /**
+     * Manual compaction entry point. Compaction rewrites history in place, so it must not overlap a turn or another
+     * compaction: refuse when busy. Frontends check {@link #isBusy()} first and own the user-facing message for that;
+     * this backstops the race between their check and the call, and the {@code compacting} flag makes those same gates
+     * cover the compaction's own duration. Auto-compaction runs inside its turn and calls {@link #runCompaction}
+     * directly, so it is deliberately not guarded here.
+     * <p>
+     * ponytail: a prompt whose frontend checked isBusy() in the same instant the CAS lands can still start a turn under
+     * the rewrite; closing that needs prompt() itself to refuse, which no caller can handle today.
+     */
     public CompactionManager.CompactionResult compactWithResult(String instructions) {
-        return runManualCompaction(instructions);
+        if (isBusy() || !compacting.compareAndSet(false, true))
+            return new CompactionManager.CompactionResult(false, 0, 0, 0);
+        try {
+            return runManualCompaction(instructions);
+        } finally {
+            compacting.set(false);
+        }
     }
 
     public void setAutoCompactionEnabled(boolean enabled) {
@@ -406,10 +428,9 @@ public final class AgentLoop implements AgentContext {
         switch (deliverAs) {
             case STEER -> steeringMessages.add(content);
             case FOLLOW_UP -> queueGeneratedFollowUp(content);
-            // What the no-argument form means, and now the only place it is written. The two used to be separate
-            // bodies that disagreed: this one added the message and stopped, while the default fired TurnStart as
-            // well, so a message delivered by the enum the javadoc calls "the default" started no turn. Nothing in
-            // the product ever passed NEXT_TURN, so the divergence sat behind a name nobody used.
+            // Busy: steer the running turn. Idle: history only -- a turn never starts from here; the next real
+            // prompt picks the message up. JobsExtension.notifyCompletion is the caller: the agent learns of
+            // completions without the frontend's user-typed queue in between.
             case NEXT_TURN -> {
                 if (isBusy()) {
                     steeringMessages.add(content);

@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -521,6 +523,67 @@ class AgentLoopTest {
 
         assertTrue(result.compacted());
         assertEquals(0, agent.contextOverhead(), "compaction replaced the message set; the stale anchor must go");
+    }
+
+    /**
+     * The /compact-vs-prompt race: compaction rewrites history in place, so while the summarizer runs the loop must
+     * read as busy (every frontend's prompt/command gate keys off isBusy) and refuse a second compaction outright.
+     */
+    @Test
+    void compactionMarksTheLoopBusyAndRefusesOverlap() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var summarizer = (CompactionManager.SummaryGenerator) (msgs, instr, prev, onPart) -> {
+            entered.countDown();
+            try {
+                // Bounded so a broken overlap guard fails the test instead of deadlocking it.
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return "summary";
+        };
+        var config = new AppConfig.CompactionConfig(true, 100, 1);
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").summaryGenerator(summarizer)
+                                        .compactionConfig(config).contextWindow(1000).build();
+        agent.addSystemPrompt("sys");
+        agent.sendUserMessage("old");
+        agent.sendUserMessage("middle");
+        agent.sendUserMessage("recent big " + "x".repeat(4000));
+
+        var done = CompletableFuture.supplyAsync(() -> agent.compactWithResult("compact"));
+        assertTrue(entered.await(2, TimeUnit.SECONDS), "summarizer should be running");
+
+        assertTrue(agent.isBusy(), "a running compaction must read as busy so frontend gates cover it");
+        assertFalse(agent.compactWithResult("compact again").compacted(),
+                                        "a second compaction must not start while one is running");
+
+        release.countDown();
+        assertTrue(done.get(2, TimeUnit.SECONDS).compacted());
+        assertFalse(agent.isBusy(), "busy clears when compaction finishes");
+    }
+
+    /** The other arm: /compact arriving while a turn is in flight must not rewrite the history under it. */
+    @Test
+    void compactionRefusesWhileATurnRuns() throws Exception {
+        var summarizer = (CompactionManager.SummaryGenerator) (msgs, instr, prev, onPart) -> "summary";
+        var config = new AppConfig.CompactionConfig(true, 100, 1);
+        var llm = new FauxLlm().blockUntilAborted();
+        var agent = AgentLoop.builder(llm, new ToolRegistry(), "/workspace").summaryGenerator(summarizer)
+                                        .compactionConfig(config).contextWindow(1000).build();
+        // Enough history that compaction WOULD succeed if the busy guard did not refuse it.
+        agent.addSystemPrompt("sys");
+        agent.sendUserMessage("old");
+        agent.sendUserMessage("middle");
+        agent.sendUserMessage("recent big " + "x".repeat(4000));
+
+        var future = agent.prompt("hi");
+        Await.until(agent::isBusy);
+
+        assertFalse(agent.compactWithResult("compact").compacted(), "compaction must refuse while a turn is running");
+
+        agent.abort();
+        future.get(1, TimeUnit.SECONDS);
     }
 
     @Test

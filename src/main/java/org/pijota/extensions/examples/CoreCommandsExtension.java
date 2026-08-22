@@ -12,6 +12,7 @@ import org.pijota.llm.ModelInfo;
 import org.pijota.llm.ModelRegistry;
 import org.pijota.messages.Message;
 import org.pijota.modes.SlashCommand;
+import org.pijota.util.ErrorUtil;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -79,6 +80,8 @@ public final class CoreCommandsExtension implements Extension {
         api.registerSlashCommand(new SlashCommand("new", "Start a new conversation", List.of("clear", "reset"),
                                         arg -> cmdNew()));
         api.registerSlashCommand(new SlashCommand("undo", "Undo the last user turn", List.of(), arg -> cmdUndo()));
+        api.registerSlashCommand(new SlashCommand("compact", "Compact the conversation context", "[instructions]",
+                                        List.of(), this::cmdCompact));
         api.registerSlashCommand(new SlashCommand("sessions", "Resume a previous session", List.of("resume"),
                                         arg -> cmdSessions()));
     }
@@ -107,6 +110,28 @@ public final class CoreCommandsExtension implements Extension {
             ui.setStatus("undid the last turn");
         else
             ui.alert("nothing to undo");
+    }
+
+    /**
+     * {@code /compact [instructions]}. The TUI and Telegram intercept it first with frontend-native rendering; this is
+     * the handler of record the web and ACP frontends reach through the extension command list.
+     */
+    private void cmdCompact(String instructions) {
+        UiContext ui = api.runtime().ui();
+        if (session.isBusy()) {
+            ui.alert("/compact is unavailable while a turn is running");
+            return;
+        }
+        ui.setStatus("compacting the conversation\u2026"); // an LLM summarization can take a while; say it started
+        try {
+            if (session.compact(instructions == null ? "" : instructions))
+                ui.setStatus("context compacted");
+            else
+                // Compaction sheds only what the keep-recent budget doesn't, so a small context has nothing to do.
+                ui.setStatus("nothing to compact yet; compaction kicks in near the context limit");
+        } catch (RuntimeException e) {
+            ui.alert("compact failed: " + ErrorUtil.message(e));
+        }
     }
 
     private void cmdSessions() {

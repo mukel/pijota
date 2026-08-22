@@ -46,7 +46,7 @@ class CoreCommandsExtensionTest {
     @Test
     void registersEveryFrontendCommand() {
         var w = wire();
-        for (String cmd : new String[] {"model", "new", "undo", "sessions"})
+        for (String cmd : new String[] {"model", "new", "undo", "compact", "sessions"})
             assertNotNull(w.api().slashCommand(cmd), "missing /" + cmd);
     }
 
@@ -63,6 +63,15 @@ class CoreCommandsExtensionTest {
         var w = wire();
         w.api().slashCommand("undo").handler().accept("");
         assertTrue(w.ui().statuses().stream().anyMatch(s -> s.contains("nothing to undo")),
+                                        w.ui().statuses().toString());
+    }
+
+    /** The command the web frontend was missing: a small context short-circuits before any LLM call and says so. */
+    @Test
+    void compactOnASmallContextReportsNothingToCompact() {
+        var w = wire();
+        w.api().slashCommand("compact").handler().accept("");
+        assertTrue(w.ui().statuses().stream().anyMatch(s -> s.contains("nothing to compact")),
                                         w.ui().statuses().toString());
     }
 
