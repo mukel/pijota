@@ -3,6 +3,7 @@ package org.pijota.extensions.jobs;
 import org.pijota.extensions.examples.CoreCommandsExtension;
 import org.pijota.extensions.testkit.FakeExtensionAPI;
 import org.pijota.extensions.testkit.FakeExtensionRuntime;
+import org.pijota.extensions.testkit.FakeUiContext;
 import org.pijota.tools.Tool;
 import org.pijota.util.Executables;
 
@@ -509,7 +510,7 @@ class JobsExtensionTest {
         assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
         var api = initWithFlag(true);
         run(api, "jobs_run", Map.of("command", "echo hi"));
-        // single-arg delivery (steers if busy, wakes if idle), so the completion always surfaces
+        // NEXT_TURN delivery (steers if busy, wakes if idle), so the completion always surfaces
         assertTrue(awaitUserMessage(api, "finished · exit 0", 5000), api.sentUserMessages().toString());
     }
 
@@ -532,6 +533,28 @@ class JobsExtensionTest {
         Thread.sleep(600);
         assertFalse(api.sentUserMessages().stream().anyMatch(m -> m.contains("finished") || m.contains("FAILED")),
                                         api.sentUserMessages().toString());
+    }
+
+    /**
+     * The regression behind the "queued N" pile-up: a completion notice is a status event, not a user-typed message. It
+     * must reach the agent on the agent channel (two-arg NEXT_TURN) and the user as a transient toast -- never via the
+     * frontend's user-typed path, which is what queued these as visible follow-ups while a turn ran.
+     */
+    @Test
+    void completionNoticeToastsTheUserAndSkipsTheUserTypedQueue() throws Exception {
+        assumeTrue(Executables.isAvailable("sh"), "needs a POSIX shell");
+        var ui = new FakeUiContext();
+        var api = initWithFlag(true);
+        api.setUi(ui);
+        run(api, "jobs_run", Map.of("command", "echo hi"));
+        assertTrue(awaitUserMessage(api, "finished · exit 0", 5000), api.sentUserMessages().toString());
+        assertTrue(ui.notifications().stream().anyMatch(n -> n.contains("finished")),
+                                        "user should see a toast: " + ui.notifications());
+        assertTrue(ui.submittedUserMessages().isEmpty(),
+                                        "notices must not ride the user-typed path (that queued them as follow-ups): "
+                                                                        + ui.submittedUserMessages());
+        assertTrue(api.sentUserMessages().stream().allMatch(m -> m.endsWith("|NEXT_TURN")),
+                                        "delivered on the agent channel, not via the UI: " + api.sentUserMessages());
     }
 
     @Test

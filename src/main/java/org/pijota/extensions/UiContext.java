@@ -37,6 +37,16 @@ public interface UiContext {
     default void alert(String message) {}
 
     /**
+     * Show a notification that disappears on its own after {@code millis} (a hint; a frontend may use its own timing).
+     * For things that matter the moment they happen but not forever after -- a background job finishing, a wake-up
+     * event. Frontends with a transient surface override this; the rest fall back to {@link #alert}, since a persistent
+     * line beats silence where scrollback is the UI (chat-style frontends).
+     */
+    default void notify(String message, long millis) {
+        alert(message);
+    }
+
+    /**
      * Current color theme. Never null. Non-terminal frontends get a no-color theme, so {@code theme().styled(…)} is
      * always safe (it returns text unchanged there). Terminal frontends override with the live theme.
      */

@@ -27,6 +27,17 @@ class WebUiContextTest {
         }
     }
 
+    /** notify() rides the interface default (falls back to alert) — the web's job-completion toast depends on it. */
+    @Test
+    void notifyFallsBackToTheAlertToast() {
+        var bus = new Bus();
+        bus.ui().notify("bg_1 finished", 5000);
+
+        assertEquals("status", bus.event);
+        assertEquals("bg_1 finished", bus.data.get("message"));
+        assertEquals(true, bus.data.get("alert"));
+    }
+
     @Test
     void confirmCompletesWithTheTappedAnswer() {
         var bus = new Bus();

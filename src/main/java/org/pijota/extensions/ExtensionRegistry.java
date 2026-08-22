@@ -279,6 +279,7 @@ public final class ExtensionRegistry {
 
     public void register(Extension ext) {
         offeredNames.add(ext.name());
+        offeredNames.addAll(ext.additionalFlagNames());
         var reason = ext.unavailableReason();
         if (reason.isPresent()) {
             log.info("Extension {} not loaded: {}", ext.name(), reason.get());
@@ -659,6 +660,9 @@ public final class ExtensionRegistry {
         public void sendUserMessage(String content) {
             if (agentContext != null) {
                 UiContext ui = runtime.ui();
+                // Through the frontend's user-typed path on purpose: goal loops and schedulers submit text that should
+                // look and behave like the user typed it (echo, slash-command routing, busy-queueing). Extensions that
+                // only want the agent to know -- completion notices -- use the two-arg form, which skips the UI.
                 if (ui != null)
                     ui.submitUserMessage(content);
                 else
@@ -810,6 +814,8 @@ public final class ExtensionRegistry {
 
         @Override
         public boolean getFlag(String name, boolean defaultValue) {
+            if (ExtensionRuntime.truthy(extensionFlags.get("no-" + name)))
+                return false;
             String val = extensionFlags.get(name);
             if (val != null)
                 return ExtensionRuntime.truthy(val);
@@ -823,6 +829,8 @@ public final class ExtensionRegistry {
 
         @Override
         public Optional<String> getFlag(String name) {
+            if (ExtensionRuntime.truthy(extensionFlags.get("no-" + name)))
+                return Optional.of("false");
             String cli = extensionFlags.get(name);
             if (cli != null)
                 return Optional.of(cli);

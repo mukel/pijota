@@ -169,6 +169,12 @@ public final class AppendOnlyTui implements AutoCloseable, UiContext {
         redrawPrompt();
     }
 
+    /** A completion/status toast: transient, auto-expires, never enters the transcript or scrollback. */
+    @Override
+    public void notify(String message, long millis) {
+        setTransientStatus(message, millis);
+    }
+
     @Override
     public <T> void select(String title, List<T> items, Function<T, String> render, Consumer<T> onChoice) {
         var snapshot = List.copyOf(items);

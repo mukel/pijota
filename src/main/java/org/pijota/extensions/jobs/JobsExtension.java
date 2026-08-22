@@ -1,8 +1,10 @@
 package org.pijota.extensions.jobs;
 
+import org.pijota.extensions.DeliverAs;
 import org.pijota.extensions.Extension;
 import org.pijota.extensions.ExtensionAPI;
 import org.pijota.extensions.ExtensionRuntime;
+import org.pijota.extensions.UiContext;
 import org.pijota.tools.Tool;
 import org.pijota.tools.Tool.ToolDefinition;
 import org.pijota.tools.Tool.ToolResult;
@@ -331,10 +333,12 @@ public final class JobsExtension implements Extension {
 
     // -- completion monitor + panel --
 
+    private static final long NOTICE_MILLIS = 8000;
+
     /**
-     * Monitor: when a job finishes on its own, tell the agent so it needn't poll. Single-arg delivery steers the run if
-     * the agent is busy and wakes it if idle, so a completion (especially a failure) is never silently lost while the
-     * agent sits awaiting input.
+     * Monitor: when a job finishes on its own, tell the agent so it needn't poll, and toast the user. NEXT_TURN
+     * delivery steers the run if the agent is busy and wakes it if idle, so a completion (especially a failure) is
+     * never silently lost while the agent sits awaiting input.
      */
     public static void notifyCompletion(ExtensionAPI api, JobRegistry.Completion c) {
         String label = hasDistinctName(c.name(), c.command()) ? c.name() + " · " : "";
@@ -348,7 +352,22 @@ public final class JobsExtension implements Extension {
                                                                         + c.exitCode() + " · " + label
                                                                         + Util.ellipsize(c.command(), CMD_PREVIEW)
                                                                         + tail;
-        api.sendUserMessage(msg);
+        // The user sees the same fact as a toast that fades on its own; the agent gets the full message, id included.
+        UiContext ui = api.runtime().ui();
+        if (ui != null)
+            ui.notify(summary(c), NOTICE_MILLIS);
+        // Two-arg delivery, not the single-arg form: single-arg routes through the frontend's user-typed path (the
+        // TUI's submitUserMessage), which queued notices as visible follow-ups ("queued N") while a turn ran. NEXT_TURN
+        // at the agent layer keeps the semantics above without a frontend queue in between.
+        api.sendUserMessage(msg, DeliverAs.NEXT_TURN);
+    }
+
+    /** The compact toast: id, outcome and label -- no command line, no jobs_output pointer, no exit code on success. */
+    private static String summary(JobRegistry.Completion c) {
+        String name = hasDistinctName(c.name(), c.command()) ? c.name() : Util.ellipsize(c.command(), CMD_PREVIEW);
+        return (c.exitCode() == 0 ? ToolGlyphs.DONE : ToolGlyphs.FAILED) + " " + c.id()
+                                        + (c.exitCode() == 0 ? " finished" : " failed · exit " + c.exitCode()) + " · "
+                                        + name;
     }
 
     /**

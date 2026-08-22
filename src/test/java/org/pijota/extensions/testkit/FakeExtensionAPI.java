@@ -298,7 +298,14 @@ public class FakeExtensionAPI implements ExtensionAPI {
 
     @Override
     public void sendUserMessage(String content) {
-        sentUserMessages.add(content);
+        // Mirrors the production ExtensionRegistry: with a UI attached the single-arg form rides the frontend's
+        // user-typed path (submitUserMessage), so tests can tell that channel apart from the raw agent channel
+        // (the two-arg form), which the job monitor deliberately uses to avoid the visible follow-up queue.
+        UiContext ui = runtime.ui();
+        if (ui != null)
+            ui.submitUserMessage(content);
+        else
+            sentUserMessages.add(content);
     }
 
     @Override

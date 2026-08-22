@@ -50,6 +50,8 @@ public final class WebUiContext implements UiContext {
         status(message, true);
     }
 
+    // notify() is not overridden: the default falls back to alert(), and the browser toast auto-dismisses either way.
+
     private void status(String message, boolean alert) {
         var map = new HashMap<String, Object>();
         map.put("message", message == null ? "" : message);

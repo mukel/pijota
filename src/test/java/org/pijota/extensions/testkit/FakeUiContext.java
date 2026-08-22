@@ -21,6 +21,7 @@ public class FakeUiContext implements UiContext {
     private int selectChoice = -1;
     private final List<String> viewerTitles = new ArrayList<>();
     private final List<String> submittedUserMessages = new ArrayList<>();
+    private final List<String> notifications = new ArrayList<>();
     private List<String> lastViewerLines = List.of();
 
     public List<String> statuses() {
@@ -66,6 +67,11 @@ public class FakeUiContext implements UiContext {
     }
 
     @Override
+    public void notify(String message, long millis) {
+        notifications.add(message);
+    }
+
+    @Override
     public AnsiTheme theme() {
         return null;
     }
@@ -96,6 +102,11 @@ public class FakeUiContext implements UiContext {
 
     public List<String> submittedUserMessages() {
         return List.copyOf(submittedUserMessages);
+    }
+
+    /** Transient notifications shown via {@link #notify}, in order. */
+    public List<String> notifications() {
+        return List.copyOf(notifications);
     }
 
     public List<String> viewerTitles() {
