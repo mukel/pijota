@@ -16,7 +16,7 @@ determined one. For hard isolation use a container, a VM, a locked-down user, or
 | tool policy | whole classes of action | `--readonly`, `--tools`, `--exclude-tools` |
 | file permissions | other users reading your keys | not disableable |
 | ACP permission prompts | tool calls your editor has not approved | the editor decides |
-| browser launch confirm | `--browse` starting a browser silently | per prompt |
+| browser launch confirm | `--browse` opening a browser window silently | per prompt; headless mode has no window |
 
 `--transcendence` (self-modification) is off by default and is the one flag that lets pijota
 rewrite its own source.

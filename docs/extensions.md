@@ -50,6 +50,7 @@ pj --suggest=~/prompts/suggest.md      # a readable path is read as the prompt
 | Flag | Does |
 |---|---|
 | `--browse[=chrome\|firefox\|safari]` | browse rendered pages, extract readable Markdown |
+| `--browse-headless` | force Chrome or Firefox headless; automatic without a display; `--no-browse-headless` forces visible; Safari stays visible |
 | `--suggest[=<text\|file>]` | offer the next message as ghost text; Tab accepts |
 | `--tmux` | supervise long-lived processes in tmux |
 | `--todo` | structured todo list with a live panel |

@@ -101,7 +101,12 @@ public final class BrowserSession {
 
     public BrowserSession(int port, Path profileDir, String chromeOverride, Consumer<String> log,
                                     Callable<Boolean> confirmLaunch) {
-        this(new CdpBackend(port, profileDir, chromeOverride, log, confirmLaunch, VIEW_W, VIEW_H,
+        this(port, profileDir, chromeOverride, log, confirmLaunch, false);
+    }
+
+    public BrowserSession(int port, Path profileDir, String chromeOverride, Consumer<String> log,
+                                    Callable<Boolean> confirmLaunch, boolean headless) {
+        this(new CdpBackend(port, profileDir, chromeOverride, log, confirmLaunch, headless, VIEW_W, VIEW_H,
                                         List.of(READABILITY_JS)), Timings.fromEnv());
     }
 
@@ -112,15 +117,24 @@ public final class BrowserSession {
      */
     public static BrowserSession create(String browser, int port, Path profileDir, String binaryOverride,
                                     Consumer<String> log, Callable<Boolean> confirmLaunch) {
+        return create(browser, port, profileDir, binaryOverride, log, confirmLaunch, false);
+    }
+
+    public static BrowserSession create(String browser, int port, Path profileDir, String binaryOverride,
+                                    Consumer<String> log, Callable<Boolean> confirmLaunch, boolean headless) {
         String b = browser == null || browser.isBlank() ? "chrome" : browser.strip().toLowerCase();
         List<String> initScripts = List.of(READABILITY_JS);
         return switch (b) {
             case "chrome", "chromium", "edge" ->
-                new BrowserSession(port, profileDir, binaryOverride, log, confirmLaunch);
-            case "firefox" -> new BrowserSession(BiDiBackends.firefox(port, binaryOverride, log, confirmLaunch, VIEW_W,
-                                            VIEW_H, initScripts));
-            case "safari" -> new BrowserSession(BiDiBackends.safari(port, binaryOverride, log, confirmLaunch, VIEW_W,
-                                            VIEW_H, initScripts));
+                new BrowserSession(port, profileDir, binaryOverride, log, confirmLaunch, headless);
+            case "firefox" -> new BrowserSession(BiDiBackends.firefox(port, binaryOverride, log, confirmLaunch,
+                                            headless, VIEW_W, VIEW_H, initScripts));
+            case "safari" -> {
+                if (headless)
+                    throw new IllegalArgumentException("Safari does not support headless browsing");
+                yield new BrowserSession(BiDiBackends.safari(port, binaryOverride, log, confirmLaunch, VIEW_W, VIEW_H,
+                                                initScripts));
+            }
             default ->
                 throw new IllegalArgumentException("unknown browser '" + browser + "' (use chrome|firefox|safari)");
         };

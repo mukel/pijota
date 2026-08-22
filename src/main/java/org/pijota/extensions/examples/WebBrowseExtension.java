@@ -19,16 +19,16 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Opt-in web browsing through a real (visible) Chrome, the ds4 approach. Off by default; enable with {@code --browse}.
- * Exposes two tools, {@code web_google_search} and {@code web_visit_page}, returning clean markdown from a rendered
- * page (so paywalls/consent walls/SPAs that defeat a plain fetch work). The browser uses a dedicated persistent profile
- * under Pijota's config directory, is launched lazily on first use after an interactive confirmation, reused across the
- * session, and closed on shutdown.
+ * Opt-in web browsing through a real browser, the ds4 approach. Off by default; enable with {@code --browse}. Exposes
+ * three tools for search, rendered pages, and PDFs. The browser uses a dedicated persistent profile under Pijota's
+ * config directory, is launched lazily on first use, asks before opening a visible window, is reused across the
+ * session, and is closed on shutdown.
  */
 public final class WebBrowseExtension implements Extension {
     private static final Logger logger = LoggerFactory.getLogger(WebBrowseExtension.class);
@@ -43,6 +43,11 @@ public final class WebBrowseExtension implements Extension {
     @Override
     public String name() {
         return "browse";
+    }
+
+    @Override
+    public Set<String> additionalFlagNames() {
+        return Set.of("browse-headless", "browse-port");
     }
 
     @Override
@@ -65,12 +70,13 @@ public final class WebBrowseExtension implements Extension {
         String engine = rt.getFlag("browse").filter(v -> !v.isBlank() && !v.equals("true"))
                                         .orElse(Env.get("pijota.browse.engine", "PIJOTA_BROWSER"));
         this.browser = engine == null || engine.isBlank() ? "chrome" : engine.strip().toLowerCase();
+        boolean headless = headless(rt, browser, noDisplay());
         Path profile = PijotaHome.resolve("browser", browser);
         String binary = Env.get("pijota.browse.bin", "PIJOTA_BROWSER_BIN"); // optional path override; else
                                                                             // auto-detected
         try {
             this.session = BrowserSession.create(browser, debugPort(rt), profile, binary, this::setBrowseStatus,
-                                            this::confirmLaunch);
+                                            this::confirmLaunch, headless);
         } catch (RuntimeException e) {
             // e.g. the selected browser's WebDriver isn't installed → disable browsing rather than fail startup. Log
             // and surface via status: the extension status line isn't visible in the Telegram/web frontends, so
@@ -118,6 +124,22 @@ public final class WebBrowseExtension implements Extension {
 
     private void setBrowseStatus(String message) {
         api.runtime().setStatus("browse", "🌐 " + message);
+    }
+
+    /** Linux has no standard desktop browser display without X11 or Wayland; Windows and macOS provide one. */
+    static boolean noDisplay() {
+        return noDisplay(org.pijota.util.Platform.isWindows() || org.pijota.util.Platform.isMac(),
+                                        System.getenv("DISPLAY"), System.getenv("WAYLAND_DISPLAY"));
+    }
+
+    static boolean noDisplay(boolean desktopOs, String display, String waylandDisplay) {
+        return !desktopOs && (display == null || display.isBlank())
+                                        && (waylandDisplay == null || waylandDisplay.isBlank());
+    }
+
+    /** Safari is visible-only; the headless flag applies only to Chrome and Firefox. */
+    static boolean headless(ExtensionRuntime rt, String browser, boolean noDisplay) {
+        return !"safari".equals(browser) && rt.getFlag("browse-headless", noDisplay);
     }
 
     /**

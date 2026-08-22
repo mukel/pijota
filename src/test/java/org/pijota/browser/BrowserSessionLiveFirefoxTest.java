@@ -87,7 +87,8 @@ class BrowserSessionLiveFirefoxTest {
         fixture.start();
         Path profile = Files.createTempDirectory("pijota-it-ff-profile");
         var session = BrowserSession.create("firefox", freePort(), profile, null, m -> System.err.println("[it] " + m),
-                                        () -> true);
+                                        () -> true,
+                                        System.getenv("DISPLAY") == null && System.getenv("WAYLAND_DISPLAY") == null);
         try {
             // visitNormalized, not visit: the SSRF guard rightly refuses loopback, and this
             // fixture URL is ours, not a model's. The guard itself is tested in BrowserSessionTest.

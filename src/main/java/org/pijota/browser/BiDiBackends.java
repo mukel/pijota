@@ -23,14 +23,27 @@ final class BiDiBackends {
 
     static BiDiBackend firefox(int port, String driverOverride, Consumer<String> log, Callable<Boolean> confirm,
                                     int viewportW, int viewportH, List<String> initScripts) {
+        return firefox(port, driverOverride, log, confirm, false, viewportW, viewportH, initScripts);
+    }
+
+    static BiDiBackend firefox(int port, String driverOverride, Consumer<String> log, Callable<Boolean> confirm,
+                                    boolean headless, int viewportW, int viewportH, List<String> initScripts) {
         Path driver = resolveDriver(driverOverride, "pijota.browse.geckodriver", "PIJOTA_GECKODRIVER", "geckodriver");
         List<String> cmd = List.of(driver.toString(), "--port", Integer.toString(port));
-        ObjectNode caps = Util.MAPPER.createObjectNode();
-        caps.put("browserName", "firefox");
+        ObjectNode caps = firefoxCapabilities(headless);
         // ponytail: geckodriver manages a fresh profile per session. Passing `-profile <dir>` makes it fail with
         // "Failed to set preferences" (can't write Marionette prefs into an arbitrary dir); a PERSISTENT Firefox
         // profile would need the base64-zipped moz:firefoxOptions.profile capability, a future upgrade.
-        return new BiDiBackend(cmd, port, caps, log, confirm, viewportW, viewportH, initScripts);
+        return new BiDiBackend(cmd, port, caps, log, headless ? () -> true : confirm, viewportW, viewportH,
+                                        initScripts);
+    }
+
+    static ObjectNode firefoxCapabilities(boolean headless) {
+        ObjectNode caps = Util.MAPPER.createObjectNode();
+        caps.put("browserName", "firefox");
+        if (headless)
+            caps.putObject("moz:firefoxOptions").putArray("args").add("-headless");
+        return caps;
     }
 
     static BiDiBackend safari(int port, String driverOverride, Consumer<String> log, Callable<Boolean> confirm,

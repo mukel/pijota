@@ -38,6 +38,7 @@ public final class CdpBackend implements BrowserBackend {
     private final String chromeOverride;
     private final Consumer<String> log;
     private final Callable<Boolean> confirmLaunch; // asked once before SPAWNING a visible window
+    private final boolean headless;
     private final int viewportW;
     private final int viewportH;
     private final List<String> initScripts; // run on every new document (e.g. define Readability)
@@ -54,11 +55,18 @@ public final class CdpBackend implements BrowserBackend {
     public CdpBackend(int port, Path profileDir, String chromeOverride, Consumer<String> log,
                                     Callable<Boolean> confirmLaunch, int viewportW, int viewportH,
                                     List<String> initScripts) {
+        this(port, profileDir, chromeOverride, log, confirmLaunch, false, viewportW, viewportH, initScripts);
+    }
+
+    public CdpBackend(int port, Path profileDir, String chromeOverride, Consumer<String> log,
+                                    Callable<Boolean> confirmLaunch, boolean headless, int viewportW, int viewportH,
+                                    List<String> initScripts) {
         this.port = port;
         this.profileDir = profileDir;
         this.chromeOverride = chromeOverride;
         this.log = log != null ? log : msg -> {};
         this.confirmLaunch = confirmLaunch != null ? confirmLaunch : () -> true;
+        this.headless = headless;
         this.viewportW = viewportW;
         this.viewportH = viewportH;
         this.initScripts = initScripts != null ? initScripts : List.of();
@@ -91,7 +99,7 @@ public final class CdpBackend implements BrowserBackend {
         // Reuse a DevTools already on the port (a stale pijota-Chrome from a crashed run, or one launched earlier whose
         // socket merely dropped) instead of spawning a duplicate. Only confirm + spawn when nothing is there.
         if (!devtoolsAlive()) {
-            if (!Boolean.TRUE.equals(confirmLaunch.call()))
+            if (!headless && !Boolean.TRUE.equals(confirmLaunch.call()))
                 throw new IllegalStateException("browser launch declined");
             launchChrome();
             waitForDevtools();
@@ -175,6 +183,14 @@ public final class CdpBackend implements BrowserBackend {
         if (bin == null)
             throw new IllegalStateException("Chrome/Chromium not found. Install it or set PIJOTA_BROWSER_BIN=/path/to/chrome.");
         Files.createDirectories(profileDir);
+        var cmd = launchCommand(bin);
+        log.accept("launching " + (headless ? "headless " : "") + bin.getFileName() + " (debug port " + port
+                                        + ", profile " + profileDir + ")");
+        chrome.start(cmd);
+    }
+
+    /** Chrome argv, split from process creation so headless mode has a browser-free regression check. */
+    List<String> launchCommand(Path bin) {
         var cmd = new ArrayList<>(List.of(bin.toString(), "--remote-debugging-port=" + port,
                                         "--remote-debugging-address=127.0.0.1", "--remote-allow-origins=*",
                                         "--user-data-dir=" + profileDir, "--no-first-run", "--no-default-browser-check",
@@ -182,12 +198,13 @@ public final class CdpBackend implements BrowserBackend {
                                         "--password-store=basic", // avoid an OS keyring/keychain unlock prompt blocking
                                                                   // startup
                                         "about:blank"));
+        if (headless)
+            cmd.add(1, "--headless=new");
         if (Platform.isMac())
             cmd.add(1, "--use-mock-keychain");
         if ("root".equals(System.getProperty("user.name")))
             cmd.add(1, "--no-sandbox");
-        log.accept("launching " + bin.getFileName() + " (debug port " + port + ", profile " + profileDir + ")");
-        chrome.start(cmd);
+        return cmd;
     }
 
     private void waitForDevtools() throws Exception {

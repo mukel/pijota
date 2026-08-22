@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,6 +27,7 @@ class WebBrowseExtensionTest {
         var ext = new WebBrowseExtension();
         assertEquals("browse", ext.name());
         assertTrue(ext.description().contains("--browse"));
+        assertEquals(Set.of("browse-headless", "browse-port"), ext.additionalFlagNames());
     }
 
     @Test
@@ -35,7 +37,35 @@ class WebBrowseExtensionTest {
     }
 
     @Test
-    void registersBothToolsWithCorrectSchemasWhenFlagIsOn() {
+    void displaylessLinuxDefaultsToHeadless() {
+        assertTrue(WebBrowseExtension.noDisplay(false, null, null));
+        assertTrue(WebBrowseExtension.noDisplay(false, "", ""));
+        assertFalse(WebBrowseExtension.noDisplay(false, ":0", null));
+        assertFalse(WebBrowseExtension.noDisplay(false, null, "wayland-0"));
+        assertFalse(WebBrowseExtension.noDisplay(true, null, null), "Windows and macOS provide their own display");
+    }
+
+    @Test
+    void safariAlwaysStaysVisible() {
+        var rt = new FakeExtensionRuntime();
+        assertFalse(WebBrowseExtension.headless(rt, "safari", true));
+        assertTrue(WebBrowseExtension.headless(rt, "firefox", true));
+        rt.setFlag("browse-headless", "true");
+        assertFalse(WebBrowseExtension.headless(rt, "safari", true));
+    }
+
+    @Test
+    void explicitDisplayModeOverridesAutomaticDetection() {
+        var rt = new FakeExtensionRuntime();
+        assertFalse(WebBrowseExtension.headless(rt, "chrome", false));
+        rt.setFlag("browse-headless", "true");
+        assertTrue(WebBrowseExtension.headless(rt, "chrome", false));
+        rt.setFlag("no-browse-headless", "true");
+        assertFalse(WebBrowseExtension.headless(rt, "chrome", true));
+    }
+
+    @Test
+    void registersToolsWithCorrectSchemasWhenFlagIsOn() {
         var rt = new FakeExtensionRuntime();
         rt.setFlag("browse", "true");
         var api = apiWith(rt);

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -78,5 +80,23 @@ class BiDiBackendTest {
     void resolveDriverHonorsTheExplicitOverride() {
         assertEquals(Path.of("/opt/geckodriver"), BiDiBackends.resolveDriver("/opt/geckodriver",
                                         "pijota.browse.geckodriver", "PIJOTA_GECKODRIVER", "geckodriver"));
+    }
+
+    @Test
+    void firefoxHeadlessModeUsesTheNativeFirefoxArgument() {
+        assertTrue(BiDiBackends.firefoxCapabilities(false).path("moz:firefoxOptions").isMissingNode());
+        assertEquals("-headless", BiDiBackends.firefoxCapabilities(true).path("moz:firefoxOptions").path("args").get(0)
+                                        .asText());
+    }
+
+    @Test
+    void headlessFirefoxSkipsTheWindowConfirmation() {
+        var confirmed = new AtomicBoolean(false);
+        var backend = BiDiBackends.firefox(1, "/nonexistent/geckodriver", null, () -> {
+            confirmed.set(true);
+            return false;
+        }, true, 800, 600, List.of());
+        assertThrows(Exception.class, backend::start);
+        assertFalse(confirmed.get(), "a launch with no window must not ask permission to open one");
     }
 }

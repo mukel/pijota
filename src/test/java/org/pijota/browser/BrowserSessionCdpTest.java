@@ -147,4 +147,16 @@ class BrowserSessionCdpTest {
         var ex = assertThrows(Exception.class, () -> s.visit("https://example.com"));
         assertTrue(ex.getMessage().toLowerCase().contains("declined"), ex.getMessage());
     }
+
+    @Test
+    void headlessLaunchSkipsTheWindowConfirmation() {
+        var confirmed = new AtomicBoolean(false);
+        var s = new BrowserSession(1, PROFILE, "/nonexistent/chrome", null, () -> {
+            confirmed.set(true);
+            return false;
+        }, true);
+        var ex = assertThrows(Exception.class, () -> s.visit("https://example.com"));
+        assertFalse(confirmed.get(), "a launch with no window must not ask permission to open one");
+        assertTrue(ex.getMessage().contains("/nonexistent/chrome"), ex.getMessage());
+    }
 }

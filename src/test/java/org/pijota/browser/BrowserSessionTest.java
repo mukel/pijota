@@ -84,6 +84,16 @@ class BrowserSessionTest {
         assertNotNull(BrowserSession.create(null, 9333, Path.of("/tmp/p"), null, null, () -> true), "null → chrome");
         assertThrows(IllegalArgumentException.class, () -> BrowserSession.create("netscape", 9333, Path.of("/tmp/p"),
                                         null, null, () -> true));
+        assertThrows(IllegalArgumentException.class, () -> BrowserSession.create("safari", 9333, Path.of("/tmp/p"),
+                                        null, null, () -> true, true), "Safari is visible-only");
+    }
+
+    @Test
+    void chromeHeadlessModeAddsTheModernHeadlessArgument() {
+        var visible = new CdpBackend(9333, Path.of("/tmp/p"), null, null, () -> true, false, 800, 600, List.of());
+        var headless = new CdpBackend(9333, Path.of("/tmp/p"), null, null, () -> true, true, 800, 600, List.of());
+        assertFalse(visible.launchCommand(Path.of("chrome")).contains("--headless=new"));
+        assertTrue(headless.launchCommand(Path.of("chrome")).contains("--headless=new"));
     }
 
     @Test

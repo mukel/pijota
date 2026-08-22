@@ -101,6 +101,7 @@ Lists apply to built-in, extension and MCP tools alike, and compose. [Tools](too
 | Flag | Default |
 |---|---|
 | `--browse[=chrome\|firefox\|safari]` | off |
+| `--browse-headless` | automatic: headless without a display, visible otherwise; Safari stays visible (`--no-browse-headless` forces visible) |
 | `--suggest[=<text\|file>]` | off |
 | `--tmux` | off |
 | `--todo` | off |

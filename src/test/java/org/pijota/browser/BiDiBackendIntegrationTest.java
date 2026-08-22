@@ -37,7 +37,7 @@ class BiDiBackendIntegrationTest {
     void firefoxBiDiLaunchesNavigatesAndEvaluates() throws Exception {
         assumeTrue(geckodriverAvailable(), "geckodriver/firefox not installed");
         int port = freePort();
-        BiDiBackend backend = BiDiBackends.firefox(port, null, m -> {}, () -> true, 800, 600,
+        BiDiBackend backend = BiDiBackends.firefox(port, null, m -> {}, () -> true, headless(), 800, 600,
                                         List.of("window.__pijotaInit = 5;"));
         try {
             backend.start();
@@ -52,5 +52,9 @@ class BiDiBackendIntegrationTest {
         } finally {
             backend.close();
         }
+    }
+
+    private static boolean headless() {
+        return System.getenv("DISPLAY") == null && System.getenv("WAYLAND_DISPLAY") == null;
     }
 }
