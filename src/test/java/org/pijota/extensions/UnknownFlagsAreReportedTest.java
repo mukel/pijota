@@ -23,7 +23,11 @@ import static org.junit.jupiter.api.Assertions.*;
 class UnknownFlagsAreReportedTest {
 
     /** Minimal extension so the registry has a real name to match against. */
-    private record Named(String name) implements Extension {
+    private record Named(String name, Set<String> additionalFlagNames) implements Extension {
+        private Named(String name) {
+            this(name, Set.of());
+        }
+
         @Override
         public String description() {
             return "test";
@@ -46,6 +50,10 @@ class UnknownFlagsAreReportedTest {
         for (String name : extensionNames)
             registry.register(new Named(name));
 
+        return warningsFor(registry);
+    }
+
+    private static String warningsFor(ExtensionRegistry registry) {
         PrintStream saved = System.err;
         var captured = new ByteArrayOutputStream();
         System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
@@ -84,6 +92,22 @@ class UnknownFlagsAreReportedTest {
         assertEquals("", warningsFor(Map.of("no-todo", "true"), "todo"), "a disabled one still names a real extension");
         assertEquals("", warningsFor(Map.of("browse", "firefox"), "browse"), "a flag carrying a value");
         assertEquals("", warningsFor(Map.of("web", "127.0.0.1:8080"), "todo"), "a frontend subcommand is not one");
+    }
+
+    @Test
+    void extensionsCanOwnRelatedFlagsWithoutBecomingExtraExtensions() {
+        var registry = new ExtensionRegistry();
+        registry.setExtensionFlags(Map.of("browse-headless", "true"));
+        registry.register(new Named("browse", Set.of("browse-headless")));
+        assertEquals("", warningsFor(registry));
+    }
+
+    @Test
+    void noFormOverridesTheAutomaticDefault() {
+        var registry = new ExtensionRegistry();
+        registry.setExtensionFlags(Map.of("no-browse-headless", "true"));
+        assertFalse(registry.api().runtime().getFlag("browse-headless", true));
+        assertEquals("false", registry.api().runtime().getFlag("browse-headless").orElseThrow());
     }
 
     /**

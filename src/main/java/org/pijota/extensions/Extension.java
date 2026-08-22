@@ -1,6 +1,7 @@
 package org.pijota.extensions;
 
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Extension entry point. The extension lifecycle is:
@@ -17,6 +18,11 @@ public interface Extension {
     String name();
 
     String description();
+
+    /** Additional CLI flag names owned by this extension, beyond its usual {@link #name()} on/off flag. */
+    default Set<String> additionalFlagNames() {
+        return Set.of();
+    }
 
     /**
      * Whether this extension can run in the current environment. Return a reason to be skipped (logged); empty to load.

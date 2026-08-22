@@ -209,6 +209,8 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
 
     @Override
     public boolean getFlag(String name, boolean defaultValue) {
+        if (ExtensionRuntime.truthy(flags.get("no-" + name)))
+            return false;
         String val = flags.get(name);
         if (val == null)
             return defaultValue;
@@ -217,6 +219,8 @@ public class FakeExtensionRuntime implements ExtensionRuntime {
 
     @Override
     public Optional<String> getFlag(String name) {
+        if (ExtensionRuntime.truthy(flags.get("no-" + name)))
+            return Optional.of("false");
         return Optional.ofNullable(flags.get(name));
     }
 

@@ -83,7 +83,7 @@ public interface ExtensionRuntime {
     /** Check a boolean flag passed via CLI or config, with a default. */
     boolean getFlag(String name, boolean defaultValue);
 
-    /** Read a flag's raw string value. */
+    /** Read a flag's raw string value. For booleans, {@code --no-name} resolves to {@code "false"}. */
     Optional<String> getFlag(String name);
 
     /** Whether a raw flag value is truthy ({@code true}/{@code 1}/{@code yes}, case-insensitive). */
