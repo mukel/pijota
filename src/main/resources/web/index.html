@@ -227,34 +227,31 @@
      prefers-reduced-motion the global rule below neutralizes it, leaving a static "running…" label (still clear). */
   .tool .badge.running { animation: pulse 1.3s ease-in-out infinite; }
 
-  /* jump-to-latest, shown only when scrolled up */
+  /* jump-to-latest, shown only when scrolled up; the prompt surface is its containing block, so every animation stays
+     directly above it whether the draft is compact, multiline, or capped. */
   .scrollbtn {
-    position: fixed; left: 50%; bottom: 92px; z-index: 20;
+    position: absolute; left: 50%; bottom: calc(100% + 12px + var(--composer-top-inset)); translate: -50% 0; z-index: 20;
     width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel);
     color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
     font-size: 17px; box-shadow: 0 4px 14px var(--shadow-color);
     /* fade + a small rise on appear (display:none can't animate); visibility keeps it out of tab order while hidden */
-    opacity: 0; visibility: hidden; pointer-events: none; transform: translateX(-50%) translateY(8px);
+    opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(8px);
     transition: opacity .18s ease, transform .18s ease, visibility .18s, border-color .15s;
   }
-  .scrollbtn.show { opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+  .scrollbtn.show { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
   body.empty .scrollbtn { opacity: 0; visibility: hidden; pointer-events: none; } /* never on the hero, even with a stale .show */
   .scrollbtn:hover { border-color: var(--accent); background: var(--panel-2); }
-  .scrollbtn:active { transform: translateX(-50%) scale(.92); }
+  .scrollbtn:active { transform: scale(.92); }
   @media (prefers-reduced-motion: reduce) { /* keep the fade, drop the rise/scale motion */
-    .scrollbtn { transition: opacity .15s, visibility .15s, border-color .15s; transform: translateX(-50%); }
-    .scrollbtn.show { transform: translateX(-50%); }
-    .scrollbtn:active { transform: translateX(-50%); }
+    .scrollbtn { transition: opacity .15s, visibility .15s, border-color .15s; transform: none; }
+    .scrollbtn.show, .scrollbtn:active { transform: none; }
   }
 
-  /* the send button keeps its fixed slot (↑ send), disabled when empty; Stop is the separate round button below */
+  /* the send button keeps its fixed slot (↑ send), disabled when empty; Stop floats above it while compact */
   .act:disabled { opacity: .4; cursor: default; }
-  /* Stop: a round red button floating just above the send button, shown ONLY while streaming (.show) */
-  /* same size + right offset as the send button, so it stacks directly above it (centres aligned) */
-  /* Stop is anchored to the send button's own wrapper (left:0, same width) so it's pixel-aligned above it on every screen */
+  /* Stop is anchored to Send in the one-line composer. Expanded drafts put it in the action row instead, where it
+     remains reachable without floating over either the text or the transcript. */
   .sendwrap { position: relative; flex: none; align-self: flex-end; display: flex; }
-  /* +18px clears the send button's ~8px inset inside the box, leaving ~10px between the Stop and the prompt box */
-  /* slightly larger than the 34px send (left:-2 re-centres the 38px button over it) so it stands out while streaming */
   .stopbtn { display: none; position: absolute; left: -2px; bottom: calc(100% + 16px); width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--err); color: #fff; font-size: 0; cursor: pointer; align-items: center; justify-content: center; transition: transform .1s, filter .12s; }
   /* the stop icon is a pixel-centred CSS square (the "■" glyph sits off-centre in its line-box); font-size:0 hides it */
   .stopbtn::before { content: ""; width: 14px; height: 14px; border-radius: 3px; background: currentColor; }
@@ -291,6 +288,7 @@
   .composer.dragover .inner { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .composer { flex: none; background: transparent; padding: 6px 18px 18px; }
   .composer .inner {
+    --composer-top-inset: 9px; /* containing-block inset; keeps floating controls 12px outside the visible surface */
     position: relative; /* anchors the round Stop button floating above the send button */
     max-width: var(--col); width: 100%; margin: 0 auto; display: flex; gap: 8px; align-items: center;
     background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 8px 8px 8px 18px;
@@ -298,9 +296,16 @@
     transition: border-color .15s, box-shadow .15s;
   }
   .composer .inner:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 2px 16px -6px var(--shadow-color); }
+  /* Once the inline controls would make the draft wrap, give the text a full row and tuck the actions below it. */
+  .composer .inner.expanded { flex-wrap: wrap; }
+  .composer .inner.expanded .draft { flex-basis: 100%; }
+  .composer .inner.expanded .attach { margin-left: auto; align-self: center; }
+  .composer .inner.expanded .sendwrap { gap: 8px; align-items: center; }
+  .composer .inner.expanded .sendwrap .act { align-self: center; }
+  .composer .inner.expanded .stopbtn { position: static; order: -1; }
   textarea#input {
     /* sized to exactly one text line (no vertical padding); the flex row's align-items:center does the centering */
-    flex: 1; resize: none; max-height: 200px; min-height: 22px; padding: 0; display: block;
+    flex: 1; resize: none; max-height: 200px; min-height: 22px; padding: 0; display: block; overflow-y: hidden;
     border: none; background: transparent; color: var(--text);
     /* 16px matches the message text and keeps iOS Safari from auto-zooming the page on focus (it zooms any input <16px) */
     font-family: var(--sans); font-size: 16px; line-height: 23px; outline: none;
@@ -396,10 +401,10 @@
   .finder-empty { padding: 10px 12px; color: var(--muted); font-size: 13px; }
   .finder-list::-webkit-scrollbar { width: 10px; }
   .finder-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
-  main::-webkit-scrollbar, .tool pre::-webkit-scrollbar { width: 10px; height: 10px; }
-  main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+  main::-webkit-scrollbar, .tool pre::-webkit-scrollbar, textarea#input::-webkit-scrollbar { width: 10px; height: 10px; }
+  main::-webkit-scrollbar-thumb, textarea#input::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
   /* standard thin scrollbars everywhere → consistent, no OS overlay bar bleeding over content */
-  main, .finder-list, .tool pre { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  main, .finder-list, .tool pre, textarea#input { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
   /* ---- responsive / touch ---- */
   /* touch devices: hide the reveal-on-hover copy buttons entirely. Long-press selects + copies text natively instead */
@@ -414,13 +419,12 @@
       width: 34px; height: 34px; font-size: 15px; color: var(--muted);
       background: color-mix(in srgb, var(--panel) 86%, transparent); backdrop-filter: blur(6px);
       box-shadow: 0 2px 8px var(--shadow-color);
-      bottom: calc(80px + max(12px, env(safe-area-inset-bottom))); /* rides above the composer, clear of the gesture bar */
     }
     .scrollbtn::after { content: ""; position: absolute; inset: -6px; } /* 46px thumb target, no visual weight */
     /* Stop floats above the send button, which puts it over the end of the transcript. On a phone that is the last
        tool card, so while Stop is up we reserve its height at the foot of the thread instead of covering content.
        Browsers without :has() drop the rule and keep today's behaviour. */
-    body:has(.stopbtn.show) #thread { padding-bottom: 64px; }
+    body:has(.composer .inner:not(.expanded) .stopbtn.show) #thread { padding-bottom: 64px; }
   }
   @media (max-width: 640px) {
     header { gap: 8px; padding: 9px 12px; }
@@ -432,8 +436,9 @@
     .greeting .mark { font-size: 24px; }
     /* clear the home-indicator / gesture bar when the page owns the bottom edge (installed to the home screen) */
     .composer { padding: 6px 10px max(12px, env(safe-area-inset-bottom)); }
-    .composer .inner { border-radius: 20px; padding: 6px 6px 6px 14px; }
+    .composer .inner { --composer-top-inset: 9px; border-radius: 20px; padding: 6px 6px 6px 14px; }
     button.act, .attach, .stopbtn { width: 40px; height: 40px; } /* comfortable thumb targets on phones (≥40px; button.act to match the base selector's specificity) */
+    .composer .inner:not(.expanded) .stopbtn { left: 0; } /* equal mobile button sizes need no desktop centring offset */
     .msg.user .bubble { max-width: 92%; }
     .overlay { padding-top: 8vh; }
     .modal { padding: 18px; }
@@ -460,7 +465,6 @@
   </header>
   <main id="main"><div id="thread" role="log" aria-live="polite" aria-atomic="false" aria-label="Conversation"></div></main>
   <div id="toasts" aria-live="polite"></div>
-  <button class="scrollbtn" id="scrollbtn" title="Scroll to latest" aria-label="Scroll to latest">↓</button>
   <div class="composer">
     <div class="greeting" id="greeting">
       <div class="mark">pi<b>jota</b></div>
@@ -484,6 +488,7 @@
     <div class="slashmenu" id="slash"></div>
     <div class="attachments" id="attachments"></div>
     <div class="inner">
+      <button class="scrollbtn" id="scrollbtn" title="Scroll to latest" aria-label="Scroll to latest">↓</button>
       <div class="draft">
         <textarea id="input" placeholder="Message pijota…" rows="1" aria-label="Message pijota"></textarea>
         <!-- the --suggest extension's next-message offer, layered over the empty draft; Tab (or a tap) accepts it -->
@@ -1056,7 +1061,17 @@ window.addEventListener("DOMContentLoaded", () => {
     conn.classList.toggle("busy", b);
     updateComposer(); // the send button's enabled-state + the Stop button are derived from busy + the draft
   }
-  function autoGrow() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 200) + "px"; }
+  function autoGrow() {
+    // Measure in the compact layout first: if its controls force wrapping, move them to a clean second row. Re-measure
+    // there because the wider draft may need fewer lines. Only scroll after reaching the deliberate height cap.
+    composerInner.classList.remove("expanded");
+    input.style.height = "";
+    composerInner.classList.toggle("expanded", input.scrollHeight > input.clientHeight);
+    input.style.height = "auto";
+    const naturalHeight = input.scrollHeight;
+    input.style.height = Math.min(naturalHeight, 200) + "px";
+    input.style.overflowY = naturalHeight > 200 ? "auto" : "hidden";
+  }
   function postJSON(url, data) {
     const opts = { method: "POST" };
     if (data !== undefined) { opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(data); }
@@ -1267,6 +1282,7 @@ window.addEventListener("DOMContentLoaded", () => {
   sendBtn.addEventListener("click", send); // always send (never Stop); posts immediately, even mid-stream
   stopBtn.addEventListener("click", () => postJSON("/interrupt")); // Stop is its own control, above the composer
   input.addEventListener("input", () => { clearOffer(); autoGrow(); updateMenu(); updateComposer(); });
+  window.addEventListener("resize", autoGrow); // reflow the explicit textarea height after rotation/window resizing
   input.addEventListener("keydown", e => {
     if (slash.classList.contains("show")) {
       if (e.key === "ArrowDown") { e.preventDefault(); return moveSel(1); }

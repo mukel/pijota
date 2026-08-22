@@ -689,6 +689,33 @@ class WebServerTest {
         }
     }
 
+    @Test
+    void multilineComposerUsesItsFullWidthAndScrollsOnlyAtTheHeightCap() throws IOException {
+        String page = webPage();
+
+        assertAll(() -> assertTrue(page.contains(".composer .inner.expanded { flex-wrap: wrap; }")), () -> assertTrue(
+                                        page.contains(".composer .inner.expanded .draft { flex-basis: 100%; }")),
+                                        () -> assertTrue(page.contains(".composer .inner.expanded .attach { margin-left: auto; align-self: center; }")),
+                                        () -> assertTrue(page.contains(".composer .inner.expanded .stopbtn { position: static; order: -1; }")),
+                                        () -> assertTrue(page.contains("input.style.overflowY = naturalHeight > 200 ? \"auto\" : \"hidden\";")),
+                                        () -> assertTrue(page.contains("window.addEventListener(\"resize\", autoGrow);")));
+    }
+
+    @Test
+    void jumpToLatestIsAnchoredAboveTheDynamicComposer() throws IOException {
+        String page = webPage();
+
+        assertAll(() -> assertTrue(Pattern.compile("<div class=\\\"inner\\\">\\s*<button class=\\\"scrollbtn\\\"")
+                                        .matcher(page).find(), "button must be inside the prompt surface"),
+                                        () -> assertTrue(page.contains(".composer .inner {")),
+                                        () -> assertTrue(page.contains("position: relative; /* anchors the round Stop button")),
+                                        () -> assertTrue(page.contains("bottom: calc(100% + 12px + var(--composer-top-inset));")));
+    }
+
+    private static String webPage() throws IOException {
+        return Files.readString(Path.of("src/main/resources/web/index.html"), StandardCharsets.UTF_8);
+    }
+
     /**
      * An event the server pushes that no client listens for is a feature that silently does nothing. That is exactly
      * what {@code bash_execution_update} was: broadcast on every delta, covered by a server-side test, and never
