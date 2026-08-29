@@ -12,12 +12,14 @@ import org.pijota.testkit.Await;
 import org.pijota.testkit.EventRecorder;
 import org.pijota.testkit.FauxLlm;
 import org.pijota.testkit.TestTools;
+import org.pijota.tools.Tool;
 import org.pijota.tools.ToolRegistry;
 
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -264,6 +266,44 @@ class AgentLoopTest {
                                                                         && c.content().equals("value")),
                                         "should contain the added custom message");
         assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.CustomMessage));
+    }
+
+    /**
+     * A custom message injected mid-turn (here: from inside a running tool) must not land between the assistant's tool
+     * call and its result -- providers that validate message order reject such replayed history. It queues and flushes
+     * once the turn's tool results are in.
+     */
+    @Test
+    void customMessageQueuedMidTurnLandsAfterToolResult() throws Exception {
+        var llm = new FauxLlm().enqueue(FauxLlm.Response.toolCall(new ToolCall("tc1", "fake", "{\"value\":\"ok\"}")))
+                                        .enqueue(FauxLlm.Response.content("done"));
+        var registry = new ToolRegistry();
+        var agent = AgentLoop.builder(llm, registry, "/workspace").build();
+        registry.register(new Tool.ToolDefinition("fake", "fake desc",
+                                        Map.of("type", "object", "properties",
+                                                                        Map.of("value", Map.of("type", "string"))),
+                                        (id, args, cwd) -> {
+                                            agent.addCustomMessage(new Message.Custom("note", "mid-turn"));
+                                            return CompletableFuture.completedFuture(
+                                                                            Tool.ToolResult.success("tool:ok"));
+                                        }).toTool());
+        var events = EventRecorder.capture(agent);
+
+        var messages = agent.prompt("use tool").get(2, TimeUnit.SECONDS);
+
+        int toolResultIdx = -1;
+        int customIdx = -1;
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i) instanceof Message.ToolResult)
+                toolResultIdx = i;
+            if (messages.get(i) instanceof Message.Custom)
+                customIdx = i;
+        }
+        assertTrue(toolResultIdx >= 0 && customIdx >= 0, "both the tool result and the custom message are in history");
+        assertTrue(customIdx > toolResultIdx,
+                                        "custom message lands after the tool result, not between call and result");
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.CustomMessage),
+                                        "the event (which persists the message) fires on flush, not on queue");
     }
 
     @Test
@@ -523,6 +563,39 @@ class AgentLoopTest {
 
         assertTrue(result.compacted());
         assertEquals(0, agent.contextOverhead(), "compaction replaced the message set; the stale anchor must go");
+    }
+
+    /**
+     * A custom message injected while a manual compaction owns the history queues (a direct append mid-rewrite would be
+     * swallowed by the clear+addAll). The end of that compaction is its only flush point -- without it the message sat
+     * invisible and unpersisted until some later turn happened to end.
+     */
+    @Test
+    void customMessageQueuedDuringCompactionFlushesWhenCompactionEnds() {
+        var ref = new AtomicReference<AgentLoop>();
+        var summarizer = (CompactionManager.SummaryGenerator) (msgs, instr, prev, onPart) -> {
+            ref.get().addCustomMessage(new Message.Custom("note", "during compaction"));
+            return "summary";
+        };
+        var config = new AppConfig.CompactionConfig(true, 100, 1);
+        var agent = AgentLoop.builder(new FauxLlm(), new ToolRegistry(), "/workspace").summaryGenerator(summarizer)
+                                        .compactionConfig(config).contextWindow(1000).build();
+        ref.set(agent);
+        var events = EventRecorder.capture(agent);
+
+        agent.addSystemPrompt("sys");
+        agent.sendUserMessage("old " + "x".repeat(4000));
+        agent.sendUserMessage("middle " + "x".repeat(4000));
+        agent.sendUserMessage("recent");
+
+        var result = agent.compactWithResult("compact");
+
+        assertTrue(result.compacted());
+        assertTrue(agent.messages().stream().anyMatch(
+                                        m -> m instanceof Message.Custom c && c.content().equals("during compaction")),
+                                        "the queued message lands in history the moment the rewrite is done");
+        assertTrue(events.stream().anyMatch(e -> e instanceof AgentEvent.CustomMessage),
+                                        "and its event (which persists it) fires on flush");
     }
 
     /**

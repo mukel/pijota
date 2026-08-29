@@ -15,6 +15,7 @@ import dev.langchain4j.model.chat.response.PartialResponse;
 import dev.langchain4j.model.chat.response.PartialThinking;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.openai.OpenAiTokenUsage;
+import dev.langchain4j.model.output.FinishReason;
 import dev.langchain4j.model.output.TokenUsage;
 import org.junit.jupiter.api.Test;
 
@@ -336,6 +337,17 @@ class LlmServiceTest {
     }
 
     @Test
+    void summarizeReturnsNullWhenTruncated() {
+        var fake = new FakeModel().withContent("half a sum").withFinishReason(FinishReason.LENGTH);
+        var service = serviceWithFake(fake);
+
+        var result = service.summarize(List.of(new Message.User("text")), "summarize", null,
+                                        (ignoredChunk, ignoredType) -> {}, null, null);
+
+        assertNull(result, "a length-stopped summary is partial and must not become a checkpoint");
+    }
+
+    @Test
     void abortDoesNotThrowAndCanBeCalledRepeatedly() {
         var service = serviceWithFake(new FakeModel());
         assertDoesNotThrow(service::abort);
@@ -399,6 +411,7 @@ class LlmServiceTest {
         private final List<String> thinkingDeltas = new ArrayList<>();
         private final List<ToolExecutionRequest> toolCalls = new ArrayList<>();
         private TokenUsage tokenUsage;
+        private FinishReason finishReason;
         private RuntimeException error;
         private long prefillMillis; // held before the first token, so time-to-first-token is measurable
         private final List<FakeRequest> requests = new ArrayList<>();
@@ -420,6 +433,11 @@ class LlmServiceTest {
 
         FakeModel withUsage(TokenUsage usage) {
             this.tokenUsage = usage;
+            return this;
+        }
+
+        FakeModel withFinishReason(FinishReason reason) {
+            this.finishReason = reason;
             return this;
         }
 
@@ -471,6 +489,8 @@ class LlmServiceTest {
             var builder = ChatResponse.builder().aiMessage(ai);
             if (tokenUsage != null)
                 builder.tokenUsage(tokenUsage);
+            if (finishReason != null)
+                builder.finishReason(finishReason);
             handler.onCompleteResponse(builder.build());
         }
     }

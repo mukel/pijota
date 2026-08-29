@@ -52,6 +52,9 @@ public final class AgentLoop implements AgentContext {
     // prompt) concurrently with the turn thread draining them. See sendUserMessage / drainAndProcess.
     private final List<String> steeringMessages = Collections.synchronizedList(new ArrayList<>());
     private final List<String> followUpMessages = Collections.synchronizedList(new ArrayList<>());
+    // Context-only custom messages queued while a turn/compaction owns the history; flushed at the first safe point
+    // (after a turn's tool results, at turn end, when a manual compaction finishes, on settle). See addCustomMessage.
+    private final List<Message.Custom> pendingCustomMessages = new ArrayList<>();
     private final ToolExecutor toolExecutor;
     private final AtomicBoolean aborted = new AtomicBoolean(false);
     /** Consecutive compact-and-retry attempts for one prompt; reset once a request lands. See the overflow path. */
@@ -346,6 +349,9 @@ public final class AgentLoop implements AgentContext {
             return runManualCompaction(instructions);
         } finally {
             compacting.set(false);
+            // A custom message queued while the rewrite owned the history has no turn end to flush it -- this is its
+            // only append-safe point, or it would sit invisible until the next prompt finishes.
+            flushPendingCustomMessages();
         }
     }
 
@@ -414,6 +420,7 @@ public final class AgentLoop implements AgentContext {
             // so event-driven frontends (the web Stop button / busy state) learn the turn ended. The TUI relies on the
             // future below, but the web only learns via this event. Consumers treat TurnEnd idempotently.
             fireEvent(new AgentEvent.TurnEnd(sessionTurn));
+            flushPendingCustomMessages(); // abort is a terminal path too: nothing queued may be lost
             result.complete(history.mutableSnapshot());
         }
     }
@@ -461,8 +468,34 @@ public final class AgentLoop implements AgentContext {
 
     @Override
     public void addCustomMessage(Message.Custom message) {
+        // Mid-turn (or mid-compaction) an immediate append can land between an assistant tool call and its tool
+        // result, and order-validating providers reject that replayed history. Queue until the turn's results are in.
+        if (isBusy()) {
+            synchronized (pendingCustomMessages) {
+                pendingCustomMessages.add(message);
+            }
+            return;
+        }
+        appendCustomMessage(message);
+    }
+
+    private void appendCustomMessage(Message.Custom message) {
         history.add(message);
         fireEvent(new AgentEvent.CustomMessage(message));
+    }
+
+    /**
+     * Appends every queued custom message now that history is append-safe. Never drops one: terminal paths flush too.
+     */
+    private void flushPendingCustomMessages() {
+        List<Message.Custom> pending;
+        synchronized (pendingCustomMessages) {
+            if (pendingCustomMessages.isEmpty())
+                return;
+            pending = List.copyOf(pendingCustomMessages);
+            pendingCustomMessages.clear();
+        }
+        pending.forEach(this::appendCustomMessage);
     }
 
     public void addCompactionAppender(CompactionManager.CompactionAppender appender) {
@@ -557,6 +590,7 @@ public final class AgentLoop implements AgentContext {
             if (!isActive(result))
                 return;
             fireEvent(new AgentEvent.TurnEnd(turn));
+            flushPendingCustomMessages(); // tool results are in: the first append-safe point since the turn started
             runAutoCompaction("auto"); // checkpoint: compact if the next request would not fit
             runLoopRecursive(result, turn + 1);
         }).exceptionally(ex -> {
@@ -600,11 +634,13 @@ public final class AgentLoop implements AgentContext {
     private void runTurn(CompletableFuture<List<Message>> result, int turn) {
         if (aborted.get()) {
             fireEvent(new AgentEvent.Error(new RuntimeException("Aborted")));
+            flushPendingCustomMessages();
             completeTurn(result, history.mutableSnapshot());
             return;
         }
         if (maxTurns > 0 && turn > maxTurns) {
             history.add(new Message.Assistant("[Max turns (" + maxTurns + ") reached. Stopping.]", List.of(), null));
+            flushPendingCustomMessages();
             completeTurn(result, history.mutableSnapshot());
             return;
         }
@@ -697,6 +733,7 @@ public final class AgentLoop implements AgentContext {
     }
 
     private void processFollowUp(CompletableFuture<List<Message>> result, int turn) {
+        flushPendingCustomMessages(); // the turn ended without tool calls; nothing can strand them between call/result
         if (!followUpMessages.isEmpty() && !aborted.get()) {
             drainAndProcess(followUpMessages);
             runLoopRecursive(result, turn + 1);
@@ -751,6 +788,7 @@ public final class AgentLoop implements AgentContext {
             }
         }
         fireEvent(new AgentEvent.Error(new RuntimeException(message)));
+        flushPendingCustomMessages(); // a failed turn must not swallow messages extensions queued while it ran
         activeResult.compareAndSet(result, null);
         result.completeExceptionally(new RuntimeException(message));
     }

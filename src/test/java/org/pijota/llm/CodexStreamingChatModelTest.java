@@ -482,6 +482,16 @@ class CodexStreamingChatModelTest {
     }
 
     @Test
+    void buildRequestBodyOmitsToolChoiceWithoutTools() {
+        var msgs = List.<ChatMessage>of(UserMessage.from("hello"));
+        var request = ChatRequest.builder().messages(msgs).build();
+
+        var body = CodexStreamingChatModel.buildRequestBody(request, "gpt-4", ThinkingLevel.OFF);
+        assertFalse(body.has("tools"));
+        assertFalse(body.has("tool_choice"), "tool_choice without tools is rejected by strict validators");
+    }
+
+    @Test
     void buildRequestBodyAddsReasoningWhenThinkingEnabled() {
         var msgs = List.<ChatMessage>of(UserMessage.from("hello"));
         var request = ChatRequest.builder().messages(msgs).build();

@@ -318,6 +318,9 @@ public final class LlmService implements LlmClient {
                 var u = r.metadata().tokenUsage();
                 if (u != null)
                     result.setUsage(usageFrom(u));
+                var fr = r.metadata().finishReason();
+                if (fr != null)
+                    result.setFinishReason(fr.name());
                 usage.add(result.usage(), ModelRegistry.pricingFor(providerName, modelName));
                 recordSpeed(result.usage());
                 if (cancelRef != null)
@@ -467,6 +470,13 @@ public final class LlmService implements LlmClient {
                                             onPartial != null ? onPartial : (ignoredKind, ignoredDelta) -> {}, null,
                                             (ignoredTool, ignoredChars) -> {}) // a summary has no tool calls to report
                                             .get(120, TimeUnit.SECONDS);
+            // A length stop means the text is partial, and a partial summary persisted as the session checkpoint
+            // silently drops the middle of the conversation. Refuse it: returning null falls back to the complete
+            // (crude) heuristic summary, which is lossy but never half a sentence.
+            if (result.lengthLimited()) {
+                log.warn("Summarization hit the output token cap; refusing the truncated summary");
+                return null;
+            }
             return result.content() != null ? new SummaryResult(result.content().strip(), result.usage()) : null;
         } catch (TimeoutException e) {
             log.warn("Summarization timed out after 120s", e);

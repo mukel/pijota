@@ -6,14 +6,16 @@ import org.pijota.messages.Usage;
 import java.util.List;
 
 /**
- * Accumulates one streamed response: content, thinking, tool calls and usage arrive in pieces and are read as a whole
- * once the stream ends.
+ * Accumulates one streamed response: content, thinking, tool calls, usage and the finish reason arrive in pieces and
+ * are read as a whole once the stream ends.
  */
 public final class StreamResult {
     private final StringBuilder contentBuilder = new StringBuilder();
     private final StringBuilder thinkingBuilder = new StringBuilder();
     private List<ToolCall> toolCalls;
     private Usage usage;
+    // Provider stop reason ("STOP", "LENGTH", …); null when the provider did not report one.
+    private String finishReason;
 
     public void appendContent(String text) {
         if (text != null) {
@@ -61,5 +63,14 @@ public final class StreamResult {
 
     public Usage usage() {
         return usage;
+    }
+
+    public void setFinishReason(String finishReason) {
+        this.finishReason = finishReason;
+    }
+
+    /** True when the model stopped because it hit the output cap: whatever content arrived is partial. */
+    public boolean lengthLimited() {
+        return "LENGTH".equals(finishReason);
     }
 }

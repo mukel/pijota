@@ -130,7 +130,6 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         body.set("input", inputMessages(request.messages()));
         body.set("text", Util.MAPPER.createObjectNode().put("verbosity", "low"));
         body.set("include", Util.MAPPER.createArrayNode().add("reasoning.encrypted_content"));
-        body.put("tool_choice", "auto");
         body.put("parallel_tool_calls", true);
         if (level != ThinkingLevel.OFF) {
             body.set("reasoning", Util.MAPPER.createObjectNode().put("effort", codexThinkingLevel(level)).put("summary",
@@ -138,6 +137,9 @@ final class CodexStreamingChatModel implements StreamingChatModel {
         }
         if (request.toolSpecifications() != null && !request.toolSpecifications().isEmpty()) {
             body.set("tools", tools(request.toolSpecifications()));
+            // tool_choice without tools is a contradiction strict validators reject (and a summarization request is
+            // always tool-less), so it only rides along when there are tools to choose from.
+            body.put("tool_choice", "auto");
         }
         return body;
     }
