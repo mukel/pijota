@@ -1,6 +1,6 @@
 # Models
 
-60 models in the catalog, with context window and price. Any other id is sent verbatim.
+62 models in the catalog, with context window and price. Any other id is sent verbatim.
 
 ## Choosing
 

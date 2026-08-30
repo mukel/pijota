@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.2.2
+
+7 commits since v0.2.1: 4 fixes, 3 features. A small release with one theme: the messages
+the agent sends now survive order-validating providers, and compaction no longer persists a
+checkpoint it cannot stand behind.
+
+### Features
+
+- **The browser picks its own headless mode.** When no display is available the browser
+  session goes headless on its own instead of failing to launch.
+- **Extensions can declare auxiliary boolean flags.** An extension's `--flag` no longer needs
+  a value; it is a switch.
+- **GLM 5.3 and 5.3 Flash joined the catalog** on Fireworks, both with a 1M context window;
+  Flash is multimodal at a tenth of the price.
+
+### Fixes worth naming
+
+- **A dangling `tool_choice` no longer breaks tool-less requests.** Summarization and other
+  side requests sent a leftover `tool_choice` that strict validators reject.
+- **Compaction refuses a length-stopped summary** instead of persisting a truncated one as
+  the session checkpoint; the finish reason is plumbed through `StreamResult`.
+- **Injected messages wait for an append-safe point.** A custom message arriving mid-turn or
+  mid-compaction used to land between a tool call and its result, which order-validating
+  providers reject on replay; it now queues and flushes after tool results, at turn end, at
+  compaction end, or when the agent settles.
+- **Overlapping history rewrites are refused.** `/compact` and `/undo` can no longer rewrite
+  the same history at the same time.
+- **Job completion notices are delivered, not queued** behind whatever the agent is doing,
+  and the web composer's multiline layout no longer wastes its rows.
+
 ## v0.2.1
 
 125 commits since v0.2.0: 50 fixes, 10 features. The theme of the release is that the
