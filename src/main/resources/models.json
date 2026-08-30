@@ -414,6 +414,29 @@
       ]
     },
     {
+      "id": "accounts/fireworks/models/glm-5p3",
+      "provider": "fireworks",
+      "displayName": "GLM 5.3",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 1.4,
+      "outputCostPerMTok": 4.4,
+      "input": [
+        "text"
+      ]
+    },
+    {
+      "id": "accounts/fireworks/models/glm-5p3-flash",
+      "provider": "fireworks",
+      "displayName": "GLM 5.3 Flash",
+      "contextWindow": 1048576,
+      "inputCostPerMTok": 0.15,
+      "outputCostPerMTok": 0.5,
+      "input": [
+        "text",
+        "image"
+      ]
+    },
+    {
       "id": "k3",
       "provider": "kimi-coding",
       "displayName": "Kimi K3",
