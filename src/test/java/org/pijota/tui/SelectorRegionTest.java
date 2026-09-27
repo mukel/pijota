@@ -179,9 +179,11 @@ class SelectorRegionTest {
         var region = new SelectorRegion<>(selector);
 
         String footer = compose(region).rows().getLast();
-        assertTrue(footer.contains("Ctrl+D delete"), AnsiStripper.strip(footer));
         String plain = AnsiStripper.strip(footer);
-        assertTrue(plain.indexOf("Ctrl+D delete") < plain.indexOf("type to search"),
+        // Ctrl renders as ⌃ on macOS (Keys.label), spelled out everywhere else -- either is correct.
+        assertTrue(plain.contains("Ctrl+D delete") || plain.contains("⌃D delete"), plain);
+        int hintIndex = plain.contains("Ctrl+D delete") ? plain.indexOf("Ctrl+D delete") : plain.indexOf("⌃D delete");
+        assertTrue(hintIndex < plain.indexOf("type to search"),
                                         "the extra chip goes before the most droppable one: " + plain);
     }
 

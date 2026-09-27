@@ -28,10 +28,11 @@ class HelpOverlayTest {
 
         assertTrue(out.contains("/model"), out);
         assertTrue(out.contains("keyboard shortcuts"), out);
-        assertTrue(out.contains("Shift+Tab") && out.contains("toggle thinking"), out);
-        assertTrue(out.contains("Ctrl+_") && out.contains("undo"), out);
+        // Ctrl/Alt/Shift render as ⌃/⌥/⇧ on macOS (Keys.label), spelled out everywhere else -- either is correct.
+        assertTrue((out.contains("Shift+Tab") || out.contains("⇧Tab")) && out.contains("toggle thinking"), out);
+        assertTrue((out.contains("Ctrl+_") || out.contains("⌃_")) && out.contains("undo"), out);
         assertTrue(out.contains("press / to search"), out);
-        assertTrue(out.contains("Ctrl+P"), out);
+        assertTrue(out.contains("Ctrl+P") || out.contains("⌃P"), out);
     }
 
     @Test
