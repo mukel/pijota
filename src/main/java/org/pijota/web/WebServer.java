@@ -166,6 +166,16 @@ public final class WebServer implements AutoCloseable {
         return ui;
     }
 
+    /**
+     * The port actually bound, valid only after {@link #start()}. Equal to the constructor's {@code port} unless that
+     * was {@code 0}, in which case this is whichever free port the OS assigned -- letting a caller (tests, chiefly)
+     * bind an ephemeral port atomically instead of probing one beforehand and racing everything else on the machine for
+     * it between the probe and the real bind.
+     */
+    public int boundPort() {
+        return http.getAddress().getPort();
+    }
+
     public void start() throws IOException {
         http = HttpServer.create(new InetSocketAddress(host, port), 0);
         // Auth is gated centrally (secured) so it's structural. A new route can't accidentally ship unauthenticated.
@@ -186,7 +196,7 @@ public final class WebServer implements AutoCloseable {
         http.start();
         session.addEventListener(eventListener); // attach only once serving, so a bind failure leaves no dangling
                                                  // listener
-        log.info("web ui on http://{}:{}", host, port);
+        log.info("web ui on http://{}:{}", host, boundPort());
     }
 
     /** Wraps a periodic task so a thrown error is logged, never propagated (which would cancel its schedule). */

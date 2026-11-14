@@ -14,7 +14,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.CookieManager;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -51,10 +50,11 @@ class WebServerTest {
 
     private void withServer(ServerTest body) throws Exception {
         var ts = TestSession.in(tempDir).build();
-        int port = freePort();
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of())) {
+        // Port 0: the OS assigns a free one atomically at bind time, so there's no probe-then-rebind gap for
+        // anything else on the machine to race into.
+        try (var server = new WebServer(ts.session(), "127.0.0.1", 0, ts.llm(), List::of, List.of())) {
             server.start();
-            body.run(ts, HttpClient.newHttpClient(), "http://127.0.0.1:" + port);
+            body.run(ts, HttpClient.newHttpClient(), "http://127.0.0.1:" + server.boundPort());
         }
     }
 
@@ -190,12 +190,11 @@ class WebServerTest {
     @Test
     void pairingServesThePageDirectlyAndPinsTheCookie() throws Exception {
         var ts = TestSession.in(tempDir).build();
-        int port = freePort();
         String token = "secret-pairing-xyz";
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of(), token)) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", 0, ts.llm(), List::of, List.of(), token)) {
             server.start();
             var client = HttpClient.newBuilder().cookieHandler(new CookieManager()).build();
-            String base = "http://127.0.0.1:" + port;
+            String base = "http://127.0.0.1:" + server.boundPort();
 
             // the QR opens /?t=<token>: page is served directly (no redirect, robust across mobile browsers) and the
             // cookie is pinned. (The SPA strips ?t= from the address bar client-side via history.replaceState.)
@@ -225,12 +224,11 @@ class WebServerTest {
     @Test
     void commandsEndpointIsTokenGated() throws Exception {
         var ts = TestSession.in(tempDir).build();
-        int port = freePort();
         String token = "secret-pairing-xyz";
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of(), token)) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", 0, ts.llm(), List::of, List.of(), token)) {
             server.start();
             var client = HttpClient.newHttpClient();
-            String base = "http://127.0.0.1:" + port;
+            String base = "http://127.0.0.1:" + server.boundPort();
 
             var denied = client.send(HttpRequest.newBuilder(URI.create(base + "/commands")).build(),
                                             HttpResponse.BodyHandlers.ofString());
@@ -374,12 +372,11 @@ class WebServerTest {
     @Test
     void tokenGateRejectsWithoutTokenAndAcceptsWithIt() throws Exception {
         var ts = TestSession.in(tempDir).build();
-        int port = freePort();
         String token = "secret-pairing-xyz";
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of(), token)) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", 0, ts.llm(), List::of, List.of(), token)) {
             server.start();
             var client = HttpClient.newHttpClient();
-            String base = "http://127.0.0.1:" + port;
+            String base = "http://127.0.0.1:" + server.boundPort();
 
             var denied = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
                                             HttpResponse.BodyHandlers.ofString());
@@ -396,12 +393,11 @@ class WebServerTest {
     @Test
     void tokenGateAcceptsTheCookieRejectsWrongTokensAndGatesPosts() throws Exception {
         var ts = TestSession.in(tempDir).build();
-        int port = freePort();
         String token = "secret-pairing-xyz";
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of(), token)) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", 0, ts.llm(), List::of, List.of(), token)) {
             server.start();
             var client = HttpClient.newHttpClient();
-            String base = "http://127.0.0.1:" + port;
+            String base = "http://127.0.0.1:" + server.boundPort();
 
             var wrongQuery = client.send(HttpRequest.newBuilder(URI.create(base + "/?t=nope")).build(),
                                             HttpResponse.BodyHandlers.ofString());
@@ -506,15 +502,15 @@ class WebServerTest {
     @Test
     void historyFrameReplaysAPriorTurnsMessages() throws Exception {
         var ts = TestSession.in(tempDir).tool(echoTool()).build();
-        int port = freePort();
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of())) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", 0, ts.llm(), List::of, List.of())) {
             server.start();
             ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "echo", "{\"text\":\"hi\"}")))
                                             .enqueue(FauxLlm.Response.contentWithUsage("the answer"));
             ts.session().prompt("the question", List.of()).get(5, TimeUnit.SECONDS);
 
             var client = HttpClient.newHttpClient();
-            var resp = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/events")).build(),
+            var resp = client.send(HttpRequest.newBuilder(
+                                            URI.create("http://127.0.0.1:" + server.boundPort() + "/events")).build(),
                                             HttpResponse.BodyHandlers.ofInputStream());
             String frames = readUntil(resp.body(), "event: history", Duration.ofSeconds(5));
             assertTrue(frames.contains("the question"), "user message replayed: " + frames);
@@ -525,11 +521,10 @@ class WebServerTest {
     @Test
     void toolCallEventsReachTheBrowserOverSse() throws Exception {
         var ts = TestSession.in(tempDir).tool(echoTool()).build();
-        int port = freePort();
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of())) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", 0, ts.llm(), List::of, List.of())) {
             server.start();
             var client = HttpClient.newHttpClient();
-            String base = "http://127.0.0.1:" + port;
+            String base = "http://127.0.0.1:" + server.boundPort();
             ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "echo", "{\"text\":\"hi\"}")))
                                             .enqueue(FauxLlm.Response.contentWithUsage("done"));
             var events = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
@@ -546,11 +541,10 @@ class WebServerTest {
     @Test
     void bashExecutionUpdateEventsReachTheBrowserOverSse() throws Exception {
         var ts = TestSession.in(tempDir).tool(progressBashTool()).build();
-        int port = freePort();
-        try (var server = new WebServer(ts.session(), "127.0.0.1", port, ts.llm(), List::of, List.of())) {
+        try (var server = new WebServer(ts.session(), "127.0.0.1", 0, ts.llm(), List::of, List.of())) {
             server.start();
             var client = HttpClient.newHttpClient();
-            String base = "http://127.0.0.1:" + port;
+            String base = "http://127.0.0.1:" + server.boundPort();
             ts.llm().enqueue(FauxLlm.Response.toolCall(new ToolCall("t1", "bash", "{\"command\":\"echo hi\"}")))
                                             .enqueue(FauxLlm.Response.contentWithUsage("done"));
             var events = client.send(HttpRequest.newBuilder(URI.create(base + "/events")).build(),
@@ -680,12 +674,6 @@ class WebServerTest {
             return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             return ""; // marker never arrived; caller asserts
-        }
-    }
-
-    private static int freePort() throws IOException {
-        try (var socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
         }
     }
 
