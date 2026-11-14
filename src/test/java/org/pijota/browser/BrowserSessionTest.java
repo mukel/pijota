@@ -1,7 +1,5 @@
 package org.pijota.browser;
 
-import org.pijota.util.Executables;
-
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.Assumptions;
@@ -71,10 +69,13 @@ class BrowserSessionTest {
 
     @Test
     void findChromeReturnsNullWhenNoCandidateResolves() {
-        Assumptions.assumeFalse(Executables.anyAvailable(List.of("google-chrome-stable", "google-chrome", "chromium",
-                                        "chrome", "msedge")),
-                                        "chrome is installed, so the not-found path can't be exercised here");
-        assertNull(CdpBackend.findChrome(null), "no chrome anywhere → null");
+        // Ask findChrome itself rather than hand-duplicating its candidate list here: that list is OS-specific and
+        // includes absolute install paths (e.g. /Applications/Google Chrome.app/... on macOS), so a partial,
+        // hand-maintained name list drifts and wrongly assumes "not installed" on a machine where it plainly is.
+        Path found = CdpBackend.findChrome(null);
+        Assumptions.assumeTrue(found == null, "chrome is installed at " + found
+                                        + ", so the not-found path can't be exercised here");
+        assertNull(found, "no chrome anywhere → null");
     }
 
     @Test

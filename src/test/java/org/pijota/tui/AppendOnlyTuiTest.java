@@ -36,19 +36,15 @@ class AppendOnlyTuiTest {
     @Test
     void collapseStatusLinesCapsWithAffordanceOrShowsAll() {
         var five = List.of("a", "b", "c", "d", "e");
-        assertEquals(List.of("a", "b", "c", "… 2 more · Ctrl+O to expand"), AppendOnlyTui.collapse(five, false, 3)); // collapsed
-                                                                                                                     // →
-                                                                                                                     // first
-                                                                                                                     // 3
-                                                                                                                     // +
-                                                                                                                     // expand
-                                                                                                                     // hint
-        assertEquals(List.of("a", "b", "c", "d", "e", "… Ctrl+O to collapse"), AppendOnlyTui.collapse(five, true, 3)); // expanded
-                                                                                                                       // →
-                                                                                                                       // all
-                                                                                                                       // +
-                                                                                                                       // collapse
-                                                                                                                       // hint
+        // Ctrl renders as ⌃ on macOS (Keys.label), spelled out everywhere else -- either is correct.
+        var collapsed = AppendOnlyTui.collapse(five, false, 3); // collapsed → first 3 + expand hint
+        assertTrue(collapsed.equals(List.of("a", "b", "c", "… 2 more · Ctrl+O to expand"))
+                                        || collapsed.equals(List.of("a", "b", "c", "… 2 more · ⌃O to expand")),
+                                        collapsed.toString());
+        var expanded = AppendOnlyTui.collapse(five, true, 3); // expanded → all + collapse hint
+        assertTrue(expanded.equals(List.of("a", "b", "c", "d", "e", "… Ctrl+O to collapse"))
+                                        || expanded.equals(List.of("a", "b", "c", "d", "e", "… ⌃O to collapse")),
+                                        expanded.toString());
         assertEquals(List.of("a", "b"), AppendOnlyTui.collapse(List.of("a", "b"), false, 3)); // under cap → untouched
         assertEquals(List.of("a", "b"), AppendOnlyTui.collapse(List.of("a", "b"), true, 3));
     }
